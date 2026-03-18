@@ -1,0 +1,156 @@
+// src/app/login/page.tsx
+"use client";
+
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Field } from "@/components/Field";
+import { getAuth, setAuth, type City, type StaffRole } from "@/lib/auth";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+
+/**
+ * Verify PIN via API and return role.
+ * - If API_BASE is empty, it will call same-origin (/api/auth/verify).
+ */
+async function verifyRole(staffName: string, pin: string): Promise<StaffRole> {
+  const qs = new URLSearchParams({ staff_name: staffName, pin }).toString();
+  const url = `${API_BASE}/api/auth/verify?${qs}`;
+
+  const res = await fetch(url, { method: "POST" });
+  const text = await res.text();
+
+  if (!res.ok) {
+    // FastAPI: {"detail": "..."}
+    try {
+      const j = JSON.parse(text);
+      throw new Error(j?.detail || text);
+    } catch {
+      throw new Error(text || `verify failed: ${res.status}`);
+    }
+  }
+
+  const j = text ? JSON.parse(text) : {};
+  return (j?.role as StaffRole) || "STAFF";
+}
+
+function LoginInner() {
+  const router = useRouter();
+  const sp = useSearchParams();
+
+  const [city, setCity] = useState<City>("dubai");
+  const [staffName, setStaffName] = useState("");
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const a = getAuth();
+    if (a) router.replace("/week");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const submit = async () => {
+    setError("");
+    setLoading(true);
+
+    try {
+      const name = staffName.trim();
+      const p = pin.trim();
+
+      if (!name) throw new Error("Name is required.");
+      if (!p) throw new Error("PIN is required.");
+      if (p.length < 4) throw new Error("PIN must be at least 4 digits.");
+
+      // ✅ verify role from API
+      const role = await verifyRole(name, p);
+
+      // ✅ store auth (localStorage)
+      setAuth({
+        staffName: name,
+        city,
+        role,
+      });
+
+      // middleware helper cookie (PIN is NOT stored)
+      document.cookie = "sushizen_authed=1; path=/; max-age=31536000";
+
+      const next = sp.get("next");
+      router.replace(next || "/week");
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 p-5">
+        <div className="mb-2 text-lg font-semibold">Login</div>
+
+        <div className="text-sm text-neutral-400">
+          Enter your <span className="text-neutral-200 font-medium">exact name</span> (as in the shift sheet) and your PIN.
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Field label="City">
+            <select
+              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              value={city}
+              onChange={(e) => setCity(e.target.value as City)}
+            >
+              <option value="dubai">Dubai</option>
+              <option value="manila">Manila</option>
+            </select>
+          </Field>
+
+          <Field label="Your name" hint="Exact spelling as in shift sheet">
+            <input
+              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              value={staffName}
+              onChange={(e) => setStaffName(e.target.value)}
+              placeholder="e.g., Muskan Tamang"
+              autoComplete="name"
+            />
+          </Field>
+
+          <Field label="PIN" hint="4+ digits">
+            <input
+              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              placeholder="••••"
+              type="password"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+            />
+          </Field>
+        </div>
+
+        <div className="mt-5 flex items-center gap-3">
+          <button
+            onClick={submit}
+            disabled={loading}
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm hover:bg-neutral-900 disabled:opacity-50"
+          >
+            {loading ? "Checking..." : "Save & Continue"}
+          </button>
+
+          {error ? <div className="text-sm text-red-300">{error}</div> : null}
+        </div>
+
+        <div className="mt-4 text-xs text-neutral-500">
+          PIN is verified by the API. Auth is stored on this device only (localStorage).
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-neutral-400">Loading...</div>}>
+      <LoginInner />
+    </Suspense>
+  );
+}
