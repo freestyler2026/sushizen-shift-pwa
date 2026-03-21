@@ -128,6 +128,17 @@ type PosBranchOrderRow = {
 
 type PosBranchOrderResp = { ok: boolean; items: PosBranchOrderRow[] };
 
+type PosBranchDailyRow = {
+  work_date: string;
+  city: string;
+  branch_name: string;
+  order_count_non_cancelled: number;
+  gross_revenue: number;
+  net_revenue: number;
+};
+
+type PosBranchDailyResp = { ok: boolean; items: PosBranchDailyRow[] };
+
 type ComparisonItem = {
   work_date: string;
   city?: string | null;
@@ -217,6 +228,22 @@ function branchBadgeClass(branch: string) {
   return "border-neutral-800 bg-neutral-950/40 text-neutral-200";
 }
 
+function mapStoreToBranchCode(raw: string) {
+  const x = (raw || "").toLowerCase();
+  if (x.includes("business bay")) return "BB";
+  if (x.includes("jlt")) return "JLT";
+  if (x.includes("arjan")) return "ARJ";
+  if (x.includes("barsha")) return "AB";
+  if (x.includes("motor city")) return "MC";
+  if (x.includes("mina") || x.includes("hudaiba") || x.includes("wasl")) return "AM";
+  if (x.includes("sharjah")) return "SH";
+  if (x.includes("paranaque") || x.includes("parañaque")) return "PAR";
+  if (x.includes("taft")) return "TAFT";
+  if (x.includes("cubao")) return "CUBAO";
+  if (x.includes("central kitchen")) return "CK";
+  return "";
+}
+
 function absenceBadgeClass(t: string) {
   const x = (t || "").trim().toUpperCase();
   if (x === "DAY_OFF") return "border-amber-900/40 bg-amber-950/10 text-amber-200";
@@ -270,6 +297,14 @@ function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
 function fmtMinutes(v?: number | null) {
   if (v == null) return "-";
   return `${v} min`;
+}
+
+function median(nums: number[]) {
+  if (!nums.length) return 0;
+  const arr = [...nums].sort((a, b) => a - b);
+  const mid = Math.floor(arr.length / 2);
+  if (arr.length % 2 === 0) return (arr[mid - 1] + arr[mid]) / 2;
+  return arr[mid];
 }
 
 function safeStaffName(row: ComparisonItem) {
@@ -373,6 +408,8 @@ export default function AdminAnalyticsPage() {
   const [posSalesRows, setPosSalesRows] = useState<PosSalesDailyRow[]>([]);
   const [posMenuRankingRows, setPosMenuRankingRows] = useState<PosMenuRankingRow[]>([]);
   const [posBranchOrderRows, setPosBranchOrderRows] = useState<PosBranchOrderRow[]>([]);
+  const [posBranchDailyRows, setPosBranchDailyRows] = useState<PosBranchDailyRow[]>([]);
+  const [salesComparisonRows, setSalesComparisonRows] = useState<ComparisonItem[]>([]);
   const [salesSyncing, setSalesSyncing] = useState(false);
   const [salesSyncMessage, setSalesSyncMessage] = useState("");
 
@@ -462,7 +499,16 @@ export default function AdminAnalyticsPage() {
         pin: pin.trim(),
       });
 
-      const [daily, weekday, staff, absence, dubaiCity, manilaCity, posDaily, posRanking, posBranches] = await Promise.all([
+      const salesComparisonQs = new URLSearchParams({
+        city: city === "dubai" ? "Dubai" : "Manila",
+        date_from: summaryDateFrom,
+        date_to: summaryDateTo,
+        limit: "5000",
+        approver_name: approverName.trim(),
+        pin: pin.trim(),
+      });
+
+      const [daily, weekday, staff, absence, dubaiCity, manilaCity, posDaily, posRanking, posBranches, posBranchesDaily, salesComparison] = await Promise.all([
         apiGet<BranchDailyResp>(`/api/admin/analytics/branch_daily_hours?${common.toString()}`),
         apiGet<BranchWeekdayResp>(`/api/admin/analytics/branch_weekday_avg_hours?${common.toString()}`),
         apiGet<StaffSummaryResp>(`/api/admin/analytics/staff_work_summary?${staffQs.toString()}`),
@@ -476,6 +522,8 @@ export default function AdminAnalyticsPage() {
         apiGet<PosSalesDailyResp>(`/api/admin/pos/sales/daily?${posDailyQs.toString()}`),
         apiGet<PosMenuRankingResp>(`/api/admin/pos/items/ranking?${posRankingQs.toString()}`),
         apiGet<PosBranchOrderResp>(`/api/admin/pos/branches/orders?${posRankingQs.toString()}`),
+        apiGet<PosBranchDailyResp>(`/api/admin/pos/branches/daily?${posDailyQs.toString()}`),
+        apiGet<ComparisonResp>(`/api/admin/attendance/comparison?${salesComparisonQs.toString()}`),
       ]);
 
       setBranchDailyRows(daily.rows || []);
@@ -487,6 +535,8 @@ export default function AdminAnalyticsPage() {
       setPosSalesRows(posDaily.items || []);
       setPosMenuRankingRows(posRanking.items || []);
       setPosBranchOrderRows(posBranches.items || []);
+      setPosBranchDailyRows(posBranchesDaily.items || []);
+      setSalesComparisonRows(Array.isArray(salesComparison?.items) ? salesComparison.items : []);
     } catch (e: any) {
       setError(String(e?.message || e || "Failed to load summary analytics"));
       setBranchDailyRows([]);
@@ -498,6 +548,8 @@ export default function AdminAnalyticsPage() {
       setPosSalesRows([]);
       setPosMenuRankingRows([]);
       setPosBranchOrderRows([]);
+      setPosBranchDailyRows([]);
+      setSalesComparisonRows([]);
     } finally {
       setLoading(false);
     }
@@ -993,6 +1045,153 @@ export default function AdminAnalyticsPage() {
       dayCount: posSalesRows.length,
     };
   }, [posSalesRows]);
+
+  const salesOpsInsights = useMemo(() => {
+    const laborByDayBranch = new Map<string, { hours: number; staff: number }>();
+    for (const r of branchDailyRows) {
+      const code = (r.branch_code || "").toUpperCase();
+      if (!code || !r.work_date) continue;
+      laborByDayBranch.set(`${r.work_date}|${code}`, {
+        hours: Number(r.total_hours || 0),
+        staff: Number(r.staff_count || 0),
+      });
+    }
+
+    const byBranch = new Map<
+      string,
+      { net: number; gross: number; orders: number; labor: number; staff: number; days: Set<string> }
+    >();
+    const dailyJoined: Array<{ branch: string; work_date: string; splh: number }> = [];
+
+    for (const r of posBranchDailyRows) {
+      const code = mapStoreToBranchCode(r.branch_name || "");
+      if (!code || !r.work_date) continue;
+      const labor = laborByDayBranch.get(`${r.work_date}|${code}`);
+      const cur = byBranch.get(code) || {
+        net: 0,
+        gross: 0,
+        orders: 0,
+        labor: 0,
+        staff: 0,
+        days: new Set<string>(),
+      };
+      cur.net += Number(r.net_revenue || 0);
+      cur.gross += Number(r.gross_revenue || 0);
+      cur.orders += Number(r.order_count_non_cancelled || 0);
+      if (labor) {
+        cur.labor += Number(labor.hours || 0);
+        cur.staff += Number(labor.staff || 0);
+        if (labor.hours > 0) {
+          dailyJoined.push({
+            branch: code,
+            work_date: r.work_date,
+            splh: Number(r.net_revenue || 0) / Number(labor.hours || 1),
+          });
+        }
+      }
+      cur.days.add(r.work_date);
+      byBranch.set(code, cur);
+    }
+
+    const branchRows = Array.from(byBranch.entries()).map(([branch, v]) => ({
+      branch,
+      net: v.net,
+      gross: v.gross,
+      orders: v.orders,
+      labor: v.labor,
+      avgStaff: v.days.size ? v.staff / v.days.size : 0,
+      salesPerLabor: v.labor > 0 ? v.net / v.labor : 0,
+    }));
+
+    const insights: string[] = [];
+    if (!branchRows.length) return insights;
+
+    const netSorted = [...branchRows].sort((a, b) => b.net - a.net);
+    const splhMedian = median(branchRows.map((x) => x.salesPerLabor));
+    const topNet = netSorted[0];
+    if (topNet && topNet.salesPerLabor > 0 && topNet.salesPerLabor < splhMedian) {
+      insights.push(
+        `${topNet.branch} は売上規模は大きい一方で、labor hour あたり売上が全体中央値を下回っています。`
+      );
+    }
+
+    const staffMedian = median(branchRows.map((x) => x.avgStaff));
+    const lowNetThreshold = median(branchRows.map((x) => x.net));
+    const understaffed = branchRows
+      .filter((x) => x.net >= lowNetThreshold && x.avgStaff > 0 && x.avgStaff < staffMedian)
+      .sort((a, b) => b.net - a.net)[0];
+    if (understaffed) {
+      insights.push(
+        `${understaffed.branch} は売上が高いのに平均稼働人数が低く、人員不足リスクがあります。`
+      );
+    }
+
+    const overstaffed = branchRows
+      .filter((x) => x.net < lowNetThreshold && x.avgStaff > staffMedian)
+      .sort((a, b) => a.net - b.net)[0];
+    if (overstaffed) {
+      insights.push(
+        `${overstaffed.branch} は売上が低い期間で人員が厚く、過配置の可能性があります。`
+      );
+    }
+
+    const lateByDayBranch = new Map<string, number>();
+    for (const r of salesComparisonRows) {
+      const code = (r.scheduled_branch_code || r.attendance_branch_code || "").toUpperCase();
+      if (!code || !r.work_date) continue;
+      if (effectiveLateMinutes(r) <= 0) continue;
+      const key = `${r.work_date}|${code}`;
+      lateByDayBranch.set(key, (lateByDayBranch.get(key) || 0) + 1);
+    }
+
+    let worstLateBranch = "";
+    let worstLateDrop = 0;
+    for (const branch of new Set(dailyJoined.map((x) => x.branch))) {
+      const lateDays: number[] = [];
+      const normalDays: number[] = [];
+      for (const d of dailyJoined.filter((x) => x.branch === branch)) {
+        const lateCount = lateByDayBranch.get(`${d.work_date}|${branch}`) || 0;
+        if (lateCount > 0) lateDays.push(d.splh);
+        else normalDays.push(d.splh);
+      }
+      if (!lateDays.length || !normalDays.length) continue;
+      const lateAvg = lateDays.reduce((a, b) => a + b, 0) / lateDays.length;
+      const normalAvg = normalDays.reduce((a, b) => a + b, 0) / normalDays.length;
+      if (normalAvg <= 0) continue;
+      const dropPct = ((normalAvg - lateAvg) / normalAvg) * 100;
+      if (dropPct > worstLateDrop) {
+        worstLateDrop = dropPct;
+        worstLateBranch = branch;
+      }
+    }
+    if (worstLateBranch && worstLateDrop > 0) {
+      insights.push(
+        `${worstLateBranch} は遅刻が出た日の売上効率が通常日より約 ${worstLateDrop.toFixed(1)}% 低下しています。`
+      );
+    }
+
+    const noShowDates = new Set(
+      salesComparisonRows.filter((x) => x.no_show).map((x) => x.work_date).filter(Boolean)
+    );
+    if (noShowDates.size > 0 && posSalesRows.length > 0) {
+      const withNoShow = posSalesRows
+        .filter((x) => noShowDates.has(x.work_date))
+        .map((x) => Number(x.net_revenue || 0));
+      const withoutNoShow = posSalesRows
+        .filter((x) => !noShowDates.has(x.work_date))
+        .map((x) => Number(x.net_revenue || 0));
+      if (withNoShow.length > 0 && withoutNoShow.length > 0) {
+        const a = withNoShow.reduce((s, v) => s + v, 0) / withNoShow.length;
+        const b = withoutNoShow.reduce((s, v) => s + v, 0) / withoutNoShow.length;
+        if (b > 0) {
+          const drop = ((b - a) / b) * 100;
+          insights.push(`no-show があった日の平均売上は、通常日比で約 ${drop.toFixed(1)}% 変動しています。`);
+        }
+      }
+    }
+
+    return insights;
+  }, [branchDailyRows, posBranchDailyRows, salesComparisonRows, posSalesRows]);
 
   const sortedBranchTotals = useMemo(() => {
     const rows = [...branchTotals];
@@ -1862,6 +2061,29 @@ export default function AdminAnalyticsPage() {
             </div>
 
             <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+              <div className="text-sm font-semibold">Sales x Attendance Operational Insights</div>
+              <div className="mt-1 text-xs text-neutral-500">
+                Sales period and attendance period are aligned to the same Summary range.
+              </div>
+              <div className="mt-3 space-y-2">
+                {salesOpsInsights.length ? (
+                  salesOpsInsights.map((msg, idx) => (
+                    <div
+                      key={`${idx}-${msg}`}
+                      className="rounded-xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-neutral-200"
+                    >
+                      - {msg}
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 px-3 py-3 text-sm text-neutral-500">
+                    Not enough joined data yet for operational insights.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div className="text-sm font-semibold">Top Menu Ranking (By Quantity)</div>
                 <button
@@ -1992,6 +2214,7 @@ export default function AdminAnalyticsPage() {
           </div>
           )}
 
+          {analyticsTab === "staff" ? (
           <div className="mt-8 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -2067,7 +2290,9 @@ export default function AdminAnalyticsPage() {
               </div>
             </div>
           </div>
+          ) : null}
 
+          {analyticsTab === "staff" ? (
           <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-6">
             <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
               <div className="text-xs text-neutral-500">Total Hours</div>
@@ -2101,6 +2326,7 @@ export default function AdminAnalyticsPage() {
               <div className="mt-2 text-sm text-neutral-400">{summary.topAbsenceRows} rows</div>
             </div>
           </div>
+          ) : null}
 
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-5">
             <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
