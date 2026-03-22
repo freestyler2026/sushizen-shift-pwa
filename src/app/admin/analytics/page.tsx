@@ -208,6 +208,38 @@ type HourlySalesAnalyticsResp = {
   peak_hour?: HourlySalesAnalyticsRow | null;
 };
 
+type OperationTimeRow = {
+  work_date: string;
+  overall_completion_minutes: number | null;
+  overall_change_pct: number | null;
+  acknowledging_seconds: number | null;
+  acknowledging_change_pct: number | null;
+  preparing_minutes: number | null;
+  preparing_change_pct: number | null;
+  dispatching_minutes: number | null;
+  dispatching_change_pct: number | null;
+  delivering_minutes: number | null;
+  delivering_change_pct: number | null;
+  source_file_name: string;
+};
+
+type OperationTimeResp = {
+  ok: boolean;
+  city: string;
+  date_from: string;
+  date_to: string;
+  items: OperationTimeRow[];
+  summary?: {
+    day_count: number;
+    avg_overall_completion_minutes?: number | null;
+    avg_acknowledging_seconds?: number | null;
+    avg_preparing_minutes?: number | null;
+    avg_dispatching_minutes?: number | null;
+    avg_delivering_minutes?: number | null;
+  };
+  latest?: OperationTimeRow | null;
+};
+
 type PayrollStaffRow = {
   month_key: string;
   city: string;
@@ -430,6 +462,7 @@ function scrollToSection(id: string) {
 const SALES_SECTION_OPTIONS = [
   { value: "summary", label: "Summary", id: "sales-summary" },
   { value: "hourly", label: "Hourly", id: "sales-hourly" },
+  { value: "operationTime", label: "Op Time", id: "sales-operation-time" },
   { value: "brands", label: "Brands", id: "sales-brands" },
   { value: "productMix", label: "Product Mix", id: "sales-product-mix" },
   { value: "menu", label: "Menu", id: "sales-menu" },
@@ -440,6 +473,16 @@ const SALES_SECTION_OPTIONS = [
 function formatPct(value: number, digits = 2) {
   if (!Number.isFinite(value)) return "—";
   return `${value.toFixed(digits)}%`;
+}
+
+function formatMinutes(value: number | null | undefined, digits = 1) {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return `${formatDecimal(Number(value), digits)} min`;
+}
+
+function formatSeconds(value: number | null | undefined, digits = 1) {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return `${formatDecimal(Number(value), digits)} sec`;
 }
 
 /** Previous calendar month (local date), e.g. in March 2026 → Feb 1–28, 2026 */
@@ -656,7 +699,7 @@ export default function AdminAnalyticsPage() {
   const [branchCode, setBranchCode] = useState("");
   const [summaryBranchCode, setSummaryBranchCode] = useState("");
   const [summaryBrandName, setSummaryBrandName] = useState("");
-  const [salesSectionView, setSalesSectionView] = useState<"summary" | "hourly" | "brands" | "productMix" | "menu" | "stores" | "daily" | "all">(
+  const [salesSectionView, setSalesSectionView] = useState<"summary" | "hourly" | "operationTime" | "brands" | "productMix" | "menu" | "stores" | "daily" | "all">(
     "summary",
   );
   const [staffLimit, setStaffLimit] = useState(20);
@@ -680,6 +723,8 @@ export default function AdminAnalyticsPage() {
   const [posBranchDailyRows, setPosBranchDailyRows] = useState<PosBranchDailyRow[]>([]);
   const [hourlySalesAnalytics, setHourlySalesAnalytics] = useState<HourlySalesAnalyticsResp | null>(null);
   const [hourlyLoadError, setHourlyLoadError] = useState("");
+  const [operationTimeAnalytics, setOperationTimeAnalytics] = useState<OperationTimeResp | null>(null);
+  const [operationTimeLoadError, setOperationTimeLoadError] = useState("");
   const [hourlyStoreName, setHourlyStoreName] = useState("");
   const [salesComparisonRows, setSalesComparisonRows] = useState<ComparisonItem[]>([]);
   const [payrollRows, setPayrollRows] = useState<PayrollStaffRow[]>([]);
@@ -809,9 +854,11 @@ export default function AdminAnalyticsPage() {
 
   const [salesSyncing, setSalesSyncing] = useState(false);
   const [hourlySyncing, setHourlySyncing] = useState(false);
+  const [operationTimeSyncing, setOperationTimeSyncing] = useState(false);
   const [payrollSyncing, setPayrollSyncing] = useState(false);
   const [salesSyncMessage, setSalesSyncMessage] = useState("");
   const [hourlySyncMessage, setHourlySyncMessage] = useState("");
+  const [operationTimeSyncMessage, setOperationTimeSyncMessage] = useState("");
   const [payrollSyncMessage, setPayrollSyncMessage] = useState("");
 
   const [comparisonRows, setComparisonRows] = useState<ComparisonItem[]>([]);
@@ -953,6 +1000,14 @@ export default function AdminAnalyticsPage() {
             approver_name: approverName.trim(),
             pin: pin.trim(),
           });
+          const operationTimeQs = new URLSearchParams({
+            city,
+            date_from: summaryDateFrom,
+            date_to: summaryDateTo,
+            limit: "400",
+            approver_name: approverName.trim(),
+            pin: pin.trim(),
+          });
 
           const [posDaily, posRanking, productMix, posBranches, posBrands, posBranchesDaily] = await Promise.all([
             apiGet<PosSalesDailyResp>(`/api/admin/pos/sales/daily?${posDailyQs.toString()}`),
@@ -993,6 +1048,14 @@ export default function AdminAnalyticsPage() {
             setHourlySalesAnalytics(null);
             setHourlyLoadError(String((e as any)?.message || e || "Hourly analytics unavailable"));
           }
+          try {
+            const operationTime = await apiGet<OperationTimeResp>(`/api/admin/pos/operation-time?${operationTimeQs.toString()}`);
+            setOperationTimeAnalytics(operationTime ?? null);
+            setOperationTimeLoadError("");
+          } catch (e) {
+            setOperationTimeAnalytics(null);
+            setOperationTimeLoadError(String((e as any)?.message || e || "Operation time unavailable"));
+          }
         } catch (e) {
           addLoadError("Sales analytics", e);
           setPosSalesRows([]);
@@ -1003,6 +1066,8 @@ export default function AdminAnalyticsPage() {
           setPosBranchOrderRows([]);
           setPosBrandOrderRows([]);
           setPosBranchDailyRows([]);
+          setOperationTimeAnalytics(null);
+          setOperationTimeLoadError("");
           setSalesPlSummary(null);
           setHourlySalesAnalytics(null);
           setHourlyLoadError("");
@@ -1255,6 +1320,43 @@ export default function AdminAnalyticsPage() {
       setHourlySyncMessage(String(e?.message || e || "Hourly sync failed"));
     } finally {
       setHourlySyncing(false);
+    }
+  }
+
+  async function syncOperationTimeNow() {
+    if (!approverName.trim() || !pin.trim()) return;
+    setOperationTimeSyncing(true);
+    setOperationTimeSyncMessage("");
+    try {
+      const res = await apiPost<{ ok?: boolean; duplicate?: boolean; processed_count?: number; work_dates?: string[] }>(
+        "/api/admin/pos/operation-time/drive/sync",
+        {
+          approver_name: approverName.trim(),
+          pin: pin.trim(),
+          city_hint: city,
+          max_files: 240,
+        }
+      );
+      const cnt = Number(res?.processed_count || 0);
+      const dates = Array.isArray(res?.work_dates) ? res.work_dates.filter(Boolean) : [];
+      const windowLabel =
+        dates.length > 1 ? `${dates[0]} -> ${dates[dates.length - 1]}` : dates.length === 1 ? dates[0] : "";
+      if (res?.duplicate) {
+        setOperationTimeSyncMessage(
+          windowLabel ? `Operation time images already synced (${windowLabel}). Reloaded data.` : "Operation time images already synced. Reloaded data."
+        );
+      } else {
+        setOperationTimeSyncMessage(
+          cnt > 0
+            ? `Operation time sync completed (${cnt} files${windowLabel ? `, ${windowLabel}` : ""}). Reloaded data.`
+            : "Operation time sync completed. Reloaded data."
+        );
+      }
+      await loadAll("sales");
+    } catch (e: any) {
+      setOperationTimeSyncMessage(String(e?.message || e || "Operation time sync failed"));
+    } finally {
+      setOperationTimeSyncing(false);
     }
   }
 
@@ -1850,6 +1952,20 @@ export default function AdminAnalyticsPage() {
       peak,
     };
   }, [hourlySalesAnalytics]);
+
+  const operationTimeSummary = useMemo(() => {
+    const summary = operationTimeAnalytics?.summary;
+    const latest = operationTimeAnalytics?.latest || null;
+    return {
+      dayCount: Number(summary?.day_count || 0),
+      avgOverallMinutes: summary?.avg_overall_completion_minutes ?? null,
+      avgAcknowledgingSeconds: summary?.avg_acknowledging_seconds ?? null,
+      avgPreparingMinutes: summary?.avg_preparing_minutes ?? null,
+      avgDispatchingMinutes: summary?.avg_dispatching_minutes ?? null,
+      avgDeliveringMinutes: summary?.avg_delivering_minutes ?? null,
+      latest,
+    };
+  }, [operationTimeAnalytics]);
 
   const hourlyTrendMaxOrders = useMemo(() => {
     return Math.max(...(hourlySalesAnalytics?.rows || []).map((row) => Number(row.order_count_non_cancelled || 0)), 1);
@@ -2742,6 +2858,14 @@ export default function AdminAnalyticsPage() {
                   >
                     {hourlySyncing ? "Syncing..." : "Sync Hourly Sales"}
                   </button>
+                  <button
+                    type="button"
+                    onClick={syncOperationTimeNow}
+                    disabled={operationTimeSyncing || !approverName.trim() || !pin.trim()}
+                    className="rounded-lg border border-violet-700 bg-violet-950/30 px-2.5 py-1.5 text-[11px] font-semibold text-violet-200 transition hover:bg-violet-900/40 disabled:opacity-60"
+                  >
+                    {operationTimeSyncing ? "Syncing..." : "Sync Operation Time"}
+                  </button>
                 </div>
               </div>
 
@@ -2849,9 +2973,19 @@ export default function AdminAnalyticsPage() {
                   {hourlySyncMessage}
                 </div>
               ) : null}
+              {operationTimeSyncMessage ? (
+                <div className="mt-3 rounded-xl border border-violet-900/40 bg-violet-950/20 px-3 py-2 text-xs text-violet-100">
+                  {operationTimeSyncMessage}
+                </div>
+              ) : null}
               {hourlyLoadError ? (
                 <div className="mt-3 rounded-xl border border-amber-900/40 bg-amber-950/20 px-3 py-2 text-xs text-amber-100">
                   Hourly analytics: {hourlyLoadError}
+                </div>
+              ) : null}
+              {operationTimeLoadError ? (
+                <div className="mt-3 rounded-xl border border-amber-900/40 bg-amber-950/20 px-3 py-2 text-xs text-amber-100">
+                  Operation time: {operationTimeLoadError}
                 </div>
               ) : null}
               <div className="mt-4 flex flex-wrap gap-2">
@@ -3098,6 +3232,116 @@ export default function AdminAnalyticsPage() {
                       <tr>
                         <td colSpan={7} className="px-3 py-6 text-center text-neutral-500">
                           No hourly analytics data
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            ) : null}
+
+            {salesSectionView === "all" || salesSectionView === "operationTime" ? (
+            <div id="sales-operation-time" className="rounded-2xl border border-violet-900/40 bg-violet-950/10 p-4">
+              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <div className="text-sm font-semibold">Operation Time</div>
+                  <div className="mt-1 text-xs text-neutral-500">
+                    Daily UrbanPiper screenshots are OCR-parsed with a fixed template. This section is currently city-wide only.
+                  </div>
+                </div>
+                <div className="text-xs text-neutral-500">
+                  Scope: <span className="text-neutral-300">Company total</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div className="min-h-[32px] text-xs text-neutral-500">Imported days</div>
+                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
+                    {formatCount(operationTimeSummary.dayCount)}
+                  </div>
+                </div>
+                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div className="min-h-[32px] text-xs text-neutral-500">Avg completion</div>
+                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
+                    {formatMinutes(operationTimeSummary.avgOverallMinutes)}
+                  </div>
+                </div>
+                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div className="min-h-[32px] text-xs text-neutral-500">Latest completion</div>
+                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
+                    {formatMinutes(operationTimeSummary.latest?.overall_completion_minutes)}
+                  </div>
+                  <div className="text-xs text-neutral-500">
+                    {operationTimeSummary.latest?.work_date || "No data"}
+                  </div>
+                </div>
+                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div className="min-h-[32px] text-xs text-neutral-500">Latest delta</div>
+                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
+                    {operationTimeSummary.latest?.overall_change_pct == null
+                      ? "—"
+                      : formatPct(Number(operationTimeSummary.latest.overall_change_pct), 1)}
+                  </div>
+                </div>
+                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div className="min-h-[32px] text-xs text-neutral-500">Avg preparing</div>
+                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
+                    {formatMinutes(operationTimeSummary.avgPreparingMinutes)}
+                  </div>
+                </div>
+                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div className="min-h-[32px] text-xs text-neutral-500">Avg delivering</div>
+                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
+                    {formatMinutes(operationTimeSummary.avgDeliveringMinutes)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                    <tr>
+                      <th className="px-3 py-2">Date</th>
+                      <th className="px-3 py-2">Completion</th>
+                      <th className="px-3 py-2">Completion Δ</th>
+                      <th className="px-3 py-2">Acknowledging</th>
+                      <th className="px-3 py-2">Preparing</th>
+                      <th className="px-3 py-2">Dispatching</th>
+                      <th className="px-3 py-2">Delivering</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(operationTimeAnalytics?.items || []).map((row) => (
+                      <tr key={row.work_date} className="border-b border-neutral-800/70">
+                        <td className="px-3 py-2 tabular-nums">{row.work_date}</td>
+                        <td className="px-3 py-2 tabular-nums">{formatMinutes(row.overall_completion_minutes)}</td>
+                        <td className="px-3 py-2 tabular-nums">
+                          {row.overall_change_pct == null ? "—" : formatPct(Number(row.overall_change_pct), 1)}
+                        </td>
+                        <td className="px-3 py-2 tabular-nums">
+                          {formatSeconds(row.acknowledging_seconds)}
+                          {row.acknowledging_change_pct == null ? "" : ` (${formatPct(Number(row.acknowledging_change_pct), 1)})`}
+                        </td>
+                        <td className="px-3 py-2 tabular-nums">
+                          {formatMinutes(row.preparing_minutes)}
+                          {row.preparing_change_pct == null ? "" : ` (${formatPct(Number(row.preparing_change_pct), 1)})`}
+                        </td>
+                        <td className="px-3 py-2 tabular-nums">
+                          {formatMinutes(row.dispatching_minutes)}
+                          {row.dispatching_change_pct == null ? "" : ` (${formatPct(Number(row.dispatching_change_pct), 1)})`}
+                        </td>
+                        <td className="px-3 py-2 tabular-nums">
+                          {formatMinutes(row.delivering_minutes)}
+                          {row.delivering_change_pct == null ? "" : ` (${formatPct(Number(row.delivering_change_pct), 1)})`}
+                        </td>
+                      </tr>
+                    ))}
+                    {!operationTimeAnalytics?.items?.length ? (
+                      <tr>
+                        <td colSpan={7} className="px-3 py-6 text-center text-neutral-500">
+                          No operation time screenshots imported yet
                         </td>
                       </tr>
                     ) : null}
