@@ -2970,7 +2970,7 @@ export default function AdminAnalyticsPage() {
                       ? "Revenue (P&L imported)"
                       : "Net Sales Volume"}
                 </div>
-                <div className="mt-1 min-h-[40px] break-words text-xl font-bold leading-tight tabular-nums md:text-2xl">
+                <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
                   {formatMoney(posSalesSummary.revenuePrimary)}
                 </div>
               </div>
@@ -2978,7 +2978,7 @@ export default function AdminAnalyticsPage() {
                 <div className="min-h-[32px] text-xs text-neutral-500">
                   {posSalesSummary.hasProfit ? "Operating Profit (P&L)" : "Gross Revenue"}
                 </div>
-                <div className="mt-1 min-h-[40px] break-words text-xl font-bold leading-tight tabular-nums md:text-2xl">
+                <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
                   {posSalesSummary.hasProfit
                     ? formatMoney(posSalesSummary.operatingProfitPl)
                     : formatMoney(posSalesSummary.totalGrossSales)}
@@ -2986,7 +2986,7 @@ export default function AdminAnalyticsPage() {
               </div>
               <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs text-neutral-500">Order Count</div>
-                <div className="mt-1 min-h-[40px] break-words text-xl font-bold leading-tight tabular-nums md:text-2xl">
+                <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
                   {formatCount(posSalesSummary.totalOrders)}
                 </div>
               </div>
@@ -2996,13 +2996,13 @@ export default function AdminAnalyticsPage() {
                     ? "Avg Revenue / Order"
                     : "Avg Net / Order"}
                 </div>
-                <div className="mt-1 min-h-[40px] break-words text-xl font-bold leading-tight tabular-nums md:text-2xl">
+                <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
                   {formatMoney(posSalesSummary.avgRevenuePerOrder)}
                 </div>
               </div>
               <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs text-neutral-500">Days w/ sales data</div>
-                <div className="mt-1 min-h-[40px] break-words text-xl font-bold leading-tight tabular-nums md:text-2xl">
+                <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
                   {formatCount(posSalesSummary.dayCount)}
                 </div>
               </div>
@@ -4038,31 +4038,31 @@ export default function AdminAnalyticsPage() {
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-5">
             <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
               <div className="min-h-[32px] text-xs text-neutral-500">Net Sales Volume</div>
-              <div className="mt-1 min-h-[40px] break-words text-xl font-bold leading-tight tabular-nums md:text-2xl">
+              <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
                 {formatMoney(posSalesSummary.totalNetSales)}
               </div>
             </div>
             <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
               <div className="min-h-[32px] text-xs text-neutral-500">Gross Revenue</div>
-              <div className="mt-1 min-h-[40px] break-words text-xl font-bold leading-tight tabular-nums md:text-2xl">
+              <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
                 {formatMoney(posSalesSummary.totalGrossSales)}
               </div>
             </div>
             <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
               <div className="min-h-[32px] text-xs text-neutral-500">Order Count (Non-Cancelled)</div>
-              <div className="mt-1 min-h-[40px] break-words text-xl font-bold leading-tight tabular-nums md:text-2xl">
+              <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
                 {formatCount(posSalesSummary.totalOrders)}
               </div>
             </div>
             <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
               <div className="min-h-[32px] text-xs text-neutral-500">Avg Net / Order</div>
-              <div className="mt-1 min-h-[40px] break-words text-xl font-bold leading-tight tabular-nums md:text-2xl">
+              <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
                 {formatMoney(posSalesSummary.avgRevenuePerOrder)}
               </div>
             </div>
             <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
               <div className="min-h-[32px] text-xs text-neutral-500">Days w/ sales data</div>
-              <div className="mt-1 min-h-[40px] break-words text-xl font-bold leading-tight tabular-nums md:text-2xl">
+              <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
                 {formatCount(posSalesSummary.dayCount)}
               </div>
             </div>
