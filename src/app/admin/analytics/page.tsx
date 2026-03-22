@@ -126,6 +126,22 @@ type PosMenuRankingRow = {
 
 type PosMenuRankingResp = { ok: boolean; items: PosMenuRankingRow[] };
 
+type ProductMixRankingRow = {
+  product_a_name: string;
+  product_b_name: string;
+  major_orders: number;
+  mix_orders: number;
+  ratio: number;
+};
+
+type ProductMixRankingResp = {
+  ok: boolean;
+  coverage_from?: string | null;
+  coverage_to?: string | null;
+  source_file_name?: string;
+  items: ProductMixRankingRow[];
+};
+
 type PosBranchOrderRow = {
   branch_name: string;
   order_count_non_cancelled: number;
@@ -411,6 +427,16 @@ function scrollToSection(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+const SALES_SECTION_OPTIONS = [
+  { value: "summary", label: "Summary", id: "sales-summary" },
+  { value: "hourly", label: "Hourly", id: "sales-hourly" },
+  { value: "brands", label: "Brands", id: "sales-brands" },
+  { value: "productMix", label: "Product Mix", id: "sales-product-mix" },
+  { value: "menu", label: "Menu", id: "sales-menu" },
+  { value: "stores", label: "Stores", id: "sales-stores" },
+  { value: "daily", label: "Daily", id: "sales-daily" },
+] as const;
+
 function formatPct(value: number, digits = 2) {
   if (!Number.isFinite(value)) return "—";
   return `${value.toFixed(digits)}%`;
@@ -630,6 +656,9 @@ export default function AdminAnalyticsPage() {
   const [branchCode, setBranchCode] = useState("");
   const [summaryBranchCode, setSummaryBranchCode] = useState("");
   const [summaryBrandName, setSummaryBrandName] = useState("");
+  const [salesSectionView, setSalesSectionView] = useState<"summary" | "hourly" | "brands" | "productMix" | "menu" | "stores" | "daily" | "all">(
+    "summary",
+  );
   const [staffLimit, setStaffLimit] = useState(20);
 
   const [approverName, setApproverName] = useState(auth?.staffName || "");
@@ -644,6 +673,8 @@ export default function AdminAnalyticsPage() {
   const [posSalesRows, setPosSalesRows] = useState<PosSalesDailyRow[]>([]);
   const [posSalesRangeTotals, setPosSalesRangeTotals] = useState<PosSalesDailyTotals | null>(null);
   const [posMenuRankingRows, setPosMenuRankingRows] = useState<PosMenuRankingRow[]>([]);
+  const [productMixRankingRows, setProductMixRankingRows] = useState<ProductMixRankingRow[]>([]);
+  const [productMixCoverage, setProductMixCoverage] = useState<{ from?: string | null; to?: string | null; source?: string }>({});
   const [posBranchOrderRows, setPosBranchOrderRows] = useState<PosBranchOrderRow[]>([]);
   const [posBrandOrderRows, setPosBrandOrderRows] = useState<PosBrandOrderRow[]>([]);
   const [posBranchDailyRows, setPosBranchDailyRows] = useState<PosBranchDailyRow[]>([]);
@@ -817,6 +848,13 @@ export default function AdminAnalyticsPage() {
     }
   }, [analyticsTab, canViewStaffChannel, canViewFinanceChannels]);
 
+  useEffect(() => {
+    if (analyticsTab !== "sales" || salesSectionView === "all" || typeof window === "undefined") return;
+    const section = SALES_SECTION_OPTIONS.find((item) => item.value === salesSectionView);
+    if (!section) return;
+    window.requestAnimationFrame(() => scrollToSection(section.id));
+  }, [analyticsTab, salesSectionView]);
+
   function resetComparisonState() {
     setComparisonRows([]);
     setComparisonError("");
@@ -916,9 +954,10 @@ export default function AdminAnalyticsPage() {
             pin: pin.trim(),
           });
 
-          const [posDaily, posRanking, posBranches, posBrands, posBranchesDaily] = await Promise.all([
+          const [posDaily, posRanking, productMix, posBranches, posBrands, posBranchesDaily] = await Promise.all([
             apiGet<PosSalesDailyResp>(`/api/admin/pos/sales/daily?${posDailyQs.toString()}`),
             apiGet<PosMenuRankingResp>(`/api/admin/pos/items/ranking?${posRankingQs.toString()}`),
+            apiGet<ProductMixRankingResp>(`/api/admin/pos/product-mix?${posRankingQs.toString()}`),
             apiGet<PosBranchOrderResp>(`/api/admin/pos/branches/orders?${posRankingQs.toString()}`),
             apiGet<PosBrandOrderResp>(`/api/admin/pos/brands/orders?${posRankingQs.toString()}`),
             apiGet<PosBranchDailyResp>(`/api/admin/pos/branches/daily?${posDailyQs.toString()}`),
@@ -927,6 +966,12 @@ export default function AdminAnalyticsPage() {
           setPosSalesRows(posDaily.items || []);
           setPosSalesRangeTotals(posDaily.totals ?? null);
           setPosMenuRankingRows(posRanking.items || []);
+          setProductMixRankingRows(productMix.items || []);
+          setProductMixCoverage({
+            from: productMix.coverage_from ?? null,
+            to: productMix.coverage_to ?? null,
+            source: productMix.source_file_name || "",
+          });
           setPosBranchOrderRows(posBranches.items || []);
           setPosBrandOrderRows(posBrands.items || []);
           setPosBranchDailyRows(posBranchesDaily.items || []);
@@ -953,6 +998,8 @@ export default function AdminAnalyticsPage() {
           setPosSalesRows([]);
           setPosSalesRangeTotals(null);
           setPosMenuRankingRows([]);
+          setProductMixRankingRows([]);
+          setProductMixCoverage({});
           setPosBranchOrderRows([]);
           setPosBrandOrderRows([]);
           setPosBranchDailyRows([]);
@@ -2808,26 +2855,35 @@ export default function AdminAnalyticsPage() {
                 </div>
               ) : null}
               <div className="mt-4 flex flex-wrap gap-2">
-                {[
-                  ["sales-summary", "Summary"],
-                  ["sales-hourly", "Hourly"],
-                  ["sales-brands", "Brands"],
-                  ["sales-menu", "Menu"],
-                  ["sales-stores", "Stores"],
-                  ["sales-daily", "Daily"],
-                ].map(([id, label]) => (
+                <button
+                  type="button"
+                  onClick={() => setSalesSectionView("all")}
+                  className={
+                    salesSectionView === "all"
+                      ? "rounded-full border border-sky-500/70 bg-sky-500/15 px-3 py-1 text-[11px] font-semibold text-sky-100"
+                      : "rounded-full border border-neutral-700 bg-neutral-950/40 px-3 py-1 text-[11px] font-medium text-neutral-200 transition hover:bg-neutral-900 hover:text-white"
+                  }
+                >
+                  All
+                </button>
+                {SALES_SECTION_OPTIONS.map((section) => (
                   <button
-                    key={id}
+                    key={section.value}
                     type="button"
-                    onClick={() => scrollToSection(id)}
-                    className="rounded-full border border-neutral-700 bg-neutral-950/40 px-3 py-1 text-[11px] font-medium text-neutral-200 transition hover:bg-neutral-900 hover:text-white"
+                    onClick={() => setSalesSectionView(section.value)}
+                    className={
+                      salesSectionView === section.value
+                        ? "rounded-full border border-sky-500/70 bg-sky-500/15 px-3 py-1 text-[11px] font-semibold text-sky-100"
+                        : "rounded-full border border-neutral-700 bg-neutral-950/40 px-3 py-1 text-[11px] font-medium text-neutral-200 transition hover:bg-neutral-900 hover:text-white"
+                    }
                   >
-                    {label}
+                    {section.label}
                   </button>
                 ))}
               </div>
             </div>
 
+            {salesSectionView === "all" || salesSectionView === "summary" ? (
             <div id="sales-summary" className="grid grid-cols-2 gap-3 md:grid-cols-5">
               <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs text-neutral-500">
@@ -2874,7 +2930,9 @@ export default function AdminAnalyticsPage() {
                 </div>
               </div>
             </div>
+            ) : null}
 
+            {salesSectionView === "all" || salesSectionView === "hourly" ? (
             <div id="sales-hourly" className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
@@ -2890,42 +2948,42 @@ export default function AdminAnalyticsPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Hourly net sales</div>
-                  <div className="mt-1 min-h-[40px] text-2xl font-bold tabular-nums">
+                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
                     {formatMoney(hourlySummary.totalNetSales)}
                   </div>
                 </div>
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Hourly order count</div>
-                  <div className="mt-1 min-h-[40px] text-2xl font-bold tabular-nums">
+                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
                     {formatCount(hourlySummary.totalOrders)}
                   </div>
                 </div>
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Orders / labor hour</div>
-                  <div className="mt-1 min-h-[40px] text-2xl font-bold tabular-nums">
+                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
                     {formatDecimal(hourlySummary.ordersPerLaborHour)}
                   </div>
                 </div>
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Orders / staff</div>
-                  <div className="mt-1 min-h-[40px] text-2xl font-bold tabular-nums">
+                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
                     {formatDecimal(hourlySummary.ordersPerStaff)}
                   </div>
                 </div>
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Peak hour</div>
-                  <div className="mt-1 min-h-[40px] text-2xl font-bold tabular-nums">
+                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
                     {hourlySummary.peak?.hour_label || "—"}
                   </div>
                   <div className="text-xs text-neutral-500">
                     {hourlySummary.peak ? `${formatCount(Number(hourlySummary.peak.order_count_non_cancelled || 0))} orders` : "No hourly data"}
                   </div>
                 </div>
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Imported months / hours</div>
-                  <div className="mt-1 min-h-[40px] text-2xl font-bold tabular-nums">
+                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
                     {formatCount(hourlySummary.monthCount)}/{formatCount(hourlySummary.hourCount)}
                   </div>
                   <div className="text-xs text-neutral-500">{formatCount(hourlySummary.dayCount)} calendar days</div>
@@ -3047,8 +3105,9 @@ export default function AdminAnalyticsPage() {
                 </table>
               </div>
             </div>
+            ) : null}
 
-            {city === "dubai" && !summaryBrandName ? (
+            {(salesSectionView === "all" || salesSectionView === "summary") && city === "dubai" && !summaryBrandName ? (
               <p className="text-xs text-neutral-500">
                 Summary totals above are <span className="text-neutral-300">city-wide net sales and orders</span>{" "}
                 (SushiZEN + RamenZEN + All Veggie Sushi, one kitchen). Management P&amp;L labor ratio uses the same
@@ -3056,6 +3115,8 @@ export default function AdminAnalyticsPage() {
               </p>
             ) : null}
 
+            {salesSectionView === "all" || salesSectionView === "brands" ? (
+              <>
             {city === "dubai" && brandOrderRanking.length ? (
               <div id="sales-brands" className="rounded-2xl border border-emerald-900/40 bg-emerald-950/15 p-4">
                 <div className="mb-3 text-sm font-semibold text-emerald-100">Dubai — orders &amp; net sales by brand</div>
@@ -3109,7 +3170,72 @@ export default function AdminAnalyticsPage() {
                 </table>
               </div>
             </div>
+              </>
+            ) : null}
 
+            {salesSectionView === "all" || salesSectionView === "productMix" ? (
+            <div id="sales-product-mix" className="rounded-2xl border border-violet-900/40 bg-violet-950/10 p-4">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">Product Mix Ranking</div>
+                  <div className="mt-1 text-xs text-neutral-500">
+                    {productMixCoverage.from && productMixCoverage.to
+                      ? `Imported coverage: ${productMixCoverage.from} -> ${productMixCoverage.to}`
+                      : "No Product Mix import found yet."}
+                  </div>
+                </div>
+                <div className="text-xs text-neutral-500">
+                  Scope:{" "}
+                  <span className="text-neutral-300">
+                    {summaryBranchCode
+                      ? (BRANCH_OPTIONS[city] || []).find((opt) => opt.value === summaryBranchCode)?.label || summaryBranchCode
+                      : "Company total"}
+                  </span>
+                </div>
+              </div>
+              {summaryBrandName && summaryBrandName !== "SushiZEN" ? (
+                <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 px-3 py-6 text-center text-sm text-neutral-500">
+                  Product Mix is currently available for SushiZEN only.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                      <tr>
+                        <th className="px-3 py-2">Rank</th>
+                        <th className="px-3 py-2">Product A</th>
+                        <th className="px-3 py-2">Product B</th>
+                        <th className="px-3 py-2">Major Orders</th>
+                        <th className="px-3 py-2">Mix Orders</th>
+                        <th className="px-3 py-2">Ratio</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {productMixRankingRows.slice(0, 50).map((row, idx) => (
+                        <tr key={`${row.product_a_name}-${row.product_b_name}-${idx}`} className="border-b border-neutral-800/70">
+                          <td className="px-3 py-2">{idx + 1}</td>
+                          <td className="px-3 py-2">{row.product_a_name}</td>
+                          <td className="px-3 py-2">{row.product_b_name}</td>
+                          <td className="px-3 py-2 tabular-nums">{formatCount(row.major_orders)}</td>
+                          <td className="px-3 py-2 tabular-nums">{formatCount(row.mix_orders)}</td>
+                          <td className="px-3 py-2 tabular-nums">{formatDecimal(Number(row.ratio || 0) * 100, 2)}%</td>
+                        </tr>
+                      ))}
+                      {!productMixRankingRows.length ? (
+                        <tr>
+                          <td colSpan={6} className="px-3 py-6 text-center text-neutral-500">
+                            No Product Mix ranking data
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            ) : null}
+
+            {salesSectionView === "all" || salesSectionView === "menu" ? (
             <div id="sales-menu" className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div className="text-sm font-semibold">Top Menu Ranking (By Quantity)</div>
@@ -3154,7 +3280,9 @@ export default function AdminAnalyticsPage() {
                 </table>
               </div>
             </div>
+            ) : null}
 
+            {salesSectionView === "all" || salesSectionView === "stores" ? (
             <div id="sales-stores" className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div className="text-sm font-semibold">Store Order Ranking</div>
@@ -3191,7 +3319,9 @@ export default function AdminAnalyticsPage() {
                 </table>
               </div>
             </div>
+            ) : null}
 
+            {salesSectionView === "all" || salesSectionView === "daily" ? (
             <div id="sales-daily" className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div className="text-sm font-semibold">Sales Daily Details</div>
@@ -3238,6 +3368,7 @@ export default function AdminAnalyticsPage() {
                 </table>
               </div>
             </div>
+            ) : null}
           </div>
           ) : analyticsTab === "payroll" ? (
           <div className="mt-8 space-y-4">
