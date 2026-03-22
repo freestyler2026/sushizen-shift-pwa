@@ -98,7 +98,7 @@ type PublishedWeekResult = {
 type VerifyResp = {
   ok: boolean;
   staff_name: string;
-  role: "STAFF" | "MANAGER" | "HQ" | "ADMIN";
+  role: "STAFF" | "MANAGER" | "HQ" | "ADMIN" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT";
 };
 
 function norm(s: string) {
@@ -234,7 +234,9 @@ export default function AdminDraftPage() {
 
   const [approverName, setApproverName] = useState(auth?.staffName || "");
   const [pin, setPin] = useState(auth?.pin || "");
-  const [myRole, setMyRole] = useState<"STAFF" | "MANAGER" | "HQ" | "ADMIN" | "">("");
+  const [myRole, setMyRole] = useState<
+    "STAFF" | "MANAGER" | "HQ" | "ADMIN" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT" | ""
+  >("");
 
   const [targetMonth, setTargetMonth] = useState(monthKey(new Date()));
   const [prepared, setPrepared] = useState<null | {

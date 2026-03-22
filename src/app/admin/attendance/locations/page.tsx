@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { getAuth } from "@/lib/auth";
 
 type AttendanceLocation = {
   id: number;
@@ -15,8 +16,7 @@ type AttendanceLocation = {
   seen_count?: number | null;
 };
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || "";
+const API_BASE = "";
 
 function fmt(value?: string | null) {
   if (!value) return "-";
@@ -26,11 +26,14 @@ function fmt(value?: string | null) {
 }
 
 export default function AttendanceLocationsPage() {
+  const auth = getAuth();
   const [items, setItems] = useState<AttendanceLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [city, setCity] = useState("");
   const [unmappedOnly, setUnmappedOnly] = useState(false);
+  const [approverName] = useState(auth?.staffName || "");
+  const [pin] = useState(auth?.pin || "");
 
   useEffect(() => {
     let cancelled = false;
@@ -38,8 +41,14 @@ export default function AttendanceLocationsPage() {
       setLoading(true);
       setError("");
       try {
+        if (!approverName.trim() || !pin.trim()) {
+          throw new Error("Approver session missing. Please log in again.");
+        }
         const qs = new URLSearchParams();
+        qs.set("approver_name", approverName.trim());
+        qs.set("pin", pin.trim());
         if (city) qs.set("city", city);
+        if (unmappedOnly) qs.set("only_unmapped", "true");
         const res = await fetch(
           `${API_BASE}/api/admin/attendance/locations?${qs.toString()}`,
           { cache: "no-store" },
@@ -64,7 +73,7 @@ export default function AttendanceLocationsPage() {
     return () => {
       cancelled = true;
     };
-  }, [city]);
+  }, [city, unmappedOnly, approverName, pin]);
 
   const filtered = useMemo(() => {
     return items.filter((item) =>
@@ -97,19 +106,19 @@ export default function AttendanceLocationsPage() {
 
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Attendance Locations</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          Bayzat から自動蓄積された raw location を確認します。
+        <p className="mt-2 text-sm text-neutral-400">
+          Review raw location data automatically collected from Bayzat.
         </p>
       </div>
 
-      <section className="mb-6 rounded-2xl border bg-white p-4 shadow-sm">
+      <section className="mb-6 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4 shadow-sm">
         <div className="grid gap-4 md:grid-cols-3">
           <label className="text-sm">
             <div className="mb-1 font-medium">City</div>
             <select
               value={city}
               onChange={(e) => setCity(e.target.value)}
-              className="w-full rounded border px-3 py-2"
+              className="w-full rounded border border-neutral-700 bg-neutral-950 px-3 py-2 text-white"
             >
               <option value="">All</option>
               <option value="Dubai">Dubai</option>
@@ -126,22 +135,22 @@ export default function AttendanceLocationsPage() {
             <span>Unmapped only</span>
           </label>
 
-          <div className="flex items-end text-sm text-gray-600">
+          <div className="flex items-end text-sm text-neutral-400">
             Total: {filtered.length}
           </div>
         </div>
       </section>
 
       {error ? (
-        <div className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded border border-rose-900/50 bg-rose-950/20 px-4 py-3 text-sm text-rose-200">
           {error}
         </div>
       ) : null}
 
-      <section className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+      <section className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900/20 shadow-sm">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 text-left">
+            <thead className="bg-neutral-950 text-left text-neutral-300">
               <tr>
                 <th className="px-4 py-3">Raw Location</th>
                 <th className="px-4 py-3">City</th>
@@ -154,28 +163,28 @@ export default function AttendanceLocationsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td className="px-4 py-4 text-gray-500" colSpan={6}>
+                  <td className="px-4 py-4 text-neutral-500" colSpan={6}>
                     Loading...
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-4 text-gray-500" colSpan={6}>
+                  <td className="px-4 py-4 text-neutral-500" colSpan={6}>
                     No locations found.
                   </td>
                 </tr>
               ) : (
                 filtered.map((item) => (
-                  <tr key={item.id} className="border-t align-top">
+                  <tr key={item.id} className="border-t border-neutral-800 align-top">
                     <td className="px-4 py-3 font-medium">{item.raw_location}</td>
                     <td className="px-4 py-3">{item.city || "-"}</td>
                     <td className="px-4 py-3">
                       {item.canonical_branch_code ? (
-                        <span className="rounded bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
+                        <span className="rounded bg-emerald-950/40 px-2 py-1 text-xs font-medium text-emerald-200">
                           {item.canonical_branch_code}
                         </span>
                       ) : (
-                        <span className="rounded bg-yellow-100 px-2 py-1 text-xs font-medium text-yellow-800">
+                        <span className="rounded bg-amber-950/40 px-2 py-1 text-xs font-medium text-amber-200">
                           Unmapped
                         </span>
                       )}

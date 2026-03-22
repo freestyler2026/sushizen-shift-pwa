@@ -50,3 +50,4 @@ package.json.bad*
 package.json.broken*
 
 .gitignore.bak.*
+.ops.env

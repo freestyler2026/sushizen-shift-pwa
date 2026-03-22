@@ -95,7 +95,7 @@ type Overview = {
 type AuthVerifyResp = {
   ok: boolean;
   staff_name: string;
-  role: "STAFF" | "MANAGER" | "HQ" | "ADMIN";
+  role: "STAFF" | "MANAGER" | "HQ" | "ADMIN" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT";
 };
 
 type ExportMode = "FINAL" | "DRAFT";
@@ -207,7 +207,9 @@ export default function AdminPage() {
   const [opLoading, setOpLoading] = useState(false);
 
   // ---- HQ Export state ----
-  const [myRole, setMyRole] = useState<"STAFF" | "MANAGER" | "HQ" | "ADMIN" | "">(
+  const [myRole, setMyRole] = useState<
+    "STAFF" | "MANAGER" | "HQ" | "ADMIN" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT" | ""
+  >(
     auth?.role || ""
   );
   const [exportCity, setExportCity] = useState<BranchCity>((auth?.city as BranchCity) || "dubai");
@@ -530,6 +532,12 @@ export default function AdminPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/admin/analytics"
+              className="rounded-xl border border-neutral-800 bg-neutral-950/30 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900/40 hover:text-white"
+            >
+              Analytics
+            </Link>
             <Link
               href="/admin/absences"
               className="rounded-xl border border-neutral-800 bg-neutral-950/30 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900/40 hover:text-white"

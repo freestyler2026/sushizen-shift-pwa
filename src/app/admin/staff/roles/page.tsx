@@ -1,7 +1,7 @@
 // src/app/admin/staff/roles/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { getAuth } from "@/lib/auth";
@@ -48,7 +48,7 @@ async function apiPost<T = any>(path: string, body?: any): Promise<T> {
 type VerifyResp = {
   ok: boolean;
   staff_name: string;
-  role: "STAFF" | "MANAGER" | "HQ" | "ADMIN";
+  role: "STAFF" | "MANAGER" | "HQ" | "ADMIN" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT";
 };
 
 type ChangeRoleResp = {
@@ -56,7 +56,7 @@ type ChangeRoleResp = {
   staff_name: string;
   city: string;
   branch_code: string;
-  role: "STAFF" | "MANAGER" | "HQ" | "ADMIN";
+  role: "STAFF" | "MANAGER" | "HQ" | "ADMIN" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT";
   status: string;
   setup_required: boolean;
   setup_completed: boolean;
@@ -69,23 +69,27 @@ type StaffOneResp = {
     display_name: string;
     city: string;
     home_branch: string;
-    role: "STAFF" | "MANAGER" | "HQ" | "ADMIN" | string;
+    role: "STAFF" | "MANAGER" | "HQ" | "ADMIN" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT" | string;
     status: string;
     setup_required: boolean;
     setup_completed: boolean;
   };
 };
 
-export default function StaffRolesPage() {
+function StaffRolesPageInner() {
   const auth = getAuth();
   const searchParams = useSearchParams();
 
   const [targetStaffName, setTargetStaffName] = useState("");
-  const [newRole, setNewRole] = useState<"STAFF" | "MANAGER" | "HQ" | "ADMIN">("STAFF");
+  const [newRole, setNewRole] = useState<
+    "STAFF" | "MANAGER" | "HQ" | "ADMIN" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT"
+  >("STAFF");
 
   const [approverName, setApproverName] = useState(auth?.staffName || "");
   const [pin, setPin] = useState(auth?.pin || "");
-  const [myRole, setMyRole] = useState<"STAFF" | "MANAGER" | "HQ" | "ADMIN" | "">("");
+  const [myRole, setMyRole] = useState<
+    "STAFF" | "MANAGER" | "HQ" | "ADMIN" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT" | ""
+  >("");
 
   const [currentRole, setCurrentRole] = useState("");
   const [currentStatus, setCurrentStatus] = useState("");
@@ -259,7 +263,15 @@ export default function StaffRolesPage() {
               <select
                 value={newRole}
                 onChange={(e) =>
-                  setNewRole(e.target.value as "STAFF" | "MANAGER" | "HQ" | "ADMIN")
+                  setNewRole(
+                    e.target.value as
+                      | "STAFF"
+                      | "MANAGER"
+                      | "HQ"
+                      | "ADMIN"
+                      | "DUBAI_MANAGEMENT"
+                      | "MANILA_MANAGEMENT"
+                  )
                 }
                 className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
               >
@@ -267,6 +279,8 @@ export default function StaffRolesPage() {
                 <option value="MANAGER">MANAGER</option>
                 <option value="HQ">HQ</option>
                 <option value="ADMIN">ADMIN</option>
+                <option value="DUBAI_MANAGEMENT">DUBAI_MANAGEMENT</option>
+                <option value="MANILA_MANAGEMENT">MANILA_MANAGEMENT</option>
               </select>
             </div>
 
@@ -370,5 +384,13 @@ export default function StaffRolesPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function StaffRolesPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-neutral-950 text-white" />}>
+      <StaffRolesPageInner />
+    </Suspense>
   );
 }

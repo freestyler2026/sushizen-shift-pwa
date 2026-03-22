@@ -150,15 +150,15 @@ export default function AttendanceCorrectionsPage() {
         <Link href="/admin/attendance" className="rounded border px-3 py-2 text-sm hover:bg-gray-50">
           ← Back to Attendance
         </Link>
-        <Link href="/admin/attendance/comparison" className="rounded border px-3 py-2 text-sm hover:bg-gray-50">
-          Comparison
+        <Link href="/admin/analytics" className="rounded border px-3 py-2 text-sm hover:bg-gray-50">
+          Analytics
         </Link>
       </div>
 
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Attendance Corrections</h1>
         <p className="mt-2 text-sm text-gray-600">
-          誤打刻や補正を、元データを残したまま correction として登録します。
+          Incorrect punches and adjustments can be recorded as corrections while preserving the original data.
         </p>
       </div>
 

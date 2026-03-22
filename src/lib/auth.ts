@@ -2,7 +2,13 @@
 export type City = "dubai" | "manila";
 
 // ✅ 正式名
-export type StaffRole = "STAFF" | "MANAGER" | "HQ" | "ADMIN";
+export type StaffRole =
+  | "STAFF"
+  | "MANAGER"
+  | "HQ"
+  | "ADMIN"
+  | "DUBAI_MANAGEMENT"
+  | "MANILA_MANAGEMENT";
 // ✅ 互換のため alias を残す（LoginClient などが type Role を使ってもOK）
 export type Role = StaffRole;
 
@@ -31,7 +37,16 @@ function normalizeCity(v: any): City {
 
 function normalizeRole(v: any): StaffRole | undefined {
   const s = String(v || "").toUpperCase();
-  if (s === "ADMIN" || s === "HQ" || s === "MANAGER" || s === "STAFF") return s as StaffRole;
+  if (
+    s === "ADMIN" ||
+    s === "HQ" ||
+    s === "MANAGER" ||
+    s === "STAFF" ||
+    s === "DUBAI_MANAGEMENT" ||
+    s === "MANILA_MANAGEMENT"
+  ) {
+    return s as StaffRole;
+  }
   return undefined;
 }
 

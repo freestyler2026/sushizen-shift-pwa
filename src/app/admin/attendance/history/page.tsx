@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getAuth } from "@/lib/auth";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+const API_BASE = "";
 const LOGO_SRC = "/logo.png";
 
 async function apiGet<T = any>(path: string): Promise<T> {
@@ -31,7 +31,14 @@ type AttendanceImportHistoryRow = {
   source_system: string;
   file_name: string;
   file_type: string;
-  status: "SUCCESS" | "FAILED" | "PARTIAL" | "DUPLICATE" | "PROCESSING";
+  status:
+    | "SUCCESS"
+    | "FAILED"
+    | "PARTIAL"
+    | "DUPLICATE"
+    | "PROCESSING"
+    | "IMPORTED"
+    | "ROLLED_BACK";
   imported_rows: number;
   skipped_rows: number;
   duplicate_rows: number;
@@ -44,6 +51,7 @@ type AttendanceImportHistoryRow = {
   created_at?: string | null;
   file_hash?: string | null;
   target_date?: string | null;
+  duplicate_of?: string | null;
 };
 
 type AttendanceImportHistoryResp = {
@@ -61,7 +69,7 @@ function fmtDateTime(v?: string | null) {
 function statusBadgeClass(status: string) {
   const s = (status || "").toUpperCase();
 
-  if (s === "SUCCESS") {
+  if (s === "SUCCESS" || s === "IMPORTED") {
     return "border-emerald-900/40 bg-emerald-950/10 text-emerald-200";
   }
   if (s === "FAILED") {
@@ -78,6 +86,11 @@ function statusBadgeClass(status: string) {
   }
 
   return "border-neutral-800 bg-neutral-950/40 text-neutral-200";
+}
+
+function isSuccessStatus(status: string) {
+  const s = (status || "").toUpperCase();
+  return s === "SUCCESS" || s === "IMPORTED";
 }
 
 function cityBadgeClass(city: string) {
@@ -130,6 +143,7 @@ export default function AttendanceHistoryPage() {
   const [dateFrom, setDateFrom] = useState<string>("");
   const [dateTo, setDateTo] = useState<string>("");
   const [q, setQ] = useState<string>("");
+  const [showDuplicatesOnly, setShowDuplicatesOnly] = useState(false);
 
   const [approverName, setApproverName] = useState(auth?.staffName || "");
   const [pin, setPin] = useState(auth?.pin || "");
@@ -138,18 +152,28 @@ export default function AttendanceHistoryPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const filteredRows = useMemo(() => {
+    if (!showDuplicatesOnly) return rows;
+    return rows.filter(
+      (r) =>
+        Number(r.duplicate_rows || 0) > 0 ||
+        (r.status || "").toUpperCase() === "DUPLICATE" ||
+        !!(r.duplicate_of || "").trim(),
+    );
+  }, [rows, showDuplicatesOnly]);
+
   const summary = useMemo(() => {
-    const total = rows.length;
-    const success = rows.filter((r) => r.status === "SUCCESS").length;
-    const failed = rows.filter((r) => r.status === "FAILED").length;
-    const duplicate = rows.filter((r) => Number(r.duplicate_rows || 0) > 0 || r.status === "DUPLICATE").length;
+    const total = filteredRows.length;
+    const success = filteredRows.filter((r) => isSuccessStatus(r.status)).length;
+    const failed = filteredRows.filter((r) => r.status === "FAILED").length;
+    const duplicate = filteredRows.filter((r) => Number(r.duplicate_rows || 0) > 0 || r.status === "DUPLICATE").length;
 
     return { total, success, failed, duplicate };
-  }, [rows]);
+  }, [filteredRows]);
 
   const exportRows = useMemo(
     () =>
-      rows.map((r) => ({
+      filteredRows.map((r) => ({
         imported_at: r.created_at || r.finished_at || r.started_at || "",
         batch_id: r.batch_id,
         city: r.city,
@@ -157,6 +181,7 @@ export default function AttendanceHistoryPage() {
         file_name: r.file_name,
         file_type: r.file_type,
         target_date: r.target_date || "",
+        duplicate_of: r.duplicate_of || "",
         status: r.status,
         imported_rows: r.imported_rows,
         skipped_rows: r.skipped_rows,
@@ -167,7 +192,7 @@ export default function AttendanceHistoryPage() {
         file_hash: r.file_hash || "",
         notes: r.notes || "",
       })),
-    [rows]
+    [filteredRows]
   );
 
   async function loadHistory() {
@@ -185,6 +210,7 @@ export default function AttendanceHistoryPage() {
       if (dateFrom) qs.set("date_from", dateFrom);
       if (dateTo) qs.set("date_to", dateTo);
       if (q.trim()) qs.set("q", q.trim());
+      if (showDuplicatesOnly) qs.set("duplicates_only", "true");
 
       const res = await apiGet<AttendanceImportHistoryResp>(
         `/api/admin/attendance/history?${qs.toString()}`
@@ -248,10 +274,12 @@ export default function AttendanceHistoryPage() {
               >
                 <option value="">All</option>
                 <option value="SUCCESS">SUCCESS</option>
+                <option value="IMPORTED">IMPORTED</option>
                 <option value="FAILED">FAILED</option>
                 <option value="PARTIAL">PARTIAL</option>
                 <option value="DUPLICATE">DUPLICATE</option>
                 <option value="PROCESSING">PROCESSING</option>
+                <option value="ROLLED_BACK">ROLLED_BACK</option>
               </select>
             </div>
 
@@ -295,6 +323,31 @@ export default function AttendanceHistoryPage() {
                 {loading ? "Loading..." : "Refresh"}
               </button>
             </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-4 py-3">
+            <label className="flex items-center gap-2 text-xs text-neutral-300">
+              <input
+                type="checkbox"
+                checked={showDuplicatesOnly}
+                onChange={(e) => setShowDuplicatesOnly(e.target.checked)}
+              />
+              Show duplicates only
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                setCity("");
+                setStatus("");
+                setDateFrom("");
+                setDateTo("");
+                setQ("");
+                setShowDuplicatesOnly(false);
+              }}
+              className="rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-xs font-semibold text-white hover:bg-neutral-900"
+            >
+              Reset Filters
+            </button>
           </div>
 
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -389,11 +442,12 @@ export default function AttendanceHistoryPage() {
                     <th className="px-3 py-2">Duplicates</th>
                     <th className="px-3 py-2">Errors</th>
                     <th className="px-3 py-2">Imported By</th>
+                    <th className="px-3 py-2">Duplicate Of</th>
                     <th className="px-3 py-2">Batch ID</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
+                  {filteredRows.map((row) => (
                     <tr key={row.id || row.batch_id} className="border-b border-neutral-800/70 align-top">
                       <td className="px-3 py-2 whitespace-nowrap">
                         {fmtDateTime(row.created_at || row.finished_at || row.started_at)}
@@ -452,6 +506,12 @@ export default function AttendanceHistoryPage() {
 
                       <td className="px-3 py-2">
                         <div className="max-w-[180px] break-all text-xs text-neutral-300">
+                          {row.duplicate_of || "-"}
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-2">
+                        <div className="max-w-[180px] break-all text-xs text-neutral-300">
                           {row.batch_id || "-"}
                         </div>
                         {row.batch_id ? (
@@ -467,9 +527,9 @@ export default function AttendanceHistoryPage() {
                     </tr>
                   ))}
 
-                  {!rows.length ? (
+                  {!filteredRows.length ? (
                     <tr>
-                      <td colSpan={11} className="px-3 py-8 text-center text-neutral-500">
+                      <td colSpan={12} className="px-3 py-8 text-center text-neutral-500">
                         No import history found.
                       </td>
                     </tr>

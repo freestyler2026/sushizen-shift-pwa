@@ -62,6 +62,7 @@ const ABSENCE_TYPES = new Set([
   "INJURY",
   "HOSPITAL",
   "ABSENT",
+  "BEREAVEMENT_LEAVE",
 ]);
 
 function isAbsenceRow(r: any) {

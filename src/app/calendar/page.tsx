@@ -53,7 +53,8 @@ type AbsenceType =
   | "MEDICAL_LEAVE"
   | "INJURY"
   | "HOSPITAL"
-  | "ABSENT";
+  | "ABSENT"
+  | "BEREAVEMENT_LEAVE";
 
 function dotClassForAbsenceType(t: string): string {
   const u = (t || "").toUpperCase() as AbsenceType;
@@ -72,6 +73,8 @@ function dotClassForAbsenceType(t: string): string {
       return "bg-fuchsia-400";
     case "ABSENT":
       return "bg-rose-500";
+    case "BEREAVEMENT_LEAVE":
+      return "bg-indigo-400";
     default:
       return "bg-rose-400";
   }
@@ -119,7 +122,8 @@ function TimelineDay({
       at === "MEDICAL_LEAVE" ||
       at === "INJURY" ||
       at === "HOSPITAL" ||
-      at === "ABSENT"
+      at === "ABSENT" ||
+      at === "BEREAVEMENT_LEAVE"
     );
   };
 

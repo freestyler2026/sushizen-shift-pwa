@@ -137,6 +137,8 @@ export default function AdminStaffPage() {
   const [homeBranchFilter, setHomeBranchFilter] = useState("");
   const [q, setQ] = useState("");
   const [limit, setLimit] = useState(2000);
+  const [listSelectedDisplayName, setListSelectedDisplayName] = useState("");
+  const [listStaffOptions, setListStaffOptions] = useState<string[]>([]);
 
   const [rows, setRows] = useState<StaffRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -167,12 +169,41 @@ export default function AdminStaffPage() {
     setApproverName(a.staffName || "");
   }, [router]);
 
+
+  useEffect(() => {
+    if (approverName.trim() && pin.trim()) {
+      loadListStaffOptions(city, statusFilter);
+    } else {
+      setListStaffOptions([]);
+    }
+  }, [city, statusFilter, approverName, pin]);
+
+
   const msgCls =
     msg?.kind === "err"
       ? "text-red-300"
       : msg?.kind === "ok"
         ? "text-emerald-200"
         : "text-amber-200";
+
+
+    async function loadListStaffOptions(nextCity: City, nextStatus: StaffStatus) {
+    try {
+      const res = await apiGet<{ ok?: boolean; names?: string[] }>(
+        `/api/admin/staff_master/names${qs({
+          city: nextCity,
+          status: nextStatus,
+          limit: 5000,
+          approver_name: approverName.trim(),
+          pin: pin.trim(),
+        })}`
+      );
+      setListStaffOptions(Array.isArray(res?.names) ? res.names : []);
+    } catch {
+      setListStaffOptions([]);
+    }
+  }
+
 
   const load = async () => {
     setLoading(true);
@@ -188,7 +219,7 @@ export default function AdminStaffPage() {
           city,
           status: statusFilter,
           home_branch: homeBranchFilter,
-          q,
+          q: norm(listSelectedDisplayName) || q,
           limit,
           approver_name: nm,
           pin: p,
@@ -462,7 +493,7 @@ export default function AdminStaffPage() {
             className="rounded-xl border border-neutral-800 bg-neutral-950/30 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900/40 hover:text-white disabled:opacity-60"
             title={!norm(pin) ? "Enter PIN to load" : "Load"}
           >
-            {loading ? "Loading..." : "Login & Load"}
+            {loading ? "Loading..." : "Verify & Load"}
           </button>
 
           <button
@@ -644,13 +675,19 @@ export default function AdminStaffPage() {
           </div>
 
           <div className="sm:col-span-2">
-            <div className="mb-1 text-xs text-neutral-400">Search</div>
-            <input
+            <div className="mb-1 text-xs text-neutral-400">Staff</div>
+            <select
               className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Name contains..."
-            />
+              value={listSelectedDisplayName}
+              onChange={(e) => setListSelectedDisplayName(e.target.value)}
+            >
+              <option value="">All staff</option>
+              {listStaffOptions.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -673,7 +710,7 @@ export default function AdminStaffPage() {
             disabled={loading || !norm(approverName) || !norm(pin)}
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60"
           >
-            Refresh list
+            Load List
           </button>
         </div>
 

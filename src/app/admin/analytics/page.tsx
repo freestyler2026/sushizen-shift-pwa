@@ -384,10 +384,26 @@ const moneyFormatter = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
+const integerFormatter = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 0,
+});
 
 function formatMoney(value: number) {
   if (!Number.isFinite(value)) return "—";
   return moneyFormatter.format(value);
+}
+
+function formatCount(value: number) {
+  if (!Number.isFinite(value)) return "—";
+  return integerFormatter.format(value);
+}
+
+function formatDecimal(value: number, digits = 2) {
+  if (!Number.isFinite(value)) return "—";
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
 }
 
 function formatPct(value: number, digits = 2) {
@@ -616,6 +632,7 @@ export default function AdminAnalyticsPage() {
   const [payrollStaffName, setPayrollStaffName] = useState("");
   const [branchCode, setBranchCode] = useState("");
   const [summaryBranchCode, setSummaryBranchCode] = useState("");
+  const [summaryBrandName, setSummaryBrandName] = useState("");
   const [staffLimit, setStaffLimit] = useState(20);
 
   const [approverName, setApproverName] = useState(auth?.staffName || "");
@@ -821,6 +838,7 @@ export default function AdminAnalyticsPage() {
     setPayrollStaffName("");
     setBranchCode("");
     setSummaryBranchCode("");
+    setSummaryBrandName("");
     setPlStoreName("");
     setHourlyStoreName("");
     resetComparisonState();
@@ -836,7 +854,7 @@ export default function AdminAnalyticsPage() {
     if (analyticsTab !== "sales") return;
     if (!approverName.trim() || !pin.trim()) return;
     void loadAll("sales");
-  }, [analyticsTab, hourlyStoreName]);
+  }, [analyticsTab, hourlyStoreName, summaryBranchCode, summaryBrandName]);
 
   async function loadAll(scope: "all" | "sales" | "staff" | "payroll" | "finance" = "all") {
     setLoading(true);
@@ -855,6 +873,8 @@ export default function AdminAnalyticsPage() {
         city,
         date_from: summaryDateFrom,
         date_to: summaryDateTo,
+        branch_code: summaryBranchCode,
+        brand_name: summaryBrandName,
         limit: "1000",
         approver_name: approverName.trim(),
         pin: pin.trim(),
@@ -864,6 +884,8 @@ export default function AdminAnalyticsPage() {
         city,
         date_from: summaryDateFrom,
         date_to: summaryDateTo,
+        branch_code: summaryBranchCode,
+        brand_name: summaryBrandName,
         limit: "50",
         approver_name: approverName.trim(),
         pin: pin.trim(),
@@ -1685,9 +1707,10 @@ export default function AdminAnalyticsPage() {
     const dayCount = posSalesRangeTotals ? Number(posSalesRangeTotals.day_count || 0) : posSalesRows.length;
 
     const revenuePl = Number(salesPlSummary?.revenue_pl || 0);
-    const operatingProfitPl = Number(salesPlSummary?.rollup?.profit_pl || 0);
-    const revenuePrimary = revenuePl > 0 ? revenuePl : posNetSales;
+    const operatingProfitPl = summaryBranchCode || summaryBrandName ? 0 : Number(salesPlSummary?.rollup?.profit_pl || 0);
+    const revenuePrimary = posNetSales > 0 ? posNetSales : revenuePl;
     const avgRevenuePerOrder = totalOrders > 0 ? revenuePrimary / totalOrders : 0;
+    const revenueBasis = posNetSales > 0 ? "revenue" : revenuePl > 0 ? "pl" : "pos";
 
     return {
       totalNetSales: posNetSales,
@@ -1697,10 +1720,10 @@ export default function AdminAnalyticsPage() {
       revenuePrimary,
       operatingProfitPl,
       avgRevenuePerOrder,
-      revenueBasis: revenuePl > 0 ? "pl" : "pos",
-      hasProfit: !!salesPlSummary?.ok,
+      revenueBasis,
+      hasProfit: !summaryBranchCode && !summaryBrandName && !!salesPlSummary?.ok,
     };
-  }, [posSalesRows, posSalesRangeTotals, salesPlSummary]);
+  }, [posSalesRows, posSalesRangeTotals, salesPlSummary, summaryBranchCode, summaryBrandName]);
 
   const brandOrderRanking = useMemo(() => {
     return posBrandOrderRows.map((row) => ({
@@ -1710,6 +1733,24 @@ export default function AdminAnalyticsPage() {
       grossSales: Number(row.gross_revenue || 0),
     }));
   }, [posBrandOrderRows]);
+
+  const salesBrandOptions = useMemo(() => {
+    const fixedDubaiBrands = [
+      { value: "", label: "Company total" },
+      { value: "SushiZEN", label: "SushiZEN" },
+      { value: "RamenZEN", label: "RamenZEN" },
+      { value: "All Veggie Sushi", label: "All Veggie Sushi" },
+    ];
+    if (city === "dubai") return fixedDubaiBrands;
+    const fromApi = posBrandOrderRows
+      .map((row) => String(row.brand_name || "").trim())
+      .filter(Boolean);
+    return [{ value: "", label: "Company total" }].concat(
+      Array.from(new Set(fromApi))
+        .sort((a, b) => a.localeCompare(b))
+        .map((name) => ({ value: name, label: name })),
+    );
+  }, [city, posBrandOrderRows]);
 
   const plStoreOptions = useMemo(() => {
     const fromPl = (plVsTarget?.available_stores || []).map((s) => String(s || "").trim()).filter(Boolean);
@@ -1994,7 +2035,7 @@ export default function AdminAnalyticsPage() {
     return rows;
   }, [staffSummaryRows, staffSortBy]);
 
-  const exportBaseName = `${city}_${summaryDateFrom}_to_${summaryDateTo}${summaryBranchCode ? `_${summaryBranchCode}` : ""}`;
+  const exportBaseName = `${city}_${summaryDateFrom}_to_${summaryDateTo}${summaryBrandName ? `_${summaryBrandName.replace(/\s+/g, "_")}` : ""}${summaryBranchCode ? `_${summaryBranchCode}` : ""}`;
 
   const branchDailyExportRows = useMemo(
     () =>
@@ -2840,7 +2881,21 @@ export default function AdminAnalyticsPage() {
                   />
                 </div>
                 <div>
-                  <div className="mb-1 text-xs text-neutral-400">Summary Branch</div>
+                  <div className="mb-1 text-xs text-neutral-400">Brand</div>
+                  <select
+                    value={summaryBrandName}
+                    onChange={(e) => setSummaryBrandName(e.target.value)}
+                    className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                  >
+                    {salesBrandOptions.map((opt) => (
+                      <option key={opt.value || "ALL"} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <div className="mb-1 text-xs text-neutral-400">Store</div>
                   <select
                     value={summaryBranchCode}
                     onChange={(e) => setSummaryBranchCode(e.target.value)}
@@ -2848,7 +2903,7 @@ export default function AdminAnalyticsPage() {
                   >
                     {(BRANCH_OPTIONS[city] || [{ value: "", label: "All Branches" }]).map((opt) => (
                       <option key={opt.value || "ALL"} value={opt.value}>
-                        {opt.label}
+                        {opt.value ? opt.label : "Company total"}
                       </option>
                     ))}
                   </select>
@@ -2908,34 +2963,48 @@ export default function AdminAnalyticsPage() {
 
             <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
               <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">
-                  {posSalesSummary.revenueBasis === "pl" ? "Revenue (P&L imported)" : "Net Sales Volume"}
+                <div className="min-h-[32px] text-xs text-neutral-500">
+                  {posSalesSummary.revenueBasis === "revenue"
+                    ? "Net Revenue (UrbanPiper)"
+                    : posSalesSummary.revenueBasis === "pl"
+                      ? "Revenue (P&L imported)"
+                      : "Net Sales Volume"}
                 </div>
-                <div className="mt-1 text-2xl font-bold">{formatMoney(posSalesSummary.revenuePrimary)}</div>
+                <div className="mt-1 min-h-[40px] break-words text-xl font-bold leading-tight tabular-nums md:text-2xl">
+                  {formatMoney(posSalesSummary.revenuePrimary)}
+                </div>
               </div>
               <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">
+                <div className="min-h-[32px] text-xs text-neutral-500">
                   {posSalesSummary.hasProfit ? "Operating Profit (P&L)" : "Gross Revenue"}
                 </div>
-                <div className="mt-1 text-2xl font-bold">
+                <div className="mt-1 min-h-[40px] break-words text-xl font-bold leading-tight tabular-nums md:text-2xl">
                   {posSalesSummary.hasProfit
                     ? formatMoney(posSalesSummary.operatingProfitPl)
                     : formatMoney(posSalesSummary.totalGrossSales)}
                 </div>
               </div>
               <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">Order Count</div>
-                <div className="mt-1 text-2xl font-bold">{posSalesSummary.totalOrders}</div>
-              </div>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">
-                  {posSalesSummary.revenueBasis === "pl" ? "Avg Revenue / Order" : "Avg Net / Order"}
+                <div className="min-h-[32px] text-xs text-neutral-500">Order Count</div>
+                <div className="mt-1 min-h-[40px] break-words text-xl font-bold leading-tight tabular-nums md:text-2xl">
+                  {formatCount(posSalesSummary.totalOrders)}
                 </div>
-                <div className="mt-1 text-2xl font-bold">{formatMoney(posSalesSummary.avgRevenuePerOrder)}</div>
               </div>
               <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">Days w/ sales data</div>
-                <div className="mt-1 text-2xl font-bold">{posSalesSummary.dayCount}</div>
+                <div className="min-h-[32px] text-xs text-neutral-500">
+                  {posSalesSummary.revenueBasis === "revenue" || posSalesSummary.revenueBasis === "pl"
+                    ? "Avg Revenue / Order"
+                    : "Avg Net / Order"}
+                </div>
+                <div className="mt-1 min-h-[40px] break-words text-xl font-bold leading-tight tabular-nums md:text-2xl">
+                  {formatMoney(posSalesSummary.avgRevenuePerOrder)}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                <div className="min-h-[32px] text-xs text-neutral-500">Days w/ sales data</div>
+                <div className="mt-1 min-h-[40px] break-words text-xl font-bold leading-tight tabular-nums md:text-2xl">
+                  {formatCount(posSalesSummary.dayCount)}
+                </div>
               </div>
             </div>
 
@@ -2963,19 +3032,19 @@ export default function AdminAnalyticsPage() {
                 <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Hourly order count</div>
                   <div className="mt-1 min-h-[40px] text-2xl font-bold tabular-nums">
-                    {hourlySummary.totalOrders.toLocaleString()}
+                    {formatCount(hourlySummary.totalOrders)}
                   </div>
                 </div>
                 <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Orders / labor hour</div>
                   <div className="mt-1 min-h-[40px] text-2xl font-bold tabular-nums">
-                    {hourlySummary.ordersPerLaborHour.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}
+                    {formatDecimal(hourlySummary.ordersPerLaborHour)}
                   </div>
                 </div>
                 <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Orders / staff</div>
                   <div className="mt-1 min-h-[40px] text-2xl font-bold tabular-nums">
-                    {hourlySummary.ordersPerStaff.toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}
+                    {formatDecimal(hourlySummary.ordersPerStaff)}
                   </div>
                 </div>
                 <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
@@ -2984,15 +3053,15 @@ export default function AdminAnalyticsPage() {
                     {hourlySummary.peak?.hour_label || "—"}
                   </div>
                   <div className="text-xs text-neutral-500">
-                    {hourlySummary.peak ? `${Number(hourlySummary.peak.order_count_non_cancelled || 0).toLocaleString()} orders` : "No hourly data"}
+                    {hourlySummary.peak ? `${formatCount(Number(hourlySummary.peak.order_count_non_cancelled || 0))} orders` : "No hourly data"}
                   </div>
                 </div>
                 <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Imported months / hours</div>
                   <div className="mt-1 min-h-[40px] text-2xl font-bold tabular-nums">
-                    {hourlySummary.monthCount}/{hourlySummary.hourCount}
+                    {formatCount(hourlySummary.monthCount)}/{formatCount(hourlySummary.hourCount)}
                   </div>
-                  <div className="text-xs text-neutral-500">{hourlySummary.dayCount.toLocaleString()} calendar days</div>
+                  <div className="text-xs text-neutral-500">{formatCount(hourlySummary.dayCount)} calendar days</div>
                 </div>
               </div>
 
@@ -3009,7 +3078,7 @@ export default function AdminAnalyticsPage() {
                             <div className="h-full rounded-full bg-sky-500/80" style={{ width: `${Math.max(widthPct, 2)}%` }} />
                           </div>
                           <div className="text-right text-xs text-neutral-300 tabular-nums">
-                            {Number(row.order_count_non_cancelled || 0).toLocaleString()}
+                            {formatCount(Number(row.order_count_non_cancelled || 0))}
                           </div>
                         </div>
                       );
@@ -3034,7 +3103,7 @@ export default function AdminAnalyticsPage() {
                         <div className="rounded-xl border border-neutral-800 bg-neutral-950/50 px-3 py-3">
                           <div className="text-xs text-neutral-500">Orders</div>
                           <div className="mt-1 text-lg font-semibold tabular-nums">
-                            {Number(hourlySummary.peak.order_count_non_cancelled || 0).toLocaleString()}
+                            {formatCount(Number(hourlySummary.peak.order_count_non_cancelled || 0))}
                           </div>
                         </div>
                         <div className="rounded-xl border border-neutral-800 bg-neutral-950/50 px-3 py-3">
@@ -3046,13 +3115,13 @@ export default function AdminAnalyticsPage() {
                         <div className="rounded-xl border border-neutral-800 bg-neutral-950/50 px-3 py-3">
                           <div className="text-xs text-neutral-500">Orders / labor hour</div>
                           <div className="mt-1 text-lg font-semibold tabular-nums">
-                            {Number(hourlySummary.peak.orders_per_labor_hour || 0).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}
+                            {formatDecimal(Number(hourlySummary.peak.orders_per_labor_hour || 0))}
                           </div>
                         </div>
                         <div className="rounded-xl border border-neutral-800 bg-neutral-950/50 px-3 py-3">
                           <div className="text-xs text-neutral-500">Orders / staff</div>
                           <div className="mt-1 text-lg font-semibold tabular-nums">
-                            {Number(hourlySummary.peak.orders_per_staff || 0).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}
+                            {formatDecimal(Number(hourlySummary.peak.orders_per_staff || 0))}
                           </div>
                         </div>
                       </div>
@@ -3084,19 +3153,19 @@ export default function AdminAnalyticsPage() {
                         <td className="px-3 py-2 tabular-nums">{row.hour_label}</td>
                         <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.net_sales || 0))}</td>
                         <td className="px-3 py-2 tabular-nums">
-                          {Number(row.order_count_non_cancelled || 0).toLocaleString()}
+                          {formatCount(Number(row.order_count_non_cancelled || 0))}
                         </td>
                         <td className="px-3 py-2 tabular-nums">
-                          {Number(row.labor_hours_total || 0).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}
+                          {formatDecimal(Number(row.labor_hours_total || 0))}
                         </td>
                         <td className="px-3 py-2 tabular-nums">
-                          {Number(row.avg_staff_count || 0).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}
+                          {formatDecimal(Number(row.avg_staff_count || 0))}
                         </td>
                         <td className="px-3 py-2 tabular-nums">
-                          {Number(row.orders_per_labor_hour || 0).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}
+                          {formatDecimal(Number(row.orders_per_labor_hour || 0))}
                         </td>
                         <td className="px-3 py-2 tabular-nums">
-                          {Number(row.orders_per_staff || 0).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 })}
+                          {formatDecimal(Number(row.orders_per_staff || 0))}
                         </td>
                       </tr>
                     ))}
@@ -3112,7 +3181,7 @@ export default function AdminAnalyticsPage() {
               </div>
             </div>
 
-            {city === "dubai" ? (
+            {city === "dubai" && !summaryBrandName ? (
               <p className="text-xs text-neutral-500">
                 Summary totals above are <span className="text-neutral-300">city-wide net sales and orders</span>{" "}
                 (SushiZEN + RamenZEN + All Veggie Sushi, one kitchen). Management P&amp;L labor ratio uses the same
@@ -3127,10 +3196,10 @@ export default function AdminAnalyticsPage() {
                   {brandOrderRanking.map((row) => (
                     <div key={row.brand} className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-4">
                       <div className="text-xs font-medium text-neutral-400">{row.brand}</div>
-                      <div className="mt-2 text-2xl font-bold text-white">{row.orders.toLocaleString()}</div>
+                      <div className="mt-2 text-2xl font-bold text-white tabular-nums">{formatCount(row.orders)}</div>
                       <div className="text-[11px] text-neutral-500">orders (non-cancelled)</div>
-                      <div className="mt-2 text-sm text-neutral-200">Net {row.netSales.toFixed(2)}</div>
-                      <div className="text-[11px] text-neutral-500">Gross {row.grossSales.toFixed(2)}</div>
+                      <div className="mt-2 text-sm text-neutral-200">Net {formatMoney(row.netSales)}</div>
+                      <div className="text-[11px] text-neutral-500">Gross {formatMoney(row.grossSales)}</div>
                     </div>
                   ))}
                 </div>
@@ -3157,9 +3226,9 @@ export default function AdminAnalyticsPage() {
                       <tr key={`${row.brand}-${idx}`} className="border-b border-neutral-800/70">
                         <td className="px-3 py-2">{idx + 1}</td>
                         <td className="px-3 py-2">{row.brand}</td>
-                        <td className="px-3 py-2">{row.orders}</td>
-                        <td className="px-3 py-2">{row.netSales.toFixed(2)}</td>
-                        <td className="px-3 py-2">{row.grossSales.toFixed(2)}</td>
+                        <td className="px-3 py-2 tabular-nums">{formatCount(row.orders)}</td>
+                        <td className="px-3 py-2 tabular-nums">{formatMoney(row.netSales)}</td>
+                        <td className="px-3 py-2 tabular-nums">{formatMoney(row.grossSales)}</td>
                       </tr>
                     ))}
                     {!brandOrderRanking.length ? (
@@ -3262,9 +3331,9 @@ export default function AdminAnalyticsPage() {
                       <tr key={`${row.branch_name}-${idx}`} className="border-b border-neutral-800/70">
                         <td className="px-3 py-2">{idx + 1}</td>
                         <td className="px-3 py-2">{row.branch_name}</td>
-                        <td className="px-3 py-2">{row.order_count_non_cancelled}</td>
-                        <td className="px-3 py-2">{Number(row.net_revenue || 0).toFixed(2)}</td>
-                        <td className="px-3 py-2">{Number(row.gross_revenue || 0).toFixed(2)}</td>
+                        <td className="px-3 py-2 tabular-nums">{formatCount(row.order_count_non_cancelled)}</td>
+                        <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.net_revenue || 0))}</td>
+                        <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.gross_revenue || 0))}</td>
                       </tr>
                     ))}
                     {!posBranchOrderRows.length ? (
@@ -3307,11 +3376,11 @@ export default function AdminAnalyticsPage() {
                     {posSalesRows.map((row) => (
                       <tr key={`${row.city}-${row.work_date}`} className="border-b border-neutral-800/70">
                         <td className="px-3 py-2">{row.work_date}</td>
-                        <td className="px-3 py-2">{row.order_count_non_cancelled}</td>
-                        <td className="px-3 py-2">{Number(row.gross_revenue || 0).toFixed(2)}</td>
-                        <td className="px-3 py-2">{Number(row.net_revenue || 0).toFixed(2)}</td>
-                        <td className="px-3 py-2">{Number(row.discounts || 0).toFixed(2)}</td>
-                        <td className="px-3 py-2">{Number(row.charges || 0).toFixed(2)}</td>
+                        <td className="px-3 py-2 tabular-nums">{formatCount(row.order_count_non_cancelled)}</td>
+                        <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.gross_revenue || 0))}</td>
+                        <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.net_revenue || 0))}</td>
+                        <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.discounts || 0))}</td>
+                        <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.charges || 0))}</td>
                       </tr>
                     ))}
                     {!posSalesRows.length ? (
@@ -3968,24 +4037,34 @@ export default function AdminAnalyticsPage() {
           {analyticsTab === "staff" ? (
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-5">
             <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <div className="text-xs text-neutral-500">Net Sales Volume</div>
-              <div className="mt-1 text-2xl font-bold">{posSalesSummary.totalNetSales.toFixed(2)}</div>
+              <div className="min-h-[32px] text-xs text-neutral-500">Net Sales Volume</div>
+              <div className="mt-1 min-h-[40px] break-words text-xl font-bold leading-tight tabular-nums md:text-2xl">
+                {formatMoney(posSalesSummary.totalNetSales)}
+              </div>
             </div>
             <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <div className="text-xs text-neutral-500">Gross Revenue</div>
-              <div className="mt-1 text-2xl font-bold">{posSalesSummary.totalGrossSales.toFixed(2)}</div>
+              <div className="min-h-[32px] text-xs text-neutral-500">Gross Revenue</div>
+              <div className="mt-1 min-h-[40px] break-words text-xl font-bold leading-tight tabular-nums md:text-2xl">
+                {formatMoney(posSalesSummary.totalGrossSales)}
+              </div>
             </div>
             <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <div className="text-xs text-neutral-500">Order Count (Non-Cancelled)</div>
-              <div className="mt-1 text-2xl font-bold">{posSalesSummary.totalOrders}</div>
+              <div className="min-h-[32px] text-xs text-neutral-500">Order Count (Non-Cancelled)</div>
+              <div className="mt-1 min-h-[40px] break-words text-xl font-bold leading-tight tabular-nums md:text-2xl">
+                {formatCount(posSalesSummary.totalOrders)}
+              </div>
             </div>
             <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <div className="text-xs text-neutral-500">Avg Net / Order</div>
-              <div className="mt-1 text-2xl font-bold">{posSalesSummary.avgRevenuePerOrder.toFixed(2)}</div>
+              <div className="min-h-[32px] text-xs text-neutral-500">Avg Net / Order</div>
+              <div className="mt-1 min-h-[40px] break-words text-xl font-bold leading-tight tabular-nums md:text-2xl">
+                {formatMoney(posSalesSummary.avgRevenuePerOrder)}
+              </div>
             </div>
             <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <div className="text-xs text-neutral-500">Days w/ sales data</div>
-              <div className="mt-1 text-2xl font-bold">{posSalesSummary.dayCount}</div>
+              <div className="min-h-[32px] text-xs text-neutral-500">Days w/ sales data</div>
+              <div className="mt-1 min-h-[40px] break-words text-xl font-bold leading-tight tabular-nums md:text-2xl">
+                {formatCount(posSalesSummary.dayCount)}
+              </div>
             </div>
           </div>
           ) : null}

@@ -1,10 +1,10 @@
 // src/app/admin/staff/audit/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { getAuth } from "@/lib/auth";
 import { useSearchParams } from "next/navigation";
+import { getAuth } from "@/lib/auth";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
 const LOGO_SRC = "/logo.png";
@@ -114,7 +114,7 @@ function renderAuditPayload(eventType: string, payload: Record<string, any>) {
   );
 }
 
-export default function StaffAuditPage() {
+function StaffAuditPageInner() {
   const auth = getAuth();
   const searchParams = useSearchParams();
 
@@ -403,5 +403,13 @@ export default function StaffAuditPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function StaffAuditPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-neutral-950 text-white" />}>
+      <StaffAuditPageInner />
+    </Suspense>
   );
 }

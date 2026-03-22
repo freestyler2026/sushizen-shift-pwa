@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { getAuth } from "@/lib/auth";
 
 type EmployeeMatchItem = {
   employee_unique_key: string;
@@ -22,8 +23,7 @@ type StaffOption = {
   role_code?: string | null;
 };
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || "";
+const API_BASE = "";
 
 function fmt(value?: string | null) {
   if (!value) return "-";
@@ -33,6 +33,7 @@ function fmt(value?: string | null) {
 }
 
 export default function AttendanceEmployeesPage() {
+  const auth = getAuth();
   const [items, setItems] = useState<EmployeeMatchItem[]>([]);
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,32 +42,66 @@ export default function AttendanceEmployeesPage() {
   const [city, setCity] = useState("");
   const [unmatchedOnly, setUnmatchedOnly] = useState(true);
   const [selectedStaff, setSelectedStaff] = useState<Record<string, string>>({});
+  const [approverName] = useState(auth?.staffName || "");
+  const [pin] = useState(auth?.pin || "");
 
   const load = async () => {
     setLoading(true);
     setError("");
     try {
+      if (!approverName.trim() || !pin.trim()) {
+        throw new Error("Approver session missing. Please log in again.");
+      }
       const qs = new URLSearchParams();
+      qs.set("approver_name", approverName.trim());
+      qs.set("pin", pin.trim());
       if (city) qs.set("city", city);
-      if (unmatchedOnly) qs.set("unmatched_only", "true");
 
-      const [matchRes, staffRes] = await Promise.all([
-        fetch(`${API_BASE}/api/admin/attendance/employee-matches?${qs.toString()}`, {
-          cache: "no-store",
-        }),
-        fetch(`${API_BASE}/api/store/staff/list${city ? `?city=${encodeURIComponent(city)}` : ""}`, {
-          cache: "no-store",
-        }),
-      ]);
-
+      const matchRes = await fetch(`${API_BASE}/api/admin/attendance/employee-matches?${qs.toString()}`, {
+        cache: "no-store",
+      });
       if (!matchRes.ok) throw new Error(`Failed to load employee matches: ${matchRes.status}`);
-      if (!staffRes.ok) throw new Error(`Failed to load staff list: ${staffRes.status}`);
-
       const matchData = await matchRes.json();
-      const staffData = await staffRes.json();
 
-      const nextItems = Array.isArray(matchData?.items) ? matchData.items : [];
-      const nextStaff = Array.isArray(staffData?.items) ? staffData.items : [];
+      const cityTargets = city ? [city.toLowerCase()] : ["dubai", "manila"];
+      const staffResults = await Promise.all(
+        cityTargets.map(async (targetCity) => {
+          const staffQs = new URLSearchParams({
+            city: targetCity,
+            status: "ACTIVE",
+            limit: "5000",
+          });
+          const staffRes = await fetch(`${API_BASE}/api/admin/staff_master/names?${staffQs.toString()}`, {
+            cache: "no-store",
+          });
+          if (!staffRes.ok) return { city: targetCity, names: [] as string[] };
+          const staffData = await staffRes.json();
+          return {
+            city: targetCity,
+            names: Array.isArray(staffData?.names) ? staffData.names : ([] as string[]),
+          };
+        }),
+      );
+
+      const allItems = Array.isArray(matchData?.items) ? matchData.items : [];
+      const nextItems = unmatchedOnly
+        ? allItems.filter((item: EmployeeMatchItem) => !(item.mapped_staff_name || "").trim())
+        : allItems;
+      const nextStaff: StaffOption[] = [];
+      const seen = new Set<string>();
+      for (const result of staffResults) {
+        for (const name of result.names) {
+          const staffName = String(name || "").trim();
+          if (!staffName) continue;
+          const key = `${staffName.toLowerCase()}__${result.city}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          nextStaff.push({
+            staff_name: staffName,
+            city: result.city,
+          });
+        }
+      }
 
       setItems(nextItems);
       setStaffOptions(nextStaff);
@@ -88,10 +123,12 @@ export default function AttendanceEmployeesPage() {
 
   useEffect(() => {
     load();
-  }, [city, unmatchedOnly]);
+  }, [city, unmatchedOnly, approverName, pin]);
 
   const filteredStaffOptions = useMemo(() => {
-    return city ? staffOptions.filter((s) => !s.city || s.city === city) : staffOptions;
+    return city
+      ? staffOptions.filter((s) => !s.city || s.city.toLowerCase() === city.toLowerCase())
+      : staffOptions;
   }, [staffOptions, city]);
 
   async function saveMatch(item: EmployeeMatchItem) {
@@ -103,15 +140,15 @@ export default function AttendanceEmployeesPage() {
     setSavingKey(item.employee_unique_key);
     setError("");
     try {
-      const res = await fetch(`${API_BASE}/api/admin/attendance/employees/map`, {
+      const res = await fetch(`${API_BASE}/api/admin/attendance/employee-matches/upsert`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          employee_unique_key: item.employee_unique_key,
           employee_name_raw: item.employee_name_raw,
-          employee_id_raw: item.employee_id_raw || null,
-          city: item.city || city || null,
+          city: (item.city || city || "").toLowerCase(),
           canonical_staff_name,
+          approver_name: approverName.trim(),
+          pin: pin.trim(),
         }),
       });
       if (!res.ok) {
@@ -139,16 +176,16 @@ export default function AttendanceEmployeesPage() {
 
       <div className="mb-6">
         <h1 className="text-2xl font-bold">Attendance Employee Matching</h1>
-        <p className="mt-2 text-sm text-gray-600">
-          Bayzat employee を staff master に紐付けます。
+        <p className="mt-2 text-sm text-neutral-400">
+          Link Bayzat employees with the Staff Master.
         </p>
       </div>
 
-      <section className="mb-6 rounded-2xl border bg-white p-4 shadow-sm">
+      <section className="mb-6 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4 shadow-sm">
         <div className="grid gap-4 md:grid-cols-3">
           <label className="text-sm">
             <div className="mb-1 font-medium">City</div>
-            <select value={city} onChange={(e) => setCity(e.target.value)} className="w-full rounded border px-3 py-2">
+            <select value={city} onChange={(e) => setCity(e.target.value)} className="w-full rounded border border-neutral-700 bg-neutral-950 px-3 py-2 text-white">
               <option value="">All</option>
               <option value="Dubai">Dubai</option>
               <option value="Manila">Manila</option>
@@ -164,20 +201,20 @@ export default function AttendanceEmployeesPage() {
             <span>Unmatched only</span>
           </label>
 
-          <div className="flex items-end text-sm text-gray-600">Total: {items.length}</div>
+          <div className="flex items-end text-sm text-neutral-400">Total: {items.length}</div>
         </div>
       </section>
 
       {error ? (
-        <div className="mb-4 rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded border border-rose-900/50 bg-rose-950/20 px-4 py-3 text-sm text-rose-200">
           {error}
         </div>
       ) : null}
 
-      <section className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+      <section className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900/20 shadow-sm">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 text-left">
+            <thead className="bg-neutral-950 text-left text-neutral-300">
               <tr>
                 <th className="px-4 py-3">Employee</th>
                 <th className="px-4 py-3">City</th>
@@ -190,15 +227,15 @@ export default function AttendanceEmployeesPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td className="px-4 py-4 text-gray-500" colSpan={7}>Loading...</td></tr>
+                <tr><td className="px-4 py-4 text-neutral-500" colSpan={7}>Loading...</td></tr>
               ) : items.length === 0 ? (
-                <tr><td className="px-4 py-4 text-gray-500" colSpan={7}>No employees found.</td></tr>
+                <tr><td className="px-4 py-4 text-neutral-500" colSpan={7}>No employees found.</td></tr>
               ) : (
                 items.map((item) => (
-                  <tr key={item.employee_unique_key} className="border-t align-top">
+                  <tr key={item.employee_unique_key} className="border-t border-neutral-800 align-top">
                     <td className="px-4 py-3">
                       <div className="font-medium">{item.employee_name_raw}</div>
-                      <div className="text-xs text-gray-500">
+                      <div className="text-xs text-neutral-500">
                         ID: {item.employee_id_raw || "-"}
                       </div>
                     </td>
@@ -213,7 +250,7 @@ export default function AttendanceEmployeesPage() {
                             [item.employee_unique_key]: e.target.value,
                           }))
                         }
-                        className="min-w-[240px] rounded border px-3 py-2"
+                        className="min-w-[240px] rounded border border-neutral-700 bg-neutral-950 px-3 py-2 text-white"
                       >
                         <option value="">Select staff</option>
                         {filteredStaffOptions.map((staff) => (

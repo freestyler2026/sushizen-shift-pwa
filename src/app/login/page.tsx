@@ -69,6 +69,7 @@ function LoginInner() {
         staffName: name,
         city,
         role,
+        pin: p,
       });
 
       // middleware helper cookie (PIN is NOT stored)

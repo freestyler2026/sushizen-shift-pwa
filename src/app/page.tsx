@@ -38,9 +38,16 @@ export default function HomePage() {
             </Link>
 
             <Link
-              href="/signup"
+              href="/admin/staff/create"
               className="flex min-h-[52px] w-full items-center justify-center rounded-2xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-base font-semibold text-white transition hover:bg-neutral-800"
             >
+              Create Staff Record
+            </Link>
+          </div>
+
+          <div className="mt-3 text-center text-xs text-neutral-500">
+            New staff with setup code?{" "}
+            <Link href="/signup" className="text-neutral-200 underline hover:text-white">
               Sign Up
             </Link>
           </div>
@@ -48,9 +55,9 @@ export default function HomePage() {
           <div className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-950 p-4 sm:mt-8 sm:p-5">
             <div className="text-base font-semibold sm:text-lg">Getting Started</div>
             <p className="mt-3 text-sm leading-7 text-neutral-400">
-              New staff should begin with <span className="text-white">Sign Up</span> for first-time
-              onboarding. Existing staff can use <span className="text-white">Log In</span> to access
-              the shift system.
+              Store managers should create new staff records first. After record creation,
+              new staff can continue to <span className="text-white">Sign Up</span>. Existing
+              staff can use <span className="text-white">Log In</span> to access the shift system.
             </p>
           </div>
 

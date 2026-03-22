@@ -1,0 +1,53 @@
+---
+description: Sushi ZEN frontend rules
+globs:
+  - "src/**/*"
+alwaysApply: true
+---
+
+This repo is the frontend.
+Main app: Next.js admin UI.
+Main target: /admin/analytics.
+
+Current priorities:
+- /admin/analytics is the primary page
+- /admin/comparison is no longer primary
+- Do not break /week
+- Keep existing working behavior first, then extend
+- Do not remove existing analytics features unless explicitly told
+
+Current intent for /admin/analytics:
+- Top section = Compliance Analytics
+- Bottom section = Summary Analytics
+- Keep both sections
+- Keep Top10 / ranking features
+- Keep Individual Search
+- Do not simplify by deleting working sections
+
+Current business rules:
+- Late <= 15 minutes is not counted
+- Problem absence excludes DAY_OFF and VACATION_LEAVE
+- Individual Search should show:
+  - late count
+  - total late minutes
+  - problem absence days
+  - total overtime
+  - missing in
+  - missing out
+- Shift change request count is not needed for now
+
+Editing rules:
+- Prefer minimal diffs
+- Preserve existing exports, route paths, and page structure
+- Do not rewrite whole files unless absolutely necessary
+- If a JSX section is unstable, replace the full section rather than patching fragments
+- After edits, always run npm run build
+
+Operational assumptions:
+- Deployment workflow, Heroku psql usage, and environment setup are already understood by the user
+- Do not re-explain deployment or environment basics unless explicitly asked
+- Do not spend time re-describing known operational context; focus on the code and the smallest safe diff
+
+Operational preference:
+- Prefer exact copy-paste commands or existing scripts from TERMINAL_RUNBOOK.md and scripts/ops/
+- Do not re-explain deployment or environment basics unless explicitly asked

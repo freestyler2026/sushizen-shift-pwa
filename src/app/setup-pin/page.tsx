@@ -1,7 +1,6 @@
-// src/app/setup-pin/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
@@ -34,7 +33,7 @@ type SetupPinResp = {
   message: string;
 };
 
-export default function SetupPinPage() {
+function SetupPinInner() {
   const searchParams = useSearchParams();
 
   const [staffName, setStaffName] = useState("");
@@ -97,106 +96,83 @@ export default function SetupPinPage() {
 
           <form onSubmit={onSubmit} className="mt-8 space-y-4">
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Staff Name</div>
+              <label className="mb-2 block text-sm text-neutral-300">Staff Name</label>
               <input
                 value={staffName}
                 onChange={(e) => setStaffName(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm outline-none placeholder:text-neutral-600"
-                placeholder="Enter your full name"
+                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
+                placeholder="Enter your exact staff name"
               />
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Setup Code</div>
+              <label className="mb-2 block text-sm text-neutral-300">Setup Code</label>
               <input
                 value={setupCode}
                 onChange={(e) => setSetupCode(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm outline-none placeholder:text-neutral-600"
+                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
                 placeholder="Enter setup code"
               />
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">New PIN</div>
+              <label className="mb-2 block text-sm text-neutral-300">New PIN</label>
               <input
                 type="password"
-                inputMode="numeric"
                 value={newPin}
                 onChange={(e) => setNewPin(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm outline-none placeholder:text-neutral-600"
-                placeholder="4 to 8 digits"
+                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
+                placeholder="Enter new PIN"
               />
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Confirm PIN</div>
+              <label className="mb-2 block text-sm text-neutral-300">Confirm PIN</label>
               <input
                 type="password"
-                inputMode="numeric"
                 value={confirmPin}
                 onChange={(e) => setConfirmPin(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm outline-none placeholder:text-neutral-600"
-                placeholder="Re-enter PIN"
+                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
+                placeholder="Confirm new PIN"
               />
             </div>
 
+            {error ? (
+              <div className="rounded-2xl border border-red-900/40 bg-red-950/20 px-4 py-3 text-sm text-red-200">
+                {error}
+              </div>
+            ) : null}
+
+            {success ? (
+              <div className="rounded-2xl border border-emerald-900/40 bg-emerald-950/20 px-4 py-3 text-sm text-emerald-200">
+                {success.message || "PIN set successfully."}
+              </div>
+            ) : null}
+
             <button
               type="submit"
-              disabled={
-                loading ||
-                !staffName.trim() ||
-                !setupCode.trim() ||
-                !newPin.trim() ||
-                !confirmPin.trim()
-              }
-              className="flex w-full items-center justify-center rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
+              disabled={loading}
+              className="w-full rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-50"
             >
-              {loading ? "Setting PIN..." : "Set PIN"}
+              {loading ? "Submitting..." : "Set PIN"}
             </button>
           </form>
 
-          {error ? (
-            <div className="mt-4 rounded-2xl border border-rose-900/50 bg-rose-950/20 px-4 py-3 text-sm text-rose-200">
-              {error}
-            </div>
-          ) : null}
-
-          {success?.ok ? (
-            <div className="mt-4 rounded-2xl border border-emerald-900/50 bg-emerald-950/20 p-4">
-              <div className="text-sm text-emerald-200">{success.message}</div>
-
-              <div className="mt-4 flex flex-wrap gap-3">
-                <Link
-                  href="/login"
-                  className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200"
-                >
-                  Go to Log In
-                </Link>
-
-                <Link
-                  href={`/admin/staff/audit?event_type=setup_completed&target_staff_name=${encodeURIComponent(success.staff_name)}`}
-                  className="rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-neutral-900"
-                >
-                  View Audit Log
-                </Link>
-              </div>
-
-              <div className="mt-3 text-xs text-neutral-400">
-                Next step: log in with the new PIN, or review the completed setup in Audit Logs.
-              </div>
-            </div>
-          ) : null}
-
-          <div className="mt-8 flex flex-col items-center gap-3 text-sm text-neutral-400 sm:flex-row sm:justify-between">
-            <Link href="/signup" className="hover:text-white">
-              ← Back
-            </Link>
-            <Link href="/login" className="hover:text-white">
-              Go to Log In
+          <div className="mt-6 text-center">
+            <Link href="/login" className="text-sm text-neutral-400 hover:text-white">
+              Back to Login
             </Link>
           </div>
         </div>
       </div>
     </main>
+  );
+}
+
+export default function SetupPinPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-neutral-950 text-white" />}>
+      <SetupPinInner />
+    </Suspense>
   );
 }

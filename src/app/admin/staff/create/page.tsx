@@ -33,7 +33,7 @@ async function apiPost<T = any>(path: string, body?: any): Promise<T> {
 type VerifyResp = {
   ok: boolean;
   staff_name: string;
-  role: "STAFF" | "MANAGER" | "HQ" | "ADMIN";
+  role: "STAFF" | "MANAGER" | "HQ" | "ADMIN" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT";
 };
 
 type CreateStaffResp = {
@@ -56,7 +56,9 @@ export default function CreateStaffPage() {
 
   const [approverName, setApproverName] = useState(auth?.staffName || "");
   const [pin, setPin] = useState(auth?.pin || "");
-  const [myRole, setMyRole] = useState<"STAFF" | "MANAGER" | "HQ" | "ADMIN" | "">("");
+  const [myRole, setMyRole] = useState<
+    "STAFF" | "MANAGER" | "HQ" | "ADMIN" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT" | ""
+  >("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -274,6 +276,13 @@ export default function CreateStaffPage() {
                 </Link>
 
                 <Link
+                  href="/signup"
+                  className="rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-neutral-900"
+                >
+                  Open Sign Up
+                </Link>
+
+                <Link
                   href="/admin/staff/setup"
                   className="rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-neutral-900"
                 >
@@ -297,16 +306,16 @@ export default function CreateStaffPage() {
               </div>
 
               <div className="mt-3 text-xs text-neutral-400">
-                Next step: open <span className="text-neutral-200">Set Up PIN</span> on the
-                new staff member’s phone, or check{" "}
-                <span className="text-neutral-200">Pending Setup</span>.
+                Next step: open <span className="text-neutral-200">Sign Up</span> or{" "}
+                <span className="text-neutral-200">Set Up PIN</span> on the new staff member’s
+                phone, or check <span className="text-neutral-200">Pending Setup</span>.
               </div>
             </div>
           ) : null}
 
           <div className="mt-8 flex flex-col items-center gap-3 text-sm text-neutral-400 sm:flex-row sm:justify-between">
-            <Link href="/signup" className="hover:text-white">
-              ← Back
+            <Link href="/admin/staff" className="hover:text-white">
+              ← Back to Staff Master
             </Link>
             <Link href="/admin/staff/setup" className="hover:text-white">
               View Pending Setup

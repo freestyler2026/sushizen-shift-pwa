@@ -23,16 +23,12 @@ const PRIMARY: NavItem[] = [
 const SECONDARY_BASE: NavItem[] = [{ href: "/swap-approve", label: "Swap Approve", match: "exact" }];
 
 const ADMIN_ITEMS: NavItem[] = [
-  // ✅ /admin 配下も “Admin Dashboard” をactiveにしたいので prefix 推奨
-  { href: "/admin", label: "Admin Dashboard", adminOnly: true, match: "prefix" },
-
-  // ✅ 既存
+  { href: "/admin", label: "Admin Dashboard", adminOnly: true, match: "exact" },
+  { href: "/admin/analytics", label: "Analytics", adminOnly: true, match: "exact" },
+  { href: "/admin/attendance", label: "Attendance", adminOnly: true, match: "prefix" },
   { href: "/admin/absences", label: "Absences", adminOnly: true, match: "exact" },
-
-  // ✅ 追加
-  { href: "/admin/staff", label: "Staff", adminOnly: true, match: "exact" },
-
-  { href: "/admin/draft", label: "Draft", adminOnly: true, match: "exact" },
+  { href: "/admin/staff", label: "Staff", adminOnly: true, match: "prefix" },
+  { href: "/admin/draft", label: "Draft", adminOnly: true, match: "prefix" },
 ];
 
 function isActive(pathname: string, item: NavItem) {

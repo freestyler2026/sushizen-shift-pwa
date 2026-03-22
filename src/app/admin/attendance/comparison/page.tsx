@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function AttendanceMonthlySummaryRedirectPage() {
+export default function AdminAttendanceComparisonPage() {
   redirect("/admin/analytics");
 }
