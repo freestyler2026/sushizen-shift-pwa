@@ -406,6 +406,11 @@ function formatDecimal(value: number, digits = 2) {
   });
 }
 
+function scrollToSection(id: string) {
+  if (typeof document === "undefined") return;
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function formatPct(value: number, digits = 2) {
   if (!Number.isFinite(value)) return "—";
   return `${value.toFixed(digits)}%`;
@@ -521,14 +526,6 @@ function downloadCsv(filename: string, rows: Record<string, unknown>[]) {
 function fmtMinutes(v?: number | null) {
   if (v == null) return "-";
   return `${v} min`;
-}
-
-function median(nums: number[]) {
-  if (!nums.length) return 0;
-  const arr = [...nums].sort((a, b) => a - b);
-  const mid = Math.floor(arr.length / 2);
-  if (arr.length % 2 === 0) return (arr[mid - 1] + arr[mid]) / 2;
-  return arr[mid];
 }
 
 function monthKeysBetween(dateFrom: string, dateTo: string): string[] {
@@ -1864,155 +1861,6 @@ export default function AdminAnalyticsPage() {
     };
   }, [payrollRowsFiltered]);
 
-  const salesOpsInsights = useMemo(() => {
-    const laborByDayBranch = new Map<string, { hours: number; staff: number }>();
-    for (const r of branchDailyRows) {
-      const code = (r.branch_code || "").toUpperCase();
-      if (!code || !r.work_date) continue;
-      laborByDayBranch.set(`${r.work_date}|${code}`, {
-        hours: Number(r.total_hours || 0),
-        staff: Number(r.staff_count || 0),
-      });
-    }
-
-    const byBranch = new Map<
-      string,
-      { net: number; gross: number; orders: number; labor: number; staff: number; days: Set<string> }
-    >();
-    const dailyJoined: Array<{ branch: string; work_date: string; splh: number }> = [];
-
-    for (const r of posBranchDailyRows) {
-      const code = mapStoreToBranchCode(r.branch_name || "");
-      if (!code || !r.work_date) continue;
-      const labor = laborByDayBranch.get(`${r.work_date}|${code}`);
-      const cur = byBranch.get(code) || {
-        net: 0,
-        gross: 0,
-        orders: 0,
-        labor: 0,
-        staff: 0,
-        days: new Set<string>(),
-      };
-      cur.net += Number(r.net_revenue || 0);
-      cur.gross += Number(r.gross_revenue || 0);
-      cur.orders += Number(r.order_count_non_cancelled || 0);
-      if (labor) {
-        cur.labor += Number(labor.hours || 0);
-        cur.staff += Number(labor.staff || 0);
-        if (labor.hours > 0) {
-          dailyJoined.push({
-            branch: code,
-            work_date: r.work_date,
-            splh: Number(r.net_revenue || 0) / Number(labor.hours || 1),
-          });
-        }
-      }
-      cur.days.add(r.work_date);
-      byBranch.set(code, cur);
-    }
-
-    const branchRows = Array.from(byBranch.entries()).map(([branch, v]) => ({
-      branch,
-      net: v.net,
-      gross: v.gross,
-      orders: v.orders,
-      labor: v.labor,
-      avgStaff: v.days.size ? v.staff / v.days.size : 0,
-      salesPerLabor: v.labor > 0 ? v.net / v.labor : 0,
-    }));
-
-    const insights: Array<{ en: string }> = [];
-    if (!branchRows.length) return insights;
-
-    const netSorted = [...branchRows].sort((a, b) => b.net - a.net);
-    const splhMedian = median(branchRows.map((x) => x.salesPerLabor));
-    const topNet = netSorted[0];
-    if (topNet && topNet.salesPerLabor > 0 && topNet.salesPerLabor < splhMedian) {
-      insights.push({
-        en: `${topNet.branch} delivers strong revenue volume; however, sales per labor hour remain below the portfolio median.`,
-      });
-    }
-
-    const staffMedian = median(branchRows.map((x) => x.avgStaff));
-    const lowNetThreshold = median(branchRows.map((x) => x.net));
-    const understaffed = branchRows
-      .filter((x) => x.net >= lowNetThreshold && x.avgStaff > 0 && x.avgStaff < staffMedian)
-      .sort((a, b) => b.net - a.net)[0];
-    if (understaffed) {
-      insights.push({
-        en: `${understaffed.branch} records robust sales with comparatively lean average staffing, indicating a potential understaffing risk.`,
-      });
-    }
-
-    const overstaffed = branchRows
-      .filter((x) => x.net < lowNetThreshold && x.avgStaff > staffMedian)
-      .sort((a, b) => a.net - b.net)[0];
-    if (overstaffed) {
-      insights.push({
-        en: `${overstaffed.branch} operates with relatively high staffing during a lower-sales period, suggesting possible overstaffing.`,
-      });
-    }
-
-    const lateByDayBranch = new Map<string, number>();
-    for (const r of salesComparisonRows) {
-      const code = (r.scheduled_branch_code || r.attendance_branch_code || "").toUpperCase();
-      if (!code || !r.work_date) continue;
-      if (effectiveLateMinutes(r) <= 0) continue;
-      const key = `${r.work_date}|${code}`;
-      lateByDayBranch.set(key, (lateByDayBranch.get(key) || 0) + 1);
-    }
-
-    let worstLateBranch = "";
-    let worstLateDrop = 0;
-    for (const branch of new Set(dailyJoined.map((x) => x.branch))) {
-      const lateDays: number[] = [];
-      const normalDays: number[] = [];
-      for (const d of dailyJoined.filter((x) => x.branch === branch)) {
-        const lateCount = lateByDayBranch.get(`${d.work_date}|${branch}`) || 0;
-        if (lateCount > 0) lateDays.push(d.splh);
-        else normalDays.push(d.splh);
-      }
-      if (!lateDays.length || !normalDays.length) continue;
-      const lateAvg = lateDays.reduce((a, b) => a + b, 0) / lateDays.length;
-      const normalAvg = normalDays.reduce((a, b) => a + b, 0) / normalDays.length;
-      if (normalAvg <= 0) continue;
-      const dropPct = ((normalAvg - lateAvg) / normalAvg) * 100;
-      if (dropPct > worstLateDrop) {
-        worstLateDrop = dropPct;
-        worstLateBranch = branch;
-      }
-    }
-    if (worstLateBranch && worstLateDrop > 0) {
-      insights.push({
-        en: `${worstLateBranch} shows an approximately ${worstLateDrop.toFixed(1)}% decline in sales efficiency on late-attendance days versus baseline days.`,
-      });
-    }
-
-    const noShowDates = new Set(
-      salesComparisonRows.filter((x) => x.no_show).map((x) => x.work_date).filter(Boolean)
-    );
-    if (noShowDates.size > 0 && posSalesRows.length > 0) {
-      const withNoShow = posSalesRows
-        .filter((x) => noShowDates.has(x.work_date))
-        .map((x) => Number(x.net_revenue || 0));
-      const withoutNoShow = posSalesRows
-        .filter((x) => !noShowDates.has(x.work_date))
-        .map((x) => Number(x.net_revenue || 0));
-      if (withNoShow.length > 0 && withoutNoShow.length > 0) {
-        const a = withNoShow.reduce((s, v) => s + v, 0) / withNoShow.length;
-        const b = withoutNoShow.reduce((s, v) => s + v, 0) / withoutNoShow.length;
-        if (b > 0) {
-          const drop = ((b - a) / b) * 100;
-          insights.push({
-            en: `Average sales on no-show days vary by approximately ${drop.toFixed(1)}% relative to non-no-show days.`,
-          });
-        }
-      }
-    }
-
-    return insights;
-  }, [branchDailyRows, posBranchDailyRows, salesComparisonRows, posSalesRows]);
-
   const sortedBranchTotals = useMemo(() => {
     const rows = [...branchTotals];
     rows.sort((a, b) => {
@@ -2827,7 +2675,7 @@ export default function AdminAnalyticsPage() {
                     type="button"
                     onClick={() => loadAll("sales")}
                     disabled={loading || !approverName.trim() || !pin.trim()}
-                    className="rounded-xl bg-white px-3 py-2 text-xs font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
+                    className="rounded-lg bg-white px-2.5 py-1.5 text-[11px] font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
                   >
                     {loading ? "Loading..." : "Refresh Sales"}
                   </button>
@@ -2835,7 +2683,7 @@ export default function AdminAnalyticsPage() {
                     type="button"
                     onClick={syncSalesNow}
                     disabled={salesSyncing || !approverName.trim() || !pin.trim()}
-                    className="rounded-xl border border-emerald-700 bg-emerald-950/30 px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-900/40 disabled:opacity-60"
+                    className="rounded-lg border border-emerald-700 bg-emerald-950/30 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-200 transition hover:bg-emerald-900/40 disabled:opacity-60"
                   >
                     {salesSyncing ? "Syncing..." : "Sync POS from Drive"}
                   </button>
@@ -2843,7 +2691,7 @@ export default function AdminAnalyticsPage() {
                     type="button"
                     onClick={syncHourlySalesNow}
                     disabled={hourlySyncing || !approverName.trim() || !pin.trim()}
-                    className="rounded-xl border border-sky-700 bg-sky-950/30 px-3 py-2 text-xs font-semibold text-sky-200 transition hover:bg-sky-900/40 disabled:opacity-60"
+                    className="rounded-lg border border-sky-700 bg-sky-950/30 px-2.5 py-1.5 text-[11px] font-semibold text-sky-200 transition hover:bg-sky-900/40 disabled:opacity-60"
                   >
                     {hourlySyncing ? "Syncing..." : "Sync Hourly Sales"}
                   </button>
@@ -2959,9 +2807,28 @@ export default function AdminAnalyticsPage() {
                   Hourly analytics: {hourlyLoadError}
                 </div>
               ) : null}
+              <div className="mt-4 flex flex-wrap gap-2">
+                {[
+                  ["sales-summary", "Summary"],
+                  ["sales-hourly", "Hourly"],
+                  ["sales-brands", "Brands"],
+                  ["sales-menu", "Menu"],
+                  ["sales-stores", "Stores"],
+                  ["sales-daily", "Daily"],
+                ].map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => scrollToSection(id)}
+                    className="rounded-full border border-neutral-700 bg-neutral-950/40 px-3 py-1 text-[11px] font-medium text-neutral-200 transition hover:bg-neutral-900 hover:text-white"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            <div id="sales-summary" className="grid grid-cols-2 gap-3 md:grid-cols-5">
               <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs text-neutral-500">
                   {posSalesSummary.revenueBasis === "revenue"
@@ -3008,7 +2875,7 @@ export default function AdminAnalyticsPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+            <div id="sales-hourly" className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <div className="text-sm font-semibold">Hourly Sales Analytics</div>
@@ -3190,7 +3057,7 @@ export default function AdminAnalyticsPage() {
             ) : null}
 
             {city === "dubai" && brandOrderRanking.length ? (
-              <div className="rounded-2xl border border-emerald-900/40 bg-emerald-950/15 p-4">
+              <div id="sales-brands" className="rounded-2xl border border-emerald-900/40 bg-emerald-950/15 p-4">
                 <div className="mb-3 text-sm font-semibold text-emerald-100">Dubai — orders &amp; net sales by brand</div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   {brandOrderRanking.map((row) => (
@@ -3243,30 +3110,7 @@ export default function AdminAnalyticsPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-              <div className="text-sm font-semibold">Sales x Attendance Operational Insights</div>
-              <div className="mt-1 text-xs text-neutral-500">
-                Sales period and attendance period are aligned to the same Summary range.
-              </div>
-              <div className="mt-3 space-y-2">
-                {salesOpsInsights.length ? (
-                  salesOpsInsights.map((msg, idx) => (
-                    <div
-                      key={`${idx}-${msg.en}`}
-                      className="rounded-xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm text-neutral-200"
-                    >
-                      <div>- {msg.en}</div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 px-3 py-3 text-sm text-neutral-500">
-                    Not enough joined data yet for operational insights.
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+            <div id="sales-menu" className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div className="text-sm font-semibold">Top Menu Ranking (By Quantity)</div>
                 <button
@@ -3311,7 +3155,7 @@ export default function AdminAnalyticsPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+            <div id="sales-stores" className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div className="text-sm font-semibold">Store Order Ranking</div>
               </div>
@@ -3348,7 +3192,7 @@ export default function AdminAnalyticsPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+            <div id="sales-daily" className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div className="text-sm font-semibold">Sales Daily Details</div>
                 <button
