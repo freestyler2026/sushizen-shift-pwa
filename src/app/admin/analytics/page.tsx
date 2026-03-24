@@ -2,43 +2,100 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { getAuth } from "@/lib/auth";
+import {
+  canViewManagementPl,
+  canViewSalesAnalytics,
+  clearStepUpAuth,
+  getAuth,
+  getAuthHeaders,
+  refreshAuthFromApi,
+  setStepUpAuth,
+  stepUpSatisfies,
+  type City,
+} from "@/lib/auth";
+import { startPasskeyAuthentication, startPasskeyRegistration } from "@/lib/webauthn";
 
-// Use same-origin requests; Next rewrites proxy /api/* to backend.
-const API_BASE = "";
-const LOGO_SRC = "/logo.png";
-
+// Resolve API base at runtime so local dev always talks to FastAPI directly,
+// even when the page is opened via a LAN IP or a custom local hostname.
+function getApiBase() {
+  if (process.env.NODE_ENV !== "production") return "http://127.0.0.1:8000";
+  return "";
+}
 async function apiGet<T = any>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
-  const text = await res.text();
+  const request = async () =>
+    fetch(`${getApiBase()}${path}`, {
+      cache: "no-store",
+      headers: getAuthHeaders(),
+    });
+  let res = await request();
+  let text = await res.text();
+
+  if (!res.ok && res.status === 401) {
+    const detail = (() => {
+      try {
+        const j = JSON.parse(text);
+        return typeof j?.detail === "string" ? j.detail : "";
+      } catch {
+        return "";
+      }
+    })();
+    if (detail.includes("Invalid access token")) {
+      await refreshAuthFromApi(getAuth());
+      res = await request();
+      text = await res.text();
+    }
+  }
 
   if (!res.ok) {
+    let detail = "";
     try {
       const j = JSON.parse(text);
-      throw new Error(j?.detail || text || `GET ${path} failed`);
+      detail = typeof j?.detail === "string" ? j.detail : "";
     } catch {
-      throw new Error(text || `GET ${path} failed`);
+      detail = "";
     }
+    throw new Error(detail || text || `GET ${path} failed`);
   }
 
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
 
 async function apiPost<T = any>(path: string, body: Record<string, unknown>): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    cache: "no-store",
-  });
-  const text = await res.text();
+  const request = async () =>
+    fetch(`${getApiBase()}${path}`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+  let res = await request();
+  let text = await res.text();
+
+  if (!res.ok && res.status === 401) {
+    const detail = (() => {
+      try {
+        const j = JSON.parse(text);
+        return typeof j?.detail === "string" ? j.detail : "";
+      } catch {
+        return "";
+      }
+    })();
+    if (detail.includes("Invalid access token")) {
+      await refreshAuthFromApi(getAuth());
+      res = await request();
+      text = await res.text();
+    }
+  }
+
   if (!res.ok) {
+    let detail = "";
     try {
       const j = JSON.parse(text);
-      throw new Error(j?.detail || text || `POST ${path} failed`);
+      detail = typeof j?.detail === "string" ? j.detail : "";
     } catch {
-      throw new Error(text || `POST ${path} failed`);
+      detail = "";
     }
+    throw new Error(detail || text || `POST ${path} failed`);
   }
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
@@ -142,11 +199,19 @@ type ProductMixRankingResp = {
   items: ProductMixRankingRow[];
 };
 
+type PosAggregatorMetric = {
+  aggregator_name: string;
+  order_count_non_cancelled: number;
+  gross_revenue: number;
+  net_revenue: number;
+};
+
 type PosBranchOrderRow = {
   branch_name: string;
   order_count_non_cancelled: number;
   gross_revenue: number;
   net_revenue: number;
+  aggregators?: PosAggregatorMetric[];
 };
 
 type PosBranchOrderResp = { ok: boolean; items: PosBranchOrderRow[] };
@@ -156,6 +221,7 @@ type PosBrandOrderRow = {
   order_count_non_cancelled: number;
   gross_revenue: number;
   net_revenue: number;
+  aggregators?: PosAggregatorMetric[];
 };
 type PosBrandOrderResp = { ok: boolean; items: PosBrandOrderRow[] };
 
@@ -169,6 +235,292 @@ type PosBranchDailyRow = {
 };
 
 type PosBranchDailyResp = { ok: boolean; items: PosBranchDailyRow[] };
+
+type PosCancelOrderTypeRow = {
+  order_type: string;
+  lost_order_count: number;
+  lost_revenue: number;
+};
+
+type PosCancelPlatformRow = {
+  platform_name: string;
+  lost_order_count: number;
+  platform_pre_ack: number;
+  platform_post_ack: number;
+  merchant_pre_ack: number;
+  merchant_post_ack: number;
+};
+
+type PosCancelDailyRow = {
+  work_date: string;
+  brand_name: string;
+  lost_order_count: number;
+  lost_revenue: number;
+  source_file_name: string;
+};
+
+type PosCancelOrdersResp = {
+  ok: boolean;
+  city: string;
+  date_from: string;
+  date_to: string;
+  brand_name?: string;
+  summary?: {
+    lost_order_count: number;
+    lost_revenue: number;
+    day_count: number;
+    order_type_count: number;
+    platform_count: number;
+  };
+  order_type_rows: PosCancelOrderTypeRow[];
+  platform_rows: PosCancelPlatformRow[];
+  daily_rows: PosCancelDailyRow[];
+};
+
+type EvaluationSection = {
+  section_key: string;
+  section_label: string;
+  status: string;
+  description: string;
+  display_order: number;
+};
+
+type EvaluationRule = {
+  metric_key: string;
+  category_key: string;
+  metric_label: string;
+  config_json: Record<string, unknown>;
+  is_active: boolean;
+  updated_by?: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+type EvaluationSummaryData = {
+  store_count: number;
+  overall_avg_score: number | null;
+  attendance_avg_score: number | null;
+  operation_avg_score: number | null;
+  food_cost_avg_score: number | null;
+  operation_time_avg_minutes: number | null;
+  warning_count: number;
+};
+
+type EvaluationStoreRow = {
+  branch_code: string;
+  branch_name: string;
+  attendance: {
+    late_count: number;
+    absence_count: number;
+    shift_change_request_count: number;
+    shift_preserve_rate: number | null;
+    scheduled_minutes: number;
+    actual_minutes: number;
+    scores: {
+      late_score: number | null;
+      absence_score: number | null;
+      shift_change_score: number | null;
+      shift_preserve_score: number | null;
+    };
+    total_score: number;
+    max_score: number;
+  };
+  operation: {
+    operation_time_minutes: number | null;
+    qc_grade_avg: number | null;
+    image_upload_rate: number | null;
+    total_photos: number;
+    order_count: number;
+    order_day_count: number;
+    waste_report_day_count: number;
+    waste_report_coverage: number | null;
+    waste_report_row_count?: number;
+    waste_report_quantity_total?: number;
+    waste_report_rows_per_day?: number;
+    waste_report_quantity_per_100_orders?: number | null;
+    waste_target_low_per_100_orders?: number;
+    waste_target_high_per_100_orders?: number;
+    prep_report_day_count: number;
+    prep_report_coverage: number | null;
+    prep_report_row_count?: number;
+    prep_report_quantity_total?: number;
+    prep_report_rows_per_day?: number;
+    prep_expected_rows_per_day?: number;
+    prep_rows_ratio?: number;
+    prep_report_quantity_per_100_orders?: number | null;
+    prep_target_low_per_100_orders?: number;
+    prep_target_high_per_100_orders?: number;
+    scores: {
+      operation_time_score: number | null;
+      qc_score: number | null;
+      image_upload_score: number | null;
+      waste_score: number | null;
+      prep_score: number | null;
+    };
+    total_score: number;
+    max_score: number;
+    source_scope: string;
+  };
+  food_cost: {
+    food_cost_pct: number | null;
+    target_pct: number | null;
+    score: number | null;
+    max_score: number;
+  };
+  purchasing: {
+    status: string;
+    label: string;
+  };
+  inventory_accuracy: {
+    status: string;
+    label: string;
+  };
+  overall_score: number;
+  overall_max_score: number;
+};
+
+type EvaluationStoresResp = {
+  ok: boolean;
+  city: string;
+  date_from: string;
+  date_to: string;
+  summary: EvaluationSummaryData;
+  stores: EvaluationStoreRow[];
+  sections: EvaluationSection[];
+  warnings: string[];
+};
+
+type EvaluationTimelineStore = {
+  branch_code: string;
+  branch_name: string;
+};
+
+type EvaluationTimelineDay = {
+  date: string;
+  store_count: number;
+  company_total_score: number;
+  company_total_max_score: number;
+  company_avg_score: number | null;
+  stores: {
+    branch_code: string;
+    branch_name: string;
+    overall_score: number | null;
+    overall_max_score: number;
+    attendance_score: number | null;
+    operation_score: number | null;
+    food_cost_score: number | null;
+  }[];
+};
+
+type EvaluationTimelineResp = {
+  ok: boolean;
+  city: string;
+  date_from: string;
+  date_to: string;
+  stores: EvaluationTimelineStore[];
+  days: EvaluationTimelineDay[];
+  warnings: string[];
+};
+
+type EvaluationReportDetailEntry = {
+  submitted_at: string;
+  store_raw: string;
+  reporter: string;
+  detail: string;
+  quantity_total: number;
+};
+
+type EvaluationDayDetailStore = {
+  branch_code: string;
+  branch_name: string;
+  overall_score: number | null;
+  overall_max_score: number;
+  attendance_score: number | null;
+  operation_score: number | null;
+  food_cost_score: number | null;
+  order_count?: number;
+  backup_quantity_total?: number;
+  backup_quantity_per_100_orders?: number | null;
+  disposal_reports: EvaluationReportDetailEntry[];
+  backup_reports: EvaluationReportDetailEntry[];
+};
+
+type EvaluationDayDetailsResp = {
+  ok: boolean;
+  city: string;
+  target_date: string;
+  stores: EvaluationDayDetailStore[];
+  warnings: string[];
+};
+
+type EvaluationRulesResp = {
+  ok: boolean;
+  rules: EvaluationRule[];
+  sections: EvaluationSection[];
+  settings?: Record<string, { value_json?: Record<string, unknown> }>;
+};
+
+type EvaluationSettingsResp = {
+  ok: boolean;
+  settings?: Record<string, { value_json?: Record<string, unknown> }>;
+  setting?: { value_json?: Record<string, unknown> };
+};
+
+function getEvaluationStrictnessLevel(settings?: Record<string, { value_json?: Record<string, unknown> }>) {
+  const raw = Number(settings?.scoring_profile?.value_json?.strictness_level ?? 5);
+  if (!Number.isFinite(raw)) return 5;
+  return Math.max(1, Math.min(10, Math.round(raw)));
+}
+
+function formatEvaluationWarning(message: string) {
+  const text = String(message || "").trim();
+  const lower = text.toLowerCase();
+  const grantAccessMatch = text.match(/grant access to\s+([^\s]+)/i);
+  const shareTarget = grantAccessMatch?.[1] || "";
+  const isQuotaError =
+    lower.includes("rate_limit_exceeded") ||
+    lower.includes("quota") ||
+    lower.includes("429");
+  const hasPermissionError =
+    lower.includes("403") ||
+    lower.includes("permission") ||
+    lower.includes("caller does not have permission") ||
+    lower.includes("grant access to");
+
+  if (lower.includes("qc history folder unavailable")) {
+    return "";
+  }
+
+  if (lower.includes("qc sheet unavailable")) {
+    return hasPermissionError
+      ? shareTarget
+        ? `QC sheet is connected, but access is still missing. Share it with ${shareTarget}.`
+        : "QC sheet is connected, but the production service account does not have access."
+      : "QC sheet is temporarily unavailable."
+  }
+
+  if (
+    lower.includes("form sheet unavailable") ||
+    lower.includes("form detail unavailable") ||
+    lower.includes("disposal sheet unavailable") ||
+    lower.includes("prep sheet unavailable")
+  ) {
+    if (isQuotaError) {
+      return "Google Sheets API rate limit was reached. Please wait 1-2 minutes and retry.";
+    }
+    return hasPermissionError
+      ? shareTarget
+        ? `Some disposal or prep sheets still need to be shared with ${shareTarget}.`
+        : "Some disposal or prep sheets are connected, but the production service account does not have access."
+      : "Some disposal or prep sheets are temporarily unavailable."
+  }
+
+  if (hasPermissionError) {
+    return "Some evaluation source sheets cannot be read by the production service account."
+  }
+
+  return text;
+}
 
 type HourlySalesAnalyticsRow = {
   hour_of_day: number;
@@ -464,10 +816,28 @@ const SALES_SECTION_OPTIONS = [
   { value: "hourly", label: "Hourly", id: "sales-hourly" },
   { value: "operationTime", label: "Op Time", id: "sales-operation-time" },
   { value: "brands", label: "Brands", id: "sales-brands" },
+  { value: "cancelOrders", label: "Cancel Orders", id: "sales-cancel-orders" },
   { value: "productMix", label: "Product Mix", id: "sales-product-mix" },
   { value: "menu", label: "Menu", id: "sales-menu" },
   { value: "stores", label: "Stores", id: "sales-stores" },
   { value: "daily", label: "Daily", id: "sales-daily" },
+] as const;
+
+const FINANCE_SECTION_OPTIONS = [
+  { value: "summary", label: "Summary", id: "finance-summary" },
+  { value: "plDetails", label: "P&L Details", id: "finance-pl-details" },
+  { value: "payroll", label: "Payroll", id: "finance-payroll" },
+] as const;
+
+const EVALUATION_SECTION_OPTIONS = [
+  { value: "summary", label: "Summary", id: "evaluation-summary" },
+  { value: "attendance", label: "Attendance", id: "evaluation-attendance" },
+  { value: "operation", label: "Operation", id: "evaluation-operation" },
+  { value: "disposal", label: "Disposal", id: "evaluation-disposal" },
+  { value: "backup", label: "Backup", id: "evaluation-backup" },
+  { value: "foodCost", label: "Food Cost", id: "evaluation-food-cost" },
+  { value: "purchasing", label: "Purchasing", id: "evaluation-purchasing" },
+  { value: "inventoryAccuracy", label: "Inventory Accuracy", id: "evaluation-inventory-accuracy" },
 ] as const;
 
 function formatPct(value: number, digits = 2) {
@@ -475,14 +845,140 @@ function formatPct(value: number, digits = 2) {
   return `${value.toFixed(digits)}%`;
 }
 
+function formatScore(value: number | null | undefined, digits = 1) {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return formatDecimal(Number(value), digits);
+}
+
+function AggregatorBreakdown({ items, dense = false }: { items?: PosAggregatorMetric[]; dense?: boolean }) {
+  const rows = (items || []).filter(
+    (row) => String(row.aggregator_name || "").trim() || Number(row.order_count_non_cancelled || 0) || Number(row.net_revenue || 0),
+  );
+  if (!rows.length) {
+    return <div className="text-[11px] text-neutral-500">No aggregator breakdown</div>;
+  }
+  return (
+    <div className={dense ? "space-y-1" : "space-y-2"}>
+      {rows.map((row) => (
+        <div
+          key={`${row.aggregator_name}-${row.order_count_non_cancelled}-${row.net_revenue}`}
+          className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border border-neutral-800/80 bg-neutral-950/50 px-2 py-1.5"
+        >
+          <div className="text-xs text-neutral-300">{row.aggregator_name || "Unknown"}</div>
+          <div className="text-[11px] text-neutral-500 tabular-nums">
+            {formatCount(Number(row.order_count_non_cancelled || 0))} orders · Net {formatMoney(Number(row.net_revenue || 0))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function formatMinutes(value: number | null | undefined, digits = 1) {
   if (value == null || !Number.isFinite(value)) return "—";
   return `${formatDecimal(Number(value), digits)} min`;
 }
 
+function EvaluationKpiCard({
+  title,
+  value,
+  hint,
+  guide,
+  scaleNote,
+  targetLine,
+  targetStatus,
+  targetStatusClassName = "text-neutral-300",
+}: {
+  title: string;
+  value: string;
+  hint: string;
+  guide: string;
+  scaleNote?: string;
+  targetLine?: string;
+  targetStatus?: string;
+  targetStatusClassName?: string;
+}) {
+  return (
+    <div className="flex h-full min-w-0 flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+      <div className="min-h-[54px] text-xs leading-5 text-neutral-500">{title}</div>
+      <div className="mt-1 flex h-[42px] items-end text-xl font-bold leading-none tabular-nums sm:text-2xl">
+        <span className="whitespace-nowrap">{value}</span>
+      </div>
+      {targetLine ? (
+        <div className="mt-2 rounded-xl border border-sky-900/40 bg-sky-950/30 px-2.5 py-2 text-[11px] leading-5 text-sky-100">
+          <div>Target line: {targetLine}</div>
+          {targetStatus ? <div className={`mt-1 ${targetStatusClassName}`}>{targetStatus}</div> : null}
+        </div>
+      ) : null}
+      <div className="mt-2 min-h-[80px] text-[11px] leading-5 text-neutral-400">{hint}</div>
+      {scaleNote ? (
+        <div className="mt-2 text-[11px] leading-5 text-sky-300">{scaleNote}</div>
+      ) : null}
+      <div className="mt-2 rounded-xl border border-neutral-800/80 bg-neutral-950/70 px-2.5 py-2 text-[11px] leading-5 text-neutral-500">
+        {guide}
+      </div>
+    </div>
+  );
+}
+
+function EvaluationMetricCell({
+  actual,
+  score,
+  maxScore = 10,
+  emphasize = false,
+}: {
+  actual: string;
+  score: number | null | undefined;
+  maxScore?: number | null | undefined;
+  emphasize?: boolean;
+}) {
+  return (
+    <div className="min-w-[108px]">
+      <div className="tabular-nums text-sm text-white">{actual}</div>
+      <div className={emphasize ? "mt-1 text-[11px] font-semibold tabular-nums text-sky-200" : "mt-1 text-[11px] tabular-nums text-neutral-500"}>
+        Score {formatScore(score)} / {formatCount(Number(maxScore || 0))} pts
+      </div>
+    </div>
+  );
+}
+
 function formatSeconds(value: number | null | undefined, digits = 1) {
   if (value == null || !Number.isFinite(value)) return "—";
   return `${formatDecimal(Number(value), digits)} sec`;
+}
+
+function describeHigherIsBetter(actual: number | null | undefined, target: number, unit: "pts" | "stores" = "pts") {
+  if (actual == null || !Number.isFinite(actual)) {
+    return { text: "Status: No data", className: "text-neutral-300" };
+  }
+  const diff = Number(actual) - target;
+  if (diff >= 0) {
+    return {
+      text: `Status: On target (+${formatDecimal(diff, 1)} ${unit})`,
+      className: "text-emerald-300",
+    };
+  }
+  return {
+    text: `Status: Below target (${formatDecimal(diff, 1)} ${unit})`,
+    className: "text-amber-300",
+  };
+}
+
+function describeLowerIsBetter(actual: number | null | undefined, target: number, unit = "min") {
+  if (actual == null || !Number.isFinite(actual)) {
+    return { text: "Status: No data", className: "text-neutral-300" };
+  }
+  const diff = target - Number(actual);
+  if (diff >= 0) {
+    return {
+      text: `Status: On target (+${formatDecimal(diff, 1)} ${unit} faster)`,
+      className: "text-emerald-300",
+    };
+  }
+  return {
+    text: `Status: Above target (${formatDecimal(Math.abs(diff), 1)} ${unit} slower)`,
+    className: "text-amber-300",
+  };
 }
 
 /** Previous calendar month (local date), e.g. in March 2026 → Feb 1–28, 2026 */
@@ -563,6 +1059,27 @@ function addDaysIso(base: Date, days: number) {
   const d = new Date(base);
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
+}
+
+function splitDateRangeIntoChunks(dateFrom: string, dateTo: string, chunkSize = 7) {
+  const out: Array<{ from: string; to: string }> = [];
+  if (!dateFrom || !dateTo) return out;
+  const start = new Date(`${dateFrom}T00:00:00`);
+  const end = new Date(`${dateTo}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return out;
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    const chunkStart = new Date(cursor);
+    const chunkEnd = new Date(cursor);
+    chunkEnd.setDate(chunkEnd.getDate() + chunkSize - 1);
+    if (chunkEnd > end) chunkEnd.setTime(end.getTime());
+    out.push({
+      from: chunkStart.toISOString().slice(0, 10),
+      to: chunkEnd.toISOString().slice(0, 10),
+    });
+    cursor.setDate(cursor.getDate() + chunkSize);
+  }
+  return out;
 }
 
 function csvEscape(value: unknown) {
@@ -656,16 +1173,6 @@ function isProblemAbsence(row: ComparisonItem) {
   );
 }
 
-function uniqueStaffCount(rows: ComparisonItem[], predicate: (row: ComparisonItem) => boolean) {
-  const s = new Set<string>();
-  for (const row of rows) {
-    if (!predicate(row)) continue;
-    const name = safeStaffName(row);
-    if (name) s.add(name);
-  }
-  return s.size;
-}
-
 function calculateComplianceRate(row: ComparisonItem) {
   const scheduled = Number(row.scheduled_minutes ?? 0);
   const actual = Number(row.actual_minutes ?? 0);
@@ -688,7 +1195,8 @@ function calculateComplianceRate(row: ComparisonItem) {
 }
 
 export default function AdminAnalyticsPage() {
-  const auth = getAuth();
+  const [authState, setAuthState] = useState(() => getAuth());
+  const auth = authState;
 
   const [city, setCity] = useState<string>((auth?.city || "dubai").toLowerCase());
   const [dateFrom, setDateFrom] = useState("2025-11-01");
@@ -699,13 +1207,25 @@ export default function AdminAnalyticsPage() {
   const [branchCode, setBranchCode] = useState("");
   const [summaryBranchCode, setSummaryBranchCode] = useState("");
   const [summaryBrandName, setSummaryBrandName] = useState("");
-  const [salesSectionView, setSalesSectionView] = useState<"summary" | "hourly" | "operationTime" | "brands" | "productMix" | "menu" | "stores" | "daily" | "all">(
+  const [salesSectionView, setSalesSectionView] = useState<"summary" | "hourly" | "operationTime" | "brands" | "cancelOrders" | "productMix" | "menu" | "stores" | "daily" | "all">(
     "summary",
   );
-  const [staffLimit, setStaffLimit] = useState(20);
+  const [financeSectionView, setFinanceSectionView] = useState<"summary" | "plDetails" | "payroll" | "all">("summary");
+  const [evaluationSectionView, setEvaluationSectionView] = useState<"summary" | "attendance" | "operation" | "disposal" | "backup" | "foodCost" | "purchasing" | "inventoryAccuracy" | "all">(
+    "summary",
+  );
+  const [staffLimit] = useState(20);
 
   const [approverName, setApproverName] = useState(auth?.staffName || "");
-  const [pin, setPin] = useState(auth?.pin || "");
+  const [pin] = useState("session");
+  const [securityBusy, setSecurityBusy] = useState(false);
+  const [securityError, setSecurityError] = useState("");
+  const [securityMessage, setSecurityMessage] = useState("");
+  const [totpCode, setTotpCode] = useState("");
+  const [backupCode, setBackupCode] = useState("");
+  const [totpEnrollment, setTotpEnrollment] = useState<null | { enrollmentToken: string; secret: string; otpauthUri: string }>(null);
+  const [totpEnrollmentCode, setTotpEnrollmentCode] = useState("");
+  const [backupCodes, setBackupCodes] = useState<string[]>([]);
 
   const [branchDailyRows, setBranchDailyRows] = useState<BranchDailyRow[]>([]);
   const [branchWeekdayRows, setBranchWeekdayRows] = useState<BranchWeekdayRow[]>([]);
@@ -721,19 +1241,114 @@ export default function AdminAnalyticsPage() {
   const [posBranchOrderRows, setPosBranchOrderRows] = useState<PosBranchOrderRow[]>([]);
   const [posBrandOrderRows, setPosBrandOrderRows] = useState<PosBrandOrderRow[]>([]);
   const [posBranchDailyRows, setPosBranchDailyRows] = useState<PosBranchDailyRow[]>([]);
+  const [cancelOrdersAnalytics, setCancelOrdersAnalytics] = useState<PosCancelOrdersResp | null>(null);
   const [hourlySalesAnalytics, setHourlySalesAnalytics] = useState<HourlySalesAnalyticsResp | null>(null);
   const [hourlyLoadError, setHourlyLoadError] = useState("");
   const [operationTimeAnalytics, setOperationTimeAnalytics] = useState<OperationTimeResp | null>(null);
   const [operationTimeLoadError, setOperationTimeLoadError] = useState("");
   const [hourlyStoreName, setHourlyStoreName] = useState("");
-  const [salesComparisonRows, setSalesComparisonRows] = useState<ComparisonItem[]>([]);
+  const [, setSalesComparisonRows] = useState<ComparisonItem[]>([]);
   const [payrollRows, setPayrollRows] = useState<PayrollStaffRow[]>([]);
   const [financeRatio, setFinanceRatio] = useState<FinanceLaborRatioResp | null>(null);
   const [plVsTarget, setPlVsTarget] = useState<PlVsTargetResp | null>(null);
   const [salesPlSummary, setSalesPlSummary] = useState<PlVsTargetResp | null>(null);
-  const [plUploading, setPlUploading] = useState(false);
-  const [plUploadMessage, setPlUploadMessage] = useState("");
+  const [evaluationSummary, setEvaluationSummary] = useState<EvaluationSummaryData | null>(null);
+  const [evaluationStores, setEvaluationStores] = useState<EvaluationStoreRow[]>([]);
+  const [evaluationSections, setEvaluationSections] = useState<EvaluationSection[]>([]);
+  const [evaluationWarnings, setEvaluationWarnings] = useState<string[]>([]);
+  const [evaluationRules, setEvaluationRules] = useState<EvaluationRule[]>([]);
+  const [evaluationTimeline, setEvaluationTimeline] = useState<EvaluationTimelineResp | null>(null);
+  const [evaluationDetailDate, setEvaluationDetailDate] = useState(() => previousCalendarMonthRangeIso().to);
+  const [evaluationDayDetails, setEvaluationDayDetails] = useState<EvaluationDayDetailsResp | null>(null);
+  const [evaluationStrictnessLevel, setEvaluationStrictnessLevel] = useState(5);
+  const [evaluationRuleMessage, setEvaluationRuleMessage] = useState("");
+  const [evaluationSavingRules, setEvaluationSavingRules] = useState(false);
+  const [plSyncing, setPlSyncing] = useState(false);
+  const [plSyncMessage, setPlSyncMessage] = useState("");
   const [plStoreName, setPlStoreName] = useState("");
+
+  const evaluationScoreScale = useMemo(() => {
+    const maxOf = (values: number[], fallback: number) => {
+      const valid = values.filter((v) => Number.isFinite(v) && v > 0);
+      if (!valid.length) return fallback;
+      return Math.max(...valid);
+    };
+    const round1 = (v: number) => Math.round(v * 10) / 10;
+    const passFromMax = (max: number) => round1(max * 0.7);
+
+    const overallMax = maxOf(evaluationStores.map((row) => Number(row.overall_max_score || 0)), 100);
+    const attendanceMax = maxOf(evaluationStores.map((row) => Number(row.attendance.max_score || 0)), 40);
+    const operationMax = maxOf(evaluationStores.map((row) => Number(row.operation.max_score || 0)), 50);
+    const foodCostMax = maxOf(evaluationStores.map((row) => Number(row.food_cost.max_score || 0)), 10);
+    const disposalMax = 10;
+    const backupMax = 10;
+
+    return {
+      overallMax,
+      overallPass: passFromMax(overallMax),
+      attendanceMax,
+      attendancePass: passFromMax(attendanceMax),
+      operationMax,
+      operationPass: passFromMax(operationMax),
+      foodCostMax,
+      foodCostPass: passFromMax(foodCostMax),
+      disposalMax,
+      disposalPass: passFromMax(disposalMax),
+      backupMax,
+      backupPass: passFromMax(backupMax),
+    };
+  }, [evaluationStores]);
+
+  const disposalAvgScore = useMemo(() => {
+    const vals = evaluationStores
+      .map((row) => Number(row.operation?.scores?.waste_score))
+      .filter((v) => Number.isFinite(v));
+    if (!vals.length) return null;
+    return vals.reduce((sum, v) => sum + v, 0) / vals.length;
+  }, [evaluationStores]);
+
+  const backupAvgScore = useMemo(() => {
+    const vals = evaluationStores
+      .map((row) => Number(row.operation?.scores?.prep_score))
+      .filter((v) => Number.isFinite(v));
+    if (!vals.length) return null;
+    return vals.reduce((sum, v) => sum + v, 0) / vals.length;
+  }, [evaluationStores]);
+
+  const evaluationTargetLines = useMemo(() => {
+    // "Good operations" targets shown in the summary KPI cards.
+    // Score targets use stable thresholds so users can evaluate at a glance.
+    const overallTarget = 70;
+    const attendanceTarget = 28;
+    const operationTarget = 35;
+    const foodCostTarget = 7;
+    const disposalTarget = 7;
+    const backupTarget = 7;
+    const opTimeTargetMinutes = 18;
+    const storeCoverageTarget = city === "dubai" ? 5 : 3;
+    return {
+      overallTarget,
+      attendanceTarget,
+      operationTarget,
+      foodCostTarget,
+      disposalTarget,
+      backupTarget,
+      opTimeTargetMinutes,
+      storeCoverageTarget,
+    };
+  }, [city]);
+
+  const evaluationTimelineDays = useMemo(() => {
+    return evaluationTimeline?.days || [];
+  }, [evaluationTimeline]);
+
+  const evaluationDayDetailsByBranch = useMemo(() => {
+    const map = new Map<string, EvaluationDayDetailStore>();
+    for (const row of evaluationDayDetails?.stores || []) {
+      map.set(String(row.branch_code || "").toUpperCase(), row);
+    }
+    return map;
+  }, [evaluationDayDetails]);
 
   /** Aligns UI with backend: profit = net_sales − payroll − food@target − rent@target − other@target */
   const financeBreakdown = useMemo(() => {
@@ -869,25 +1484,178 @@ export default function AdminAnalyticsPage() {
   const [comparisonLimit, setComparisonLimit] = useState("5000");
 
   const [viewMode, setViewMode] = useState<AnalyticsViewMode>("perfect_attendance");
-  const [analyticsTab, setAnalyticsTab] = useState<"staff" | "sales" | "payroll" | "finance">("staff");
+  const [analyticsTab, setAnalyticsTab] = useState<"staff" | "sales" | "evaluation" | "finance">("staff");
   const [staffSearch, setStaffSearch] = useState("");
 
   const roleUpper = String(auth?.role || "STAFF").toUpperCase();
   const isHQOrAdmin = roleUpper === "HQ" || roleUpper === "ADMIN";
   const canViewStaffChannel = isHQOrAdmin;
-  /** HQ/ADMIN: all cities. Dubai management: Dubai only. Manila management: Manila only. */
-  const canViewFinanceChannels =
-    isHQOrAdmin ||
-    (roleUpper === "DUBAI_MANAGEMENT" && city === "dubai") ||
-    (roleUpper === "MANILA_MANAGEMENT" && city === "manila");
-  const canViewPayrollChannel = canViewFinanceChannels;
-  const canViewManagementPlChannel = canViewFinanceChannels;
+  const canViewSalesChannel = canViewSalesAnalytics(auth, (city as City) || "dubai");
+  const canViewFinanceChannels = canViewSalesChannel;
+  const canViewEvaluationChannel = canViewSalesChannel;
+  const canViewManagementPlChannel = canViewManagementPl(auth);
+  const salesStepUpReady = stepUpSatisfies("aal2", auth);
+  const financeStepUpReady = stepUpSatisfies("phishing_resistant", auth);
+  const activeSecurityRequirement =
+    analyticsTab === "finance" ? "phishing-resistant Passkey" : analyticsTab === "sales" || analyticsTab === "evaluation" || analyticsTab === "staff" ? "MFA (Passkey or TOTP)" : "Login";
+  const activeSecuritySatisfied =
+    analyticsTab === "finance" ? financeStepUpReady : analyticsTab === "sales" || analyticsTab === "evaluation" || analyticsTab === "staff" ? salesStepUpReady : true;
 
   const [staffSortBy, setStaffSortBy] = useState<"hours" | "days" | "segments" | "name">("hours");
   const [branchSortBy, setBranchSortBy] = useState<"totalHours" | "avgHoursPerDay" | "maxStaff" | "branch">("totalHours");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  async function refreshSecurityState() {
+    const next = await refreshAuthFromApi(getAuth());
+    setAuthState(next);
+    return next;
+  }
+
+  async function withSecurityTask(task: () => Promise<void>) {
+    setSecurityBusy(true);
+    setSecurityError("");
+    setSecurityMessage("");
+    try {
+      await task();
+    } catch (e: any) {
+      const raw = String(e?.message || e || "");
+      if (raw.includes("approver_name is required")) {
+        setSecurityError("Session expired. Please Logout and login again, then retry Passkey setup.");
+      } else {
+        setSecurityError(raw);
+      }
+    } finally {
+      setSecurityBusy(false);
+    }
+  }
+
+  async function enrollPasskey() {
+    await withSecurityTask(async () => {
+      const start = await apiPost<{ options: any; state_token: string }>("/api/auth/webauthn/register/options", {
+        friendly_name: "Current device",
+      });
+      const credential = await startPasskeyRegistration(start.options);
+      await apiPost("/api/auth/webauthn/register/verify", {
+        state_token: start.state_token,
+        friendly_name: "Current device",
+        credential,
+      });
+      await refreshSecurityState();
+      setSecurityMessage("Passkey enrolled.");
+    });
+  }
+
+  async function beginTotpEnrollment() {
+    await withSecurityTask(async () => {
+      const res = await apiPost<{ enrollment_token: string; secret: string; otpauth_uri: string }>("/api/auth/totp/enroll/start", {});
+      setTotpEnrollment({
+        enrollmentToken: res.enrollment_token,
+        secret: res.secret,
+        otpauthUri: res.otpauth_uri,
+      });
+      setSecurityMessage("Scan the TOTP secret, then verify it below.");
+    });
+  }
+
+  async function verifyTotpEnrollment() {
+    if (!totpEnrollment?.enrollmentToken) return;
+    await withSecurityTask(async () => {
+      await apiPost("/api/auth/totp/enroll/verify", {
+        enrollment_token: totpEnrollment.enrollmentToken,
+        code: totpEnrollmentCode.trim(),
+      });
+      setTotpEnrollment(null);
+      setTotpEnrollmentCode("");
+      await refreshSecurityState();
+      setSecurityMessage("TOTP enrolled.");
+    });
+  }
+
+  async function regenerateBackupCodes() {
+    await withSecurityTask(async () => {
+      const res = await apiPost<{ codes: string[] }>("/api/auth/backup-codes/regenerate", {});
+      setBackupCodes(Array.isArray(res.codes) ? res.codes : []);
+      await refreshSecurityState();
+      setSecurityMessage("Backup codes regenerated.");
+    });
+  }
+
+  async function runPasskeyStepUp() {
+    await withSecurityTask(async () => {
+      const start = await apiPost<{ options: any; state_token: string }>("/api/auth/webauthn/auth/options", {});
+      const credential = await startPasskeyAuthentication(start.options);
+      const res = await apiPost<{ step_up_token: string; mfa_level: "phishing_resistant"; method: string }>("/api/auth/webauthn/auth/verify", {
+        state_token: start.state_token,
+        credential,
+      });
+      setStepUpAuth({
+        stepUpToken: res.step_up_token,
+        stepUpLevel: res.mfa_level,
+        stepUpMethod: res.method,
+      });
+      await refreshSecurityState();
+      setSecurityMessage("Passkey verification complete.");
+    });
+  }
+
+  async function runTotpStepUp() {
+    await withSecurityTask(async () => {
+      const res = await apiPost<{ step_up_token: string; mfa_level: "aal2"; method: string }>("/api/auth/totp/step-up", {
+        code: totpCode.trim(),
+      });
+      setStepUpAuth({
+        stepUpToken: res.step_up_token,
+        stepUpLevel: res.mfa_level,
+        stepUpMethod: res.method,
+      });
+      setTotpCode("");
+      await refreshSecurityState();
+      setSecurityMessage("TOTP verification complete.");
+    });
+  }
+
+  async function runBackupCodeStepUp() {
+    await withSecurityTask(async () => {
+      const res = await apiPost<{ step_up_token: string; mfa_level: "aal2"; method: string }>("/api/auth/backup-codes/step-up", {
+        code: backupCode.trim(),
+      });
+      setStepUpAuth({
+        stepUpToken: res.step_up_token,
+        stepUpLevel: res.mfa_level,
+        stepUpMethod: res.method,
+      });
+      setBackupCode("");
+      await refreshSecurityState();
+      setSecurityMessage("Backup code verification complete.");
+    });
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      const next = await refreshAuthFromApi(getAuth());
+      if (!cancelled) {
+        setAuthState(next);
+        if (next?.staffName) setApproverName(next.staffName);
+      }
+    }
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      void refreshSecurityState();
+    }, 60_000);
+    return () => {
+      window.clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (analyticsTab === "staff" && !canViewStaffChannel) {
@@ -901,6 +1669,51 @@ export default function AdminAnalyticsPage() {
     if (!section) return;
     window.requestAnimationFrame(() => scrollToSection(section.id));
   }, [analyticsTab, salesSectionView]);
+
+  useEffect(() => {
+    if (analyticsTab !== "finance" || financeSectionView === "all" || typeof window === "undefined") return;
+    const section = FINANCE_SECTION_OPTIONS.find((item) => item.value === financeSectionView);
+    if (!section) return;
+    window.requestAnimationFrame(() => scrollToSection(section.id));
+  }, [analyticsTab, financeSectionView]);
+
+  useEffect(() => {
+    if (analyticsTab !== "evaluation" || evaluationSectionView === "all" || typeof window === "undefined") return;
+    const section = EVALUATION_SECTION_OPTIONS.find((item) => item.value === evaluationSectionView);
+    if (!section) return;
+    window.requestAnimationFrame(() => scrollToSection(section.id));
+  }, [analyticsTab, evaluationSectionView]);
+
+  useEffect(() => {
+    if (analyticsTab !== "evaluation") return;
+    if (!approverName.trim() || !salesStepUpReady) return;
+    if (summaryDateFrom !== summaryDateTo) return;
+    if (city === "manila") return;
+    const normalized = summaryDateFrom;
+    setEvaluationDetailDate(normalized);
+    const qs = new URLSearchParams({
+      city,
+      target_date: normalized,
+      approver_name: approverName.trim(),
+      pin: pin.trim(),
+    });
+    void apiGet<EvaluationDayDetailsResp>(`/api/admin/evaluation/day-details?${qs.toString()}`)
+      .then((res) => {
+        setEvaluationDayDetails(res || null);
+        if (res?.warnings?.length) {
+          setEvaluationWarnings((prev) => Array.from(new Set([...(prev || []), ...res.warnings])));
+        }
+      })
+      .catch(() => {
+        setEvaluationDayDetails(null);
+      });
+  }, [analyticsTab, summaryDateFrom, summaryDateTo, city, approverName, salesStepUpReady]);
+
+  useEffect(() => {
+    if (!isHQOrAdmin && financeSectionView === "payroll") {
+      setFinanceSectionView("summary");
+    }
+  }, [isHQOrAdmin, financeSectionView]);
 
   function resetComparisonState() {
     setComparisonRows([]);
@@ -928,17 +1741,30 @@ export default function AdminAnalyticsPage() {
 
   useEffect(() => {
     if (analyticsTab !== "finance") return;
-    if (!approverName.trim() || !pin.trim()) return;
+    if (!approverName.trim() || !financeStepUpReady) return;
     void loadAll("finance");
-  }, [analyticsTab, plStoreName]);
+    // `loadAll()` is intentionally triggered by tab, scope, and credentials changes.
+    // It is recreated on render, so we avoid depending on its function identity here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyticsTab, plStoreName, approverName, financeStepUpReady]);
 
   useEffect(() => {
     if (analyticsTab !== "sales") return;
-    if (!approverName.trim() || !pin.trim()) return;
+    if (!approverName.trim() || !salesStepUpReady) return;
     void loadAll("sales");
-  }, [analyticsTab, hourlyStoreName, summaryBranchCode, summaryBrandName]);
+    // `loadAll()` is intentionally triggered by tab, scope, and credentials changes.
+    // It is recreated on render, so we avoid depending on its function identity here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyticsTab, hourlyStoreName, summaryBranchCode, summaryBrandName, approverName, salesStepUpReady]);
 
-  async function loadAll(scope: "all" | "sales" | "staff" | "payroll" | "finance" = "all") {
+  useEffect(() => {
+    if (analyticsTab !== "evaluation") return;
+    if (!approverName.trim() || !salesStepUpReady) return;
+    void loadAll("evaluation");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyticsTab, city, summaryDateFrom, summaryDateTo, approverName, salesStepUpReady]);
+
+  async function loadAll(scope: "all" | "sales" | "staff" | "evaluation" | "finance" = "all") {
     setLoading(true);
     setError("");
     const loadErrors: string[] = [];
@@ -947,8 +1773,9 @@ export default function AdminAnalyticsPage() {
       loadErrors.push(`${label}: ${msg}`);
     };
     const shouldLoadPos = scope === "all" || scope === "sales" || scope === "finance";
-    const shouldLoadStaff = scope === "all" || scope === "sales" || scope === "staff" || scope === "finance";
-    const shouldLoadFinance = scope === "all" || scope === "payroll" || scope === "finance";
+    const shouldLoadStaff = scope === "all" || scope === "staff" || scope === "finance";
+    const shouldLoadEvaluation = scope === "all" || scope === "evaluation";
+    const shouldLoadFinance = scope === "all" || scope === "finance";
 
     try {
       const posDailyQs = new URLSearchParams({
@@ -1000,6 +1827,15 @@ export default function AdminAnalyticsPage() {
             approver_name: approverName.trim(),
             pin: pin.trim(),
           });
+          const cancelOrdersQs = new URLSearchParams({
+            city,
+            date_from: summaryDateFrom,
+            date_to: summaryDateTo,
+            brand_name: summaryBrandName,
+            limit_daily: "365",
+            approver_name: approverName.trim(),
+            pin: pin.trim(),
+          });
           const operationTimeQs = new URLSearchParams({
             city,
             date_from: summaryDateFrom,
@@ -1009,13 +1845,14 @@ export default function AdminAnalyticsPage() {
             pin: pin.trim(),
           });
 
-          const [posDaily, posRanking, productMix, posBranches, posBrands, posBranchesDaily] = await Promise.all([
+          const [posDaily, posRanking, productMix, posBranches, posBrands, posBranchesDaily, cancelOrders] = await Promise.all([
             apiGet<PosSalesDailyResp>(`/api/admin/pos/sales/daily?${posDailyQs.toString()}`),
             apiGet<PosMenuRankingResp>(`/api/admin/pos/items/ranking?${posRankingQs.toString()}`),
             apiGet<ProductMixRankingResp>(`/api/admin/pos/product-mix?${posRankingQs.toString()}`),
             apiGet<PosBranchOrderResp>(`/api/admin/pos/branches/orders?${posRankingQs.toString()}`),
             apiGet<PosBrandOrderResp>(`/api/admin/pos/brands/orders?${posRankingQs.toString()}`),
             apiGet<PosBranchDailyResp>(`/api/admin/pos/branches/daily?${posDailyQs.toString()}`),
+            apiGet<PosCancelOrdersResp>(`/api/admin/pos/cancel-orders?${cancelOrdersQs.toString()}`),
           ]);
 
           setPosSalesRows(posDaily.items || []);
@@ -1030,7 +1867,8 @@ export default function AdminAnalyticsPage() {
           setPosBranchOrderRows(posBranches.items || []);
           setPosBrandOrderRows(posBrands.items || []);
           setPosBranchDailyRows(posBranchesDaily.items || []);
-          if (canViewFinanceChannels) {
+          setCancelOrdersAnalytics(cancelOrders ?? null);
+          if (canViewFinanceChannels && financeStepUpReady) {
             try {
               const salesPl = await apiGet<PlVsTargetResp>(`/api/admin/finance/pl-vs-target?${salesPlQs.toString()}`);
               setSalesPlSummary(salesPl || null);
@@ -1066,6 +1904,7 @@ export default function AdminAnalyticsPage() {
           setPosBranchOrderRows([]);
           setPosBrandOrderRows([]);
           setPosBranchDailyRows([]);
+          setCancelOrdersAnalytics(null);
           setOperationTimeAnalytics(null);
           setOperationTimeLoadError("");
           setSalesPlSummary(null);
@@ -1156,7 +1995,7 @@ export default function AdminAnalyticsPage() {
 
       const financeLoad = (async () => {
         if (!shouldLoadFinance) return;
-        if (!canViewFinanceChannels) {
+        if (!canViewFinanceChannels || !financeStepUpReady) {
           setPayrollRows([]);
           setFinanceRatio(null);
           setPlVsTarget(null);
@@ -1179,6 +2018,10 @@ export default function AdminAnalyticsPage() {
 
         await Promise.all([
           (async () => {
+            if (!isHQOrAdmin) {
+              setPayrollRows([]);
+              return;
+            }
             try {
               const payrollRes = await apiGet<PayrollStaffResp>(`/api/admin/payroll/staff?${payrollQs.toString()}`);
               setPayrollRows(payrollRes.items || []);
@@ -1215,7 +2058,87 @@ export default function AdminAnalyticsPage() {
         ]);
       })();
 
-      await Promise.all([posLoad, staffLoad, financeLoad]);
+      const evaluationLoad = (async () => {
+        if (!shouldLoadEvaluation) return;
+        if (!canViewEvaluationChannel) {
+          setEvaluationSummary(null);
+          setEvaluationStores([]);
+          setEvaluationSections([]);
+          setEvaluationWarnings([]);
+          setEvaluationRules([]);
+          setEvaluationTimeline(null);
+          setEvaluationDayDetails(null);
+          setEvaluationStrictnessLevel(5);
+          return;
+        }
+        if (city === "manila") {
+          const underConstructionSections: EvaluationSection[] = [
+            { section_key: "attendance", section_label: "Attendance Score", status: "under_construction", description: "Dubai only for now.", display_order: 10 },
+            { section_key: "operation", section_label: "Operation Score", status: "under_construction", description: "Dubai only for now.", display_order: 20 },
+            { section_key: "disposal", section_label: "Disposal", status: "under_construction", description: "Dubai only for now.", display_order: 25 },
+            { section_key: "backup", section_label: "Backup", status: "under_construction", description: "Dubai only for now.", display_order: 27 },
+            { section_key: "food_cost", section_label: "Food Cost", status: "under_construction", description: "Dubai only for now.", display_order: 30 },
+            { section_key: "purchasing", section_label: "Purchasing", status: "under_construction", description: "Data source will be connected later.", display_order: 40 },
+            { section_key: "inventory_accuracy", section_label: "Inventory Accuracy", status: "under_construction", description: "Theory vs actual inventory will be added later.", display_order: 50 },
+          ];
+          setEvaluationSummary({
+            store_count: 0,
+            overall_avg_score: null,
+            attendance_avg_score: null,
+            operation_avg_score: null,
+            food_cost_avg_score: null,
+            operation_time_avg_minutes: null,
+            warning_count: 1,
+          });
+          setEvaluationStores([]);
+          setEvaluationSections(underConstructionSections);
+          setEvaluationWarnings(["Manila evaluation is under construction. Evaluation data is available for Dubai only at this stage."]);
+          setEvaluationRules([]);
+          setEvaluationTimeline(null);
+          setEvaluationDayDetails(null);
+          setEvaluationStrictnessLevel(5);
+          setEvaluationRuleMessage("");
+          return;
+        }
+        try {
+          const evaluationQs = new URLSearchParams({
+            city,
+            date_from: summaryDateFrom,
+            date_to: summaryDateTo,
+            approver_name: approverName.trim(),
+            pin: pin.trim(),
+          });
+          const [evaluationStoresRes, evaluationRulesRes] = await Promise.all([
+            apiGet<EvaluationStoresResp>(`/api/admin/evaluation/stores?${evaluationQs.toString()}`),
+            apiGet<EvaluationRulesResp>(`/api/admin/evaluation/rules?${evaluationQs.toString()}`),
+          ]);
+          setEvaluationSummary(evaluationStoresRes.summary ?? null);
+          setEvaluationStores(evaluationStoresRes.stores || []);
+          setEvaluationSections(evaluationStoresRes.sections || evaluationRulesRes.sections || []);
+          setEvaluationWarnings(Array.from(new Set(evaluationStoresRes.warnings || [])));
+          setEvaluationRules(evaluationRulesRes.rules || []);
+          setEvaluationTimeline(null);
+          setEvaluationDayDetails(null);
+          setEvaluationDetailDate(summaryDateTo);
+          setEvaluationStrictnessLevel(getEvaluationStrictnessLevel(evaluationRulesRes.settings));
+          setEvaluationRuleMessage("");
+          if (summaryDateFrom === summaryDateTo) {
+            await refreshEvaluationDayDetails(summaryDateTo);
+          }
+        } catch (e) {
+          addLoadError("Evaluation", e);
+          setEvaluationSummary(null);
+          setEvaluationStores([]);
+          setEvaluationSections([]);
+          setEvaluationWarnings([]);
+          setEvaluationRules([]);
+          setEvaluationTimeline(null);
+          setEvaluationDayDetails(null);
+          setEvaluationStrictnessLevel(5);
+        }
+      })();
+
+      await Promise.all([posLoad, staffLoad, evaluationLoad, financeLoad]);
       setError(loadErrors.join(" | "));
     } catch (e: any) {
       setError(String(e?.message || e || "Failed to load analytics"));
@@ -1224,44 +2147,134 @@ export default function AdminAnalyticsPage() {
     }
   }
 
-  async function uploadPlExcel(file: File | null) {
-    if (!file || !approverName.trim() || !pin.trim()) return;
-    setPlUploading(true);
-    setPlUploadMessage("");
+  async function saveEvaluationRules() {
+    if (!isHQOrAdmin || !approverName.trim() || !salesStepUpReady) return;
+    setEvaluationSavingRules(true);
+    setEvaluationRuleMessage("");
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("approver_name", approverName.trim());
-      fd.append("pin", pin.trim());
-      fd.append("city", city);
-      const res = await fetch(`${API_BASE}/api/admin/pl/import/excel`, {
-        method: "POST",
-        body: fd,
-      });
-      const text = await res.text();
-      if (!res.ok) {
-        try {
-          const j = JSON.parse(text);
-          throw new Error(typeof j?.detail === "string" ? j.detail : text || "Upload failed");
-        } catch (e) {
-          if (e instanceof Error && e.message !== "Upload failed") throw e;
-          throw new Error(text || "Upload failed");
-        }
-      }
-      const j = text ? (JSON.parse(text) as { month_key?: string; line_count?: number }) : {};
-      setPlUploadMessage(
-        `Imported P&L ${j.month_key ?? ""} (${j.line_count ?? 0} lines). Refreshing…`
+      const res = await apiPost<EvaluationSettingsResp>(
+        "/api/admin/evaluation/settings",
+        {
+          approver_name: approverName.trim(),
+          pin: pin.trim(),
+          strictness_level: evaluationStrictnessLevel,
+        },
       );
+      setEvaluationStrictnessLevel(getEvaluationStrictnessLevel(res.settings));
+      setEvaluationRuleMessage(`Saved strictness level ${getEvaluationStrictnessLevel(res.settings)}.`);
+      await loadAll("evaluation");
+    } catch (e) {
+      setEvaluationRuleMessage(String((e as Error)?.message || e || "Failed to save rules"));
+    } finally {
+      setEvaluationSavingRules(false);
+    }
+  }
+
+  async function refreshEvaluationDayDetails(targetDate: string) {
+    if (!approverName.trim() || !salesStepUpReady) return;
+    const normalized = (targetDate || "").trim() || summaryDateTo;
+    setEvaluationDetailDate(normalized);
+    try {
+      const qs = new URLSearchParams({
+        city,
+        target_date: normalized,
+        approver_name: approverName.trim(),
+        pin: pin.trim(),
+      });
+      const res = await apiGet<EvaluationDayDetailsResp>(`/api/admin/evaluation/day-details?${qs.toString()}`);
+      setEvaluationDayDetails(res || null);
+      if (res?.warnings?.length) {
+        setEvaluationWarnings((prev) => Array.from(new Set([...(prev || []), ...res.warnings])));
+      }
+    } catch (e) {
+      setError(String((e as Error)?.message || e || "Failed to load daily report details"));
+      setEvaluationDayDetails(null);
+    }
+  }
+
+  async function refreshEvaluationTimeline() {
+    if (!approverName.trim() || !salesStepUpReady) return;
+    const chunks = splitDateRangeIntoChunks(summaryDateFrom, summaryDateTo, 3);
+    if (!chunks.length) {
+      setEvaluationTimeline(null);
+      return;
+    }
+    try {
+      const mergedDays: EvaluationTimelineDay[] = [];
+      const mergedStoreMap = new Map<string, string>();
+      const warnings: string[] = [];
+      for (const chunk of chunks) {
+        const qs = new URLSearchParams({
+          city,
+          date_from: chunk.from,
+          date_to: chunk.to,
+          approver_name: approverName.trim(),
+          pin: pin.trim(),
+        });
+        const res = await apiGet<EvaluationTimelineResp>(`/api/admin/evaluation/timeline?${qs.toString()}`);
+        for (const store of res.stores || []) mergedStoreMap.set(store.branch_code, store.branch_name);
+        mergedDays.push(...(res.days || []));
+        warnings.push(...(res.warnings || []));
+      }
+      const uniqDays = Array.from(
+        new Map(mergedDays.map((d) => [d.date, d])).values()
+      ).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+      const stores = Array.from(mergedStoreMap.entries())
+        .map(([branch_code, branch_name]) => ({ branch_code, branch_name }))
+        .sort((a, b) => a.branch_name.localeCompare(b.branch_name));
+      setEvaluationTimeline({
+        ok: true,
+        city,
+        date_from: summaryDateFrom,
+        date_to: summaryDateTo,
+        stores,
+        days: uniqDays,
+        warnings: Array.from(new Set(warnings)),
+      });
+      if (warnings.length) {
+        setEvaluationWarnings((prev) => Array.from(new Set([...(prev || []), ...warnings])));
+      }
+    } catch (e) {
+      setError(String((e as Error)?.message || e || "Failed to load daily timeline"));
+      setEvaluationTimeline(null);
+    }
+  }
+
+  async function syncPlFromGoogle() {
+    if (!approverName.trim() || !financeStepUpReady) return;
+    setPlSyncing(true);
+    setPlSyncMessage("");
+    try {
+      const res = await apiPost<{
+        ok?: boolean;
+        results?: Array<{
+          city?: string;
+          months_synced?: number;
+          months?: Array<{ month_key?: string; line_count?: number }>;
+        }>;
+      }>("/api/admin/pl/sync/from-google", {
+        approver_name: approverName.trim(),
+        pin: pin.trim(),
+        city,
+      });
+
+      const cityResult = (res?.results || [])[0];
+      const monthItems = Array.isArray(cityResult?.months) ? cityResult!.months : [];
+      const monthsSynced = Number(cityResult?.months_synced || monthItems.length || 0);
+      const monthKeys = monthItems.map((m) => String(m?.month_key || "").trim()).filter(Boolean);
+      const monthLabel = monthKeys.length ? `${monthKeys[0]} - ${monthKeys[monthKeys.length - 1]}` : "months";
+      setPlSyncMessage(`Synced ${monthsSynced} month tabs (${monthLabel}). Refreshing...`);
+
       await loadAll("finance");
     } catch (e) {
-      setPlUploadMessage(String((e as Error)?.message || e || "Upload failed"));
+      setPlSyncMessage(String((e as Error)?.message || e || "P&L sync failed"));
     } finally {
-      setPlUploading(false);
+      setPlSyncing(false);
     }
   }
 
   async function syncSalesNow() {
-    if (!approverName.trim() || !pin.trim()) return;
+    if (!approverName.trim() || !salesStepUpReady) return;
     setSalesSyncing(true);
     setSalesSyncMessage("");
     try {
@@ -1291,7 +2304,7 @@ export default function AdminAnalyticsPage() {
   }
 
   async function syncHourlySalesNow() {
-    if (!approverName.trim() || !pin.trim()) return;
+    if (!approverName.trim() || !salesStepUpReady) return;
     setHourlySyncing(true);
     setHourlySyncMessage("");
     try {
@@ -1324,7 +2337,7 @@ export default function AdminAnalyticsPage() {
   }
 
   async function syncOperationTimeNow() {
-    if (!approverName.trim() || !pin.trim()) return;
+    if (!approverName.trim() || !salesStepUpReady) return;
     setOperationTimeSyncing(true);
     setOperationTimeSyncMessage("");
     try {
@@ -1361,7 +2374,7 @@ export default function AdminAnalyticsPage() {
   }
 
   async function syncPayrollNow() {
-    if (!approverName.trim() || !pin.trim()) return;
+    if (!approverName.trim() || !financeStepUpReady) return;
     setPayrollSyncing(true);
     setPayrollSyncMessage("");
     try {
@@ -1394,8 +2407,8 @@ export default function AdminAnalyticsPage() {
       setComparisonError("Approver Name is required.");
       return;
     }
-    if (!pin.trim()) {
-      setComparisonError("PIN is required.");
+    if (!salesStepUpReady) {
+      setComparisonError("Security verification is required.");
       return;
     }
     if (!dateFrom || !dateTo) {
@@ -1445,21 +2458,21 @@ export default function AdminAnalyticsPage() {
   }
 
   useEffect(() => {
-    if (!approverName.trim() || !pin.trim()) return;
+    if (!approverName.trim() || !salesStepUpReady) return;
     if (canViewStaffChannel) loadComparison();
     // Management roles cannot call staff analytics APIs (HQ/ADMIN only) — avoid 403/500 noise on load.
-    if (canViewStaffChannel) void loadAll();
-    else void loadAll("finance");
+    if (canViewStaffChannel) void loadAll("staff");
+    else void loadAll("sales");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canViewStaffChannel]);
+  }, [canViewStaffChannel, approverName, salesStepUpReady]);
 
   useEffect(() => {
     if (!canViewStaffChannel) return;
-    if (!approverName.trim() || !pin.trim()) return;
+    if (!approverName.trim() || !salesStepUpReady) return;
     if (!dateFrom || !dateTo) return;
     loadComparison();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [city, branchCode, dateFrom, dateTo, approverName, pin, canViewStaffChannel]);
+  }, [city, branchCode, dateFrom, dateTo, approverName, salesStepUpReady, canViewStaffChannel]);
 
   const complianceWorkedRows = useMemo(
     () => comparisonRows.filter((row) => isWorkedAttendance(row)),
@@ -1877,6 +2890,12 @@ export default function AdminAnalyticsPage() {
       orders: Number(row.order_count_non_cancelled || 0),
       netSales: Number(row.net_revenue || 0),
       grossSales: Number(row.gross_revenue || 0),
+      aggregators: (row.aggregators || []).map((aggregator) => ({
+        aggregator_name: String(aggregator.aggregator_name || "").trim() || "Unknown",
+        order_count_non_cancelled: Number(aggregator.order_count_non_cancelled || 0),
+        gross_revenue: Number(aggregator.gross_revenue || 0),
+        net_revenue: Number(aggregator.net_revenue || 0),
+      })),
     }));
   }, [posBrandOrderRows]);
 
@@ -1937,7 +2956,6 @@ export default function AdminAnalyticsPage() {
   }, [city, hourlySalesAnalytics?.available_stores, posBranchOrderRows]);
 
   const hourlySummary = useMemo(() => {
-    const rows = hourlySalesAnalytics?.rows || [];
     const totals = hourlySalesAnalytics?.totals;
     const peak = hourlySalesAnalytics?.peak_hour || null;
     return {
@@ -1967,6 +2985,17 @@ export default function AdminAnalyticsPage() {
     };
   }, [operationTimeAnalytics]);
 
+  const cancelOrderSummary = useMemo(() => {
+    const summary = cancelOrdersAnalytics?.summary;
+    return {
+      lostOrderCount: Number(summary?.lost_order_count || 0),
+      lostRevenue: Number(summary?.lost_revenue || 0),
+      dayCount: Number(summary?.day_count || 0),
+      orderTypeCount: Number(summary?.order_type_count || 0),
+      platformCount: Number(summary?.platform_count || 0),
+    };
+  }, [cancelOrdersAnalytics]);
+
   const hourlyTrendMaxOrders = useMemo(() => {
     return Math.max(...(hourlySalesAnalytics?.rows || []).map((row) => Number(row.order_count_non_cancelled || 0)), 1);
   }, [hourlySalesAnalytics?.rows]);
@@ -1977,10 +3006,6 @@ export default function AdminAnalyticsPage() {
     if (!months.size) return payrollRows;
     return payrollRows.filter((r) => months.has(String(r.month_key || "")));
   }, [payrollRows, summaryDateFrom, summaryDateTo]);
-
-  const payrollNetPaySumForSummaryRange = useMemo(() => {
-    return payrollRowsInRange.reduce((sum, r) => sum + Number(r.total_net_pay || 0), 0);
-  }, [payrollRowsInRange]);
 
   const payrollStaffOptions = useMemo(() => {
     return Array.from(new Set(payrollRowsInRange.map((r) => String(r.staff_name || "").trim()).filter(Boolean))).sort(
@@ -2161,23 +3186,20 @@ export default function AdminAnalyticsPage() {
     <main className="min-h-screen bg-neutral-950 text-white">
       <div className="mx-auto flex min-h-screen max-w-7xl flex-col justify-center px-6 py-10">
         <div className="rounded-3xl border border-neutral-800 bg-neutral-900/60 p-8 shadow-2xl">
-          <div className="flex flex-col items-center text-center">
-            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-neutral-800 bg-black">
-              <img src={LOGO_SRC} alt="Sushi ZEN logo" className="h-full w-full object-contain" />
-            </div>
-            <h1 className="mt-5 text-3xl font-bold">
+          <div className="flex flex-col items-start text-left">
+            <h1 className="text-3xl font-bold">
               {analyticsTab === "staff"
-                ? "Staff Analytics"
+                ? "Analytics"
                 : analyticsTab === "sales"
                   ? "Sales Analytics"
-                  : analyticsTab === "payroll"
-                    ? "Payroll Channel"
+                  : analyticsTab === "evaluation"
+                    ? "Evaluation Channel"
                     : "Management P&L Channel"}
             </h1>
             <p className="mt-2 text-sm text-neutral-400">
-              Unified operations analytics across attendance, sales, payroll, and management finance.
+              Unified operations analytics across attendance, sales, evaluation, payroll, and management finance.
             </p>
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            <div className="mt-4 flex flex-wrap items-center gap-2">
               {canViewStaffChannel ? (
                 <button
                   type="button"
@@ -2189,7 +3211,7 @@ export default function AdminAnalyticsPage() {
                       : "border-neutral-700 bg-neutral-950/40 text-neutral-200 hover:bg-neutral-900 hover:text-white",
                   ].join(" ")}
                 >
-                  Staff Analytics
+                  Analytics
                 </button>
               ) : null}
               {canViewFinanceChannels ? (
@@ -2209,22 +3231,22 @@ export default function AdminAnalyticsPage() {
                   >
                     Sales Analytics
                   </button>
-                  {canViewPayrollChannel ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setError("");
-                      setAnalyticsTab("payroll");
-                    }}
-                    className={[
-                      "rounded-xl border px-4 py-2 text-sm font-semibold transition",
-                      analyticsTab === "payroll"
-                        ? "border-sky-500 bg-sky-950/25 text-sky-200"
-                        : "border-neutral-700 bg-neutral-950/40 text-neutral-200 hover:bg-neutral-900 hover:text-white",
-                    ].join(" ")}
-                  >
-                    Payroll Channel
-                  </button>
+                  {canViewEvaluationChannel ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError("");
+                        setAnalyticsTab("evaluation");
+                      }}
+                      className={[
+                        "rounded-xl border px-4 py-2 text-sm font-semibold transition",
+                        analyticsTab === "evaluation"
+                          ? "border-sky-500 bg-sky-950/25 text-sky-200"
+                          : "border-neutral-700 bg-neutral-950/40 text-neutral-200 hover:bg-neutral-900 hover:text-white",
+                      ].join(" ")}
+                    >
+                      Evaluation
+                    </button>
                   ) : null}
                   {canViewManagementPlChannel ? (
                   <button
@@ -2254,6 +3276,152 @@ export default function AdminAnalyticsPage() {
             </div>
           ) : null}
 
+          {canViewSalesChannel || canViewManagementPlChannel ? (
+            <div className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-1">
+                  <div className="text-sm font-semibold">Security</div>
+                  <div className="text-xs text-neutral-400">
+                    Passkeys are recommended. Sales and Evaluation require recent MFA. Management P&amp;L requires a fresh Passkey verification.
+                  </div>
+                  <div className="text-xs text-neutral-500">
+                    Passkeys: {Number(auth?.mfa?.passkeyCount || 0)} | TOTP: {auth?.mfa?.totpEnabled ? "Enabled" : "Not set"} | Backup codes: {Number(auth?.mfa?.backupCodesRemaining || 0)}
+                  </div>
+                  <div className="text-xs text-neutral-500">
+                    Current verification: {auth?.stepUpLevel || "aal1"}{auth?.stepUpMethod ? ` via ${auth.stepUpMethod}` : ""}{auth?.stepUpVerifiedAt ? ` at ${auth.stepUpVerifiedAt}` : ""}
+                  </div>
+                  <div className={`text-xs ${activeSecuritySatisfied ? "text-emerald-300" : "text-amber-300"}`}>
+                    {activeSecuritySatisfied ? `Access ready for ${analyticsTab === "finance" ? "Management P&L" : analyticsTab === "staff" ? "Analytics" : analyticsTab === "evaluation" ? "Evaluation" : "Sales Analytics"}.` : `This tab needs ${activeSecurityRequirement}.`}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void enrollPasskey()}
+                    disabled={securityBusy}
+                    className="rounded-xl border border-neutral-700 bg-neutral-950/60 px-3 py-2 text-xs font-medium text-neutral-100 hover:bg-neutral-900 disabled:opacity-60"
+                  >
+                    Enroll Passkey
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void beginTotpEnrollment()}
+                    disabled={securityBusy}
+                    className="rounded-xl border border-neutral-700 bg-neutral-950/60 px-3 py-2 text-xs font-medium text-neutral-100 hover:bg-neutral-900 disabled:opacity-60"
+                  >
+                    Enroll TOTP
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void regenerateBackupCodes()}
+                    disabled={securityBusy}
+                    className="rounded-xl border border-neutral-700 bg-neutral-950/60 px-3 py-2 text-xs font-medium text-neutral-100 hover:bg-neutral-900 disabled:opacity-60"
+                  >
+                    Backup Codes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearStepUpAuth();
+                      setAuthState(getAuth());
+                      setSecurityMessage("Security verification cleared.");
+                    }}
+                    disabled={securityBusy}
+                    className="rounded-xl border border-neutral-700 bg-neutral-950/60 px-3 py-2 text-xs font-medium text-neutral-100 hover:bg-neutral-900 disabled:opacity-60"
+                  >
+                    Clear Verification
+                  </button>
+                </div>
+              </div>
+
+              {!activeSecuritySatisfied ? (
+                <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                  <button
+                    type="button"
+                    onClick={() => void runPasskeyStepUp()}
+                    disabled={securityBusy}
+                    className="rounded-xl border border-emerald-800 bg-emerald-950/30 px-3 py-2 text-sm font-semibold text-emerald-200 hover:bg-emerald-950/40 disabled:opacity-60"
+                  >
+                    Verify With Passkey
+                  </button>
+                  <div className="flex gap-2">
+                    <input
+                      value={totpCode}
+                      onChange={(e) => setTotpCode(e.target.value)}
+                      placeholder="TOTP code"
+                      className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void runTotpStepUp()}
+                      disabled={securityBusy}
+                      className="rounded-xl border border-neutral-700 bg-neutral-950/60 px-3 py-2 text-xs font-medium text-neutral-100 hover:bg-neutral-900 disabled:opacity-60"
+                    >
+                      Verify
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={backupCode}
+                      onChange={(e) => setBackupCode(e.target.value)}
+                      placeholder="Backup code"
+                      className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void runBackupCodeStepUp()}
+                      disabled={securityBusy}
+                      className="rounded-xl border border-neutral-700 bg-neutral-950/60 px-3 py-2 text-xs font-medium text-neutral-100 hover:bg-neutral-900 disabled:opacity-60"
+                    >
+                      Use
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {totpEnrollment ? (
+                <div className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900/40 p-3">
+                  <div className="text-xs font-semibold text-neutral-200">TOTP Enrollment</div>
+                  <div className="mt-1 break-all text-xs text-neutral-400">Secret: {totpEnrollment.secret}</div>
+                  <div className="mt-1 break-all text-xs text-neutral-500">{totpEnrollment.otpauthUri}</div>
+                  <div className="mt-3 flex gap-2">
+                    <input
+                      value={totpEnrollmentCode}
+                      onChange={(e) => setTotpEnrollmentCode(e.target.value)}
+                      placeholder="Enter code from authenticator"
+                      className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void verifyTotpEnrollment()}
+                      disabled={securityBusy}
+                      className="rounded-xl border border-neutral-700 bg-neutral-950/60 px-3 py-2 text-xs font-medium text-neutral-100 hover:bg-neutral-900 disabled:opacity-60"
+                    >
+                      Confirm
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {backupCodes.length ? (
+                <div className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900/40 p-3">
+                  <div className="text-xs font-semibold text-neutral-200">Backup Codes</div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {backupCodes.map((code) => (
+                      <span key={code} className="rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1 font-mono text-xs text-neutral-200">
+                        {code}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {securityError ? <div className="mt-3 text-sm text-red-300">{securityError}</div> : null}
+              {securityMessage ? <div className="mt-3 text-sm text-emerald-300">{securityMessage}</div> : null}
+            </div>
+          ) : null}
+
           {analyticsTab === "staff" && canViewStaffChannel ? (
           <div className="mt-8 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -2270,7 +3438,7 @@ export default function AdminAnalyticsPage() {
               <button
                 type="button"
                 onClick={loadComparison}
-                disabled={comparisonLoading || !approverName.trim() || !pin.trim()}
+                disabled={comparisonLoading || !approverName.trim() || !salesStepUpReady}
                 className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
               >
                 {comparisonLoading ? "Loading..." : "Refresh Compliance"}
@@ -2378,11 +3546,11 @@ export default function AdminAnalyticsPage() {
                 />
               </div>
               <div>
-                <div className="mb-1 text-xs text-neutral-400">PIN</div>
+                <div className="mb-1 text-xs text-neutral-400">Session</div>
                 <input
-                  type="password"
+                  type="text"
                   value={pin}
-                  onChange={(e) => setPin(e.target.value)}
+                  readOnly
                   className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
                 />
               </div>
@@ -2837,7 +4005,7 @@ export default function AdminAnalyticsPage() {
                   <button
                     type="button"
                     onClick={() => loadAll("sales")}
-                    disabled={loading || !approverName.trim() || !pin.trim()}
+                    disabled={loading || !approverName.trim() || !salesStepUpReady}
                     className="rounded-lg bg-white px-2.5 py-1.5 text-[11px] font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
                   >
                     {loading ? "Loading..." : "Refresh Sales"}
@@ -2845,7 +4013,7 @@ export default function AdminAnalyticsPage() {
                   <button
                     type="button"
                     onClick={syncSalesNow}
-                    disabled={salesSyncing || !approverName.trim() || !pin.trim()}
+                    disabled={salesSyncing || !approverName.trim() || !salesStepUpReady}
                     className="rounded-lg border border-emerald-700 bg-emerald-950/30 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-200 transition hover:bg-emerald-900/40 disabled:opacity-60"
                   >
                     {salesSyncing ? "Syncing..." : "Sync POS from Drive"}
@@ -2853,7 +4021,7 @@ export default function AdminAnalyticsPage() {
                   <button
                     type="button"
                     onClick={syncHourlySalesNow}
-                    disabled={hourlySyncing || !approverName.trim() || !pin.trim()}
+                    disabled={hourlySyncing || !approverName.trim() || !salesStepUpReady}
                     className="rounded-lg border border-sky-700 bg-sky-950/30 px-2.5 py-1.5 text-[11px] font-semibold text-sky-200 transition hover:bg-sky-900/40 disabled:opacity-60"
                   >
                     {hourlySyncing ? "Syncing..." : "Sync Hourly Sales"}
@@ -2861,13 +4029,22 @@ export default function AdminAnalyticsPage() {
                   <button
                     type="button"
                     onClick={syncOperationTimeNow}
-                    disabled={operationTimeSyncing || !approverName.trim() || !pin.trim()}
+                    disabled={operationTimeSyncing || !approverName.trim() || !salesStepUpReady}
                     className="rounded-lg border border-violet-700 bg-violet-950/30 px-2.5 py-1.5 text-[11px] font-semibold text-violet-200 transition hover:bg-violet-900/40 disabled:opacity-60"
                   >
                     {operationTimeSyncing ? "Syncing..." : "Sync Operation Time"}
                   </button>
                 </div>
               </div>
+
+              {!salesStepUpReady ? (
+                <div className="mb-4 rounded-xl border border-amber-800/50 bg-amber-950/20 p-3 text-xs text-amber-100">
+                  <div className="font-semibold">How to unlock Sales Analytics</div>
+                  <div className="mt-1">1) Open the Security section above.</div>
+                  <div>2) Click <span className="font-semibold">Verify With Passkey</span> (recommended), or enter TOTP / Backup code.</div>
+                  <div>3) After verification succeeds, click <span className="font-semibold">Refresh Sales</span>.</div>
+                </div>
+              ) : null}
 
               <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
                 <div>
@@ -2954,11 +4131,11 @@ export default function AdminAnalyticsPage() {
                   />
                 </div>
                 <div>
-                  <div className="mb-1 text-xs text-neutral-400">PIN</div>
+                  <div className="mb-1 text-xs text-neutral-400">Session</div>
                   <input
-                    type="password"
+                    type="text"
                     value={pin}
-                    onChange={(e) => setPin(e.target.value)}
+                    readOnly
                     className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
                   />
                 </div>
@@ -3363,7 +4540,7 @@ export default function AdminAnalyticsPage() {
               <>
             {city === "dubai" && brandOrderRanking.length ? (
               <div id="sales-brands" className="rounded-2xl border border-emerald-900/40 bg-emerald-950/15 p-4">
-                <div className="mb-3 text-sm font-semibold text-emerald-100">Dubai — orders &amp; net sales by brand</div>
+                <div className="mb-3 text-sm font-semibold text-emerald-100">Dubai — orders &amp; net sales by brand and aggregator</div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   {brandOrderRanking.map((row) => (
                     <div key={row.brand} className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-4">
@@ -3372,6 +4549,10 @@ export default function AdminAnalyticsPage() {
                       <div className="text-[11px] text-neutral-500">orders (non-cancelled)</div>
                       <div className="mt-2 text-sm text-neutral-200">Net {formatMoney(row.netSales)}</div>
                       <div className="text-[11px] text-neutral-500">Gross {formatMoney(row.grossSales)}</div>
+                      <div className="mt-3">
+                        <div className="mb-2 text-[11px] uppercase tracking-wide text-neutral-500">Aggregator mix</div>
+                        <AggregatorBreakdown items={row.aggregators} dense />
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -3380,7 +4561,7 @@ export default function AdminAnalyticsPage() {
 
             <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
               <div className="mb-2 text-sm font-semibold">
-                {city === "dubai" ? "Brand ranking (all POS files in Drive folder)" : "Brand order ranking"}
+                {city === "dubai" ? "Brand ranking with aggregator breakdown" : "Brand order ranking"}
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
@@ -3391,6 +4572,7 @@ export default function AdminAnalyticsPage() {
                       <th className="px-3 py-2">Orders</th>
                       <th className="px-3 py-2">Net Sales</th>
                       <th className="px-3 py-2">Gross Sales</th>
+                      <th className="px-3 py-2">Aggregator Breakdown</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -3401,11 +4583,14 @@ export default function AdminAnalyticsPage() {
                         <td className="px-3 py-2 tabular-nums">{formatCount(row.orders)}</td>
                         <td className="px-3 py-2 tabular-nums">{formatMoney(row.netSales)}</td>
                         <td className="px-3 py-2 tabular-nums">{formatMoney(row.grossSales)}</td>
+                        <td className="px-3 py-2">
+                          <AggregatorBreakdown items={row.aggregators} dense />
+                        </td>
                       </tr>
                     ))}
                     {!brandOrderRanking.length ? (
                       <tr>
-                        <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
+                        <td colSpan={6} className="px-3 py-6 text-center text-neutral-500">
                           No brand-level order data
                         </td>
                       </tr>
@@ -3529,7 +4714,7 @@ export default function AdminAnalyticsPage() {
             {salesSectionView === "all" || salesSectionView === "stores" ? (
             <div id="sales-stores" className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
               <div className="mb-2 flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold">Store Order Ranking</div>
+                <div className="text-sm font-semibold">Store Order Ranking with Aggregator Breakdown</div>
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
@@ -3540,6 +4725,7 @@ export default function AdminAnalyticsPage() {
                       <th className="px-3 py-2">Orders</th>
                       <th className="px-3 py-2">Net Sales</th>
                       <th className="px-3 py-2">Gross Revenue</th>
+                      <th className="px-3 py-2">Aggregator Breakdown</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -3550,12 +4736,162 @@ export default function AdminAnalyticsPage() {
                         <td className="px-3 py-2 tabular-nums">{formatCount(row.order_count_non_cancelled)}</td>
                         <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.net_revenue || 0))}</td>
                         <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.gross_revenue || 0))}</td>
+                        <td className="px-3 py-2">
+                          <AggregatorBreakdown items={row.aggregators} dense />
+                        </td>
                       </tr>
                     ))}
                     {!posBranchOrderRows.length ? (
                       <tr>
-                        <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
+                        <td colSpan={6} className="px-3 py-6 text-center text-neutral-500">
                           No store order data
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            ) : null}
+
+            {salesSectionView === "all" || salesSectionView === "cancelOrders" ? (
+            <div id="sales-cancel-orders" className="rounded-2xl border border-rose-900/40 bg-rose-950/10 p-4">
+              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <div className="text-sm font-semibold">Cancel Orders</div>
+                  <div className="mt-1 text-xs text-neutral-500">
+                    Daily UrbanPiper lost-order CSVs are auto-synced from the POS folder and aggregated for this period.
+                  </div>
+                </div>
+                <div className="text-xs text-neutral-500">
+                  Scope: <span className="text-neutral-300">{summaryBrandName || "All Brands"}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div className="min-h-[32px] text-xs text-neutral-500">Lost Orders</div>
+                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
+                    {formatCount(cancelOrderSummary.lostOrderCount)}
+                  </div>
+                </div>
+                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div className="min-h-[32px] text-xs text-neutral-500">Lost Revenue</div>
+                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
+                    {formatMoney(cancelOrderSummary.lostRevenue)}
+                  </div>
+                </div>
+                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div className="min-h-[32px] text-xs text-neutral-500">Days w/ data</div>
+                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
+                    {formatCount(cancelOrderSummary.dayCount)}
+                  </div>
+                </div>
+                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div className="min-h-[32px] text-xs text-neutral-500">Cancel types</div>
+                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
+                    {formatCount(cancelOrderSummary.orderTypeCount)}
+                  </div>
+                </div>
+                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div className="min-h-[32px] text-xs text-neutral-500">Platforms</div>
+                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
+                    {formatCount(cancelOrderSummary.platformCount)}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <div className="overflow-x-auto rounded-2xl border border-neutral-800 bg-neutral-950/30 p-3">
+                  <div className="mb-2 text-sm font-semibold">Order Type Summary</div>
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                      <tr>
+                        <th className="px-3 py-2">Type</th>
+                        <th className="px-3 py-2">Lost Orders</th>
+                        <th className="px-3 py-2">Lost Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(cancelOrdersAnalytics?.order_type_rows || []).map((row, idx) => (
+                        <tr key={`${row.order_type}-${idx}`} className="border-b border-neutral-800/70">
+                          <td className="px-3 py-2">{row.order_type}</td>
+                          <td className="px-3 py-2 tabular-nums">{formatCount(Number(row.lost_order_count || 0))}</td>
+                          <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.lost_revenue || 0))}</td>
+                        </tr>
+                      ))}
+                      {!cancelOrdersAnalytics?.order_type_rows?.length ? (
+                        <tr>
+                          <td colSpan={3} className="px-3 py-6 text-center text-neutral-500">
+                            No cancel-order type data
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="overflow-x-auto rounded-2xl border border-neutral-800 bg-neutral-950/30 p-3">
+                  <div className="mb-2 text-sm font-semibold">Platform Breakdown</div>
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                      <tr>
+                        <th className="px-3 py-2">Platform</th>
+                        <th className="px-3 py-2">Lost Orders</th>
+                        <th className="px-3 py-2">Platform pre</th>
+                        <th className="px-3 py-2">Platform post</th>
+                        <th className="px-3 py-2">Merchant pre</th>
+                        <th className="px-3 py-2">Merchant post</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(cancelOrdersAnalytics?.platform_rows || []).map((row, idx) => (
+                        <tr key={`${row.platform_name}-${idx}`} className="border-b border-neutral-800/70">
+                          <td className="px-3 py-2">{row.platform_name || "Unknown"}</td>
+                          <td className="px-3 py-2 tabular-nums">{formatCount(Number(row.lost_order_count || 0))}</td>
+                          <td className="px-3 py-2 tabular-nums">{formatCount(Number(row.platform_pre_ack || 0))}</td>
+                          <td className="px-3 py-2 tabular-nums">{formatCount(Number(row.platform_post_ack || 0))}</td>
+                          <td className="px-3 py-2 tabular-nums">{formatCount(Number(row.merchant_pre_ack || 0))}</td>
+                          <td className="px-3 py-2 tabular-nums">{formatCount(Number(row.merchant_post_ack || 0))}</td>
+                        </tr>
+                      ))}
+                      {!cancelOrdersAnalytics?.platform_rows?.length ? (
+                        <tr>
+                          <td colSpan={6} className="px-3 py-6 text-center text-neutral-500">
+                            No platform breakdown data
+                          </td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="mt-4 overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                    <tr>
+                      <th className="px-3 py-2">Date</th>
+                      <th className="px-3 py-2">Brand</th>
+                      <th className="px-3 py-2">Lost Orders</th>
+                      <th className="px-3 py-2">Lost Revenue</th>
+                      <th className="px-3 py-2">Source File</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(cancelOrdersAnalytics?.daily_rows || []).map((row, idx) => (
+                      <tr key={`${row.work_date}-${row.brand_name}-${idx}`} className="border-b border-neutral-800/70">
+                        <td className="px-3 py-2 tabular-nums">{row.work_date}</td>
+                        <td className="px-3 py-2">{row.brand_name}</td>
+                        <td className="px-3 py-2 tabular-nums">{formatCount(Number(row.lost_order_count || 0))}</td>
+                        <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.lost_revenue || 0))}</td>
+                        <td className="max-w-[320px] truncate px-3 py-2 text-xs text-neutral-400">{row.source_file_name || "—"}</td>
+                      </tr>
+                    ))}
+                    {!cancelOrdersAnalytics?.daily_rows?.length ? (
+                      <tr>
+                        <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
+                          No cancel-order daily data
                         </td>
                       </tr>
                     ) : null}
@@ -3614,18 +4950,11 @@ export default function AdminAnalyticsPage() {
             </div>
             ) : null}
           </div>
-          ) : analyticsTab === "payroll" ? (
+          ) : analyticsTab === "evaluation" ? (
           <div className="mt-8 space-y-4">
             <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-              <div className="mb-4 flex flex-wrap items-end gap-3">
-                <div className="min-w-[200px] flex-1 sm:min-w-[240px]">
-                  <div className="text-sm font-semibold">Payroll Period (Month-based)</div>
-                  <div className="mt-1 text-xs text-neutral-500">
-                    Uses the same <span className="text-neutral-300">Summary From/To</span> as Staff Analytics, Sales
-                    Summary, and Management P&amp;L so totals match. Bayzat exports in{" "}
-                    <code className="text-neutral-400">PAYROLL_FOLDER_ID</code>. Visible to HQ/Admin and city management.
-                  </div>
-                </div>
+              <div className="mb-3 flex flex-wrap items-end gap-3">
+                <div className="min-w-[220px] flex-1 text-sm font-semibold">Store Evaluation Dashboard</div>
                 <div className="w-full sm:w-auto">
                   <div className="mb-1 text-xs text-neutral-400">City</div>
                   <select
@@ -3639,7 +4968,7 @@ export default function AdminAnalyticsPage() {
                 </div>
                 <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:min-w-[320px]">
                   <label className="text-xs text-neutral-400">
-                    From (Summary period)
+                    From
                     <input
                       type="date"
                       value={summaryDateFrom}
@@ -3648,7 +4977,7 @@ export default function AdminAnalyticsPage() {
                     />
                   </label>
                   <label className="text-xs text-neutral-400">
-                    To (Summary period)
+                    To
                     <input
                       type="date"
                       value={summaryDateTo}
@@ -3657,153 +4986,827 @@ export default function AdminAnalyticsPage() {
                     />
                   </label>
                 </div>
-                <div className="w-full sm:w-auto sm:min-w-[240px]">
-                  <label className="text-xs text-neutral-400">
-                    Staff
-                    <select
-                      value={payrollStaffName}
-                      onChange={(e) => setPayrollStaffName(e.target.value)}
-                      className="mt-1 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
-                    >
-                      <option value="">All Staff</option>
-                      {payrollStaffOptions.map((name) => (
-                        <option key={name} value={name}>
-                          {name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                <button
+                  type="button"
+                  onClick={() => loadAll("evaluation")}
+                  disabled={loading || !approverName.trim() || !salesStepUpReady}
+                  className="ml-auto rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
+                >
+                  {loading ? "Loading..." : "Refresh Evaluation"}
+                </button>
+              </div>
+              <div className="text-xs text-neutral-500">
+                This channel scores attendance, operations, and food cost. In general, higher scores are better, and the
+                goal is to quickly identify which category is pulling a store down.
+              </div>
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-sky-200">What The Score Means</div>
+                  <div className="mt-2 text-xs leading-5 text-neutral-400">
+                    Each category is scored out of 10 points. A store&apos;s total score is the sum of the category scores,
+                    so a higher total usually means healthier performance for the selected period.
+                  </div>
                 </div>
-                <div className="ml-auto flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => loadAll("payroll")}
-                    disabled={loading || !approverName.trim() || !pin.trim()}
-                    className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
-                  >
-                    {loading ? "Loading..." : "Refresh Payroll"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={syncPayrollNow}
-                    disabled={payrollSyncing || !approverName.trim() || !pin.trim()}
-                    className="rounded-2xl border border-sky-700 bg-sky-950/30 px-4 py-3 text-sm font-semibold text-sky-200 transition hover:bg-sky-900/40 disabled:opacity-60"
-                  >
-                    {payrollSyncing ? "Syncing..." : "Sync Payroll Folder"}
-                  </button>
+                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-sky-200">How To Read Each Cell</div>
+                  <div className="mt-2 text-xs leading-5 text-neutral-400">
+                    In each metric cell, the top line shows the actual result and the second line shows the score earned
+                    from that result. This helps explain why a store scored high or low.
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-sky-200">How To Evaluate</div>
+                  <div className="mt-2 text-xs leading-5 text-neutral-400">
+                    Start with the actual results to find the problem area, then use the scores to prioritize action. For
+                    example, stores with poor lateness results or high food cost can be identified first.
+                  </div>
                 </div>
               </div>
-              {payrollSyncMessage ? (
-                <div className="mt-3 rounded-xl border border-neutral-700 bg-neutral-950/40 px-3 py-2 text-xs text-neutral-300">
-                  {payrollSyncMessage}
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <div className="mb-1 text-xs text-neutral-400">Approver Name</div>
+                  <input
+                    value={approverName}
+                    onChange={(e) => setApproverName(e.target.value)}
+                    className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                  />
+                </div>
+                <div>
+                  <div className="mb-1 text-xs text-neutral-400">Session</div>
+                  <input
+                    type="text"
+                    value={pin}
+                    readOnly
+                    className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                  />
+                </div>
+              </div>
+              {Array.from(new Set(evaluationWarnings.map(formatEvaluationWarning).filter((v) => String(v || "").trim().length > 0))).length ? (
+                <div className="mt-4 rounded-2xl border border-amber-900/50 bg-amber-950/20 px-4 py-3 text-xs text-amber-200">
+                  {Array.from(new Set(evaluationWarnings.map(formatEvaluationWarning).filter((v) => String(v || "").trim().length > 0))).join(" | ")}
+                </div>
+              ) : null}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEvaluationSectionView("all")}
+                  className={
+                    evaluationSectionView === "all"
+                      ? "rounded-full border border-sky-500/70 bg-sky-500/15 px-3 py-1 text-[11px] font-semibold text-sky-100"
+                      : "rounded-full border border-neutral-700 bg-neutral-950/40 px-3 py-1 text-[11px] font-medium text-neutral-200 transition hover:bg-neutral-900 hover:text-white"
+                  }
+                >
+                  All
+                </button>
+                {EVALUATION_SECTION_OPTIONS.map((section) => {
+                  const sectionKey =
+                    section.value === "foodCost"
+                      ? "food_cost"
+                      : section.value === "inventoryAccuracy"
+                        ? "inventory_accuracy"
+                        : section.value;
+                  const matched = evaluationSections.find((item) => item.section_key === sectionKey);
+                  const isConstruction = matched?.status === "under_construction";
+                  return (
+                    <button
+                      key={section.value}
+                      type="button"
+                      onClick={() => setEvaluationSectionView(section.value)}
+                      className={
+                        evaluationSectionView === section.value
+                          ? "rounded-full border border-sky-500/70 bg-sky-500/15 px-3 py-1 text-[11px] font-semibold text-sky-100"
+                          : "rounded-full border border-neutral-700 bg-neutral-950/40 px-3 py-1 text-[11px] font-medium text-neutral-200 transition hover:bg-neutral-900 hover:text-white"
+                      }
+                    >
+                      {section.label}
+                      {isConstruction ? " (Under construction)" : ""}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {evaluationSectionView === "all" || evaluationSectionView === "summary" ? (
+            <div id="evaluation-summary" className="space-y-4">
+              <div className="rounded-2xl border border-sky-900/40 bg-sky-950/20 p-4">
+                <div className="text-sm font-semibold text-sky-100">Operational Target Lines (Good Operation Baseline)</div>
+                <div className="mt-2 text-xs leading-6 text-neutral-300">
+                  Overall score: <span className="font-semibold text-white">{"\u2265"} {formatScore(evaluationTargetLines.overallTarget)} pts</span> |
+                  Attendance: <span className="font-semibold text-white">{"\u2265"} {formatScore(evaluationTargetLines.attendanceTarget)} pts</span> |
+                  Operation: <span className="font-semibold text-white">{"\u2265"} {formatScore(evaluationTargetLines.operationTarget)} pts</span> |
+                  Food cost: <span className="font-semibold text-white">{"\u2265"} {formatScore(evaluationTargetLines.foodCostTarget)} pts</span> |
+                  Disposal: <span className="font-semibold text-white">{"\u2265"} {formatScore(evaluationTargetLines.disposalTarget)} pts</span> |
+                  Backup: <span className="font-semibold text-white">{"\u2265"} {formatScore(evaluationTargetLines.backupTarget)} pts</span> |
+                  City op time: <span className="font-semibold text-white">{"\u2264"} {formatMinutes(evaluationTargetLines.opTimeTargetMinutes)}</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 2xl:grid-cols-8">
+                {(() => {
+                  const s = describeHigherIsBetter(evaluationSummary?.overall_avg_score, evaluationTargetLines.overallTarget, "pts");
+                  return (
+                <EvaluationKpiCard
+                  title="Overall Average Score"
+                  value={formatScore(evaluationSummary?.overall_avg_score)}
+                  hint="Average total score across all stores. Use this as the top-level health check for the selected period."
+                  scaleNote={`Max ${formatScore(evaluationScoreScale.overallMax)} pts | Pass line ${formatScore(evaluationScoreScale.overallPass)}+ pts`}
+                  targetLine={`>= ${formatScore(evaluationTargetLines.overallTarget)} pts`}
+                  targetStatus={s.text}
+                  targetStatusClassName={s.className}
+                  guide="How to use it: Higher is better. Start here to judge overall performance, then drill into the weaker categories."
+                />
+                  );
+                })()}
+                {(() => {
+                  const s = describeHigherIsBetter(evaluationSummary?.attendance_avg_score, evaluationTargetLines.attendanceTarget, "pts");
+                  return (
+                <EvaluationKpiCard
+                  title="Attendance Average"
+                  value={formatScore(evaluationSummary?.attendance_avg_score)}
+                  hint="Average attendance score based on lateness, absences, shift-change requests, and shift preservation."
+                  scaleNote={`Max ${formatScore(evaluationScoreScale.attendanceMax)} pts | Pass line ${formatScore(evaluationScoreScale.attendancePass)}+ pts`}
+                  targetLine={`>= ${formatScore(evaluationTargetLines.attendanceTarget)} pts`}
+                  targetStatus={s.text}
+                  targetStatusClassName={s.className}
+                  guide="How to use it: Higher is better. Lower scores usually point to staffing discipline or schedule-control issues."
+                />
+                  );
+                })()}
+                {(() => {
+                  const s = describeHigherIsBetter(evaluationSummary?.operation_avg_score, evaluationTargetLines.operationTarget, "pts");
+                  return (
+                <EvaluationKpiCard
+                  title="Operation Average"
+                  value={formatScore(evaluationSummary?.operation_avg_score)}
+                  hint="Average operations score based on speed, QC grade, image upload rate, waste reporting, and prep reporting."
+                  scaleNote={`Max ${formatScore(evaluationScoreScale.operationMax)} pts | Pass line ${formatScore(evaluationScoreScale.operationPass)}+ pts`}
+                  targetLine={`>= ${formatScore(evaluationTargetLines.operationTarget)} pts`}
+                  targetStatus={s.text}
+                  targetStatusClassName={s.className}
+                  guide="How to use it: Higher is better. Lower scores usually mean weaknesses in speed, quality, or reporting discipline."
+                />
+                  );
+                })()}
+                {(() => {
+                  const s = describeHigherIsBetter(evaluationSummary?.food_cost_avg_score, evaluationTargetLines.foodCostTarget, "pts");
+                  return (
+                <EvaluationKpiCard
+                  title="Food Cost Average"
+                  value={formatScore(evaluationSummary?.food_cost_avg_score)}
+                  hint="Average score for how well each store keeps actual food cost near or below target."
+                  scaleNote={`Max ${formatScore(evaluationScoreScale.foodCostMax)} pts | Pass line ${formatScore(evaluationScoreScale.foodCostPass)}+ pts`}
+                  targetLine={`>= ${formatScore(evaluationTargetLines.foodCostTarget)} pts`}
+                  targetStatus={s.text}
+                  targetStatusClassName={s.className}
+                  guide="How to use it: Higher is better. Lower scores suggest food cost is running above target and may be hurting margin."
+                />
+                  );
+                })()}
+                {(() => {
+                  const s = describeHigherIsBetter(disposalAvgScore, evaluationTargetLines.disposalTarget, "pts");
+                  return (
+                <EvaluationKpiCard
+                  title="Disposal Reporting Average"
+                  value={formatScore(disposalAvgScore)}
+                  hint="Average disposal reporting score based on submission consistency and plausibility vs sales volume."
+                  scaleNote={`Max ${formatScore(evaluationScoreScale.disposalMax)} pts | Pass line ${formatScore(evaluationScoreScale.disposalPass)}+ pts`}
+                  targetLine={`>= ${formatScore(evaluationTargetLines.disposalTarget)} pts`}
+                  targetStatus={s.text}
+                  targetStatusClassName={s.className}
+                  guide="How to use it: Higher is better. Very low disposal volume against high sales lowers this score to flag likely under-reporting."
+                />
+                  );
+                })()}
+                {(() => {
+                  const s = describeHigherIsBetter(backupAvgScore, evaluationTargetLines.backupTarget, "pts");
+                  return (
+                <EvaluationKpiCard
+                  title="Backup Reporting Average"
+                  value={formatScore(backupAvgScore)}
+                  hint="Average prep/backup reporting score based on coverage and expected prep activity level."
+                  scaleNote={`Max ${formatScore(evaluationScoreScale.backupMax)} pts | Pass line ${formatScore(evaluationScoreScale.backupPass)}+ pts`}
+                  targetLine={`>= ${formatScore(evaluationTargetLines.backupTarget)} pts`}
+                  targetStatus={s.text}
+                  targetStatusClassName={s.className}
+                  guide="How to use it: Around 7+ means stores are reporting prep at a healthy operational level."
+                />
+                  );
+                })()}
+                {(() => {
+                  const s = describeHigherIsBetter(evaluationSummary?.store_count, evaluationTargetLines.storeCoverageTarget, "stores");
+                  return (
+                <EvaluationKpiCard
+                  title="Store Count"
+                  value={formatCount(Number(evaluationSummary?.store_count || 0))}
+                  hint="Number of stores included in the current city and date range."
+                  scaleNote="Coverage metric: this is not a score, but it indicates whether your sample size is healthy."
+                  targetLine={`>= ${formatCount(evaluationTargetLines.storeCoverageTarget)} stores`}
+                  targetStatus={s.text}
+                  targetStatusClassName={s.className}
+                  guide="How to use it: This is the sample size. When fewer stores are included, average values can move more sharply."
+                />
+                  );
+                })()}
+                {(() => {
+                  const s = describeLowerIsBetter(
+                    evaluationSummary?.operation_time_avg_minutes,
+                    evaluationTargetLines.opTimeTargetMinutes,
+                    "min"
+                  );
+                  return (
+                <EvaluationKpiCard
+                  title="City Operation Time Average"
+                  value={formatMinutes(evaluationSummary?.operation_time_avg_minutes)}
+                  hint="Average completion time across the selected city for the selected period."
+                  scaleNote="Speed metric: lower is better."
+                  targetLine={`<= ${formatMinutes(evaluationTargetLines.opTimeTargetMinutes)}`}
+                  targetStatus={s.text}
+                  targetStatusClassName={s.className}
+                  guide="How to use it: Lower is better. A higher number means slower order completion for customers."
+                />
+                  );
+                })()}
+              </div>
+
+              <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+                <div className="mb-2 text-sm font-semibold">Store Score Summary</div>
+                <div className="mb-3 text-xs text-neutral-500">
+                  This compares category scores by store. Use it to spot which store is weak in which category, then check
+                  the detailed tables below for the cause.
+                </div>
+                {evaluationStores.length ? (
+                  <>
+                    <div className="space-y-3 md:hidden">
+                      {evaluationStores.map((row) => (
+                        <div
+                          key={`summary-mobile-${row.branch_code}`}
+                          className="rounded-xl border border-neutral-800/80 bg-neutral-950/50 p-3"
+                        >
+                          <div className="mb-2 text-sm font-semibold">{row.branch_name}</div>
+                          <div className="grid grid-cols-1 gap-2">
+                            <EvaluationMetricCell actual="Attendance total" score={row.attendance.total_score} maxScore={row.attendance.max_score} />
+                            <EvaluationMetricCell actual="Operation total" score={row.operation.total_score} maxScore={row.operation.max_score} />
+                            <EvaluationMetricCell actual="Food cost total" score={row.food_cost.score} maxScore={row.food_cost.max_score} />
+                            <EvaluationMetricCell actual="Disposal score" score={row.operation.scores.waste_score} maxScore={10} />
+                            <EvaluationMetricCell actual="Backup score" score={row.operation.scores.prep_score} maxScore={10} />
+                            <EvaluationMetricCell actual="Overall total" score={row.overall_score} maxScore={row.overall_max_score} emphasize />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="hidden overflow-x-auto md:block">
+                      <table className="min-w-full text-left text-sm">
+                        <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                          <tr>
+                            <th className="px-3 py-2">Store</th>
+                            <th className="px-3 py-2">Attendance</th>
+                            <th className="px-3 py-2">Operation</th>
+                            <th className="px-3 py-2">Food Cost</th>
+                            <th className="px-3 py-2">Disposal</th>
+                            <th className="px-3 py-2">Backup</th>
+                            <th className="px-3 py-2">Overall</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {evaluationStores.map((row) => (
+                            <tr key={row.branch_code} className="border-b border-neutral-800/70">
+                              <td className="px-3 py-2">{row.branch_name}</td>
+                              <td className="px-3 py-2 tabular-nums">
+                                <EvaluationMetricCell actual="Attendance total" score={row.attendance.total_score} maxScore={row.attendance.max_score} />
+                              </td>
+                              <td className="px-3 py-2 tabular-nums">
+                                <EvaluationMetricCell actual="Operation total" score={row.operation.total_score} maxScore={row.operation.max_score} />
+                              </td>
+                              <td className="px-3 py-2 tabular-nums">
+                                <EvaluationMetricCell actual="Food cost total" score={row.food_cost.score} maxScore={row.food_cost.max_score} />
+                              </td>
+                              <td className="px-3 py-2 tabular-nums">
+                                <EvaluationMetricCell actual="Disposal score" score={row.operation.scores.waste_score} maxScore={10} />
+                              </td>
+                              <td className="px-3 py-2 tabular-nums">
+                                <EvaluationMetricCell actual="Backup score" score={row.operation.scores.prep_score} maxScore={10} />
+                              </td>
+                              <td className="px-3 py-2 tabular-nums font-semibold">
+                                <EvaluationMetricCell actual="Overall total" score={row.overall_score} maxScore={row.overall_max_score} emphasize />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                ) : (
+                  <div className="px-3 py-6 text-center text-sm text-neutral-500">No evaluation data</div>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+                <div className="mb-2 flex flex-wrap items-end gap-3">
+                  <div className="text-sm font-semibold">Daily Evaluation Scores (Selected Period)</div>
+                  <button
+                    type="button"
+                    onClick={refreshEvaluationTimeline}
+                    disabled={loading || !approverName.trim() || !salesStepUpReady}
+                    className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
+                  >
+                    Load Daily Scores
+                  </button>
+                </div>
+                <div className="mb-3 text-xs text-neutral-500">
+                  Shows daily scores from the selected period. `Company` is the city total, and each store column shows that day&apos;s store score.
+                </div>
+                {evaluationTimelineDays.length ? (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-left text-sm">
+                      <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                        <tr>
+                          <th className="px-3 py-2">Date</th>
+                          <th className="px-3 py-2">Company Avg</th>
+                          <th className="px-3 py-2">Company Total</th>
+                          {(evaluationTimeline?.stores || []).map((store) => (
+                            <th key={`timeline-head-${store.branch_code}`} className="px-3 py-2">
+                              {store.branch_name}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {evaluationTimelineDays.map((day) => (
+                          <tr key={`timeline-row-${day.date}`} className="border-b border-neutral-800/70">
+                            <td className="px-3 py-2 tabular-nums">{day.date}</td>
+                            <td className="px-3 py-2 tabular-nums font-semibold">{formatScore(day.company_avg_score)}</td>
+                            <td className="px-3 py-2 tabular-nums">
+                              {formatScore(day.company_total_score)} / {formatScore(day.company_total_max_score)}
+                            </td>
+                            {(evaluationTimeline?.stores || []).map((store) => {
+                              const item = (day.stores || []).find((s) => s.branch_code === store.branch_code);
+                              return (
+                                <td key={`timeline-cell-${day.date}-${store.branch_code}`} className="px-3 py-2 tabular-nums">
+                                  {item ? `${formatScore(item.overall_score)} / ${formatScore(item.overall_max_score)}` : "—"}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="px-3 py-6 text-center text-sm text-neutral-500">No daily timeline data</div>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+                <div className="mb-2 flex flex-wrap items-end gap-3">
+                  <div className="text-sm font-semibold">Daily Report Details (Disposal / Backup)</div>
+                  <label className="text-xs text-neutral-400">
+                    Target Date
+                    <input
+                      type="date"
+                      value={evaluationDetailDate}
+                      onChange={(e) => setEvaluationDetailDate(e.target.value)}
+                      className="mt-1 w-full min-w-[180px] rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => refreshEvaluationDayDetails(evaluationDetailDate)}
+                    disabled={loading || !approverName.trim() || !salesStepUpReady}
+                    className="rounded-xl bg-white px-3 py-2 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
+                  >
+                    Load Daily Reports
+                  </button>
+                </div>
+                <div className="mb-3 text-xs text-neutral-500">
+                  For a specific date, this table shows each store&apos;s submitted disposal and backup report contents.
+                </div>
+                {(evaluationDayDetails?.stores || []).length ? (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-left text-sm">
+                      <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                        <tr>
+                          <th className="px-3 py-2">Store</th>
+                          <th className="px-3 py-2">Score</th>
+                          <th className="px-3 py-2">Orders</th>
+                          <th className="px-3 py-2">Backup Qty / 100</th>
+                          <th className="px-3 py-2">Disposal Reports</th>
+                          <th className="px-3 py-2">Backup Reports</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(evaluationDayDetails?.stores || []).map((store) => (
+                          <tr key={`daily-detail-${store.branch_code}`} className="border-b border-neutral-800/70 align-top">
+                            <td className="px-3 py-2">{store.branch_name}</td>
+                            <td className="px-3 py-2 tabular-nums">
+                              {formatScore(store.overall_score)} / {formatScore(store.overall_max_score)}
+                            </td>
+                            <td className="px-3 py-2 tabular-nums">{formatCount(Number(store.order_count || 0))}</td>
+                            <td className="px-3 py-2 tabular-nums">
+                              {store.backup_quantity_per_100_orders == null ? "—" : formatDecimal(Number(store.backup_quantity_per_100_orders), 2)}
+                            </td>
+                            <td className="px-3 py-2">
+                              {store.disposal_reports?.length ? (
+                                <div className="space-y-1">
+                                  {store.disposal_reports.slice(0, 8).map((r, idx) => (
+                                    <div key={`disp-${store.branch_code}-${idx}`} className="rounded-lg border border-neutral-800 bg-neutral-950/50 px-2 py-1 text-xs">
+                                      <div className="text-neutral-400">
+                                        {r.submitted_at || "—"} {r.reporter ? `· ${r.reporter}` : ""}
+                                      </div>
+                                      <div className="mt-0.5 text-neutral-200">{r.detail || "—"}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-neutral-500">No disposal report</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2">
+                              {store.backup_reports?.length ? (
+                                <div className="space-y-1">
+                                  {store.backup_reports.slice(0, 8).map((r, idx) => (
+                                    <div key={`prep-${store.branch_code}-${idx}`} className="rounded-lg border border-neutral-800 bg-neutral-950/50 px-2 py-1 text-xs">
+                                      <div className="text-neutral-400">
+                                        {r.submitted_at || "—"} {r.reporter ? `· ${r.reporter}` : ""}
+                                      </div>
+                                      <div className="mt-0.5 text-neutral-200">{r.detail || "—"}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-neutral-500">No backup report</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="px-3 py-6 text-center text-sm text-neutral-500">No daily report details</div>
+                )}
+              </div>
+
+              {isHQOrAdmin ? (
+                <div className="rounded-2xl border border-sky-900/40 bg-sky-950/10 p-4">
+                  <div className="mb-2 text-sm font-semibold">Scoring Strictness</div>
+                  <div className="mb-3 text-xs text-neutral-500">
+                    Move the bar toward `Strict` to make deductions harsher, or toward `Lenient` to make scoring easier.
+                    `5` is the neutral baseline. Loaded {formatCount(evaluationRules.length)} active rules.
+                  </div>
+                  <div className="rounded-2xl border border-neutral-800 bg-neutral-950/60 px-4 py-4">
+                    <div className="mb-3 flex items-center justify-between text-xs text-neutral-400">
+                      <span>Lenient</span>
+                      <span className="rounded-full border border-sky-700/50 bg-sky-500/10 px-3 py-1 text-sm font-semibold text-sky-200">
+                        Level {evaluationStrictnessLevel}
+                      </span>
+                      <span>Strict</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={1}
+                      max={10}
+                      step={1}
+                      value={evaluationStrictnessLevel}
+                      onChange={(e) => setEvaluationStrictnessLevel(Number(e.target.value))}
+                      className="w-full accent-sky-400"
+                    />
+                    <div className="mt-3 flex items-center justify-between text-[11px] text-neutral-500">
+                      <span>1</span>
+                      <span>5 = neutral</span>
+                      <span>10</span>
+                    </div>
+                    <div className="mt-3 text-xs text-neutral-400">
+                      Example:
+                      {evaluationStrictnessLevel > 5
+                        ? " level 6 narrows pass bands and makes the same results score a bit lower."
+                        : evaluationStrictnessLevel < 5
+                          ? " level 4 widens pass bands and makes the same results score a bit easier."
+                          : " level 5 keeps the default balanced thresholds."}
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={saveEvaluationRules}
+                      disabled={evaluationSavingRules || !approverName.trim() || !salesStepUpReady}
+                      className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
+                    >
+                      {evaluationSavingRules ? "Saving..." : "Save Strictness"}
+                    </button>
+                    {evaluationRuleMessage ? <div className="text-xs text-amber-200">{evaluationRuleMessage}</div> : null}
+                  </div>
                 </div>
               ) : null}
             </div>
+            ) : null}
 
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">Payroll Total (Net Pay)</div>
-                <div className="mt-1 text-2xl font-bold">{payrollSummary.totalNetPay.toFixed(2)}</div>
+            {evaluationSectionView === "all" || evaluationSectionView === "attendance" ? (
+            <div id="evaluation-attendance" className="overflow-x-auto rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+              <div className="mb-2 text-sm font-semibold">Attendance Score</div>
+              <div className="mb-3 text-xs text-neutral-500">
+                This category looks at lateness, absences, shift-change requests, and shift preservation. Fewer late
+                arrivals, fewer absences, and fewer requests score better. A higher shift preservation rate also scores better.
               </div>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">Basic Salary</div>
-                <div className="mt-1 text-2xl font-bold">{payrollSummary.basicSalary.toFixed(2)}</div>
-              </div>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">Accommodation</div>
-                <div className="mt-1 text-2xl font-bold">{payrollSummary.accommodation.toFixed(2)}</div>
-              </div>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">Transportation</div>
-                <div className="mt-1 text-2xl font-bold">{payrollSummary.transportation.toFixed(2)}</div>
-              </div>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">Staff Rows</div>
-                <div className="mt-1 text-2xl font-bold">{payrollSummary.rowCount}</div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">Gross Pay (total)</div>
-                <div className="mt-1 text-xl font-bold">{payrollSummary.grossPay.toFixed(2)}</div>
-              </div>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">Food allowance</div>
-                <div className="mt-1 text-xl font-bold">{payrollSummary.foodAllowance.toFixed(2)}</div>
-              </div>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">Other allowance</div>
-                <div className="mt-1 text-xl font-bold">{payrollSummary.otherAllowance.toFixed(2)}</div>
-              </div>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">Net additions</div>
-                <div className="mt-1 text-xl font-bold">{payrollSummary.netAdditions.toFixed(2)}</div>
-              </div>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">Net deductions</div>
-                <div className="mt-1 text-xl font-bold">{payrollSummary.netDeductions.toFixed(2)}</div>
-              </div>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">Arrears + / −</div>
-                <div className="mt-1 text-xl font-bold">
-                  {(payrollSummary.arrearsAddition - payrollSummary.arrearsDeduction).toFixed(2)}
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-              <div className="mb-2 text-sm font-semibold">Payroll Staff Details</div>
-              <div className="overflow-x-auto">
-                <table className="min-w-[900px] text-left text-sm">
-                  <thead className="border-b border-neutral-800 text-xs text-neutral-400">
-                    <tr>
-                      <th className="sticky left-0 z-10 bg-neutral-900 px-3 py-2">Month</th>
-                      <th className="sticky left-14 z-10 bg-neutral-900 px-3 py-2">Staff</th>
-                      <th className="px-3 py-2">Dept</th>
-                      <th className="px-3 py-2">Basic</th>
-                      <th className="px-3 py-2">Housing</th>
-                      <th className="px-3 py-2">Food</th>
-                      <th className="px-3 py-2">Other</th>
-                      <th className="px-3 py-2">Transp.</th>
-                      <th className="px-3 py-2">Gross</th>
-                      <th className="px-3 py-2">Net +/-</th>
-                      <th className="px-3 py-2">Net pay</th>
+              <table className="min-w-full text-left text-sm">
+                <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                  <tr>
+                    <th className="px-3 py-2">Store</th>
+                    <th className="px-3 py-2">Late Count</th>
+                    <th className="px-3 py-2">Absence Count</th>
+                    <th className="px-3 py-2">Shift Requests</th>
+                    <th className="px-3 py-2">Shift Preserve</th>
+                    <th className="px-3 py-2">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {evaluationStores.map((row) => (
+                    <tr key={`attendance-${row.branch_code}`} className="border-b border-neutral-800/70">
+                      <td className="px-3 py-2">{row.branch_name}</td>
+                      <td className="px-3 py-2 tabular-nums">
+                        <EvaluationMetricCell actual={`${formatCount(row.attendance.late_count)} late`} score={row.attendance.scores.late_score} />
+                      </td>
+                      <td className="px-3 py-2 tabular-nums">
+                        <EvaluationMetricCell actual={`${formatCount(row.attendance.absence_count)} absences`} score={row.attendance.scores.absence_score} />
+                      </td>
+                      <td className="px-3 py-2 tabular-nums">
+                        <EvaluationMetricCell actual={`${formatCount(row.attendance.shift_change_request_count)} requests`} score={row.attendance.scores.shift_change_score} />
+                      </td>
+                      <td className="px-3 py-2 tabular-nums">
+                        <EvaluationMetricCell actual={`${formatPct(Number(row.attendance.shift_preserve_rate || 0) * 100)} kept`} score={row.attendance.scores.shift_preserve_score} />
+                      </td>
+                      <td className="px-3 py-2 tabular-nums font-semibold">
+                        <EvaluationMetricCell actual="Attendance total" score={row.attendance.total_score} maxScore={row.attendance.max_score} emphasize />
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {payrollRowsFiltered.slice(0, 300).map((row, idx) => (
-                      <tr key={`${row.month_key}-${row.staff_name}-${idx}`} className="border-b border-neutral-800/70">
-                        <td className="sticky left-0 bg-neutral-950/95 px-3 py-2">{row.month_key}</td>
-                        <td className="sticky left-14 max-w-[200px] truncate bg-neutral-950/95 px-3 py-2">{row.staff_name}</td>
-                        <td className="px-3 py-2">{row.department || "-"}</td>
-                        <td className="px-3 py-2">{Number(row.basic_salary || 0).toFixed(2)}</td>
-                        <td className="px-3 py-2">{Number(row.accommodation || 0).toFixed(2)}</td>
-                        <td className="px-3 py-2">{Number(row.food_allowance || 0).toFixed(2)}</td>
-                        <td className="px-3 py-2">{Number(row.other_allowance || 0).toFixed(2)}</td>
-                        <td className="px-3 py-2">{Number(row.transportation || 0).toFixed(2)}</td>
-                        <td className="px-3 py-2">{Number(row.gross_pay || 0).toFixed(2)}</td>
-                        <td className="px-3 py-2">
-                          {(Number(row.net_additions || 0) - Number(row.net_deductions || 0)).toFixed(2)}
-                        </td>
-                        <td className="px-3 py-2 font-medium text-sky-200">{Number(row.total_net_pay || 0).toFixed(2)}</td>
-                      </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="mt-4 rounded-xl border border-neutral-800/80 bg-neutral-950/40 p-3">
+                <div className="mb-2 flex flex-wrap items-end gap-3">
+                  <div className="text-xs font-semibold text-neutral-200">Selected Day Backup Report Details</div>
+                  <label className="text-xs text-neutral-400">
+                    Date
+                    <input
+                      type="date"
+                      value={evaluationDetailDate}
+                      onChange={(e) => setEvaluationDetailDate(e.target.value)}
+                      className="mt-1 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs text-white"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => refreshEvaluationDayDetails(evaluationDetailDate)}
+                    disabled={loading || !approverName.trim() || !salesStepUpReady}
+                    className="rounded-lg bg-white px-2.5 py-1.5 text-xs font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
+                  >
+                    Load Backup Details
+                  </button>
+                </div>
+                {(evaluationDayDetails?.stores || []).length ? (
+                  <div className="space-y-2">
+                    {(evaluationDayDetails?.stores || []).map((store) => (
+                      <div key={`backup-daily-${store.branch_code}`} className="rounded-lg border border-neutral-800 bg-neutral-950/60 p-2">
+                        <div className="text-xs font-semibold text-neutral-200">
+                          {store.branch_name} · Orders {formatCount(Number(store.order_count || 0))} · Backup qty/100{" "}
+                          {store.backup_quantity_per_100_orders == null ? "—" : formatDecimal(Number(store.backup_quantity_per_100_orders), 2)}
+                        </div>
+                        {store.backup_reports?.length ? (
+                          <div className="mt-1 space-y-1">
+                            {store.backup_reports.slice(0, 6).map((r, idx) => (
+                              <div key={`backup-daily-item-${store.branch_code}-${idx}`} className="text-xs text-neutral-300">
+                                {r.submitted_at || "—"} {r.reporter ? `· ${r.reporter}` : ""} · {r.detail || "—"}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="mt-1 text-xs text-neutral-500">No backup report for this date</div>
+                        )}
+                      </div>
                     ))}
-                    {!payrollRowsFiltered.length ? (
-                      <tr>
-                        <td colSpan={11} className="px-3 py-6 text-center text-neutral-500">
-                          {payrollRows.length
-                            ? "No payroll data for selected period/staff"
-                            : "No payroll data imported yet (try Sync Payroll Folder)"}
-                        </td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
+                  </div>
+                ) : (
+                  <div className="text-xs text-neutral-500">
+                    {summaryDateFrom === summaryDateTo
+                      ? "No backup details loaded yet. Click Load Backup Details."
+                      : "Select one date and click Load Backup Details to review that day’s backup content."}
+                  </div>
+                )}
               </div>
             </div>
+            ) : null}
+
+            {evaluationSectionView === "all" || evaluationSectionView === "operation" ? (
+            <div id="evaluation-operation" className="overflow-x-auto rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+              <div className="mb-2 text-sm font-semibold">Operation Score</div>
+              <div className="mb-3 text-xs text-neutral-500">
+                This category looks at completion speed, product quality, image upload rate, waste reporting, and prep
+                reporting. Waste now scores by both submission consistency and plausibility vs sales volume, and prep scores
+                by both submission consistency and required prep volume. Operation time currently uses the city-level average
+                for the selected period.
+              </div>
+              <table className="min-w-full text-left text-sm">
+                <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                  <tr>
+                    <th className="px-3 py-2">Store</th>
+                    <th className="px-3 py-2">Op Time</th>
+                    <th className="px-3 py-2">QC Grade</th>
+                    <th className="px-3 py-2">Quality Point</th>
+                    <th className="px-3 py-2">Image Upload</th>
+                    <th className="px-3 py-2">Image Count</th>
+                    <th className="px-3 py-2">Waste Reporting</th>
+                    <th className="px-3 py-2">Prep Reporting</th>
+                    <th className="px-3 py-2">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {evaluationStores.map((row) => (
+                    <tr key={`operation-${row.branch_code}`} className="border-b border-neutral-800/70">
+                      <td className="px-3 py-2">{row.branch_name}</td>
+                      <td className="px-3 py-2 tabular-nums">
+                        <EvaluationMetricCell actual={`Op time ${formatMinutes(row.operation.operation_time_minutes)}`} score={row.operation.scores.operation_time_score} />
+                      </td>
+                      <td className="px-3 py-2 tabular-nums">
+                        <EvaluationMetricCell actual={`QC ${formatScore(row.operation.qc_grade_avg)} / 10`} score={null} />
+                      </td>
+                      <td className="px-3 py-2 tabular-nums">
+                        <EvaluationMetricCell actual="QC metric score" score={row.operation.scores.qc_score} />
+                      </td>
+                      <td className="px-3 py-2 tabular-nums">
+                        <EvaluationMetricCell actual={`${formatPct(Number(row.operation.image_upload_rate || 0) * 100)} uploaded`} score={row.operation.scores.image_upload_score} />
+                      </td>
+                      <td className="px-3 py-2 tabular-nums text-sm text-neutral-200">
+                        {formatCount(Number(row.operation.total_photos || 0))} photos
+                      </td>
+                      <td className="px-3 py-2 tabular-nums">
+                        <EvaluationMetricCell
+                          actual={`${formatPct(Number(row.operation.waste_report_coverage || 0) * 100)} cov · ${row.operation.waste_report_quantity_per_100_orders == null ? "—" : formatDecimal(Number(row.operation.waste_report_quantity_per_100_orders), 2)} qty/100`}
+                          score={row.operation.scores.waste_score}
+                        />
+                      </td>
+                      <td className="px-3 py-2 tabular-nums">
+                        <EvaluationMetricCell
+                          actual={`${formatPct(Number(row.operation.prep_report_coverage || 0) * 100)} cov · ${formatDecimal(Number(row.operation.prep_report_rows_per_day || 0), 1)}/${formatDecimal(Number(row.operation.prep_expected_rows_per_day || 0), 1)} rows/day · ${row.operation.prep_report_quantity_per_100_orders == null ? "—" : formatDecimal(Number(row.operation.prep_report_quantity_per_100_orders), 2)} qty/100`}
+                          score={row.operation.scores.prep_score}
+                        />
+                      </td>
+                      <td className="px-3 py-2 tabular-nums font-semibold">
+                        <EvaluationMetricCell actual="Operation total" score={row.operation.total_score} maxScore={row.operation.max_score} emphasize />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            ) : null}
+
+            {evaluationSectionView === "all" || evaluationSectionView === "disposal" ? (
+            <div id="evaluation-disposal" className="overflow-x-auto rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+              <div className="mb-2 text-sm font-semibold">Disposal Reporting</div>
+              <div className="mb-3 text-xs text-neutral-500">
+                Disposal score uses both reporting coverage and realism against sales volume. Very low disposal quantity with high sales is penalized to reduce under-reporting.
+              </div>
+              <table className="min-w-full text-left text-sm">
+                <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                  <tr>
+                    <th className="px-3 py-2">Store</th>
+                    <th className="px-3 py-2">Coverage</th>
+                    <th className="px-3 py-2">Rows/Day</th>
+                    <th className="px-3 py-2">Qty per 100 Orders</th>
+                    <th className="px-3 py-2">Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {evaluationStores.map((row) => (
+                    <tr key={`disposal-${row.branch_code}`} className="border-b border-neutral-800/70">
+                      <td className="px-3 py-2">{row.branch_name}</td>
+                      <td className="px-3 py-2 tabular-nums">{formatPct(Number(row.operation.waste_report_coverage || 0) * 100)}</td>
+                      <td className="px-3 py-2 tabular-nums">{formatDecimal(Number(row.operation.waste_report_rows_per_day || 0), 2)}</td>
+                      <td className="px-3 py-2 tabular-nums">
+                        {row.operation.waste_report_quantity_per_100_orders == null ? "—" : formatDecimal(Number(row.operation.waste_report_quantity_per_100_orders), 2)}
+                      </td>
+                      <td className="px-3 py-2 tabular-nums font-semibold">
+                        <EvaluationMetricCell actual="Disposal score" score={row.operation.scores.waste_score} maxScore={10} emphasize />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            ) : null}
+
+            {evaluationSectionView === "all" || evaluationSectionView === "backup" ? (
+            <div id="evaluation-backup" className="overflow-x-auto rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+              <div className="mb-2 text-sm font-semibold">Backup Reporting</div>
+              <div className="mb-3 text-xs text-neutral-500">
+                Backup score checks submission coverage and whether reported prep volume is enough for the observed order volume.
+              </div>
+              <table className="min-w-full text-left text-sm">
+                <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                  <tr>
+                    <th className="px-3 py-2">Store</th>
+                    <th className="px-3 py-2">Coverage</th>
+                    <th className="px-3 py-2">Rows/Day</th>
+                    <th className="px-3 py-2">Expected Rows/Day</th>
+                    <th className="px-3 py-2">Backup Qty / 100 Orders</th>
+                    <th className="px-3 py-2">Target Range</th>
+                    <th className="px-3 py-2">Score</th>
+                    <th className="px-3 py-2">Report Content (Selected Date)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {evaluationStores.map((row) => (
+                    <tr key={`backup-${row.branch_code}`} className="border-b border-neutral-800/70">
+                      <td className="px-3 py-2">{row.branch_name}</td>
+                      <td className="px-3 py-2 tabular-nums">{formatPct(Number(row.operation.prep_report_coverage || 0) * 100)}</td>
+                      <td className="px-3 py-2 tabular-nums">{formatDecimal(Number(row.operation.prep_report_rows_per_day || 0), 2)}</td>
+                      <td className="px-3 py-2 tabular-nums">{formatDecimal(Number(row.operation.prep_expected_rows_per_day || 0), 2)}</td>
+                      <td className="px-3 py-2 tabular-nums">
+                        {row.operation.prep_report_quantity_per_100_orders == null
+                          ? "—"
+                          : formatDecimal(Number(row.operation.prep_report_quantity_per_100_orders), 2)}
+                      </td>
+                      <td className="px-3 py-2 tabular-nums">
+                        {row.operation.prep_target_low_per_100_orders == null || row.operation.prep_target_high_per_100_orders == null
+                          ? "—"
+                          : `${formatDecimal(Number(row.operation.prep_target_low_per_100_orders), 1)} - ${formatDecimal(Number(row.operation.prep_target_high_per_100_orders), 1)}`}
+                      </td>
+                      <td className="px-3 py-2 tabular-nums font-semibold">
+                        <EvaluationMetricCell actual="Backup score" score={row.operation.scores.prep_score} maxScore={10} emphasize />
+                      </td>
+                      <td className="px-3 py-2">
+                        {(() => {
+                          const detail = evaluationDayDetailsByBranch.get(String(row.branch_code || "").toUpperCase());
+                          const reports = detail?.backup_reports || [];
+                          if (!reports.length) {
+                            return <span className="text-xs text-neutral-500">No backup report for selected date</span>;
+                          }
+                          return (
+                            <div className="space-y-1">
+                              {reports.slice(0, 3).map((r, idx) => (
+                                <div key={`backup-inline-${row.branch_code}-${idx}`} className="text-xs text-neutral-300">
+                                  {r.submitted_at || "—"} {r.reporter ? `· ${r.reporter}` : ""} · {r.detail || "—"}
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            ) : null}
+
+            {evaluationSectionView === "all" || evaluationSectionView === "foodCost" ? (
+            <div id="evaluation-food-cost" className="overflow-x-auto rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+              <div className="mb-2 text-sm font-semibold">Food Cost Score</div>
+              <div className="mb-3 text-xs text-neutral-500">
+                This category compares actual food cost percentage against the target percentage. Staying at or below target
+                scores better, while going above target reduces the score.
+              </div>
+              <table className="min-w-full text-left text-sm">
+                <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                  <tr>
+                    <th className="px-3 py-2">Store</th>
+                    <th className="px-3 py-2">Actual Food Cost %</th>
+                    <th className="px-3 py-2">Target %</th>
+                    <th className="px-3 py-2">Score</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {evaluationStores.map((row) => (
+                    <tr key={`food-${row.branch_code}`} className="border-b border-neutral-800/70">
+                      <td className="px-3 py-2">{row.branch_name}</td>
+                      <td className="px-3 py-2 tabular-nums">{formatPct(Number(row.food_cost.food_cost_pct || 0))}</td>
+                      <td className="px-3 py-2 tabular-nums">{formatPct(Number(row.food_cost.target_pct || 0))}</td>
+                      <td className="px-3 py-2 tabular-nums font-semibold">
+                        <EvaluationMetricCell actual="Food cost result" score={row.food_cost.score} maxScore={row.food_cost.max_score} emphasize />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            ) : null}
+
+            {evaluationSectionView === "all" || evaluationSectionView === "purchasing" ? (
+            <div id="evaluation-purchasing" className="rounded-2xl border border-amber-900/40 bg-amber-950/10 p-4">
+              <div className="text-sm font-semibold">Purchasing</div>
+              <div className="mt-2 text-sm text-neutral-300">Under construction</div>
+              <div className="mt-1 text-xs text-neutral-500">Store procurement data source will be connected in a later phase.</div>
+            </div>
+            ) : null}
+
+            {evaluationSectionView === "all" || evaluationSectionView === "inventoryAccuracy" ? (
+            <div id="evaluation-inventory-accuracy" className="rounded-2xl border border-amber-900/40 bg-amber-950/10 p-4">
+              <div className="text-sm font-semibold">Inventory Accuracy</div>
+              <div className="mt-2 text-sm text-neutral-300">Under construction</div>
+              <div className="mt-1 text-xs text-neutral-500">Theory vs actual inventory data is not ready yet, so this channel is reserved for future rollout.</div>
+            </div>
+            ) : null}
           </div>
           ) : analyticsTab === "finance" ? (
+          financeStepUpReady ? (
           <div className="mt-8 space-y-4">
             <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
               <div className="mb-3 flex flex-wrap items-end gap-3">
@@ -3857,7 +5860,7 @@ export default function AdminAnalyticsPage() {
                 <button
                   type="button"
                   onClick={() => loadAll("finance")}
-                  disabled={loading || !approverName.trim() || !pin.trim()}
+                  disabled={loading || !approverName.trim() || !financeStepUpReady}
                   className="ml-auto rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
                 >
                   {loading ? "Loading..." : "Refresh P&L"}
@@ -3869,35 +5872,58 @@ export default function AdminAnalyticsPage() {
                 available (to align with workbook totals). POS metrics remain for operations (orders/menu/store ranking).
                 HQ/Admin and city management only.
               </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFinanceSectionView("all")}
+                  className={
+                    financeSectionView === "all"
+                      ? "rounded-full border border-violet-500/70 bg-violet-500/15 px-3 py-1 text-[11px] font-semibold text-violet-100"
+                      : "rounded-full border border-neutral-700 bg-neutral-950/40 px-3 py-1 text-[11px] font-medium text-neutral-200 transition hover:bg-neutral-900 hover:text-white"
+                  }
+                >
+                  All
+                </button>
+                {FINANCE_SECTION_OPTIONS.filter((section) => (section.value === "payroll" ? isHQOrAdmin : true)).map((section) => (
+                  <button
+                    key={section.value}
+                    type="button"
+                    onClick={() => setFinanceSectionView(section.value)}
+                    className={
+                      financeSectionView === section.value
+                        ? "rounded-full border border-violet-500/70 bg-violet-500/15 px-3 py-1 text-[11px] font-semibold text-violet-100"
+                        : "rounded-full border border-neutral-700 bg-neutral-950/40 px-3 py-1 text-[11px] font-medium text-neutral-200 transition hover:bg-neutral-900 hover:text-white"
+                    }
+                  >
+                    {section.label}
+                  </button>
+                ))}
+              </div>
               <div className="mt-3 flex flex-wrap items-start gap-4 border-t border-neutral-800 pt-3">
                 <div className="min-w-[240px] flex-1 text-xs text-neutral-400">
-                  <span className="font-semibold text-neutral-300">Import monthly P&amp;L (Excel)</span>
+                  <span className="font-semibold text-neutral-300">Sync monthly P&amp;L (Google)</span>
                   <p className="mt-1 max-w-xl leading-relaxed">
-                    Same layout as Google sync (label column C; Dubai total column K; Manila total column G). The import
-                    month comes from the tab name (e.g. <span className="text-neutral-500">202602 …</span>). Set Summary
-                    From/To to <span className="text-neutral-300">one calendar month</span> to load the comparison
-                    below.
+                    Reads all month tabs from the PL Google Sheet for the selected city and upserts them to the app DB.
+                    Use <span className="text-neutral-300">Summary From/To</span> to choose which month to analyze after
+                    syncing.
                   </p>
-                  <input
-                    type="file"
-                    accept=".xlsx,.xlsm"
-                    className="mt-2 block w-full max-w-sm text-xs text-neutral-300 file:mr-2 file:rounded-lg file:border-0 file:bg-neutral-700 file:px-2 file:py-1"
-                    disabled={plUploading || !approverName.trim() || !pin.trim()}
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      void uploadPlExcel(f ?? null);
-                      e.target.value = "";
-                    }}
-                  />
-                  {plUploading ? <span className="mt-1 block text-xs text-neutral-500">Importing…</span> : null}
-                  {plUploadMessage ? (
-                    <span className="mt-1 block text-xs text-amber-200/90">{plUploadMessage}</span>
+                  <button
+                    type="button"
+                    onClick={() => void syncPlFromGoogle()}
+                    disabled={plSyncing || !approverName.trim() || !financeStepUpReady}
+                    className="mt-2 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-neutral-900 disabled:opacity-60"
+                  >
+                    {plSyncing ? "Syncing..." : "Sync P&L from Google"}
+                  </button>
+                  {plSyncMessage ? (
+                    <span className="mt-1 block text-xs text-amber-200/90">{plSyncMessage}</span>
                   ) : null}
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+            {financeSectionView === "all" || financeSectionView === "summary" ? (
+            <div id="finance-summary" className="grid grid-cols-2 gap-3 lg:grid-cols-6">
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Revenue (P&amp;L imported)</div>
                 <div className="mt-2 min-h-[40px] text-2xl font-bold tabular-nums">
@@ -3953,7 +5979,9 @@ export default function AdminAnalyticsPage() {
                 </div>
               </div>
             </div>
+            ) : null}
 
+            {financeSectionView === "all" || financeSectionView === "summary" ? (
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Gross profit amount</div>
@@ -3992,9 +6020,11 @@ export default function AdminAnalyticsPage() {
                 </div>
               </div>
             </div>
+            ) : null}
 
-            {plVsTarget?.ok ? (
-              <div className="rounded-2xl border border-violet-900/40 bg-violet-950/10 p-4 text-sm">
+            {financeSectionView === "all" || financeSectionView === "plDetails" ? (
+              plVsTarget?.ok ? (
+              <div id="finance-pl-details" className="rounded-2xl border border-violet-900/40 bg-violet-950/10 p-4 text-sm">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <div className="font-semibold text-violet-100">
                     Imported P&amp;L vs target lines ({plVsTarget.month_key}
@@ -4129,10 +6159,183 @@ export default function AdminAnalyticsPage() {
                 database for this city/month. Upload the monthly Excel (or sync from Google), then set Summary From/To
                 to that month and refresh.
               </div>
-            )}
+            )
+            ) : null}
 
-            
+            {(financeSectionView === "all" || financeSectionView === "payroll") && isHQOrAdmin ? (
+              <div id="finance-payroll" className="rounded-2xl border border-sky-900/40 bg-sky-950/10 p-4">
+                <div className="mb-4 flex flex-wrap items-end gap-3">
+                  <div className="min-w-[200px] flex-1 sm:min-w-[240px]">
+                    <div className="text-sm font-semibold">Payroll Channel (HQ only)</div>
+                    <div className="mt-1 text-xs text-neutral-500">
+                      Uses the same <span className="text-neutral-300">Summary From/To</span> as Management P&amp;L.
+                      Bayzat exports are synced from <code className="text-neutral-400">PAYROLL_FOLDER_ID</code>.
+                    </div>
+                  </div>
+                  <div className="w-full sm:w-auto sm:min-w-[240px]">
+                    <label className="text-xs text-neutral-400">
+                      Staff
+                      <select
+                        value={payrollStaffName}
+                        onChange={(e) => setPayrollStaffName(e.target.value)}
+                        className="mt-1 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+                      >
+                        <option value="">All Staff</option>
+                        {payrollStaffOptions.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="ml-auto flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => loadAll("finance")}
+                      disabled={loading || !approverName.trim() || !financeStepUpReady}
+                      className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
+                    >
+                      {loading ? "Loading..." : "Refresh Payroll"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={syncPayrollNow}
+                      disabled={payrollSyncing || !approverName.trim() || !financeStepUpReady}
+                      className="rounded-2xl border border-sky-700 bg-sky-950/30 px-4 py-3 text-sm font-semibold text-sky-200 transition hover:bg-sky-900/40 disabled:opacity-60"
+                    >
+                      {payrollSyncing ? "Syncing..." : "Sync Payroll Folder"}
+                    </button>
+                  </div>
+                </div>
+                {payrollSyncMessage ? (
+                  <div className="mt-3 rounded-xl border border-neutral-700 bg-neutral-950/40 px-3 py-2 text-xs text-neutral-300">
+                    {payrollSyncMessage}
+                  </div>
+                ) : null}
+
+                <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+                  <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                    <div className="text-xs text-neutral-500">Payroll Total (Net Pay)</div>
+                    <div className="mt-1 text-2xl font-bold tabular-nums">{formatMoney(payrollSummary.totalNetPay)}</div>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                    <div className="text-xs text-neutral-500">Basic Salary</div>
+                    <div className="mt-1 text-2xl font-bold tabular-nums">{formatMoney(payrollSummary.basicSalary)}</div>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                    <div className="text-xs text-neutral-500">Accommodation</div>
+                    <div className="mt-1 text-2xl font-bold tabular-nums">{formatMoney(payrollSummary.accommodation)}</div>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                    <div className="text-xs text-neutral-500">Transportation</div>
+                    <div className="mt-1 text-2xl font-bold tabular-nums">{formatMoney(payrollSummary.transportation)}</div>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                    <div className="text-xs text-neutral-500">Staff Rows</div>
+                    <div className="mt-1 text-2xl font-bold tabular-nums">{formatCount(payrollSummary.rowCount)}</div>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-6">
+                  <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                    <div className="text-xs text-neutral-500">Gross Pay (total)</div>
+                    <div className="mt-1 text-xl font-bold tabular-nums">{formatMoney(payrollSummary.grossPay)}</div>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                    <div className="text-xs text-neutral-500">Food allowance</div>
+                    <div className="mt-1 text-xl font-bold tabular-nums">{formatMoney(payrollSummary.foodAllowance)}</div>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                    <div className="text-xs text-neutral-500">Other allowance</div>
+                    <div className="mt-1 text-xl font-bold tabular-nums">{formatMoney(payrollSummary.otherAllowance)}</div>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                    <div className="text-xs text-neutral-500">Net additions</div>
+                    <div className="mt-1 text-xl font-bold tabular-nums">{formatMoney(payrollSummary.netAdditions)}</div>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                    <div className="text-xs text-neutral-500">Net deductions</div>
+                    <div className="mt-1 text-xl font-bold tabular-nums">{formatMoney(payrollSummary.netDeductions)}</div>
+                  </div>
+                  <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                    <div className="text-xs text-neutral-500">Arrears + / -</div>
+                    <div className="mt-1 text-xl font-bold tabular-nums">
+                      {formatMoney(payrollSummary.arrearsAddition - payrollSummary.arrearsDeduction)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+                  <div className="mb-2 text-sm font-semibold">Payroll Staff Details</div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-[900px] text-left text-sm">
+                      <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                        <tr>
+                          <th className="sticky left-0 z-10 bg-neutral-900 px-3 py-2">Month</th>
+                          <th className="sticky left-14 z-10 bg-neutral-900 px-3 py-2">Staff</th>
+                          <th className="px-3 py-2">Dept</th>
+                          <th className="px-3 py-2">Basic</th>
+                          <th className="px-3 py-2">Housing</th>
+                          <th className="px-3 py-2">Food</th>
+                          <th className="px-3 py-2">Other</th>
+                          <th className="px-3 py-2">Transp.</th>
+                          <th className="px-3 py-2">Gross</th>
+                          <th className="px-3 py-2">Net +/-</th>
+                          <th className="px-3 py-2">Net pay</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {payrollRowsFiltered.slice(0, 300).map((row, idx) => (
+                          <tr key={`${row.month_key}-${row.staff_name}-${idx}`} className="border-b border-neutral-800/70">
+                            <td className="sticky left-0 bg-neutral-950/95 px-3 py-2">{row.month_key}</td>
+                            <td className="sticky left-14 max-w-[200px] truncate bg-neutral-950/95 px-3 py-2">{row.staff_name}</td>
+                            <td className="px-3 py-2">{row.department || "-"}</td>
+                            <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.basic_salary || 0))}</td>
+                            <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.accommodation || 0))}</td>
+                            <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.food_allowance || 0))}</td>
+                            <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.other_allowance || 0))}</td>
+                            <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.transportation || 0))}</td>
+                            <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.gross_pay || 0))}</td>
+                            <td className="px-3 py-2 tabular-nums">
+                              {formatMoney(Number(row.net_additions || 0) - Number(row.net_deductions || 0))}
+                            </td>
+                            <td className="px-3 py-2 font-medium tabular-nums text-sky-200">
+                              {formatMoney(Number(row.total_net_pay || 0))}
+                            </td>
+                          </tr>
+                        ))}
+                        {!payrollRowsFiltered.length ? (
+                          <tr>
+                            <td colSpan={11} className="px-3 py-6 text-center text-neutral-500">
+                              {payrollRows.length
+                                ? "No payroll data for selected period/staff"
+                                : "No payroll data imported yet (try Sync Payroll Folder)"}
+                            </td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
           </div>
+          ) : (
+          <div className="mt-8 rounded-2xl border border-amber-800/50 bg-amber-950/20 p-5 text-sm text-amber-100">
+            <div className="font-semibold">Management P&amp;L is locked</div>
+            <div className="mt-1 text-xs text-amber-100/90">
+              This page requires a fresh Passkey verification (phishing-resistant step-up).
+            </div>
+            <div className="mt-2 text-xs text-amber-100/80">
+              管理P&amp;Lの閲覧手順:
+              <span className="block mt-1">1) 上の Security セクションで <span className="font-semibold">Verify With Passkey</span> を押します。</span>
+              <span className="block">2) 端末の認証（指紋/Face ID/セキュリティキー）を完了します。</span>
+              <span className="block">3) 認証完了後、このタブを再読み込みすると閲覧できます。</span>
+            </div>
+          </div>
+          )
           ) : (
           <div className="mt-8 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-6 text-sm text-neutral-400">
             This channel is not available for your current role/city.
@@ -4157,7 +6360,7 @@ export default function AdminAnalyticsPage() {
                 onClick={() => {
                   loadAll("staff");
                 }}
-                disabled={loading || !approverName.trim() || !pin.trim()}
+                disabled={loading || !approverName.trim() || !financeStepUpReady}
                 className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
               >
                 {loading ? "Loading..." : "Refresh Summary"}
