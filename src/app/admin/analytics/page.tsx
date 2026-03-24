@@ -2264,8 +2264,19 @@ export default function AdminAnalyticsPage() {
       const monthKeys = monthItems.map((m) => String(m?.month_key || "").trim()).filter(Boolean);
       const monthLabel = monthKeys.length ? `${monthKeys[0]} - ${monthKeys[monthKeys.length - 1]}` : "months";
       setPlSyncMessage(`Synced ${monthsSynced} month tabs (${monthLabel}). Refreshing...`);
-
-      await loadAll("finance");
+      const refreshResult = await Promise.race<"done" | "timeout">([
+        loadAll("finance").then(() => "done"),
+        new Promise<"timeout">((resolve) => {
+          window.setTimeout(() => resolve("timeout"), 15000);
+        }),
+      ]);
+      if (refreshResult === "done") {
+        setPlSyncMessage(`Synced ${monthsSynced} month tabs (${monthLabel}). Updated.`);
+      } else {
+        setPlSyncMessage(
+          `Synced ${monthsSynced} month tabs (${monthLabel}). Data refresh is taking longer than usual; please press Refresh P&L once.`
+        );
+      }
     } catch (e) {
       setPlSyncMessage(String((e as Error)?.message || e || "P&L sync failed"));
     } finally {
