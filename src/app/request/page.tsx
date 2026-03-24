@@ -1,13 +1,14 @@
 // src/app/request/page.tsx
 "use client";
 
-import { useState } from "react";
-import { apiPost, qs } from "@/lib/api";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Field } from "@/components/Field";
+import { getAuth } from "@/lib/auth";
 
 type ReqType = "time_change" | "day_off" | "absence" | "swap";
 
 export default function RequestPage() {
+  const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
   const [city, setCity] = useState<"dubai" | "manila">("dubai");
   const [branch, setBranch] = useState("BB");
   const [staffName, setStaffName] = useState("");
@@ -15,6 +16,8 @@ export default function RequestPage() {
   const [requestType, setRequestType] = useState<ReqType>("time_change");
   const [reason, setReason] = useState("");
   const [medicalDoc, setMedicalDoc] = useState(false);
+  const [medicalDocumentFile, setMedicalDocumentFile] = useState<File | null>(null);
+  const medicalFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // payload fields
   const [from, setFrom] = useState("9-16");
@@ -27,6 +30,14 @@ export default function RequestPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
+  const auth = useMemo(() => getAuth(), []);
+  const canSubmitForOthers = auth?.role === "HQ" || auth?.role === "ADMIN";
+
+  useEffect(() => {
+    if (!auth) return;
+    if (auth.city) setCity(auth.city);
+    if (auth.staffName) setStaffName(auth.staffName);
+  }, [auth]);
 
   const submit = async () => {
     setLoading(true);
@@ -34,6 +45,9 @@ export default function RequestPage() {
     setResult(null);
 
     try {
+      if (!auth?.accessToken) {
+        throw new Error("Please log in again before submitting a request.");
+      }
       let payload: any = {};
       if (requestType === "time_change") {
         payload = { from, to };
@@ -41,24 +55,31 @@ export default function RequestPage() {
         payload = { with_staff: withStaff, my_to: myTo, their_to: theirTo };
       }
 
-      const path =
-        `/api/shift_change/submit` +
-        qs({
-          city,
-          staff_name: staffName,
-          work_date: workDate,
-          request_type: requestType,
-          reason,
-          branch,
-          medical_doc: medicalDoc,
-        });
+      if (medicalDoc && !medicalDocumentFile) {
+        throw new Error("Please attach your medical document file.");
+      }
 
-      // backend expects JSON body (payload)
-      const url = path;
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "")}${url}`, {
+      const form = new FormData();
+      form.set("city", city);
+      form.set("staff_name", staffName);
+      form.set("work_date", workDate);
+      form.set("request_type", requestType);
+      form.set("reason", reason);
+      form.set("branch", branch);
+      form.set("medical_doc", String(medicalDoc));
+      form.set("payload_json", JSON.stringify(payload));
+      if (medicalDocumentFile) {
+        form.set("medical_document_file", medicalDocumentFile);
+      }
+
+      const url = `/api/shift_change/submit`;
+      const res = await fetch(`${apiBase}${url}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        headers: {
+          Authorization: `Bearer ${auth.accessToken}`,
+          ...(auth.stepUpToken ? { "X-Step-Up-Token": auth.stepUpToken } : {}),
+        },
+        body: form,
       });
 
       const text = await res.text();
@@ -74,11 +95,16 @@ export default function RequestPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 p-4">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 p-3.5 sm:p-5">
+        <div className="mb-4">
+          <div className="text-[15px] font-semibold text-neutral-100 sm:text-base">Request</div>
+          <div className="mt-1 text-sm text-neutral-400">Submit shift change, day off, absence, or swap requests from your phone.</div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="City">
             <select
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
               value={city}
               onChange={(e) => setCity(e.target.value as any)}
             >
@@ -88,20 +114,31 @@ export default function RequestPage() {
           </Field>
 
           <Field label="Branch (optional)">
-            <input className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={branch} onChange={(e) => setBranch(e.target.value)} />
+            <input className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={branch} onChange={(e) => setBranch(e.target.value)} />
           </Field>
 
           <Field label="Staff name" hint="Exact spelling as in sheet">
-            <input className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={staffName} onChange={(e) => setStaffName(e.target.value)} />
+            <input
+              className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm disabled:opacity-70"
+              value={staffName}
+              onChange={(e) => setStaffName(e.target.value)}
+              readOnly={!canSubmitForOthers}
+              disabled={!canSubmitForOthers}
+            />
           </Field>
 
           <Field label="Work date">
-            <input className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={workDate} onChange={(e) => setWorkDate(e.target.value)} />
+            <input
+              type="date"
+              className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              value={workDate}
+              onChange={(e) => setWorkDate(e.target.value)}
+            />
           </Field>
 
           <Field label="Request type">
             <select
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
               value={requestType}
               onChange={(e) => setRequestType(e.target.value as ReqType)}
             >
@@ -113,10 +150,43 @@ export default function RequestPage() {
           </Field>
 
           <Field label="Medical doc (RED recommended)">
-            <label className="flex items-center gap-2 text-sm text-neutral-200">
+            <label className="flex min-h-10 items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
               <input type="checkbox" checked={medicalDoc} onChange={(e) => setMedicalDoc(e.target.checked)} />
               I have medical document
             </label>
+            <div className="mt-2 text-xs text-neutral-400">
+              Note: If attached, medical documents are automatically uploaded to Discord channel{" "}
+              <span className="font-semibold text-neutral-300">medical_document</span>.
+            </div>
+            {!canSubmitForOthers ? (
+              <div className="mt-2 text-xs text-neutral-500">Your name is locked to your current login to prevent impersonation.</div>
+            ) : null}
+            <input
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,.webp"
+              ref={medicalFileInputRef}
+              onChange={(e) => setMedicalDocumentFile(e.target.files?.[0] || null)}
+              hidden
+              aria-hidden="true"
+              tabIndex={-1}
+              className="hidden"
+            />
+            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
+              <button
+                type="button"
+                onClick={() => medicalFileInputRef.current?.click()}
+                className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-800"
+                aria-label="Choose medical document"
+              >
+                Choose File
+              </button>
+              <span className="text-xs text-neutral-400">
+                {medicalDocumentFile ? medicalDocumentFile.name : "No file selected"}
+              </span>
+              <span className="w-full text-[11px] text-neutral-500">
+                Accepted files: PDF, JPG, JPEG, PNG, WEBP
+              </span>
+            </div>
           </Field>
 
           <div className="sm:col-span-2">
@@ -132,33 +202,33 @@ export default function RequestPage() {
         </div>
 
         {/* Type-specific */}
-        <div className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+        <div className="mt-5 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-3.5">
           <div className="mb-3 text-sm font-semibold">Details</div>
 
           {requestType === "time_change" ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="From (optional)">
-                <input className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={from} onChange={(e) => setFrom(e.target.value)} />
+                <input className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={from} onChange={(e) => setFrom(e.target.value)} />
               </Field>
               <Field label="To (required)">
-                <input className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={to} onChange={(e) => setTo(e.target.value)} />
+                <input className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={to} onChange={(e) => setTo(e.target.value)} />
               </Field>
             </div>
           ) : null}
 
           {requestType === "swap" ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="With staff (counterparty)">
-                <input className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={withStaff} onChange={(e) => setWithStaff(e.target.value)} />
+                <input className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={withStaff} onChange={(e) => setWithStaff(e.target.value)} />
               </Field>
               <div />
 
               <Field label="My new time (my_to)">
-                <input className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={myTo} onChange={(e) => setMyTo(e.target.value)} />
+                <input className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={myTo} onChange={(e) => setMyTo(e.target.value)} />
               </Field>
 
               <Field label="Their new time (their_to)">
-                <input className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={theirTo} onChange={(e) => setTheirTo(e.target.value)} />
+                <input className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={theirTo} onChange={(e) => setTheirTo(e.target.value)} />
               </Field>
 
               <div className="sm:col-span-2 text-xs text-neutral-400">
@@ -172,15 +242,15 @@ export default function RequestPage() {
           ) : null}
         </div>
 
-        <div className="mt-4 flex items-center gap-3">
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
           <button
             onClick={submit}
             disabled={loading}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm hover:bg-neutral-900 disabled:opacity-50"
+            className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm font-medium hover:bg-neutral-900 disabled:opacity-50 sm:w-auto"
           >
             {loading ? "Submitting..." : "Submit"}
           </button>
-          {error ? <div className="text-sm text-red-300">{error}</div> : null}
+          {error ? <div className="w-full text-sm text-red-300 sm:w-auto">{error}</div> : null}
         </div>
 
         {result ? (
