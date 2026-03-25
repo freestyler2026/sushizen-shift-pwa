@@ -6,6 +6,7 @@ export type StaffRole =
   | "STAFF"
   | "MANAGER"
   | "MANAGEMENT"
+  | "HR_MANAGER"
   | "HQ"
   | "ADMIN"
   | "DUBAI_MANAGEMENT"
@@ -71,6 +72,7 @@ function normalizeRole(v: any): StaffRole | undefined {
     s === "HQ" ||
     s === "MANAGER" ||
     s === "MANAGEMENT" ||
+    s === "HR_MANAGER" ||
     s === "STAFF" ||
     s === "DUBAI_MANAGEMENT" ||
     s === "MANILA_MANAGEMENT"
@@ -287,6 +289,18 @@ export function canAccessAdminNav(a?: Auth | null): boolean {
   const x = a ?? getAuth();
   const role = (x?.role || "").toString().toUpperCase();
   return role === "ADMIN" || role === "HQ" || role === "MANAGEMENT" || role === "DUBAI_MANAGEMENT" || role === "MANILA_MANAGEMENT";
+}
+
+export function canAccessPrivateReportAdmin(a?: Auth | null): boolean {
+  const x = a ?? getAuth();
+  const role = (x?.role || "").toString().toUpperCase();
+  return role === "HQ" || role === "ADMIN" || role === "HR_MANAGER";
+}
+
+export function canAccessBackofficeEvaluationAdmin(a?: Auth | null): boolean {
+  const x = a ?? getAuth();
+  const role = (x?.role || "").toString().toUpperCase();
+  return role === "HQ" || role === "HR_MANAGER";
 }
 
 export function canViewSalesAnalytics(a?: Auth | null, cityHint?: City): boolean {
