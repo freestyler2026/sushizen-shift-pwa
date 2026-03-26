@@ -19,13 +19,24 @@ const nextConfig: NextConfig = {
   reactStrictMode: false,
   // Prevent dev/build cache collisions that can cause missing module errors.
   distDir: IS_DEV ? ".next-dev" : ".next",
-  eslint: {
-    // Temporary production guard: unrelated legacy warnings should not block procurement rollout.
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    // Temporary production guard: unrelated tracked pages should not block procurement rollout.
-    ignoreBuildErrors: true,
+  async redirects() {
+    return [
+      {
+        source: "/admin/attendance/monthly-summary",
+        destination: "/admin/analytics",
+        permanent: false,
+      },
+      {
+        source: "/admin/attendance/payroll",
+        destination: "/admin/analytics",
+        permanent: false,
+      },
+      {
+        source: "/admin/attendance/corrections",
+        destination: "/admin/corrections",
+        permanent: false,
+      },
+    ];
   },
   async rewrites() {
     if (!API_BASE) return [];

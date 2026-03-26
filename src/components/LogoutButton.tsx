@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { clearAuth } from "@/lib/auth";
 
-export default function LogoutButton() {
+export default function LogoutButton({ className = "" }: { className?: string }) {
   const router = useRouter();
 
   const logout = () => {
@@ -25,7 +25,7 @@ export default function LogoutButton() {
   return (
     <button
       onClick={logout}
-      className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-neutral-200 hover:bg-neutral-900"
+      className={`rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-neutral-200 hover:bg-neutral-900 ${className}`.trim()}
     >
       Logout
     </button>
