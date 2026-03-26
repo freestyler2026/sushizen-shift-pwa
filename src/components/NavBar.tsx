@@ -32,6 +32,7 @@ const SECONDARY_BASE: NavItem[] = [
 const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin", label: "Admin Dashboard", adminOnly: true, match: "exact" },
   { href: "/admin/private-reports", label: "Private Reports", adminOnly: true, match: "exact" },
+  { href: "/admin/procurement", label: "Procurement", adminOnly: true, match: "exact" },
   { href: "/admin/analytics", label: "Analytics", adminOnly: true, match: "exact" },
   { href: "/admin/attendance", label: "Attendance", adminOnly: true, match: "prefix" },
   { href: "/admin/absences", label: "Absences", adminOnly: true, match: "exact" },
