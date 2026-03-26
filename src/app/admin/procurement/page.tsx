@@ -44,7 +44,7 @@ function monthNow(): string {
 }
 
 export default function AdminProcurementPage() {
-  const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
+  const apiBase = "";
   const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
   const [error, setError] = useState("");
