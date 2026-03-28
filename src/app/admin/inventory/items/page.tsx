@@ -51,6 +51,7 @@ export default function InventoryItemsPage() {
   const [createCost, setCreateCost] = useState("0");
   const [createType, setCreateType] = useState("ITEM");
   const [createSuccess, setCreateSuccess] = useState("");
+  const [createCategoryBusy, setCreateCategoryBusy] = useState(false);
 
   const nextSku = useMemo(() => {
     let maxSeq = 0;
@@ -124,13 +125,32 @@ export default function InventoryItemsPage() {
     setCreateSuccess("");
     try {
       const pickedCategory = categories.find((row) => row.id === createCategoryId) || null;
-      const categoryName = (pickedCategory?.name || createCategoryName || "").trim();
+      let resolvedCategoryId = createCategoryId || "";
+      let resolvedCategoryName = (pickedCategory?.name || createCategoryName || "").trim();
+      if (!resolvedCategoryId && resolvedCategoryName) {
+        const existing = categories.find((row) => row.name.trim().toLowerCase() === resolvedCategoryName.toLowerCase());
+        if (existing) {
+          resolvedCategoryId = existing.id;
+          resolvedCategoryName = existing.name;
+        } else {
+          const created = await inventoryPost<{ row?: InventoryCategoryRow }>("/api/admin/inventory/categories", {
+            city,
+            name: resolvedCategoryName,
+            reference: "",
+          });
+          const createdRow = created?.row;
+          if (createdRow?.id) {
+            resolvedCategoryId = createdRow.id;
+            resolvedCategoryName = createdRow.name || resolvedCategoryName;
+          }
+        }
+      }
       await inventoryPost("/api/admin/inventory/items", {
         city,
         name,
         sku: nextSku,
-        category_id: createCategoryId || "",
-        category_name: categoryName,
+        category_id: resolvedCategoryId,
+        category_name: resolvedCategoryName,
         storage_unit: createUnit.trim(),
         ingredient_unit: createUnit.trim(),
         storage_to_ingredient: 1,
@@ -165,6 +185,42 @@ export default function InventoryItemsPage() {
       setError(e?.message || String(e));
     } finally {
       setCreateBusy(false);
+    }
+  }
+
+  async function createCategoryOnly() {
+    const name = createCategoryName.trim();
+    if (!name) {
+      setError("Please enter category name first.");
+      return;
+    }
+    setCreateCategoryBusy(true);
+    setError("");
+    try {
+      const created = await inventoryPost<{ row?: InventoryCategoryRow }>("/api/admin/inventory/categories", {
+        city,
+        name,
+        reference: "",
+      });
+      const row = created?.row;
+      const categoriesRes = await inventoryGet<{ rows: InventoryCategoryRow[] }>(`/api/admin/inventory/categories?city=${encodeURIComponent(city)}&tab=ALL&limit=200`);
+      const updated = categoriesRes.rows || [];
+      setCategories(updated);
+      if (row?.id) {
+        setCreateCategoryId(row.id);
+        setCreateCategoryName(row.name || name);
+      } else {
+        const hit = updated.find((x) => x.name.trim().toLowerCase() === name.toLowerCase());
+        if (hit) {
+          setCreateCategoryId(hit.id);
+          setCreateCategoryName(hit.name);
+        }
+      }
+      setCreateSuccess("Category created and selected.");
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setCreateCategoryBusy(false);
     }
   }
 
@@ -229,7 +285,7 @@ export default function InventoryItemsPage() {
               }}
               className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             >
-              <option value="">Select category (optional)</option>
+              <option value="">{categories.length === 0 ? "No categories yet - create below" : "Select category (optional)"}</option>
               {categories.map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.name}
@@ -242,6 +298,14 @@ export default function InventoryItemsPage() {
               placeholder="Category name (optional)"
               className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             />
+            <button
+              type="button"
+              onClick={() => void createCategoryOnly()}
+              disabled={createCategoryBusy}
+              className="rounded-xl border border-sky-800 bg-sky-950/30 px-4 py-2 text-sm text-sky-200 hover:bg-sky-900/30 disabled:opacity-60"
+            >
+              {createCategoryBusy ? "Creating category..." : "Create Category"}
+            </button>
             <input
               value={createUnit}
               onChange={(e) => setCreateUnit(e.target.value)}
