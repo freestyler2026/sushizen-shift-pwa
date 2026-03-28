@@ -1,9 +1,11 @@
 // src/app/admin/attendance/history/page.tsx
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getAuth } from "@/lib/auth";
+import { normalizeCalendarDateInput } from "@/lib/dateInput";
 
 const API_BASE = "";
 const LOGO_SRC = "/logo.png";
@@ -152,6 +154,20 @@ export default function AttendanceHistoryPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const handleDateFromChange = (raw: string) => {
+    const next = normalizeCalendarDateInput(raw);
+    if (!next) return;
+    setDateFrom(next);
+    if (dateTo && next > dateTo) setDateTo(next);
+  };
+
+  const handleDateToChange = (raw: string) => {
+    const next = normalizeCalendarDateInput(raw);
+    if (!next) return;
+    setDateTo(next);
+    if (dateFrom && next < dateFrom) setDateFrom(next);
+  };
+
   const filteredRows = useMemo(() => {
     if (!showDuplicatesOnly) return rows;
     return rows.filter(
@@ -238,9 +254,11 @@ export default function AttendanceHistoryPage() {
         <div className="rounded-3xl border border-neutral-800 bg-neutral-900/60 p-8 shadow-2xl">
           <div className="flex flex-col items-center text-center">
             <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-neutral-800 bg-black">
-              <img
+              <Image
                 src={LOGO_SRC}
                 alt="Sushi ZEN logo"
+                width={80}
+                height={80}
                 className="h-full w-full object-contain"
               />
             </div>
@@ -288,7 +306,8 @@ export default function AttendanceHistoryPage() {
               <input
                 type="date"
                 value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
+                onChange={(e) => handleDateFromChange(e.target.value)}
+                max={dateTo || undefined}
                 className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
               />
             </div>
@@ -298,7 +317,8 @@ export default function AttendanceHistoryPage() {
               <input
                 type="date"
                 value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
+                onChange={(e) => handleDateToChange(e.target.value)}
+                min={dateFrom || undefined}
                 className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
               />
             </div>

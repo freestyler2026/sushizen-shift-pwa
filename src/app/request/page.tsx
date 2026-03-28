@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Field } from "@/components/Field";
 import { getAuth } from "@/lib/auth";
 
-type ReqType = "time_change" | "day_off" | "absence" | "swap";
+type ReqType = "time_change" | "day_off" | "absence" | "swap" | "paid_leave" | "vacation" | "other";
 
 export default function RequestPage() {
   const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
@@ -98,7 +98,7 @@ export default function RequestPage() {
       <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 p-3.5 sm:p-5">
         <div className="mb-4">
           <div className="text-[15px] font-semibold text-neutral-100 sm:text-base">Request</div>
-          <div className="mt-1 text-sm text-neutral-400">Submit shift change, day off, absence, or swap requests from your phone.</div>
+          <div className="mt-1 text-sm text-neutral-400">Submit shift change, day off, absence, paid leave, vacation, other, or swap requests from your phone.</div>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -142,10 +142,13 @@ export default function RequestPage() {
               value={requestType}
               onChange={(e) => setRequestType(e.target.value as ReqType)}
             >
-              <option value="time_change">time_change</option>
-              <option value="day_off">day_off</option>
-              <option value="absence">absence</option>
-              <option value="swap">swap</option>
+              <option value="time_change">Time Change</option>
+              <option value="day_off">Day Off</option>
+              <option value="absence">Absence</option>
+              <option value="paid_leave">Paid Leave</option>
+              <option value="vacation">Vacation</option>
+              <option value="other">Other</option>
+              <option value="swap">Swap</option>
             </select>
           </Field>
 
@@ -237,7 +240,7 @@ export default function RequestPage() {
             </div>
           ) : null}
 
-          {requestType === "day_off" || requestType === "absence" ? (
+          {requestType === "day_off" || requestType === "absence" || requestType === "paid_leave" || requestType === "vacation" || requestType === "other" ? (
             <div className="text-sm text-neutral-400">No extra fields needed. Please write the reason.</div>
           ) : null}
         </div>

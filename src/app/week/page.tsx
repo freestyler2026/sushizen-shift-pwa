@@ -6,13 +6,35 @@ import { useRouter } from "next/navigation";
 import { Field } from "@/components/Field";
 import { apiGet, qs, type WeekView, type ShiftRow } from "@/lib/api";
 import { mondayOf, isoToday } from "@/lib/date";
-import { getAuth, clearAuth, type City } from "@/lib/auth";
+import { getAuth, type City } from "@/lib/auth";
 
 // -----------------------------
 // helpers
 // -----------------------------
 function pad2(n: number) {
   return String(n).padStart(2, "0");
+}
+
+function parseIsoDate(s: string) {
+  const [y, m, d] = (s || "").split("-").map((v) => parseInt(v, 10));
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+}
+
+function isoDate(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function addDays(iso: string, days: number) {
+  const dt = parseIsoDate(iso);
+  if (!dt) return iso;
+  dt.setDate(dt.getDate() + days);
+  return isoDate(dt);
+}
+
+function weekLabel(startIso: string) {
+  const endIso = addDays(startIso, 6);
+  return `${startIso} to ${endIso}`;
 }
 
 // 0..48 -> "HH" or "HH(+1)"
@@ -105,6 +127,27 @@ type DayBranchGroup = {
   staffMap: Map<string, ShiftRow[]>;
 };
 
+type ShiftChangeEvent = {
+  id: string;
+  work_date: string;
+  branch_code: string;
+  target_staff_name: string;
+  change_type: string;
+  before_json?: {
+    staff_name?: string;
+    start_hour?: number;
+    end_hour?: number;
+  };
+  after_json?: {
+    staff_name?: string;
+    start_hour?: number;
+    end_hour?: number;
+    note?: string;
+  };
+  created_by?: string;
+  created_at?: string;
+};
+
 function buildBranchMapForDay(rows: ShiftRow[]): Map<string, DayBranchGroup> {
   const bmap = new Map<string, DayBranchGroup>();
 
@@ -154,7 +197,7 @@ function sortBranchName(a: string, b: string) {
 // timeline renderer (bar-only + text)
 // -----------------------------
 function Timeline2Rows({ rows }: { rows: ShiftRow[] }) {
-  const ticks = [8, 12, 16, 20, 24, 28, 30];
+  const ticks = [8, 12, 16, 20, 24, 30];
 
   const label = rows
     .slice()
@@ -163,9 +206,8 @@ function Timeline2Rows({ rows }: { rows: ShiftRow[] }) {
     .join(", ");
 
   return (
-    <div className="mt-3 space-y-2">
-      {/* axis */}
-      <div className="flex items-center justify-between text-[12px] text-neutral-500">
+    <div className="mt-2 space-y-1">
+      <div className="flex items-center justify-between text-[9px] text-neutral-500 sm:text-[10px]">
         {ticks.map((t) => (
           <div key={t} className="w-0 flex-1 text-center">
             {hourText(t)}
@@ -173,16 +215,13 @@ function Timeline2Rows({ rows }: { rows: ShiftRow[] }) {
         ))}
       </div>
 
-      {/* bars only */}
-      <div className="relative h-10 overflow-hidden rounded-xl border border-neutral-800 bg-neutral-950/30">
-        {/* grid */}
+      <div className="relative h-7 overflow-hidden rounded-lg border border-neutral-800 bg-neutral-950/30">
         <div className="absolute inset-0 flex">
           {Array.from({ length: TL_TOTAL }).map((_, i) => (
             <div key={i} className="flex-1 border-r border-neutral-900/60 last:border-r-0" />
           ))}
         </div>
 
-        {/* bars */}
         {rows.map((r, idx) => {
           const st = Number(r.start_hour ?? 0);
           const en = Number(r.end_hour ?? 0);
@@ -209,7 +248,7 @@ function Timeline2Rows({ rows }: { rows: ShiftRow[] }) {
           return (
             <div
               key={`${r.staff_name}-${idx}-${st}-${en}`}
-              className={`absolute top-1 h-8 rounded-lg border ${barCls}`}
+              className={`absolute top-0.5 h-5 rounded-md border ${barCls}`}
               style={{ left: `${left}%`, width: `${width}%` }}
               title={`${(r.role || "").toString()} ${full}`}
             />
@@ -217,8 +256,7 @@ function Timeline2Rows({ rows }: { rows: ShiftRow[] }) {
         })}
       </div>
 
-      {/* numbers only */}
-      <div className="text-[12px] text-neutral-200/90">{label || <span className="text-neutral-500">—</span>}</div>
+      <div className="text-[10px] text-neutral-200/90">{label || <span className="text-neutral-500">—</span>}</div>
     </div>
   );
 }
@@ -234,10 +272,13 @@ export default function WeekPage() {
 
   const [city, setCity] = useState<City>("dubai");
   const [startDate, setStartDate] = useState(mondayOf(isoToday()));
+  const [latestWeekStart, setLatestWeekStart] = useState(mondayOf(isoToday()));
 
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<WeekView | null>(null);
+  const [changes, setChanges] = useState<ShiftChangeEvent[]>([]);
   const [error, setError] = useState("");
+  const [branchFilter, setBranchFilter] = useState<string>("ALL");
 
   // ✅ 最新週の自動ジャンプは「1回だけ」
   const didAutoSetRef = useRef(false);
@@ -251,14 +292,7 @@ export default function WeekPage() {
     }
     setAuthed(a);
     setCity((a.city || "dubai") as City);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const logout = () => {
-    clearAuth();
-    setAuthed(null);
-    router.replace("/login");
-  };
+  }, [router]);
 
   // max_date -> latest week monday (once)
   useEffect(() => {
@@ -280,8 +314,10 @@ export default function WeekPage() {
         const y = md.getFullYear();
         const m = String(md.getMonth() + 1).padStart(2, "0");
         const d = String(md.getDate()).padStart(2, "0");
+        const latest = `${y}-${m}-${d}`;
 
-        setStartDate(`${y}-${m}-${d}`);
+        setStartDate(latest);
+        setLatestWeekStart(latest);
         didAutoSetRef.current = true;
       } catch {
         // ignore
@@ -290,6 +326,27 @@ export default function WeekPage() {
 
     run();
   }, [authed, city]);
+
+  const weekOptions = useMemo(() => {
+    const hardMin = "2025-11-03";
+    const latest = latestWeekStart || mondayOf(isoToday());
+    const end = addDays(latest, 28); // allow a few future weeks
+
+    const out: string[] = [];
+    let cursor = hardMin;
+    let guard = 0;
+    while (cursor <= end && guard < 400) {
+      out.push(cursor);
+      cursor = addDays(cursor, 7);
+      guard += 1;
+    }
+
+    if (startDate && !out.includes(startDate)) {
+      out.push(startDate);
+    }
+    out.sort((a, b) => b.localeCompare(a)); // newest first
+    return out;
+  }, [latestWeekStart, startDate]);
 
   const fetchWeek = async () => {
     setLoading(true);
@@ -304,9 +361,19 @@ export default function WeekPage() {
         })}`
       );
       setData(w);
+      const ch = await apiGet<{ ok: boolean; items: ShiftChangeEvent[] }>(
+        `/api/shifts/changes${qs({
+          city,
+          date_from: startDate,
+          date_to: addDays(startDate, 6),
+          limit: 80,
+        })}`
+      );
+      setChanges(Array.isArray(ch?.items) ? ch.items : []);
     } catch (e: any) {
       setError(e?.message || String(e));
       setData(null);
+      setChanges([]);
     } finally {
       setLoading(false);
     }
@@ -329,6 +396,44 @@ export default function WeekPage() {
     });
   }, [data]);
 
+  const myBranches = useMemo(() => {
+    const myKey = normName(myName);
+    const set = new Set<string>();
+    for (const day of grouped) {
+      for (const branch of day.branches) {
+        for (const staff of branch.staffMap.keys()) {
+          if (normName(staff) === myKey && branch.branch_code) {
+            set.add(branch.branch_code);
+          }
+        }
+      }
+    }
+    return Array.from(set).sort(sortBranchName);
+  }, [grouped, myName]);
+
+  const availableBranches = useMemo(() => {
+    const set = new Set<string>();
+    for (const day of grouped) {
+      for (const branch of day.branches) {
+        if (branch.branch_code) set.add(branch.branch_code);
+      }
+    }
+    return Array.from(set).sort(sortBranchName);
+  }, [grouped]);
+
+  const filteredGrouped = useMemo(() => {
+    if (branchFilter === "ALL") return grouped;
+    if (branchFilter === "__MY__") {
+      const allowed = new Set(myBranches);
+      return grouped
+        .map((day) => ({ ...day, branches: day.branches.filter((branch) => allowed.has(branch.branch_code)) }))
+        .filter((day) => day.branches.length > 0);
+    }
+    return grouped
+      .map((day) => ({ ...day, branches: day.branches.filter((branch) => branch.branch_code === branchFilter) }))
+      .filter((day) => day.branches.length > 0);
+  }, [branchFilter, grouped, myBranches]);
+
   const renderStaffRow = (staff: string, rows: ShiftRow[]) => {
     const isMe = normName(staff) === normName(myName);
     const name = sanitizeDisplayName(staff);
@@ -338,37 +443,38 @@ export default function WeekPage() {
     const absNote = absenceNote(rows);
 
     const badge = badgeForRow(rows[0]);
+    const roleText = absence ? absType : (rows[0]?.role || "");
 
     return (
       <div
         key={staff}
-        className={`rounded-2xl border p-4 ${
+        className={`rounded-lg border p-2 sm:p-2.5 ${
           isMe ? "border-amber-700/60 bg-amber-950/20" : "border-neutral-800 bg-neutral-900/20"
         }`}
       >
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="truncate text-base font-semibold">
+            <div className="truncate text-[14px] font-semibold leading-5 sm:text-[15px]">
               {name}
-              {isMe ? <span className="ml-2 text-[12px] text-amber-300">(You)</span> : null}
-              {containsJP(staff) ? <span className="ml-2 text-[12px] text-red-300">⚠️JP</span> : null}
+              {isMe ? <span className="ml-2 text-[11px] text-amber-300">(You)</span> : null}
+              {containsJP(staff) ? <span className="ml-2 text-[11px] text-red-300">⚠️JP</span> : null}
             </div>
 
-            <div className="mt-1 text-sm text-neutral-400">{absence ? absType : (rows[0]?.role || "")}</div>
+            <div className="mt-0.5 text-[11px] text-neutral-400">{roleText}</div>
           </div>
 
           <div className="shrink-0 text-right">
-            <div className="text-xs text-neutral-500">
+            <div className="text-[11px] text-neutral-500">
               {absence ? "ABSENCE" : `${rows.length} shift${rows.length === 1 ? "" : "s"}`}
             </div>
-            <span className={`mt-2 inline-block rounded-lg border px-2 py-1 text-[11px] ${badge.cls}`}>
+            <span className={`mt-1 inline-block rounded-md border px-1.5 py-0.5 text-[9px] ${badge.cls}`}>
               {badge.label}
             </span>
           </div>
         </div>
 
         {absence ? (
-          <div className="mt-3 rounded-xl border border-neutral-800 bg-neutral-950/40 px-3 py-3">
+          <div className="mt-2 rounded-lg border border-neutral-800 bg-neutral-950/40 px-2 py-1.5">
             {absNote ? (
               <div className="text-xs text-neutral-300">{absNote}</div>
             ) : (
@@ -386,21 +492,20 @@ export default function WeekPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header / Controls */}
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 p-4">
+      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 p-3.5 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold">Week</div>
+            <div className="text-[15px] font-semibold sm:text-base">Week</div>
             <div className="text-xs text-neutral-400">
               Logged in as: <span className="text-neutral-200">{sanitizeDisplayName(myName) || "-"}</span>
             </div>
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field label="City">
             <select
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
               value={city}
               onChange={(e) => {
                 didAutoSetRef.current = true;
@@ -412,47 +517,122 @@ export default function WeekPage() {
             </select>
           </Field>
 
-          <Field label="Week start (Mon)">
-            <input
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+          <Field label="Week (Mon-Sun)">
+            <select
+              className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
               value={startDate}
               onChange={(e) => {
                 didAutoSetRef.current = true;
                 setStartDate(e.target.value);
               }}
-              placeholder="YYYY-MM-DD"
-            />
+            >
+              {weekOptions.map((ws) => (
+                <option key={ws} value={ws}>
+                  {weekLabel(ws)}
+                </option>
+              ))}
+            </select>
           </Field>
 
           <div className="flex items-end gap-2">
             <button
               onClick={fetchWeek}
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm hover:bg-neutral-900"
+              className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm hover:bg-neutral-900"
             >
               Refresh
             </button>
           </div>
         </div>
 
-        <div className="mt-3 flex items-center gap-3">
+        <div className="mt-3 flex flex-wrap items-center gap-3">
           {loading ? <div className="text-sm text-neutral-400">Loading...</div> : null}
           {error ? <div className="text-sm text-red-300">{error}</div> : null}
         </div>
       </div>
 
+      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3.5 sm:p-4">
+        <div className="text-sm font-semibold">Recent approved changes</div>
+        <div className="mt-1 text-xs text-neutral-400">
+          Changes synced from manager spreadsheet edits and approved by HQ/Admin.
+        </div>
+        {!changes.length ? (
+          <div className="mt-2 text-xs text-neutral-500">No approved changes for this week.</div>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {changes.slice(0, 30).map((ev) => (
+              <div key={ev.id} className="rounded-xl border border-neutral-800 bg-neutral-950/30 px-3 py-2 text-xs">
+                <div className="text-neutral-200">
+                  {ev.work_date} • {ev.branch_code} • {(ev.change_type || "").replaceAll("_", " ")}
+                </div>
+                <div className="mt-1 text-neutral-400">
+                  {(ev.before_json?.staff_name || "-")} {rangeText(Number(ev.before_json?.start_hour || 0), Number(ev.before_json?.end_hour || 0))}
+                  {" -> "}
+                  {(ev.after_json?.staff_name || "-")} {rangeText(Number(ev.after_json?.start_hour || 0), Number(ev.after_json?.end_hour || 0))}
+                </div>
+                {ev.after_json?.note ? <div className="mt-1 text-neutral-500">note: {ev.after_json.note}</div> : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* All staff by branch */}
       <div className="space-y-3">
-        <div className="text-sm font-semibold">All staff (by branch)</div>
+        <div className="space-y-2">
+          <div className="text-sm font-semibold">All staff (by branch)</div>
+          {availableBranches.length ? (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setBranchFilter("ALL")}
+                className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                  branchFilter === "ALL"
+                    ? "border-amber-500 bg-amber-950/25 text-amber-200"
+                    : "border-neutral-800 bg-neutral-950/30 text-neutral-300 hover:bg-neutral-900/40"
+                }`}
+              >
+                All stores
+              </button>
+              {myBranches.length ? (
+                <button
+                  type="button"
+                  onClick={() => setBranchFilter("__MY__")}
+                  className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                    branchFilter === "__MY__"
+                      ? "border-amber-500 bg-amber-950/25 text-amber-200"
+                      : "border-neutral-800 bg-neutral-950/30 text-neutral-300 hover:bg-neutral-900/40"
+                  }`}
+                >
+                  My store
+                </button>
+              ) : null}
+              {availableBranches.map((branch) => (
+                <button
+                  key={branch}
+                  type="button"
+                  onClick={() => setBranchFilter(branch)}
+                  className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                    branchFilter === branch
+                      ? "border-amber-500 bg-amber-950/25 text-amber-200"
+                      : "border-neutral-800 bg-neutral-950/30 text-neutral-300 hover:bg-neutral-900/40"
+                  }`}
+                >
+                  {branch}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
 
         {!data ? (
           <div className="text-sm text-neutral-500">No data.</div>
         ) : (
-          <div className="space-y-6">
-            {grouped.map((day) => (
-              <div key={day.date} className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-                <div className="mb-3 text-sm font-semibold">{day.date}</div>
+          <div className="space-y-4">
+            {filteredGrouped.map((day) => (
+              <div key={day.date} className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3">
+                <div className="mb-2.5 text-sm font-semibold">{day.date}</div>
 
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {day.branches.map((b) => {
                     const staffEntries = Array.from(b.staffMap.entries()).sort((a, z) =>
                       a[0].localeCompare(z[0])
@@ -461,15 +641,14 @@ export default function WeekPage() {
                     return (
                       <div
                         key={`${day.date}-${b.branch_code || "UNASSIGNED"}`}
-                        className="rounded-2xl border border-neutral-800 bg-neutral-950/20 p-4"
+                        className="rounded-xl border border-neutral-800 bg-neutral-950/20 p-2.5 sm:p-3"
                       >
-                        {/* Branch header: branch name only */}
-                        <div className="mb-3 flex items-center justify-between gap-3">
+                        <div className="mb-2.5 flex flex-wrap items-center justify-between gap-3">
                           <div className="text-sm font-semibold">{b.branch_code || "UNASSIGNED"}</div>
                           <div className="text-xs text-neutral-500">{staffEntries.length} staff</div>
                         </div>
 
-                        <div className="space-y-3">
+                        <div className="space-y-2.5">
                           {staffEntries.map(([staff, rows]) => renderStaffRow(staff, rows))}
                         </div>
                       </div>
@@ -478,6 +657,7 @@ export default function WeekPage() {
                 </div>
               </div>
             ))}
+            {!filteredGrouped.length ? <div className="text-sm text-neutral-500">No branch data for this filter.</div> : null}
           </div>
         )}
       </div>

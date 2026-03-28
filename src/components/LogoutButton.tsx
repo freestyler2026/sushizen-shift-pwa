@@ -25,7 +25,10 @@ export default function LogoutButton({ className = "" }: { className?: string })
   return (
     <button
       onClick={logout}
-      className={`rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-neutral-200 hover:bg-neutral-900 ${className}`.trim()}
+      className={[
+        "rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs font-medium text-neutral-200 hover:bg-neutral-900",
+        className,
+      ].join(" ")}
     >
       Logout
     </button>

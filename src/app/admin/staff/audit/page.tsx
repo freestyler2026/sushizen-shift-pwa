@@ -1,6 +1,7 @@
 // src/app/admin/staff/audit/page.tsx
 "use client";
 
+import Image from "next/image";
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -185,9 +186,11 @@ function StaffAuditPageInner() {
         <div className="rounded-3xl border border-neutral-800 bg-neutral-900/60 p-8 shadow-2xl">
           <div className="flex flex-col items-center text-center">
             <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-neutral-800 bg-black">
-              <img
+              <Image
                 src={LOGO_SRC}
                 alt="Sushi ZEN logo"
+                width={80}
+                height={80}
                 className="h-full w-full object-contain"
               />
             </div>

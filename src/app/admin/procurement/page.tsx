@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi, setAuth } from "@/lib/auth";
 
 type ReqItem = {
@@ -60,6 +61,17 @@ type ChecklistItemState = ChecklistTemplateItem & {
   updatedAt?: string;
 };
 
+type ImportSyncResult = {
+  record_count: number;
+  inserted_count: number;
+  sheet_count: number;
+  sheet_names: string[];
+  month_keys: string[];
+  store_counts: Record<string, number>;
+  order_type_counts: Record<string, number>;
+  date_range?: { from?: string; to?: string };
+};
+
 const DAILY_CHECKLIST_TEMPLATE: ChecklistTemplateItem[] = [
   { code: "stock_count", label: "Today stock was checked before ordering", required: true, guide: "Verify actual stock and avoid duplicate purchase." },
   { code: "vendor_quote", label: "Vendor price was checked against latest quote", required: true, guide: "Confirm the price is still valid before submitting." },
@@ -76,13 +88,13 @@ function monthKeyOf(dateValue: string): string {
   return monthNow();
 }
 
-function checklistIssueTitle(dateValue: string, code: string): string {
-  return `DAILY_CHECK:${dateValue}:${code}`;
+function checklistIssueTitle(city: string, dateValue: string, code: string): string {
+  return `DAILY_CHECK:${String(city || "manila").toLowerCase()}:${dateValue}:${code}`;
 }
 
-function buildChecklistState(rows: ImprovementRow[], dateValue: string): ChecklistItemState[] {
+function buildChecklistState(rows: ImprovementRow[], city: string, dateValue: string): ChecklistItemState[] {
   const rowMap = new Map<string, ImprovementRow>();
-  const prefix = `DAILY_CHECK:${dateValue}:`;
+  const prefix = `DAILY_CHECK:${String(city || "manila").toLowerCase()}:${dateValue}:`;
   rows.forEach((row) => {
     const issueTitle = String(row.issue_title || "");
     if (!issueTitle.startsWith(prefix)) return;
@@ -114,12 +126,14 @@ function monthNow(): string {
 export default function AdminProcurementPage() {
   const apiBase = "";
   const auth = useMemo(() => getAuth(), []);
+  const initRef = useRef(false);
   const [allowed, setAllowed] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitBusy, setSubmitBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [requestedBy, setRequestedBy] = useState(auth?.staffName || "");
+  const [city, setCity] = useState((String(auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila"));
   const [storeCode, setStoreCode] = useState("");
   const [requestDate, setRequestDate] = useState(todayIso());
   const [urgent, setUrgent] = useState(false);
@@ -134,8 +148,14 @@ export default function AdminProcurementPage() {
   const [pin, setPin] = useState(auth?.pin || "");
   const [kpiMonth, setKpiMonth] = useState(monthNow());
   const [kpiSummary, setKpiSummary] = useState<any>(null);
-  const [checklistItems, setChecklistItems] = useState<ChecklistItemState[]>(() => buildChecklistState([], todayIso()));
+  const [checklistItems, setChecklistItems] = useState<ChecklistItemState[]>(() => buildChecklistState([], String(auth?.city || "manila"), todayIso()));
   const [checklistBusy, setChecklistBusy] = useState(false);
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [syncFile, setSyncFile] = useState<File | null>(null);
+  const [skipZeroQuantity, setSkipZeroQuantity] = useState(true);
+  const [syncResult, setSyncResult] = useState<ImportSyncResult | null>(null);
+  const cityLabel = city === "dubai" ? "Dubai" : "Manila";
+  const currencyCode = city === "dubai" ? "AED" : "PHP";
 
   const checklistStats = useMemo(() => {
     const requiredItems = checklistItems.filter((item) => item.required);
@@ -160,7 +180,7 @@ export default function AdminProcurementPage() {
       const qs = new URLSearchParams({
         staff_name: requestedBy.trim(),
         pin: pin.trim(),
-        city: "manila",
+        city,
       }).toString();
       const verifyRes = await fetch(`/api/auth/verify?${qs}`, {
         method: "POST",
@@ -209,7 +229,7 @@ export default function AdminProcurementPage() {
       Authorization: `Bearer ${accessToken}`,
       ...(stepUpToken ? { "X-Step-Up-Token": stepUpToken } : {}),
     };
-  }, [auth, pin, requestedBy]);
+  }, [auth, city, pin, requestedBy]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -218,11 +238,11 @@ export default function AdminProcurementPage() {
       const headers = await tokenHeaders();
       const monthKey = monthKeyOf(requestDate);
       const [reqRes, qRes, exRes, kpiRes, checklistRes] = await Promise.all([
-        fetch(`${apiBase}/api/admin/procurement/requests?city=manila&limit=200`, { headers, cache: "no-store" }),
-        fetch(`${apiBase}/api/admin/procurement/approvals/queue?city=manila&limit=200`, { headers, cache: "no-store" }),
-        fetch(`${apiBase}/api/admin/procurement/exceptions?city=manila&limit=200`, { headers, cache: "no-store" }),
-        fetch(`${apiBase}/api/admin/procurement/kpi/summary?month_key=${encodeURIComponent(kpiMonth)}`, { headers, cache: "no-store" }),
-        fetch(`${apiBase}/api/admin/procurement/improvements?month_key=${encodeURIComponent(monthKey)}&owner_name=${encodeURIComponent(requestedBy.trim())}&limit=200`, { headers, cache: "no-store" }),
+        fetch(`${apiBase}/api/admin/procurement/requests?city=${encodeURIComponent(city)}&limit=200`, { headers, cache: "no-store" }),
+        fetch(`${apiBase}/api/admin/procurement/approvals/queue?city=${encodeURIComponent(city)}&limit=200`, { headers, cache: "no-store" }),
+        fetch(`${apiBase}/api/admin/procurement/exceptions?city=${encodeURIComponent(city)}&limit=200`, { headers, cache: "no-store" }),
+        fetch(`${apiBase}/api/admin/procurement/kpi/summary?city=${encodeURIComponent(city)}&month_key=${encodeURIComponent(kpiMonth)}`, { headers, cache: "no-store" }),
+        fetch(`${apiBase}/api/admin/procurement/improvements?city=${encodeURIComponent(city)}&month_key=${encodeURIComponent(monthKey)}&owner_name=${encodeURIComponent(requestedBy.trim())}&limit=200`, { headers, cache: "no-store" }),
       ]);
       const reqText = await reqRes.text();
       const qText = await qRes.text();
@@ -243,13 +263,13 @@ export default function AdminProcurementPage() {
       setQueueRows(Array.isArray(qJson?.rows) ? qJson.rows : []);
       setExceptions(Array.isArray(exJson?.rows) ? exJson.rows : []);
       setKpiSummary(kpiJson?.summary || null);
-      setChecklistItems(buildChecklistState(Array.isArray(checklistJson?.rows) ? checklistJson.rows : [], requestDate));
+      setChecklistItems(buildChecklistState(Array.isArray(checklistJson?.rows) ? checklistJson.rows : [], city, requestDate));
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
       setLoading(false);
     }
-  }, [apiBase, kpiMonth, requestDate, requestedBy, tokenHeaders]);
+  }, [apiBase, city, kpiMonth, requestDate, requestedBy, tokenHeaders]);
 
   const saveChecklist = async () => {
     if (!requestedBy.trim() || !pin.trim()) {
@@ -268,11 +288,12 @@ export default function AdminProcurementPage() {
           body: JSON.stringify({
             month_key: monthKey,
             owner_name: requestedBy.trim(),
-            issue_title: checklistIssueTitle(requestDate, item.code),
+            issue_title: checklistIssueTitle(city, requestDate, item.code),
             action_plan: item.label,
             due_date: requestDate,
             status: item.done ? "DONE" : "OPEN",
             result_note: item.note,
+            city,
             approver_name: requestedBy.trim(),
             pin: pin.trim(),
           }),
@@ -308,7 +329,7 @@ export default function AdminProcurementPage() {
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers },
         body: JSON.stringify({
-          city: "manila",
+          city,
           requested_by: requestedBy,
           store_code: storeCode,
           request_date: requestDate,
@@ -336,6 +357,51 @@ export default function AdminProcurementPage() {
       setError(e?.message || String(e));
     } finally {
       setSubmitBusy(false);
+    }
+  };
+
+  const syncWorkbook = async () => {
+    if (!syncFile) {
+      setError("Please select an Excel workbook first.");
+      return;
+    }
+    if (!requestedBy.trim() || !pin.trim()) {
+      setError("Requester name and PIN are required.");
+      return;
+    }
+    setSyncBusy(true);
+    setError("");
+    try {
+      const headers = await tokenHeaders();
+      const formData = new FormData();
+      formData.set("file", syncFile);
+      formData.set("approver_name", requestedBy.trim());
+      formData.set("pin", pin.trim());
+      formData.set("city", city);
+      formData.set("skip_zero_quantity", String(skipZeroQuantity));
+      const res = await fetch(`${apiBase}/api/admin/procurement/import/orders-excel`, {
+        method: "POST",
+        headers,
+        body: formData,
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || `Sync failed (${res.status})`);
+      const json = JSON.parse(text || "{}");
+      setSyncResult({
+        record_count: Number(json?.record_count || 0),
+        inserted_count: Number(json?.inserted_count || 0),
+        sheet_count: Number(json?.sheet_count || 0),
+        sheet_names: Array.isArray(json?.sheet_names) ? json.sheet_names : [],
+        month_keys: Array.isArray(json?.month_keys) ? json.month_keys : [],
+        store_counts: json?.store_counts && typeof json.store_counts === "object" ? json.store_counts : {},
+        order_type_counts: json?.order_type_counts && typeof json.order_type_counts === "object" ? json.order_type_counts : {},
+        date_range: json?.date_range || {},
+      });
+      await loadAll();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setSyncBusy(false);
     }
   };
 
@@ -371,29 +437,51 @@ export default function AdminProcurementPage() {
   };
 
   useEffect(() => {
+    if (initRef.current) return;
+    initRef.current = true;
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
       const can = canAccessProcurementAdmin(refreshed || auth);
       setAllowed(can);
+      if ((refreshed?.staffName || "").trim() && !requestedBy.trim()) {
+        setRequestedBy(String(refreshed?.staffName || "").trim());
+      }
       if (can) await loadAll();
     }
     void init();
-  }, [auth, loadAll]);
+  }, [auth, loadAll, requestedBy]);
 
   if (!allowed) {
-    return <div className="text-sm text-red-300">Procurement page is available only to authorized Manila admin roles.</div>;
+    return <div className="text-sm text-red-300">Procurement page is available only to authorized admin roles.</div>;
   }
 
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 p-4">
-        <div className="text-lg font-semibold">Procurement Control (Manila)</div>
+        <div className="text-lg font-semibold">Procurement Control ({cityLabel})</div>
         <div className="mt-1 text-sm text-neutral-400">Fraud prevention, approval workflow, exception monitoring, and KPI tracking.</div>
       </div>
       {error ? <div className="text-sm text-red-300">{error}</div> : null}
 
-      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 lg:grid-cols-5">
         <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Requested by / Approver name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+        <select
+          value={city}
+          onChange={(e) => {
+            const nextCity = String(e.target.value || "manila").toLowerCase() === "dubai" ? "dubai" : "manila";
+            setCity(nextCity);
+            setRows([]);
+            setQueueRows([]);
+            setExceptions([]);
+            setKpiSummary(null);
+            setSyncResult(null);
+            setChecklistItems(buildChecklistState([], nextCity, requestDate));
+          }}
+          className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+        >
+          <option value="manila">Manila</option>
+          <option value="dubai">Dubai</option>
+        </select>
         <input value={storeCode} onChange={(e) => setStoreCode(e.target.value)} placeholder="Store code" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
         <input type="date" value={requestDate} onChange={(e) => setRequestDate(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
         <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
@@ -405,6 +493,77 @@ export default function AdminProcurementPage() {
           <input type="checkbox" checked={newVendor} onChange={(e) => setNewVendor(e.target.checked)} />
           New vendor
         </label>
+      </div>
+
+      <div className="rounded-2xl border border-emerald-800/70 bg-emerald-950/10 p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="text-sm font-medium text-emerald-100">Excel Sync (Main PR path)</div>
+            <div className="mt-1 text-xs text-neutral-400">
+              Sync the familiar order workbook, keep imported history, and raise PR from the synced rows. Manual PR entry remains available below as the OS path.
+            </div>
+          </div>
+          <Link href="/admin/procurement/imports" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+            Open Imports
+          </Link>
+        </div>
+        <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-4">
+          <div className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-300">
+            Workbook city: {cityLabel}
+          </div>
+          <input
+            type="file"
+            accept=".xlsx,.xls"
+            onChange={(e) => setSyncFile(e.target.files?.[0] || null)}
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm lg:col-span-2"
+          />
+          <label className="inline-flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-300">
+            <input type="checkbox" checked={skipZeroQuantity} onChange={(e) => setSkipZeroQuantity(e.target.checked)} />
+            Skip zero quantity rows
+          </label>
+          <button
+            type="button"
+            onClick={() => void syncWorkbook()}
+            disabled={syncBusy}
+            className="rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-800/30 disabled:opacity-60"
+          >
+            {syncBusy ? "Syncing..." : "Sync Workbook"}
+          </button>
+        </div>
+        {syncResult ? (
+          <div className="mt-3 grid grid-cols-1 gap-2 text-xs md:grid-cols-4">
+            <div className="rounded-lg border border-neutral-800 bg-neutral-950/40 p-3">
+              <div className="text-neutral-400">Records</div>
+              <div className="mt-1 text-sm text-white">{syncResult.record_count}</div>
+            </div>
+            <div className="rounded-lg border border-neutral-800 bg-neutral-950/40 p-3">
+              <div className="text-neutral-400">Sheets</div>
+              <div className="mt-1 text-sm text-white">{syncResult.sheet_count}</div>
+            </div>
+            <div className="rounded-lg border border-neutral-800 bg-neutral-950/40 p-3">
+              <div className="text-neutral-400">Months</div>
+              <div className="mt-1 text-sm text-white">{syncResult.month_keys.join(", ") || "-"}</div>
+            </div>
+            <div className="rounded-lg border border-neutral-800 bg-neutral-950/40 p-3">
+              <div className="text-neutral-400">Date Range</div>
+              <div className="mt-1 text-sm text-white">
+                {syncResult.date_range?.from || "-"} to {syncResult.date_range?.to || "-"}
+              </div>
+            </div>
+            <div className="rounded-lg border border-neutral-800 bg-neutral-950/40 p-3 md:col-span-2">
+              <div className="text-neutral-400">Stores</div>
+              <div className="mt-1 text-sm text-white">
+                {Object.entries(syncResult.store_counts).map(([key, value]) => `${key}:${value}`).join(" / ") || "-"}
+              </div>
+            </div>
+            <div className="rounded-lg border border-neutral-800 bg-neutral-950/40 p-3 md:col-span-2">
+              <div className="text-neutral-400">Types</div>
+              <div className="mt-1 text-sm text-white">
+                {Object.entries(syncResult.order_type_counts).map(([key, value]) => `${key}:${value}`).join(" / ") || "-"}
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3">
@@ -471,7 +630,8 @@ export default function AdminProcurementPage() {
       </div>
 
       <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3">
-        <div className="mb-2 text-sm font-medium">Request Items</div>
+        <div className="mb-2 text-sm font-medium">Manual PR Entry (OS path)</div>
+        <div className="mb-3 text-xs text-neutral-400">Use this path for direct OS/manual PR creation. Excel Sync remains available above as the main entry from the existing workbook.</div>
         <div className="space-y-2">
           {items.map((row, idx) => (
             <div key={idx} className="grid grid-cols-1 gap-2 lg:grid-cols-5">
@@ -550,7 +710,7 @@ export default function AdminProcurementPage() {
               >
                 <div className="flex items-center justify-between">
                   <span>{r.request_no}</span>
-                  <span>{Number(r.total_amount || 0).toFixed(2)} PHP</span>
+                  <span>{Number(r.total_amount || 0).toFixed(2)} {currencyCode}</span>
                 </div>
                 <div className="mt-1 text-xs text-neutral-400">{r.requested_by} | {r.store_code || "-"} | {r.status}</div>
               </button>

@@ -18,6 +18,9 @@ type CaseRow = {
   claimed_by: string;
   document_status: string;
   po_status: string;
+  blocked_reason?: string;
+  notification_status?: string;
+  notification_failed_count?: number;
 };
 
 export default function ProcurementApprovalInboxPage() {
@@ -96,7 +99,14 @@ export default function ProcurementApprovalInboxPage() {
       </div>
       <div className="space-y-3">
         {rows.map((row) => (
-          <div key={row.id} className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+          <div
+            key={row.id}
+            className={`rounded-2xl border p-4 ${
+              Number(row.notification_failed_count || 0) > 0
+                ? "border-rose-700/80 bg-rose-950/20"
+                : "border-neutral-800 bg-neutral-900/20"
+            }`}
+          >
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
                 <div className="text-base font-medium text-neutral-100">{row.parent_case_no || row.request_no}</div>
@@ -106,8 +116,18 @@ export default function ProcurementApprovalInboxPage() {
                 <div className="mt-1 text-xs text-neutral-500">
                   Assignee Role: {row.current_assignee_role || "-"} | Claimed By: {row.claimed_by || "-"} | Docs: {row.document_status || "-"} | PO: {row.po_status || "-"}
                 </div>
+                {Number(row.notification_failed_count || 0) > 0 ? (
+                  <div className="mt-2 rounded-lg border border-rose-700/70 bg-rose-900/30 px-2 py-1 text-xs text-rose-200">
+                    Notification Failed ({Number(row.notification_failed_count || 0)}) {row.blocked_reason ? `| ${row.blocked_reason}` : ""}
+                  </div>
+                ) : null}
               </div>
               <div className="flex flex-wrap gap-2">
+                {Number(row.notification_failed_count || 0) > 0 ? (
+                  <div className="rounded-xl border border-rose-700/70 bg-rose-900/30 px-3 py-2 text-xs text-rose-200">
+                    Push Failed
+                  </div>
+                ) : null}
                 <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-xs text-neutral-200">
                   {Number(row.total_amount || 0).toFixed(2)} PHP
                 </div>

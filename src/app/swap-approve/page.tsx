@@ -96,16 +96,16 @@ export default function SwapApprovePage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 p-4">
-        <div className="text-sm font-semibold">Swap Approve (Counterparty)</div>
-        <div className="mt-1 text-xs text-neutral-500">
+      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 p-3.5 sm:p-5">
+        <div className="text-[15px] font-semibold sm:text-base">Swap Approve</div>
+        <div className="mt-1 text-sm text-neutral-500">
           Enter the request id and approve/reject as the designated counterparty.
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Request ID (req_id)">
             <input
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
               value={reqId}
               onChange={(e) => setReqId(e.target.value)}
               placeholder="e.g. 119ab8b2-..."
@@ -115,7 +115,7 @@ export default function SwapApprovePage() {
 
           <Field label="Your name (must match counterparty)">
             <input
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
               value={staffName}
               onChange={(e) => setStaffName(e.target.value)}
               placeholder="e.g. Muskan Tamang"
@@ -125,7 +125,7 @@ export default function SwapApprovePage() {
 
           <Field label="PIN">
             <input
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
               placeholder="PIN"
@@ -137,7 +137,7 @@ export default function SwapApprovePage() {
 
           <Field label="Note (required)">
             <input
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="e.g. I agree / I decline"
@@ -146,11 +146,11 @@ export default function SwapApprovePage() {
           </Field>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
           <button
             disabled={loading || !canSubmit}
             onClick={() => call("APPROVED")}
-            className="rounded-xl border border-emerald-900 bg-emerald-900/30 px-4 py-2 text-sm hover:bg-emerald-900/50 disabled:opacity-50"
+            className="min-h-10 w-full rounded-xl border border-emerald-900 bg-emerald-900/30 px-4 py-2 text-sm font-medium hover:bg-emerald-900/50 disabled:opacity-50 sm:w-auto"
             type="button"
           >
             Approve
@@ -159,14 +159,14 @@ export default function SwapApprovePage() {
           <button
             disabled={loading || !canSubmit}
             onClick={() => call("REJECTED")}
-            className="rounded-xl border border-rose-900 bg-rose-900/30 px-4 py-2 text-sm hover:bg-rose-900/50 disabled:opacity-50"
+            className="min-h-10 w-full rounded-xl border border-rose-900 bg-rose-900/30 px-4 py-2 text-sm font-medium hover:bg-rose-900/50 disabled:opacity-50 sm:w-auto"
             type="button"
           >
             Reject
           </button>
 
           {loading ? <div className="text-sm text-neutral-400">Working...</div> : null}
-          {error ? <div className="text-sm text-red-300">{error}</div> : null}
+          {error ? <div className="w-full text-sm text-red-300">{error}</div> : null}
         </div>
 
         {result ? (

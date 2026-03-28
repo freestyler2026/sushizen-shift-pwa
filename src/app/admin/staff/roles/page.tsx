@@ -1,6 +1,7 @@
 // src/app/admin/staff/roles/page.tsx
 "use client";
 
+import Image from "next/image";
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -48,7 +49,7 @@ async function apiPost<T = any>(path: string, body?: any): Promise<T> {
 type VerifyResp = {
   ok: boolean;
   staff_name: string;
-  role: "STAFF" | "MANAGER" | "HQ" | "ADMIN" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT";
+  role: "STAFF" | "MANAGER" | "MANAGEMENT" | "HQ" | "ADMIN" | "HR_MANAGER" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT";
 };
 
 type ChangeRoleResp = {
@@ -56,7 +57,7 @@ type ChangeRoleResp = {
   staff_name: string;
   city: string;
   branch_code: string;
-  role: "STAFF" | "MANAGER" | "HQ" | "ADMIN" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT";
+  role: "STAFF" | "MANAGER" | "MANAGEMENT" | "HQ" | "ADMIN" | "HR_MANAGER" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT";
   status: string;
   setup_required: boolean;
   setup_completed: boolean;
@@ -69,7 +70,7 @@ type StaffOneResp = {
     display_name: string;
     city: string;
     home_branch: string;
-    role: "STAFF" | "MANAGER" | "HQ" | "ADMIN" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT" | string;
+    role: "STAFF" | "MANAGER" | "MANAGEMENT" | "HQ" | "ADMIN" | "HR_MANAGER" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT" | string;
     status: string;
     setup_required: boolean;
     setup_completed: boolean;
@@ -82,13 +83,13 @@ function StaffRolesPageInner() {
 
   const [targetStaffName, setTargetStaffName] = useState("");
   const [newRole, setNewRole] = useState<
-    "STAFF" | "MANAGER" | "HQ" | "ADMIN" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT"
+    "STAFF" | "MANAGER" | "MANAGEMENT" | "HQ" | "ADMIN" | "HR_MANAGER" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT"
   >("STAFF");
 
   const [approverName, setApproverName] = useState(auth?.staffName || "");
   const [pin, setPin] = useState(auth?.pin || "");
   const [myRole, setMyRole] = useState<
-    "STAFF" | "MANAGER" | "HQ" | "ADMIN" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT" | ""
+    "STAFF" | "MANAGER" | "MANAGEMENT" | "HQ" | "ADMIN" | "HR_MANAGER" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT" | ""
   >("");
 
   const [currentRole, setCurrentRole] = useState("");
@@ -195,6 +196,9 @@ function StaffRolesPageInner() {
   }
 
   const isHq = myRole === "HQ";
+  const isAdmin = myRole === "ADMIN";
+  const canSubmitByRole =
+    isHq || (isAdmin && (newRole === "STAFF" || newRole === "MANAGER"));
 
   return (
     <main className="min-h-screen bg-neutral-950 text-white">
@@ -202,9 +206,11 @@ function StaffRolesPageInner() {
         <div className="rounded-3xl border border-neutral-800 bg-neutral-900/60 p-8 shadow-2xl">
           <div className="flex flex-col items-center text-center">
             <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-neutral-800 bg-black">
-              <img
+              <Image
                 src={LOGO_SRC}
                 alt="Sushi ZEN logo"
+                width={80}
+                height={80}
                 className="h-full w-full object-contain"
               />
             </div>
@@ -219,9 +225,9 @@ function StaffRolesPageInner() {
             </div>
           </div>
 
-          {!isHq ? (
+          {!canSubmitByRole ? (
             <div className="mt-6 rounded-2xl border border-amber-900/50 bg-amber-950/20 px-4 py-3 text-sm text-amber-200">
-              Only HQ can change staff roles. Enter your HQ credentials to continue.
+              HQ can assign any role. ADMIN can assign up to MANAGER.
             </div>
           ) : null}
 
@@ -267,6 +273,7 @@ function StaffRolesPageInner() {
                     e.target.value as
                       | "STAFF"
                       | "MANAGER"
+                      | "MANAGEMENT"
                       | "HQ"
                       | "ADMIN"
                       | "DUBAI_MANAGEMENT"
@@ -277,6 +284,7 @@ function StaffRolesPageInner() {
               >
                 <option value="STAFF">STAFF</option>
                 <option value="MANAGER">MANAGER</option>
+                <option value="MANAGEMENT">MANAGEMENT</option>
                 <option value="HQ">HQ</option>
                 <option value="ADMIN">ADMIN</option>
                 <option value="DUBAI_MANAGEMENT">DUBAI_MANAGEMENT</option>
@@ -295,13 +303,13 @@ function StaffRolesPageInner() {
             </div>
 
             <div className="md:col-span-2">
-              <div className="mb-1 text-xs text-neutral-400">HQ PIN</div>
+              <div className="mb-1 text-xs text-neutral-400">HQ / ADMIN PIN</div>
               <input
                 type="password"
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
                 className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm outline-none"
-                placeholder="Your HQ PIN"
+                placeholder="Your HQ or ADMIN PIN"
               />
             </div>
 
@@ -310,7 +318,7 @@ function StaffRolesPageInner() {
                 type="submit"
                 disabled={
                   loading ||
-                  !isHq ||
+                  !canSubmitByRole ||
                   !targetStaffName.trim() ||
                   !approverName.trim() ||
                   !pin.trim()

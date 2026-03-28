@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 const LOGO_SRC = "/logo.png";
@@ -13,9 +14,11 @@ export default function HomePage() {
             </p>
 
             <div className="mt-4 flex h-24 w-24 items-center justify-center overflow-hidden rounded-[24px] bg-black sm:mt-5 sm:h-32 sm:w-32">
-              <img
+              <Image
                 src={LOGO_SRC}
                 alt="Sushi ZEN logo"
+                width={128}
+                height={128}
                 className="h-full w-full object-contain p-2"
               />
             </div>

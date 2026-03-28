@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getAuth } from "@/lib/auth";
 
 type EmployeeMatchItem = {
@@ -45,7 +45,7 @@ export default function AttendanceEmployeesPage() {
   const [approverName] = useState(auth?.staffName || "");
   const [pin] = useState(auth?.pin || "");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -119,11 +119,11 @@ export default function AttendanceEmployeesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [approverName, pin, city, unmatchedOnly]);
 
   useEffect(() => {
-    load();
-  }, [city, unmatchedOnly, approverName, pin]);
+    void load();
+  }, [load]);
 
   const filteredStaffOptions = useMemo(() => {
     return city

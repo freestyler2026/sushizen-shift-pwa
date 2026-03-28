@@ -40,6 +40,13 @@ export default function ProcurementAuditPage() {
   }, [pin, requestId, requestedBy]);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sp = new URLSearchParams(window.location.search);
+    const initialRequestId = sp.get("request_id") || "";
+    if (initialRequestId) setRequestId((prev) => prev || initialRequestId);
+  }, []);
+
+  useEffect(() => {
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
       const can = canAccessProcurementAdmin(refreshed || auth);

@@ -1,6 +1,7 @@
 // src/app/admin/staff/create/page.tsx
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getAuth } from "@/lib/auth";
@@ -33,7 +34,7 @@ async function apiPost<T = any>(path: string, body?: any): Promise<T> {
 type VerifyResp = {
   ok: boolean;
   staff_name: string;
-  role: "STAFF" | "MANAGER" | "HQ" | "ADMIN" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT";
+  role: "STAFF" | "MANAGER" | "MANAGEMENT" | "HQ" | "ADMIN" | "HR_MANAGER" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT";
 };
 
 type CreateStaffResp = {
@@ -57,7 +58,7 @@ export default function CreateStaffPage() {
   const [approverName, setApproverName] = useState(auth?.staffName || "");
   const [pin, setPin] = useState(auth?.pin || "");
   const [myRole, setMyRole] = useState<
-    "STAFF" | "MANAGER" | "HQ" | "ADMIN" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT" | ""
+    "STAFF" | "MANAGER" | "MANAGEMENT" | "HQ" | "ADMIN" | "HR_MANAGER" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT" | ""
   >("");
 
   const [loading, setLoading] = useState(false);
@@ -125,9 +126,11 @@ export default function CreateStaffPage() {
         <div className="mx-auto w-full max-w-3xl rounded-3xl border border-neutral-800 bg-neutral-900/60 p-8 shadow-2xl">
           <div className="flex flex-col items-center text-center">
             <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-neutral-800 bg-black">
-              <img
+              <Image
                 src={LOGO_SRC}
                 alt="Sushi ZEN logo"
+                width={80}
+                height={80}
                 className="h-full w-full object-contain"
               />
             </div>

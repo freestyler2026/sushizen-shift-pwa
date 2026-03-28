@@ -309,6 +309,12 @@ export function canAccessProcurementAdmin(a?: Auth | null): boolean {
   return role === "HQ" || role === "HR_MANAGER" || role === "ADMIN" || role === "MANILA_MANAGEMENT";
 }
 
+export function canAccessInventoryAdmin(a?: Auth | null): boolean {
+  const x = a ?? getAuth();
+  const role = (x?.role || "").toString().toUpperCase();
+  return role === "HQ" || role === "HR_MANAGER" || role === "ADMIN" || role === "DUBAI_MANAGEMENT" || role === "MANILA_MANAGEMENT";
+}
+
 export function canViewSalesAnalytics(a?: Auth | null, cityHint?: City): boolean {
   const x = a ?? getAuth();
   const role = (x?.role || "").toString().toUpperCase();

@@ -1,4 +1,6 @@
 // src/lib/api.ts
+import { getAuthHeaders } from "@/lib/auth";
+
 export type ShiftRow = {
   work_date: string;
   branch_code: string;
@@ -52,7 +54,7 @@ export async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(url, {
     method: "GET",
     credentials: "omit",
-    headers: { "Content-Type": "application/json" },
+    headers: getAuthHeaders(),
   });
 
   const text = await res.text();
@@ -74,7 +76,7 @@ export async function apiPost<T>(path: string, body: any): Promise<T> {
   const res = await fetch(url, {
     method: "POST",
     credentials: "omit",
-    headers: { "Content-Type": "application/json" },
+    headers: getAuthHeaders(),
     body: JSON.stringify(body ?? {}),
   });
 

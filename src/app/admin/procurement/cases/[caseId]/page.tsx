@@ -11,9 +11,15 @@ type Bundle = {
   request?: any;
   history?: any[];
   messages?: any[];
+  notifications?: any[];
   documents?: any[];
   document_validation?: any;
+  phase2_validation?: any;
   purchase_orders?: any[];
+  receivings?: any[];
+  claims?: any[];
+  invoices?: any[];
+  payments?: any[];
 };
 
 export default function ProcurementCaseDetailPage() {
@@ -144,6 +150,14 @@ export default function ProcurementCaseDetailPage() {
           <button type="button" onClick={() => void act("message", { case_id: caseId, approver_name: requestedBy, pin, body: message || "Internal note", message_type: "NOTE" })} disabled={busy === "message"} className="rounded-xl border border-sky-700/60 bg-sky-900/20 px-3 py-2 text-xs text-sky-200 hover:bg-sky-800/30 disabled:opacity-60">
             {busy === "message" ? "Posting..." : "Post Message"}
           </button>
+          <button
+            type="button"
+            onClick={() => void act("notifications/resend", { case_id: caseId, approver_name: requestedBy, pin })}
+            disabled={busy === "notifications/resend"}
+            className="rounded-xl border border-fuchsia-700/60 bg-fuchsia-900/20 px-3 py-2 text-xs text-fuchsia-200 hover:bg-fuchsia-800/30 disabled:opacity-60"
+          >
+            {busy === "notifications/resend" ? "Resending..." : "Resend Push Notification"}
+          </button>
           <select value={escalateRole} onChange={(e) => setEscalateRole(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs">
             <option value="HR_MANAGER">HR_MANAGER</option>
             <option value="HQ">HQ</option>
@@ -155,6 +169,21 @@ export default function ProcurementCaseDetailPage() {
           </button>
           <Link href={`/admin/procurement/pos?request_id=${encodeURIComponent(bundle.request?.id || "")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
             Open PO Screen
+          </Link>
+          <Link href={`/admin/procurement/receiving?request_id=${encodeURIComponent(bundle.request?.id || "")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+            Open Receiving
+          </Link>
+          <Link href={`/admin/procurement/claims?request_id=${encodeURIComponent(bundle.request?.id || "")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+            Open Claims
+          </Link>
+          <Link href={`/admin/procurement/invoices?request_id=${encodeURIComponent(bundle.request?.id || "")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+            Open Invoices
+          </Link>
+          <Link href={`/admin/procurement/payments?request_id=${encodeURIComponent(bundle.request?.id || "")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+            Open Payments
+          </Link>
+          <Link href={`/admin/procurement/audit?request_id=${encodeURIComponent(bundle.request?.id || "")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+            Open Audit
           </Link>
         </div>
         <textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Comment / case note" className="mt-3 min-h-24 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
@@ -168,6 +197,9 @@ export default function ProcurementCaseDetailPage() {
               <option value="01_PR">01_PR</option>
               <option value="02_RFQ">02_RFQ</option>
               <option value="03_PO">03_PO</option>
+              <option value="04_RECEIVING">04_RECEIVING</option>
+              <option value="05_INVOICE">05_INVOICE</option>
+              <option value="06_PAYMENT">06_PAYMENT</option>
               <option value="07_EXCEPTION">07_EXCEPTION</option>
             </select>
             <input value={uploadDocType} onChange={(e) => setUploadDocType(e.target.value)} placeholder="Doc type" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
@@ -213,6 +245,82 @@ export default function ProcurementCaseDetailPage() {
             </div>
           ))}
           {!(bundle.history || []).length ? <div className="text-sm text-neutral-500">No approval actions yet.</div> : null}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+        <div className="text-sm font-medium">Notification Timeline</div>
+        <div className="mt-3 space-y-2">
+          {(bundle.notifications || []).map((row) => (
+            <div key={row.id} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
+              <div className="text-sm text-neutral-100">
+                {row.channel || "-"} | {row.status || "-"} | {row.recipient_name || row.recipient_role || "-"}
+              </div>
+              <div className="mt-1 text-xs text-neutral-500">
+                Provider {row.provider_status || "-"} {row.provider_ref ? `| Ref ${row.provider_ref}` : ""}
+              </div>
+              <div className="mt-1 text-xs text-neutral-500">
+                Sent {String(row.sent_at || "").slice(0, 16).replace("T", " ")}
+                {row.delivered_at ? ` | Delivered ${String(row.delivered_at || "").slice(0, 16).replace("T", " ")}` : ""}
+                {row.claimed_at ? ` | Claimed ${String(row.claimed_at || "").slice(0, 16).replace("T", " ")}` : ""}
+              </div>
+              {row.error_text ? <div className="mt-1 text-xs text-rose-300">{row.error_text}</div> : null}
+            </div>
+          ))}
+          {!(bundle.notifications || []).length ? <div className="text-sm text-neutral-500">No notification records yet.</div> : null}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+          <div className="text-sm font-medium">Phase2 Control Summary</div>
+          <div className="mt-2 text-xs text-neutral-500">
+            Payment Gate: {bundle.phase2_validation?.status || "-"} | Missing: {(bundle.phase2_validation?.missing_stage_codes || []).join(", ") || "none"}
+          </div>
+          <div className="mt-3 space-y-2">
+            {(bundle.receivings || []).map((row) => (
+              <div key={row.id} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
+                <div className="text-sm text-neutral-100">{row.receiving_no}</div>
+                <div className="mt-1 text-xs text-neutral-500">
+                  {row.status} | Qty {Number(row.qty_received || 0).toFixed(2)} / {Number(row.qty_expected || 0).toFixed(2)} | {row.quality_status || "-"}
+                </div>
+              </div>
+            ))}
+            {!(bundle.receivings || []).length ? <div className="text-sm text-neutral-500">No receiving records.</div> : null}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+          <div className="text-sm font-medium">Claims / Invoices / Payments</div>
+          <div className="mt-3 space-y-2">
+            {(bundle.claims || []).map((row) => (
+              <div key={row.id} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
+                <div className="text-sm text-neutral-100">Claim {row.claim_no}</div>
+                <div className="mt-1 text-xs text-neutral-500">
+                  {row.claim_type} | {row.status} | Impact {Number(row.amount_impact || 0).toFixed(2)} PHP
+                </div>
+              </div>
+            ))}
+            {(bundle.invoices || []).map((row) => (
+              <div key={row.id} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
+                <div className="text-sm text-neutral-100">Invoice {row.invoice_no}</div>
+                <div className="mt-1 text-xs text-neutral-500">
+                  {row.status} | Match {row.match_status} | Variance {Number(row.variance_amount || 0).toFixed(2)}
+                </div>
+              </div>
+            ))}
+            {(bundle.payments || []).map((row) => (
+              <div key={row.id} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
+                <div className="text-sm text-neutral-100">Payment {row.payment_no}</div>
+                <div className="mt-1 text-xs text-neutral-500">
+                  {row.status} | Scheduled {Number(row.scheduled_amount || 0).toFixed(2)} PHP | Ref {row.execution_ref || "-"}
+                </div>
+              </div>
+            ))}
+            {!(bundle.claims || []).length && !(bundle.invoices || []).length && !(bundle.payments || []).length ? (
+              <div className="text-sm text-neutral-500">No Phase2 records yet.</div>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>

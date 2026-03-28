@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getAuth } from "@/lib/auth";
+import { normalizeCalendarDateInput } from "@/lib/dateInput";
 
 type AbsenceType =
   | "DAY_OFF"
@@ -120,11 +121,9 @@ async function apiPost<T = any>(path: string, body: any): Promise<T> {
 export default function AdminAbsencesPage() {
   const auth = getAuth();
 
-  const [city, setCity] = useState<string>(
-    auth?.city === "manila" ? "manila" : auth?.city === "dubai" ? "dubai" : "dubai"
-  );
-  const [approverName, setApproverName] = useState<string>(auth?.staffName || "");
-  const [pin, setPin] = useState<string>(auth?.pin || "");
+  const city = auth?.city === "manila" ? "manila" : auth?.city === "dubai" ? "dubai" : "dubai";
+  const approverName = auth?.staffName || "";
+  const pin = auth?.pin || "";
 
   const [staffOptions, setStaffOptions] = useState<string[]>([]);
   const [staffName, setStaffName] = useState<string>("");
@@ -147,6 +146,40 @@ export default function AdminAbsencesPage() {
 
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+
+  const handleWorkDateChange = (raw: string) => {
+    const next = normalizeCalendarDateInput(raw);
+    if (!next) return;
+    setWorkDate(next);
+  };
+
+  const handleBulkDateFromChange = (raw: string) => {
+    const next = normalizeCalendarDateInput(raw);
+    if (!next) return;
+    setBulkDateFrom(next);
+    if (bulkDateTo && next > bulkDateTo) setBulkDateTo(next);
+  };
+
+  const handleBulkDateToChange = (raw: string) => {
+    const next = normalizeCalendarDateInput(raw);
+    if (!next) return;
+    setBulkDateTo(next);
+    if (bulkDateFrom && next < bulkDateFrom) setBulkDateFrom(next);
+  };
+
+  const handleHistoryDateFromChange = (raw: string) => {
+    const next = normalizeCalendarDateInput(raw);
+    if (!next) return;
+    setDateFrom(next);
+    if (dateTo && next > dateTo) setDateTo(next);
+  };
+
+  const handleHistoryDateToChange = (raw: string) => {
+    const next = normalizeCalendarDateInput(raw);
+    if (!next) return;
+    setDateTo(next);
+    if (dateFrom && next < dateFrom) setDateFrom(next);
+  };
 
   const canAuth = useMemo(() => !!norm(approverName) && !!norm(pin), [approverName, pin]);
 
@@ -414,7 +447,7 @@ export default function AdminAbsencesPage() {
               <input
                 type="date"
                 value={workDate}
-                onChange={(e) => setWorkDate(e.target.value)}
+                onChange={(e) => handleWorkDateChange(e.target.value)}
                 className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
               />
             </label>
@@ -499,7 +532,8 @@ export default function AdminAbsencesPage() {
                 <input
                   type="date"
                   value={bulkDateFrom}
-                  onChange={(e) => setBulkDateFrom(e.target.value)}
+                  onChange={(e) => handleBulkDateFromChange(e.target.value)}
+                  max={bulkDateTo || undefined}
                   className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
                 />
               </label>
@@ -509,7 +543,8 @@ export default function AdminAbsencesPage() {
                 <input
                   type="date"
                   value={bulkDateTo}
-                  onChange={(e) => setBulkDateTo(e.target.value)}
+                  onChange={(e) => handleBulkDateToChange(e.target.value)}
+                  min={bulkDateFrom || undefined}
                   className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
                 />
               </label>
@@ -597,7 +632,8 @@ export default function AdminAbsencesPage() {
               <input
                 type="date"
                 value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
+                onChange={(e) => handleHistoryDateFromChange(e.target.value)}
+                max={dateTo || undefined}
                 className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
               />
             </label>
@@ -607,7 +643,8 @@ export default function AdminAbsencesPage() {
               <input
                 type="date"
                 value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
+                onChange={(e) => handleHistoryDateToChange(e.target.value)}
+                min={dateFrom || undefined}
                 className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
               />
             </label>

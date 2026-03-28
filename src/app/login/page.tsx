@@ -1,36 +1,96 @@
 // src/app/login/page.tsx
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Field } from "@/components/Field";
 import { getAuth, setAuth, type City, type StaffRole } from "@/lib/auth";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+type StaffNameDirectory = {
+  ok: boolean;
+  city: string;
+  status: string;
+  names: string[];
+};
+
+function getApiBase() {
+  if (process.env.NODE_ENV !== "production") return "http://127.0.0.1:8000";
+  const configured = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
+  if (configured) return configured;
+  return "";
+}
 
 /**
  * Verify PIN via API and return role.
  * - If API_BASE is empty, it will call same-origin (/api/auth/verify).
  */
-async function verifyRole(staffName: string, pin: string): Promise<StaffRole> {
-  const qs = new URLSearchParams({ staff_name: staffName, pin }).toString();
-  const url = `${API_BASE}/api/auth/verify?${qs}`;
+async function verifyAuth(staffName: string, pin: string, city: City): Promise<{
+  staffName: string;
+  role: StaffRole;
+  city: City;
+  accessToken: string;
+  permissions: string[];
+  mfa?: {
+    passkey_count?: number;
+    totp_enabled?: boolean;
+    backup_codes_remaining?: number;
+    methods?: string[];
+    required_for_admin?: boolean;
+  };
+}> {
+  const qs = new URLSearchParams({ staff_name: staffName, pin, city }).toString();
+  const url = `${getApiBase()}/api/auth/verify?${qs}`;
 
   const res = await fetch(url, { method: "POST" });
   const text = await res.text();
 
   if (!res.ok) {
+    let detail = "";
     // FastAPI: {"detail": "..."}
     try {
       const j = JSON.parse(text);
-      throw new Error(j?.detail || text);
+      detail = typeof j?.detail === "string" ? j.detail : "";
     } catch {
-      throw new Error(text || `verify failed: ${res.status}`);
+      detail = "";
     }
+    throw new Error(detail || text || `verify failed: ${res.status}`);
   }
 
   const j = text ? JSON.parse(text) : {};
-  return (j?.role as StaffRole) || "STAFF";
+  return {
+    staffName: String(j?.staff_name || staffName).trim(),
+    role: (j?.role as StaffRole) || "STAFF",
+    city: (String(j?.city || city).toLowerCase() === "manila" ? "manila" : "dubai") as City,
+    accessToken: String(j?.access_token || "").trim(),
+    permissions: Array.isArray(j?.permissions) ? j.permissions.map((item: unknown) => String(item || "").trim()).filter(Boolean) : [],
+    mfa: j?.mfa || undefined,
+  };
+}
+
+async function fetchStaffNames(city: City): Promise<string[]> {
+  const qs = new URLSearchParams({
+    city,
+    status: "ACTIVE",
+    limit: "5000",
+  }).toString();
+  const res = await fetch(`/api/admin/staff_master/names?${qs}`, { cache: "no-store" });
+  const text = await res.text();
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const j = JSON.parse(text);
+      detail = typeof j?.detail === "string" ? j.detail : "";
+    } catch {
+      detail = "";
+    }
+    throw new Error(detail || text || `staff names failed: ${res.status}`);
+  }
+  const data = (text ? JSON.parse(text) : {}) as StaffNameDirectory;
+  return Array.isArray(data?.names) ? data.names.map((name) => String(name || "").trim()).filter(Boolean) : [];
+}
+
+function normalizeName(name: string) {
+  return name.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
 function LoginInner() {
@@ -42,12 +102,46 @@ function LoginInner() {
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [nameOptions, setNameOptions] = useState<string[]>([]);
+  const [nameLoading, setNameLoading] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const pinInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const a = getAuth();
-    if (a) router.replace("/week");
+    if (a) router.replace("/my-shift");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadNames() {
+      setNameLoading(true);
+      try {
+        const names = await fetchStaffNames(city);
+        if (!cancelled) setNameOptions(names);
+      } catch (e: any) {
+        if (!cancelled) {
+          setNameOptions([]);
+          setError((prev) => prev || e?.message || String(e));
+        }
+      } finally {
+        if (!cancelled) setNameLoading(false);
+      }
+    }
+    void loadNames();
+    return () => {
+      cancelled = true;
+    };
+  }, [city]);
+
+  const filteredNameOptions = useMemo(() => {
+    const q = normalizeName(staffName);
+    if (!q) return [];
+    const starts = nameOptions.filter((name) => normalizeName(name).startsWith(q));
+    const contains = nameOptions.filter((name) => !normalizeName(name).startsWith(q) && normalizeName(name).includes(q));
+    return [...starts, ...contains].slice(0, 8);
+  }, [nameOptions, staffName]);
 
   const submit = async () => {
     setError("");
@@ -56,89 +150,150 @@ function LoginInner() {
     try {
       const name = staffName.trim();
       const p = pin.trim();
+      const matchedName = nameOptions.find((candidate) => normalizeName(candidate) === normalizeName(name));
 
       if (!name) throw new Error("Name is required.");
+      if (nameOptions.length > 0 && !matchedName) throw new Error("Please choose your name from the list.");
       if (!p) throw new Error("PIN is required.");
       if (p.length < 4) throw new Error("PIN must be at least 4 digits.");
 
       // ✅ verify role from API
-      const role = await verifyRole(name, p);
+      const verified = await verifyAuth(matchedName || name, p, city);
 
       // ✅ store auth (localStorage)
       setAuth({
-        staffName: name,
-        city,
-        role,
-        pin: p,
+        staffName: verified.staffName,
+        city: verified.city,
+        role: verified.role,
+        accessToken: verified.accessToken,
+        permissions: verified.permissions,
+        mfa: verified.mfa
+          ? {
+              passkeyCount: Number(verified.mfa.passkey_count || 0),
+              totpEnabled: Boolean(verified.mfa.totp_enabled),
+              backupCodesRemaining: Number(verified.mfa.backup_codes_remaining || 0),
+              methods: Array.isArray(verified.mfa.methods) ? verified.mfa.methods.map((item) => String(item || "")) : [],
+              requiredForAdmin: Boolean(verified.mfa.required_for_admin),
+            }
+          : undefined,
       });
 
       // middleware helper cookie (PIN is NOT stored)
       document.cookie = "sushizen_authed=1; path=/; max-age=31536000";
 
       const next = sp.get("next");
-      router.replace(next || "/week");
+      router.replace(next || "/my-shift");
     } catch (e: any) {
       setError(e?.message || String(e));
+      setPin("");
+      requestAnimationFrame(() => pinInputRef.current?.focus());
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 p-5">
-        <div className="mb-2 text-lg font-semibold">Login</div>
+    <div className="mx-auto w-full max-w-xl space-y-6">
+      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-3.5 shadow-sm sm:p-6">
+        <div className="mb-2 text-base font-semibold sm:text-lg">Login</div>
 
-        <div className="text-sm text-neutral-400">
-          Enter your <span className="text-neutral-200 font-medium">exact name</span> (as in the shift sheet) and your PIN.
+        <div className="max-w-lg text-sm leading-5 text-neutral-400">
+          Select your name from the list, then enter your PIN.
         </div>
 
-        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Field label="City">
-            <select
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              value={city}
-              onChange={(e) => setCity(e.target.value as City)}
+        <form
+          className="mt-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Field label="City">
+              <select
+                className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                value={city}
+                onChange={(e) => {
+                  setCity(e.target.value as City);
+                  setStaffName("");
+                  setShowSuggestions(false);
+                  setError("");
+                }}
+              >
+                <option value="dubai">Dubai</option>
+                <option value="manila">Manila</option>
+              </select>
+            </Field>
+
+            <Field label="Your name" hint={nameLoading ? "Loading names..." : "Type to search and select"}>
+              <div className="relative">
+                <input
+                  className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                  value={staffName}
+                  onChange={(e) => {
+                    setStaffName(e.target.value);
+                    setShowSuggestions(true);
+                    if (error) setError("");
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onBlur={() => {
+                    window.setTimeout(() => setShowSuggestions(false), 120);
+                  }}
+                  placeholder="Type your name"
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                {showSuggestions && filteredNameOptions.length ? (
+                  <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-neutral-800 bg-neutral-950 p-1 shadow-2xl">
+                    {filteredNameOptions.map((name) => (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => {
+                          setStaffName(name);
+                          setShowSuggestions(false);
+                          setError("");
+                          requestAnimationFrame(() => pinInputRef.current?.focus());
+                        }}
+                        className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-900"
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </Field>
+
+            <Field label="PIN" hint="4+ digits">
+              <input
+                ref={pinInputRef}
+                className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                value={pin}
+                onChange={(e) => {
+                  setPin(e.target.value);
+                  if (error) setError("");
+                }}
+                placeholder="••••"
+                type="password"
+                inputMode="numeric"
+                autoComplete="current-password"
+              />
+            </Field>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:items-center">
+            <button
+              type="submit"
+              disabled={loading}
+              className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm font-medium hover:bg-neutral-900 disabled:opacity-50 sm:w-auto"
             >
-              <option value="dubai">Dubai</option>
-              <option value="manila">Manila</option>
-            </select>
-          </Field>
+              {loading ? "Checking..." : "Save & Continue"}
+            </button>
 
-          <Field label="Your name" hint="Exact spelling as in shift sheet">
-            <input
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              value={staffName}
-              onChange={(e) => setStaffName(e.target.value)}
-              placeholder="e.g., Muskan Tamang"
-              autoComplete="name"
-            />
-          </Field>
-
-          <Field label="PIN" hint="4+ digits">
-            <input
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              value={pin}
-              onChange={(e) => setPin(e.target.value)}
-              placeholder="••••"
-              type="password"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-            />
-          </Field>
-        </div>
-
-        <div className="mt-5 flex items-center gap-3">
-          <button
-            onClick={submit}
-            disabled={loading}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm hover:bg-neutral-900 disabled:opacity-50"
-          >
-            {loading ? "Checking..." : "Save & Continue"}
-          </button>
-
-          {error ? <div className="text-sm text-red-300">{error}</div> : null}
-        </div>
+            {error ? <div className="w-full text-sm text-red-300 sm:w-auto">{error}</div> : null}
+          </div>
+        </form>
 
         <div className="mt-4 text-xs text-neutral-500">
           PIN is verified by the API. Auth is stored on this device only (localStorage).

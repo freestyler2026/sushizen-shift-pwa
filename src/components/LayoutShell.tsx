@@ -10,20 +10,24 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const hideNav = HIDE_NAV_PATHS.has(pathname);
 
   if (hideNav) {
-    return <main className="min-h-screen">{children}</main>;
+    return (
+      <main className="min-h-screen px-4 pt-[max(12px,env(safe-area-inset-top))] pb-5 sm:px-6">
+        <div className="mx-auto max-w-md sm:max-w-lg">{children}</div>
+      </main>
+    );
   }
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-neutral-800 bg-black/70 backdrop-blur">
-        <div className="mx-auto max-w-6xl px-4 py-3">
+      <header className="sticky top-0 z-50 border-b border-neutral-800 bg-black/85 backdrop-blur">
+        <div className="mx-auto max-w-6xl px-4 pb-2 pt-[max(10px,env(safe-area-inset-top))] sm:px-6">
           <NavBar />
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+      <main className="mx-auto max-w-6xl px-4 py-4 sm:px-6 sm:py-6">{children}</main>
 
-      <footer className="mx-auto max-w-6xl px-4 pb-8 text-xs text-neutral-500">
+      <footer className="mx-auto max-w-6xl px-4 pb-8 text-xs text-neutral-500 sm:px-6">
         Vercel PWA (frontend) • Heroku API (backend)
       </footer>
     </>

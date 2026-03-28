@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { normalizeCalendarDateInput } from "@/lib/dateInput";
 
 type AttendanceRow = {
   id: number;
@@ -61,7 +62,21 @@ export default function AttendanceCorrectionsPage() {
   const [checkOutOffice, setCheckOutOffice] = useState("");
   const [limit, setLimit] = useState("100");
 
-  async function load() {
+  const handleDateFromChange = (raw: string) => {
+    const next = normalizeCalendarDateInput(raw);
+    if (!next) return;
+    setDateFrom(next);
+    if (dateTo && next > dateTo) setDateTo(next);
+  };
+
+  const handleDateToChange = (raw: string) => {
+    const next = normalizeCalendarDateInput(raw);
+    if (!next) return;
+    setDateTo(next);
+    if (dateFrom && next < dateFrom) setDateFrom(next);
+  };
+
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -91,11 +106,11 @@ export default function AttendanceCorrectionsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [city, dateFrom, dateTo, limit]);
 
   useEffect(() => {
-    load();
-  }, [city, dateFrom, dateTo, limit]);
+    void load();
+  }, [load]);
 
   async function submitCorrection() {
     if (!selectedRowId) {
@@ -174,11 +189,11 @@ export default function AttendanceCorrectionsPage() {
           </label>
           <label className="text-sm">
             <div className="mb-1 font-medium">Date From</div>
-            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-full rounded border px-3 py-2" />
+            <input type="date" value={dateFrom} onChange={(e) => handleDateFromChange(e.target.value)} max={dateTo || undefined} className="w-full rounded border px-3 py-2" />
           </label>
           <label className="text-sm">
             <div className="mb-1 font-medium">Date To</div>
-            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-full rounded border px-3 py-2" />
+            <input type="date" value={dateTo} onChange={(e) => handleDateToChange(e.target.value)} min={dateFrom || undefined} className="w-full rounded border px-3 py-2" />
           </label>
           <label className="text-sm">
             <div className="mb-1 font-medium">Limit</div>

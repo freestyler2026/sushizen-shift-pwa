@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { BRANCHES, type City as BranchCity, type BranchCode } from "@/lib/branches";
-import { getAuth } from "@/lib/auth";
+import { canAccessInventoryAdmin, getAuth } from "@/lib/auth";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -230,6 +230,7 @@ export default function AdminPage() {
 
   const [tokenRemain, setTokenRemain] = useState<number | null>(null);
   const tokenTimerRef = useRef<any>(null);
+  const canOpenInventory = useMemo(() => canAccessInventoryAdmin(auth), [auth]);
 
   const clearTokenTimer = () => {
     if (tokenTimerRef.current) {
@@ -339,6 +340,16 @@ export default function AdminPage() {
   }, [approverName, pin]);
 
   useEffect(() => {
+    if (isHQOrAdmin(myRole) && role !== "HQ") {
+      setRole("HQ");
+      return;
+    }
+    if (!isHQOrAdmin(myRole) && role !== "MANAGER") {
+      setRole("MANAGER");
+    }
+  }, [myRole, role]);
+
+  useEffect(() => {
     const first = BRANCHES[exportCity][0]?.code;
     if (first && exportBranch !== first) setExportBranch(first);
     resetExportState();
@@ -361,15 +372,17 @@ export default function AdminPage() {
         localStorage.setItem("sushizen_admin_name", nm);
       } catch {}
 
+      const confirmRole: "MANAGER" | "HQ" = isHQOrAdmin(myRole) ? "HQ" : "MANAGER";
+
       await apiPost(
         `/api/shift_change/intent${qs({
           req_id: selected.id,
-          role,
+          role: confirmRole,
           action,
         })}`
       );
 
-      const confirmPath = role === "MANAGER" ? "/api/shift_change/confirm_manager" : "/api/shift_change/confirm_hq";
+      const confirmPath = confirmRole === "MANAGER" ? "/api/shift_change/confirm_manager" : "/api/shift_change/confirm_hq";
 
       await apiPost(
         `${confirmPath}${qs({
@@ -382,6 +395,8 @@ export default function AdminPage() {
       );
 
       setOpMsg("✅ Done");
+      setSelected(null);
+      setSearch("");
       await fetchLatest();
     } catch (e: any) {
       setOpMsg(`❌ ${e?.message || String(e)}`);
@@ -406,6 +421,7 @@ export default function AdminPage() {
         `/api/shift_change/counterparty/respond${qs({
           req_id: selected.id,
           staff_name: cp,
+          approver_name: approverName.trim(),
           action: cpAction,
           note: cpAction === "APPROVED" ? "I agree" : "I decline",
           pin: p,
@@ -413,6 +429,8 @@ export default function AdminPage() {
       );
 
       setOpMsg("✅ Counterparty updated");
+      setSelected(null);
+      setSearch("");
       await fetchLatest();
     } catch (e: any) {
       setOpMsg(`❌ ${e?.message || String(e)}`);
@@ -520,7 +538,37 @@ export default function AdminPage() {
     return bucketsOrdered.reduce((acc, [, items]) => acc + (items?.length || 0), 0);
   }, [bucketsOrdered]);
 
+  useEffect(() => {
+    if (!data) {
+      setSelected(null);
+      return;
+    }
+    const allItems = BUCKET_ORDER.flatMap((key) => data.buckets?.[key] || []);
+    if (!allItems.length) {
+      setSelected(null);
+      return;
+    }
+    if (!selected?.id) {
+      return;
+    }
+    const refreshed = allItems.find((item) => item.id === selected.id) || null;
+    setSelected(refreshed);
+  }, [data, selected?.id]);
+
   const showExport = useMemo(() => isHQOrAdmin(myRole), [myRole]);
+  const decisionRoleLabel = isHQOrAdmin(myRole) ? "HQ" : "Manager";
+  const primaryActionLabel =
+    action === "APPROVE"
+      ? `Approve Request as ${decisionRoleLabel}`
+      : action === "REJECT"
+        ? `Reject Request as ${decisionRoleLabel}`
+        : `Send Back for More Info as ${decisionRoleLabel}`;
+  const primaryActionButtonClass =
+    action === "APPROVE"
+      ? "border-emerald-700 bg-emerald-950/40 hover:bg-emerald-900/40"
+      : action === "REJECT"
+        ? "border-rose-700 bg-rose-950/40 hover:bg-rose-900/40"
+        : "border-amber-700 bg-amber-950/40 hover:bg-amber-900/40";
 
   return (
     <div className="space-y-6">
@@ -556,6 +604,14 @@ export default function AdminPage() {
             >
               Draft
             </Link>
+            {canOpenInventory ? (
+              <Link
+                href="/admin/inventory"
+                className="rounded-xl border border-emerald-800 bg-emerald-950/20 px-4 py-2 text-sm text-emerald-200 hover:bg-emerald-900/30 hover:text-emerald-100"
+              >
+                Inventory
+              </Link>
+            ) : null}
           </div>
         </div>
 
@@ -584,12 +640,23 @@ export default function AdminPage() {
 
           <div>
             <div className="mb-1 text-xs text-neutral-400">Search</div>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="staff / req_id / type / branch / urgency"
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-            />
+            <div className="flex gap-2">
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="staff / req_id / type / branch / urgency"
+                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              />
+              {search.trim() ? (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900"
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
           </div>
 
           <div className="flex items-end gap-2">
@@ -891,6 +958,10 @@ export default function AdminPage() {
       {selected ? (
         <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
           <div className="mb-2 text-sm font-semibold">Selected: {selected.staff_name}</div>
+          <div className="mb-3 text-xs text-neutral-400">
+            Use the primary action box for the main Manager/HQ decision.
+            {selected.request_type === "swap" ? " Use the counterparty box only after the other staff member has replied to the swap." : ""}
+          </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
@@ -900,8 +971,10 @@ export default function AdminPage() {
                 onChange={(e) => setRole(e.target.value as any)}
                 className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
               >
-                <option value="MANAGER">MANAGER</option>
-                <option value="HQ">HQ</option>
+                {!isHQOrAdmin(myRole) ? <option value="MANAGER">MANAGER</option> : null}
+                <option value="HQ" disabled={!isHQOrAdmin(myRole)}>
+                  HQ
+                </option>
               </select>
             </div>
 
@@ -950,35 +1023,47 @@ export default function AdminPage() {
             />
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button
-              onClick={runIntentAndConfirm}
-              className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60"
-              disabled={opLoading}
-              type="button"
-            >
-              {opLoading ? "Working..." : "Run intent + confirm"}
-            </button>
+          <div className="mt-4 space-y-3">
+            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-3">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Primary Decision</div>
+              <div className="mb-3 text-xs text-neutral-500">
+                This button uses the selected `Action` above and applies the main decision to this request.
+              </div>
+              <button
+                onClick={runIntentAndConfirm}
+                className={`rounded-xl border px-4 py-2 text-sm text-white disabled:opacity-60 ${primaryActionButtonClass}`}
+                disabled={opLoading}
+                type="button"
+              >
+                {opLoading ? "Processing..." : primaryActionLabel}
+              </button>
+            </div>
 
             {selected.request_type === "swap" ? (
-              <>
-                <button
-                  onClick={() => runCounterparty("APPROVED")}
-                  className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60"
-                  disabled={opLoading}
-                  type="button"
-                >
-                  Counterparty APPROVE
-                </button>
-                <button
-                  onClick={() => runCounterparty("REJECTED")}
-                  className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60"
-                  disabled={opLoading}
-                  type="button"
-                >
-                  Counterparty REJECT
-                </button>
-              </>
+              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/20 p-3">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Swap Counterparty Response</div>
+                <div className="mb-3 text-xs text-neutral-500">
+                  Use these only to record the other staff member&apos;s reply to the swap request.
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => runCounterparty("APPROVED")}
+                    className="rounded-xl border border-sky-700 bg-sky-950/30 px-4 py-2 text-sm text-white hover:bg-sky-900/30 disabled:opacity-60"
+                    disabled={opLoading}
+                    type="button"
+                  >
+                    Record Counterparty Approval
+                  </button>
+                  <button
+                    onClick={() => runCounterparty("REJECTED")}
+                    className="rounded-xl border border-rose-700 bg-rose-950/30 px-4 py-2 text-sm text-white hover:bg-rose-900/30 disabled:opacity-60"
+                    disabled={opLoading}
+                    type="button"
+                  >
+                    Record Counterparty Rejection
+                  </button>
+                </div>
+              </div>
             ) : null}
           </div>
 

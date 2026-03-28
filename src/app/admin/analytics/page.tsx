@@ -14,6 +14,7 @@ import {
   type City,
 } from "@/lib/auth";
 import { startPasskeyAuthentication, startPasskeyRegistration } from "@/lib/webauthn";
+import { normalizeCalendarDateInput } from "@/lib/dateInput";
 
 // Resolve API base at runtime so local dev always talks to FastAPI directly,
 // even when the page is opened via a LAN IP or a custom local hostname.
@@ -21,6 +22,20 @@ function getApiBase() {
   if (process.env.NODE_ENV !== "production") return "http://127.0.0.1:8000";
   return "";
 }
+
+function normalizeApiErrorMessage(raw: string, fallback: string) {
+  const text = String(raw || "").trim();
+  const lower = text.toLowerCase();
+  if (!text) return fallback;
+  if (text.includes("<!DOCTYPE html") || lower.includes("<html") || lower.includes("application error")) {
+    return "Server timed out while loading analytics. Please narrow the date range or retry.";
+  }
+  if (lower.includes("h12") || lower.includes("request timeout") || lower.includes("503")) {
+    return "Server timed out while loading analytics. Please narrow the date range or retry.";
+  }
+  return text;
+}
+
 async function apiGet<T = any>(path: string): Promise<T> {
   const request = async () =>
     fetch(`${getApiBase()}${path}`, {
@@ -54,7 +69,7 @@ async function apiGet<T = any>(path: string): Promise<T> {
     } catch {
       detail = "";
     }
-    throw new Error(detail || text || `GET ${path} failed`);
+    throw new Error(normalizeApiErrorMessage(detail || text, `GET ${path} failed`));
   }
 
   return text ? (JSON.parse(text) as T) : ({} as T);
@@ -95,7 +110,7 @@ async function apiPost<T = any>(path: string, body: Record<string, unknown>): Pr
     } catch {
       detail = "";
     }
-    throw new Error(detail || text || `POST ${path} failed`);
+    throw new Error(normalizeApiErrorMessage(detail || text, `POST ${path} failed`));
   }
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
@@ -592,6 +607,26 @@ type OperationTimeResp = {
   latest?: OperationTimeRow | null;
 };
 
+type CctvScoreSummaryRow = {
+  city: string;
+  branch_code: string;
+  station_code: string;
+  work_date: string;
+  shift_key: string;
+  metric_key: string;
+  metric_value: number;
+  sample_count: number;
+  version_tag: string;
+};
+
+type CctvScoreSummaryResp = {
+  ok: boolean;
+  city: string;
+  date_from: string;
+  date_to: string;
+  rows: CctvScoreSummaryRow[];
+};
+
 type PayrollStaffRow = {
   month_key: string;
   city: string;
@@ -767,7 +802,6 @@ const BRANCH_OPTIONS: Record<string, { value: string; label: string }[]> = {
     { value: "TAFT", label: "Taft" },
     { value: "CUBAO", label: "Cubao" },
     { value: "CK", label: "Central Kitchen (PH)" },
-    { value: "MC", label: "MC" },
   ],
 };
 
@@ -900,9 +934,11 @@ function EvaluationKpiCard({
 }) {
   return (
     <div className="flex h-full min-w-0 flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-      <div className="min-h-[54px] text-xs leading-5 text-neutral-500">{title}</div>
-      <div className="mt-1 flex h-[42px] items-end text-xl font-bold leading-none tabular-nums sm:text-2xl">
-        <span className="whitespace-nowrap">{value}</span>
+      <div className="h-[64px] overflow-hidden text-xs leading-5 text-neutral-500">{title}</div>
+      <div className="mt-1 flex h-[42px] items-end">
+        <span className="ml-auto block w-full whitespace-nowrap text-right text-xl font-bold leading-none tabular-nums sm:text-2xl">
+          {value}
+        </span>
       </div>
       {targetLine ? (
         <div className="mt-2 rounded-xl border border-sky-900/40 bg-sky-950/30 px-2.5 py-2 text-[11px] leading-5 text-sky-100">
@@ -1019,6 +1055,17 @@ function branchBadgeClass(branch: string) {
 
 function mapStoreToBranchCode(raw: string) {
   const x = (raw || "").toLowerCase();
+  const compact = x.replace(/[^a-z0-9]/g, "");
+  if (compact === "bb") return "BB";
+  if (compact === "jlt") return "JLT";
+  if (compact === "arj" || compact === "arjan") return "ARJ";
+  if (compact === "ab") return "AB";
+  if (compact === "am") return "AM";
+  if (compact === "mc") return "MC";
+  if (compact === "par") return "PAR";
+  if (compact === "taft") return "TAFT";
+  if (compact === "cubao") return "CUBAO";
+  if (compact === "ck") return "CK";
   if (x.includes("business bay")) return "BB";
   if (x.includes("jlt")) return "JLT";
   if (x.includes("arjan")) return "ARJ";
@@ -1031,6 +1078,28 @@ function mapStoreToBranchCode(raw: string) {
   if (x.includes("cubao")) return "CUBAO";
   if (x.includes("central kitchen")) return "CK";
   return "";
+}
+
+function storeIdentityKey(raw: string) {
+  const code = mapStoreToBranchCode(raw);
+  if (code) return `code:${code}`;
+  return `name:${String(raw || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim()}`;
+}
+
+function isStoreInCity(storeName: string, city: string) {
+  const code = mapStoreToBranchCode(storeName);
+  if (!code) return true;
+  const allowedCodes = new Set(
+    (BRANCH_OPTIONS[city] || [])
+      .map((opt) => String(opt.value || "").trim())
+      .filter(Boolean),
+  );
+  return allowedCodes.has(code);
 }
 
 function branchLabelFromCode(code: string, city: string) {
@@ -1059,6 +1128,19 @@ function addDaysIso(base: Date, days: number) {
   const d = new Date(base);
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
+}
+
+function monthRangeFromMonthKey(monthKey: string): { from: string; to: string } | null {
+  const m = String(monthKey || "").trim().match(/^(\d{4})-(\d{2})$/);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return null;
+  const last = new Date(year, month, 0).getDate();
+  return {
+    from: `${m[1]}-${m[2]}-01`,
+    to: `${m[1]}-${m[2]}-${String(last).padStart(2, "0")}`,
+  };
 }
 
 function splitDateRangeIntoChunks(dateFrom: string, dateTo: string, chunkSize = 7) {
@@ -1125,6 +1207,19 @@ function monthKeysBetween(dateFrom: string, dateTo: string): string[] {
     cur.setMonth(cur.getMonth() + 1);
   }
   return keys;
+}
+
+function shiftIsoDateByMonths(iso: string, delta: number): string {
+  const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return iso;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return iso;
+  const nextFirst = new Date(y, mo - 1 + delta, 1);
+  const maxDay = new Date(nextFirst.getFullYear(), nextFirst.getMonth() + 1, 0).getDate();
+  const nextDay = Math.max(1, Math.min(d, maxDay));
+  return `${nextFirst.getFullYear()}-${String(nextFirst.getMonth() + 1).padStart(2, "0")}-${String(nextDay).padStart(2, "0")}`;
 }
 
 function safeStaffName(row: ComparisonItem) {
@@ -1195,14 +1290,28 @@ function calculateComplianceRate(row: ComparisonItem) {
 }
 
 export default function AdminAnalyticsPage() {
-  const [authState, setAuthState] = useState(() => getAuth());
+  const stripStepUpForFreshVisit = (value: ReturnType<typeof getAuth>) => {
+    if (!value) return value;
+    return {
+      ...value,
+      stepUpToken: "",
+      stepUpLevel: "aal1" as const,
+      stepUpMethod: "",
+      stepUpVerifiedAt: "",
+    };
+  };
+
+  const [authState, setAuthState] = useState(() => stripStepUpForFreshVisit(getAuth()));
   const auth = authState;
+  const previousMonth = previousCalendarMonthRangeIso();
 
   const [city, setCity] = useState<string>((auth?.city || "dubai").toLowerCase());
-  const [dateFrom, setDateFrom] = useState("2025-11-01");
-  const [dateTo, setDateTo] = useState("2026-03-31");
-  const [summaryDateFrom, setSummaryDateFrom] = useState(() => previousCalendarMonthRangeIso().from);
-  const [summaryDateTo, setSummaryDateTo] = useState(() => previousCalendarMonthRangeIso().to);
+  const [dateFrom, setDateFrom] = useState(previousMonth.from);
+  const [dateTo, setDateTo] = useState(previousMonth.to);
+  const [summaryDateFrom, setSummaryDateFrom] = useState(previousMonth.from);
+  const [summaryDateTo, setSummaryDateTo] = useState(previousMonth.to);
+  const [complianceMonthKey, setComplianceMonthKey] = useState(previousMonth.from.slice(0, 7));
+  const [summaryMonthKey, setSummaryMonthKey] = useState(previousMonth.from.slice(0, 7));
   const [payrollStaffName, setPayrollStaffName] = useState("");
   const [branchCode, setBranchCode] = useState("");
   const [summaryBranchCode, setSummaryBranchCode] = useState("");
@@ -1217,10 +1326,11 @@ export default function AdminAnalyticsPage() {
   const [staffLimit] = useState(20);
 
   const [approverName, setApproverName] = useState(auth?.staffName || "");
-  const [pin] = useState("session");
+  const [pin, setPin] = useState("");
   const [securityBusy, setSecurityBusy] = useState(false);
   const [securityError, setSecurityError] = useState("");
   const [securityMessage, setSecurityMessage] = useState("");
+  const [stepUpVerifiedThisVisit, setStepUpVerifiedThisVisit] = useState(false);
   const [totpCode, setTotpCode] = useState("");
   const [backupCode, setBackupCode] = useState("");
   const [totpEnrollment, setTotpEnrollment] = useState<null | { enrollmentToken: string; secret: string; otpauthUri: string }>(null);
@@ -1246,6 +1356,8 @@ export default function AdminAnalyticsPage() {
   const [hourlyLoadError, setHourlyLoadError] = useState("");
   const [operationTimeAnalytics, setOperationTimeAnalytics] = useState<OperationTimeResp | null>(null);
   const [operationTimeLoadError, setOperationTimeLoadError] = useState("");
+  const [cctvScoreRows, setCctvScoreRows] = useState<CctvScoreSummaryRow[]>([]);
+  const [cctvScoreLoadError, setCctvScoreLoadError] = useState("");
   const [hourlyStoreName, setHourlyStoreName] = useState("");
   const [, setSalesComparisonRows] = useState<ComparisonItem[]>([]);
   const [payrollRows, setPayrollRows] = useState<PayrollStaffRow[]>([]);
@@ -1266,6 +1378,86 @@ export default function AdminAnalyticsPage() {
   const [plSyncing, setPlSyncing] = useState(false);
   const [plSyncMessage, setPlSyncMessage] = useState("");
   const [plStoreName, setPlStoreName] = useState("");
+
+  const handleDateFromChange = (raw: string) => {
+    const next = normalizeCalendarDateInput(raw);
+    if (!next) return;
+    setDateFrom(next);
+    if (dateTo && next > dateTo) setDateTo(next);
+  };
+
+  const handleDateToChange = (raw: string) => {
+    const next = normalizeCalendarDateInput(raw);
+    if (!next) return;
+    setDateTo(next);
+    if (dateFrom && next < dateFrom) setDateFrom(next);
+  };
+
+  const handleSummaryDateFromChange = (raw: string) => {
+    const next = normalizeCalendarDateInput(raw);
+    if (!next) return;
+    setSummaryDateFrom(next);
+    if (summaryDateTo && next > summaryDateTo) setSummaryDateTo(next);
+  };
+
+  const handleSummaryDateToChange = (raw: string) => {
+    const next = normalizeCalendarDateInput(raw);
+    if (!next) return;
+    setSummaryDateTo(next);
+    if (summaryDateFrom && next < summaryDateFrom) setSummaryDateFrom(next);
+  };
+
+  const handleEvaluationDetailDateChange = (raw: string) => {
+    const next = normalizeCalendarDateInput(raw);
+    if (!next) return;
+    setEvaluationDetailDate(next);
+  };
+
+  const handleComplianceMonthChange = (monthKey: string) => {
+    setComplianceMonthKey(monthKey);
+    const range = monthRangeFromMonthKey(monthKey);
+    if (!range) return;
+    setDateFrom(range.from);
+    setDateTo(range.to);
+  };
+
+  const shiftComplianceDateFromMonth = (delta: number) => {
+    const next = shiftIsoDateByMonths(dateFrom, delta);
+    handleDateFromChange(next);
+  };
+
+  const shiftComplianceDateToMonth = (delta: number) => {
+    const next = shiftIsoDateByMonths(dateTo, delta);
+    handleDateToChange(next);
+  };
+
+  const handleSummaryMonthChange = (monthKey: string) => {
+    setSummaryMonthKey(monthKey);
+    const range = monthRangeFromMonthKey(monthKey);
+    if (!range) return;
+    setSummaryDateFrom(range.from);
+    setSummaryDateTo(range.to);
+  };
+
+  useEffect(() => {
+    if (dateTo.slice(0, 7)) {
+      setComplianceMonthKey(dateTo.slice(0, 7));
+      return;
+    }
+    if (dateFrom.slice(0, 7)) {
+      setComplianceMonthKey(dateFrom.slice(0, 7));
+      return;
+    }
+    setComplianceMonthKey("");
+  }, [dateFrom, dateTo]);
+
+  useEffect(() => {
+    if (summaryDateFrom.slice(0, 7) === summaryDateTo.slice(0, 7)) {
+      setSummaryMonthKey(summaryDateFrom.slice(0, 7));
+      return;
+    }
+    setSummaryMonthKey("");
+  }, [summaryDateFrom, summaryDateTo]);
 
   const evaluationScoreScale = useMemo(() => {
     const maxOf = (values: number[], fallback: number) => {
@@ -1349,6 +1541,25 @@ export default function AdminAnalyticsPage() {
     }
     return map;
   }, [evaluationDayDetails]);
+
+  const cctvMetricSnapshot = useMemo(() => {
+    const latestByMetric = new Map<string, CctvScoreSummaryRow>();
+    for (const row of cctvScoreRows || []) {
+      const key = `${String(row.branch_code || "").toUpperCase()}|${String(row.station_code || "").toLowerCase()}|${String(row.metric_key || "").toLowerCase()}`;
+      if (!latestByMetric.has(key)) latestByMetric.set(key, row);
+    }
+    const grouped = new Map<string, Record<string, number>>();
+    latestByMetric.forEach((row) => {
+      const key = `${String(row.branch_code || "").toUpperCase()}|${String(row.station_code || "").toLowerCase()}`;
+      const cur = grouped.get(key) || {};
+      cur[String(row.metric_key || "").toLowerCase()] = Number(row.metric_value || 0);
+      grouped.set(key, cur);
+    });
+    return Array.from(grouped.entries()).map(([key, metrics]) => {
+      const [branchCode, stationCode] = key.split("|");
+      return { branchCode, stationCode, metrics };
+    });
+  }, [cctvScoreRows]);
 
   /** Aligns UI with backend: profit = net_sales − payroll − food@target − rent@target − other@target */
   const financeBreakdown = useMemo(() => {
@@ -1494,10 +1705,14 @@ export default function AdminAnalyticsPage() {
   const canViewFinanceChannels = canViewSalesChannel;
   const canViewEvaluationChannel = canViewSalesChannel;
   const canViewManagementPlChannel = canViewManagementPl(auth);
-  const salesStepUpReady = stepUpSatisfies("aal2", auth);
-  const financeStepUpReady = stepUpSatisfies("phishing_resistant", auth);
+  const salesStepUpReady = stepUpSatisfies("aal2", auth) && stepUpVerifiedThisVisit;
+  const financeStepUpReady = stepUpSatisfies("aal2", auth) && stepUpVerifiedThisVisit;
   const activeSecurityRequirement =
-    analyticsTab === "finance" ? "phishing-resistant Passkey" : analyticsTab === "sales" || analyticsTab === "evaluation" || analyticsTab === "staff" ? "MFA (Passkey or TOTP)" : "Login";
+    analyticsTab === "finance"
+      ? "MFA (Passkey, TOTP, Backup code, or PIN step-up)"
+      : analyticsTab === "sales" || analyticsTab === "evaluation" || analyticsTab === "staff"
+        ? "MFA (Passkey, TOTP, Backup code, or PIN step-up)"
+        : "Login";
   const activeSecuritySatisfied =
     analyticsTab === "finance" ? financeStepUpReady : analyticsTab === "sales" || analyticsTab === "evaluation" || analyticsTab === "staff" ? salesStepUpReady : true;
 
@@ -1507,9 +1722,10 @@ export default function AdminAnalyticsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function refreshSecurityState() {
+  async function refreshSecurityState(options?: { allowStepUp?: boolean }) {
     const next = await refreshAuthFromApi(getAuth());
-    setAuthState(next);
+    const allowStepUp = Boolean(options?.allowStepUp);
+    setAuthState(stepUpVerifiedThisVisit || allowStepUp ? next : stripStepUpForFreshVisit(next));
     return next;
   }
 
@@ -1584,19 +1800,45 @@ export default function AdminAnalyticsPage() {
 
   async function runPasskeyStepUp() {
     await withSecurityTask(async () => {
-      const start = await apiPost<{ options: any; state_token: string }>("/api/auth/webauthn/auth/options", {});
-      const credential = await startPasskeyAuthentication(start.options);
-      const res = await apiPost<{ step_up_token: string; mfa_level: "phishing_resistant"; method: string }>("/api/auth/webauthn/auth/verify", {
-        state_token: start.state_token,
-        credential,
+      try {
+        const start = await apiPost<{ options: any; state_token: string }>("/api/auth/webauthn/auth/options", {});
+        const credential = await startPasskeyAuthentication(start.options);
+        const res = await apiPost<{ step_up_token: string; mfa_level: "phishing_resistant"; method: string }>("/api/auth/webauthn/auth/verify", {
+          state_token: start.state_token,
+          credential,
+        });
+        setStepUpAuth({
+          stepUpToken: res.step_up_token,
+          stepUpLevel: res.mfa_level,
+          stepUpMethod: res.method,
+        });
+        setStepUpVerifiedThisVisit(true);
+        await refreshSecurityState({ allowStepUp: true });
+        setSecurityMessage("Passkey verification complete.");
+      } catch (e: any) {
+        const msg = String(e?.message || e || "");
+        if (/method not allowed|not found|404|405/i.test(msg)) {
+          throw new Error("Passkey endpoint is unavailable on this server. Use PIN/TOTP/Backup code verification.");
+        }
+        throw e;
+      }
+    });
+  }
+
+  async function runPinStepUp() {
+    await withSecurityTask(async () => {
+      if (!pin.trim()) throw new Error("Enter Session PIN first.");
+      const pinStep = await apiPost<{ step_up_token: string; mfa_level: "aal2"; method: string }>("/api/auth/step-up/pin", {
+        pin: pin.trim(),
       });
       setStepUpAuth({
-        stepUpToken: res.step_up_token,
-        stepUpLevel: res.mfa_level,
-        stepUpMethod: res.method,
+        stepUpToken: pinStep.step_up_token,
+        stepUpLevel: pinStep.mfa_level,
+        stepUpMethod: pinStep.method || "pin_reauth",
       });
-      await refreshSecurityState();
-      setSecurityMessage("Passkey verification complete.");
+      setStepUpVerifiedThisVisit(true);
+      await refreshSecurityState({ allowStepUp: true });
+      setSecurityMessage("PIN verification complete.");
     });
   }
 
@@ -1610,8 +1852,9 @@ export default function AdminAnalyticsPage() {
         stepUpLevel: res.mfa_level,
         stepUpMethod: res.method,
       });
+      setStepUpVerifiedThisVisit(true);
       setTotpCode("");
-      await refreshSecurityState();
+      await refreshSecurityState({ allowStepUp: true });
       setSecurityMessage("TOTP verification complete.");
     });
   }
@@ -1626,8 +1869,9 @@ export default function AdminAnalyticsPage() {
         stepUpLevel: res.mfa_level,
         stepUpMethod: res.method,
       });
+      setStepUpVerifiedThisVisit(true);
       setBackupCode("");
-      await refreshSecurityState();
+      await refreshSecurityState({ allowStepUp: true });
       setSecurityMessage("Backup code verification complete.");
     });
   }
@@ -1635,9 +1879,13 @@ export default function AdminAnalyticsPage() {
   useEffect(() => {
     let cancelled = false;
     async function run() {
+      // Require fresh MFA every time this page is opened.
+      clearStepUpAuth();
+      setStepUpVerifiedThisVisit(false);
+      setAuthState(stripStepUpForFreshVisit(getAuth()));
       const next = await refreshAuthFromApi(getAuth());
       if (!cancelled) {
-        setAuthState(next);
+        setAuthState(stripStepUpForFreshVisit(next));
         if (next?.staffName) setApproverName(next.staffName);
       }
     }
@@ -1647,6 +1895,9 @@ export default function AdminAnalyticsPage() {
     };
   }, []);
 
+  // Do not force-clear on window focus/visibility changes.
+  // Native passkey dialogs can trigger focus events and cause repeated prompts.
+
   useEffect(() => {
     const id = window.setInterval(() => {
       void refreshSecurityState();
@@ -1654,6 +1905,7 @@ export default function AdminAnalyticsPage() {
     return () => {
       window.clearInterval(id);
     };
+    // refreshSecurityState intentionally not in deps (stable polling behavior).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1707,7 +1959,7 @@ export default function AdminAnalyticsPage() {
       .catch(() => {
         setEvaluationDayDetails(null);
       });
-  }, [analyticsTab, summaryDateFrom, summaryDateTo, city, approverName, salesStepUpReady]);
+  }, [analyticsTab, summaryDateFrom, summaryDateTo, city, approverName, pin, salesStepUpReady]);
 
   useEffect(() => {
     if (!isHQOrAdmin && financeSectionView === "payroll") {
@@ -2069,7 +2321,22 @@ export default function AdminAnalyticsPage() {
           setEvaluationTimeline(null);
           setEvaluationDayDetails(null);
           setEvaluationStrictnessLevel(5);
+          setCctvScoreRows([]);
+          setCctvScoreLoadError("");
           return;
+        }
+        const cctvQs = new URLSearchParams({
+          city,
+          date_from: summaryDateFrom,
+          date_to: summaryDateTo,
+        });
+        try {
+          const cctvRes = await apiGet<CctvScoreSummaryResp>(`/api/admin/cctv/score_summary?${cctvQs.toString()}`);
+          setCctvScoreRows(cctvRes.rows || []);
+          setCctvScoreLoadError("");
+        } catch (e) {
+          setCctvScoreRows([]);
+          setCctvScoreLoadError(String((e as any)?.message || e || "CCTV score unavailable"));
         }
         if (city === "manila") {
           const underConstructionSections: EvaluationSection[] = [
@@ -2432,8 +2699,8 @@ export default function AdminAnalyticsPage() {
     const diffDays =
       Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
-    if (diffDays > 60) {
-      setComparisonNotice("Compliance analytics supports up to 60 days at a time.");
+    if (diffDays > 45) {
+      setComparisonNotice("Compliance analytics supports up to 45 days at a time.");
       setComparisonLoadedOnce(true);
       return;
     }
@@ -2443,22 +2710,44 @@ export default function AdminAnalyticsPage() {
     setComparisonNotice("");
 
     try {
-      const qs = new URLSearchParams({
-        city: city === "dubai" ? "Dubai" : "Manila",
-        date_from: dateFrom,
-        date_to: dateTo,
-        limit: comparisonLimit,
-        approver_name: approverName.trim(),
-        pin: pin.trim(),
-      });
+      const requestedLimit = Number.parseInt(String(comparisonLimit || ""), 10);
+      const safeLimit = Number.isFinite(requestedLimit) ? Math.max(100, Math.min(1500, requestedLimit)) : 1000;
+      const chunks = splitDateRangeIntoChunks(dateFrom, dateTo, 7);
+      const allItems: ComparisonItem[] = [];
+      let maybeTruncated = false;
 
-      if (branchCode) qs.set("branch", branchCode);
+      for (const chunk of chunks) {
+        const qs = new URLSearchParams({
+          city: city === "dubai" ? "Dubai" : "Manila",
+          date_from: chunk.from,
+          date_to: chunk.to,
+          limit: String(safeLimit),
+          approver_name: approverName.trim(),
+          pin: pin.trim(),
+        });
+        if (branchCode) qs.set("branch", branchCode);
+        const res = await apiGet<ComparisonResp>(`/api/admin/attendance/comparison?${qs.toString()}`);
+        const items = Array.isArray(res?.items) ? res.items : [];
+        if (items.length >= safeLimit) maybeTruncated = true;
+        allItems.push(...items);
+      }
 
-      const res = await apiGet<ComparisonResp>(
-        `/api/admin/attendance/comparison?${qs.toString()}`
-      );
-
-      setComparisonRows(Array.isArray(res?.items) ? res.items : []);
+      const dedupedMap = new Map<string, ComparisonItem>();
+      for (const row of allItems) {
+        const key = [
+          row.work_date || "",
+          row.staff_name || row.employee_name_raw || "",
+          row.scheduled_branch_code || "",
+          row.attendance_branch_code || "",
+          row.effective_status_raw || "",
+          row.absence_type || "",
+        ].join("|");
+        if (!dedupedMap.has(key)) dedupedMap.set(key, row);
+      }
+      setComparisonRows(Array.from(dedupedMap.values()));
+      if (maybeTruncated) {
+        setComparisonNotice("Some rows were truncated by server-side limits. Narrow the date range for full accuracy.");
+      }
     } catch (e: any) {
       setComparisonRows([]);
       setComparisonError(e?.message || String(e));
@@ -2477,13 +2766,7 @@ export default function AdminAnalyticsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canViewStaffChannel, approverName, salesStepUpReady]);
 
-  useEffect(() => {
-    if (!canViewStaffChannel) return;
-    if (!approverName.trim() || !salesStepUpReady) return;
-    if (!dateFrom || !dateTo) return;
-    loadComparison();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [city, branchCode, dateFrom, dateTo, approverName, salesStepUpReady, canViewStaffChannel]);
+  // Keep compliance reload manual to avoid repeated heavy calls while editing dates/month.
 
   const complianceWorkedRows = useMemo(
     () => comparisonRows.filter((row) => isWorkedAttendance(row)),
@@ -2944,7 +3227,15 @@ export default function AdminAnalyticsPage() {
       });
     }
 
-    return Array.from(new Set([...fromPl, ...fromPos, ...fromBranchConfig]))
+    const merged = [...fromPl, ...fromPos, ...fromBranchConfig].filter((name) => isStoreInCity(name, city));
+    const deduped = new Map<string, string>();
+    for (const name of merged) {
+      const key = storeIdentityKey(name);
+      if (deduped.has(key)) continue;
+      const code = mapStoreToBranchCode(name);
+      deduped.set(key, code ? branchLabelFromCode(code, city) : name);
+    }
+    return Array.from(deduped.values())
       .sort((a, b) => a.localeCompare(b))
       .map((name) => ({ value: name, label: name }));
   }, [city, plVsTarget?.available_stores, posBranchOrderRows]);
@@ -2961,7 +3252,7 @@ export default function AdminAnalyticsPage() {
         label: branchLabelFromCode(code, city),
       }));
     }
-    return Array.from(new Set([...fromApi, ...fromPos, ...fromBranchConfig]))
+    return Array.from(new Set([...fromApi, ...fromPos, ...fromBranchConfig].filter((name) => isStoreInCity(name, city))))
       .sort((a, b) => a.localeCompare(b))
       .map((name) => ({ value: name, label: name }));
   }, [city, hourlySalesAnalytics?.available_stores, posBranchOrderRows]);
@@ -3293,7 +3584,7 @@ export default function AdminAnalyticsPage() {
                 <div className="space-y-1">
                   <div className="text-sm font-semibold">Security</div>
                   <div className="text-xs text-neutral-400">
-                    Passkeys are recommended. Sales and Evaluation require recent MFA. Management P&amp;L requires a fresh Passkey verification.
+                    Passkeys are recommended. Sales, Evaluation, and Management P&amp;L require recent MFA.
                   </div>
                   <div className="text-xs text-neutral-500">
                     Passkeys: {Number(auth?.mfa?.passkeyCount || 0)} | TOTP: {auth?.mfa?.totpEnabled ? "Enabled" : "Not set"} | Backup codes: {Number(auth?.mfa?.backupCodesRemaining || 0)}
@@ -3335,6 +3626,7 @@ export default function AdminAnalyticsPage() {
                     type="button"
                     onClick={() => {
                       clearStepUpAuth();
+                      setStepUpVerifiedThisVisit(false);
                       setAuthState(getAuth());
                       setSecurityMessage("Security verification cleared.");
                     }}
@@ -3347,7 +3639,7 @@ export default function AdminAnalyticsPage() {
               </div>
 
               {!activeSecuritySatisfied ? (
-                <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                <div className="mt-4 grid gap-3 lg:grid-cols-4">
                   <button
                     type="button"
                     onClick={() => void runPasskeyStepUp()}
@@ -3355,6 +3647,14 @@ export default function AdminAnalyticsPage() {
                     className="rounded-xl border border-emerald-800 bg-emerald-950/30 px-3 py-2 text-sm font-semibold text-emerald-200 hover:bg-emerald-950/40 disabled:opacity-60"
                   >
                     Verify With Passkey
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void runPinStepUp()}
+                    disabled={securityBusy}
+                    className="rounded-xl border border-neutral-700 bg-neutral-950/60 px-3 py-2 text-sm font-semibold text-neutral-100 hover:bg-neutral-900 disabled:opacity-60"
+                  >
+                    Verify With PIN
                   </button>
                   <div className="flex gap-2">
                     <input
@@ -3456,7 +3756,7 @@ export default function AdminAnalyticsPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
               <div>
                 <div className="mb-1 text-xs text-neutral-400">City</div>
                 <select
@@ -3474,9 +3774,27 @@ export default function AdminAnalyticsPage() {
                 <input
                   type="date"
                   value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
+                  onChange={(e) => handleDateFromChange(e.target.value)}
+                  onInput={(e) => handleDateFromChange(e.currentTarget.value)}
+                  max={dateTo || undefined}
                   className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
                 />
+                <div className="mt-1 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => shiftComplianceDateFromMonth(-1)}
+                    className="rounded-lg border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-[11px] text-neutral-300 hover:bg-neutral-900"
+                  >
+                    -1M
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => shiftComplianceDateFromMonth(1)}
+                    className="rounded-lg border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-[11px] text-neutral-300 hover:bg-neutral-900"
+                  >
+                    +1M
+                  </button>
+                </div>
               </div>
 
               <div>
@@ -3484,7 +3802,35 @@ export default function AdminAnalyticsPage() {
                 <input
                   type="date"
                   value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
+                  onChange={(e) => handleDateToChange(e.target.value)}
+                  onInput={(e) => handleDateToChange(e.currentTarget.value)}
+                  min={dateFrom || undefined}
+                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                />
+                <div className="mt-1 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => shiftComplianceDateToMonth(-1)}
+                    className="rounded-lg border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-[11px] text-neutral-300 hover:bg-neutral-900"
+                  >
+                    -1M
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => shiftComplianceDateToMonth(1)}
+                    className="rounded-lg border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-[11px] text-neutral-300 hover:bg-neutral-900"
+                  >
+                    +1M
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-1 text-xs text-neutral-400">Month Quick Select</div>
+                <input
+                  type="month"
+                  value={complianceMonthKey}
+                  onChange={(e) => handleComplianceMonthChange(e.target.value)}
                   className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
                 />
               </div>
@@ -3559,9 +3905,10 @@ export default function AdminAnalyticsPage() {
               <div>
                 <div className="mb-1 text-xs text-neutral-400">Session</div>
                 <input
-                  type="text"
+                  type="password"
                   value={pin}
-                  readOnly
+                  onChange={(e) => setPin(e.target.value)}
+                  placeholder="Enter your PIN"
                   className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
                 />
               </div>
@@ -4057,7 +4404,7 @@ export default function AdminAnalyticsPage() {
                 </div>
               ) : null}
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
                 <div>
                   <div className="mb-1 text-xs text-neutral-400">City</div>
                   <select
@@ -4074,7 +4421,8 @@ export default function AdminAnalyticsPage() {
                   <input
                     type="date"
                     value={summaryDateFrom}
-                    onChange={(e) => setSummaryDateFrom(e.target.value)}
+                    onChange={(e) => handleSummaryDateFromChange(e.target.value)}
+                    max={summaryDateTo || undefined}
                     className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
                   />
                 </div>
@@ -4083,7 +4431,17 @@ export default function AdminAnalyticsPage() {
                   <input
                     type="date"
                     value={summaryDateTo}
-                    onChange={(e) => setSummaryDateTo(e.target.value)}
+                    onChange={(e) => handleSummaryDateToChange(e.target.value)}
+                    min={summaryDateFrom || undefined}
+                    className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                  />
+                </div>
+                <div>
+                  <div className="mb-1 text-xs text-neutral-400">Month Quick Select</div>
+                  <input
+                    type="month"
+                    value={summaryMonthKey}
+                    onChange={(e) => handleSummaryMonthChange(e.target.value)}
                     className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
                   />
                 </div>
@@ -4144,9 +4502,10 @@ export default function AdminAnalyticsPage() {
                 <div>
                   <div className="mb-1 text-xs text-neutral-400">Session</div>
                   <input
-                    type="text"
+                    type="password"
                     value={pin}
-                    readOnly
+                    onChange={(e) => setPin(e.target.value)}
+                    placeholder="Enter your PIN"
                     className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
                   />
                 </div>
@@ -4983,7 +5342,8 @@ export default function AdminAnalyticsPage() {
                     <input
                       type="date"
                       value={summaryDateFrom}
-                      onChange={(e) => setSummaryDateFrom(e.target.value)}
+                      onChange={(e) => handleSummaryDateFromChange(e.target.value)}
+                      max={summaryDateTo || undefined}
                       className="mt-1 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
                     />
                   </label>
@@ -4992,7 +5352,8 @@ export default function AdminAnalyticsPage() {
                     <input
                       type="date"
                       value={summaryDateTo}
-                      onChange={(e) => setSummaryDateTo(e.target.value)}
+                      onChange={(e) => handleSummaryDateToChange(e.target.value)}
+                      min={summaryDateFrom || undefined}
                       className="mt-1 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
                     />
                   </label>
@@ -5045,9 +5406,10 @@ export default function AdminAnalyticsPage() {
                 <div>
                   <div className="mb-1 text-xs text-neutral-400">Session</div>
                   <input
-                    type="text"
+                    type="password"
                     value={pin}
-                    readOnly
+                    onChange={(e) => setPin(e.target.value)}
+                    placeholder="Enter your PIN"
                     className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
                   />
                 </div>
@@ -5095,6 +5457,46 @@ export default function AdminAnalyticsPage() {
                   );
                 })}
               </div>
+            </div>
+
+            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+              <div className="mb-2 text-xs font-semibold tracking-wide text-neutral-300">CCTV Operational Behavior (MVP)</div>
+              {cctvScoreLoadError ? (
+                <div className="text-xs text-amber-300">{cctvScoreLoadError}</div>
+              ) : cctvMetricSnapshot.length ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-xs">
+                    <thead className="border-b border-neutral-800 text-neutral-400">
+                      <tr>
+                        <th className="px-2 py-1">Branch</th>
+                        <th className="px-2 py-1">Station</th>
+                        <th className="px-2 py-1">Presence</th>
+                        <th className="px-2 py-1">Peak Absence</th>
+                        <th className="px-2 py-1">Idle Ratio</th>
+                        <th className="px-2 py-1">Hygiene</th>
+                        <th className="px-2 py-1">Unsafe Count</th>
+                        <th className="px-2 py-1">Response Delay</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cctvMetricSnapshot.slice(0, 60).map((row) => (
+                        <tr key={`cctv-${row.branchCode}-${row.stationCode}`} className="border-b border-neutral-900/80">
+                          <td className="px-2 py-1 tabular-nums text-neutral-200">{row.branchCode || "—"}</td>
+                          <td className="px-2 py-1 text-neutral-200">{row.stationCode || "—"}</td>
+                          <td className="px-2 py-1 tabular-nums">{formatDecimal(Number(row.metrics.station_presence_rate || 0), 3)}</td>
+                          <td className="px-2 py-1 tabular-nums">{formatDecimal(Number(row.metrics.peak_time_absence_events || 0), 1)}</td>
+                          <td className="px-2 py-1 tabular-nums">{formatDecimal(Number(row.metrics.idle_time_ratio || 0), 3)}</td>
+                          <td className="px-2 py-1 tabular-nums">{formatDecimal(Number(row.metrics.hygiene_action_completion || 0), 3)}</td>
+                          <td className="px-2 py-1 tabular-nums">{formatDecimal(Number(row.metrics.unsafe_behavior_count || 0), 1)}</td>
+                          <td className="px-2 py-1 tabular-nums">{formatDecimal(Number(row.metrics.response_delay_to_workload_spike || 0), 2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-xs text-neutral-500">CCTV rollup is empty for this range. Ingest events first, then reload analytics.</div>
+              )}
             </div>
 
             {evaluationSectionView === "all" || evaluationSectionView === "summary" ? (
@@ -5374,7 +5776,7 @@ export default function AdminAnalyticsPage() {
                     <input
                       type="date"
                       value={evaluationDetailDate}
-                      onChange={(e) => setEvaluationDetailDate(e.target.value)}
+                      onChange={(e) => handleEvaluationDetailDateChange(e.target.value)}
                       className="mt-1 w-full min-w-[180px] rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
                     />
                   </label>
@@ -5559,7 +5961,7 @@ export default function AdminAnalyticsPage() {
                     <input
                       type="date"
                       value={evaluationDetailDate}
-                      onChange={(e) => setEvaluationDetailDate(e.target.value)}
+                      onChange={(e) => handleEvaluationDetailDateChange(e.target.value)}
                       className="mt-1 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs text-white"
                     />
                   </label>
@@ -5835,11 +6237,21 @@ export default function AdminAnalyticsPage() {
                 </div>
                 <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:min-w-[320px]">
                   <label className="text-xs text-neutral-400">
+                    Month Quick Select
+                    <input
+                      type="month"
+                      value={summaryMonthKey}
+                      onChange={(e) => handleSummaryMonthChange(e.target.value)}
+                      className="mt-1 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+                    />
+                  </label>
+                  <label className="text-xs text-neutral-400">
                     From (same as Sales Summary)
                     <input
                       type="date"
                       value={summaryDateFrom}
-                      onChange={(e) => setSummaryDateFrom(e.target.value)}
+                      onChange={(e) => handleSummaryDateFromChange(e.target.value)}
+                      max={summaryDateTo || undefined}
                       className="mt-1 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
                     />
                   </label>
@@ -5848,7 +6260,8 @@ export default function AdminAnalyticsPage() {
                     <input
                       type="date"
                       value={summaryDateTo}
-                      onChange={(e) => setSummaryDateTo(e.target.value)}
+                      onChange={(e) => handleSummaryDateToChange(e.target.value)}
+                      min={summaryDateFrom || undefined}
                       className="mt-1 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
                     />
                   </label>
@@ -6337,13 +6750,13 @@ export default function AdminAnalyticsPage() {
           <div className="mt-8 rounded-2xl border border-amber-800/50 bg-amber-950/20 p-5 text-sm text-amber-100">
             <div className="font-semibold">Management P&amp;L is locked</div>
             <div className="mt-1 text-xs text-amber-100/90">
-              This page requires a fresh Passkey verification (phishing-resistant step-up).
+              This page requires recent MFA verification.
             </div>
             <div className="mt-2 text-xs text-amber-100/80">
-              管理P&amp;Lの閲覧手順:
-              <span className="block mt-1">1) 上の Security セクションで <span className="font-semibold">Verify With Passkey</span> を押します。</span>
-              <span className="block">2) 端末の認証（指紋/Face ID/セキュリティキー）を完了します。</span>
-              <span className="block">3) 認証完了後、このタブを再読み込みすると閲覧できます。</span>
+              Access steps:
+              <span className="block mt-1">1) Click <span className="font-semibold">Verify With Passkey</span> in the Security section.</span>
+              <span className="block">2) If Passkey is unavailable, enter your Session PIN and retry to use PIN step-up.</span>
+              <span className="block">3) After verification, reload this tab.</span>
             </div>
           </div>
           )
@@ -6384,7 +6797,8 @@ export default function AdminAnalyticsPage() {
                 <input
                   type="date"
                   value={summaryDateFrom}
-                  onChange={(e) => setSummaryDateFrom(e.target.value)}
+                  onChange={(e) => handleSummaryDateFromChange(e.target.value)}
+                  max={summaryDateTo || undefined}
                   className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
                 />
               </div>
@@ -6394,7 +6808,18 @@ export default function AdminAnalyticsPage() {
                 <input
                   type="date"
                   value={summaryDateTo}
-                  onChange={(e) => setSummaryDateTo(e.target.value)}
+                  onChange={(e) => handleSummaryDateToChange(e.target.value)}
+                  min={summaryDateFrom || undefined}
+                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                />
+              </div>
+
+              <div>
+                <div className="mb-1 text-xs text-neutral-400">Month Quick Select</div>
+                <input
+                  type="month"
+                  value={summaryMonthKey}
+                  onChange={(e) => handleSummaryMonthChange(e.target.value)}
                   className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
                 />
               </div>

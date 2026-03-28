@@ -1,12 +1,20 @@
 // src/app/admin/staff/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getAuth, isAdmin, type City } from "@/lib/auth";
+import { canAccessAdminNav, getAuth, type City } from "@/lib/auth";
 import { apiGet, apiPost, qs } from "@/lib/api";
 
-const ROLE_OPTIONS = ["STAFF", "MANAGER", "HQ", "ADMIN"] as const;
+const ROLE_OPTIONS = [
+  "STAFF",
+  "MANAGER",
+  "MANAGEMENT",
+  "HQ",
+  "ADMIN",
+  "DUBAI_MANAGEMENT",
+  "MANILA_MANAGEMENT",
+] as const;
 type StaffRole = (typeof ROLE_OPTIONS)[number];
 
 const STATUS_OPTIONS = ["ACTIVE", "INACTIVE"] as const;
@@ -24,6 +32,7 @@ type StaffRow = {
   max_consecutive_days?: number;
   notes?: string;
   skill_rank?: string;
+  workforce_push_user_key?: string;
 
   setup_required?: boolean;
   setup_completed?: boolean;
@@ -32,10 +41,72 @@ type StaffRow = {
   updated_at?: string | null;
 };
 
+type CreateStaffResp = {
+  ok: boolean;
+  display_name?: string;
+  home_branch?: string;
+  role?: string;
+  status?: string;
+};
+
+type ChangeRoleResp = {
+  ok: boolean;
+  staff_name?: string;
+  role?: string;
+};
+
 type Msg = { kind: "ok" | "err" | "info"; text: string } | null;
 
 function norm(s: any) {
   return String(s ?? "").trim();
+}
+
+function legacyPinOrEmpty(pin: string) {
+  const p = norm(pin);
+  if (!p) return "";
+  if (p.toLowerCase() === "session") return "";
+  return p;
+}
+
+function canonicalStaffName(name: string) {
+  return norm(name).toLowerCase().replace(/\s+/g, " ");
+}
+
+function dedupeStaffRows(input: StaffRow[]): StaffRow[] {
+  const byName = new Map<string, StaffRow>();
+  for (const row of input) {
+    const key = canonicalStaffName(String(row.display_name || ""));
+    if (!key) continue;
+    const prev = byName.get(key);
+    if (!prev) {
+      byName.set(key, row);
+      continue;
+    }
+    const prevScore =
+      (norm(prev.home_branch) ? 1 : 0) +
+      (norm(prev.notes) ? 1 : 0) +
+      (norm(prev.role) && norm(prev.role) !== "STAFF" ? 1 : 0);
+    const nextScore =
+      (norm(row.home_branch) ? 1 : 0) +
+      (norm(row.notes) ? 1 : 0) +
+      (norm(row.role) && norm(row.role) !== "STAFF" ? 1 : 0);
+    if (nextScore > prevScore) byName.set(key, row);
+  }
+  return Array.from(byName.values()).sort((a, b) =>
+    norm(a.display_name).localeCompare(norm(b.display_name))
+  );
+}
+
+function friendlyErrorText(raw: string): string {
+  const x = String(raw || "");
+  if (!x) return "Unknown error";
+  if (x.includes("STEP_UP_REQUIRED:phishing_resistant")) {
+    return "This action requires a fresh Passkey verification.";
+  }
+  if (x.includes("Only ADMIN can use this endpoint") || x.includes("\"Only ADMIN can use this endpoint\"")) {
+    return "Legacy backend endpoint detected. Please redeploy backend, then retry.";
+  }
+  return x;
 }
 
 function asRole(s: any): StaffRole {
@@ -59,6 +130,12 @@ function roleBadgeClass(role: StaffRole) {
   }
   if (role === "MANAGER") {
     return "border-sky-900/40 bg-sky-950/10 text-sky-200";
+  }
+  if (role === "MANAGEMENT") {
+    return "border-cyan-900/40 bg-cyan-950/10 text-cyan-200";
+  }
+  if (role === "DUBAI_MANAGEMENT" || role === "MANILA_MANAGEMENT") {
+    return "border-teal-900/40 bg-teal-950/10 text-teal-200";
   }
   return "border-neutral-800 bg-neutral-950/40 text-neutral-200";
 }
@@ -135,7 +212,7 @@ export default function AdminStaffPage() {
 
   const [statusFilter, setStatusFilter] = useState<StaffStatus>("ACTIVE");
   const [homeBranchFilter, setHomeBranchFilter] = useState("");
-  const [q, setQ] = useState("");
+  const q = "";
   const [limit, setLimit] = useState(2000);
   const [listSelectedDisplayName, setListSelectedDisplayName] = useState("");
   const [listStaffOptions, setListStaffOptions] = useState<string[]>([]);
@@ -144,15 +221,16 @@ export default function AdminStaffPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<Msg>(null);
 
-  const [selectedDisplayName, setSelectedDisplayName] = useState("");
-  const [newDisplayName, setNewDisplayName] = useState("");
-
-  const [homeBranch, setHomeBranch] = useState("");
-  const [role, setRole] = useState<StaffRole>("STAFF");
-  const [status, setStatus] = useState<StaffStatus>("ACTIVE");
-  const [maxDaysPerWeek, setMaxDaysPerWeek] = useState<number>(6);
-  const [maxConsecutiveDays, setMaxConsecutiveDays] = useState<number>(6);
-  const [notes, setNotes] = useState("");
+  const [newStaffName, setNewStaffName] = useState("");
+  const [newStaffHomeBranch, setNewStaffHomeBranch] = useState("");
+  const [newStaffRole, setNewStaffRole] = useState<"STAFF" | "MANAGER">("STAFF");
+  const [newStaffStatus, setNewStaffStatus] = useState<StaffStatus>("ACTIVE");
+  const [roleDrafts, setRoleDrafts] = useState<Record<string, StaffRole>>({});
+  const [roleSavingName, setRoleSavingName] = useState("");
+  const [roleSavedName, setRoleSavedName] = useState("");
+  const [pushKeyDrafts, setPushKeyDrafts] = useState<Record<string, string>>({});
+  const [pushKeySavingName, setPushKeySavingName] = useState("");
+  const [pushKeySavedName, setPushKeySavedName] = useState("");
 
   useEffect(() => {
     const a = getAuth();
@@ -160,23 +238,47 @@ export default function AdminStaffPage() {
       router.replace("/login?next=%2Fadmin%2Fstaff");
       return;
     }
-    if (!isAdmin(a)) {
+    if (!canAccessAdminNav(a)) {
       router.replace("/week");
       return;
     }
     setAuthed(a);
     setCity(a.city || "dubai");
     setApproverName(a.staffName || "");
+    setPin(a.pin || "");
   }, [router]);
 
 
+  const loadListStaffOptions = useCallback(async (nextCity: City, nextStatus: StaffStatus) => {
+    try {
+      const nm = norm(approverName);
+      if (!nm) {
+        setListStaffOptions([]);
+        return;
+      }
+      const p = legacyPinOrEmpty(pin);
+      const res = await apiGet<{ ok?: boolean; names?: string[] }>(
+        `/api/admin/staff_master/names${qs({
+          city: nextCity,
+          status: nextStatus,
+          limit: 5000,
+          approver_name: nm,
+          ...(p ? { pin: p } : {}),
+        })}`
+      );
+      setListStaffOptions(Array.isArray(res?.names) ? res.names : []);
+    } catch {
+      setListStaffOptions([]);
+    }
+  }, [approverName, pin]);
+
   useEffect(() => {
-    if (approverName.trim() && pin.trim()) {
-      loadListStaffOptions(city, statusFilter);
+    if (approverName.trim()) {
+      void loadListStaffOptions(city, statusFilter);
     } else {
       setListStaffOptions([]);
     }
-  }, [city, statusFilter, approverName, pin]);
+  }, [city, statusFilter, approverName, loadListStaffOptions]);
 
 
   const msgCls =
@@ -187,32 +289,13 @@ export default function AdminStaffPage() {
         : "text-amber-200";
 
 
-    async function loadListStaffOptions(nextCity: City, nextStatus: StaffStatus) {
-    try {
-      const res = await apiGet<{ ok?: boolean; names?: string[] }>(
-        `/api/admin/staff_master/names${qs({
-          city: nextCity,
-          status: nextStatus,
-          limit: 5000,
-          approver_name: approverName.trim(),
-          pin: pin.trim(),
-        })}`
-      );
-      setListStaffOptions(Array.isArray(res?.names) ? res.names : []);
-    } catch {
-      setListStaffOptions([]);
-    }
-  }
-
-
   const load = async () => {
     setLoading(true);
     setMsg(null);
     try {
       const nm = norm(approverName);
-      const p = norm(pin);
+      const p = legacyPinOrEmpty(pin);
       if (!nm) throw new Error("Approver name is required.");
-      if (!p) throw new Error("PIN is required.");
 
       const res = await apiGet<{ ok: boolean; rows: StaffRow[] }>(
         `/api/admin/staff_master${qs({
@@ -222,7 +305,7 @@ export default function AdminStaffPage() {
           q: norm(listSelectedDisplayName) || q,
           limit,
           approver_name: nm,
-          pin: p,
+          ...(p ? { pin: p } : {}),
         })}`
       );
 
@@ -233,76 +316,181 @@ export default function AdminStaffPage() {
         role: norm(r.role),
         status: norm(r.status),
         notes: norm(r.notes),
+        workforce_push_user_key: norm(r.workforce_push_user_key),
       }));
 
-      setRows(list);
-      setMsg({ kind: "ok", text: `Loaded: ${list.length} rows` });
+      const deduped = dedupeStaffRows(list);
+      setRows(deduped);
+      setMsg({ kind: "ok", text: `Loaded: ${deduped.length} rows` });
     } catch (e: any) {
+      const errText = String(e?.message || e || "");
+      const looksLegacyAdminGate =
+        errText.includes("Only ADMIN can use this endpoint") || errText.includes("\"Only ADMIN can use this endpoint\"");
+      if (looksLegacyAdminGate) {
+        try {
+          const nm = norm(approverName);
+          const p = legacyPinOrEmpty(pin);
+          if (!p) {
+            throw new Error("Legacy backend detected. Enter PIN once, then retry Verify & Load.");
+          }
+          const namesRes = await apiGet<{ ok?: boolean; names?: string[] }>(
+            `/api/admin/staff_master/names${qs({
+              city,
+              status: statusFilter,
+              limit: Math.max(1, Math.min(limit, 500)),
+              approver_name: nm,
+              pin: p,
+            })}`
+          );
+          const names = (Array.isArray(namesRes?.names) ? namesRes.names : []).slice(0, Math.max(1, Math.min(limit, 500)));
+          const detailRows = await Promise.all(
+            names.map(async (name) => {
+              const one = await apiGet<{ ok?: boolean; row?: any }>(
+                `/api/admin/staff/one${qs({
+                  display_name: name,
+                  approver_name: nm,
+                  pin: p,
+                })}`
+              );
+              return {
+                id: norm(one?.row?.display_name || name),
+                city: norm(one?.row?.city || city),
+                display_name: norm(one?.row?.display_name || name),
+                home_branch: norm(one?.row?.home_branch),
+                role: norm(one?.row?.role || "STAFF"),
+                status: norm(one?.row?.status || "ACTIVE"),
+                max_days_per_week: 6,
+                max_consecutive_days: 6,
+                notes: "",
+                setup_required: Boolean(one?.row?.setup_required),
+                setup_completed: Boolean(one?.row?.setup_completed),
+              } as StaffRow;
+            })
+          );
+          const deduped = dedupeStaffRows(detailRows);
+          setRows(deduped);
+          setMsg({ kind: "info", text: `Legacy backend fallback used. Loaded: ${deduped.length} rows` });
+          return;
+        } catch (fallbackErr: any) {
+          setRows([]);
+          setMsg({ kind: "err", text: friendlyErrorText(String(fallbackErr?.message || fallbackErr || errText)) });
+          return;
+        }
+      }
       setRows([]);
-      setMsg({ kind: "err", text: e?.message || String(e) });
+      setMsg({ kind: "err", text: friendlyErrorText(errText) });
     } finally {
       setLoading(false);
     }
   };
 
   const resetForm = () => {
-    setSelectedDisplayName("");
-    setNewDisplayName("");
-    setHomeBranch("");
-    setRole("STAFF");
-    setStatus("ACTIVE");
-    setMaxDaysPerWeek(6);
-    setMaxConsecutiveDays(6);
-    setNotes("");
+    setNewStaffName("");
+    setNewStaffHomeBranch("");
+    setNewStaffRole("STAFF");
+    setNewStaffStatus("ACTIVE");
   };
 
-  const onPickRow = (r: StaffRow) => {
-    setSelectedDisplayName(norm(r.display_name));
-    setNewDisplayName("");
-    setHomeBranch(norm(r.home_branch));
-    setRole(asRole(r.role));
-    setStatus(asStatus(r.status));
-    setMaxDaysPerWeek(Number(r.max_days_per_week ?? 6));
-    setMaxConsecutiveDays(Number(r.max_consecutive_days ?? 6));
-    setNotes(norm(r.notes));
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const upsert = async () => {
+  const createNewStaff = async () => {
     setLoading(true);
     setMsg(null);
     try {
       const nm = norm(approverName);
-      const p = norm(pin);
+      const p = legacyPinOrEmpty(pin);
       if (!nm) throw new Error("Approver name is required.");
-      if (!p) throw new Error("PIN is required.");
+      if (!p) throw new Error("PIN is required for Add New Staff.");
+      const display = norm(newStaffName);
+      const branch = norm(newStaffHomeBranch);
+      if (!display) throw new Error("New staff name is required.");
+      if (!branch) throw new Error("Home branch is required.");
 
-      const finalDisplayName = norm(newDisplayName) || norm(selectedDisplayName);
-      if (!finalDisplayName) throw new Error("display_name is required.");
-
-      const payload = {
+      const r = await apiPost<CreateStaffResp>("/api/store/staff/create", {
         city,
-        display_name: finalDisplayName,
-        home_branch: norm(homeBranch),
-        role,
-        status,
-        max_days_per_week: Math.max(1, Math.min(7, Number(maxDaysPerWeek || 6))),
-        max_consecutive_days: Math.max(1, Math.min(14, Number(maxConsecutiveDays || 6))),
-        notes: norm(notes),
+        display_name: display,
+        home_branch: branch,
+        role: newStaffRole,
+        status: newStaffStatus,
         approver_name: nm,
         pin: p,
-      };
+      });
 
-      const r = await apiPost<{ ok: boolean; id: string }>(
-        "/api/admin/staff_master/upsert",
-        payload
-      );
-
-      setMsg({ kind: "ok", text: `Saved: ${r.id}` });
+      setMsg({ kind: "ok", text: `Created: ${norm(r?.display_name || display)}` });
+      resetForm();
       await load();
     } catch (e: any) {
-      setMsg({ kind: "err", text: e?.message || String(e) });
+      const raw = String(e?.message || e || "");
+      setMsg({ kind: "err", text: friendlyErrorText(raw) });
     } finally {
+      setLoading(false);
+    }
+  };
+
+  const changeRole = async (displayName: string) => {
+    setLoading(true);
+    setMsg(null);
+    setRoleSavingName(displayName);
+    try {
+      const nm = norm(approverName);
+      const p = legacyPinOrEmpty(pin);
+      if (!nm) throw new Error("Approver name is required.");
+      if (!p) throw new Error("PIN is required for role change.");
+      const dn = norm(displayName);
+      if (!dn) throw new Error("display_name is required.");
+      const nextRole = roleDrafts[dn] || asRole(rows.find((x) => norm(x.display_name) === dn)?.role);
+
+      const res = await apiPost<ChangeRoleResp>("/api/admin/staff/change_role", {
+        target_staff_name: dn,
+        new_role: nextRole,
+        approver_name: nm,
+        pin: p,
+      });
+      setMsg({ kind: "ok", text: `Role updated: ${dn} -> ${norm(res?.role || nextRole)}` });
+      setRoleSavedName(dn);
+      await load();
+    } catch (e: any) {
+      const raw = String(e?.message || e || "");
+      setMsg({ kind: "err", text: friendlyErrorText(raw) });
+    } finally {
+      setRoleSavingName("");
+      setLoading(false);
+    }
+  };
+
+  const savePushUserKey = async (displayName: string) => {
+    setLoading(true);
+    setMsg(null);
+    setPushKeySavingName(displayName);
+    try {
+      const nm = norm(approverName);
+      const p = legacyPinOrEmpty(pin);
+      if (!nm) throw new Error("Approver name is required.");
+      if (!p) throw new Error("PIN is required for workforce push key save.");
+      const dn = norm(displayName);
+      if (!dn) throw new Error("display_name is required.");
+      const row = rows.find((x) => norm(x.display_name) === dn);
+      if (!row) throw new Error("staff row not found.");
+      const keyDraft = norm(pushKeyDrafts[dn] ?? row.workforce_push_user_key);
+      await apiPost<{ ok: boolean; id?: string }>("/api/admin/staff_master/upsert", {
+        city: norm(row.city || city),
+        display_name: dn,
+        home_branch: norm(row.home_branch),
+        role: asRole(row.role),
+        status: asStatus(row.status),
+        max_days_per_week: Number(row.max_days_per_week ?? 6),
+        max_consecutive_days: Number(row.max_consecutive_days ?? 6),
+        notes: norm(row.notes),
+        workforce_push_user_key: keyDraft,
+        approver_name: nm,
+        pin: p,
+      });
+      setMsg({ kind: "ok", text: `Push key saved: ${dn}` });
+      setPushKeySavedName(dn);
+      await load();
+    } catch (e: any) {
+      const raw = String(e?.message || e || "");
+      setMsg({ kind: "err", text: friendlyErrorText(raw) });
+    } finally {
+      setPushKeySavingName("");
       setLoading(false);
     }
   };
@@ -312,9 +500,8 @@ export default function AdminStaffPage() {
     setMsg(null);
     try {
       const nm = norm(approverName);
-      const p = norm(pin);
+      const p = legacyPinOrEmpty(pin);
       if (!nm) throw new Error("Approver name is required.");
-      if (!p) throw new Error("PIN is required.");
 
       const dn = norm(display_name);
       if (!dn) throw new Error("display_name missing.");
@@ -326,7 +513,7 @@ export default function AdminStaffPage() {
           display_name: dn,
           status: newStatus,
           approver_name: nm,
-          pin: p,
+          ...(p ? { pin: p } : {}),
         }
       );
 
@@ -336,7 +523,7 @@ export default function AdminStaffPage() {
       });
       await load();
     } catch (e: any) {
-      setMsg({ kind: "err", text: e?.message || String(e) });
+      setMsg({ kind: "err", text: friendlyErrorText(String(e?.message || e || "")) });
     } finally {
       setLoading(false);
     }
@@ -361,14 +548,6 @@ export default function AdminStaffPage() {
 
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [rows]);
-
-  const sortedNames = useMemo(
-    () =>
-      Array.from(new Set(rows.map((r) => norm(r.display_name)).filter(Boolean))).sort((a, b) =>
-        a.localeCompare(b)
-      ),
-    [rows]
-  );
 
   if (!authed) return <div className="p-6 text-sm text-neutral-400">Loading...</div>;
 
@@ -463,7 +642,7 @@ export default function AdminStaffPage() {
           </div>
 
           <div>
-            <div className="mb-1 text-xs text-neutral-400">Approver name (ADMIN)</div>
+            <div className="mb-1 text-xs text-neutral-400">Approver name (HQ/ADMIN)</div>
             <input
               className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
               value={approverName}
@@ -473,12 +652,12 @@ export default function AdminStaffPage() {
           </div>
 
           <div>
-            <div className="mb-1 text-xs text-neutral-400">PIN</div>
+            <div className="mb-1 text-xs text-neutral-400">PIN (optional legacy)</div>
             <input
               className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
-              placeholder="PIN"
+              placeholder="Leave blank for session auth"
               type="password"
               inputMode="numeric"
             />
@@ -489,9 +668,9 @@ export default function AdminStaffPage() {
           <button
             type="button"
             onClick={load}
-            disabled={loading || !norm(approverName) || !norm(pin)}
+            disabled={loading || !norm(approverName)}
             className="rounded-xl border border-neutral-800 bg-neutral-950/30 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900/40 hover:text-white disabled:opacity-60"
-            title={!norm(pin) ? "Enter PIN to load" : "Load"}
+            title="Load"
           >
             {loading ? "Loading..." : "Verify & Load"}
           </button>
@@ -509,39 +688,20 @@ export default function AdminStaffPage() {
       </div>
 
       <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-        <div className="text-sm font-semibold">Add / Update</div>
+        <div className="text-sm font-semibold">Add New Staff</div>
+        <div className="mt-1 text-xs text-neutral-500">
+          Create only. Existing staff updates are managed from the role/status list below.
+        </div>
 
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
           <div className="sm:col-span-2">
-            <div className="mb-1 text-xs text-neutral-400">Select existing staff</div>
-            <select
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              value={selectedDisplayName}
-              onChange={(e) => setSelectedDisplayName(e.target.value)}
-            >
-              <option value="">Select staff</option>
-              {sortedNames.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-            <div className="mt-2 text-[11px] text-neutral-500">
-              Select an existing staff member to update.
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-1 text-xs text-neutral-400">Or add new staff</div>
+            <div className="mb-1 text-xs text-neutral-400">New staff full name</div>
             <input
               className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              value={newDisplayName}
-              onChange={(e) => setNewDisplayName(e.target.value)}
-              placeholder="New staff full name"
+              value={newStaffName}
+              onChange={(e) => setNewStaffName(e.target.value)}
+              placeholder="e.g. Test User"
             />
-            <div className="mt-2 text-[11px] text-neutral-500">
-              Leave blank unless creating a new staff record.
-            </div>
           </div>
 
           <div>
@@ -549,8 +709,8 @@ export default function AdminStaffPage() {
             <input
               list="branch_list"
               className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              value={homeBranch}
-              onChange={(e) => setHomeBranch(e.target.value)}
+              value={newStaffHomeBranch}
+              onChange={(e) => setNewStaffHomeBranch(e.target.value)}
               placeholder="Business Bay / JLT / ..."
             />
             <datalist id="branch_list">
@@ -564,14 +724,11 @@ export default function AdminStaffPage() {
             <div className="mb-1 text-xs text-neutral-400">Role</div>
             <select
               className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              value={role}
-              onChange={(e) => setRole(e.target.value as StaffRole)}
+              value={newStaffRole}
+              onChange={(e) => setNewStaffRole(e.target.value as "STAFF" | "MANAGER")}
             >
-              {ROLE_OPTIONS.map((x) => (
-                <option key={x} value={x}>
-                  {x}
-                </option>
-              ))}
+              <option value="STAFF">STAFF</option>
+              <option value="MANAGER">MANAGER</option>
             </select>
           </div>
 
@@ -579,8 +736,8 @@ export default function AdminStaffPage() {
             <div className="mb-1 text-xs text-neutral-400">Status</div>
             <select
               className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              value={status}
-              onChange={(e) => setStatus(e.target.value as StaffStatus)}
+              value={newStaffStatus}
+              onChange={(e) => setNewStaffStatus(e.target.value as StaffStatus)}
             >
               {STATUS_OPTIONS.map((x) => (
                 <option key={x} value={x}>
@@ -589,50 +746,16 @@ export default function AdminStaffPage() {
               ))}
             </select>
           </div>
-
-          <div>
-            <div className="mb-1 text-xs text-neutral-400">Max days / week</div>
-            <input
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              type="number"
-              min={1}
-              max={7}
-              value={Number.isFinite(maxDaysPerWeek) ? maxDaysPerWeek : 6}
-              onChange={(e) => setMaxDaysPerWeek(Number(e.target.value))}
-            />
-          </div>
-
-          <div>
-            <div className="mb-1 text-xs text-neutral-400">Max consecutive days</div>
-            <input
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              type="number"
-              min={1}
-              max={14}
-              value={Number.isFinite(maxConsecutiveDays) ? maxConsecutiveDays : 6}
-              onChange={(e) => setMaxConsecutiveDays(Number(e.target.value))}
-            />
-          </div>
-
-          <div className="sm:col-span-3">
-            <div className="mb-1 text-xs text-neutral-400">Notes</div>
-            <input
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Optional"
-            />
-          </div>
         </div>
 
         <div className="mt-3 flex items-center gap-2">
           <button
             type="button"
-            disabled={loading || !norm(approverName) || !norm(pin)}
-            onClick={upsert}
+            disabled={loading || !norm(approverName)}
+            onClick={createNewStaff}
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60"
           >
-            Save
+            Add New Staff
           </button>
         </div>
       </div>
@@ -640,7 +763,7 @@ export default function AdminStaffPage() {
       <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold">List</div>
+            <div className="text-sm font-semibold">Role Management</div>
             <div className="text-xs text-neutral-500">
               Rows: <span className="text-neutral-200">{rows.length}</span>
             </div>
@@ -707,7 +830,7 @@ export default function AdminStaffPage() {
           <button
             type="button"
             onClick={load}
-            disabled={loading || !norm(approverName) || !norm(pin)}
+            disabled={loading || !norm(approverName)}
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60"
           >
             Load List
@@ -793,23 +916,54 @@ export default function AdminStaffPage() {
                         {norm(r.notes)}
                       </div>
                     ) : null}
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        className="w-72 max-w-full rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1 text-xs"
+                        placeholder="workforce_push_user_key"
+                        value={pushKeyDrafts[dn] ?? norm(r.workforce_push_user_key)}
+                        onChange={(e) =>
+                          setPushKeyDrafts((prev) => ({ ...prev, [dn]: e.target.value }))
+                        }
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void savePushUserKey(dn)}
+                        className="rounded-lg border border-fuchsia-900 bg-fuchsia-950/20 px-3 py-1 text-xs text-fuchsia-200 hover:bg-fuchsia-950/40 disabled:opacity-60"
+                        disabled={loading}
+                      >
+                        {pushKeySavingName === dn ? "Saving key..." : "Save Push Key"}
+                      </button>
+                      {pushKeySavedName === dn ? (
+                        <span className="text-[11px] text-emerald-300">Saved</span>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      className="rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1 text-xs"
+                      value={roleDrafts[dn] || rr}
+                      onChange={(e) =>
+                        setRoleDrafts((prev) => ({ ...prev, [dn]: asRole(e.target.value) }))
+                      }
+                    >
+                      {ROLE_OPTIONS.map((x) => (
+                        <option key={x} value={x}>
+                          {x}
+                        </option>
+                      ))}
+                    </select>
                     <button
                       type="button"
-                      onClick={() => onPickRow(r)}
-                      className="rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-1 text-xs hover:bg-neutral-900"
+                      onClick={() => void changeRole(dn)}
+                      className="rounded-lg border border-amber-900 bg-amber-950/20 px-3 py-1 text-xs text-amber-200 hover:bg-amber-950/40 disabled:opacity-60"
+                      disabled={loading}
                     >
-                      Edit
+                      {roleSavingName === dn ? "Saving..." : "Save Role"}
                     </button>
-
-                    <a
-                      href={`/admin/staff/roles?staff_name=${encodeURIComponent(dn)}`}
-                      className="rounded-lg border border-amber-900 bg-amber-950/20 px-3 py-1 text-xs text-amber-200 hover:bg-amber-950/40"
-                    >
-                      Role
-                    </a>
+                    {roleSavedName === dn ? (
+                      <span className="text-[11px] text-emerald-300">Saved</span>
+                    ) : null}
 
                     <a
                       href={`/admin/staff/audit?target_staff_name=${encodeURIComponent(dn)}`}
@@ -854,7 +1008,7 @@ export default function AdminStaffPage() {
         </div>
 
         <div className="mt-3 text-xs text-neutral-500">
-          Note: list endpoint is filtered by <code>status</code>. Switch to INACTIVE to see disabled staff.
+          Note: role/status changes apply from this list. If role update fails with legacy backend, redeploy backend and retry.
         </div>
       </div>
     </div>

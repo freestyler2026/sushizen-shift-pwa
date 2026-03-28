@@ -6,13 +6,22 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import LogoutButton from "@/components/LogoutButton";
-import { canAccessAdminNav, canAccessBackofficeEvaluationAdmin, canAccessPrivateReportAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
+import {
+  canAccessAdminNav,
+  canAccessBackofficeEvaluationAdmin,
+  canAccessInventoryAdmin,
+  canAccessPrivateReportAdmin,
+  getAuth,
+  refreshAuthFromApi,
+} from "@/lib/auth";
 
 type NavItem = {
   href: string;
   label: string;
   adminOnly?: boolean;
   match?: "exact" | "prefix";
+  badgeCount?: number;
+  badgeCritical?: boolean;
 };
 
 const PRIMARY: NavItem[] = [
@@ -25,12 +34,14 @@ const PRIMARY: NavItem[] = [
 const SECONDARY_BASE: NavItem[] = [
   { href: "/calendar", label: "Calendar", match: "exact" },
   { href: "/inbox", label: "Inbox", match: "exact" },
+  { href: "/store/procurement", label: "Store Procurement", match: "prefix" },
   { href: "/swap-approve", label: "Swap Approve", match: "exact" },
   { href: "/change-pin", label: "Change PIN", match: "exact" },
 ];
 
 const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin", label: "Admin Dashboard", adminOnly: true, match: "exact" },
+  { href: "/admin/inventory", label: "Inventory", adminOnly: true, match: "prefix" },
   { href: "/admin/private-reports", label: "Private Reports", adminOnly: true, match: "exact" },
   { href: "/admin/procurement", label: "Procurement", adminOnly: true, match: "prefix" },
   { href: "/admin/analytics", label: "Analytics", adminOnly: true, match: "exact" },
@@ -51,17 +62,23 @@ function NavBtn({
   label,
   active,
   compact = false,
+  badgeCount = 0,
+  badgeCritical = false,
 }: {
   href: string;
   label: string;
   active: boolean;
   compact?: boolean;
+  badgeCount?: number;
+  badgeCritical?: boolean;
 }) {
+  const shown = Number(badgeCount || 0);
+  const badgeText = shown > 9 ? "9+" : String(shown);
   return (
     <Link
       href={href}
       className={[
-        "inline-flex items-center justify-center rounded-xl border text-sm transition",
+        "inline-flex items-center justify-center gap-2 rounded-xl border text-sm transition",
         compact ? "min-h-10 px-2.5 py-1.5 text-center text-[11px]" : "min-h-10 px-3.5 py-2 text-sm",
         active
           ? "border-amber-500 bg-amber-950/25 text-amber-200"
@@ -69,6 +86,16 @@ function NavBtn({
       ].join(" ")}
     >
       {label}
+      {shown > 0 ? (
+        <span
+          className={[
+            "rounded-full border px-1.5 py-0.5 text-[10px] leading-none",
+            badgeCritical ? "border-rose-700/70 bg-rose-900/30 text-rose-200" : "border-amber-700/70 bg-amber-900/25 text-amber-200",
+          ].join(" ")}
+        >
+          {badgeText}
+        </span>
+      ) : null}
     </Link>
   );
 }
@@ -76,10 +103,13 @@ function NavBtn({
 export default function NavBar() {
   const pathname = usePathname();
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showInventoryAdmin, setShowInventoryAdmin] = useState(false);
   const [showPrivateReportAdmin, setShowPrivateReportAdmin] = useState(false);
   const [showBackofficeEvalAdmin, setShowBackofficeEvalAdmin] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const [procurementBadgeCount, setProcurementBadgeCount] = useState(0);
+  const [procurementBadgeCritical, setProcurementBadgeCritical] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -89,18 +119,50 @@ export default function NavBar() {
       if (!a) {
         if (!cancelled) {
           setShowAdmin(false);
+          setShowInventoryAdmin(false);
           setShowPrivateReportAdmin(false);
           setShowBackofficeEvalAdmin(false);
           setDisplayName("");
+          setProcurementBadgeCount(0);
+          setProcurementBadgeCritical(false);
         }
         return;
       }
       const resolved = await refreshAuthFromApi(a);
       if (!cancelled) {
         setShowAdmin(canAccessAdminNav(resolved));
+        setShowInventoryAdmin(canAccessInventoryAdmin(resolved));
         setShowPrivateReportAdmin(canAccessPrivateReportAdmin(resolved));
         setShowBackofficeEvalAdmin(canAccessBackofficeEvaluationAdmin(resolved));
         setDisplayName(resolved?.staffName || a.staffName || "");
+      }
+      try {
+        const accessToken = resolved?.accessToken || a.accessToken;
+        if (!accessToken) return;
+        const city = String(resolved?.city || a.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila";
+        const sumRes = await fetch(`/api/admin/procurement/badge-summary?city=${encodeURIComponent(city)}`, {
+          method: "GET",
+          cache: "no-store",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            ...(resolved?.stepUpToken ? { "X-Step-Up-Token": resolved.stepUpToken } : {}),
+          },
+        });
+        if (!sumRes.ok) return;
+        const sumText = await sumRes.text();
+        const sumJson = JSON.parse(sumText || "{}");
+        if (!cancelled) {
+          const total = Number(sumJson?.total_badge_count || 0);
+          setProcurementBadgeCount(total);
+          setProcurementBadgeCritical(
+            Number(sumJson?.price_check_overdue_count || 0) > 0 || Number(sumJson?.issue_critical_count || 0) > 0,
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setProcurementBadgeCount(0);
+          setProcurementBadgeCritical(false);
+        }
       }
     }
 
@@ -116,8 +178,22 @@ export default function NavBar() {
   const secondary = useMemo(() => {
     const base = [...SECONDARY_BASE];
     if (showAdmin) {
-      base.push(...ADMIN_ITEMS);
+      base.push(
+        ...ADMIN_ITEMS.map((item) =>
+          item.href === "/admin/procurement"
+            ? { ...item, badgeCount: procurementBadgeCount, badgeCritical: procurementBadgeCritical }
+            : item,
+        ),
+      );
       if (showBackofficeEvalAdmin && !base.some((x) => x.href === "/admin/backoffice-evaluation")) {
+        base.push({ href: "/admin/backoffice-evaluation", label: "Backoffice Eval", adminOnly: true, match: "exact" });
+      }
+    } else if (showInventoryAdmin) {
+      base.push({ href: "/admin/inventory", label: "Inventory", adminOnly: true, match: "prefix" });
+      if (showPrivateReportAdmin) {
+        base.push({ href: "/admin/private-reports", label: "Private Reports", adminOnly: true, match: "exact" });
+      }
+      if (showBackofficeEvalAdmin) {
         base.push({ href: "/admin/backoffice-evaluation", label: "Backoffice Eval", adminOnly: true, match: "exact" });
       }
     } else if (showPrivateReportAdmin) {
@@ -129,7 +205,7 @@ export default function NavBar() {
       base.push({ href: "/admin/backoffice-evaluation", label: "Backoffice Eval", adminOnly: true, match: "exact" });
     }
     return base;
-  }, [showAdmin, showPrivateReportAdmin, showBackofficeEvalAdmin]);
+  }, [showAdmin, showInventoryAdmin, showPrivateReportAdmin, showBackofficeEvalAdmin, procurementBadgeCount, procurementBadgeCritical]);
 
   const activeMore = useMemo(() => secondary.some((item) => isActive(pathname, item)), [pathname, secondary]);
 
@@ -162,7 +238,7 @@ export default function NavBar() {
       <div className="mt-2.5 space-y-2 sm:hidden">
         <div className="grid grid-cols-3 gap-1.5">
           {PRIMARY.map((x) => (
-            <NavBtn key={x.href} href={x.href} label={x.label} active={isActive(pathname, x)} compact />
+            <NavBtn key={x.href} href={x.href} label={x.label} active={isActive(pathname, x)} compact badgeCount={x.badgeCount} badgeCritical={x.badgeCritical} />
           ))}
         </div>
 
@@ -183,7 +259,7 @@ export default function NavBar() {
         {mobileMoreOpen ? (
           <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-neutral-800 bg-neutral-950/30 p-1.5">
             {secondary.map((x) => (
-              <NavBtn key={x.href} href={x.href} label={x.label} active={isActive(pathname, x)} compact />
+              <NavBtn key={x.href} href={x.href} label={x.label} active={isActive(pathname, x)} compact badgeCount={x.badgeCount} badgeCritical={x.badgeCritical} />
             ))}
           </div>
         ) : null}
@@ -192,10 +268,10 @@ export default function NavBar() {
       <div className="mt-4 hidden sm:block">
         <nav className="flex flex-wrap items-center gap-2">
           {PRIMARY.map((x) => (
-            <NavBtn key={x.href} href={x.href} label={x.label} active={isActive(pathname, x)} />
+            <NavBtn key={x.href} href={x.href} label={x.label} active={isActive(pathname, x)} badgeCount={x.badgeCount} badgeCritical={x.badgeCritical} />
           ))}
           {secondary.map((x) => (
-            <NavBtn key={x.href} href={x.href} label={x.label} active={isActive(pathname, x)} />
+            <NavBtn key={x.href} href={x.href} label={x.label} active={isActive(pathname, x)} badgeCount={x.badgeCount} badgeCritical={x.badgeCritical} />
           ))}
         </nav>
       </div>
