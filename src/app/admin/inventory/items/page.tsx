@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
-import { inventoryGet } from "@/lib/inventoryClient";
+import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
 
 type InventoryItemRow = {
   id: string;
@@ -42,6 +42,15 @@ export default function InventoryItemsPage() {
   const [items, setItems] = useState<InventoryItemRow[]>([]);
   const [categories, setCategories] = useState<InventoryCategoryRow[]>([]);
   const [suppliers, setSuppliers] = useState<InventorySupplierRow[]>([]);
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createName, setCreateName] = useState("");
+  const [createSku, setCreateSku] = useState("");
+  const [createCategoryId, setCreateCategoryId] = useState("");
+  const [createCategoryName, setCreateCategoryName] = useState("");
+  const [createUnit, setCreateUnit] = useState("");
+  const [createCost, setCreateCost] = useState("0");
+  const [createType, setCreateType] = useState("ITEM");
+  const [createSuccess, setCreateSuccess] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -86,6 +95,60 @@ export default function InventoryItemsPage() {
     };
   }, [allowed, city, q, ready, tab]);
 
+  async function createItem() {
+    const name = createName.trim();
+    if (!name) {
+      setError("Please enter item name.");
+      return;
+    }
+    setCreateBusy(true);
+    setError("");
+    setCreateSuccess("");
+    try {
+      const pickedCategory = categories.find((row) => row.id === createCategoryId) || null;
+      const categoryName = (pickedCategory?.name || createCategoryName || "").trim();
+      await inventoryPost("/api/admin/inventory/items", {
+        city,
+        name,
+        sku: createSku.trim(),
+        category_id: createCategoryId || "",
+        category_name: categoryName,
+        storage_unit: createUnit.trim(),
+        ingredient_unit: createUnit.trim(),
+        storage_to_ingredient: 1,
+        costing_method: "FIXED",
+        cost: Number(createCost || 0),
+        minimum_level: 0,
+        par_level: 0,
+        maximum_level: 0,
+        item_type: createType,
+        tags: [],
+        suppliers: [],
+        custom_levels: [],
+      });
+      const [itemsRes, categoriesRes, suppliersRes] = await Promise.all([
+        inventoryGet<{ rows: InventoryItemRow[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=${encodeURIComponent(tab)}&q=${encodeURIComponent(q)}&limit=200`),
+        inventoryGet<{ rows: InventoryCategoryRow[] }>(`/api/admin/inventory/categories?city=${encodeURIComponent(city)}&tab=ALL&limit=200`),
+        inventoryGet<{ rows: InventorySupplierRow[] }>(`/api/admin/inventory/suppliers?city=${encodeURIComponent(city)}&tab=ALL&limit=200`),
+      ]);
+      setItems(itemsRes.rows || []);
+      setCategories(categoriesRes.rows || []);
+      setSuppliers(suppliersRes.rows || []);
+      setCreateName("");
+      setCreateSku("");
+      setCreateCategoryId("");
+      setCreateCategoryName("");
+      setCreateUnit("");
+      setCreateCost("0");
+      setCreateType("ITEM");
+      setCreateSuccess("Item created successfully.");
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setCreateBusy(false);
+    }
+  }
+
   if (!ready) return <div className="text-sm text-neutral-500">Loading inventory items...</div>;
   if (!allowed) return <div className="text-sm text-neutral-500">You do not have permission to open inventory.</div>;
 
@@ -119,6 +182,82 @@ export default function InventoryItemsPage() {
             <div className="text-xs uppercase tracking-wide text-neutral-500">Deleted</div>
             <div className="mt-1 text-lg font-semibold text-neutral-100">{items.filter((item) => item.status === "DELETED").length}</div>
           </div>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-neutral-800 bg-neutral-950/20 p-4">
+          <div className="text-sm font-semibold text-neutral-100">Register Ingredient / Product</div>
+          <div className="mt-1 text-xs text-neutral-400">Create stock masters directly here. Use `ITEM` for ingredients and `PRODUCT` for CK-made items.</div>
+          <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-4">
+            <input
+              value={createName}
+              onChange={(e) => setCreateName(e.target.value)}
+              placeholder="Item name"
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            />
+            <input
+              value={createSku}
+              onChange={(e) => setCreateSku(e.target.value)}
+              placeholder="SKU (optional)"
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            />
+            <select
+              value={createCategoryId}
+              onChange={(e) => {
+                const id = e.target.value;
+                setCreateCategoryId(id);
+                if (id) {
+                  const hit = categories.find((row) => row.id === id);
+                  setCreateCategoryName(hit?.name || "");
+                }
+              }}
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            >
+              <option value="">Select category (optional)</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+            <input
+              value={createCategoryName}
+              onChange={(e) => setCreateCategoryName(e.target.value)}
+              placeholder="Category name (optional)"
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            />
+            <input
+              value={createUnit}
+              onChange={(e) => setCreateUnit(e.target.value)}
+              placeholder="Storage unit (e.g., kg, pcs)"
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            />
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={createCost}
+              onChange={(e) => setCreateCost(e.target.value)}
+              placeholder="Cost"
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            />
+            <select
+              value={createType}
+              onChange={(e) => setCreateType(e.target.value)}
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            >
+              <option value="ITEM">ITEM (Raw ingredient)</option>
+              <option value="PRODUCT">PRODUCT (CK product)</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => void createItem()}
+              disabled={createBusy}
+              className="rounded-xl border border-emerald-800 bg-emerald-950/30 px-4 py-2 text-sm text-emerald-200 hover:bg-emerald-900/30 disabled:opacity-60"
+            >
+              {createBusy ? "Creating..." : "Create Item"}
+            </button>
+          </div>
+          {createSuccess ? <div className="mt-3 text-sm text-emerald-300">{createSuccess}</div> : null}
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
