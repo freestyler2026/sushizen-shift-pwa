@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
@@ -73,6 +73,7 @@ export default function InventoryCountSheetsPage() {
   const [actionBusy, setActionBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -109,7 +110,7 @@ export default function InventoryCountSheetsPage() {
       setError("");
       try {
         const [itemsRes, sheetsRes] = await Promise.all([
-          inventoryGet<{ rows: InventoryItemLookup[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=ITEMS&limit=5000`),
+          inventoryGet<{ rows: InventoryItemLookup[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=ALL&limit=5000`),
           inventoryGet<{ rows: CountSheetRow[] }>(`/api/admin/inventory/count-sheets?city=${encodeURIComponent(city)}&tab=ALL&limit=500`),
         ]);
         if (cancelled) return;
@@ -149,11 +150,6 @@ export default function InventoryCountSheetsPage() {
     };
   }, [allowed, city, selectedSheetId]);
 
-  const selectedItem = useMemo(
-    () => itemOptions.find((item) => item.id === selectedItemId) || null,
-    [itemOptions, selectedItemId],
-  );
-
   const filteredHistory = useMemo(
     () =>
       historyRows.filter((row) => {
@@ -166,6 +162,25 @@ export default function InventoryCountSheetsPage() {
   );
 
   const groupedDraft = useMemo(() => groupBySupplier(draftLines), [draftLines]);
+  const excelDerivedItemOptions = useMemo<InventoryItemLookup[]>(
+    () =>
+      (selectedPreview?.rows || []).map((row, idx) => ({
+        id: `excel-${idx}`,
+        name: row.item_name || row.invoice_name || `Excel Item ${idx + 1}`,
+        sku: row.sku || "",
+        category_name: row.category || "",
+        supplier_name: row.supplier_name || "",
+        storage_unit: row.storage_unit || "",
+        cost: Number(row.unit_price || 0),
+        status: "ACTIVE",
+      })),
+    [selectedPreview],
+  );
+  const selectableItems = itemOptions.length ? itemOptions : excelDerivedItemOptions;
+  const selectedItem = useMemo(
+    () => selectableItems.find((item) => item.id === selectedItemId) || null,
+    [selectableItems, selectedItemId],
+  );
 
   function updateDraftLine(index: number, patch: Partial<InventoryCountLine>) {
     setDraftLines((prev) => prev.map((line, idx) => (idx === index ? { ...line, ...patch } : line)));
@@ -173,7 +188,32 @@ export default function InventoryCountSheetsPage() {
 
   function addManualItem() {
     if (!selectedItem) return;
-    setDraftLines((prev) => [...prev, lineFromItem(selectedItem, prev.length + 1)]);
+    const isExcelDerived = selectedItem.id.startsWith("excel-");
+    if (isExcelDerived) {
+      setDraftLines((prev) => [
+        ...prev,
+        {
+          item_id: "",
+          category: selectedItem.category_name || "",
+          supplier_name: selectedItem.supplier_name || "",
+          item_name: selectedItem.name || "",
+          invoice_name: selectedItem.name || "",
+          sku: selectedItem.sku || "",
+          storage_unit: selectedItem.storage_unit || "",
+          unit_price: Number(selectedItem.cost || 0),
+          theoretical_qty: 0,
+          counted_qty: 0,
+          variance_qty: 0,
+          asset_value: 0,
+          memo: "",
+          foodics_data: "",
+          order_difference: "",
+          sort_order: prev.length + 1,
+        },
+      ]);
+    } else {
+      setDraftLines((prev) => [...prev, lineFromItem(selectedItem, prev.length + 1)]);
+    }
     setSelectedItemId("");
   }
 
@@ -202,6 +242,14 @@ export default function InventoryCountSheetsPage() {
       if (!withSelectedSheet) {
         const first = Array.isArray(res.sheets) && res.sheets.length ? res.sheets[0].sheet_name : "";
         setSelectedPreviewSheetName((current) => current || first);
+      }
+      if (withSelectedSheet && res.selected_sheet) {
+        const picked = res.selected_sheet as SelectedPreview;
+        setDraftLines((picked.rows || []).map((row, index) => ({ ...row, counted_qty: 0, theoretical_qty: 0, variance_qty: 0, sort_order: index + 1 })));
+        if (!templateName.trim()) setTemplateName(picked.sheet_name || "");
+        if (!branchCode && picked.branch_guess) setBranchCode(picked.branch_guess);
+        if (picked.cycle_guess) setCycle(picked.cycle_guess);
+        setSuccess("Loaded selected Excel sheet into draft.");
       }
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -361,7 +409,29 @@ export default function InventoryCountSheetsPage() {
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_220px_160px_160px]">
-          <input type="file" accept=".xlsx,.xls" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+          <div className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={(e) => {
+                const file = e.target.files?.[0] || null;
+                setUploadFile(file);
+                setPreviewSheets([]);
+                setSelectedPreview(null);
+                setSelectedPreviewSheetName("");
+              }}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-100"
+            >
+              Choose Excel File
+            </button>
+            <div className="truncate text-xs text-neutral-400">{uploadFile?.name || "No file selected"}</div>
+          </div>
           <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={selectedPreviewSheetName} onChange={(e) => setSelectedPreviewSheetName(e.target.value)}>
             <option value="">Select sheet</option>
             {previewSheets.map((sheet) => (
@@ -413,8 +483,12 @@ export default function InventoryCountSheetsPage() {
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_160px]">
           <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)}>
-            <option value="">Add inventory item</option>
-            {itemOptions.map((item) => (
+            <option value="">
+              {selectableItems.length
+                ? "Add inventory item"
+                : "No items loaded yet (register in Ingredients/Products or load Excel preview)"}
+            </option>
+            {selectableItems.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.supplier_name ? `${item.supplier_name} / ` : ""}{item.name} {item.sku ? `(${item.sku})` : ""}
               </option>
