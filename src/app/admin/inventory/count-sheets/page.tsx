@@ -162,6 +162,21 @@ export default function InventoryCountSheetsPage() {
     if (!q) return selectableItems;
     return selectableItems.filter((item) => `${item.supplier_name || ""} ${item.name || ""} ${item.sku || ""}`.toLowerCase().includes(q));
   }, [itemSearch, selectableItems]);
+  const groupedSelectableItems = useMemo(() => {
+    const groups = new Map<string, InventoryItemLookup[]>();
+    filteredSelectableItems.forEach((item) => {
+      const supplier = String(item.supplier_name || "").trim() || "Unknown supplier";
+      const rows = groups.get(supplier) || [];
+      rows.push(item);
+      groups.set(supplier, rows);
+    });
+    return Array.from(groups.entries())
+      .map(([supplier, rows]) => ({
+        supplier,
+        rows: [...rows].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))),
+      }))
+      .sort((a, b) => a.supplier.localeCompare(b.supplier));
+  }, [filteredSelectableItems]);
   const selectedItem = useMemo(() => selectableItems.find((item) => item.id === selectedItemId) || null, [selectableItems, selectedItemId]);
 
   function cycleLabel(value: string) {
@@ -473,44 +488,45 @@ export default function InventoryCountSheetsPage() {
 
         <div className="mt-4 rounded-xl border border-neutral-800 bg-neutral-950/20">
           <div className="border-b border-neutral-800 px-3 py-2 text-xs text-neutral-400">Registered Item List ({filteredSelectableItems.length})</div>
-          <div className="max-h-72 overflow-y-auto">
-            <table className="min-w-full text-xs">
-              <thead className="sticky top-0 bg-neutral-950/95 text-neutral-300">
-                <tr>
-                  <th className="px-3 py-2 text-left">Supplier</th>
-                  <th className="px-3 py-2 text-left">Item</th>
-                  <th className="px-3 py-2 text-left">Invoice Name</th>
-                  <th className="px-3 py-2 text-left">Unit</th>
-                  <th className="px-3 py-2 text-right">Unit Price</th>
-                  <th className="px-3 py-2 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredSelectableItems.map((item) => (
-                  <tr key={item.id} className="border-t border-neutral-800 text-neutral-200">
-                    <td className="px-3 py-2">{item.supplier_name || "-"}</td>
-                    <td className="px-3 py-2">{item.name} <span className="text-neutral-500">({item.sku || "-"})</span></td>
-                    <td className="px-3 py-2">{item.name}</td>
-                    <td className="px-3 py-2">{item.storage_unit || "-"}</td>
-                    <td className="px-3 py-2 text-right">{Number(item.cost || 0).toFixed(2)}</td>
-                    <td className="px-3 py-2 text-right">
-                      <button
-                        type="button"
-                        onClick={() => appendItemToDraft(item)}
-                        className="rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-800"
-                      >
-                        Add
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {filteredSelectableItems.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-3 py-4 text-center text-neutral-500">No items found.</td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
+          <div className="max-h-96 space-y-3 overflow-y-auto p-2">
+            {groupedSelectableItems.map((group) => (
+              <section key={group.supplier} className="overflow-x-auto rounded-lg border border-neutral-800 bg-neutral-950/40">
+                <div className="border-b border-neutral-800 px-3 py-2 text-sm font-medium text-amber-300">{group.supplier}</div>
+                <table className="min-w-full text-xs">
+                  <thead className="sticky top-0 bg-neutral-950/95 text-neutral-300">
+                    <tr>
+                      <th className="px-3 py-2 text-left">Item</th>
+                      <th className="px-3 py-2 text-left">Invoice Name</th>
+                      <th className="px-3 py-2 text-left">Unit</th>
+                      <th className="px-3 py-2 text-right">Unit Price</th>
+                      <th className="px-3 py-2 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {group.rows.map((item) => (
+                      <tr key={item.id} className="border-t border-neutral-800 text-neutral-200">
+                        <td className="px-3 py-2">{item.name} <span className="text-neutral-500">({item.sku || "-"})</span></td>
+                        <td className="px-3 py-2">{item.name}</td>
+                        <td className="px-3 py-2">{item.storage_unit || "-"}</td>
+                        <td className="px-3 py-2 text-right">{Number(item.cost || 0).toFixed(2)}</td>
+                        <td className="px-3 py-2 text-right">
+                          <button
+                            type="button"
+                            onClick={() => appendItemToDraft(item)}
+                            className="rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-800"
+                          >
+                            Add
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            ))}
+            {groupedSelectableItems.length === 0 ? (
+              <div className="px-3 py-4 text-center text-xs text-neutral-500">No items found.</div>
+            ) : null}
           </div>
         </div>
 
