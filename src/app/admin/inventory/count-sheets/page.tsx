@@ -62,6 +62,13 @@ export default function InventoryCountSheetsPage() {
   const [actionBusy, setActionBusy] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showExcelImport, setShowExcelImport] = useState(false);
+  const [importingPreviewItems, setImportingPreviewItems] = useState(false);
+  const [registerBusy, setRegisterBusy] = useState(false);
+  const [newItemName, setNewItemName] = useState("");
+  const [newItemSku, setNewItemSku] = useState("");
+  const [newItemUnit, setNewItemUnit] = useState("");
+  const [newItemCost, setNewItemCost] = useState("0");
+  const [newItemCategory, setNewItemCategory] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -252,6 +259,100 @@ export default function InventoryCountSheetsPage() {
 
   function removeDraftLine(index: number) {
     setDraftLines((prev) => prev.filter((_, idx) => idx !== index).map((line, idx) => ({ ...line, sort_order: idx + 1 })));
+  }
+
+  async function refreshItemOptions() {
+    const itemsRes = await inventoryGet<{ rows: InventoryItemLookup[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=ALL&limit=5000`);
+    setItemOptions((itemsRes.rows || []).filter((item) => item.status !== "DELETED"));
+  }
+
+  async function registerPreviewItemsToMaster() {
+    if (!selectedPreview?.rows?.length) {
+      setError("Load a sheet preview first.");
+      return;
+    }
+    setImportingPreviewItems(true);
+    setError("");
+    setSuccess("");
+    try {
+      const dedupe = new Map<string, any>();
+      for (const row of selectedPreview.rows) {
+        const name = String(row.item_name || row.invoice_name || "").trim();
+        if (!name) continue;
+        const sku = String(row.sku || "").trim();
+        const key = sku ? `sku:${sku.toUpperCase()}` : `name:${name.toLowerCase()}|unit:${String(row.storage_unit || "").toLowerCase()}`;
+        if (dedupe.has(key)) continue;
+        dedupe.set(key, {
+          name,
+          sku,
+          category_name: String(row.category || "").trim(),
+          storage_unit: String(row.storage_unit || "").trim(),
+          ingredient_unit: String(row.storage_unit || "").trim(),
+          costing_method: "FIXED",
+          cost: Number(row.unit_price || 0),
+          item_type: "ITEM",
+          tags: [],
+          suppliers: [],
+          custom_levels: [],
+        });
+      }
+      const rows = Array.from(dedupe.values());
+      if (!rows.length) {
+        setError("No valid rows to register from this sheet.");
+        return;
+      }
+      const imported = await inventoryPost<{ count?: number }>("/api/admin/inventory/items/import", { city, rows });
+      await refreshItemOptions();
+      setSuccess(`Registered ${Number(imported?.count || rows.length)} items to inventory master.`);
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setImportingPreviewItems(false);
+    }
+  }
+
+  async function createQuickItem() {
+    const name = newItemName.trim();
+    if (!name) {
+      setError("Enter item name to register.");
+      return;
+    }
+    setRegisterBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      const created = await inventoryPost<{ row?: { id?: string } }>("/api/admin/inventory/items", {
+        city,
+        name,
+        sku: newItemSku.trim(),
+        category_name: newItemCategory.trim(),
+        storage_unit: newItemUnit.trim(),
+        ingredient_unit: newItemUnit.trim(),
+        storage_to_ingredient: 1,
+        costing_method: "FIXED",
+        cost: Number(newItemCost || 0),
+        minimum_level: 0,
+        par_level: 0,
+        maximum_level: 0,
+        item_type: "ITEM",
+        tags: [],
+        suppliers: [],
+        custom_levels: [],
+      });
+      await refreshItemOptions();
+      const createdId = String(created?.row?.id || "");
+      if (createdId) setSelectedItemId(createdId);
+      setNewItemName("");
+      setNewItemSku("");
+      setNewItemUnit("");
+      setNewItemCost("0");
+      setNewItemCategory("");
+      setSuccess("New item registered and added to selectable list.");
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setRegisterBusy(false);
+    }
   }
 
   async function previewWorkbook(withSelectedSheet = false) {
@@ -469,6 +570,17 @@ export default function InventoryCountSheetsPage() {
           </button>
         </div>
 
+        <div className="mt-3 grid grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1.3fr)_140px_120px_120px_100px_160px]">
+          <input value={newItemName} onChange={(e) => setNewItemName(e.target.value)} placeholder="New item name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+          <input value={newItemSku} onChange={(e) => setNewItemSku(e.target.value)} placeholder="SKU (optional)" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+          <input value={newItemUnit} onChange={(e) => setNewItemUnit(e.target.value)} placeholder="Unit" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+          <input type="number" min="0" step="0.01" value={newItemCost} onChange={(e) => setNewItemCost(e.target.value)} placeholder="Cost" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+          <input value={newItemCategory} onChange={(e) => setNewItemCategory(e.target.value)} placeholder="Category" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+          <button type="button" onClick={() => void createQuickItem()} disabled={registerBusy} className="rounded-xl border border-sky-800 bg-sky-950/30 px-4 py-2 text-sm text-sky-200 hover:bg-sky-900/30 disabled:opacity-60">
+            {registerBusy ? "Registering..." : "Register Item"}
+          </button>
+        </div>
+
         <div className="mt-3 text-xs text-neutral-400">Excel-like behavior: use `Tab` to move across cells and `Enter` to move down in the same column.</div>
 
         <div className="mt-4 space-y-4">
@@ -610,9 +722,14 @@ export default function InventoryCountSheetsPage() {
                     Branch guess: {selectedPreview.branch_guess || "-"} • Cycle guess: {selectedPreview.cycle_guess || "-"} • Matched {selectedPreview.matched_count} / Unmatched {selectedPreview.unmatched_count}
                   </div>
                 </div>
-                <button type="button" onClick={loadPreviewIntoDraft} className="rounded-xl border border-emerald-800 bg-emerald-950/30 px-4 py-2 text-sm text-emerald-200 hover:bg-emerald-900/30">
-                  Load Into Grid
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={loadPreviewIntoDraft} className="rounded-xl border border-emerald-800 bg-emerald-950/30 px-4 py-2 text-sm text-emerald-200 hover:bg-emerald-900/30">
+                    Load Into Grid
+                  </button>
+                  <button type="button" onClick={() => void registerPreviewItemsToMaster()} disabled={importingPreviewItems} className="rounded-xl border border-sky-800 bg-sky-950/30 px-4 py-2 text-sm text-sky-200 hover:bg-sky-900/30 disabled:opacity-60">
+                    {importingPreviewItems ? "Registering..." : "Register Items to Master"}
+                  </button>
+                </div>
               </div>
             </div>
           ) : null}
