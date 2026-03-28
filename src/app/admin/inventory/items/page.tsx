@@ -40,17 +40,29 @@ export default function InventoryItemsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [items, setItems] = useState<InventoryItemRow[]>([]);
+  const [allItemsForSku, setAllItemsForSku] = useState<InventoryItemRow[]>([]);
   const [categories, setCategories] = useState<InventoryCategoryRow[]>([]);
   const [suppliers, setSuppliers] = useState<InventorySupplierRow[]>([]);
   const [createBusy, setCreateBusy] = useState(false);
   const [createName, setCreateName] = useState("");
-  const [createSku, setCreateSku] = useState("");
   const [createCategoryId, setCreateCategoryId] = useState("");
   const [createCategoryName, setCreateCategoryName] = useState("");
   const [createUnit, setCreateUnit] = useState("");
   const [createCost, setCreateCost] = useState("0");
   const [createType, setCreateType] = useState("ITEM");
   const [createSuccess, setCreateSuccess] = useState("");
+
+  const nextSku = useMemo(() => {
+    let maxSeq = 0;
+    for (const row of allItemsForSku) {
+      const matched = String(row.sku || "").trim().match(/^SK-(\d+)$/i);
+      if (!matched) continue;
+      const seq = Number(matched[1] || 0);
+      if (Number.isFinite(seq) && seq > maxSeq) maxSeq = seq;
+    }
+    const nextSeq = maxSeq + 1;
+    return `SK-${String(nextSeq).padStart(3, "0")}`;
+  }, [allItemsForSku]);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,13 +86,15 @@ export default function InventoryItemsPage() {
       setLoading(true);
       setError("");
       try {
-        const [itemsRes, categoriesRes, suppliersRes] = await Promise.all([
+        const [itemsRes, allItemsRes, categoriesRes, suppliersRes] = await Promise.all([
           inventoryGet<{ rows: InventoryItemRow[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=${encodeURIComponent(tab)}&q=${encodeURIComponent(q)}&limit=200`),
+          inventoryGet<{ rows: InventoryItemRow[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=ALL&q=&limit=5000`),
           inventoryGet<{ rows: InventoryCategoryRow[] }>(`/api/admin/inventory/categories?city=${encodeURIComponent(city)}&tab=ALL&limit=200`),
           inventoryGet<{ rows: InventorySupplierRow[] }>(`/api/admin/inventory/suppliers?city=${encodeURIComponent(city)}&tab=ALL&limit=200`),
         ]);
         if (cancelled) return;
         setItems(itemsRes.rows || []);
+        setAllItemsForSku(allItemsRes.rows || []);
         setCategories(categoriesRes.rows || []);
         setSuppliers(suppliersRes.rows || []);
       } catch (e: any) {
@@ -101,6 +115,10 @@ export default function InventoryItemsPage() {
       setError("Please enter item name.");
       return;
     }
+    if (!nextSku) {
+      setError("Failed to generate SKU. Please refresh and try again.");
+      return;
+    }
     setCreateBusy(true);
     setError("");
     setCreateSuccess("");
@@ -110,7 +128,7 @@ export default function InventoryItemsPage() {
       await inventoryPost("/api/admin/inventory/items", {
         city,
         name,
-        sku: createSku.trim(),
+        sku: nextSku,
         category_id: createCategoryId || "",
         category_name: categoryName,
         storage_unit: createUnit.trim(),
@@ -126,16 +144,17 @@ export default function InventoryItemsPage() {
         suppliers: [],
         custom_levels: [],
       });
-      const [itemsRes, categoriesRes, suppliersRes] = await Promise.all([
+      const [itemsRes, allItemsRes, categoriesRes, suppliersRes] = await Promise.all([
         inventoryGet<{ rows: InventoryItemRow[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=${encodeURIComponent(tab)}&q=${encodeURIComponent(q)}&limit=200`),
+        inventoryGet<{ rows: InventoryItemRow[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=ALL&q=&limit=5000`),
         inventoryGet<{ rows: InventoryCategoryRow[] }>(`/api/admin/inventory/categories?city=${encodeURIComponent(city)}&tab=ALL&limit=200`),
         inventoryGet<{ rows: InventorySupplierRow[] }>(`/api/admin/inventory/suppliers?city=${encodeURIComponent(city)}&tab=ALL&limit=200`),
       ]);
       setItems(itemsRes.rows || []);
+      setAllItemsForSku(allItemsRes.rows || []);
       setCategories(categoriesRes.rows || []);
       setSuppliers(suppliersRes.rows || []);
       setCreateName("");
-      setCreateSku("");
       setCreateCategoryId("");
       setCreateCategoryName("");
       setCreateUnit("");
@@ -194,12 +213,10 @@ export default function InventoryItemsPage() {
               placeholder="Item name"
               className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             />
-            <input
-              value={createSku}
-              onChange={(e) => setCreateSku(e.target.value)}
-              placeholder="SKU (optional)"
-              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-            />
+            <div className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
+              <div className="text-[11px] uppercase tracking-wide text-neutral-500">SKU (Required / Auto)</div>
+              <div className="mt-1 font-medium">{nextSku}</div>
+            </div>
             <select
               value={createCategoryId}
               onChange={(e) => {
