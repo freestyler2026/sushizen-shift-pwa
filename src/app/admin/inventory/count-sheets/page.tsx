@@ -487,8 +487,10 @@ export default function InventoryCountSheetsPage() {
         <div className="mt-3 text-xs text-neutral-400">Excel-like behavior: use `Tab` to move across cells and `Enter` to move down in the same column.</div>
 
         <div className="mt-4 rounded-xl border border-neutral-800 bg-neutral-950/20">
-          <div className="border-b border-neutral-800 px-3 py-2 text-xs text-neutral-400">Registered Item List ({filteredSelectableItems.length})</div>
-          <div className="max-h-96 space-y-3 overflow-y-auto p-2">
+          <div className="border-b border-neutral-800 px-3 py-2 text-xs text-neutral-400">
+            Registered Item List ({filteredSelectableItems.length}) - Suppliers ({groupedSelectableItems.length})
+          </div>
+          <div className="space-y-3 p-2">
             {groupedSelectableItems.map((group) => (
               <section key={group.supplier} className="overflow-x-auto rounded-lg border border-neutral-800 bg-neutral-950/40">
                 <div className="border-b border-neutral-800 px-3 py-2 text-sm font-medium text-amber-300">{group.supplier}</div>
