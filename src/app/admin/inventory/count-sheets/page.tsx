@@ -477,7 +477,7 @@ export default function InventoryCountSheetsPage() {
               </option>
             ))}
           </select>
-          <input type="number" min="0" step="0.001" value={selectedAddQty} onChange={(e) => setSelectedAddQty(e.target.value)} placeholder="Qty" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-right" />
+          <input type="text" inputMode="decimal" value={selectedAddQty} onChange={(e) => setSelectedAddQty(e.target.value)} placeholder="Qty" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-right" />
           <button type="button" onClick={addManualItem} disabled={!selectedItem} className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900 disabled:opacity-60">
             Add Item
           </button>
@@ -527,9 +527,8 @@ export default function InventoryCountSheetsPage() {
                         <td className="px-3 py-2 text-right">{Number(item.cost || 0).toFixed(2)}</td>
                         <td className="px-3 py-2 text-right">
                           <input
-                            type="number"
-                            min="0"
-                            step="0.001"
+                            type="text"
+                            inputMode="decimal"
                             value={addQtyValue(item.id)}
                             onChange={(e) => setAddQty(item.id, e.target.value)}
                             className="w-24 rounded-lg border border-emerald-800 bg-emerald-950/20 px-2 py-1 text-right text-xs text-emerald-100"
