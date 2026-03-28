@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
-import { groupBySupplier, lineFromItem, monthNow, type InventoryCountLine, type InventoryItemLookup } from "@/lib/inventoryCountUtils";
+import { emptyCountLine, lineFromItem, monthNow, type InventoryCountLine, type InventoryItemLookup } from "@/lib/inventoryCountUtils";
 import { inventoryFormPost, inventoryGet, inventoryPost } from "@/lib/inventoryClient";
 
 type CountSheetRow = {
@@ -22,23 +23,11 @@ type CountSheetRow = {
   updated_at: string;
 };
 
-type CountSheetDetail = CountSheetRow & {
-  items?: InventoryCountLine[];
-};
+type CountSheetDetail = CountSheetRow & { items?: InventoryCountLine[] };
+type PreviewSheet = { sheet_name: string; branch_guess: string; cycle_guess: string; header_row_index: number; row_count: number };
+type SelectedPreview = PreviewSheet & { matched_count: number; unmatched_count: number; rows: InventoryCountLine[] };
 
-type PreviewSheet = {
-  sheet_name: string;
-  branch_guess: string;
-  cycle_guess: string;
-  header_row_index: number;
-  row_count: number;
-};
-
-type SelectedPreview = PreviewSheet & {
-  matched_count: number;
-  unmatched_count: number;
-  rows: InventoryCountLine[];
-};
+type EditableColumn = "sku" | "supplier_name" | "item_name" | "invoice_name" | "storage_unit" | "unit_price" | "counted_qty" | "memo";
 
 function cycleOptions() {
   return [
@@ -54,9 +43,9 @@ export default function InventoryCountSheetsPage() {
   const [city, setCity] = useState<City>((auth?.city || "manila") as City);
   const [branchCode, setBranchCode] = useState(BRANCHES[(auth?.city || "manila") as City][0]?.code || "");
   const [cycle, setCycle] = useState("15TH");
-  const [templateName, setTemplateName] = useState("");
   const [reference, setReference] = useState("");
   const [historyMonth, setHistoryMonth] = useState(monthNow());
+  const [itemSearch, setItemSearch] = useState("");
   const [selectedItemId, setSelectedItemId] = useState("");
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [previewSheets, setPreviewSheets] = useState<PreviewSheet[]>([]);
@@ -71,9 +60,12 @@ export default function InventoryCountSheetsPage() {
   const [previewBusy, setPreviewBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showExcelImport, setShowExcelImport] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const cellRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -136,9 +128,7 @@ export default function InventoryCountSheetsPage() {
     let cancelled = false;
     async function loadDetail() {
       try {
-        const res = await inventoryGet<{ row: CountSheetDetail }>(
-          `/api/admin/inventory/count-sheets/${encodeURIComponent(selectedSheetId)}?city=${encodeURIComponent(city)}`,
-        );
+        const res = await inventoryGet<{ row: CountSheetDetail }>(`/api/admin/inventory/count-sheets/${encodeURIComponent(selectedSheetId)}?city=${encodeURIComponent(city)}`);
         if (!cancelled) setSelectedSheet(res.row || null);
       } catch (e: any) {
         if (!cancelled) setError(e?.message || String(e));
@@ -161,7 +151,17 @@ export default function InventoryCountSheetsPage() {
     [branchCode, cycle, historyMonth, historyRows],
   );
 
-  const groupedDraft = useMemo(() => groupBySupplier(draftLines), [draftLines]);
+  const groupedDraft = useMemo(() => {
+    const groups = new Map<string, Array<{ index: number; line: InventoryCountLine }>>();
+    draftLines.forEach((line, index) => {
+      const supplier = String(line.supplier_name || "").trim() || "Unknown supplier";
+      const rows = groups.get(supplier) || [];
+      rows.push({ index, line });
+      groups.set(supplier, rows);
+    });
+    return Array.from(groups.entries()).map(([supplier, rows]) => ({ supplier, rows }));
+  }, [draftLines]);
+
   const excelDerivedItemOptions = useMemo<InventoryItemLookup[]>(
     () =>
       (selectedPreview?.rows || []).map((row, idx) => ({
@@ -177,10 +177,40 @@ export default function InventoryCountSheetsPage() {
     [selectedPreview],
   );
   const selectableItems = itemOptions.length ? itemOptions : excelDerivedItemOptions;
-  const selectedItem = useMemo(
-    () => selectableItems.find((item) => item.id === selectedItemId) || null,
-    [selectableItems, selectedItemId],
-  );
+  const filteredSelectableItems = useMemo(() => {
+    const q = itemSearch.trim().toLowerCase();
+    if (!q) return selectableItems.slice(0, 300);
+    return selectableItems.filter((item) => `${item.supplier_name || ""} ${item.name || ""} ${item.sku || ""}`.toLowerCase().includes(q)).slice(0, 300);
+  }, [itemSearch, selectableItems]);
+  const selectedItem = useMemo(() => selectableItems.find((item) => item.id === selectedItemId) || null, [selectableItems, selectedItemId]);
+
+  function cycleLabel(value: string) {
+    return cycleOptions().find((opt) => opt.value === value)?.label || value;
+  }
+
+  function autoTemplateName(sourceSheetName = "") {
+    const branchLabel = labelOf(city, branchCode) || branchCode || city.toUpperCase();
+    const today = new Date().toISOString().slice(0, 10);
+    return sourceSheetName ? `${branchLabel} ${cycleLabel(cycle)} ${sourceSheetName}`.trim() : `${branchLabel} ${cycleLabel(cycle)} ${today}`;
+  }
+
+  function keyOf(rowIndex: number, col: EditableColumn) {
+    return `${rowIndex}:${col}`;
+  }
+
+  function moveDown(rowIndex: number, col: EditableColumn) {
+    const key = keyOf(rowIndex + 1, col);
+    const target = cellRefs.current[key];
+    if (!target) return;
+    target.focus();
+    target.select();
+  }
+
+  function handleEnter(event: KeyboardEvent<HTMLInputElement>, rowIndex: number, col: EditableColumn) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    moveDown(rowIndex, col);
+  }
 
   function updateDraftLine(index: number, patch: Partial<InventoryCountLine>) {
     setDraftLines((prev) => prev.map((line, idx) => (idx === index ? { ...line, ...patch } : line)));
@@ -188,8 +218,7 @@ export default function InventoryCountSheetsPage() {
 
   function addManualItem() {
     if (!selectedItem) return;
-    const isExcelDerived = selectedItem.id.startsWith("excel-");
-    if (isExcelDerived) {
+    if (selectedItem.id.startsWith("excel-")) {
       setDraftLines((prev) => [
         ...prev,
         {
@@ -217,6 +246,10 @@ export default function InventoryCountSheetsPage() {
     setSelectedItemId("");
   }
 
+  function addRow() {
+    setDraftLines((prev) => [...prev, emptyCountLine(prev.length + 1)]);
+  }
+
   function removeDraftLine(index: number) {
     setDraftLines((prev) => prev.filter((_, idx) => idx !== index).map((line, idx) => ({ ...line, sort_order: idx + 1 })));
   }
@@ -233,10 +266,7 @@ export default function InventoryCountSheetsPage() {
       form.set("city", city);
       if (withSelectedSheet && selectedPreviewSheetName) form.set("source_sheet_name", selectedPreviewSheetName);
       form.set("file", uploadFile);
-      const res = await inventoryFormPost<{ sheets?: PreviewSheet[]; selected_sheet?: SelectedPreview }>(
-        "/api/admin/inventory/count-sheets/import-preview",
-        form,
-      );
+      const res = await inventoryFormPost<{ sheets?: PreviewSheet[]; selected_sheet?: SelectedPreview }>("/api/admin/inventory/count-sheets/import-preview", form);
       setPreviewSheets(Array.isArray(res.sheets) ? res.sheets : []);
       setSelectedPreview((res.selected_sheet as SelectedPreview) || null);
       if (!withSelectedSheet) {
@@ -245,11 +275,10 @@ export default function InventoryCountSheetsPage() {
       }
       if (withSelectedSheet && res.selected_sheet) {
         const picked = res.selected_sheet as SelectedPreview;
-        setDraftLines((picked.rows || []).map((row, index) => ({ ...row, counted_qty: 0, theoretical_qty: 0, variance_qty: 0, sort_order: index + 1 })));
-        if (!templateName.trim()) setTemplateName(picked.sheet_name || "");
+        setDraftLines((picked.rows || []).map((row, idx) => ({ ...row, counted_qty: 0, theoretical_qty: 0, variance_qty: 0, sort_order: idx + 1 })));
         if (!branchCode && picked.branch_guess) setBranchCode(picked.branch_guess);
         if (picked.cycle_guess) setCycle(picked.cycle_guess);
-        setSuccess("Loaded selected Excel sheet into draft.");
+        setSuccess("Loaded selected Excel sheet into grid.");
       }
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -260,28 +289,22 @@ export default function InventoryCountSheetsPage() {
 
   function loadPreviewIntoDraft() {
     if (!selectedPreview) return;
-    setDraftLines((selectedPreview.rows || []).map((row, index) => ({ ...row, counted_qty: 0, theoretical_qty: 0, variance_qty: 0, sort_order: index + 1 })));
-    if (!templateName.trim()) setTemplateName(selectedPreview.sheet_name || "");
+    setDraftLines((selectedPreview.rows || []).map((row, idx) => ({ ...row, counted_qty: 0, theoretical_qty: 0, variance_qty: 0, sort_order: idx + 1 })));
     if (!branchCode && selectedPreview.branch_guess) setBranchCode(selectedPreview.branch_guess);
     if (selectedPreview.cycle_guess) setCycle(selectedPreview.cycle_guess);
-    setSuccess("Loaded selected Excel sheet into draft. Add or edit items if needed, then save.");
+    setSuccess("Loaded selected Excel sheet into grid.");
   }
 
   function loadSelectedSheetIntoDraft() {
     if (!selectedSheet) return;
-    setDraftLines((selectedSheet.items || []).map((row, index) => ({ ...row, sort_order: index + 1 })));
-    setTemplateName(selectedSheet.name || "");
+    setDraftLines((selectedSheet.items || []).map((row, idx) => ({ ...row, sort_order: idx + 1 })));
     setReference(selectedSheet.reference || "");
     if (selectedSheet.branch_code) setBranchCode(selectedSheet.branch_code);
     if (selectedSheet.cycle) setCycle(selectedSheet.cycle);
-    setSuccess("Loaded selected count template into draft.");
+    setSuccess("Loaded selected count template into grid.");
   }
 
   async function saveCountSheet() {
-    if (!templateName.trim()) {
-      setError("Please enter a template name.");
-      return;
-    }
     if (!draftLines.length) {
       setError("Please add at least one item.");
       return;
@@ -290,21 +313,19 @@ export default function InventoryCountSheetsPage() {
     setError("");
     setSuccess("");
     try {
+      const sourceSheetName = selectedPreview?.sheet_name || selectedSheet?.source_sheet_name || "";
       const created = await inventoryPost<{ row: CountSheetRow }>("/api/admin/inventory/count-sheets", {
         city,
-        name: templateName.trim(),
+        name: autoTemplateName(sourceSheetName),
         reference: reference.trim(),
         branch_code: branchCode,
         cycle,
-        source_sheet_name: selectedPreview?.sheet_name || selectedSheet?.source_sheet_name || "",
+        source_sheet_name: sourceSheetName,
       });
       const countSheetId = String(created?.row?.id || "");
       await inventoryPost(`/api/admin/inventory/count-sheets/${encodeURIComponent(countSheetId)}/items`, {
         city,
-        items: draftLines.map((line, index) => ({
-          ...line,
-          sort_order: index + 1,
-        })),
+        items: draftLines.map((line, idx) => ({ ...line, sort_order: idx + 1 })),
       });
       const historyRes = await inventoryGet<{ rows: CountSheetRow[] }>(`/api/admin/inventory/count-sheets?city=${encodeURIComponent(city)}&tab=ALL&limit=500`);
       setHistoryRows(historyRes.rows || []);
@@ -367,12 +388,12 @@ export default function InventoryCountSheetsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-lg font-semibold text-neutral-100">Count Templates</div>
-            <div className="mt-1 text-sm text-neutral-400">Create Excel-like supplier-grouped templates for routine store inventory counting.</div>
+            <div className="mt-1 text-sm text-neutral-400">Start counting with an Excel-like grid. Add items and enter counted quantities directly.</div>
           </div>
           <div className="text-xs text-neutral-500">{city.toUpperCase()} template workspace</div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-5">
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
           <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={city} onChange={(e) => setCity(e.target.value as City)}>
             <option value="dubai">Dubai</option>
             <option value="manila">Manila</option>
@@ -391,9 +412,22 @@ export default function InventoryCountSheetsPage() {
               </option>
             ))}
           </select>
-          <input value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="Template name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Reference (optional)" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
         </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" onClick={() => setShowAdvanced((prev) => !prev)} className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-200">
+            {showAdvanced ? "Hide Advanced" : "Show Advanced"}
+          </button>
+          <button type="button" onClick={() => setShowExcelImport((prev) => !prev)} className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-200">
+            {showExcelImport ? "Hide Import from Excel (optional)" : "Import from Excel (optional)"}
+          </button>
+        </div>
+
+        {showAdvanced ? (
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Reference (optional)" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+          </div>
+        ) : null}
 
         {error ? <div className="mt-3 text-sm text-rose-300">{error}</div> : null}
         {success ? <div className="mt-3 text-sm text-emerald-300">{success}</div> : null}
@@ -402,93 +436,26 @@ export default function InventoryCountSheetsPage() {
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold text-neutral-100">Import From Excel</div>
-            <div className="mt-1 text-xs text-neutral-500">Preview supplier and item rows from `Inventory Dubai 2026.xlsx` and load them into draft.</div>
+            <div className="text-sm font-semibold text-neutral-100">Counting Grid</div>
+            <div className="mt-1 text-xs text-neutral-400">Start counting by adding items below. `Counted Qty` is the most important column.</div>
           </div>
-          <div className="text-xs text-neutral-500">{previewSheets.length} sheets detected</div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_220px_160px_160px]">
-          <div className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={(e) => {
-                const file = e.target.files?.[0] || null;
-                setUploadFile(file);
-                setPreviewSheets([]);
-                setSelectedPreview(null);
-                setSelectedPreviewSheetName("");
-              }}
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-100"
-            >
-              Choose Excel File
-            </button>
-            <div className="truncate text-xs text-neutral-400">{uploadFile?.name || "No file selected"}</div>
-          </div>
-          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={selectedPreviewSheetName} onChange={(e) => setSelectedPreviewSheetName(e.target.value)}>
-            <option value="">Select sheet</option>
-            {previewSheets.map((sheet) => (
-              <option key={sheet.sheet_name} value={sheet.sheet_name}>
-                {sheet.sheet_name}
-              </option>
-            ))}
-          </select>
-          <button type="button" onClick={() => void previewWorkbook(false)} disabled={previewBusy || !uploadFile} className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900 disabled:opacity-60">
-            {previewBusy ? "Loading..." : "Preview Workbook"}
-          </button>
-          <button type="button" onClick={() => void previewWorkbook(true)} disabled={previewBusy || !uploadFile || !selectedPreviewSheetName} className="rounded-xl border border-sky-800 bg-sky-950/30 px-4 py-2 text-sm text-sky-200 hover:bg-sky-900/30 disabled:opacity-60">
-            {previewBusy ? "Loading..." : "Load Sheet Preview"}
-          </button>
-        </div>
-
-        {previewSheets.length ? (
-          <div className="mt-3 flex flex-wrap gap-2 text-xs">
-            {previewSheets.map((sheet) => (
-              <div key={sheet.sheet_name} className="rounded-full border border-neutral-800 bg-neutral-950/40 px-3 py-1 text-neutral-300">
-                {sheet.sheet_name} • {sheet.branch_guess || "-"} • {sheet.cycle_guess || "-"} • {sheet.row_count} rows
-              </div>
-            ))}
-          </div>
-        ) : null}
-
-        {selectedPreview ? (
-          <div className="mt-4 rounded-2xl border border-neutral-800 bg-neutral-950/20 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-neutral-100">{selectedPreview.sheet_name}</div>
-                <div className="mt-1 text-xs text-neutral-500">
-                  Branch guess: {selectedPreview.branch_guess || "-"} • Cycle guess: {selectedPreview.cycle_guess || "-"} • Matched {selectedPreview.matched_count} / Unmatched {selectedPreview.unmatched_count}
-                </div>
-              </div>
-              <button type="button" onClick={loadPreviewIntoDraft} className="rounded-xl border border-emerald-800 bg-emerald-950/30 px-4 py-2 text-sm text-emerald-200 hover:bg-emerald-900/30">
-                Load Into Draft
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </section>
-
-      <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="text-sm font-semibold text-neutral-100">Draft Template</div>
           <div className="text-xs text-neutral-500">{draftLines.length} rows</div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_160px]">
+        {!selectableItems.length ? (
+          <div className="mt-4 rounded-xl border border-amber-900/70 bg-amber-950/20 px-3 py-3 text-sm text-amber-200">
+            <div>No inventory items registered. Please register in Ingredients / Products first.</div>
+            <Link href="/admin/inventory/items" className="mt-2 inline-block text-xs text-amber-100 underline">
+              Go to Ingredients / Products
+            </Link>
+          </div>
+        ) : null}
+
+        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px_140px]">
+          <input value={itemSearch} onChange={(e) => setItemSearch(e.target.value)} placeholder="Search by supplier / item / SKU" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
           <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)}>
-            <option value="">
-              {selectableItems.length
-                ? "Add inventory item"
-                : "No items loaded yet (register in Ingredients/Products or load Excel preview)"}
-            </option>
-            {selectableItems.map((item) => (
+            <option value="">{filteredSelectableItems.length ? "Add inventory item" : "No matched items"}</option>
+            {filteredSelectableItems.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.supplier_name ? `${item.supplier_name} / ` : ""}{item.name} {item.sku ? `(${item.sku})` : ""}
               </option>
@@ -497,14 +464,17 @@ export default function InventoryCountSheetsPage() {
           <button type="button" onClick={addManualItem} disabled={!selectedItem} className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900 disabled:opacity-60">
             Add Item
           </button>
+          <button type="button" onClick={addRow} className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900">
+            Add Row
+          </button>
         </div>
 
-        <div className="mt-3 text-xs text-neutral-400">Excel-like view: rows are grouped by supplier, and you can directly edit `SKU / Supplier / Item Name / Invoice Name / Unit / Unit Price / Memo`.</div>
+        <div className="mt-3 text-xs text-neutral-400">Excel-like behavior: use `Tab` to move across cells and `Enter` to move down in the same column.</div>
 
         <div className="mt-4 space-y-4">
           {groupedDraft.length === 0 ? (
             <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-950/30 px-3 py-6 text-center text-xs text-neutral-500">
-              Preview an Excel import or add items manually.
+              Add items and enter counted quantities to start counting.
             </div>
           ) : null}
           {groupedDraft.map((group) => (
@@ -516,60 +486,51 @@ export default function InventoryCountSheetsPage() {
                 <table className="min-w-full text-xs">
                   <thead className="sticky top-0 bg-neutral-950/95 text-neutral-300">
                     <tr>
-                      <th className="px-3 py-2 text-left">Category</th>
                       <th className="px-3 py-2 text-left">SKU</th>
                       <th className="px-3 py-2 text-left">Supplier</th>
                       <th className="px-3 py-2 text-left">Item Name</th>
                       <th className="px-3 py-2 text-left">Invoice Name</th>
                       <th className="px-3 py-2 text-left">Unit</th>
                       <th className="px-3 py-2 text-right">Unit Price</th>
+                      <th className="px-3 py-2 text-right text-emerald-300">Counted Qty</th>
                       <th className="px-3 py-2 text-left">Memo</th>
-                      <th className="px-3 py-2 text-left">Foodics Data</th>
-                      <th className="px-3 py-2 text-left">Order Diff</th>
                       <th className="px-3 py-2 text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {group.rows.map((line) => {
-                      const index = draftLines.indexOf(line);
-                      return (
-                        <tr key={`${line.sku}-${index}-${line.item_name}`} className="border-t border-neutral-800 bg-neutral-950/30">
-                          <td className="px-3 py-2">
-                            <input value={line.category} onChange={(e) => updateDraftLine(index, { category: e.target.value })} className="w-28 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
-                          </td>
-                          <td className="px-3 py-2 text-neutral-100">{line.sku || "-"}</td>
-                          <td className="px-3 py-2">
-                            <input value={line.supplier_name} onChange={(e) => updateDraftLine(index, { supplier_name: e.target.value })} className="w-32 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input value={line.item_name} onChange={(e) => updateDraftLine(index, { item_name: e.target.value })} className="w-40 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input value={line.invoice_name} onChange={(e) => updateDraftLine(index, { invoice_name: e.target.value })} className="w-40 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input value={line.storage_unit} onChange={(e) => updateDraftLine(index, { storage_unit: e.target.value })} className="w-20 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input type="number" min="0" step="0.01" value={line.unit_price} onChange={(e) => updateDraftLine(index, { unit_price: Number(e.target.value || 0) })} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-right text-xs" />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input value={line.memo} onChange={(e) => updateDraftLine(index, { memo: e.target.value })} className="w-32 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input value={line.foodics_data} onChange={(e) => updateDraftLine(index, { foodics_data: e.target.value })} className="w-28 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input value={line.order_difference} onChange={(e) => updateDraftLine(index, { order_difference: e.target.value })} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <button type="button" onClick={() => removeDraftLine(index)} className="rounded-lg border border-rose-800/70 bg-rose-950/20 px-2 py-1 text-xs text-rose-200">
-                              Remove
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {group.rows.map(({ index, line }) => (
+                      <tr key={`${line.sku}-${index}-${line.item_name}`} className="border-t border-neutral-800 bg-neutral-950/30">
+                        <td className="px-3 py-2">
+                          <input ref={(el) => { cellRefs.current[`${index}:sku`] = el; }} value={line.sku} onChange={(e) => updateDraftLine(index, { sku: e.target.value })} onKeyDown={(e) => handleEnter(e, index, "sku")} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input ref={(el) => { cellRefs.current[`${index}:supplier_name`] = el; }} value={line.supplier_name} onChange={(e) => updateDraftLine(index, { supplier_name: e.target.value })} onKeyDown={(e) => handleEnter(e, index, "supplier_name")} className="w-32 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input ref={(el) => { cellRefs.current[`${index}:item_name`] = el; }} value={line.item_name} onChange={(e) => updateDraftLine(index, { item_name: e.target.value })} onKeyDown={(e) => handleEnter(e, index, "item_name")} className="w-40 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input ref={(el) => { cellRefs.current[`${index}:invoice_name`] = el; }} value={line.invoice_name} onChange={(e) => updateDraftLine(index, { invoice_name: e.target.value })} onKeyDown={(e) => handleEnter(e, index, "invoice_name")} className="w-40 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input ref={(el) => { cellRefs.current[`${index}:storage_unit`] = el; }} value={line.storage_unit} onChange={(e) => updateDraftLine(index, { storage_unit: e.target.value })} onKeyDown={(e) => handleEnter(e, index, "storage_unit")} className="w-20 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input ref={(el) => { cellRefs.current[`${index}:unit_price`] = el; }} type="number" min="0" step="0.01" value={line.unit_price} onChange={(e) => updateDraftLine(index, { unit_price: Number(e.target.value || 0) })} onKeyDown={(e) => handleEnter(e, index, "unit_price")} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-right text-xs" />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input ref={(el) => { cellRefs.current[`${index}:counted_qty`] = el; }} type="number" step="0.001" value={line.counted_qty} onChange={(e) => updateDraftLine(index, { counted_qty: Number(e.target.value || 0) })} onKeyDown={(e) => handleEnter(e, index, "counted_qty")} className="w-24 rounded-lg border border-emerald-800 bg-emerald-950/20 px-2 py-1.5 text-right text-xs text-emerald-100" />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input ref={(el) => { cellRefs.current[`${index}:memo`] = el; }} value={line.memo} onChange={(e) => updateDraftLine(index, { memo: e.target.value })} onKeyDown={(e) => handleEnter(e, index, "memo")} className="w-32 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <button type="button" onClick={() => removeDraftLine(index)} className="rounded-lg border border-rose-800/70 bg-rose-950/20 px-2 py-1 text-xs text-rose-200">
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -584,13 +545,87 @@ export default function InventoryCountSheetsPage() {
         </div>
       </section>
 
+      {showExcelImport ? (
+        <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-neutral-100">Import from Excel (optional)</div>
+              <div className="mt-1 text-xs text-neutral-500">Use this only when loading rows from `Inventory Dubai 2026.xlsx`.</div>
+            </div>
+            <div className="text-xs text-neutral-500">{previewSheets.length} sheets detected</div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_220px_160px_160px]">
+            <div className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
+                  setUploadFile(file);
+                  setPreviewSheets([]);
+                  setSelectedPreview(null);
+                  setSelectedPreviewSheetName("");
+                }}
+                className="hidden"
+              />
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-100">
+                Select Excel File
+              </button>
+              <div className="truncate text-xs text-neutral-400">{uploadFile?.name || "No file selected"}</div>
+            </div>
+            <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={selectedPreviewSheetName} onChange={(e) => setSelectedPreviewSheetName(e.target.value)}>
+              <option value="">Select sheet</option>
+              {previewSheets.map((sheet) => (
+                <option key={sheet.sheet_name} value={sheet.sheet_name}>
+                  {sheet.sheet_name}
+                </option>
+              ))}
+            </select>
+            <button type="button" onClick={() => void previewWorkbook(false)} disabled={previewBusy || !uploadFile} className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900 disabled:opacity-60">
+              {previewBusy ? "Loading..." : "Preview Workbook"}
+            </button>
+            <button type="button" onClick={() => void previewWorkbook(true)} disabled={previewBusy || !uploadFile || !selectedPreviewSheetName} className="rounded-xl border border-sky-800 bg-sky-950/30 px-4 py-2 text-sm text-sky-200 hover:bg-sky-900/30 disabled:opacity-60">
+              {previewBusy ? "Loading..." : "Load Sheet Preview"}
+            </button>
+          </div>
+
+          {previewSheets.length ? (
+            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+              {previewSheets.map((sheet) => (
+                <div key={sheet.sheet_name} className="rounded-full border border-neutral-800 bg-neutral-950/40 px-3 py-1 text-neutral-300">
+                  {sheet.sheet_name} • {sheet.branch_guess || "-"} • {sheet.cycle_guess || "-"} • {sheet.row_count} rows
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {selectedPreview ? (
+            <div className="mt-4 rounded-2xl border border-neutral-800 bg-neutral-950/20 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-neutral-100">{selectedPreview.sheet_name}</div>
+                  <div className="mt-1 text-xs text-neutral-500">
+                    Branch guess: {selectedPreview.branch_guess || "-"} • Cycle guess: {selectedPreview.cycle_guess || "-"} • Matched {selectedPreview.matched_count} / Unmatched {selectedPreview.unmatched_count}
+                  </div>
+                </div>
+                <button type="button" onClick={loadPreviewIntoDraft} className="rounded-xl border border-emerald-800 bg-emerald-950/30 px-4 py-2 text-sm text-emerald-200 hover:bg-emerald-900/30">
+                  Load Into Grid
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-neutral-100">History</div>
             <div className="mt-1 text-xs text-neutral-500">Review saved count template history and details.</div>
           </div>
-          <input type="month" value={historyMonth} onChange={(e) => setHistoryMonth(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+          <input type="month" lang="en" value={historyMonth} onChange={(e) => setHistoryMonth(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)]">
@@ -636,7 +671,7 @@ export default function InventoryCountSheetsPage() {
               <div className="text-sm font-semibold text-neutral-100">Selected Template</div>
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={loadSelectedSheetIntoDraft} disabled={!selectedSheet || actionBusy} className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-200 disabled:opacity-50">
-                  Load to Draft
+                  Load to Grid
                 </button>
                 <button type="button" onClick={duplicateSelectedSheet} disabled={!selectedSheetId || actionBusy} className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-200 disabled:opacity-50">
                   Duplicate
@@ -666,17 +701,6 @@ export default function InventoryCountSheetsPage() {
                 <div>
                   <div className="text-xs text-neutral-500">Items</div>
                   <div>{(selectedSheet.items || []).length}</div>
-                </div>
-                <div className="max-h-96 space-y-2 overflow-y-auto">
-                  {(selectedSheet.items || []).map((item, index) => (
-                    <div key={`${item.sku}-${index}`} className="rounded-xl border border-neutral-800 bg-neutral-900/30 px-3 py-2">
-                      <div>{item.supplier_name || "Unknown supplier"} / {item.item_name}</div>
-                      <div className="mt-1 text-xs text-neutral-500">
-                        {item.sku || "-"} • {item.storage_unit || "-"} • {Number(item.unit_price || 0).toFixed(2)}
-                      </div>
-                    </div>
-                  ))}
-                  {!(selectedSheet.items || []).length ? <div className="text-xs text-neutral-500">No rows linked.</div> : null}
                 </div>
               </div>
             )}
