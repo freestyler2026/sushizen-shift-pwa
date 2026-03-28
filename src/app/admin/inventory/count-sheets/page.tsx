@@ -99,11 +99,11 @@ export default function InventoryCountSheetsPage() {
       try {
         const [itemsRes, sheetsRes] = await Promise.all([
           inventoryGet<{ rows: InventoryItemLookup[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=ALL&limit=5000`),
-          inventoryGet<{ rows: CountSheetRow[] }>(`/api/admin/inventory/count-sheets?city=${encodeURIComponent(city)}&tab=ALL&limit=500`),
+          inventoryGet<{ rows: CountSheetRow[] }>(`/api/admin/inventory/count-sheets?city=${encodeURIComponent(city)}&tab=ACTIVE&limit=500`),
         ]);
         if (cancelled) return;
         setItemOptions((itemsRes.rows || []).filter((item) => item.status !== "DELETED"));
-        setHistoryRows(sheetsRes.rows || []);
+        setHistoryRows((sheetsRes.rows || []).filter((row) => row.status !== "DELETED"));
       } catch (e: any) {
         if (!cancelled) setError(e?.message || String(e));
       } finally {
@@ -346,8 +346,8 @@ export default function InventoryCountSheetsPage() {
         city,
         items: draftLines.map((line, idx) => ({ ...line, sort_order: idx + 1 })),
       });
-      const historyRes = await inventoryGet<{ rows: CountSheetRow[] }>(`/api/admin/inventory/count-sheets?city=${encodeURIComponent(city)}&tab=ALL&limit=500`);
-      setHistoryRows(historyRes.rows || []);
+      const historyRes = await inventoryGet<{ rows: CountSheetRow[] }>(`/api/admin/inventory/count-sheets?city=${encodeURIComponent(city)}&tab=ACTIVE&limit=500`);
+      setHistoryRows((historyRes.rows || []).filter((row) => row.status !== "DELETED"));
       setSelectedSheetId(countSheetId);
       setSuccess("Count template saved.");
     } catch (e: any) {
@@ -365,8 +365,8 @@ export default function InventoryCountSheetsPage() {
     try {
       const res = await inventoryPost<{ row: CountSheetRow }>(`/api/admin/inventory/count-sheets/${encodeURIComponent(selectedSheetId)}/duplicate`, { city });
       const nextId = String(res?.row?.id || "");
-      const historyRes = await inventoryGet<{ rows: CountSheetRow[] }>(`/api/admin/inventory/count-sheets?city=${encodeURIComponent(city)}&tab=ALL&limit=500`);
-      setHistoryRows(historyRes.rows || []);
+      const historyRes = await inventoryGet<{ rows: CountSheetRow[] }>(`/api/admin/inventory/count-sheets?city=${encodeURIComponent(city)}&tab=ACTIVE&limit=500`);
+      setHistoryRows((historyRes.rows || []).filter((row) => row.status !== "DELETED"));
       setSelectedSheetId(nextId);
       setSuccess("Selected count template duplicated.");
     } catch (e: any) {
@@ -383,8 +383,8 @@ export default function InventoryCountSheetsPage() {
     setSuccess("");
     try {
       await inventoryPost(`/api/admin/inventory/count-sheets/${encodeURIComponent(selectedSheetId)}/delete?city=${encodeURIComponent(city)}`, {});
-      const historyRes = await inventoryGet<{ rows: CountSheetRow[] }>(`/api/admin/inventory/count-sheets?city=${encodeURIComponent(city)}&tab=ALL&limit=500`);
-      setHistoryRows(historyRes.rows || []);
+      const historyRes = await inventoryGet<{ rows: CountSheetRow[] }>(`/api/admin/inventory/count-sheets?city=${encodeURIComponent(city)}&tab=ACTIVE&limit=500`);
+      setHistoryRows((historyRes.rows || []).filter((row) => row.status !== "DELETED"));
       setSelectedSheetId("");
       setSelectedSheet(null);
       setSuccess("Selected count template deleted.");

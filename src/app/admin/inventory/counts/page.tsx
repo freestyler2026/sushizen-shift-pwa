@@ -14,6 +14,7 @@ type CountSheetRow = {
   branch_code: string;
   cycle: string;
   source_sheet_name: string;
+  status: string;
 };
 
 type CountSheetDetail = CountSheetRow & {
@@ -107,13 +108,13 @@ export default function InventoryCountsPage() {
       try {
         const [itemsRes, sheetsRes, countsRes, balancesRes] = await Promise.all([
           inventoryGet<{ rows: InventoryItemLookup[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=ITEMS&limit=5000`),
-          inventoryGet<{ rows: CountSheetRow[] }>(`/api/admin/inventory/count-sheets?city=${encodeURIComponent(city)}&tab=ALL&limit=500`),
+          inventoryGet<{ rows: CountSheetRow[] }>(`/api/admin/inventory/count-sheets?city=${encodeURIComponent(city)}&tab=ACTIVE&limit=500`),
           inventoryGet<{ rows: CountRow[] }>(`/api/admin/inventory/counts?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}&limit=500`),
           inventoryGet<{ rows: BalanceRow[] }>(`/api/admin/inventory/balances?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}&limit=1000`),
         ]);
         if (cancelled) return;
         setItemOptions((itemsRes.rows || []).filter((item) => item.status !== "DELETED"));
-        setCountSheetOptions((sheetsRes.rows || []).filter((row) => row.branch_code === branchCode && (!row.cycle || row.cycle === cycle)));
+        setCountSheetOptions((sheetsRes.rows || []).filter((row) => row.status !== "DELETED" && row.branch_code === branchCode && (!row.cycle || row.cycle === cycle)));
         setHistoryRows(countsRes.rows || []);
         const balanceMap: Record<string, number> = {};
         for (const row of balancesRes.rows || []) balanceMap[String(row.item_id || "")] = Number(row.on_hand_qty || 0);
