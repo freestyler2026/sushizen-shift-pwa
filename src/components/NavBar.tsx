@@ -9,7 +9,7 @@ import LogoutButton from "@/components/LogoutButton";
 import {
   canAccessAdminNav,
   canAccessBackofficeEvaluationAdmin,
-  canAccessInventoryAdmin,
+  canAccessInventoryWorkspace,
   canAccessPrivateReportAdmin,
   getAuth,
   refreshAuthFromApi,
@@ -131,7 +131,7 @@ export default function NavBar() {
       const resolved = await refreshAuthFromApi(a);
       if (!cancelled) {
         setShowAdmin(canAccessAdminNav(resolved));
-        setShowInventoryAdmin(canAccessInventoryAdmin(resolved));
+        setShowInventoryAdmin(canAccessInventoryWorkspace(resolved));
         setShowPrivateReportAdmin(canAccessPrivateReportAdmin(resolved));
         setShowBackofficeEvalAdmin(canAccessBackofficeEvaluationAdmin(resolved));
         setDisplayName(resolved?.staffName || a.staffName || "");

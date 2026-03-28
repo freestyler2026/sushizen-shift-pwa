@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import InventoryTabs from "@/components/InventoryTabs";
-import { canAccessCountTemplatesAdmin, canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { canAccessCountTemplatesAdmin, canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 
 type ModuleCard = {
   title: string;
@@ -95,10 +95,16 @@ export default function AdminInventoryPage() {
   const [staffName, setStaffName] = useState(initialAuth?.staffName || "");
   const [city, setCity] = useState((initialAuth?.city || "manila").toUpperCase());
   const [role, setRole] = useState((initialAuth?.role || "").toString().toUpperCase());
+  const limitedInventoryUser = role === "STAFF" || role === "MANAGER";
   const canManageCountTemplates = role === "HQ" || role === "ADMIN" || canAccessCountTemplatesAdmin(initialAuth);
   const visibleModules = useMemo(
-    () => MODULES.filter((module) => (module.href === "/admin/inventory/count-sheets" ? canManageCountTemplates : true)),
-    [canManageCountTemplates],
+    () => limitedInventoryUser
+      ? MODULES.filter((module) =>
+        module.href === "/admin/inventory/counts" ||
+        module.href === "/admin/inventory/transfer-orders" ||
+        module.href === "/admin/inventory/productions")
+      : MODULES.filter((module) => (module.href === "/admin/inventory/count-sheets" ? canManageCountTemplates : true)),
+    [canManageCountTemplates, limitedInventoryUser],
   );
 
   useEffect(() => {
@@ -108,7 +114,7 @@ export default function AdminInventoryPage() {
       const auth = getAuth();
       const resolved = await refreshAuthFromApi(auth);
       if (cancelled) return;
-      setAllowed(canAccessInventoryAdmin(resolved));
+      setAllowed(canAccessInventoryWorkspace(resolved));
       setStaffName(resolved?.staffName || auth?.staffName || "");
       setCity((resolved?.city || auth?.city || "manila").toUpperCase());
       setRole((resolved?.role || auth?.role || "").toString().toUpperCase());

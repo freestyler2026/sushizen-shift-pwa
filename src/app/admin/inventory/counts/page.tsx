@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
-import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { defaultBranch, groupBySupplier, lineFromItem, monthNow, number3, todayIso, withVariance, type InventoryCountLine, type InventoryItemLookup } from "@/lib/inventoryCountUtils";
 import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
@@ -97,7 +97,7 @@ export default function InventoryCountsPage() {
       const resolved = await refreshAuthFromApi(auth);
       if (cancelled) return;
       const nextCity = (resolved?.city || auth?.city || "manila") as City;
-      setAllowed(canAccessInventoryAdmin(resolved));
+      setAllowed(canAccessInventoryWorkspace(resolved));
       setCity(nextCity);
       setBranchCode(defaultBranch(nextCity));
       setPicName(resolved?.staffName || auth?.staffName || "");

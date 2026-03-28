@@ -315,6 +315,16 @@ export function canAccessInventoryAdmin(a?: Auth | null): boolean {
   return role === "HQ" || role === "HR_MANAGER" || role === "ADMIN" || role === "DUBAI_MANAGEMENT" || role === "MANILA_MANAGEMENT";
 }
 
+export function canAccessInventoryLimited(a?: Auth | null): boolean {
+  const x = a ?? getAuth();
+  const role = (x?.role || "").toString().toUpperCase();
+  return role === "STAFF" || role === "MANAGER";
+}
+
+export function canAccessInventoryWorkspace(a?: Auth | null): boolean {
+  return canAccessInventoryAdmin(a) || canAccessInventoryLimited(a);
+}
+
 export function canAccessCountTemplatesAdmin(a?: Auth | null): boolean {
   const x = a ?? getAuth();
   const role = (x?.role || "").toString().toUpperCase();

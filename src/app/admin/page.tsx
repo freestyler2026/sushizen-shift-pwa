@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { BRANCHES, type City as BranchCity, type BranchCode } from "@/lib/branches";
-import { canAccessInventoryAdmin, getAuth } from "@/lib/auth";
+import { canAccessInventoryWorkspace, getAuth } from "@/lib/auth";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -230,7 +230,7 @@ export default function AdminPage() {
 
   const [tokenRemain, setTokenRemain] = useState<number | null>(null);
   const tokenTimerRef = useRef<any>(null);
-  const canOpenInventory = useMemo(() => canAccessInventoryAdmin(auth), [auth]);
+  const canOpenInventory = useMemo(() => canAccessInventoryWorkspace(auth), [auth]);
 
   const clearTokenTimer = () => {
     if (tokenTimerRef.current) {

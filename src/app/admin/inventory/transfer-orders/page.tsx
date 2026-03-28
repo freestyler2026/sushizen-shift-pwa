@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
-import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
 
@@ -89,7 +89,7 @@ export default function InventoryTransferOrdersPage() {
       const resolved = await refreshAuthFromApi(auth);
       if (cancelled) return;
       const nextCity = (resolved?.city || auth?.city || "manila") as City;
-      setAllowed(canAccessInventoryAdmin(resolved));
+      setAllowed(canAccessInventoryWorkspace(resolved));
       setCity(nextCity);
       setFromBranch(BRANCHES[nextCity][0]?.code || "");
       setToBranch(BRANCHES[nextCity][1]?.code || BRANCHES[nextCity][0]?.code || "");
