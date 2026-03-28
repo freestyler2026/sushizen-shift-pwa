@@ -6,7 +6,7 @@ import InventoryTabs from "@/components/InventoryTabs";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
-import { emptyCountLine, lineFromItem, monthNow, type InventoryCountLine, type InventoryItemLookup } from "@/lib/inventoryCountUtils";
+import { emptyCountLine, lineFromItem, monthNow, withVariance, type InventoryCountLine, type InventoryItemLookup } from "@/lib/inventoryCountUtils";
 import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
 
 type CountSheetRow = {
@@ -45,6 +45,8 @@ export default function InventoryCountSheetsPage() {
   const [historyMonth, setHistoryMonth] = useState(monthNow());
   const [itemSearch, setItemSearch] = useState("");
   const [selectedItemId, setSelectedItemId] = useState("");
+  const [selectedAddQty, setSelectedAddQty] = useState("0");
+  const [addQtyByItemId, setAddQtyByItemId] = useState<Record<string, string>>({});
   const [draftLines, setDraftLines] = useState<InventoryCountLine[]>([]);
   const [itemOptions, setItemOptions] = useState<InventoryItemLookup[]>([]);
   const [historyRows, setHistoryRows] = useState<CountSheetRow[]>([]);
@@ -211,39 +213,49 @@ export default function InventoryCountSheetsPage() {
     setDraftLines((prev) => prev.map((line, idx) => (idx === index ? { ...line, ...patch } : line)));
   }
 
-  function appendItemToDraft(item: InventoryItemLookup) {
-    if (!item) return;
+  function addQtyValue(itemId: string) {
+    return addQtyByItemId[itemId] ?? "0";
+  }
+
+  function setAddQty(itemId: string, value: string) {
+    setAddQtyByItemId((prev) => ({ ...prev, [itemId]: value }));
+  }
+
+  function buildDraftLine(item: InventoryItemLookup, countedQty: number, sortOrder: number) {
+    const normalizedQty = Number.isFinite(countedQty) ? countedQty : 0;
     if (item.id.startsWith("excel-")) {
-      setDraftLines((prev) => [
-        ...prev,
-        {
-          item_id: "",
-          category: item.category_name || "",
-          supplier_name: item.supplier_name || "",
-          item_name: item.name || "",
-          invoice_name: item.name || "",
-          sku: item.sku || "",
-          storage_unit: item.storage_unit || "",
-          unit_price: Number(item.cost || 0),
-          theoretical_qty: 0,
-          counted_qty: 0,
-          variance_qty: 0,
-          asset_value: 0,
-          memo: "",
-          foodics_data: "",
-          order_difference: "",
-          sort_order: prev.length + 1,
-        },
-      ]);
-    } else {
-      setDraftLines((prev) => [...prev, lineFromItem(item, prev.length + 1)]);
+      return withVariance({
+        item_id: "",
+        category: item.category_name || "",
+        supplier_name: item.supplier_name || "",
+        item_name: item.name || "",
+        invoice_name: item.name || "",
+        sku: item.sku || "",
+        storage_unit: item.storage_unit || "",
+        unit_price: Number(item.cost || 0),
+        theoretical_qty: 0,
+        counted_qty: normalizedQty,
+        variance_qty: 0,
+        asset_value: 0,
+        memo: "",
+        foodics_data: "",
+        order_difference: "",
+        sort_order: sortOrder,
+      });
     }
+    return withVariance({ ...lineFromItem(item, sortOrder), counted_qty: normalizedQty });
+  }
+
+  function appendItemToDraft(item: InventoryItemLookup, countedQty = 0) {
+    if (!item) return;
+    setDraftLines((prev) => [...prev, buildDraftLine(item, countedQty, prev.length + 1)]);
   }
 
   function addManualItem() {
     if (!selectedItem) return;
-    appendItemToDraft(selectedItem);
+    appendItemToDraft(selectedItem, Number(selectedAddQty || 0));
     setSelectedItemId("");
+    setSelectedAddQty("0");
   }
 
   function addRow() {
@@ -455,7 +467,7 @@ export default function InventoryCountSheetsPage() {
           </div>
         ) : null}
 
-        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_180px_140px]">
+        <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_120px_180px_140px]">
           <input value={itemSearch} onChange={(e) => setItemSearch(e.target.value)} placeholder="Search by supplier / item / SKU" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
           <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)}>
             <option value="">{filteredSelectableItems.length ? "Add inventory item" : "No matched items"}</option>
@@ -465,6 +477,7 @@ export default function InventoryCountSheetsPage() {
               </option>
             ))}
           </select>
+          <input type="number" min="0" step="0.001" value={selectedAddQty} onChange={(e) => setSelectedAddQty(e.target.value)} placeholder="Qty" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-right" />
           <button type="button" onClick={addManualItem} disabled={!selectedItem} className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900 disabled:opacity-60">
             Add Item
           </button>
@@ -501,6 +514,7 @@ export default function InventoryCountSheetsPage() {
                       <th className="px-3 py-2 text-left">Invoice Name</th>
                       <th className="px-3 py-2 text-left">Unit</th>
                       <th className="px-3 py-2 text-right">Unit Price</th>
+                      <th className="px-3 py-2 text-right text-emerald-300">Counted Qty</th>
                       <th className="px-3 py-2 text-right">Action</th>
                     </tr>
                   </thead>
@@ -512,9 +526,19 @@ export default function InventoryCountSheetsPage() {
                         <td className="px-3 py-2">{item.storage_unit || "-"}</td>
                         <td className="px-3 py-2 text-right">{Number(item.cost || 0).toFixed(2)}</td>
                         <td className="px-3 py-2 text-right">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.001"
+                            value={addQtyValue(item.id)}
+                            onChange={(e) => setAddQty(item.id, e.target.value)}
+                            className="w-24 rounded-lg border border-emerald-800 bg-emerald-950/20 px-2 py-1 text-right text-xs text-emerald-100"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-right">
                           <button
                             type="button"
-                            onClick={() => appendItemToDraft(item)}
+                            onClick={() => appendItemToDraft(item, Number(addQtyValue(item.id) || 0))}
                             className="rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-800"
                           >
                             Add
