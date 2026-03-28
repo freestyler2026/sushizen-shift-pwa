@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
+import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
@@ -401,7 +402,7 @@ export default function InventoryProductionsPage() {
 
   async function saveRecipe() {
     if (!recipeProductId) {
-      setError("Recipe product を選択してください。");
+      setError("Please select a recipe product.");
       return;
     }
     setRecipeSaving(true);
@@ -420,7 +421,7 @@ export default function InventoryProductionsPage() {
           active: row.active,
         })),
       });
-      setSuccess("Production BOM を保存しました。");
+      setSuccess("Production BOM saved.");
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -430,19 +431,19 @@ export default function InventoryProductionsPage() {
 
   async function createProduction() {
     if (!creatorName.trim()) {
-      setError("担当者を選択してください。");
+      setError("Please select a responsible staff member.");
       return;
     }
     if (!branchCode) {
-      setError("Branch を選択してください。");
+      setError("Please select a branch.");
       return;
     }
     if (draftOutputs.length === 0) {
-      setError("少なくとも1つ product を追加してください。");
+      setError("Please add at least one product.");
       return;
     }
     if (previewRows.length === 0) {
-      setError("Production BOM が未登録です。先に product recipe を登録してください。");
+      setError("Production BOM is not registered yet. Please register the product recipe first.");
       return;
     }
     setSaving(true);
@@ -488,7 +489,7 @@ export default function InventoryProductionsPage() {
       setDraftOutputs([]);
       setPreviewRows([]);
       setNotes("");
-      setSuccess("Production draft を作成しました。必要なら detail から close してください。");
+      setSuccess("Production draft created. Close it from detail when ready.");
       setSelectedProductionId(productionId);
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -509,7 +510,7 @@ export default function InventoryProductionsPage() {
         `/api/admin/inventory/productions/${encodeURIComponent(selectedProductionId)}?city=${encodeURIComponent(city)}`,
       );
       setSelectedProduction(res.row || null);
-      setSuccess("Production を close し、product 入庫と ingredient 消費を ledger に記帳しました。");
+      setSuccess("Production closed. Product intake and ingredient consumption were posted to ledger.");
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -529,7 +530,7 @@ export default function InventoryProductionsPage() {
       );
       await loadHistory(city, branchCode, historyMonth);
       setSelectedProductionId(String(duplicated?.row?.id || ""));
-      setSuccess("Selected production を複製しました。");
+      setSuccess("Selected production duplicated.");
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -547,9 +548,9 @@ export default function InventoryProductionsPage() {
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-lg font-semibold text-neutral-100">Production</div>
+            <div className="text-lg font-semibold text-neutral-100">CK Production</div>
             <div className="mt-1 text-sm text-neutral-400">
-              Central Kitchen 向けの product 登録と ingredient 消費管理です。
+              Register CK production products and ingredient consumption recipes.
             </div>
           </div>
           <div className="text-xs text-neutral-500">{city.toUpperCase()} production workflow</div>
@@ -585,7 +586,7 @@ export default function InventoryProductionsPage() {
             list="inventory-production-staff-list"
             value={creatorName}
             onChange={(e) => setCreatorName(e.target.value)}
-            placeholder="担当者を選択"
+            placeholder="Select responsible staff"
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
           />
           <input
@@ -605,7 +606,7 @@ export default function InventoryProductionsPage() {
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="メモ / production note"
+            placeholder="Notes / production note"
             className="min-h-24 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
           />
         </div>
@@ -633,6 +634,8 @@ export default function InventoryProductionsPage() {
         {success ? <div className="mt-3 text-sm text-emerald-300">{success}</div> : null}
       </section>
 
+      <InventoryRegistrationHelp />
+
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="text-sm font-semibold text-neutral-100">Add Products</div>
@@ -645,7 +648,7 @@ export default function InventoryProductionsPage() {
             value={selectedProductId}
             onChange={(e) => setSelectedProductId(e.target.value)}
           >
-            <option value="">product を選択</option>
+            <option value="">Select a product</option>
             {productOptions.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name} {item.sku ? `(${item.sku})` : ""}
@@ -702,7 +705,7 @@ export default function InventoryProductionsPage() {
               {draftOutputs.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
-                    まだ product が追加されていません。
+                    No products have been added yet.
                   </td>
                 </tr>
               ) : null}
@@ -714,8 +717,8 @@ export default function InventoryProductionsPage() {
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold text-neutral-100">Production Recipe Setup</div>
-            <div className="mt-1 text-xs text-neutral-500">product ごとの ingredient BOM をここで登録します。</div>
+            <div className="text-sm font-semibold text-neutral-100">CK Product -&gt; Ingredients</div>
+            <div className="mt-1 text-xs text-neutral-500">Register ingredient BOM per product here.</div>
           </div>
           <div className="text-xs text-neutral-500">{recipeLoading ? "Loading recipe..." : `${recipeRows.length} recipe rows`}</div>
         </div>
@@ -726,7 +729,7 @@ export default function InventoryProductionsPage() {
             value={recipeProductId}
             onChange={(e) => setRecipeProductId(e.target.value)}
           >
-            <option value="">recipe product を選択</option>
+            <option value="">Select a recipe product</option>
             {productOptions.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name} {item.sku ? `(${item.sku})` : ""}
@@ -738,7 +741,7 @@ export default function InventoryProductionsPage() {
             value={recipeIngredientId}
             onChange={(e) => setRecipeIngredientId(e.target.value)}
           >
-            <option value="">ingredient を選択</option>
+            <option value="">Select an ingredient</option>
             {ingredientOptions.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name} {item.sku ? `(${item.sku})` : ""}
@@ -767,7 +770,7 @@ export default function InventoryProductionsPage() {
           <table className="min-w-full text-left text-sm">
             <thead className="text-xs uppercase tracking-wide text-neutral-500">
               <tr>
-                <th className="px-3 py-2">Ingredient</th>
+                <th className="px-3 py-2">Ingredient Item</th>
                 <th className="px-3 py-2">SKU</th>
                 <th className="px-3 py-2">Unit</th>
                 <th className="px-3 py-2">Qty / 1 Output</th>
@@ -795,7 +798,7 @@ export default function InventoryProductionsPage() {
               {!recipeLoading && recipeRows.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
-                    まだ recipe は登録されていません。
+                    No recipe lines registered yet.
                   </td>
                 </tr>
               ) : null}
@@ -853,7 +856,7 @@ export default function InventoryProductionsPage() {
               {!previewLoading && previewRows.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-3 py-6 text-center text-neutral-500">
-                    Draft に product を追加すると ingredient preview が表示されます。
+                    Add products to draft to display ingredient preview.
                   </td>
                 </tr>
               ) : null}
@@ -877,7 +880,7 @@ export default function InventoryProductionsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-neutral-100">History</div>
-            <div className="mt-1 text-xs text-neutral-500">月ごとに Production 履歴を確認できます。</div>
+            <div className="mt-1 text-xs text-neutral-500">Review production history by month.</div>
           </div>
           <div className="text-xs text-neutral-500">{loading ? "Loading..." : `${historyRows.length} production rows`}</div>
         </div>
@@ -918,7 +921,7 @@ export default function InventoryProductionsPage() {
                 {!loading && historyRows.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
-                      この月の production 履歴はありません。
+                      No production history for this month.
                     </td>
                   </tr>
                 ) : null}
@@ -950,7 +953,7 @@ export default function InventoryProductionsPage() {
             </div>
 
             {!selectedProduction ? (
-              <div className="mt-3 text-sm text-neutral-500">左の履歴から Production を選択してください。</div>
+              <div className="mt-3 text-sm text-neutral-500">Select a production record from the history list on the left.</div>
             ) : (
               <div className="mt-3 space-y-4 text-sm text-neutral-200">
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

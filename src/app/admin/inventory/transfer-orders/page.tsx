@@ -204,15 +204,15 @@ export default function InventoryTransferOrdersPage() {
 
   async function createTransferOrder() {
     if (!requestedBy.trim()) {
-      setError("担当者を選択してください。");
+      setError("Please select a responsible staff member.");
       return;
     }
     if (!fromBranch || !toBranch || fromBranch === toBranch) {
-      setError("移動元と移動先を正しく選択してください。");
+      setError("Please select valid source and destination branches.");
       return;
     }
     if (draftItems.length === 0) {
-      setError("少なくとも1つ食材を追加してください。");
+      setError("Please add at least one ingredient item.");
       return;
     }
     setSaving(true);
@@ -246,7 +246,7 @@ export default function InventoryTransferOrdersPage() {
       setHistoryRows(historyRes.rows || []);
       setDraftItems([]);
       setNotes("");
-      setSuccess("Transfer Order を作成して Pending にしました。");
+      setSuccess("Transfer order created and moved to Pending.");
       setSelectedOrderId(transferOrderId);
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -267,7 +267,7 @@ export default function InventoryTransferOrdersPage() {
           <div>
             <div className="text-lg font-semibold text-neutral-100">Transfer Orders</div>
             <div className="mt-1 text-sm text-neutral-400">
-              店舗間の食材移動を登録して、在庫ズレを減らすための依頼ページです。
+              Request page for inter-branch ingredient transfers to reduce inventory mismatches.
             </div>
           </div>
           <div className="text-xs text-neutral-500">{city.toUpperCase()} transfer workflow</div>
@@ -308,7 +308,7 @@ export default function InventoryTransferOrdersPage() {
             list="inventory-transfer-staff-list"
             value={requestedBy}
             onChange={(e) => setRequestedBy(e.target.value)}
-            placeholder="担当者を選択"
+            placeholder="Select responsible staff"
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
           />
         </div>
@@ -322,7 +322,7 @@ export default function InventoryTransferOrdersPage() {
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="メモ / 理由"
+            placeholder="Notes / reason"
             className="min-h-24 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
           />
         </div>
@@ -343,7 +343,7 @@ export default function InventoryTransferOrdersPage() {
             value={selectedItemId}
             onChange={(e) => setSelectedItemId(e.target.value)}
           >
-            <option value="">食材を選択</option>
+            <option value="">Select an ingredient item</option>
             {itemOptions.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name} {item.sku ? `(${item.sku})` : ""}
@@ -398,7 +398,7 @@ export default function InventoryTransferOrdersPage() {
               {draftItems.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-3 py-6 text-center text-neutral-500">
-                    まだ食材が追加されていません。
+                    No ingredient items have been added yet.
                   </td>
                 </tr>
               ) : null}
@@ -422,7 +422,7 @@ export default function InventoryTransferOrdersPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-neutral-100">History</div>
-            <div className="mt-1 text-xs text-neutral-500">月ごとに Transfer Order 履歴を確認できます。</div>
+            <div className="mt-1 text-xs text-neutral-500">Review transfer order history by month.</div>
           </div>
           <input
             type="month"
@@ -469,7 +469,7 @@ export default function InventoryTransferOrdersPage() {
                 {!loading && filteredHistory.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
-                      この月の履歴はありません。
+                      No history for this month.
                     </td>
                   </tr>
                 ) : null}
@@ -480,7 +480,7 @@ export default function InventoryTransferOrdersPage() {
           <div className="rounded-2xl border border-neutral-800 bg-neutral-950/20 p-4">
             <div className="text-sm font-semibold text-neutral-100">Selected Order</div>
             {!selectedOrder ? (
-              <div className="mt-3 text-sm text-neutral-500">左の履歴から Transfer Order を選択してください。</div>
+              <div className="mt-3 text-sm text-neutral-500">Select a transfer order from the history list on the left.</div>
             ) : (
               <div className="mt-3 space-y-3 text-sm text-neutral-200">
                 <div>

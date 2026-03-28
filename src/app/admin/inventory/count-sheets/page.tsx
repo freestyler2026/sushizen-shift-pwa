@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
+import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { groupBySupplier, lineFromItem, monthNow, type InventoryCountLine, type InventoryItemLookup } from "@/lib/inventoryCountUtils";
@@ -182,7 +183,7 @@ export default function InventoryCountSheetsPage() {
 
   async function previewWorkbook(withSelectedSheet = false) {
     if (!uploadFile) {
-      setError("Excel file を選択してください。");
+      setError("Please select an Excel file.");
       return;
     }
     setPreviewBusy(true);
@@ -215,7 +216,7 @@ export default function InventoryCountSheetsPage() {
     if (!templateName.trim()) setTemplateName(selectedPreview.sheet_name || "");
     if (!branchCode && selectedPreview.branch_guess) setBranchCode(selectedPreview.branch_guess);
     if (selectedPreview.cycle_guess) setCycle(selectedPreview.cycle_guess);
-    setSuccess("Selected Excel sheet を draft に読み込みました。必要なら item を追加・修正して保存してください。");
+    setSuccess("Loaded selected Excel sheet into draft. Add or edit items if needed, then save.");
   }
 
   function loadSelectedSheetIntoDraft() {
@@ -225,16 +226,16 @@ export default function InventoryCountSheetsPage() {
     setReference(selectedSheet.reference || "");
     if (selectedSheet.branch_code) setBranchCode(selectedSheet.branch_code);
     if (selectedSheet.cycle) setCycle(selectedSheet.cycle);
-    setSuccess("Selected Count Sheet を draft に読み込みました。");
+    setSuccess("Loaded selected count template into draft.");
   }
 
   async function saveCountSheet() {
     if (!templateName.trim()) {
-      setError("Template name を入力してください。");
+      setError("Please enter a template name.");
       return;
     }
     if (!draftLines.length) {
-      setError("少なくとも1つ item を追加してください。");
+      setError("Please add at least one item.");
       return;
     }
     setSaving(true);
@@ -260,7 +261,7 @@ export default function InventoryCountSheetsPage() {
       const historyRes = await inventoryGet<{ rows: CountSheetRow[] }>(`/api/admin/inventory/count-sheets?city=${encodeURIComponent(city)}&tab=ALL&limit=500`);
       setHistoryRows(historyRes.rows || []);
       setSelectedSheetId(countSheetId);
-      setSuccess("Count Sheet を保存しました。");
+      setSuccess("Count template saved.");
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -279,7 +280,7 @@ export default function InventoryCountSheetsPage() {
       const historyRes = await inventoryGet<{ rows: CountSheetRow[] }>(`/api/admin/inventory/count-sheets?city=${encodeURIComponent(city)}&tab=ALL&limit=500`);
       setHistoryRows(historyRes.rows || []);
       setSelectedSheetId(nextId);
-      setSuccess("Selected Count Sheet を複製しました。");
+      setSuccess("Selected count template duplicated.");
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -298,7 +299,7 @@ export default function InventoryCountSheetsPage() {
       setHistoryRows(historyRes.rows || []);
       setSelectedSheetId("");
       setSelectedSheet(null);
-      setSuccess("Selected Count Sheet を削除しました。");
+      setSuccess("Selected count template deleted.");
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -312,12 +313,13 @@ export default function InventoryCountSheetsPage() {
   return (
     <div className="space-y-6">
       <InventoryTabs />
+      <InventoryRegistrationHelp />
 
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-lg font-semibold text-neutral-100">Count Sheets</div>
-            <div className="mt-1 text-sm text-neutral-400">Excel と同じ感覚で supplier ごとに棚卸し template を作るページです。</div>
+            <div className="text-lg font-semibold text-neutral-100">Count Templates</div>
+            <div className="mt-1 text-sm text-neutral-400">Create Excel-like supplier-grouped templates for routine store inventory counting.</div>
           </div>
           <div className="text-xs text-neutral-500">{city.toUpperCase()} template workspace</div>
         </div>
@@ -353,7 +355,7 @@ export default function InventoryCountSheetsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-neutral-100">Import From Excel</div>
-            <div className="mt-1 text-xs text-neutral-500">`Inventory Dubai 2026.xlsx` の supplier / item 行を preview して draft に読み込めます。</div>
+            <div className="mt-1 text-xs text-neutral-500">Preview supplier and item rows from `Inventory Dubai 2026.xlsx` and load them into draft.</div>
           </div>
           <div className="text-xs text-neutral-500">{previewSheets.length} sheets detected</div>
         </div>
@@ -423,12 +425,12 @@ export default function InventoryCountSheetsPage() {
           </button>
         </div>
 
-        <div className="mt-3 text-xs text-neutral-400">Excel-like view: supplier ごとに行をまとめ、`SKU / Supplier / Item Name / Invoice Name / Unit / Unit Price / Memo` を直接編集できます。</div>
+        <div className="mt-3 text-xs text-neutral-400">Excel-like view: rows are grouped by supplier, and you can directly edit `SKU / Supplier / Item Name / Invoice Name / Unit / Unit Price / Memo`.</div>
 
         <div className="mt-4 space-y-4">
           {groupedDraft.length === 0 ? (
             <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-950/30 px-3 py-6 text-center text-xs text-neutral-500">
-              Excel import を preview するか、手動で item を追加してください。
+              Preview an Excel import or add items manually.
             </div>
           ) : null}
           {groupedDraft.map((group) => (
@@ -512,7 +514,7 @@ export default function InventoryCountSheetsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-neutral-100">History</div>
-            <div className="mt-1 text-xs text-neutral-500">保存済み Count Sheet の履歴と detail を確認できます。</div>
+            <div className="mt-1 text-xs text-neutral-500">Review saved count template history and details.</div>
           </div>
           <input type="month" value={historyMonth} onChange={(e) => setHistoryMonth(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
         </div>
@@ -547,7 +549,7 @@ export default function InventoryCountSheetsPage() {
                 {!loading && filteredHistory.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
-                      この条件の Count Sheet はありません。
+                      No count templates found for this filter.
                     </td>
                   </tr>
                 ) : null}
@@ -572,7 +574,7 @@ export default function InventoryCountSheetsPage() {
             </div>
 
             {!selectedSheet ? (
-              <div className="mt-3 text-sm text-neutral-500">左の履歴から Count Sheet を選択してください。</div>
+              <div className="mt-3 text-sm text-neutral-500">Select a count template from the history list on the left.</div>
             ) : (
               <div className="mt-3 space-y-3 text-sm text-neutral-200">
                 <div>

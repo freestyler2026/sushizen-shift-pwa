@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
+import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { defaultBranch, groupBySupplier, lineFromItem, monthNow, number3, todayIso, withVariance, type InventoryCountLine, type InventoryItemLookup } from "@/lib/inventoryCountUtils";
@@ -180,11 +181,11 @@ export default function InventorySpotChecksPage() {
 
   async function saveDraft() {
     if (!branchCode) {
-      setError("Branch を選択してください。");
+      setError("Please select a branch.");
       return;
     }
     if (!draftLines.length) {
-      setError("少なくとも1つ item を追加してください。");
+      setError("Please add at least one item.");
       return;
     }
     setSaving(true);
@@ -208,7 +209,7 @@ export default function InventorySpotChecksPage() {
       });
       await refreshHistoryAndDetail(spotCheckId);
       setSelectedSpotCheckId(spotCheckId);
-      setSuccess("Spot Check draft を保存しました。");
+      setSuccess("Spot check draft saved.");
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -224,7 +225,7 @@ export default function InventorySpotChecksPage() {
     try {
       await inventoryPost(`/api/admin/inventory/spot-checks/${encodeURIComponent(selectedSpotCheckId)}/close`, { city });
       await refreshHistoryAndDetail(selectedSpotCheckId);
-      setSuccess("Selected spot check を close し、variance を ledger に反映しました。");
+      setSuccess("Selected spot check closed and variances posted to ledger.");
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -238,12 +239,13 @@ export default function InventorySpotChecksPage() {
   return (
     <div className="space-y-6">
       <InventoryTabs />
+      <InventoryRegistrationHelp />
 
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-lg font-semibold text-neutral-100">Spot Checks</div>
-            <div className="mt-1 text-sm text-neutral-400">店長や CK 責任者が daily / weekly で重点 item を確認するページです。</div>
+            <div className="text-lg font-semibold text-neutral-100">Quick Spot Check</div>
+            <div className="mt-1 text-sm text-neutral-400">Use for daily or weekly checks of selected items.</div>
           </div>
           <div className="text-xs text-neutral-500">{city.toUpperCase()} spot check workflow</div>
         </div>
@@ -293,12 +295,12 @@ export default function InventorySpotChecksPage() {
           </button>
         </div>
 
-        <div className="mt-3 text-xs text-neutral-400">Excel-like view: supplier ごとに grouped 表示し、重点 item だけ quickly counted input できます。</div>
+        <div className="mt-3 text-xs text-neutral-400">Excel-like view: rows are grouped by supplier so you can quickly enter counted quantities for priority items only.</div>
 
         <div className="mt-4 space-y-4">
           {groupedDraft.length === 0 ? (
             <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-950/30 px-3 py-6 text-center text-xs text-neutral-500">
-              Spot check 対象 item を追加してください。
+              Add items to be included in this spot check.
             </div>
           ) : null}
           {groupedDraft.map((group) => (
@@ -370,7 +372,7 @@ export default function InventorySpotChecksPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-neutral-100">History</div>
-            <div className="mt-1 text-xs text-neutral-500">daily / weekly の spot check 履歴を確認できます。</div>
+            <div className="mt-1 text-xs text-neutral-500">Review daily and weekly spot check history.</div>
           </div>
           <div className="text-xs text-neutral-500">{loading ? "Loading..." : `${filteredHistory.length} rows`}</div>
         </div>
@@ -405,7 +407,7 @@ export default function InventorySpotChecksPage() {
                 {!loading && filteredHistory.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
-                      この月の spot check 履歴はありません。
+                      No spot check history for this month.
                     </td>
                   </tr>
                 ) : null}
@@ -427,7 +429,7 @@ export default function InventorySpotChecksPage() {
             </div>
 
             {!selectedSpotCheck ? (
-              <div className="mt-3 text-sm text-neutral-500">左の履歴から spot check を選択してください。</div>
+              <div className="mt-3 text-sm text-neutral-500">Select a spot check from the history list on the left.</div>
             ) : (
               <div className="mt-3 space-y-3 text-sm text-neutral-200">
                 <div>

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import InventoryTabs from "@/components/InventoryTabs";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 
@@ -14,13 +15,13 @@ type ModuleCard = {
 
 const MODULES: ModuleCard[] = [
   {
-    title: "Items / Suppliers / Categories",
+    title: "Ingredients / Products",
     description: "Inventory masters for SKU, supplier links, category setup, and branch-level par settings.",
     status: "Backend ready",
     href: "/admin/inventory/items",
   },
   {
-    title: "BOM / Recipes",
+    title: "Sales Menu BOM",
     description: "Menu-to-ingredient mapping used to convert sales into theoretical stock consumption.",
     status: "Backend ready",
     href: "/admin/inventory/recipes",
@@ -44,25 +45,25 @@ const MODULES: ModuleCard[] = [
     href: "/admin/inventory/ledger",
   },
   {
-    title: "Counts / Spot Checks",
+    title: "Full Inventory Count",
     description: "Draft, submit, and close flows for physical inventory checks and spot audits.",
     status: "Backend ready",
     href: "/admin/inventory/counts",
   },
   {
-    title: "Count Sheets",
+    title: "Count Templates",
     description: "Excel-like supplier-grouped templates used to prepare 15th and month-end stock counts.",
     status: "Backend ready",
     href: "/admin/inventory/count-sheets",
   },
   {
-    title: "Spot Checks",
+    title: "Quick Spot Check",
     description: "Daily or weekly partial stock verification for managers and CK leads with ledger posting on close.",
     status: "Backend ready",
     href: "/admin/inventory/spot-checks",
   },
   {
-    title: "Production / Adjustments",
+    title: "CK Production / Adjustments",
     description: "Production, quantity adjustment, and cost adjustment workflows with ledger posting.",
     status: "Backend ready",
     href: "/admin/inventory/productions",
@@ -152,6 +153,15 @@ export default function AdminInventoryPage() {
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-sky-800/60 bg-sky-950/15 p-4 sm:col-span-3">
+            <div className="text-sm font-semibold text-sky-100">How to start (Important)</div>
+            <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-sky-50/90">
+              <li>Register ingredients and products in Ingredients / Products.</li>
+              <li>Register sales-menu ingredient mappings in Sales Menu BOM.</li>
+              <li>Register CK product recipes in CK Production.</li>
+              <li>Then use Count Templates / Full Inventory Count / Quick Spot Check / Ledger.</li>
+            </ol>
+          </div>
           <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
             <div className="text-xs uppercase tracking-wide text-neutral-500">Status</div>
             <div className="mt-1 text-sm font-medium text-emerald-200">Backend connected</div>
@@ -184,6 +194,8 @@ export default function AdminInventoryPage() {
           </Link>
         </div>
       </section>
+
+      <InventoryRegistrationHelp />
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {MODULES.map((module) => (

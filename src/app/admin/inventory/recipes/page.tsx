@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
+import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { inventoryGet } from "@/lib/inventoryClient";
 
@@ -77,8 +78,8 @@ export default function InventoryRecipesPage() {
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-lg font-semibold text-neutral-100">BOM / Recipes</div>
-            <div className="mt-1 text-sm text-neutral-400">Menu-to-ingredient mapping for theoretical inventory deduction.</div>
+            <div className="text-lg font-semibold text-neutral-100">Sales Menu BOM</div>
+            <div className="mt-1 text-sm text-neutral-400">Define which ingredients are consumed when each sales menu item is sold.</div>
           </div>
           <div className="text-xs text-neutral-500">{city.toUpperCase()} recipes</div>
         </div>
@@ -124,8 +125,8 @@ export default function InventoryRecipesPage() {
           <table className="min-w-full text-left text-sm">
             <thead className="text-xs uppercase tracking-wide text-neutral-500">
               <tr>
-                <th className="px-3 py-2">Menu Item</th>
-                <th className="px-3 py-2">Ingredient</th>
+                <th className="px-3 py-2">Sales Menu -&gt; Ingredients</th>
+                <th className="px-3 py-2">Ingredient Item</th>
                 <th className="px-3 py-2">SKU</th>
                 <th className="px-3 py-2">Qty</th>
                 <th className="px-3 py-2">Yield</th>
@@ -159,6 +160,8 @@ export default function InventoryRecipesPage() {
           </table>
         </div>
       </section>
+
+      <InventoryRegistrationHelp />
     </div>
   );
 }

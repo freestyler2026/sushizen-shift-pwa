@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
+import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { defaultBranch, groupBySupplier, lineFromItem, monthNow, number3, todayIso, withVariance, type InventoryCountLine, type InventoryItemLookup } from "@/lib/inventoryCountUtils";
@@ -176,7 +177,7 @@ export default function InventoryCountsPage() {
 
   async function loadSheetIntoDraft() {
     if (!selectedCountSheetId) {
-      setError("Count Sheet を選択してください。");
+      setError("Please select a count template.");
       return;
     }
     setError("");
@@ -186,7 +187,7 @@ export default function InventoryCountsPage() {
     const sheet = res.row || null;
     if (!sheet) return;
     setDraftLines((sheet.items || []).map((line, index) => refreshLineWithBalance({ ...line, counted_qty: 0, variance_qty: 0, sort_order: index + 1 })));
-    setSuccess("Count Sheet を draft に読み込みました。");
+    setSuccess("Loaded count template into draft.");
   }
 
   function addManualItem() {
@@ -219,11 +220,11 @@ export default function InventoryCountsPage() {
 
   async function saveDraft() {
     if (!branchCode) {
-      setError("Branch を選択してください。");
+      setError("Please select a branch.");
       return;
     }
     if (!draftLines.length) {
-      setError("少なくとも1つ item を追加してください。");
+      setError("Please add at least one item.");
       return;
     }
     setSaving(true);
@@ -252,7 +253,7 @@ export default function InventoryCountsPage() {
       });
       await refreshHistoryAndDetail(countId);
       setSelectedCountId(countId);
-      setSuccess("Count draft を保存しました。");
+      setSuccess("Count draft saved.");
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -268,7 +269,7 @@ export default function InventoryCountsPage() {
     try {
       await inventoryPost(`/api/admin/inventory/counts/${encodeURIComponent(selectedCountId)}/submit`, { city });
       await refreshHistoryAndDetail(selectedCountId);
-      setSuccess("Selected count を submit しました。差異を再計算しています。");
+      setSuccess("Selected count submitted. Recalculating variances.");
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -284,7 +285,7 @@ export default function InventoryCountsPage() {
     try {
       await inventoryPost(`/api/admin/inventory/counts/${encodeURIComponent(selectedCountId)}/close`, { city });
       await refreshHistoryAndDetail(selectedCountId);
-      setSuccess("Selected count を close し、variance を ledger に反映しました。");
+      setSuccess("Selected count closed and variances posted to ledger.");
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -298,12 +299,13 @@ export default function InventoryCountsPage() {
   return (
     <div className="space-y-6">
       <InventoryTabs />
+      <InventoryRegistrationHelp />
 
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-lg font-semibold text-neutral-100">Counts</div>
-            <div className="mt-1 text-sm text-neutral-400">15日と月末の正式棚卸しを、Excel-like table で実行するページです。</div>
+            <div className="text-lg font-semibold text-neutral-100">Full Inventory Count</div>
+            <div className="mt-1 text-sm text-neutral-400">Use for formal 15th and month-end inventory counts.</div>
           </div>
           <div className="text-xs text-neutral-500">{city.toUpperCase()} count workflow</div>
         </div>
@@ -371,12 +373,12 @@ export default function InventoryCountsPage() {
           </button>
         </div>
 
-        <div className="mt-3 text-xs text-neutral-400">Excel-like view: supplier ごとに grouped 表示し、`Counted` を直接入力します。`Variance` は自動計算です。</div>
+        <div className="mt-3 text-xs text-neutral-400">Excel-like view: rows are grouped by supplier. Enter `Counted` directly; `Variance` is calculated automatically.</div>
 
         <div className="mt-4 space-y-4">
           {groupedDraft.length === 0 ? (
             <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-950/30 px-3 py-6 text-center text-xs text-neutral-500">
-              Count Sheet を読み込むか、item を手動追加してください。
+              Load a count template or add items manually.
             </div>
           ) : null}
           {groupedDraft.map((group) => (
@@ -460,7 +462,7 @@ export default function InventoryCountsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-neutral-100">History</div>
-            <div className="mt-1 text-xs text-neutral-500">15日・月末の正式棚卸し履歴を確認できます。</div>
+            <div className="mt-1 text-xs text-neutral-500">Review formal inventory count history for the 15th and month-end.</div>
           </div>
           <input type="month" value={historyMonth} onChange={(e) => setHistoryMonth(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
         </div>
@@ -495,7 +497,7 @@ export default function InventoryCountsPage() {
                 {!loading && filteredHistory.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
-                      この月の count 履歴はありません。
+                      No count history for this month.
                     </td>
                   </tr>
                 ) : null}
@@ -520,7 +522,7 @@ export default function InventoryCountsPage() {
             </div>
 
             {!selectedCount ? (
-              <div className="mt-3 text-sm text-neutral-500">左の履歴から count を選択してください。</div>
+              <div className="mt-3 text-sm text-neutral-500">Select a count from the history list on the left.</div>
             ) : (
               <div className="mt-3 space-y-3 text-sm text-neutral-200">
                 <div>

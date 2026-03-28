@@ -5,15 +5,15 @@ import { usePathname } from "next/navigation";
 
 const ITEMS = [
   { href: "/admin/inventory", label: "Overview" },
-  { href: "/admin/inventory/items", label: "Items" },
-  { href: "/admin/inventory/recipes", label: "BOM" },
-  { href: "/admin/inventory/count-sheets", label: "Count Sheets" },
-  { href: "/admin/inventory/counts", label: "Counts" },
-  { href: "/admin/inventory/spot-checks", label: "Spot Checks" },
+  { href: "/admin/inventory/items", label: "Ingredients / Products" },
+  { href: "/admin/inventory/recipes", label: "Sales Menu BOM" },
+  { href: "/admin/inventory/count-sheets", label: "Count Templates" },
+  { href: "/admin/inventory/counts", label: "Full Inventory Count" },
+  { href: "/admin/inventory/spot-checks", label: "Quick Spot Check" },
   { href: "/admin/inventory/transfer-orders", label: "Transfer Orders" },
-  { href: "/admin/inventory/productions", label: "Production" },
-  { href: "/admin/inventory/quantity-adjustments", label: "Qty Adjust" },
-  { href: "/admin/inventory/cost-adjustments", label: "Cost Adjust" },
+  { href: "/admin/inventory/productions", label: "CK Production" },
+  { href: "/admin/inventory/quantity-adjustments", label: "Quantity Adjustments" },
+  { href: "/admin/inventory/cost-adjustments", label: "Cost Adjustments" },
   { href: "/admin/inventory/pos-sync", label: "POS Sync" },
   { href: "/admin/inventory/ledger", label: "Ledger" },
 ];

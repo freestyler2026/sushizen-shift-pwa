@@ -212,15 +212,15 @@ export default function InventoryQuantityAdjustmentsPage() {
 
   async function createAdjustment() {
     if (!branchCode) {
-      setError("Branch を選択してください。");
+      setError("Please select a branch.");
       return;
     }
     if (!reason.trim()) {
-      setError("Reason を入力してください。");
+      setError("Please enter a reason.");
       return;
     }
     if (draftItems.length === 0) {
-      setError("少なくとも1つ item を追加してください。");
+      setError("Please add at least one item.");
       return;
     }
     setSaving(true);
@@ -249,7 +249,7 @@ export default function InventoryQuantityAdjustmentsPage() {
       await refreshHistoryAndDetail(adjustmentId);
       setDraftItems([]);
       setNotes("");
-      setSuccess("Quantity Adjustment draft を作成しました。");
+      setSuccess("Quantity adjustment draft created.");
       setSelectedAdjustmentId(adjustmentId);
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -266,7 +266,7 @@ export default function InventoryQuantityAdjustmentsPage() {
     try {
       await inventoryPost(`/api/admin/inventory/quantity-adjustments/${encodeURIComponent(selectedAdjustmentId)}/close`, { city });
       await refreshHistoryAndDetail(selectedAdjustmentId);
-      setSuccess("Quantity Adjustment を close して ledger に記帳しました。");
+      setSuccess("Quantity adjustment closed and posted to ledger.");
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -287,7 +287,7 @@ export default function InventoryQuantityAdjustmentsPage() {
       const nextId = String(duplicated?.row?.id || "");
       await refreshHistoryAndDetail(nextId);
       setSelectedAdjustmentId(nextId);
-      setSuccess("Selected adjustment を複製しました。");
+      setSuccess("Selected adjustment duplicated.");
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -307,7 +307,7 @@ export default function InventoryQuantityAdjustmentsPage() {
           <div>
             <div className="text-lg font-semibold text-neutral-100">Quantity Adjustments</div>
             <div className="mt-1 text-sm text-neutral-400">
-              Expired, waste, loss, manual fix などの在庫数量調整を登録します。
+              Register stock quantity adjustments such as expired, waste, loss, or manual fixes.
             </div>
           </div>
           <div className="text-xs text-neutral-500">{city.toUpperCase()} quantity workflow</div>
@@ -340,7 +340,7 @@ export default function InventoryQuantityAdjustmentsPage() {
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="メモ / adjustment note"
+            placeholder="Notes / adjustment note"
             className="min-h-24 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
           />
         </div>
@@ -357,7 +357,7 @@ export default function InventoryQuantityAdjustmentsPage() {
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_150px_160px_140px]">
           <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)}>
-            <option value="">item を選択</option>
+            <option value="">Select an item</option>
             {itemOptions.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name} {item.sku ? `(${item.sku})` : ""}
@@ -405,7 +405,7 @@ export default function InventoryQuantityAdjustmentsPage() {
               {draftItems.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
-                    まだ adjustment line はありません。
+                    No adjustment lines yet.
                   </td>
                 </tr>
               ) : null}
@@ -424,7 +424,7 @@ export default function InventoryQuantityAdjustmentsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-neutral-100">History</div>
-            <div className="mt-1 text-xs text-neutral-500">月ごとに adjustment 履歴を確認できます。</div>
+            <div className="mt-1 text-xs text-neutral-500">Review adjustment history by month.</div>
           </div>
           <div className="text-xs text-neutral-500">{loading ? "Loading..." : `${filteredHistory.length} rows`}</div>
         </div>
@@ -458,7 +458,7 @@ export default function InventoryQuantityAdjustmentsPage() {
                 {!loading && filteredHistory.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
-                      この月の履歴はありません。
+                      No history for this month.
                     </td>
                   </tr>
                 ) : null}
@@ -480,7 +480,7 @@ export default function InventoryQuantityAdjustmentsPage() {
             </div>
 
             {!selectedAdjustment ? (
-              <div className="mt-3 text-sm text-neutral-500">左の履歴から adjustment を選択してください。</div>
+              <div className="mt-3 text-sm text-neutral-500">Select an adjustment from the history list on the left.</div>
             ) : (
               <div className="mt-3 space-y-3 text-sm text-neutral-200">
                 <div>

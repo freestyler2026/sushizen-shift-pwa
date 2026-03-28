@@ -200,11 +200,11 @@ export default function InventoryCostAdjustmentsPage() {
 
   async function createAdjustment() {
     if (!branchCode) {
-      setError("Branch を選択してください。");
+      setError("Please select a branch.");
       return;
     }
     if (draftItems.length === 0) {
-      setError("少なくとも1つ item を追加してください。");
+      setError("Please add at least one item.");
       return;
     }
     setSaving(true);
@@ -231,7 +231,7 @@ export default function InventoryCostAdjustmentsPage() {
       await refreshHistoryAndDetail(adjustmentId);
       setDraftItems([]);
       setNotes("");
-      setSuccess("Cost Adjustment draft を作成しました。");
+      setSuccess("Cost adjustment draft created.");
       setSelectedAdjustmentId(adjustmentId);
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -248,7 +248,7 @@ export default function InventoryCostAdjustmentsPage() {
     try {
       await inventoryPost(`/api/admin/inventory/cost-adjustments/${encodeURIComponent(selectedAdjustmentId)}/close`, { city });
       await refreshHistoryAndDetail(selectedAdjustmentId);
-      setSuccess("Cost Adjustment を close して item cost と ledger を更新しました。");
+      setSuccess("Cost adjustment closed and item costs plus ledger were updated.");
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -269,7 +269,7 @@ export default function InventoryCostAdjustmentsPage() {
       const nextId = String(duplicated?.row?.id || "");
       await refreshHistoryAndDetail(nextId);
       setSelectedAdjustmentId(nextId);
-      setSuccess("Selected cost adjustment を複製しました。");
+      setSuccess("Selected cost adjustment duplicated.");
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -289,7 +289,7 @@ export default function InventoryCostAdjustmentsPage() {
           <div>
             <div className="text-lg font-semibold text-neutral-100">Cost Adjustments</div>
             <div className="mt-1 text-sm text-neutral-400">
-              current cost を見ながら new cost へ更新する原価調整ページです。
+              Cost adjustment page for updating to a new cost while reviewing current cost.
             </div>
           </div>
           <div className="text-xs text-neutral-500">{city.toUpperCase()} cost workflow</div>
@@ -315,7 +315,7 @@ export default function InventoryCostAdjustmentsPage() {
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="メモ / cost adjustment note"
+            placeholder="Notes / cost adjustment note"
             className="min-h-24 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
           />
         </div>
@@ -332,7 +332,7 @@ export default function InventoryCostAdjustmentsPage() {
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_180px_140px]">
           <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)}>
-            <option value="">item を選択</option>
+            <option value="">Select an item</option>
             {itemOptions.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name} {item.sku ? `(${item.sku})` : ""} {`[${Number(item.cost || 0).toFixed(2)}]`}
@@ -376,7 +376,7 @@ export default function InventoryCostAdjustmentsPage() {
               {draftItems.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
-                    まだ cost line はありません。
+                    No cost lines yet.
                   </td>
                 </tr>
               ) : null}
@@ -395,7 +395,7 @@ export default function InventoryCostAdjustmentsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-neutral-100">History</div>
-            <div className="mt-1 text-xs text-neutral-500">月ごとに cost adjustment 履歴を確認できます。</div>
+            <div className="mt-1 text-xs text-neutral-500">Review cost adjustment history by month.</div>
           </div>
           <div className="text-xs text-neutral-500">{loading ? "Loading..." : `${filteredHistory.length} rows`}</div>
         </div>
@@ -429,7 +429,7 @@ export default function InventoryCostAdjustmentsPage() {
                 {!loading && filteredHistory.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
-                      この月の履歴はありません。
+                      No history for this month.
                     </td>
                   </tr>
                 ) : null}
@@ -451,7 +451,7 @@ export default function InventoryCostAdjustmentsPage() {
             </div>
 
             {!selectedAdjustment ? (
-              <div className="mt-3 text-sm text-neutral-500">左の履歴から adjustment を選択してください。</div>
+              <div className="mt-3 text-sm text-neutral-500">Select an adjustment from the history list on the left.</div>
             ) : (
               <div className="mt-3 space-y-3 text-sm text-neutral-200">
                 <div>

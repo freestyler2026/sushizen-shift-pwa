@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
+import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { inventoryGet } from "@/lib/inventoryClient";
 
@@ -95,8 +96,8 @@ export default function InventoryItemsPage() {
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-lg font-semibold text-neutral-100">Items</div>
-            <div className="mt-1 text-sm text-neutral-400">Inventory masters, suppliers, and category references.</div>
+            <div className="text-lg font-semibold text-neutral-100">Ingredients / Products</div>
+            <div className="mt-1 text-sm text-neutral-400">Register all stock masters here. Use Items for raw ingredients and Products for CK-made items.</div>
           </div>
           <div className="text-xs text-neutral-500">{city.toUpperCase()} inventory</div>
         </div>
@@ -135,8 +136,8 @@ export default function InventoryItemsPage() {
             onChange={(e) => setTab(e.target.value)}
           >
             <option value="ALL">All</option>
-            <option value="ITEMS">Items</option>
-            <option value="PRODUCTS">Products</option>
+            <option value="ITEMS">Raw Ingredients</option>
+            <option value="PRODUCTS">CK Products / Semi-finished</option>
             <option value="DELETED">Deleted</option>
           </select>
           <input
@@ -149,6 +150,8 @@ export default function InventoryItemsPage() {
 
         {error ? <div className="mt-3 text-sm text-rose-300">{error}</div> : null}
       </section>
+
+      <InventoryRegistrationHelp />
 
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
         <div className="mb-3 text-sm font-semibold text-neutral-100">{loading ? "Loading..." : "Item List"}</div>

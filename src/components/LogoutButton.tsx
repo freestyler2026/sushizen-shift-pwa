@@ -7,18 +7,18 @@ export default function LogoutButton({ className = "" }: { className?: string })
   const router = useRouter();
 
   const logout = () => {
-    // ✅ auth削除
+    // Clear auth
     clearAuth();
 
-    // ✅ roleも削除（明示）
+    // Explicitly clear role
     try {
       localStorage.removeItem("sushizen_shift_role_v1");
     } catch {}
 
-    // ✅ cookie削除（念のため）
+    // Clear cookie as a safeguard
     document.cookie = "sushizen_authed=; path=/; max-age=0";
 
-    // ✅ loginへ
+    // Redirect to login
     router.replace("/login");
   };
 
