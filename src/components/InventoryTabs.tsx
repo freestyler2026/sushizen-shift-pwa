@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { canAccessCountTemplatesAdmin, getAuth } from "@/lib/auth";
 
 const ITEMS = [
   { href: "/admin/inventory", label: "Overview" },
@@ -20,10 +21,12 @@ const ITEMS = [
 
 export default function InventoryTabs() {
   const pathname = usePathname();
+  const canManageCountTemplates = canAccessCountTemplatesAdmin(getAuth());
+  const items = ITEMS.filter((item) => (item.href === "/admin/inventory/count-sheets" ? canManageCountTemplates : true));
 
   return (
     <div className="flex flex-wrap gap-2">
-      {ITEMS.map((item) => {
+      {items.map((item) => {
         const active = item.href === "/admin/inventory"
           ? pathname === item.href
           : pathname === item.href || pathname.startsWith(item.href + "/");

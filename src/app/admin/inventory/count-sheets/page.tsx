@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
-import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { canAccessCountTemplatesAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { emptyCountLine, lineFromItem, monthNow, withVariance, type InventoryCountLine, type InventoryItemLookup } from "@/lib/inventoryCountUtils";
-import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
+import { inventoryGet, inventoryPatch, inventoryPost } from "@/lib/inventoryClient";
 
 type CountSheetRow = {
   id: string;
@@ -24,6 +24,26 @@ type CountSheetRow = {
 };
 
 type CountSheetDetail = CountSheetRow & { items?: InventoryCountLine[] };
+
+type CountSheetVersionRow = {
+  id: string;
+  count_sheet_id: string;
+  city: string;
+  version_no: number;
+  name: string;
+  reference: string;
+  branch_code: string;
+  cycle: string;
+  source_sheet_name: string;
+  status_before_change: string;
+  snapshot_reason: string;
+  changed_by: string;
+  changed_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type CountSheetVersionDetail = CountSheetVersionRow & { items?: InventoryCountLine[] };
 
 type EditableColumn = "sku" | "supplier_name" | "item_name" | "invoice_name" | "storage_unit" | "unit_price" | "counted_qty" | "memo";
 
@@ -52,6 +72,11 @@ export default function InventoryCountSheetsPage() {
   const [historyRows, setHistoryRows] = useState<CountSheetRow[]>([]);
   const [selectedSheetId, setSelectedSheetId] = useState("");
   const [selectedSheet, setSelectedSheet] = useState<CountSheetDetail | null>(null);
+  const [editingSheetId, setEditingSheetId] = useState("");
+  const [templateName, setTemplateName] = useState("");
+  const [versionRows, setVersionRows] = useState<CountSheetVersionRow[]>([]);
+  const [selectedVersionId, setSelectedVersionId] = useState("");
+  const [selectedVersion, setSelectedVersion] = useState<CountSheetVersionDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
@@ -72,7 +97,7 @@ export default function InventoryCountSheetsPage() {
       const resolved = await refreshAuthFromApi(auth);
       if (cancelled) return;
       const nextCity = (resolved?.city || auth?.city || "manila") as City;
-      setAllowed(canAccessInventoryAdmin(resolved));
+      setAllowed(canAccessCountTemplatesAdmin(resolved));
       setCity(nextCity);
       setBranchCode(BRANCHES[nextCity][0]?.code || "");
       setReady(true);
@@ -87,6 +112,11 @@ export default function InventoryCountSheetsPage() {
     setBranchCode(BRANCHES[city][0]?.code || "");
     setSelectedSheetId("");
     setSelectedSheet(null);
+    setEditingSheetId("");
+    setTemplateName("");
+    setVersionRows([]);
+    setSelectedVersionId("");
+    setSelectedVersion(null);
     setDraftLines([]);
   }, [city]);
 
@@ -119,13 +149,25 @@ export default function InventoryCountSheetsPage() {
   useEffect(() => {
     if (!selectedSheetId || !allowed) {
       setSelectedSheet(null);
+      setVersionRows([]);
+      setSelectedVersionId("");
+      setSelectedVersion(null);
       return;
     }
     let cancelled = false;
     async function loadDetail() {
       try {
-        const res = await inventoryGet<{ row: CountSheetDetail }>(`/api/admin/inventory/count-sheets/${encodeURIComponent(selectedSheetId)}?city=${encodeURIComponent(city)}`);
-        if (!cancelled) setSelectedSheet(res.row || null);
+        const [sheetRes, versionsRes] = await Promise.all([
+          inventoryGet<{ row: CountSheetDetail }>(`/api/admin/inventory/count-sheets/${encodeURIComponent(selectedSheetId)}?city=${encodeURIComponent(city)}`),
+          inventoryGet<{ rows: CountSheetVersionRow[] }>(`/api/admin/inventory/count-sheets/${encodeURIComponent(selectedSheetId)}/versions?city=${encodeURIComponent(city)}`),
+        ]);
+        if (cancelled) return;
+        setSelectedSheet(sheetRes.row || null);
+        setVersionRows(versionsRes.rows || []);
+        setSelectedVersionId((prev) => {
+          if (prev && (versionsRes.rows || []).some((row) => row.id === prev)) return prev;
+          return String((versionsRes.rows || [])[0]?.id || "");
+        });
       } catch (e: any) {
         if (!cancelled) setError(e?.message || String(e));
       }
@@ -135,6 +177,26 @@ export default function InventoryCountSheetsPage() {
       cancelled = true;
     };
   }, [allowed, city, selectedSheetId]);
+
+  useEffect(() => {
+    if (!selectedVersionId || !allowed) {
+      setSelectedVersion(null);
+      return;
+    }
+    let cancelled = false;
+    async function loadVersion() {
+      try {
+        const res = await inventoryGet<{ row: CountSheetVersionDetail }>(`/api/admin/inventory/count-sheets/versions/${encodeURIComponent(selectedVersionId)}?city=${encodeURIComponent(city)}`);
+        if (!cancelled) setSelectedVersion(res.row || null);
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message || String(e));
+      }
+    }
+    void loadVersion();
+    return () => {
+      cancelled = true;
+    };
+  }, [allowed, city, selectedVersionId]);
 
   const filteredHistory = useMemo(
     () =>
@@ -189,6 +251,10 @@ export default function InventoryCountSheetsPage() {
     const branchLabel = labelOf(city, branchCode) || branchCode || city.toUpperCase();
     const today = new Date().toISOString().slice(0, 10);
     return `${branchLabel} ${cycleLabel(cycle)} ${today}`;
+  }
+
+  function draftTemplateName() {
+    return templateName.trim() || autoTemplateName();
   }
 
   function keyOf(rowIndex: number, col: EditableColumn) {
@@ -318,10 +384,25 @@ export default function InventoryCountSheetsPage() {
   function loadSelectedSheetIntoDraft() {
     if (!selectedSheet) return;
     setDraftLines((selectedSheet.items || []).map((row, idx) => ({ ...row, sort_order: idx + 1 })));
+    setEditingSheetId(selectedSheet.id);
+    setTemplateName(selectedSheet.name || "");
     setReference(selectedSheet.reference || "");
     if (selectedSheet.branch_code) setBranchCode(selectedSheet.branch_code);
     if (selectedSheet.cycle) setCycle(selectedSheet.cycle);
-    setSuccess("Loaded selected count template into grid.");
+    setSuccess("Loaded selected count template into edit mode.");
+  }
+
+  function resetTemplateEditor() {
+    setEditingSheetId("");
+    setTemplateName("");
+    setReference("");
+    setSelectedSheetId("");
+    setSelectedSheet(null);
+    setVersionRows([]);
+    setSelectedVersionId("");
+    setSelectedVersion(null);
+    setDraftLines([]);
+    setSuccess("Started a new count template draft.");
   }
 
   async function saveCountSheet() {
@@ -333,23 +414,41 @@ export default function InventoryCountSheetsPage() {
     setError("");
     setSuccess("");
     try {
-      const created = await inventoryPost<{ row: CountSheetRow }>("/api/admin/inventory/count-sheets", {
+      const payload = {
         city,
-        name: autoTemplateName(),
+        name: draftTemplateName(),
         reference: reference.trim(),
         branch_code: branchCode,
         cycle,
-        source_sheet_name: selectedSheet?.source_sheet_name || "",
-      });
-      const countSheetId = String(created?.row?.id || "");
-      await inventoryPost(`/api/admin/inventory/count-sheets/${encodeURIComponent(countSheetId)}/items`, {
-        city,
+        source_sheet_name: editingSheetId ? selectedSheet?.source_sheet_name || "" : "",
         items: draftLines.map((line, idx) => ({ ...line, sort_order: idx + 1 })),
-      });
+      };
+      let countSheetId = editingSheetId;
+      if (editingSheetId) {
+        const updated = await inventoryPatch<{ row: CountSheetDetail }>(`/api/admin/inventory/count-sheets/${encodeURIComponent(editingSheetId)}?city=${encodeURIComponent(city)}`, payload);
+        countSheetId = String(updated?.row?.id || editingSheetId);
+        setSelectedSheet(updated.row || null);
+      } else {
+        const created = await inventoryPost<{ row: CountSheetRow }>("/api/admin/inventory/count-sheets", {
+          city,
+          name: draftTemplateName(),
+          reference: reference.trim(),
+          branch_code: branchCode,
+          cycle,
+          source_sheet_name: "",
+        });
+        countSheetId = String(created?.row?.id || "");
+        await inventoryPost(`/api/admin/inventory/count-sheets/${encodeURIComponent(countSheetId)}/items`, {
+          city,
+          items: draftLines.map((line, idx) => ({ ...line, sort_order: idx + 1 })),
+        });
+        setEditingSheetId(countSheetId);
+        setTemplateName(String(created?.row?.name || payload.name));
+      }
       const historyRes = await inventoryGet<{ rows: CountSheetRow[] }>(`/api/admin/inventory/count-sheets?city=${encodeURIComponent(city)}&tab=ACTIVE&limit=500`);
       setHistoryRows((historyRes.rows || []).filter((row) => row.status !== "DELETED"));
       setSelectedSheetId(countSheetId);
-      setSuccess("Count template saved.");
+      setSuccess(editingSheetId ? "Count template updated. Previous version saved to history." : "Count template saved.");
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -385,9 +484,12 @@ export default function InventoryCountSheetsPage() {
       await inventoryPost(`/api/admin/inventory/count-sheets/${encodeURIComponent(selectedSheetId)}/delete?city=${encodeURIComponent(city)}`, {});
       const historyRes = await inventoryGet<{ rows: CountSheetRow[] }>(`/api/admin/inventory/count-sheets?city=${encodeURIComponent(city)}&tab=ACTIVE&limit=500`);
       setHistoryRows((historyRes.rows || []).filter((row) => row.status !== "DELETED"));
-      setSelectedSheetId("");
-      setSelectedSheet(null);
-      setSuccess("Selected count template deleted.");
+      const versionsRes = await inventoryGet<{ rows: CountSheetVersionRow[] }>(`/api/admin/inventory/count-sheets/${encodeURIComponent(selectedSheetId)}/versions?city=${encodeURIComponent(city)}`);
+      setVersionRows(versionsRes.rows || []);
+      setSelectedVersionId(String((versionsRes.rows || [])[0]?.id || ""));
+      setSelectedSheet((prev) => (prev ? { ...prev, status: "DELETED" } : prev));
+      setEditingSheetId("");
+      setSuccess("Selected count template deleted. Previous version saved to history.");
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -396,7 +498,7 @@ export default function InventoryCountSheetsPage() {
   }
 
   if (!ready) return <div className="text-sm text-neutral-500">Loading count sheets...</div>;
-  if (!allowed) return <div className="text-sm text-neutral-500">You do not have permission to open inventory.</div>;
+  if (!allowed) return <div className="text-sm text-neutral-500">Only HQ or Admin can open Count Templates.</div>;
 
   return (
     <div className="space-y-6">
@@ -409,7 +511,10 @@ export default function InventoryCountSheetsPage() {
             <div className="text-lg font-semibold text-neutral-100">Count Templates</div>
             <div className="mt-1 text-sm text-neutral-400">Start counting with an Excel-like grid. Add items and enter counted quantities directly.</div>
           </div>
-          <div className="text-xs text-neutral-500">{city.toUpperCase()} template workspace</div>
+          <div className="text-right text-xs text-neutral-500">
+            <div>{city.toUpperCase()} template workspace</div>
+            <div className={editingSheetId ? "text-amber-300" : "text-neutral-500"}>{editingSheetId ? "Editing existing template" : "Creating new template"}</div>
+          </div>
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -434,6 +539,9 @@ export default function InventoryCountSheetsPage() {
         </div>
 
         <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" onClick={resetTemplateEditor} className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-200">
+            New Template
+          </button>
           <button type="button" onClick={() => setShowAdvanced((prev) => !prev)} className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-200">
             {showAdvanced ? "Hide Advanced" : "Show Advanced"}
           </button>
@@ -441,6 +549,7 @@ export default function InventoryCountSheetsPage() {
 
         {showAdvanced ? (
           <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <input value={draftTemplateName()} readOnly placeholder="Template name" className="rounded-xl border border-neutral-800 bg-neutral-950/60 px-3 py-2 text-sm text-neutral-400" />
             <input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Reference (optional)" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
           </div>
         ) : null}
@@ -624,7 +733,7 @@ export default function InventoryCountSheetsPage() {
 
         <div className="mt-4 flex flex-wrap gap-2">
           <button type="button" onClick={saveCountSheet} disabled={saving || draftLines.length === 0} className="rounded-xl border border-emerald-800 bg-emerald-950/30 px-4 py-2 text-sm text-emerald-200 hover:bg-emerald-900/30 disabled:opacity-60">
-            {saving ? "Saving..." : "Save Count Sheet"}
+            {saving ? "Saving..." : editingSheetId ? "Save Changes" : "Save Count Sheet"}
           </button>
         </div>
       </section>
@@ -683,10 +792,10 @@ export default function InventoryCountSheetsPage() {
                 <button type="button" onClick={loadSelectedSheetIntoDraft} disabled={!selectedSheet || actionBusy} className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-200 disabled:opacity-50">
                   Load to Grid
                 </button>
-                <button type="button" onClick={duplicateSelectedSheet} disabled={!selectedSheetId || actionBusy} className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-200 disabled:opacity-50">
+                <button type="button" onClick={duplicateSelectedSheet} disabled={!selectedSheetId || actionBusy || selectedSheet?.status === "DELETED"} className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-200 disabled:opacity-50">
                   Duplicate
                 </button>
-                <button type="button" onClick={deleteSelectedSheet} disabled={!selectedSheetId || actionBusy} className="rounded-lg border border-rose-800/70 bg-rose-950/20 px-3 py-1.5 text-xs text-rose-200 disabled:opacity-50">
+                <button type="button" onClick={deleteSelectedSheet} disabled={!selectedSheetId || actionBusy || selectedSheet?.status === "DELETED"} className="rounded-lg border border-rose-800/70 bg-rose-950/20 px-3 py-1.5 text-xs text-rose-200 disabled:opacity-50">
                   Delete
                 </button>
               </div>
@@ -711,6 +820,62 @@ export default function InventoryCountSheetsPage() {
                 <div>
                   <div className="text-xs text-neutral-500">Items</div>
                   <div>{(selectedSheet.items || []).length}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-neutral-500">Status</div>
+                  <div>{selectedSheet.status || "-"}</div>
+                </div>
+                <div className="rounded-xl border border-neutral-800 bg-neutral-900/30 p-3">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Version History</div>
+                  <div className="mt-2 max-h-48 overflow-y-auto">
+                    {(versionRows || []).length ? (
+                      <div className="space-y-2">
+                        {versionRows.map((version) => (
+                          <button
+                            key={version.id}
+                            type="button"
+                            onClick={() => setSelectedVersionId(version.id)}
+                            className={[
+                              "w-full rounded-xl border px-3 py-2 text-left text-xs transition",
+                              selectedVersionId === version.id
+                                ? "border-emerald-700/70 bg-emerald-950/20 text-emerald-100"
+                                : "border-neutral-800 bg-neutral-950/40 text-neutral-300 hover:bg-neutral-900/40",
+                            ].join(" ")}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span>v{version.version_no}</span>
+                              <span>{String(version.changed_at || version.created_at || "").slice(0, 16).replace("T", " ")}</span>
+                            </div>
+                            <div className="mt-1 text-neutral-400">{version.snapshot_reason} / {version.changed_by || "-"}</div>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-neutral-500">No saved versions yet.</div>
+                    )}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-neutral-800 bg-neutral-900/30 p-3">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Selected Version Detail</div>
+                  {!selectedVersion ? (
+                    <div className="mt-2 text-xs text-neutral-500">Select a version to inspect the previous template state.</div>
+                  ) : (
+                    <div className="mt-2 space-y-2 text-xs text-neutral-300">
+                      <div>v{selectedVersion.version_no} / {selectedVersion.snapshot_reason}</div>
+                      <div>{selectedVersion.changed_by || "-"} / {String(selectedVersion.changed_at || "").slice(0, 16).replace("T", " ")}</div>
+                      <div className="max-h-48 space-y-2 overflow-y-auto">
+                        {(selectedVersion.items || []).map((item, index) => (
+                          <div key={`${selectedVersion.id}-${index}-${item.sku}`} className="rounded-lg border border-neutral-800 bg-neutral-950/40 px-3 py-2">
+                            <div>{item.supplier_name || "Unknown supplier"} / {item.item_name || "-"}</div>
+                            <div className="mt-1 text-neutral-500">
+                              {item.sku || "-"} • {item.storage_unit || "-"} • Counted {Number(item.counted_qty || 0).toFixed(3)}
+                            </div>
+                          </div>
+                        ))}
+                        {!(selectedVersion.items || []).length ? <div className="text-neutral-500">No version rows linked.</div> : null}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

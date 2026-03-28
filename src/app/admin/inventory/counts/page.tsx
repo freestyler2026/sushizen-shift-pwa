@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
@@ -19,6 +19,11 @@ type CountSheetRow = {
 
 type CountSheetDetail = CountSheetRow & {
   items?: InventoryCountLine[];
+};
+
+type CurrentCountSheetResponse = {
+  row?: CountSheetDetail | null;
+  match_count?: number;
 };
 
 type BalanceRow = {
@@ -62,6 +67,7 @@ export default function InventoryCountsPage() {
   const [selectedItemId, setSelectedItemId] = useState("");
   const [itemOptions, setItemOptions] = useState<InventoryItemLookup[]>([]);
   const [countSheetOptions, setCountSheetOptions] = useState<CountSheetRow[]>([]);
+  const [currentTemplateMatchCount, setCurrentTemplateMatchCount] = useState(0);
   const [draftLines, setDraftLines] = useState<InventoryCountLine[]>([]);
   const [historyRows, setHistoryRows] = useState<CountRow[]>([]);
   const [selectedCountId, setSelectedCountId] = useState("");
@@ -72,6 +78,18 @@ export default function InventoryCountsPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  const refreshLineWithBalance = useCallback((line: InventoryCountLine, balanceLookup: Record<string, number> = balancesMap): InventoryCountLine => {
+    return withVariance({
+      ...line,
+      theoretical_qty: Number(balanceLookup[line.item_id] || line.theoretical_qty || 0),
+    });
+  }, [balancesMap]);
+
+  const applySheetToDraft = useCallback((sheet: CountSheetDetail | null, balanceLookup: Record<string, number> = balancesMap) => {
+    if (!sheet) return;
+    setDraftLines((sheet.items || []).map((line, index) => refreshLineWithBalance({ ...line, counted_qty: 0, variance_qty: 0, sort_order: index + 1 }, balanceLookup)));
+  }, [balancesMap, refreshLineWithBalance]);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,19 +124,29 @@ export default function InventoryCountsPage() {
       setLoading(true);
       setError("");
       try {
-        const [itemsRes, sheetsRes, countsRes, balancesRes] = await Promise.all([
+        const [itemsRes, sheetsRes, currentRes, countsRes, balancesRes] = await Promise.all([
           inventoryGet<{ rows: InventoryItemLookup[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=ITEMS&limit=5000`),
           inventoryGet<{ rows: CountSheetRow[] }>(`/api/admin/inventory/count-sheets?city=${encodeURIComponent(city)}&tab=ACTIVE&limit=500`),
+          inventoryGet<CurrentCountSheetResponse>(`/api/admin/inventory/count-sheets/current?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}&cycle=${encodeURIComponent(cycle)}`),
           inventoryGet<{ rows: CountRow[] }>(`/api/admin/inventory/counts?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}&limit=500`),
           inventoryGet<{ rows: BalanceRow[] }>(`/api/admin/inventory/balances?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}&limit=1000`),
         ]);
         if (cancelled) return;
         setItemOptions((itemsRes.rows || []).filter((item) => item.status !== "DELETED"));
-        setCountSheetOptions((sheetsRes.rows || []).filter((row) => row.status !== "DELETED" && row.branch_code === branchCode && (!row.cycle || row.cycle === cycle)));
+        const activeSheets = (sheetsRes.rows || []).filter((row) => row.status !== "DELETED" && row.branch_code === branchCode && (!row.cycle || row.cycle === cycle));
+        setCountSheetOptions(activeSheets);
         setHistoryRows(countsRes.rows || []);
         const balanceMap: Record<string, number> = {};
         for (const row of balancesRes.rows || []) balanceMap[String(row.item_id || "")] = Number(row.on_hand_qty || 0);
         setBalancesMap(balanceMap);
+        const matchCount = Number(currentRes?.match_count || 0);
+        setCurrentTemplateMatchCount(matchCount);
+        if (matchCount === 1 && currentRes?.row) {
+          setSelectedCountSheetId(String(currentRes.row.id || ""));
+          applySheetToDraft(currentRes.row, balanceMap);
+        } else if (!activeSheets.some((row) => row.id === selectedCountSheetId)) {
+          setSelectedCountSheetId("");
+        }
       } catch (e: any) {
         if (!cancelled) setError(e?.message || String(e));
       } finally {
@@ -129,7 +157,7 @@ export default function InventoryCountsPage() {
     return () => {
       cancelled = true;
     };
-  }, [allowed, branchCode, city, cycle, ready]);
+  }, [allowed, applySheetToDraft, branchCode, city, cycle, ready, selectedCountSheetId]);
 
   useEffect(() => {
     if (!selectedCountId || !allowed) {
@@ -151,6 +179,23 @@ export default function InventoryCountsPage() {
     };
   }, [allowed, city, selectedCountId]);
 
+  useEffect(() => {
+    if (!selectedCountSheetId || !allowed) return;
+    let cancelled = false;
+    async function loadSelectedSheet() {
+      try {
+        const res = await inventoryGet<{ row: CountSheetDetail }>(`/api/admin/inventory/count-sheets/${encodeURIComponent(selectedCountSheetId)}?city=${encodeURIComponent(city)}`);
+        if (!cancelled) applySheetToDraft(res.row || null);
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message || String(e));
+      }
+    }
+    void loadSelectedSheet();
+    return () => {
+      cancelled = true;
+    };
+  }, [allowed, applySheetToDraft, city, selectedCountSheetId]);
+
   const selectedItem = useMemo(
     () => itemOptions.find((item) => item.id === selectedItemId) || null,
     [itemOptions, selectedItemId],
@@ -162,13 +207,6 @@ export default function InventoryCountsPage() {
   );
 
   const groupedDraft = useMemo(() => groupBySupplier(draftLines), [draftLines]);
-
-  function refreshLineWithBalance(line: InventoryCountLine): InventoryCountLine {
-    return withVariance({
-      ...line,
-      theoretical_qty: Number(balancesMap[line.item_id] || line.theoretical_qty || 0),
-    });
-  }
 
   function updateDraftLine(index: number, patch: Partial<InventoryCountLine>) {
     setDraftLines((prev) =>
@@ -187,7 +225,7 @@ export default function InventoryCountsPage() {
     );
     const sheet = res.row || null;
     if (!sheet) return;
-    setDraftLines((sheet.items || []).map((line, index) => refreshLineWithBalance({ ...line, counted_qty: 0, variance_qty: 0, sort_order: index + 1 })));
+    applySheetToDraft(sheet);
     setSuccess("Loaded count template into draft.");
   }
 
@@ -344,6 +382,13 @@ export default function InventoryCountsPage() {
           <button type="button" onClick={() => void loadSheetIntoDraft()} disabled={!selectedCountSheetId} className="rounded-xl border border-sky-800 bg-sky-950/30 px-4 py-2 text-sm text-sky-200 hover:bg-sky-900/30 disabled:opacity-60">
             Load Sheet
           </button>
+        </div>
+        <div className="mt-2 text-xs text-neutral-500">
+          {currentTemplateMatchCount === 1
+            ? "Current active count template is loaded automatically for this branch and cycle."
+            : currentTemplateMatchCount > 1
+              ? "Multiple active count templates match this branch and cycle. Selecting one loads it into the draft."
+              : "No active count template matches this branch and cycle yet."}
         </div>
 
         <div className="mt-3">

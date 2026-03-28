@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import InventoryTabs from "@/components/InventoryTabs";
-import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { canAccessCountTemplatesAdmin, canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 
 type ModuleCard = {
   title: string;
@@ -95,6 +95,11 @@ export default function AdminInventoryPage() {
   const [staffName, setStaffName] = useState(initialAuth?.staffName || "");
   const [city, setCity] = useState((initialAuth?.city || "manila").toUpperCase());
   const [role, setRole] = useState((initialAuth?.role || "").toString().toUpperCase());
+  const canManageCountTemplates = role === "HQ" || role === "ADMIN" || canAccessCountTemplatesAdmin(initialAuth);
+  const visibleModules = useMemo(
+    () => MODULES.filter((module) => (module.href === "/admin/inventory/count-sheets" ? canManageCountTemplates : true)),
+    [canManageCountTemplates],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -198,7 +203,7 @@ export default function AdminInventoryPage() {
       <InventoryRegistrationHelp />
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {MODULES.map((module) => (
+        {visibleModules.map((module) => (
           <Link key={module.title} href={module.href} className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4 transition hover:border-emerald-700/70 hover:bg-neutral-900/35">
             <div className="flex items-center justify-between gap-3">
               <div className="text-sm font-semibold text-neutral-100">{module.title}</div>
