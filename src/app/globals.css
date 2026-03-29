@@ -16,13 +16,16 @@ html, body { overflow-x: hidden; }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
+    --background: #2b2927;
     --foreground: #ededed;
   }
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(circle at top, rgba(196, 163, 106, 0.12), transparent 36%),
+    linear-gradient(180deg, #353230 0%, #2d2b29 40%, #262422 100%);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  min-height: 100vh;
 }

@@ -19,7 +19,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-neutral-800 bg-black/85 backdrop-blur">
+      <header className="sticky top-0 z-50 border-b border-neutral-700/80 bg-neutral-900/72 backdrop-blur">
         <div className="mx-auto max-w-6xl px-4 pb-2 pt-[max(10px,env(safe-area-inset-top))] sm:px-6">
           <NavBar />
         </div>
