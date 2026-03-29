@@ -9,6 +9,21 @@ import { menuGet, menuGetText, menuPatch, menuPost } from "@/lib/menuClient";
 
 type MenuCategoryRow = { id: string; name: string; status?: string };
 type CostSummary = { ingredients_cost: number; fixed_cost: number; effective_cost: number; cost_percentage: number };
+type IngredientOption = {
+  id: string;
+  name: string;
+  sku: string;
+  storage_unit: string;
+  ingredient_unit: string;
+  cost: number;
+};
+type DraftIngredient = {
+  ingredient_item_id: string;
+  ingredient_name: string;
+  sku: string;
+  quantity: string;
+  ingredient_unit: string;
+};
 type MenuProductRow = {
   id: string;
   city: string;
@@ -36,6 +51,7 @@ type MenuProductRow = {
 };
 type PaginatedResponse<T> = { rows: T[]; total: number; page: number; page_size: number; has_next: boolean; has_prev: boolean };
 type ImportFailure = { row_number?: number; reason?: string };
+const BASE_INGREDIENT_UNITS = ["kg", "g", "pcs"];
 
 const EMPTY_FORM = {
   category_id: "",
@@ -77,6 +93,7 @@ export default function MenuProductsPage() {
   const [success, setSuccess] = useState("");
   const [rows, setRows] = useState<MenuProductRow[]>([]);
   const [categories, setCategories] = useState<MenuCategoryRow[]>([]);
+  const [ingredientOptions, setIngredientOptions] = useState<IngredientOption[]>([]);
   const [importFailures, setImportFailures] = useState<ImportFailure[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkAction, setBulkAction] = useState("DEACTIVATE");
@@ -84,6 +101,10 @@ export default function MenuProductsPage() {
   const [editingId, setEditingId] = useState("");
   const [suggestedSku, setSuggestedSku] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
+  const [selectedIngredientId, setSelectedIngredientId] = useState("");
+  const [ingredientQty, setIngredientQty] = useState("1");
+  const [ingredientUnit, setIngredientUnit] = useState("kg");
+  const [draftIngredients, setDraftIngredients] = useState<DraftIngredient[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -105,17 +126,22 @@ export default function MenuProductsPage() {
     setLoading(true);
     setError("");
     try {
-      const [productsRes, categoriesRes] = await Promise.all([
+      const [productsRes, categoriesRes, ingredientsRes] = await Promise.all([
         menuGet<PaginatedResponse<MenuProductRow>>(
           `/api/admin/menu/products?city=${encodeURIComponent(nextCity)}&tab=${encodeURIComponent(nextTab)}&q=${encodeURIComponent(nextQ)}&category_id=${encodeURIComponent(nextCategory)}&page=${encodeURIComponent(String(nextPage))}&page_size=${encodeURIComponent(String(nextPageSize))}&sort_by=sort_order&sort_dir=ASC`,
         ),
         menuGet<{ rows: MenuCategoryRow[] }>(
           `/api/admin/menu/categories?city=${encodeURIComponent(nextCity)}&tab=ALL&page=1&page_size=200&sort_by=sort_order&sort_dir=ASC`,
         ),
+        menuGet<{ rows: IngredientOption[] }>(
+          `/api/admin/menu/ingredient-items?city=${encodeURIComponent(nextCity)}&limit=500`,
+        ),
       ]);
       const activeCategories = (categoriesRes.rows || []).filter((row) => row.status !== "DELETED");
+      const activeIngredients = (ingredientsRes.rows || []).filter((row) => row.id);
       setRows(productsRes.rows || []);
       setCategories(activeCategories);
+      setIngredientOptions(activeIngredients);
       setTotal(Number(productsRes.total || 0));
       setPage(Number(productsRes.page || nextPage));
       setPageSize(Number(productsRes.page_size || nextPageSize));
@@ -124,6 +150,8 @@ export default function MenuProductsPage() {
       setSelectedIds([]);
       setSortDrafts(Object.fromEntries((productsRes.rows || []).map((row) => [row.id, String(row.sort_order ?? 0)])));
       setForm((current) => ({ ...current, category_id: current.category_id || activeCategories[0]?.id || "" }));
+      setSelectedIngredientId((current) => current || activeIngredients[0]?.id || "");
+      setIngredientUnit((current) => current || activeIngredients[0]?.ingredient_unit || activeIngredients[0]?.storage_unit || BASE_INGREDIENT_UNITS[0]);
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -157,9 +185,55 @@ export default function MenuProductsPage() {
     };
   }, [allowed, city, editingId, ready]);
 
+  const selectedIngredient = ingredientOptions.find((option) => option.id === selectedIngredientId) || null;
+  const ingredientUnitOptions = Array.from(
+    new Set(
+      [
+        selectedIngredient?.ingredient_unit || "",
+        selectedIngredient?.storage_unit || "",
+        ingredientUnit || "",
+        ...BASE_INGREDIENT_UNITS,
+      ]
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
+
+  useEffect(() => {
+    if (!selectedIngredient) return;
+    setIngredientUnit(selectedIngredient.ingredient_unit || selectedIngredient.storage_unit || BASE_INGREDIENT_UNITS[0]);
+  }, [selectedIngredient]);
+
+  function addDraftIngredient() {
+    if (!selectedIngredient) return setError("Please select ingredient item.");
+    const quantity = Number(ingredientQty || 0);
+    if (!Number.isFinite(quantity) || quantity <= 0) return setError("Please enter ingredient quantity.");
+    if (!ingredientUnit.trim()) return setError("Please select ingredient unit.");
+    setError("");
+    setDraftIngredients((current) => [
+      ...current.filter((row) => row.ingredient_item_id !== selectedIngredient.id),
+      {
+        ingredient_item_id: selectedIngredient.id,
+        ingredient_name: selectedIngredient.name,
+        sku: selectedIngredient.sku,
+        quantity: String(quantity),
+        ingredient_unit: ingredientUnit,
+      },
+    ]);
+    setIngredientQty("1");
+  }
+
+  function removeDraftIngredient(ingredientItemId: string) {
+    setDraftIngredients((current) => current.filter((row) => row.ingredient_item_id !== ingredientItemId));
+  }
+
   function resetForm() {
     setEditingId("");
     setForm({ ...EMPTY_FORM, category_id: categories[0]?.id || "", sku: suggestedSku });
+    setSelectedIngredientId(ingredientOptions[0]?.id || "");
+    setIngredientQty("1");
+    setIngredientUnit(ingredientOptions[0]?.ingredient_unit || ingredientOptions[0]?.storage_unit || BASE_INGREDIENT_UNITS[0]);
+    setDraftIngredients([]);
   }
 
   async function saveProduct() {
@@ -174,6 +248,7 @@ export default function MenuProductsPage() {
         city,
         category_id: form.category_id,
         name: form.name,
+        sku: form.sku,
         barcode: form.barcode,
         price: Number(form.price || 0),
         pricing_method: form.pricing_method,
@@ -193,12 +268,24 @@ export default function MenuProductsPage() {
         resetForm();
       } else {
         const res = await menuPost<{ row?: MenuProductRow }>("/api/admin/menu/products", payload);
+        const createdId = String(res.row?.id || "");
+        for (const line of draftIngredients) {
+          await menuPost(`/api/admin/menu/products/${encodeURIComponent(createdId)}/ingredients?city=${encodeURIComponent(city)}`, {
+            ingredient_item_id: line.ingredient_item_id,
+            quantity: Number(line.quantity || 0),
+            ingredient_unit: line.ingredient_unit,
+          });
+        }
         setSuccess(`Product created. SKU: ${res.row?.sku || "-"}.`);
         const nextSkuRes = await menuGet<{ sku?: string }>(`/api/admin/menu/sku/next?city=${encodeURIComponent(city)}`);
         const nextSku = nextSkuRes.sku || "";
         setSuggestedSku(nextSku);
         setEditingId("");
         setForm({ ...EMPTY_FORM, category_id: categories[0]?.id || "", sku: nextSku });
+        setSelectedIngredientId(ingredientOptions[0]?.id || "");
+        setIngredientQty("1");
+        setIngredientUnit(ingredientOptions[0]?.ingredient_unit || ingredientOptions[0]?.storage_unit || BASE_INGREDIENT_UNITS[0]);
+        setDraftIngredients([]);
       }
       await loadAll(city, tab, q, categoryFilter, page, pageSize);
     } catch (e: any) {
@@ -359,6 +446,45 @@ export default function MenuProductsPage() {
               </select>
             </label>
             <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Name *</div><input value={form.name} onChange={(e) => setForm((current) => ({ ...current, name: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" /></label>
+            {!editingId ? (
+              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
+                <div className="text-sm font-semibold text-neutral-100">Ingredients</div>
+                <div className="mt-1 text-xs text-neutral-400">Select ingredient item and quantity before creating the product.</div>
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr),120px,120px,auto]">
+                  <label className="text-sm text-neutral-300">
+                    <div className="mb-1 text-xs text-neutral-500">Ingredient Item</div>
+                    <select value={selectedIngredientId} onChange={(e) => setSelectedIngredientId(e.target.value)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
+                      <option value="">Select ingredient</option>
+                      {ingredientOptions.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.sku})</option>)}
+                    </select>
+                  </label>
+                  <label className="text-sm text-neutral-300">
+                    <div className="mb-1 text-xs text-neutral-500">Quantity</div>
+                    <input value={ingredientQty} onChange={(e) => setIngredientQty(e.target.value)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
+                  </label>
+                  <label className="text-sm text-neutral-300">
+                    <div className="mb-1 text-xs text-neutral-500">Unit</div>
+                    <select value={ingredientUnit} onChange={(e) => setIngredientUnit(e.target.value)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
+                      {ingredientUnitOptions.map((unit) => <option key={unit} value={unit}>{unit}</option>)}
+                    </select>
+                  </label>
+                  <div className="flex items-end">
+                    <button type="button" onClick={addDraftIngredient} className="rounded-xl border border-neutral-700 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900/50">Add Ingredient</button>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-2">
+                  {draftIngredients.length ? draftIngredients.map((line) => (
+                    <div key={line.ingredient_item_id} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm">
+                      <div>
+                        <div className="font-medium text-neutral-100">{line.ingredient_name}</div>
+                        <div className="text-xs text-neutral-500">{line.sku} • {line.quantity} {line.ingredient_unit}</div>
+                      </div>
+                      <button type="button" onClick={() => removeDraftIngredient(line.ingredient_item_id)} className="rounded-lg border border-rose-800/80 px-2 py-1 text-xs text-rose-200">Remove</button>
+                    </div>
+                  )) : <div className="text-xs text-neutral-500">No ingredients added yet.</div>}
+                </div>
+              </div>
+            ) : null}
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-sm text-neutral-300">
                 <div className="mb-1 text-xs text-neutral-500">SKU</div>
