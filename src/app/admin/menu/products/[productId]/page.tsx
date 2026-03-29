@@ -251,9 +251,8 @@ export default function MenuProductDetailPage() {
           city,
           category_id: product.category_id,
           name: product.name,
-          name_localized: product.name_localized,
+          sku: product.sku,
           barcode: product.barcode,
-          image_url: product.image_url,
           description: product.description,
           price: Number(product.price || 0),
           pricing_method: product.pricing_method,
@@ -545,6 +544,20 @@ export default function MenuProductDetailPage() {
     effective_cost: Number(product.fixed_cost || 0),
     cost_percentage: 0,
   };
+  const ingredientUnitOptions = Array.from(
+    new Set(
+      [
+        selectedIngredient?.ingredient_unit || "",
+        selectedIngredient?.storage_unit || "",
+        ingredientUnit || "",
+        "kg",
+        "g",
+        "pcs",
+      ]
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
   const pricingSummary = product.pricing_summary || {
     base_price: Number(product.price || 0),
     currency_code: city === "dubai" ? "AED" : "PHP",
@@ -601,12 +614,8 @@ export default function MenuProductDetailPage() {
               <input value={product.name} onChange={(e) => setProduct((current) => current ? { ...current, name: e.target.value } : current)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
             </label>
             <label className="text-sm text-neutral-300">
-              <div className="mb-1 text-xs text-neutral-500">Name Localized</div>
-              <input value={product.name_localized} onChange={(e) => setProduct((current) => current ? { ...current, name_localized: e.target.value } : current)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
-            </label>
-            <label className="text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">SKU</div>
-              <input value={product.sku} readOnly className="w-full rounded-xl border border-neutral-700 bg-neutral-900/60 px-3 py-2 text-sm text-neutral-400" />
+              <input value={product.sku} onChange={(e) => setProduct((current) => current ? { ...current, sku: e.target.value.toUpperCase() } : current)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
             </label>
             <label className="text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">Barcode</div>
@@ -659,17 +668,6 @@ export default function MenuProductDetailPage() {
             </label>
           </div>
 
-          <label className="mt-3 block text-sm text-neutral-300">
-            <div className="mb-1 text-xs text-neutral-500">Image URL</div>
-            <input value={product.image_url} onChange={(e) => setProduct((current) => current ? { ...current, image_url: e.target.value } : current)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
-          </label>
-          {product.image_url ? (
-            <div className="mt-3 overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-950/30 p-3">
-              <div className="mb-2 text-xs text-neutral-500">Image Preview</div>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={product.image_url} alt={product.name} className="h-48 w-full rounded-xl object-cover" />
-            </div>
-          ) : null}
           <label className="mt-3 block text-sm text-neutral-300">
             <div className="mb-1 text-xs text-neutral-500">Description</div>
             <textarea value={product.description} onChange={(e) => setProduct((current) => current ? { ...current, description: e.target.value } : current)} className="min-h-24 w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
@@ -736,7 +734,11 @@ export default function MenuProductDetailPage() {
             <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[200px,auto]">
               <label className="text-sm text-neutral-300">
                 <div className="mb-1 text-xs text-neutral-500">Unit</div>
-                <input value={ingredientUnit} onChange={(e) => setIngredientUnit(e.target.value)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
+                <select value={ingredientUnit} onChange={(e) => setIngredientUnit(e.target.value)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
+                  {ingredientUnitOptions.map((unit) => (
+                    <option key={unit} value={unit}>{unit}</option>
+                  ))}
+                </select>
               </label>
               <div className="flex items-end gap-2">
                 <button type="button" onClick={() => void addOrUpdateIngredient()} disabled={ingredientSaving} className="rounded-xl border border-amber-700 bg-amber-950/30 px-4 py-2 text-sm text-amber-100 disabled:opacity-50">

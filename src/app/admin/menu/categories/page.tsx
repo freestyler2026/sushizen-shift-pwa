@@ -274,16 +274,8 @@ export default function MenuCategoriesPage() {
               <input value={form.name} onChange={(e) => setForm((current) => ({ ...current, name: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
             </label>
             <label className="block text-sm text-neutral-300">
-              <div className="mb-1 text-xs text-neutral-500">Name Localized</div>
-              <input value={form.name_localized} onChange={(e) => setForm((current) => ({ ...current, name_localized: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
-            </label>
-            <label className="block text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">Reference</div>
               <input value={form.reference} onChange={(e) => setForm((current) => ({ ...current, reference: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
-            </label>
-            <label className="block text-sm text-neutral-300">
-              <div className="mb-1 text-xs text-neutral-500">Image URL</div>
-              <input value={form.image_url} onChange={(e) => setForm((current) => ({ ...current, image_url: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
             </label>
             <label className="block text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">Sort Order</div>
@@ -329,7 +321,6 @@ export default function MenuCategoriesPage() {
                     <td className="py-3 pr-4"><input type="checkbox" checked={selectedIds.includes(row.id)} onChange={() => toggleRow(row.id)} /></td>
                     <td className="py-3 pr-4">
                       <div className="font-medium text-neutral-100">{row.name}</div>
-                      {row.name_localized ? <div className="mt-1 text-xs text-neutral-500">{row.name_localized}</div> : null}
                     </td>
                     <td className="py-3 pr-4 text-neutral-300">{row.reference || "-"}</td>
                     <td className="py-3 pr-4">

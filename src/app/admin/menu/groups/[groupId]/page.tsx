@@ -230,7 +230,7 @@ export default function MenuGroupDetailPage() {
           </div>
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
             {[
-              ["Name", "name"], ["Name Localized", "name_localized"], ["Reference", "reference"],
+              ["Name", "name"], ["Reference", "reference"],
             ].map(([label, key]) => (
               <label key={key} className="block text-sm text-neutral-300">
                 <div className="mb-1 text-xs text-neutral-500">{label}</div>

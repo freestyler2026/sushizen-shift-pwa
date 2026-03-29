@@ -56,6 +56,7 @@ export default function MenuModifierOptionsPage() {
   const [bulkAction, setBulkAction] = useState("DEACTIVATE");
   const [sortDrafts, setSortDrafts] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState("");
+  const [suggestedSku, setSuggestedSku] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -103,9 +104,30 @@ export default function MenuModifierOptionsPage() {
     void loadAll();
   }, [allowed, loadAll, ready]);
 
+  useEffect(() => {
+    if (!ready || !allowed) return;
+    let cancelled = false;
+    async function loadSuggestedSku() {
+      try {
+        const res = await menuGet<{ sku?: string }>(`/api/admin/menu/sku/next?city=${encodeURIComponent(city)}`);
+        if (!cancelled) {
+          const nextSku = res.sku || "";
+          setSuggestedSku(nextSku);
+          if (!editingId) setForm((current) => ({ ...current, sku: current.sku || nextSku }));
+        }
+      } catch {
+        if (!cancelled) setSuggestedSku("");
+      }
+    }
+    void loadSuggestedSku();
+    return () => {
+      cancelled = true;
+    };
+  }, [allowed, city, editingId, ready]);
+
   function resetForm() {
     setEditingId("");
-    setForm({ ...EMPTY_FORM, modifier_group_id: groups[0]?.id || "" });
+    setForm({ ...EMPTY_FORM, modifier_group_id: groups[0]?.id || "", sku: suggestedSku });
   }
 
   async function saveOption() {
@@ -116,15 +138,20 @@ export default function MenuModifierOptionsPage() {
     setSuccess("");
     setImportFailures([]);
     try {
-      const payload = { city, modifier_group_id: form.modifier_group_id, name: form.name, name_localized: form.name_localized, barcode: form.barcode, image_url: form.image_url, description: form.description, price_delta: Number(form.price_delta || 0), costing_method: form.costing_method, fixed_cost: Number(form.fixed_cost || 0), tax_group_id: form.tax_group_id, calories: Number(form.calories || 0), sort_order: Number(form.sort_order || 0) };
+      const payload = { city, modifier_group_id: form.modifier_group_id, name: form.name, barcode: form.barcode, sku: form.sku, description: form.description, price_delta: Number(form.price_delta || 0), costing_method: form.costing_method, fixed_cost: Number(form.fixed_cost || 0), tax_group_id: form.tax_group_id, calories: Number(form.calories || 0), sort_order: Number(form.sort_order || 0) };
       if (editingId) {
         const res = await menuPatch<{ row?: ModifierOptionRow }>(`/api/admin/menu/modifier-options/${encodeURIComponent(editingId)}?city=${encodeURIComponent(city)}`, payload);
         setSuccess(`Modifier option updated. SKU: ${res.row?.sku || form.sku || "-"}.`);
+        resetForm();
       } else {
         const res = await menuPost<{ row?: ModifierOptionRow }>("/api/admin/menu/modifier-options", payload);
         setSuccess(`Modifier option created. SKU: ${res.row?.sku || "-"}.`);
+        const nextSkuRes = await menuGet<{ sku?: string }>(`/api/admin/menu/sku/next?city=${encodeURIComponent(city)}`);
+        const nextSku = nextSkuRes.sku || "";
+        setSuggestedSku(nextSku);
+        setEditingId("");
+        setForm({ ...EMPTY_FORM, modifier_group_id: groups[0]?.id || "", sku: nextSku });
       }
-      resetForm();
       await loadAll(city, tab, q, groupFilter, page, pageSize);
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -279,11 +306,10 @@ export default function MenuModifierOptionsPage() {
           <div className="mt-4 space-y-3">
             <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Modifier Group *</div><select value={form.modifier_group_id} onChange={(e) => setForm((current) => ({ ...current, modifier_group_id: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm"><option value="">Select group</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
             <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Name *</div><input value={form.name} onChange={(e) => setForm((current) => ({ ...current, name: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" /></label>
-            <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Name Localized</div><input value={form.name_localized} onChange={(e) => setForm((current) => ({ ...current, name_localized: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" /></label>
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-sm text-neutral-300">
                 <div className="mb-1 text-xs text-neutral-500">SKU</div>
-                <input value={editingId ? form.sku : "Auto assigned after save"} readOnly className="w-full rounded-xl border border-neutral-700 bg-neutral-900/60 px-3 py-2 text-sm text-neutral-400" />
+                <input value={form.sku} onChange={(e) => setForm((current) => ({ ...current, sku: e.target.value.toUpperCase() }))} placeholder={suggestedSku || "Auto suggested SKU"} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
               </label>
               <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Barcode</div><input value={form.barcode} onChange={(e) => setForm((current) => ({ ...current, barcode: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" /></label>
             </div>
@@ -299,7 +325,6 @@ export default function MenuModifierOptionsPage() {
               <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Calories</div><input value={form.calories} onChange={(e) => setForm((current) => ({ ...current, calories: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" /></label>
               <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Tax Group ID</div><input value={form.tax_group_id} onChange={(e) => setForm((current) => ({ ...current, tax_group_id: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" /></label>
             </div>
-            <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Image URL</div><input value={form.image_url} onChange={(e) => setForm((current) => ({ ...current, image_url: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" /></label>
             <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Description</div><textarea value={form.description} onChange={(e) => setForm((current) => ({ ...current, description: e.target.value }))} className="min-h-28 w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" /></label>
           </div>
 
@@ -336,7 +361,7 @@ export default function MenuModifierOptionsPage() {
                 {loading ? <tr><td className="py-4 text-neutral-500" colSpan={8}>Loading modifier options...</td></tr> : rows.length ? rows.map((row) => (
                   <tr key={row.id} className="border-t border-neutral-800/80 align-top">
                     <td className="py-3 pr-4"><input type="checkbox" checked={selectedIds.includes(row.id)} onChange={() => toggleRow(row.id)} /></td>
-                    <td className="py-3 pr-4"><div className="font-medium text-neutral-100">{row.name}</div><div className="mt-1 text-xs text-neutral-500">{row.sku || "-"}{row.name_localized ? ` • ${row.name_localized}` : ""}</div></td>
+                    <td className="py-3 pr-4"><div className="font-medium text-neutral-100">{row.name}</div><div className="mt-1 text-xs text-neutral-500">{row.sku || "-"}</div></td>
                     <td className="py-3 pr-4 text-neutral-300">{row.modifier_group_name}</td>
                     <td className="py-3 pr-4"><input value={sortDrafts[row.id] ?? String(row.sort_order ?? 0)} onChange={(e) => setSortDrafts((current) => ({ ...current, [row.id]: e.target.value }))} className="w-20 rounded-lg border border-neutral-700 bg-neutral-950/50 px-2 py-1 text-xs text-neutral-200" /></td>
                     <td className="py-3 pr-4 text-neutral-300">{Number(row.price_delta || 0).toFixed(2)}</td>

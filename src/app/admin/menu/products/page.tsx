@@ -82,6 +82,7 @@ export default function MenuProductsPage() {
   const [bulkAction, setBulkAction] = useState("DEACTIVATE");
   const [sortDrafts, setSortDrafts] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState("");
+  const [suggestedSku, setSuggestedSku] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -135,9 +136,30 @@ export default function MenuProductsPage() {
     void loadAll();
   }, [allowed, loadAll, ready]);
 
+  useEffect(() => {
+    if (!ready || !allowed) return;
+    let cancelled = false;
+    async function loadSuggestedSku() {
+      try {
+        const res = await menuGet<{ sku?: string }>(`/api/admin/menu/sku/next?city=${encodeURIComponent(city)}`);
+        if (!cancelled) {
+          const nextSku = res.sku || "";
+          setSuggestedSku(nextSku);
+          if (!editingId) setForm((current) => ({ ...current, sku: current.sku || nextSku }));
+        }
+      } catch {
+        if (!cancelled) setSuggestedSku("");
+      }
+    }
+    void loadSuggestedSku();
+    return () => {
+      cancelled = true;
+    };
+  }, [allowed, city, editingId, ready]);
+
   function resetForm() {
     setEditingId("");
-    setForm({ ...EMPTY_FORM, category_id: categories[0]?.id || "" });
+    setForm({ ...EMPTY_FORM, category_id: categories[0]?.id || "", sku: suggestedSku });
   }
 
   async function saveProduct() {
@@ -152,7 +174,6 @@ export default function MenuProductsPage() {
         city,
         category_id: form.category_id,
         name: form.name,
-        name_localized: form.name_localized,
         barcode: form.barcode,
         price: Number(form.price || 0),
         pricing_method: form.pricing_method,
@@ -163,18 +184,22 @@ export default function MenuProductsPage() {
         walk_time: Number(form.walk_time || 0),
         calories: Number(form.calories || 0),
         description: form.description,
-        image_url: form.image_url,
         sort_order: Number(form.sort_order || 0),
         high_salt_content: form.high_salt_content,
       };
       if (editingId) {
         const res = await menuPatch<{ row?: MenuProductRow }>(`/api/admin/menu/products/${encodeURIComponent(editingId)}?city=${encodeURIComponent(city)}`, payload);
         setSuccess(`Product updated. SKU: ${res.row?.sku || form.sku || "-"}.`);
+        resetForm();
       } else {
         const res = await menuPost<{ row?: MenuProductRow }>("/api/admin/menu/products", payload);
         setSuccess(`Product created. SKU: ${res.row?.sku || "-"}.`);
+        const nextSkuRes = await menuGet<{ sku?: string }>(`/api/admin/menu/sku/next?city=${encodeURIComponent(city)}`);
+        const nextSku = nextSkuRes.sku || "";
+        setSuggestedSku(nextSku);
+        setEditingId("");
+        setForm({ ...EMPTY_FORM, category_id: categories[0]?.id || "", sku: nextSku });
       }
-      resetForm();
       await loadAll(city, tab, q, categoryFilter, page, pageSize);
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -334,11 +359,10 @@ export default function MenuProductsPage() {
               </select>
             </label>
             <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Name *</div><input value={form.name} onChange={(e) => setForm((current) => ({ ...current, name: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" /></label>
-            <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Name Localized</div><input value={form.name_localized} onChange={(e) => setForm((current) => ({ ...current, name_localized: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" /></label>
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-sm text-neutral-300">
                 <div className="mb-1 text-xs text-neutral-500">SKU</div>
-                <input value={editingId ? form.sku : "Auto assigned after save"} readOnly className="w-full rounded-xl border border-neutral-700 bg-neutral-900/60 px-3 py-2 text-sm text-neutral-400" />
+                <input value={form.sku} onChange={(e) => setForm((current) => ({ ...current, sku: e.target.value.toUpperCase() }))} placeholder={suggestedSku || "Auto suggested SKU"} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
               </label>
               <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Barcode</div><input value={form.barcode} onChange={(e) => setForm((current) => ({ ...current, barcode: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" /></label>
             </div>
@@ -350,7 +374,6 @@ export default function MenuProductsPage() {
               <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Pricing Method</div><select value={form.pricing_method} onChange={(e) => setForm((current) => ({ ...current, pricing_method: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm"><option value="FIXED_PRICE">Fixed Price</option><option value="OPEN_PRICE">Open Price</option></select></label>
               <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Costing Method</div><select value={form.costing_method} onChange={(e) => setForm((current) => ({ ...current, costing_method: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm"><option value="FROM_INGREDIENTS">From Ingredients</option><option value="FIXED_COST">Fixed Cost</option></select></label>
             </div>
-            <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Image URL</div><input value={form.image_url} onChange={(e) => setForm((current) => ({ ...current, image_url: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" /></label>
             <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Description</div><textarea value={form.description} onChange={(e) => setForm((current) => ({ ...current, description: e.target.value }))} className="min-h-24 w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" /></label>
             <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Sort Order</div><input value={form.sort_order} onChange={(e) => setForm((current) => ({ ...current, sort_order: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" /></label>
           </div>

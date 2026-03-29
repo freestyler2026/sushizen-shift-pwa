@@ -44,6 +44,7 @@ export default function InventoryItemsPage() {
   const [suppliers, setSuppliers] = useState<InventorySupplierRow[]>([]);
   const [createBusy, setCreateBusy] = useState(false);
   const [createName, setCreateName] = useState("");
+  const [createSku, setCreateSku] = useState("");
   const [createCategoryId, setCreateCategoryId] = useState("");
   const [createCategoryName, setCreateCategoryName] = useState("");
   const [createUnit, setCreateUnit] = useState("");
@@ -66,6 +67,23 @@ export default function InventoryItemsPage() {
       cancelled = true;
     };
   }, [auth]);
+
+  useEffect(() => {
+    if (!ready || !allowed) return;
+    let cancelled = false;
+    async function loadNextSku() {
+      try {
+        const res = await inventoryGet<{ sku?: string }>(`/api/admin/inventory/sku/next?city=${encodeURIComponent(city)}`);
+        if (!cancelled) setCreateSku(res.sku || "");
+      } catch {
+        if (!cancelled) setCreateSku("");
+      }
+    }
+    void loadNextSku();
+    return () => {
+      cancelled = true;
+    };
+  }, [allowed, city, ready]);
 
   useEffect(() => {
     if (!ready || !allowed) return;
@@ -129,6 +147,7 @@ export default function InventoryItemsPage() {
       const created = await inventoryPost<{ row?: InventoryItemRow }>("/api/admin/inventory/items", {
         city,
         name,
+        sku: createSku.trim(),
         category_id: resolvedCategoryId,
         category_name: resolvedCategoryName,
         storage_unit: createUnit.trim(),
@@ -153,12 +172,19 @@ export default function InventoryItemsPage() {
       setCategories(categoriesRes.rows || []);
       setSuppliers(suppliersRes.rows || []);
       setCreateName("");
+      setCreateSku("");
       setCreateCategoryId("");
       setCreateCategoryName("");
       setCreateUnit("");
       setCreateCost("0");
       setCreateType("ITEM");
       setCreateSuccess(`Item created successfully. SKU: ${created?.row?.sku || "-"}.`);
+      try {
+        const nextSkuRes = await inventoryGet<{ sku?: string }>(`/api/admin/inventory/sku/next?city=${encodeURIComponent(city)}`);
+        setCreateSku(nextSkuRes.sku || "");
+      } catch {
+        setCreateSku("");
+      }
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -247,10 +273,12 @@ export default function InventoryItemsPage() {
               placeholder="Item name"
               className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             />
-            <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 px-3 py-2 text-sm text-neutral-300">
-              <div className="text-[11px] uppercase tracking-wide text-neutral-500">SKU</div>
-              <div className="mt-1 font-medium text-neutral-400">Auto assigned after save</div>
-            </div>
+            <input
+              value={createSku}
+              onChange={(e) => setCreateSku(e.target.value.toUpperCase())}
+              placeholder="Auto suggested SKU or Foodics SKU"
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            />
             <select
               value={createCategoryId}
               onChange={(e) => {

@@ -81,9 +81,8 @@ export default function MenuComboDetailPage() {
       const res = await menuPatch<{ row: ComboRow }>(`/api/admin/menu/combos/${encodeURIComponent(combo.id)}?city=${encodeURIComponent(city)}`, {
         city: combo.city,
         name: combo.name,
-        name_localized: combo.name_localized,
+        sku: combo.sku,
         barcode: combo.barcode,
-        image_url: combo.image_url,
         description: combo.description,
         price: Number(combo.price || 0),
         pricing_method: combo.pricing_method,
@@ -194,7 +193,7 @@ export default function MenuComboDetailPage() {
           </div>
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
             {[
-              ["Name", "name"], ["Name Localized", "name_localized"], ["Barcode", "barcode"], ["Image URL", "image_url"],
+              ["Name", "name"], ["Barcode", "barcode"],
             ].map(([label, key]) => (
               <label key={key} className="block text-sm text-neutral-300">
                 <div className="mb-1 text-xs text-neutral-500">{label}</div>
@@ -203,7 +202,7 @@ export default function MenuComboDetailPage() {
             ))}
             <label className="block text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">SKU</div>
-              <input value={combo.sku || ""} readOnly className="w-full rounded-xl border border-neutral-700 bg-neutral-900/60 px-3 py-2 text-sm text-neutral-400" />
+              <input value={combo.sku || ""} onChange={(e) => setCombo((current) => current ? { ...current, sku: e.target.value.toUpperCase() } : current)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
             </label>
             <label className="block text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">Price</div>

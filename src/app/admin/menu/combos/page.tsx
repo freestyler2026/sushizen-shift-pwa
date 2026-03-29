@@ -54,6 +54,7 @@ export default function MenuCombosPage() {
   const [bulkAction, setBulkAction] = useState("DEACTIVATE");
   const [sortDrafts, setSortDrafts] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState("");
+  const [suggestedSku, setSuggestedSku] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -95,9 +96,30 @@ export default function MenuCombosPage() {
     void loadRows();
   }, [allowed, loadRows, ready]);
 
+  useEffect(() => {
+    if (!ready || !allowed) return;
+    let cancelled = false;
+    async function loadSuggestedSku() {
+      try {
+        const res = await menuGet<{ sku?: string }>(`/api/admin/menu/sku/next?city=${encodeURIComponent(city)}`);
+        if (!cancelled) {
+          const nextSku = res.sku || "";
+          setSuggestedSku(nextSku);
+          if (!editingId) setForm((current) => ({ ...current, sku: current.sku || nextSku }));
+        }
+      } catch {
+        if (!cancelled) setSuggestedSku("");
+      }
+    }
+    void loadSuggestedSku();
+    return () => {
+      cancelled = true;
+    };
+  }, [allowed, city, editingId, ready]);
+
   function resetForm() {
     setEditingId("");
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, sku: suggestedSku });
   }
 
   async function saveCombo() {
@@ -107,15 +129,20 @@ export default function MenuCombosPage() {
     setSuccess("");
     setImportFailures([]);
     try {
-      const payload = { city, name: form.name, name_localized: form.name_localized, barcode: form.barcode, image_url: form.image_url, description: form.description, price: Number(form.price || 0), pricing_method: form.pricing_method, costing_method: form.costing_method, fixed_cost: Number(form.fixed_cost || 0), sort_order: Number(form.sort_order || 0) };
+      const payload = { city, name: form.name, barcode: form.barcode, description: form.description, sku: form.sku, price: Number(form.price || 0), pricing_method: form.pricing_method, costing_method: form.costing_method, fixed_cost: Number(form.fixed_cost || 0), sort_order: Number(form.sort_order || 0) };
       if (editingId) {
         const res = await menuPatch<{ row?: MenuComboRow }>(`/api/admin/menu/combos/${encodeURIComponent(editingId)}?city=${encodeURIComponent(city)}`, payload);
         setSuccess(`Combo updated. SKU: ${res.row?.sku || form.sku || "-"}.`);
+        resetForm();
       } else {
         const res = await menuPost<{ row?: MenuComboRow }>("/api/admin/menu/combos", payload);
         setSuccess(`Combo created. SKU: ${res.row?.sku || "-"}.`);
+        const nextSkuRes = await menuGet<{ sku?: string }>(`/api/admin/menu/sku/next?city=${encodeURIComponent(city)}`);
+        const nextSku = nextSkuRes.sku || "";
+        setSuggestedSku(nextSku);
+        setEditingId("");
+        setForm({ ...EMPTY_FORM, sku: nextSku });
       }
-      resetForm();
       await loadRows(city, tab, q, page, pageSize);
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -262,9 +289,7 @@ export default function MenuCombosPage() {
           <div className="mt-4 space-y-3">
             {[
               ["Name *", "name"],
-              ["Name Localized", "name_localized"],
               ["Barcode", "barcode"],
-              ["Image URL", "image_url"],
             ].map(([label, key]) => (
               <label key={key} className="block text-sm text-neutral-300">
                 <div className="mb-1 text-xs text-neutral-500">{label}</div>
@@ -273,7 +298,7 @@ export default function MenuCombosPage() {
             ))}
             <label className="block text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">SKU</div>
-              <input value={editingId ? form.sku : "Auto assigned after save"} readOnly className="w-full rounded-xl border border-neutral-700 bg-neutral-900/60 px-3 py-2 text-sm text-neutral-400" />
+              <input value={form.sku} onChange={(e) => setForm((current) => ({ ...current, sku: e.target.value.toUpperCase() }))} placeholder={suggestedSku || "Auto suggested SKU"} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
             </label>
             <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Description</div><textarea value={form.description} onChange={(e) => setForm((current) => ({ ...current, description: e.target.value }))} rows={3} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" /></label>
             <div className="grid grid-cols-2 gap-3">
@@ -316,7 +341,7 @@ export default function MenuCombosPage() {
                 {loading ? <tr><td className="py-4 text-neutral-500" colSpan={7}>Loading combos...</td></tr> : rows.length ? rows.map((row) => (
                   <tr key={row.id} className="border-t border-neutral-800/80 align-top">
                     <td className="py-3 pr-4"><input type="checkbox" checked={selectedIds.includes(row.id)} onChange={() => toggleRow(row.id)} /></td>
-                    <td className="py-3 pr-4"><Link href={`/admin/menu/combos/${encodeURIComponent(row.id)}`} className="font-medium text-amber-200 hover:text-amber-100">{row.name}</Link><div className="mt-1 text-xs text-neutral-500">{row.name_localized || row.sku || "-"}</div></td>
+                    <td className="py-3 pr-4"><Link href={`/admin/menu/combos/${encodeURIComponent(row.id)}`} className="font-medium text-amber-200 hover:text-amber-100">{row.name}</Link><div className="mt-1 text-xs text-neutral-500">{row.sku || "-"}</div></td>
                     <td className="py-3 pr-4"><input value={sortDrafts[row.id] ?? String(row.sort_order ?? 0)} onChange={(e) => setSortDrafts((current) => ({ ...current, [row.id]: e.target.value }))} className="w-20 rounded-lg border border-neutral-700 bg-neutral-950/50 px-2 py-1 text-xs text-neutral-200" /></td>
                     <td className="py-3 pr-4 text-neutral-300"><div>{Number(row.price || 0).toFixed(2)}</div><div className="mt-1 text-xs text-neutral-500">Cost {Number(row.cost_summary?.effective_cost || 0).toFixed(2)}</div></td>
                     <td className="py-3 pr-4 text-neutral-300">{Number(row.product_count || 0)}</td>

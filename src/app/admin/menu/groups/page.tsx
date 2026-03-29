@@ -248,7 +248,6 @@ export default function MenuGroupsPage() {
           <div className="mt-4 space-y-3">
             {[
               ["Name *", "name"],
-              ["Name Localized", "name_localized"],
               ["Reference", "reference"],
             ].map(([label, key]) => (
               <label key={key} className="block text-sm text-neutral-300">
