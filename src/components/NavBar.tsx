@@ -10,6 +10,7 @@ import {
   canAccessAdminNav,
   canAccessBackofficeEvaluationAdmin,
   canAccessInventoryWorkspace,
+  canAccessMenuAdmin,
   canAccessPrivateReportAdmin,
   getAuth,
   refreshAuthFromApi,
@@ -42,6 +43,7 @@ const SECONDARY_BASE: NavItem[] = [
 const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin", label: "Admin Dashboard", adminOnly: true, match: "exact" },
   { href: "/admin/inventory", label: "Inventory", adminOnly: true, match: "prefix" },
+  { href: "/admin/menu", label: "Menu Builder", adminOnly: true, match: "prefix" },
   { href: "/admin/private-reports", label: "Private Reports", adminOnly: true, match: "exact" },
   { href: "/admin/procurement", label: "Procurement", adminOnly: true, match: "prefix" },
   { href: "/admin/analytics", label: "Analytics", adminOnly: true, match: "exact" },
@@ -104,6 +106,7 @@ export default function NavBar() {
   const pathname = usePathname();
   const [showAdmin, setShowAdmin] = useState(false);
   const [showInventoryAdmin, setShowInventoryAdmin] = useState(false);
+  const [showMenuAdmin, setShowMenuAdmin] = useState(false);
   const [showPrivateReportAdmin, setShowPrivateReportAdmin] = useState(false);
   const [showBackofficeEvalAdmin, setShowBackofficeEvalAdmin] = useState(false);
   const [displayName, setDisplayName] = useState("");
@@ -120,6 +123,7 @@ export default function NavBar() {
         if (!cancelled) {
           setShowAdmin(false);
           setShowInventoryAdmin(false);
+          setShowMenuAdmin(false);
           setShowPrivateReportAdmin(false);
           setShowBackofficeEvalAdmin(false);
           setDisplayName("");
@@ -132,6 +136,7 @@ export default function NavBar() {
       if (!cancelled) {
         setShowAdmin(canAccessAdminNav(resolved));
         setShowInventoryAdmin(canAccessInventoryWorkspace(resolved));
+        setShowMenuAdmin(canAccessMenuAdmin(resolved));
         setShowPrivateReportAdmin(canAccessPrivateReportAdmin(resolved));
         setShowBackofficeEvalAdmin(canAccessBackofficeEvaluationAdmin(resolved));
         setDisplayName(resolved?.staffName || a.staffName || "");
@@ -188,8 +193,11 @@ export default function NavBar() {
       if (showBackofficeEvalAdmin && !base.some((x) => x.href === "/admin/backoffice-evaluation")) {
         base.push({ href: "/admin/backoffice-evaluation", label: "Backoffice Eval", adminOnly: true, match: "exact" });
       }
-    } else if (showInventoryAdmin) {
+    } else if (showInventoryAdmin || showMenuAdmin) {
       base.push({ href: "/admin/inventory", label: "Inventory", adminOnly: true, match: "prefix" });
+      if (showMenuAdmin) {
+        base.push({ href: "/admin/menu", label: "Menu Builder", adminOnly: true, match: "prefix" });
+      }
       if (showPrivateReportAdmin) {
         base.push({ href: "/admin/private-reports", label: "Private Reports", adminOnly: true, match: "exact" });
       }
@@ -205,7 +213,7 @@ export default function NavBar() {
       base.push({ href: "/admin/backoffice-evaluation", label: "Backoffice Eval", adminOnly: true, match: "exact" });
     }
     return base;
-  }, [showAdmin, showInventoryAdmin, showPrivateReportAdmin, showBackofficeEvalAdmin, procurementBadgeCount, procurementBadgeCritical]);
+  }, [showAdmin, showInventoryAdmin, showMenuAdmin, showPrivateReportAdmin, showBackofficeEvalAdmin, procurementBadgeCount, procurementBadgeCritical]);
 
   const activeMore = useMemo(() => secondary.some((item) => isActive(pathname, item)), [pathname, secondary]);
 

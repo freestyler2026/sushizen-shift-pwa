@@ -40,7 +40,6 @@ export default function InventoryItemsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [items, setItems] = useState<InventoryItemRow[]>([]);
-  const [allItemsForSku, setAllItemsForSku] = useState<InventoryItemRow[]>([]);
   const [categories, setCategories] = useState<InventoryCategoryRow[]>([]);
   const [suppliers, setSuppliers] = useState<InventorySupplierRow[]>([]);
   const [createBusy, setCreateBusy] = useState(false);
@@ -52,18 +51,6 @@ export default function InventoryItemsPage() {
   const [createType, setCreateType] = useState("ITEM");
   const [createSuccess, setCreateSuccess] = useState("");
   const [createCategoryBusy, setCreateCategoryBusy] = useState(false);
-
-  const nextSku = useMemo(() => {
-    let maxSeq = 0;
-    for (const row of allItemsForSku) {
-      const matched = String(row.sku || "").trim().match(/^SK-(\d+)$/i);
-      if (!matched) continue;
-      const seq = Number(matched[1] || 0);
-      if (Number.isFinite(seq) && seq > maxSeq) maxSeq = seq;
-    }
-    const nextSeq = maxSeq + 1;
-    return `SK-${String(nextSeq).padStart(3, "0")}`;
-  }, [allItemsForSku]);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,15 +74,13 @@ export default function InventoryItemsPage() {
       setLoading(true);
       setError("");
       try {
-        const [itemsRes, allItemsRes, categoriesRes, suppliersRes] = await Promise.all([
+        const [itemsRes, categoriesRes, suppliersRes] = await Promise.all([
           inventoryGet<{ rows: InventoryItemRow[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=${encodeURIComponent(tab)}&q=${encodeURIComponent(q)}&limit=200`),
-          inventoryGet<{ rows: InventoryItemRow[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=ALL&q=&limit=5000`),
           inventoryGet<{ rows: InventoryCategoryRow[] }>(`/api/admin/inventory/categories?city=${encodeURIComponent(city)}&tab=ALL&limit=200`),
           inventoryGet<{ rows: InventorySupplierRow[] }>(`/api/admin/inventory/suppliers?city=${encodeURIComponent(city)}&tab=ALL&limit=200`),
         ]);
         if (cancelled) return;
         setItems(itemsRes.rows || []);
-        setAllItemsForSku(allItemsRes.rows || []);
         setCategories(categoriesRes.rows || []);
         setSuppliers(suppliersRes.rows || []);
       } catch (e: any) {
@@ -114,10 +99,6 @@ export default function InventoryItemsPage() {
     const name = createName.trim();
     if (!name) {
       setError("Please enter item name.");
-      return;
-    }
-    if (!nextSku) {
-      setError("Failed to generate SKU. Please refresh and try again.");
       return;
     }
     setCreateBusy(true);
@@ -145,10 +126,9 @@ export default function InventoryItemsPage() {
           }
         }
       }
-      await inventoryPost("/api/admin/inventory/items", {
+      const created = await inventoryPost<{ row?: InventoryItemRow }>("/api/admin/inventory/items", {
         city,
         name,
-        sku: nextSku,
         category_id: resolvedCategoryId,
         category_name: resolvedCategoryName,
         storage_unit: createUnit.trim(),
@@ -164,14 +144,12 @@ export default function InventoryItemsPage() {
         suppliers: [],
         custom_levels: [],
       });
-      const [itemsRes, allItemsRes, categoriesRes, suppliersRes] = await Promise.all([
+      const [itemsRes, categoriesRes, suppliersRes] = await Promise.all([
         inventoryGet<{ rows: InventoryItemRow[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=${encodeURIComponent(tab)}&q=${encodeURIComponent(q)}&limit=200`),
-        inventoryGet<{ rows: InventoryItemRow[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=ALL&q=&limit=5000`),
         inventoryGet<{ rows: InventoryCategoryRow[] }>(`/api/admin/inventory/categories?city=${encodeURIComponent(city)}&tab=ALL&limit=200`),
         inventoryGet<{ rows: InventorySupplierRow[] }>(`/api/admin/inventory/suppliers?city=${encodeURIComponent(city)}&tab=ALL&limit=200`),
       ]);
       setItems(itemsRes.rows || []);
-      setAllItemsForSku(allItemsRes.rows || []);
       setCategories(categoriesRes.rows || []);
       setSuppliers(suppliersRes.rows || []);
       setCreateName("");
@@ -180,7 +158,7 @@ export default function InventoryItemsPage() {
       setCreateUnit("");
       setCreateCost("0");
       setCreateType("ITEM");
-      setCreateSuccess("Item created successfully.");
+      setCreateSuccess(`Item created successfully. SKU: ${created?.row?.sku || "-"}.`);
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -269,9 +247,9 @@ export default function InventoryItemsPage() {
               placeholder="Item name"
               className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             />
-            <div className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
-              <div className="text-[11px] uppercase tracking-wide text-neutral-500">SKU (Required / Auto)</div>
-              <div className="mt-1 font-medium">{nextSku}</div>
+            <div className="rounded-xl border border-neutral-800 bg-neutral-900/60 px-3 py-2 text-sm text-neutral-300">
+              <div className="text-[11px] uppercase tracking-wide text-neutral-500">SKU</div>
+              <div className="mt-1 font-medium text-neutral-400">Auto assigned after save</div>
             </div>
             <select
               value={createCategoryId}
