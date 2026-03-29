@@ -77,9 +77,9 @@ export default function AdminMenuPage() {
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-amber-800/60 bg-amber-950/15 p-4 sm:col-span-3">
-            <div className="text-sm font-semibold text-amber-100">Phase 1 workflow</div>
-            <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-amber-50/90">
+          <div className="rounded-2xl border border-sky-800/60 bg-sky-950/15 p-4 sm:col-span-3">
+            <div className="text-sm font-semibold text-sky-100">Phase 1 workflow</div>
+            <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-sky-50/90">
               <li>Create menu categories first.</li>
               <li>Create products and assign each product to a category.</li>
               <li>Open product detail and add ingredient lines from inventory items.</li>
