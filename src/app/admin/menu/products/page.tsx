@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MenuImportFailures from "@/components/menu/MenuImportFailures";
 import MenuPaginationControls from "@/components/menu/MenuPaginationControls";
@@ -74,13 +75,16 @@ const EMPTY_FORM = {
 };
 
 export default function MenuProductsPage() {
+  const searchParams = useSearchParams();
   const auth = useMemo(() => getAuth(), []);
+  const queryCity = (searchParams.get("city") || "").toLowerCase();
+  const queryCategoryId = searchParams.get("category_id") || "";
   const [ready, setReady] = useState(false);
   const [allowed, setAllowed] = useState(false);
-  const [city, setCity] = useState<City>((auth?.city || "manila") as City);
+  const [city, setCity] = useState<City>(((queryCity === "manila" || queryCity === "dubai" ? queryCity : (auth?.city || "manila")) as City));
   const [tab, setTab] = useState("ALL");
   const [q, setQ] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState(queryCategoryId);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [total, setTotal] = useState(0);
@@ -113,14 +117,19 @@ export default function MenuProductsPage() {
       const resolved = await refreshAuthFromApi(auth);
       if (cancelled) return;
       setAllowed(canAccessMenuAdmin(resolved));
-      setCity((resolved?.city || auth?.city || "manila") as City);
+      setCity((queryCity === "manila" || queryCity === "dubai" ? queryCity : (resolved?.city || auth?.city || "manila")) as City);
       setReady(true);
     }
     void init();
     return () => {
       cancelled = true;
     };
-  }, [auth]);
+  }, [auth, queryCity]);
+
+  useEffect(() => {
+    setCategoryFilter(queryCategoryId);
+    setPage(1);
+  }, [queryCategoryId]);
 
   const loadAll = useCallback(async (nextCity = city, nextTab = tab, nextQ = q, nextCategory = categoryFilter, nextPage = page, nextPageSize = pageSize) => {
     setLoading(true);

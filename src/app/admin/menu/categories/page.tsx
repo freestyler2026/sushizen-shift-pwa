@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MenuImportFailures from "@/components/menu/MenuImportFailures";
 import MenuPaginationControls from "@/components/menu/MenuPaginationControls";
@@ -326,7 +327,18 @@ export default function MenuCategoriesPage() {
                     <td className="py-3 pr-4">
                       <input value={sortDrafts[row.id] ?? String(row.sort_order ?? 0)} onChange={(e) => setSortDrafts((current) => ({ ...current, [row.id]: e.target.value }))} className="w-20 rounded-lg border border-neutral-700 bg-neutral-950/50 px-2 py-1 text-xs text-neutral-200" />
                     </td>
-                    <td className="py-3 pr-4 text-neutral-300">{Number(row.product_count || 0)}</td>
+                    <td className="py-3 pr-4 text-neutral-300">
+                      {Number(row.product_count || 0) > 0 ? (
+                        <Link
+                          href={`/admin/menu/products?city=${encodeURIComponent(city)}&category_id=${encodeURIComponent(row.id)}`}
+                          className="font-medium text-amber-200 underline underline-offset-2 hover:text-amber-100"
+                        >
+                          {Number(row.product_count || 0)}
+                        </Link>
+                      ) : (
+                        Number(row.product_count || 0)
+                      )}
+                    </td>
                     <td className="py-3 pr-4"><span className="rounded-full border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300">{row.status}</span></td>
                     <td className="py-3">
                       <div className="flex flex-wrap gap-2">
