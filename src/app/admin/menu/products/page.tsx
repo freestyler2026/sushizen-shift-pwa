@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MenuImportFailures from "@/components/menu/MenuImportFailures";
 import MenuPaginationControls from "@/components/menu/MenuPaginationControls";
 import { canAccessMenuAdmin, getAuth, refreshAuthFromApi, type City } from "@/lib/auth";
@@ -74,7 +74,7 @@ const EMPTY_FORM = {
   high_salt_content: false,
 };
 
-export default function MenuProductsPage() {
+function MenuProductsPageInner() {
   const searchParams = useSearchParams();
   const auth = useMemo(() => getAuth(), []);
   const queryCity = (searchParams.get("city") || "").toLowerCase();
@@ -567,5 +567,13 @@ export default function MenuProductsPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+export default function MenuProductsPage() {
+  return (
+    <Suspense fallback={<div className="text-sm text-neutral-500">Loading products...</div>}>
+      <MenuProductsPageInner />
+    </Suspense>
   );
 }
