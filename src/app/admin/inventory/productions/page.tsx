@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
@@ -129,6 +129,7 @@ function number3(value: number) {
 
 export default function InventoryProductionsPage() {
   const auth = useMemo(() => getAuth(), []);
+  const recipeProductSelectRef = useRef<HTMLSelectElement | null>(null);
   const [ready, setReady] = useState(false);
   const [allowed, setAllowed] = useState(false);
   const [city, setCity] = useState<City>((auth?.city || "manila") as City);
@@ -427,6 +428,13 @@ export default function InventoryProductionsPage() {
 
   function removeRecipeLine(ingredientItemId: string) {
     setRecipeRows((prev) => prev.filter((row) => row.ingredient_item_id !== ingredientItemId));
+  }
+
+  function handleRecipeIngredientFocus(event: React.MouseEvent<HTMLSelectElement> | React.FocusEvent<HTMLSelectElement>) {
+    if (recipeProductId) return;
+    event.preventDefault();
+    setError("Please select a recipe product first.");
+    recipeProductSelectRef.current?.focus();
   }
 
   async function saveRecipe() {
@@ -774,9 +782,13 @@ export default function InventoryProductionsPage() {
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_140px_140px]">
           <select
+            ref={recipeProductSelectRef}
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             value={recipeProductId}
-            onChange={(e) => setRecipeProductId(e.target.value)}
+            onChange={(e) => {
+              setRecipeProductId(e.target.value);
+              setError("");
+            }}
           >
             <option value="">Select a recipe product</option>
             {productOptions.map((item) => (
@@ -789,9 +801,10 @@ export default function InventoryProductionsPage() {
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             value={recipeIngredientId}
             onChange={(e) => setRecipeIngredientId(e.target.value)}
-            disabled={!recipeProductId}
+            onMouseDown={handleRecipeIngredientFocus}
+            onFocus={handleRecipeIngredientFocus}
           >
-            <option value="">Select an ingredient</option>
+            <option value="">{recipeProductId ? "Select an ingredient" : "Select a recipe product first"}</option>
             {ingredientOptions.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name} {item.sku ? `(${item.sku})` : ""}
