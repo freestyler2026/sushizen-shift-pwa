@@ -29,6 +29,15 @@ type SummaryPayload = {
   by_role: Array<{ role_name: string; staff_count: number; avg_total_score: number }>;
 };
 
+type AttendanceStatus = {
+  city: string;
+  month_key: string;
+  attendance_last_date: string;
+  attendance_date_count: number;
+  attendance_staff_count: number;
+  matched_staff_count: number;
+};
+
 type ActionRow = {
   id: number;
   city: string;
@@ -58,8 +67,12 @@ export default function AdminBackofficeEvaluationPage() {
   const [pin, setPin] = useState(auth?.pin || "");
   const [loading, setLoading] = useState(false);
   const [syncBusy, setSyncBusy] = useState(false);
+  const [attendanceSyncBusy, setAttendanceSyncBusy] = useState(false);
   const [error, setError] = useState("");
+  const [attendanceError, setAttendanceError] = useState("");
   const [summary, setSummary] = useState<SummaryPayload | null>(null);
+  const [attendanceStatus, setAttendanceStatus] = useState<AttendanceStatus | null>(null);
+  const [bayzatSyncKey, setBayzatSyncKey] = useState("");
   const [rows, setRows] = useState<ScoreRow[]>([]);
   const [selectedStaff, setSelectedStaff] = useState("");
   const [actions, setActions] = useState<ActionRow[]>([]);
@@ -80,6 +93,22 @@ export default function AdminBackofficeEvaluationPage() {
     };
   }, [auth]);
 
+  const applyAttendanceStatus = useCallback((payload: unknown) => {
+    if (!payload || typeof payload !== "object") {
+      setAttendanceStatus(null);
+      return;
+    }
+    const status = payload as Partial<AttendanceStatus>;
+    setAttendanceStatus({
+      city: String(status.city || city),
+      month_key: String(status.month_key || monthKey),
+      attendance_last_date: String(status.attendance_last_date || ""),
+      attendance_date_count: Number(status.attendance_date_count || 0),
+      attendance_staff_count: Number(status.attendance_staff_count || 0),
+      matched_staff_count: Number(status.matched_staff_count || 0),
+    });
+  }, [city, monthKey]);
+
   const loadSummary = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -91,6 +120,7 @@ export default function AdminBackofficeEvaluationPage() {
       if (!res.ok) throw new Error(text || `Failed (${res.status})`);
       const j = JSON.parse(text || "{}");
       setSummary((j?.summary || null) as SummaryPayload | null);
+      applyAttendanceStatus(j?.attendance_status);
       const scoreRows = (Array.isArray(j?.rows) ? j.rows : []) as ScoreRow[];
       setRows(scoreRows);
       if (scoreRows.length && !selectedStaff) {
@@ -103,7 +133,23 @@ export default function AdminBackofficeEvaluationPage() {
     } finally {
       setLoading(false);
     }
-  }, [apiBase, city, monthKey, selectedStaff, tokenHeaders]);
+  }, [apiBase, applyAttendanceStatus, city, monthKey, selectedStaff, tokenHeaders]);
+
+  const loadAttendanceStatus = useCallback(async () => {
+    setAttendanceError("");
+    try {
+      const headers = await tokenHeaders();
+      const q = new URLSearchParams({ city, month_key: monthKey }).toString();
+      const res = await fetch(`${apiBase}/api/admin/backoffice-evaluation/attendance-status?${q}`, { headers, cache: "no-store" });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || `Failed (${res.status})`);
+      const j = JSON.parse(text || "{}");
+      applyAttendanceStatus(j?.attendance_status);
+    } catch (e: any) {
+      setAttendanceError(e?.message || String(e));
+      setAttendanceStatus(null);
+    }
+  }, [apiBase, applyAttendanceStatus, city, monthKey, tokenHeaders]);
 
   const loadActions = useCallback(async (staffName: string) => {
     if (!staffName) {
@@ -130,6 +176,10 @@ export default function AdminBackofficeEvaluationPage() {
       setError("Approver Name and PIN are required.");
       return;
     }
+    if (bayzatSyncKey !== `${city}:${monthKey}`) {
+      setError("Run Bayzat Sync before scoring this month.");
+      return;
+    }
     setSyncBusy(true);
     setError("");
     try {
@@ -150,6 +200,8 @@ export default function AdminBackofficeEvaluationPage() {
       });
       const text = await res.text();
       if (!res.ok) throw new Error(text || `Failed (${res.status})`);
+      const j = JSON.parse(text || "{}");
+      applyAttendanceStatus(j?.attendance_status);
       if (!dryRun) {
         await loadSummary();
         if (selectedStaff) await loadActions(selectedStaff);
@@ -158,6 +210,41 @@ export default function AdminBackofficeEvaluationPage() {
       setError(e?.message || String(e));
     } finally {
       setSyncBusy(false);
+    }
+  };
+
+  const syncBayzatAttendance = async () => {
+    if (!approverName.trim() || !pin.trim()) {
+      setAttendanceError("Approver Name and PIN are required.");
+      return;
+    }
+    setAttendanceSyncBusy(true);
+    setAttendanceError("");
+    try {
+      const headers = await tokenHeaders();
+      const res = await fetch(`${apiBase}/api/admin/backoffice-evaluation/bayzat-sync`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...headers,
+        },
+        body: JSON.stringify({
+          city,
+          month_key: monthKey,
+          approver_name: approverName.trim(),
+          pin: pin.trim(),
+        }),
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || `Failed (${res.status})`);
+      const j = JSON.parse(text || "{}");
+      applyAttendanceStatus(j?.attendance_status);
+      setBayzatSyncKey(`${city}:${monthKey}`);
+    } catch (e: any) {
+      setAttendanceError(e?.message || String(e));
+      setBayzatSyncKey("");
+    } finally {
+      setAttendanceSyncBusy(false);
     }
   };
 
@@ -219,18 +306,19 @@ export default function AdminBackofficeEvaluationPage() {
       const can = canAccessBackofficeEvaluationAdmin(refreshed || auth);
       if (cancelled) return;
       setAllowed(can);
-      if (can) await loadSummary();
     }
     init();
     return () => {
       cancelled = true;
     };
-  }, [auth, loadSummary]);
+  }, [auth]);
 
   useEffect(() => {
     if (!allowed) return;
+    setBayzatSyncKey("");
+    loadAttendanceStatus();
     loadSummary();
-  }, [allowed, city, monthKey, loadSummary]);
+  }, [allowed, city, monthKey, loadAttendanceStatus, loadSummary]);
 
   useEffect(() => {
     if (!allowed || !selectedStaff) return;
@@ -240,6 +328,8 @@ export default function AdminBackofficeEvaluationPage() {
   if (!allowed) {
     return <div className="text-sm text-red-300">Backoffice Evaluation page is available only to HQ/HR Manager.</div>;
   }
+
+  const bayzatReady = bayzatSyncKey === `${city}:${monthKey}`;
 
   return (
     <div className="space-y-4">
@@ -271,13 +361,25 @@ export default function AdminBackofficeEvaluationPage() {
           <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
         </label>
         <div className="flex items-end gap-2">
-          <button type="button" onClick={() => syncFromSheet(true)} disabled={syncBusy} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900 disabled:opacity-60">
+          <button type="button" onClick={syncBayzatAttendance} disabled={attendanceSyncBusy || syncBusy} className="rounded-xl border border-sky-700/60 bg-sky-950/20 px-3 py-2 text-xs text-sky-200 hover:bg-sky-900/20 disabled:opacity-60">
+            {attendanceSyncBusy ? "Syncing Bayzat..." : "Bayzat Sync"}
+          </button>
+          <button type="button" onClick={() => syncFromSheet(true)} disabled={syncBusy || attendanceSyncBusy || !bayzatReady} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900 disabled:opacity-60">
             {syncBusy ? "Syncing..." : "Dry Run"}
           </button>
-          <button type="button" onClick={() => syncFromSheet(false)} disabled={syncBusy} className="rounded-xl border border-amber-600/60 bg-amber-950/20 px-3 py-2 text-xs text-amber-200 hover:bg-amber-900/20 disabled:opacity-60">
+          <button type="button" onClick={() => syncFromSheet(false)} disabled={syncBusy || attendanceSyncBusy || !bayzatReady} className="rounded-xl border border-amber-600/60 bg-amber-950/20 px-3 py-2 text-xs text-amber-200 hover:bg-amber-900/20 disabled:opacity-60">
             {syncBusy ? "Syncing..." : "Sync + Score"}
           </button>
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 text-xs text-neutral-300">
+        <div>Bayzat attendance available through: {attendanceStatus?.attendance_last_date || "-"}</div>
+        <div className="mt-1">Attendance coverage: {attendanceStatus?.attendance_staff_count ?? 0} staff</div>
+        <div className="mt-1 text-neutral-400">
+          {bayzatReady ? "Bayzat Sync completed for this city/month. You can run scoring now." : "Run Bayzat Sync before Dry Run or Sync + Score."}
+        </div>
+        {attendanceError ? <div className="mt-2 text-red-300">{attendanceError}</div> : null}
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
