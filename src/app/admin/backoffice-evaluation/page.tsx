@@ -171,7 +171,7 @@ export default function AdminBackofficeEvaluationPage() {
     }
   }, [apiBase, city, monthKey, tokenHeaders]);
 
-  const syncFromSheet = async (dryRun: boolean) => {
+  const syncFromSheet = async () => {
     if (!approverName.trim() || !pin.trim()) {
       setError("Approver Name and PIN are required.");
       return;
@@ -195,17 +195,15 @@ export default function AdminBackofficeEvaluationPage() {
           month_key: monthKey,
           approver_name: approverName.trim(),
           pin: pin.trim(),
-          dry_run: Boolean(dryRun),
+          dry_run: false,
         }),
       });
       const text = await res.text();
       if (!res.ok) throw new Error(text || `Failed (${res.status})`);
       const j = JSON.parse(text || "{}");
       applyAttendanceStatus(j?.attendance_status);
-      if (!dryRun) {
-        await loadSummary();
-        if (selectedStaff) await loadActions(selectedStaff);
-      }
+      await loadSummary();
+      if (selectedStaff) await loadActions(selectedStaff);
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -220,6 +218,7 @@ export default function AdminBackofficeEvaluationPage() {
     }
     setAttendanceSyncBusy(true);
     setAttendanceError("");
+    setError("");
     try {
       const headers = await tokenHeaders();
       const res = await fetch(`${apiBase}/api/admin/backoffice-evaluation/bayzat-sync`, {
@@ -364,10 +363,7 @@ export default function AdminBackofficeEvaluationPage() {
           <button type="button" onClick={syncBayzatAttendance} disabled={attendanceSyncBusy || syncBusy} className="rounded-xl border border-sky-700/60 bg-sky-950/20 px-3 py-2 text-xs text-sky-200 hover:bg-sky-900/20 disabled:opacity-60">
             {attendanceSyncBusy ? "Syncing Bayzat..." : "Bayzat Sync"}
           </button>
-          <button type="button" onClick={() => syncFromSheet(true)} disabled={syncBusy || attendanceSyncBusy || !bayzatReady} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900 disabled:opacity-60">
-            {syncBusy ? "Syncing..." : "Dry Run"}
-          </button>
-          <button type="button" onClick={() => syncFromSheet(false)} disabled={syncBusy || attendanceSyncBusy || !bayzatReady} className="rounded-xl border border-amber-600/60 bg-amber-950/20 px-3 py-2 text-xs text-amber-200 hover:bg-amber-900/20 disabled:opacity-60">
+          <button type="button" onClick={syncFromSheet} disabled={syncBusy || attendanceSyncBusy || !bayzatReady} className="rounded-xl border border-amber-600/60 bg-amber-950/20 px-3 py-2 text-xs text-amber-200 hover:bg-amber-900/20 disabled:opacity-60">
             {syncBusy ? "Syncing..." : "Sync + Score"}
           </button>
         </div>
@@ -377,7 +373,7 @@ export default function AdminBackofficeEvaluationPage() {
         <div>Bayzat attendance available through: {attendanceStatus?.attendance_last_date || "-"}</div>
         <div className="mt-1">Attendance coverage: {attendanceStatus?.attendance_staff_count ?? 0} staff</div>
         <div className="mt-1 text-neutral-400">
-          {bayzatReady ? "Bayzat Sync completed for this city/month. You can run scoring now." : "Run Bayzat Sync before Dry Run or Sync + Score."}
+          {bayzatReady ? "Bayzat Sync completed for this city/month. You can run Sync + Score now." : "Click Bayzat Sync first, then Sync + Score."}
         </div>
         {attendanceError ? <div className="mt-2 text-red-300">{attendanceError}</div> : null}
       </div>
