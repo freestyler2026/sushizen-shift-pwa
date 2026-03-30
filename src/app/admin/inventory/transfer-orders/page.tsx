@@ -33,6 +33,7 @@ type TransferOrderDetail = TransferOrderRow & {
     item_name: string;
     sku: string;
     quantity: number;
+    unit: string;
   }>;
 };
 
@@ -41,11 +42,24 @@ type StaffNameDirectory = {
 };
 
 type DraftItem = {
+  key: string;
   item_id: string;
   item_name: string;
   sku: string;
   quantity: number;
+  unit: string;
 };
+
+const TRANSFER_ORDER_UNITS = ["kg", "g", "pcs", "pkt", "box", "ml", "L"] as const;
+
+function normalizeTransferUnit(value: string) {
+  const unit = String(value || "").trim();
+  return TRANSFER_ORDER_UNITS.includes(unit as (typeof TRANSFER_ORDER_UNITS)[number]) ? unit : "pcs";
+}
+
+function draftItemKey(itemId: string, unit: string) {
+  return `${itemId}::${unit}`;
+}
 
 function monthKeyOf(value: string) {
   const s = String(value || "").trim();
@@ -56,6 +70,14 @@ function monthKeyOf(value: string) {
 function monthNow() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function csvEscape(value: unknown) {
+  const s = String(value ?? "");
+  if (s.includes('"') || s.includes(",") || s.includes("\n")) {
+    return `"${s.replace(/"/g, '""')}"`;
+  }
+  return s;
 }
 
 export default function InventoryTransferOrdersPage() {
@@ -74,6 +96,7 @@ export default function InventoryTransferOrdersPage() {
   const [notes, setNotes] = useState("");
   const [selectedItemId, setSelectedItemId] = useState("");
   const [selectedQty, setSelectedQty] = useState(1);
+  const [selectedUnit, setSelectedUnit] = useState<string>("pcs");
 
   const [staffOptions, setStaffOptions] = useState<string[]>([]);
   const [itemOptions, setItemOptions] = useState<InventoryItemOption[]>([]);
@@ -174,32 +197,73 @@ export default function InventoryTransferOrdersPage() {
     [itemOptions, selectedItemId],
   );
 
+  useEffect(() => {
+    if (!selectedItem) return;
+    setSelectedUnit(normalizeTransferUnit(selectedItem.storage_unit));
+  }, [selectedItem]);
+
   function addDraftItem() {
     if (!selectedItem) return;
     const qty = Math.max(0.001, Number(selectedQty || 0));
+    const unit = normalizeTransferUnit(selectedUnit);
+    const key = draftItemKey(selectedItem.id, unit);
     setDraftItems((prev) => {
-      const existing = prev.find((item) => item.item_id === selectedItem.id);
+      const existing = prev.find((item) => item.key === key);
       if (existing) {
         return prev.map((item) =>
-          item.item_id === selectedItem.id ? { ...item, quantity: Number((item.quantity + qty).toFixed(3)) } : item,
+          item.key === key ? { ...item, quantity: Number((item.quantity + qty).toFixed(3)) } : item,
         );
       }
       return [
         ...prev,
         {
+          key,
           item_id: selectedItem.id,
           item_name: selectedItem.name,
           sku: selectedItem.sku,
           quantity: Number(qty.toFixed(3)),
+          unit,
         },
       ];
     });
     setSelectedItemId("");
     setSelectedQty(1);
+    setSelectedUnit("pcs");
   }
 
-  function removeDraftItem(itemId: string) {
-    setDraftItems((prev) => prev.filter((item) => item.item_id !== itemId));
+  function removeDraftItem(key: string) {
+    setDraftItems((prev) => prev.filter((item) => item.key !== key));
+  }
+
+  function exportHistoryCsv() {
+    if (!filteredHistory.length) return;
+    const rows = filteredHistory.map((row) => ({
+      transfer_order_no: row.transfer_order_no || "",
+      city,
+      warehouse_branch_code: row.warehouse_branch_code || "",
+      warehouse_branch_name: labelOf(city, row.warehouse_branch_code),
+      destination_branch_code: row.destination_branch_code || "",
+      destination_branch_name: labelOf(city, row.destination_branch_code),
+      requested_by: row.requested_by || "",
+      status: row.status || "",
+      notes: row.notes || "",
+      created_at: row.created_at || "",
+      updated_at: row.updated_at || "",
+    }));
+    const headers = Object.keys(rows[0]);
+    const lines = [
+      headers.map(csvEscape).join(","),
+      ...rows.map((row) => headers.map((header) => csvEscape(row[header as keyof typeof row])).join(",")),
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `transfer-orders-history-${city}-${historyMonth || monthNow()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 
   async function createTransferOrder() {
@@ -234,6 +298,7 @@ export default function InventoryTransferOrdersPage() {
           item_name: item.item_name,
           sku: item.sku,
           quantity: item.quantity,
+          unit: item.unit,
         })),
       });
       await inventoryPost(`/api/admin/inventory/transfer-orders/${encodeURIComponent(transferOrderId)}/status`, {
@@ -337,7 +402,7 @@ export default function InventoryTransferOrdersPage() {
           <div className="text-xs text-neutral-500">{itemOptions.length} registered ingredients</div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_180px_140px]">
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_140px_140px_140px]">
           <select
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             value={selectedItemId}
@@ -358,6 +423,17 @@ export default function InventoryTransferOrdersPage() {
             onChange={(e) => setSelectedQty(Number(e.target.value || 0))}
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
           />
+          <select
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            value={selectedUnit}
+            onChange={(e) => setSelectedUnit(e.target.value)}
+          >
+            {TRANSFER_ORDER_UNITS.map((unit) => (
+              <option key={unit} value={unit}>
+                {unit}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
             onClick={addDraftItem}
@@ -375,19 +451,21 @@ export default function InventoryTransferOrdersPage() {
                 <th className="px-3 py-2">Item</th>
                 <th className="px-3 py-2">SKU</th>
                 <th className="px-3 py-2">Quantity</th>
+                <th className="px-3 py-2">Unit</th>
                 <th className="px-3 py-2">Action</th>
               </tr>
             </thead>
             <tbody>
               {draftItems.map((item) => (
-                <tr key={item.item_id} className="border-t border-neutral-800 text-neutral-200">
+                <tr key={item.key} className="border-t border-neutral-800 text-neutral-200">
                   <td className="px-3 py-2">{item.item_name}</td>
                   <td className="px-3 py-2">{item.sku || "-"}</td>
                   <td className="px-3 py-2">{Number(item.quantity || 0).toFixed(3)}</td>
+                  <td className="px-3 py-2">{item.unit || "-"}</td>
                   <td className="px-3 py-2">
                     <button
                       type="button"
-                      onClick={() => removeDraftItem(item.item_id)}
+                      onClick={() => removeDraftItem(item.key)}
                       className="rounded-lg border border-rose-800/70 bg-rose-950/20 px-2 py-1 text-xs text-rose-200"
                     >
                       Remove
@@ -397,7 +475,7 @@ export default function InventoryTransferOrdersPage() {
               ))}
               {draftItems.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-3 py-6 text-center text-neutral-500">
+                  <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
                     No ingredient items have been added yet.
                   </td>
                 </tr>
@@ -424,12 +502,22 @@ export default function InventoryTransferOrdersPage() {
             <div className="text-sm font-semibold text-neutral-100">History</div>
             <div className="mt-1 text-xs text-neutral-500">Review transfer order history by month.</div>
           </div>
-          <input
-            type="month"
-            value={historyMonth}
-            onChange={(e) => setHistoryMonth(e.target.value)}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="month"
+              value={historyMonth}
+              onChange={(e) => setHistoryMonth(e.target.value)}
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            />
+            <button
+              type="button"
+              onClick={exportHistoryCsv}
+              disabled={!filteredHistory.length}
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900 disabled:opacity-60"
+            >
+              Export CSV
+            </button>
+          </div>
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
@@ -512,7 +600,7 @@ export default function InventoryTransferOrdersPage() {
                       <div key={item.id} className="rounded-xl border border-neutral-800 bg-neutral-900/30 px-3 py-2">
                         <div>{item.item_name}</div>
                         <div className="mt-1 text-xs text-neutral-500">
-                          {item.sku || "-"} • Qty {Number(item.quantity || 0).toFixed(3)}
+                          {item.sku || "-"} • Qty {Number(item.quantity || 0).toFixed(3)} {item.unit || ""}
                         </div>
                       </div>
                     ))}
