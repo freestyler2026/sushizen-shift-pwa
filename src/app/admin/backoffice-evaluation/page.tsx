@@ -337,6 +337,31 @@ export default function AdminBackofficeEvaluationPage() {
         <div className="mt-1 text-sm text-neutral-400">HQ / HR Manager only. Google Forms daily reports are evaluated against benchmark metrics.</div>
       </div>
 
+      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4 text-sm text-neutral-200 lg:grid-cols-2">
+        <div className="rounded-xl border border-neutral-800 bg-neutral-950/30 p-3">
+          <div className="font-medium text-neutral-100">Backoffice Evaluation Scoring Criteria</div>
+          <div className="mt-2 text-neutral-300">Scores are calculated using four dimensions:</div>
+          <div className="mt-2 space-y-1 text-neutral-300">
+            <div>Workload (submission / work volume): 10%</div>
+            <div>Speed (on-time / same-day handling): 10%</div>
+            <div>Quality (low error rate): 35%</div>
+            <div>Progress (completion against plan): 45%</div>
+          </div>
+          <div className="mt-3 text-xs text-neutral-400">These scores are benchmark-based and may vary by role.</div>
+        </div>
+        <div className="rounded-xl border border-neutral-800 bg-neutral-950/30 p-3">
+          <div className="font-medium text-neutral-100">Backoffice Eval 評価基準</div>
+          <div className="mt-2 text-neutral-300">点数は以下の4項目で構成されています。</div>
+          <div className="mt-2 space-y-1 text-neutral-300">
+            <div>Workload（提出率・業務量）: 10%</div>
+            <div>Speed（期限内対応・当日対応）: 10%</div>
+            <div>Quality（エラーの少なさ）: 35%</div>
+            <div>Progress（計画に対する完了率）: 45%</div>
+          </div>
+          <div className="mt-3 text-xs text-neutral-400">各項目の点数は、職種ごとの benchmark をもとに算出されます。</div>
+        </div>
+      </div>
+
       {error ? <div className="text-sm text-red-300">{error}</div> : null}
 
       <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 lg:grid-cols-6">
