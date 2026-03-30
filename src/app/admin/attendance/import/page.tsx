@@ -47,7 +47,7 @@ export default function AttendanceImportPage() {
 
   const [approverName, setApproverName] = useState<string>(auth?.staffName || "");
   const [pin, setPin] = useState<string>(auth?.pin || "");
-  const [cityHint, setCityHint] = useState<string>(auth?.city || "dubai");
+  const [cityHint, setCityHint] = useState<string>("");
   const [driveFileId, setDriveFileId] = useState<string>("");
 
   const [loadingLatest, setLoadingLatest] = useState(false);
@@ -156,12 +156,13 @@ export default function AttendanceImportPage() {
             </label>
 
             <label className="space-y-2">
-              <span className="text-sm text-neutral-300">City Hint</span>
+              <span className="text-sm text-neutral-300">City Hint (optional fallback)</span>
               <select
                 className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white"
                 value={cityHint}
                 onChange={(e) => setCityHint(e.target.value)}
               >
+                <option value="">Auto detect from file</option>
                 <option value="dubai">Dubai</option>
                 <option value="manila">Manila</option>
               </select>
