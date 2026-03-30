@@ -29,10 +29,12 @@ type StaffNameDirectory = {
 };
 
 type DraftOutputItem = {
+  key: string;
   item_id: string;
   item_name: string;
   sku: string;
   quantity: number;
+  unit: string;
   unit_cost: number;
   storage_unit: string;
 };
@@ -73,10 +75,22 @@ type ProductionItem = {
   item_name: string;
   sku: string;
   quantity: number;
+  unit: string;
   unit_cost: number;
   total_cost: number;
   entry_type: string;
 };
+
+const PRODUCTION_OUTPUT_UNITS = ["kg", "g", "pcs", "pkt", "bag", "box", "ml", "L"] as const;
+
+function normalizeProductionOutputUnit(value: string) {
+  const unit = String(value || "").trim();
+  return PRODUCTION_OUTPUT_UNITS.includes(unit as (typeof PRODUCTION_OUTPUT_UNITS)[number]) ? unit : "pcs";
+}
+
+function draftOutputKey(itemId: string, unit: string) {
+  return `${itemId}::${unit}`;
+}
 
 type ProductionDetail = ProductionRow & {
   items?: ProductionItem[];
@@ -124,6 +138,7 @@ export default function InventoryProductionsPage() {
   const [notes, setNotes] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
   const [selectedQty, setSelectedQty] = useState(1);
+  const [selectedUnit, setSelectedUnit] = useState<string>("pcs");
   const [historyMonth, setHistoryMonth] = useState(monthNow());
   const [loading, setLoading] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -209,7 +224,6 @@ export default function InventoryProductionsPage() {
         setProductOptions(nextProducts);
         setIngredientOptions((ingredientsRes.rows || []).filter((item) => item.status !== "DELETED"));
         setStaffOptions(Array.isArray(staffRes.names) ? staffRes.names : []);
-        setRecipeProductId((current) => current || nextProducts[0]?.id || "");
         await loadHistory(city, branchCode, historyMonth);
       } catch (e: any) {
         if (!cancelled) setError(e?.message || String(e));
@@ -247,6 +261,10 @@ export default function InventoryProductionsPage() {
       cancelled = true;
     };
   }, [allowed, city, ready, recipeProductId]);
+
+  useEffect(() => {
+    setRecipeIngredientId("");
+  }, [recipeProductId]);
 
   useEffect(() => {
     if (!selectedProductionId || !allowed) {
@@ -289,6 +307,7 @@ export default function InventoryProductionsPage() {
               item_name: item.item_name,
               sku: item.sku,
               quantity: item.quantity,
+              unit: item.unit,
               unit_cost: item.unit_cost,
               total_cost: item.quantity * item.unit_cost,
               entry_type: "OUTPUT",
@@ -318,6 +337,11 @@ export default function InventoryProductionsPage() {
     [ingredientOptions, recipeIngredientId],
   );
 
+  useEffect(() => {
+    if (!selectedProduct) return;
+    setSelectedUnit(normalizeProductionOutputUnit(selectedProduct.storage_unit));
+  }, [selectedProduct]);
+
   const outputTotalCost = useMemo(
     () => draftOutputs.reduce((sum, item) => sum + item.quantity * item.unit_cost, 0),
     [draftOutputs],
@@ -338,20 +362,24 @@ export default function InventoryProductionsPage() {
   function addDraftOutput() {
     if (!selectedProduct) return;
     const qty = Math.max(0.001, Number(selectedQty || 0));
+    const unit = normalizeProductionOutputUnit(selectedUnit);
+    const key = draftOutputKey(selectedProduct.id, unit);
     setDraftOutputs((prev) => {
-      const existing = prev.find((item) => item.item_id === selectedProduct.id);
+      const existing = prev.find((item) => item.key === key);
       if (existing) {
         return prev.map((item) =>
-          item.item_id === selectedProduct.id ? { ...item, quantity: Number((item.quantity + qty).toFixed(3)) } : item,
+          item.key === key ? { ...item, quantity: Number((item.quantity + qty).toFixed(3)) } : item,
         );
       }
       return [
         ...prev,
         {
+          key,
           item_id: selectedProduct.id,
           item_name: selectedProduct.name,
           sku: selectedProduct.sku,
           quantity: Number(qty.toFixed(3)),
+          unit,
           unit_cost: Number(selectedProduct.cost || 0),
           storage_unit: selectedProduct.storage_unit || "",
         },
@@ -359,10 +387,11 @@ export default function InventoryProductionsPage() {
     });
     setSelectedProductId("");
     setSelectedQty(1);
+    setSelectedUnit("pcs");
   }
 
-  function removeDraftOutput(itemId: string) {
-    setDraftOutputs((prev) => prev.filter((item) => item.item_id !== itemId));
+  function removeDraftOutput(key: string) {
+    setDraftOutputs((prev) => prev.filter((item) => item.key !== key));
   }
 
   function addRecipeLine() {
@@ -466,6 +495,7 @@ export default function InventoryProductionsPage() {
             item_name: item.item_name,
             sku: item.sku,
             quantity: item.quantity,
+            unit: item.unit,
             unit_cost: item.unit_cost,
             total_cost: item.quantity * item.unit_cost,
             entry_type: "OUTPUT",
@@ -642,7 +672,7 @@ export default function InventoryProductionsPage() {
           <div className="text-xs text-neutral-500">{productOptions.length} registered production products</div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_160px_140px]">
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_140px_140px_140px]">
           <select
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             value={selectedProductId}
@@ -663,6 +693,17 @@ export default function InventoryProductionsPage() {
             onChange={(e) => setSelectedQty(Number(e.target.value || 0))}
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
           />
+          <select
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            value={selectedUnit}
+            onChange={(e) => setSelectedUnit(e.target.value)}
+          >
+            {PRODUCTION_OUTPUT_UNITS.map((unit) => (
+              <option key={unit} value={unit}>
+                {unit}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
             onClick={addDraftOutput}
@@ -680,21 +721,23 @@ export default function InventoryProductionsPage() {
                 <th className="px-3 py-2">Product</th>
                 <th className="px-3 py-2">SKU</th>
                 <th className="px-3 py-2">Quantity</th>
+                <th className="px-3 py-2">Unit</th>
                 <th className="px-3 py-2">Unit Cost</th>
                 <th className="px-3 py-2">Action</th>
               </tr>
             </thead>
             <tbody>
               {draftOutputs.map((item) => (
-                <tr key={item.item_id} className="border-t border-neutral-800 text-neutral-200">
+                <tr key={item.key} className="border-t border-neutral-800 text-neutral-200">
                   <td className="px-3 py-2">{item.item_name}</td>
                   <td className="px-3 py-2">{item.sku || "-"}</td>
                   <td className="px-3 py-2">{number3(item.quantity)}</td>
+                  <td className="px-3 py-2">{item.unit || "-"}</td>
                   <td className="px-3 py-2">{Number(item.unit_cost || 0).toFixed(2)}</td>
                   <td className="px-3 py-2">
                     <button
                       type="button"
-                      onClick={() => removeDraftOutput(item.item_id)}
+                      onClick={() => removeDraftOutput(item.key)}
                       className="rounded-lg border border-rose-800/70 bg-rose-950/20 px-2 py-1 text-xs text-rose-200"
                     >
                       Remove
@@ -704,7 +747,7 @@ export default function InventoryProductionsPage() {
               ))}
               {draftOutputs.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
+                  <td colSpan={6} className="px-3 py-6 text-center text-neutral-500">
                     No products have been added yet.
                   </td>
                 </tr>
@@ -718,9 +761,15 @@ export default function InventoryProductionsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-neutral-100">CK Product -&gt; Ingredients</div>
-            <div className="mt-1 text-xs text-neutral-500">Register ingredient BOM per product here.</div>
+            <div className="mt-1 text-xs text-neutral-500">
+              {recipeProductId
+                ? "Register ingredient BOM per product here."
+                : "Start a new registration by selecting a product first. Existing BOMs are not loaded until you choose a product."}
+            </div>
           </div>
-          <div className="text-xs text-neutral-500">{recipeLoading ? "Loading recipe..." : `${recipeRows.length} recipe rows`}</div>
+          <div className="text-xs text-neutral-500">
+            {recipeProductId ? (recipeLoading ? "Loading recipe..." : `${recipeRows.length} recipe rows`) : "New registration"}
+          </div>
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_140px_140px]">
@@ -740,6 +789,7 @@ export default function InventoryProductionsPage() {
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             value={recipeIngredientId}
             onChange={(e) => setRecipeIngredientId(e.target.value)}
+            disabled={!recipeProductId}
           >
             <option value="">Select an ingredient</option>
             {ingredientOptions.map((item) => (
@@ -754,6 +804,7 @@ export default function InventoryProductionsPage() {
             step={0.001}
             value={recipeQty}
             onChange={(e) => setRecipeQty(Number(e.target.value || 0))}
+            disabled={!recipeProductId}
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
           />
           <button
@@ -798,7 +849,9 @@ export default function InventoryProductionsPage() {
               {!recipeLoading && recipeRows.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
-                    No recipe lines registered yet.
+                    {recipeProductId
+                      ? "No recipe lines registered yet."
+                      : "Select a recipe product to start a new BOM registration."}
                   </td>
                 </tr>
               ) : null}
@@ -810,7 +863,7 @@ export default function InventoryProductionsPage() {
           <button
             type="button"
             onClick={saveRecipe}
-            disabled={!recipeProductId || recipeSaving}
+            disabled={!recipeProductId || recipeRows.length === 0 || recipeSaving}
             className="rounded-xl border border-sky-800 bg-sky-950/30 px-4 py-2 text-sm text-sky-200 hover:bg-sky-900/30 disabled:opacity-60"
           >
             {recipeSaving ? "Saving..." : "Save Production BOM"}
@@ -995,7 +1048,7 @@ export default function InventoryProductionsPage() {
                       <div key={item.id} className="rounded-xl border border-neutral-800 bg-neutral-900/30 px-3 py-2">
                         <div>{item.item_name}</div>
                         <div className="mt-1 text-xs text-neutral-500">
-                          {item.sku || "-"} • Qty {number3(item.quantity)} • Cost {Number(item.total_cost || 0).toFixed(2)}
+                          {item.sku || "-"} • Qty {number3(item.quantity)} {item.unit || ""} • Cost {Number(item.total_cost || 0).toFixed(2)}
                         </div>
                       </div>
                     ))}
@@ -1010,7 +1063,7 @@ export default function InventoryProductionsPage() {
                       <div key={item.id} className="rounded-xl border border-neutral-800 bg-neutral-900/30 px-3 py-2">
                         <div>{item.item_name}</div>
                         <div className="mt-1 text-xs text-neutral-500">
-                          {item.sku || "-"} • Qty {number3(item.quantity)} • Cost {Number(item.total_cost || 0).toFixed(2)}
+                          {item.sku || "-"} • Qty {number3(item.quantity)} {item.unit || ""} • Cost {Number(item.total_cost || 0).toFixed(2)}
                         </div>
                       </div>
                     ))}
