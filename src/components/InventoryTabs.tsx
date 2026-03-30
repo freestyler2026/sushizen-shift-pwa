@@ -27,6 +27,7 @@ export default function InventoryTabs() {
   const items = limitedInventoryUser
     ? ITEMS.filter((item) =>
       item.href === "/admin/inventory/counts" ||
+      item.href === "/admin/inventory/spot-checks" ||
       item.href === "/admin/inventory/transfer-orders" ||
       item.href === "/admin/inventory/productions")
     : ITEMS.filter((item) => (item.href === "/admin/inventory/count-sheets" ? canManageCountTemplates : true));

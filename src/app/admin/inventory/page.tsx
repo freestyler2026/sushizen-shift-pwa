@@ -101,6 +101,7 @@ export default function AdminInventoryPage() {
     () => limitedInventoryUser
       ? MODULES.filter((module) =>
         module.href === "/admin/inventory/counts" ||
+        module.href === "/admin/inventory/spot-checks" ||
         module.href === "/admin/inventory/transfer-orders" ||
         module.href === "/admin/inventory/productions")
       : MODULES.filter((module) => (module.href === "/admin/inventory/count-sheets" ? canManageCountTemplates : true)),

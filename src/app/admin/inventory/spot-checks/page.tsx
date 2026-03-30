@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
-import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { defaultBranch, groupBySupplier, lineFromItem, monthNow, number3, todayIso, withVariance, type InventoryCountLine, type InventoryItemLookup } from "@/lib/inventoryCountUtils";
-import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
+import { inventoryGet, inventoryPatch, inventoryPost } from "@/lib/inventoryClient";
 
 type BalanceRow = {
   item_id: string;
@@ -46,6 +46,7 @@ export default function InventorySpotChecksPage() {
   const [draftLines, setDraftLines] = useState<InventoryCountLine[]>([]);
   const [historyRows, setHistoryRows] = useState<SpotCheckRow[]>([]);
   const [selectedSpotCheckId, setSelectedSpotCheckId] = useState("");
+  const [draftSpotCheckId, setDraftSpotCheckId] = useState("");
   const [selectedSpotCheck, setSelectedSpotCheck] = useState<SpotCheckDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -59,7 +60,7 @@ export default function InventorySpotChecksPage() {
       const resolved = await refreshAuthFromApi(auth);
       if (cancelled) return;
       const nextCity = (resolved?.city || auth?.city || "manila") as City;
-      setAllowed(canAccessInventoryAdmin(resolved));
+      setAllowed(canAccessInventoryWorkspace(resolved));
       setCity(nextCity);
       setBranchCode(defaultBranch(nextCity));
       setPicName(resolved?.staffName || auth?.staffName || "");
@@ -74,6 +75,7 @@ export default function InventorySpotChecksPage() {
   useEffect(() => {
     setBranchCode(defaultBranch(city));
     setSelectedSpotCheckId("");
+    setDraftSpotCheckId("");
     setSelectedSpotCheck(null);
     setDraftLines([]);
   }, [city]);
@@ -88,7 +90,7 @@ export default function InventorySpotChecksPage() {
         const [itemsRes, spotRes, balancesRes] = await Promise.all([
           inventoryGet<{ rows: InventoryItemLookup[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=ITEMS&limit=5000`),
           inventoryGet<{ rows: SpotCheckRow[] }>(`/api/admin/inventory/spot-checks?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}&limit=500`),
-          inventoryGet<{ rows: BalanceRow[] }>(`/api/admin/inventory/balances?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}&limit=1000`),
+          inventoryGet<{ rows: BalanceRow[] }>(`/api/admin/inventory/balances?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}&business_date=${encodeURIComponent(businessDate)}&limit=1000`),
         ]);
         if (cancelled) return;
         setItemOptions((itemsRes.rows || []).filter((item) => item.status !== "DELETED"));
@@ -106,7 +108,7 @@ export default function InventorySpotChecksPage() {
     return () => {
       cancelled = true;
     };
-  }, [allowed, branchCode, city, ready]);
+  }, [allowed, branchCode, businessDate, city, ready]);
 
   useEffect(() => {
     if (!selectedSpotCheckId || !allowed) {
@@ -141,13 +143,27 @@ export default function InventorySpotChecksPage() {
   );
 
   const groupedDraft = useMemo(() => groupBySupplier(draftLines), [draftLines]);
+  const editingExistingDraft = Boolean(draftSpotCheckId);
+  const selectedSpotCheckIsDraft = selectedSpotCheck?.status === "DRAFT";
 
   function refreshLineWithBalance(line: InventoryCountLine): InventoryCountLine {
     return withVariance({
       ...line,
-      theoretical_qty: Number(balancesMap[line.item_id] || line.theoretical_qty || 0),
+      theoretical_qty: Number(balancesMap[line.item_id] ?? line.theoretical_qty ?? 0),
     });
   }
+
+  useEffect(() => {
+    if (!draftLines.length) return;
+    setDraftLines((prev) =>
+      prev.map((line) =>
+        withVariance({
+          ...line,
+          theoretical_qty: Number(balancesMap[line.item_id] ?? 0),
+        }),
+      ),
+    );
+  }, [balancesMap]);
 
   function updateDraftLine(index: number, patch: Partial<InventoryCountLine>) {
     setDraftLines((prev) => prev.map((line, idx) => (idx === index ? withVariance({ ...line, ...patch }) : line)));
@@ -155,6 +171,11 @@ export default function InventorySpotChecksPage() {
 
   function addManualItem() {
     if (!selectedItem) return;
+    if (draftLines.some((line) => line.item_id === selectedItem.id)) {
+      setError("This inventory item is already in the draft spot check.");
+      return;
+    }
+    setError("");
     setDraftLines((prev) => [...prev, refreshLineWithBalance(lineFromItem(selectedItem, prev.length + 1))]);
     setSelectedItemId("");
   }
@@ -165,9 +186,27 @@ export default function InventorySpotChecksPage() {
 
   function loadSelectedSpotCheckToDraft() {
     if (!selectedSpotCheck) return;
+    const nextBusinessDate = String(selectedSpotCheck.business_date || "").slice(0, 10) || todayIso();
+    const nextBranchCode = selectedSpotCheck.branch_code || defaultBranch(city);
+    setBusinessDate(nextBusinessDate);
+    setBranchCode(nextBranchCode);
     setDraftLines((selectedSpotCheck.items || []).map((line, index) => refreshLineWithBalance({ ...line, sort_order: index + 1 })));
     setNotes(selectedSpotCheck.notes || "");
     setPicName(selectedSpotCheck.pic_name || "");
+    setDraftSpotCheckId(selectedSpotCheck.status === "DRAFT" ? selectedSpotCheck.id : "");
+    setError("");
+    setSuccess(selectedSpotCheck.status === "DRAFT" ? "Loaded selected DRAFT for editing." : "Loaded selected spot check as a new draft template.");
+  }
+
+  function resetDraft() {
+    setDraftSpotCheckId("");
+    setDraftLines([]);
+    setSelectedItemId("");
+    setBusinessDate(todayIso());
+    setNotes("");
+    setPicName(auth?.staffName || "");
+    setError("");
+    setSuccess("Started a new spot check draft.");
   }
 
   async function refreshHistoryAndDetail(nextSelectedId = selectedSpotCheckId) {
@@ -188,18 +227,34 @@ export default function InventorySpotChecksPage() {
       setError("Please add at least one item.");
       return;
     }
+    const uniqueItemIds = new Set(draftLines.map((line) => line.item_id).filter(Boolean));
+    if (uniqueItemIds.size !== draftLines.length) {
+      setError("Duplicate items are not allowed in one spot check.");
+      return;
+    }
     setSaving(true);
     setError("");
     setSuccess("");
     try {
-      const created = await inventoryPost<{ row: SpotCheckRow }>("/api/admin/inventory/spot-checks", {
-        city,
-        branch_code: branchCode,
-        business_date: businessDate,
-        pic_name: picName,
-        notes,
-      });
-      const spotCheckId = String(created?.row?.id || "");
+      let spotCheckId = draftSpotCheckId;
+      if (spotCheckId) {
+        await inventoryPatch(`/api/admin/inventory/spot-checks/${encodeURIComponent(spotCheckId)}`, {
+          city,
+          branch_code: branchCode,
+          business_date: businessDate,
+          pic_name: picName,
+          notes,
+        });
+      } else {
+        const created = await inventoryPost<{ row: SpotCheckRow }>("/api/admin/inventory/spot-checks", {
+          city,
+          branch_code: branchCode,
+          business_date: businessDate,
+          pic_name: picName,
+          notes,
+        });
+        spotCheckId = String(created?.row?.id || "");
+      }
       await inventoryPost(`/api/admin/inventory/spot-checks/${encodeURIComponent(spotCheckId)}/items`, {
         city,
         items: draftLines.map((line, index) => ({
@@ -209,7 +264,8 @@ export default function InventorySpotChecksPage() {
       });
       await refreshHistoryAndDetail(spotCheckId);
       setSelectedSpotCheckId(spotCheckId);
-      setSuccess("Spot check draft saved.");
+      setDraftSpotCheckId(spotCheckId);
+      setSuccess(editingExistingDraft ? "Spot check draft updated." : "Spot check draft saved.");
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -225,6 +281,9 @@ export default function InventorySpotChecksPage() {
     try {
       await inventoryPost(`/api/admin/inventory/spot-checks/${encodeURIComponent(selectedSpotCheckId)}/close`, { city });
       await refreshHistoryAndDetail(selectedSpotCheckId);
+      if (draftSpotCheckId === selectedSpotCheckId) {
+        setDraftSpotCheckId("");
+      }
       setSuccess("Selected spot check closed and variances posted to ledger.");
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -277,7 +336,12 @@ export default function InventorySpotChecksPage() {
 
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="text-sm font-semibold text-neutral-100">Draft Spot Check</div>
+          <div>
+            <div className="text-sm font-semibold text-neutral-100">Draft Spot Check</div>
+            <div className="mt-1 text-xs text-neutral-500">
+              {editingExistingDraft ? `Editing existing draft ${selectedSpotCheck?.spot_check_no || ""}`.trim() : "New draft"}
+            </div>
+          </div>
           <div className="text-xs text-neutral-500">{draftLines.length} rows</div>
         </div>
 
@@ -362,8 +426,11 @@ export default function InventorySpotChecksPage() {
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
+          <button type="button" onClick={resetDraft} className="rounded-xl border border-neutral-800 bg-neutral-950/30 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900/40">
+            New Draft
+          </button>
           <button type="button" onClick={saveDraft} disabled={saving || draftLines.length === 0} className="rounded-xl border border-emerald-800 bg-emerald-950/30 px-4 py-2 text-sm text-emerald-200 hover:bg-emerald-900/30 disabled:opacity-60">
-            {saving ? "Saving..." : "Save Draft"}
+            {saving ? "Saving..." : editingExistingDraft ? "Update Draft" : "Save Draft"}
           </button>
         </div>
       </section>
@@ -420,7 +487,7 @@ export default function InventorySpotChecksPage() {
               <div className="text-sm font-semibold text-neutral-100">Selected Spot Check</div>
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={loadSelectedSpotCheckToDraft} disabled={!selectedSpotCheck || actionLoading} className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-200 disabled:opacity-50">
-                  Load to Draft
+                  {selectedSpotCheckIsDraft ? "Load DRAFT" : "Copy to Draft"}
                 </button>
                 <button type="button" onClick={closeSelectedSpotCheck} disabled={!selectedSpotCheckId || actionLoading || selectedSpotCheck?.status === "CLOSED"} className="rounded-lg border border-emerald-800 bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-200 disabled:opacity-50">
                   {actionLoading ? "Processing..." : selectedSpotCheck?.status === "CLOSED" ? "Closed" : "Close"}
