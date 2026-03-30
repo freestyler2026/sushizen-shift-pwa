@@ -19,6 +19,7 @@ type DriveSyncResponse = {
 };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
+const DEFAULT_FOLDER_ID = "0AJRy_FdAYDp2Uk9PVA";
 
 async function apiPost<T = any>(path: string, body?: any): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -46,7 +47,7 @@ export default function AttendanceImportPage() {
   const [approverName, setApproverName] = useState<string>(auth?.staffName || "");
   const [pin, setPin] = useState<string>(auth?.pin || "");
   const [cityHint, setCityHint] = useState<string>(auth?.city || "dubai");
-  const [folderId, setFolderId] = useState<string>("");
+  const [folderId] = useState<string>(DEFAULT_FOLDER_ID);
   const [driveFileId, setDriveFileId] = useState<string>("");
 
   const [loadingLatest, setLoadingLatest] = useState(false);
@@ -169,10 +170,11 @@ export default function AttendanceImportPage() {
             <label className="space-y-2">
               <span className="text-sm text-neutral-300">Google Drive Folder ID</span>
               <input
-                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white"
+                className="w-full rounded-2xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-neutral-400"
                 value={folderId}
-                onChange={(e) => setFolderId(e.target.value)}
-                placeholder="Drive folder ID"
+                readOnly
+                aria-readonly="true"
+                title="Google Drive folder ID is fixed for attendance sync."
               />
             </label>
 
