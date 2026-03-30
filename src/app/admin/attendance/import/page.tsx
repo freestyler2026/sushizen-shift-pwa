@@ -43,11 +43,11 @@ async function apiPost<T = any>(path: string, body?: any): Promise<T> {
 
 export default function AttendanceImportPage() {
   const auth = getAuth();
+  const folderId = DEFAULT_FOLDER_ID;
 
   const [approverName, setApproverName] = useState<string>(auth?.staffName || "");
   const [pin, setPin] = useState<string>(auth?.pin || "");
   const [cityHint, setCityHint] = useState<string>(auth?.city || "dubai");
-  const [folderId] = useState<string>(DEFAULT_FOLDER_ID);
   const [driveFileId, setDriveFileId] = useState<string>("");
 
   const [loadingLatest, setLoadingLatest] = useState(false);
@@ -169,13 +169,13 @@ export default function AttendanceImportPage() {
 
             <label className="space-y-2">
               <span className="text-sm text-neutral-300">Google Drive Folder ID</span>
-              <input
+              <div
                 className="w-full rounded-2xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-neutral-400"
-                value={folderId}
-                readOnly
-                aria-readonly="true"
+                aria-label="Google Drive folder ID is fixed for attendance sync."
                 title="Google Drive folder ID is fixed for attendance sync."
-              />
+              >
+                {folderId}
+              </div>
             </label>
 
             <label className="space-y-2 md:col-span-2">
