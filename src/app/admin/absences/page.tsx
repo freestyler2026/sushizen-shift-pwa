@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getAuth } from "@/lib/auth";
+import { BRANCHES, type City } from "@/lib/branches";
 import { normalizeCalendarDateInput } from "@/lib/dateInput";
 
 type AbsenceType =
@@ -121,7 +122,8 @@ async function apiPost<T = any>(path: string, body: any): Promise<T> {
 export default function AdminAbsencesPage() {
   const auth = getAuth();
 
-  const city = auth?.city === "manila" ? "manila" : auth?.city === "dubai" ? "dubai" : "dubai";
+  const initialCity: City = auth?.city === "manila" ? "manila" : "dubai";
+  const [city, setCity] = useState<City>(initialCity);
   const approverName = auth?.staffName || "";
   const pin = auth?.pin || "";
 
@@ -181,6 +183,7 @@ export default function AdminAbsencesPage() {
     if (dateFrom && next < dateFrom) setDateFrom(next);
   };
 
+  const branchOptions = useMemo(() => BRANCHES[city] || [], [city]);
   const canAuth = useMemo(() => !!norm(approverName) && !!norm(pin), [approverName, pin]);
 
   async function loadStaffOptions(nextCity: string) {
@@ -228,6 +231,14 @@ export default function AdminAbsencesPage() {
   useEffect(() => {
     if (!city) return;
     loadStaffOptions(city);
+  }, [city]);
+
+  useEffect(() => {
+    setStaffName("");
+    setBulkSelectedNames([]);
+    setFilterStaffName("");
+    setBranchHint("");
+    setBulkBranchHint("");
   }, [city]);
 
   useEffect(() => {
@@ -397,9 +408,14 @@ export default function AdminAbsencesPage() {
           <div className="grid gap-4 md:grid-cols-3">
             <div className="text-sm">
               <div className="mb-2 text-neutral-300">City</div>
-              <div className="rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white">
-                {city === "dubai" ? "Dubai" : city === "manila" ? "Manila" : city}
-              </div>
+              <select
+                value={city}
+                onChange={(e) => setCity((e.target.value === "manila" ? "manila" : "dubai") as City)}
+                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
+              >
+                <option value="dubai">Dubai</option>
+                <option value="manila">Manila</option>
+              </select>
             </div>
 
             <div className="text-sm">
@@ -469,12 +485,18 @@ export default function AdminAbsencesPage() {
 
             <label className="text-sm">
               <div className="mb-2 text-neutral-300">Branch Hint</div>
-              <input
+              <select
                 value={branchHint}
                 onChange={(e) => setBranchHint(e.target.value)}
                 className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
-                placeholder="e.g. BB"
-              />
+              >
+                <option value="">Select branch</option>
+                {branchOptions.map((branch) => (
+                  <option key={branch.code} value={branch.code}>
+                    {branch.name}
+                  </option>
+                ))}
+              </select>
             </label>
           </div>
 
@@ -568,12 +590,18 @@ export default function AdminAbsencesPage() {
             <div className="space-y-4">
               <label className="block text-sm">
                 <div className="mb-2 text-neutral-300">Branch Hint</div>
-                <input
+                <select
                   value={bulkBranchHint}
                   onChange={(e) => setBulkBranchHint(e.target.value)}
                   className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
-                  placeholder="Optional"
-                />
+                >
+                  <option value="">All / Optional</option>
+                  {branchOptions.map((branch) => (
+                    <option key={branch.code} value={branch.code}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </select>
               </label>
 
               <label className="block text-sm">
