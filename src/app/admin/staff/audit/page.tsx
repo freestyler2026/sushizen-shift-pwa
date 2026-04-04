@@ -1,14 +1,31 @@
 // src/app/admin/staff/audit/page.tsx
 "use client";
 
-import Image from "next/image";
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { motion } from "framer-motion";
+import { Download, ScrollText } from "lucide-react";
 import { getAuth } from "@/lib/auth";
-
+import { fmtNum } from "@/lib/formatters";
+import {
+  BADGE_ERROR,
+  BADGE_INFO,
+  BADGE_WARNING,
+  GLASS_CARD,
+  INPUT_CLASS,
+  PRIMARY_BUTTON,
+  SELECT_CLASS,
+  SECONDARY_BUTTON,
+  T_BODY,
+  T_CAPTION,
+  T_LABEL,
+  T_PAGE_TITLE,
+  TABLE_CELL,
+  TABLE_HEADER,
+  TABLE_ROW,
+} from "@/lib/ui-tokens";
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
-const LOGO_SRC = "/logo.png";
 
 async function apiGet<T = any>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`);
@@ -55,16 +72,16 @@ function eventBadgeClass(eventType: string) {
   const e = (eventType || "").trim();
 
   if (e === "staff_created") {
-    return "border-sky-900/50 bg-sky-950/20 text-sky-200";
+    return BADGE_INFO;
   }
   if (e === "setup_code_reissued") {
-    return "border-amber-900/50 bg-amber-950/20 text-amber-200";
+    return BADGE_WARNING;
   }
   if (e === "setup_completed") {
-    return "border-emerald-900/50 bg-emerald-950/20 text-emerald-200";
+    return "inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/25 px-2.5 py-0.5 text-xs font-medium text-emerald-400";
   }
   if (e === "role_changed") {
-    return "border-fuchsia-900/50 bg-fuchsia-950/20 text-fuchsia-200";
+    return BADGE_ERROR;
   }
 
   return "border-neutral-800 bg-neutral-950/40 text-neutral-200";
@@ -181,53 +198,47 @@ function StaffAuditPageInner() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-white">
-      <div className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-6 py-10">
-        <div className="rounded-3xl border border-neutral-800 bg-neutral-900/60 p-8 shadow-2xl">
-          <div className="flex flex-col items-center text-center">
-            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-neutral-800 bg-black">
-              <Image
-                src={LOGO_SRC}
-                alt="Sushi ZEN logo"
-                width={80}
-                height={80}
-                className="h-full w-full object-contain"
-              />
-            </div>
-
-            <h1 className="mt-5 text-2xl font-bold">Staff Audit Logs</h1>
-            <p className="mt-2 text-sm text-neutral-400">
-              HQ / ADMIN visibility for staff creation, setup, and role changes.
-            </p>
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: "easeOut" }} className="mx-auto max-w-6xl space-y-6 px-4 py-8">
+        <div className="mb-6 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-gradient-to-br from-white/5 to-white/2">
+            <ScrollText className="h-5 w-5 text-zinc-400" />
           </div>
+          <div>
+            <h1 className={T_PAGE_TITLE}>Audit Logs</h1>
+            <p className={T_CAPTION}>HQ / ADMIN visibility for staff creation, setup, and role changes.</p>
+          </div>
+        </div>
+
+        <div className={GLASS_CARD + " p-5"}>
+          <p className={T_BODY + " mb-6"}>Filter staff audit events by scope, person, and event type.</p>
 
           <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-6">
             <div>
-              <div className="mb-1 text-xs text-neutral-400">City</div>
+              <div className={T_LABEL + " mb-1.5"}>City</div>
               <input
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                className={INPUT_CLASS}
                 placeholder="dubai / manila"
               />
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Branch</div>
+              <div className={T_LABEL + " mb-1.5"}>Branch</div>
               <input
                 value={branchCode}
                 onChange={(e) => setBranchCode(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                className={INPUT_CLASS}
                 placeholder="BB / JLT / ..."
               />
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Event Type</div>
+              <div className={T_LABEL + " mb-1.5"}>Event Type</div>
               <select
                 value={eventType}
                 onChange={(e) => setEventType(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                className={SELECT_CLASS}
               >
                 {EVENT_OPTIONS.map((x) => (
                   <option key={x || "ALL"} value={x}>
@@ -238,43 +249,43 @@ function StaffAuditPageInner() {
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Target Staff</div>
+              <div className={T_LABEL + " mb-1.5"}>Target Staff</div>
               <input
                 value={targetStaffName}
                 onChange={(e) => setTargetStaffName(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                className={INPUT_CLASS}
                 placeholder="Search name"
               />
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Approver Name</div>
+              <div className={T_LABEL + " mb-1.5"}>Approver Name</div>
               <input
                 value={approverName}
                 onChange={(e) => setApproverName(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                className={INPUT_CLASS}
               />
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">PIN</div>
+              <div className={T_LABEL + " mb-1.5"}>PIN</div>
               <input
                 type="password"
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                className={INPUT_CLASS}
               />
             </div>
           </div>
 
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Limit</div>
+              <div className={T_LABEL + " mb-1.5"}>Limit</div>
               <input
                 type="number"
                 value={limit}
                 onChange={(e) => setLimit(Number(e.target.value))}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                className={INPUT_CLASS}
               />
             </div>
 
@@ -283,7 +294,7 @@ function StaffAuditPageInner() {
                 type="button"
                 onClick={load}
                 disabled={loading || !approverName.trim() || !pin.trim()}
-                className="w-full rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
+                className={PRIMARY_BUTTON + " w-full"}
               >
                 {loading ? "Loading..." : "Refresh Audit Logs"}
               </button>
@@ -297,102 +308,104 @@ function StaffAuditPageInner() {
           ) : null}
 
           <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-5">
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <div className="text-xs text-neutral-500">Total</div>
-              <div className="mt-1 text-2xl font-bold">{stats.total}</div>
+            <div className={GLASS_CARD + " p-4"}>
+              <div className={T_CAPTION}>Total</div>
+              <div className="mt-1 text-2xl font-bold">{fmtNum(stats.total)}</div>
             </div>
 
-            <div className="rounded-2xl border border-sky-900/40 bg-sky-950/10 p-4">
-              <div className="text-xs text-neutral-500">Staff Created</div>
-              <div className="mt-1 text-2xl font-bold text-sky-200">{stats.staffCreated}</div>
+            <div className={GLASS_CARD + " p-4"}>
+              <div className={T_CAPTION}>Staff Created</div>
+              <div className="mt-1 text-2xl font-bold text-sky-200">{fmtNum(stats.staffCreated)}</div>
             </div>
 
-            <div className="rounded-2xl border border-amber-900/40 bg-amber-950/10 p-4">
-              <div className="text-xs text-neutral-500">Code Reissued</div>
-              <div className="mt-1 text-2xl font-bold text-amber-200">{stats.setupReissued}</div>
+            <div className={GLASS_CARD + " p-4"}>
+              <div className={T_CAPTION}>Code Reissued</div>
+              <div className="mt-1 text-2xl font-bold text-amber-200">{fmtNum(stats.setupReissued)}</div>
             </div>
 
-            <div className="rounded-2xl border border-emerald-900/40 bg-emerald-950/10 p-4">
-              <div className="text-xs text-neutral-500">Setup Completed</div>
-              <div className="mt-1 text-2xl font-bold text-emerald-200">{stats.setupCompleted}</div>
+            <div className={GLASS_CARD + " p-4"}>
+              <div className={T_CAPTION}>Setup Completed</div>
+              <div className="mt-1 text-2xl font-bold text-emerald-200">{fmtNum(stats.setupCompleted)}</div>
             </div>
 
-            <div className="rounded-2xl border border-fuchsia-900/40 bg-fuchsia-950/10 p-4">
-              <div className="text-xs text-neutral-500">Role Changed</div>
-              <div className="mt-1 text-2xl font-bold text-fuchsia-200">{stats.roleChanged}</div>
+            <div className={GLASS_CARD + " p-4"}>
+              <div className={T_CAPTION}>Role Changed</div>
+              <div className="mt-1 text-2xl font-bold text-fuchsia-200">{fmtNum(stats.roleChanged)}</div>
             </div>
           </div>
 
-          <div className="mt-6 overflow-hidden rounded-2xl border border-neutral-800">
-            <div className="grid grid-cols-1 border-b border-neutral-800 bg-neutral-950/80 px-4 py-3 text-xs font-semibold text-neutral-300 md:grid-cols-6">
-              <div>When</div>
-              <div>Event</div>
-              <div>Target Staff</div>
-              <div>Branch</div>
-              <div>Actor</div>
-              <div>Details</div>
-            </div>
-
-            {rows.length === 0 ? (
-              <div className="px-4 py-8 text-center text-sm text-neutral-500">
-                No audit logs found.
+          <div className={GLASS_CARD + " overflow-hidden"}>
+            <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
+              <div className="flex items-center gap-2">
+                <ScrollText className="h-4 w-4 text-zinc-400" />
+                <h2 className="text-lg font-semibold text-white">Audit Table</h2>
               </div>
-            ) : (
-              rows.map((row) => (
-                <div
-                  key={row.id}
-                  className="grid grid-cols-1 gap-3 border-b border-neutral-800 bg-neutral-900/20 px-4 py-4 text-sm transition hover:bg-neutral-900/40 md:grid-cols-6 md:items-start"
-                >
-                  <div className="text-neutral-400">{row.created_at || "-"}</div>
-                  <div>
-                    <span
-                      className={[
-                        "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
-                        eventBadgeClass(row.event_type),
-                      ].join(" ")}
-  >
-                      {row.event_type}
-                    </span>
-                  </div>
-                  <div>
-                    <a
-                      href={`/admin/staff/roles?staff_name=${encodeURIComponent(row.target_staff_name)}`}
-                      className="font-medium text-amber-200 hover:text-amber-100 underline-offset-2 hover:underline"
-  >
-                      {row.target_staff_name}
-                    </a>
-                  </div>
-                  <div className="text-neutral-400">
-                    {row.city || "-"} {row.branch_code ? `• ${row.branch_code}` : ""}
-                  </div>
-                  <div className="text-neutral-400">
-                    {row.actor_name || "-"}
-                    {row.actor_role ? ` (${row.actor_role})` : ""}
-                  </div>
-                  <div className="text-neutral-400">
-                    <div className="space-y-2">
-                      {renderAuditPayload(row.event_type, row.payload || {})}
+              <button className={SECONDARY_BUTTON + " flex items-center gap-2 text-sm"}>
+                <Download className="h-3.5 w-3.5" />
+                Export
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1100px]">
+                <thead className="bg-white/3">
+                  <tr>
+                    {["When", "Event", "Target Staff", "Branch", "Actor", "Details"].map((col) => (
+                      <th key={col} className={TABLE_HEADER + " px-4 py-3 text-left"}>{col}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-12 text-center text-sm text-neutral-500">
+                        No audit logs found.
+                      </td>
+                    </tr>
+                  ) : (
+                    rows.map((row) => (
+                      <tr key={row.id} className={TABLE_ROW}>
+                        <td className={TABLE_CELL + " px-4 text-neutral-400"}>{row.created_at || "-"}</td>
+                        <td className={TABLE_CELL + " px-4"}>
+                          <span className={eventBadgeClass(row.event_type)}>{row.event_type}</span>
+                        </td>
+                        <td className={TABLE_CELL + " px-4"}>
+                          <a
+                            href={`/admin/staff/roles?staff_name=${encodeURIComponent(row.target_staff_name)}`}
+                            className="font-medium text-amber-200 underline-offset-2 hover:text-amber-100 hover:underline"
+                          >
+                            {row.target_staff_name}
+                          </a>
+                        </td>
+                        <td className={TABLE_CELL + " px-4 text-neutral-400"}>
+                          {row.city || "-"} {row.branch_code ? `• ${row.branch_code}` : ""}
+                        </td>
+                        <td className={TABLE_CELL + " px-4 text-neutral-400"}>
+                          {row.actor_name || "-"}
+                          {row.actor_role ? ` (${row.actor_role})` : ""}
+                        </td>
+                        <td className={TABLE_CELL + " px-4 text-neutral-400"}>
+                          <div className="space-y-2">
+                            {renderAuditPayload(row.event_type, row.payload || {})}
 
-                      <div className="flex flex-wrap gap-2">
-                        <a
-                          href="/admin/staff"
-                          className="rounded-lg border border-neutral-800 bg-neutral-950/40 px-2.5 py-1 text-[11px] text-neutral-300 hover:bg-neutral-900"
-                        >
-                          Staff Master
-                        </a>
-
-                        <a
-                          href={`/admin/staff/roles?staff_name=${encodeURIComponent(row.target_staff_name)}`}
-                          className="rounded-lg border border-amber-900/40 bg-amber-950/10 px-2.5 py-1 text-[11px] text-amber-200 hover:bg-amber-950/20"
-                        >
-                          Role
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
+                            <div className="flex flex-wrap gap-2">
+                              <a href="/admin/staff" className={SECONDARY_BUTTON + " px-2.5 py-1 text-[11px]"}>
+                                Staff Master
+                              </a>
+                              <a
+                                href={`/admin/staff/roles?staff_name=${encodeURIComponent(row.target_staff_name)}`}
+                                className={SECONDARY_BUTTON + " px-2.5 py-1 text-[11px]"}
+                              >
+                                Role
+                              </a>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div className="mt-8 flex flex-col items-center gap-3 text-sm text-neutral-400 sm:flex-row sm:justify-between">
@@ -404,8 +417,7 @@ function StaffAuditPageInner() {
             </Link>
           </div>
         </div>
-      </div>
-    </main>
+    </motion.div>
   );
 }
 

@@ -2,7 +2,25 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { MapPin } from "lucide-react";
 import { getAuth } from "@/lib/auth";
+import { fmtNum } from "@/lib/formatters";
+import {
+  BADGE_ERROR,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  GLASS_CARD,
+  INPUT_CLASS,
+  SECONDARY_BUTTON,
+  SELECT_CLASS,
+  TABLE_CELL,
+  TABLE_HEADER,
+  TABLE_ROW,
+  T_CAPTION,
+  T_LABEL,
+  T_PAGE_TITLE,
+} from "@/lib/ui-tokens";
 
 type AttendanceLocation = {
   id: number;
@@ -82,123 +100,115 @@ export default function AttendanceLocationsPage() {
   }, [items, unmappedOnly]);
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8">
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <Link
-          href="/admin/attendance"
-          className="rounded border px-3 py-2 text-sm hover:bg-gray-50"
+    <main className="min-h-screen bg-neutral-950 text-white">
+      <div className="mx-auto max-w-7xl px-4 py-8">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
         >
-          ← Back to Attendance
-        </Link>
-        <Link
-          href="/admin/attendance/import"
-          className="rounded border px-3 py-2 text-sm hover:bg-gray-50"
-        >
-          Import
-        </Link>
-        <Link
-          href="/admin/attendance/mapping"
-          className="rounded border px-3 py-2 text-sm hover:bg-gray-50"
-        >
-          Mapping
-        </Link>
-      </div>
-
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Attendance Locations</h1>
-        <p className="mt-2 text-sm text-neutral-400">
-          Review raw location data automatically collected from Bayzat.
-        </p>
-      </div>
-
-      <section className="mb-6 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4 shadow-sm">
-        <div className="grid gap-4 md:grid-cols-3">
-          <label className="text-sm">
-            <div className="mb-1 font-medium">City</div>
-            <select
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              className="w-full rounded border border-neutral-700 bg-neutral-950 px-3 py-2 text-white"
-            >
-              <option value="">All</option>
-              <option value="Dubai">Dubai</option>
-              <option value="Manila">Manila</option>
-            </select>
-          </label>
-
-          <label className="flex items-end gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={unmappedOnly}
-              onChange={(e) => setUnmappedOnly(e.target.checked)}
-            />
-            <span>Unmapped only</span>
-          </label>
-
-          <div className="flex items-end text-sm text-neutral-400">
-            Total: {filtered.length}
+          <div className="mb-6 flex flex-wrap items-center gap-3">
+            <Link href="/admin/attendance" className={SECONDARY_BUTTON}>
+              ← Back to Attendance
+            </Link>
+            <Link href="/admin/attendance/import" className={SECONDARY_BUTTON}>
+              Import
+            </Link>
+            <Link href="/admin/attendance/mapping" className={SECONDARY_BUTTON}>
+              Mapping
+            </Link>
           </div>
-        </div>
-      </section>
 
-      {error ? (
-        <div className="mb-4 rounded border border-rose-900/50 bg-rose-950/20 px-4 py-3 text-sm text-rose-200">
-          {error}
-        </div>
-      ) : null}
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-violet-500/20 bg-gradient-to-br from-violet-500/20 to-purple-500/10">
+              <MapPin className="h-5 w-5 text-violet-400" />
+            </div>
+            <div>
+              <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-amber-500">ATTENDANCE ADMIN</p>
+              <h1 className={T_PAGE_TITLE}>Attendance Locations</h1>
+              <p className={T_CAPTION}>Review raw location data automatically collected from Bayzat.</p>
+            </div>
+          </div>
 
-      <section className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900/20 shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-neutral-950 text-left text-neutral-300">
-              <tr>
-                <th className="px-4 py-3">Raw Location</th>
-                <th className="px-4 py-3">City</th>
-                <th className="px-4 py-3">Canonical Branch</th>
-                <th className="px-4 py-3">Seen Count</th>
-                <th className="px-4 py-3">First Seen</th>
-                <th className="px-4 py-3">Last Seen</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td className="px-4 py-4 text-neutral-500" colSpan={6}>
-                    Loading...
-                  </td>
-                </tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td className="px-4 py-4 text-neutral-500" colSpan={6}>
-                    No locations found.
-                  </td>
-                </tr>
-              ) : (
-                filtered.map((item) => (
-                  <tr key={item.id} className="border-t border-neutral-800 align-top">
-                    <td className="px-4 py-3 font-medium">{item.raw_location}</td>
-                    <td className="px-4 py-3">{item.city || "-"}</td>
-                    <td className="px-4 py-3">
-                      {item.canonical_branch_code ? (
-                        <span className="rounded bg-emerald-950/40 px-2 py-1 text-xs font-medium text-emerald-200">
-                          {item.canonical_branch_code}
-                        </span>
-                      ) : (
-                        <span className="rounded bg-amber-950/40 px-2 py-1 text-xs font-medium text-amber-200">
-                          Unmapped
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">{item.seen_count ?? 0}</td>
-                    <td className="px-4 py-3">{fmt(item.first_seen_at)}</td>
-                    <td className="px-4 py-3">{fmt(item.last_seen_at)}</td>
+          <section className={`${GLASS_CARD} mb-6 p-5`}>
+            <div className="grid gap-4 md:grid-cols-3">
+              <label className="text-sm">
+                <div className={`${T_LABEL} mb-1.5`}>City</div>
+                <select value={city} onChange={(e) => setCity(e.target.value)} className={SELECT_CLASS}>
+                  <option value="">All</option>
+                  <option value="Dubai">Dubai</option>
+                  <option value="Manila">Manila</option>
+                </select>
+              </label>
+
+              <label className="flex items-end gap-2 text-sm text-zinc-300">
+                <input
+                  type="checkbox"
+                  checked={unmappedOnly}
+                  onChange={(e) => setUnmappedOnly(e.target.checked)}
+                  className="h-4 w-4 accent-amber-500"
+                />
+                <span>Unmapped only</span>
+              </label>
+
+              <div className="flex items-end">
+                <div className={INPUT_CLASS}>Total: {fmtNum(filtered.length)}</div>
+              </div>
+            </div>
+          </section>
+
+          {error ? <div className={`${BADGE_ERROR} mb-4 inline-flex`}>{error}</div> : null}
+
+          <section className={`${GLASS_CARD} overflow-hidden`}>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className={TABLE_HEADER}>Raw Location</th>
+                    <th className={TABLE_HEADER}>City</th>
+                    <th className={TABLE_HEADER}>Canonical Branch</th>
+                    <th className={TABLE_HEADER}>Seen Count</th>
+                    <th className={TABLE_HEADER}>First Seen</th>
+                    <th className={TABLE_HEADER}>Last Seen</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td className={`${TABLE_CELL} text-zinc-500`} colSpan={6}>
+                        Loading...
+                      </td>
+                    </tr>
+                  ) : filtered.length === 0 ? (
+                    <tr>
+                      <td className={`${TABLE_CELL} text-zinc-500`} colSpan={6}>
+                        No locations found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filtered.map((item) => (
+                      <tr key={item.id} className={`${TABLE_ROW} align-top`}>
+                        <td className={`${TABLE_CELL} font-medium`}>{item.raw_location}</td>
+                        <td className={TABLE_CELL}>{item.city || "-"}</td>
+                        <td className={TABLE_CELL}>
+                          {item.canonical_branch_code ? (
+                            <span className={BADGE_SUCCESS}>{item.canonical_branch_code}</span>
+                          ) : (
+                            <span className={BADGE_WARNING}>Unmapped</span>
+                          )}
+                        </td>
+                        <td className={TABLE_CELL}>{fmtNum(item.seen_count ?? 0)}</td>
+                        <td className={TABLE_CELL}>{fmt(item.first_seen_at)}</td>
+                        <td className={TABLE_CELL}>{fmt(item.last_seen_at)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </motion.div>
+      </div>
     </main>
   );
 }

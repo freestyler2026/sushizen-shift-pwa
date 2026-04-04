@@ -2,11 +2,24 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
+import { CalendarRange } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Field } from "@/components/Field";
 import { apiGet, qs, type WeekView, type ShiftRow } from "@/lib/api";
 import { mondayOf, isoToday } from "@/lib/date";
 import { getAuth, type City } from "@/lib/auth";
+import {
+  GLASS_CARD,
+  SELECT_CLASS,
+  T_PAGE_TITLE,
+  T_SECTION,
+  T_BODY,
+  T_CAPTION,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  DIVIDER,
+} from "@/lib/ui-tokens";
 
 // -----------------------------
 // helpers
@@ -72,6 +85,14 @@ function badgeForRow(r: ShiftRow) {
   }
   return { label: "BASE", cls: "border-neutral-800 bg-neutral-950/40 text-neutral-300" };
 }
+
+const PAGE_BG = "min-h-screen text-white";
+const BLUSH_GLASS = `${GLASS_CARD} bg-violet-950/30`;
+const BLUSH_HIGHLIGHT = "rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/18 to-purple-500/10";
+const BLUSH_PRIMARY =
+  "rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 px-5 py-2.5 font-semibold text-white transition-all duration-200 shadow-lg shadow-violet-500/25 hover:scale-[1.02] hover:from-violet-400 hover:to-purple-400 hover:shadow-violet-500/40 active:scale-[0.98] disabled:opacity-60";
+const BLUSH_SECONDARY =
+  "rounded-xl border border-violet-400/15 bg-violet-950/30 px-5 py-2.5 text-white transition-all duration-200 hover:border-violet-500/25 hover:bg-violet-950/45 disabled:opacity-60";
 
 // -----------------------------
 // Absence helpers (robust)
@@ -449,14 +470,14 @@ export default function WeekPage() {
       <div
         key={staff}
         className={`rounded-lg border p-2 sm:p-2.5 ${
-          isMe ? "border-amber-700/60 bg-amber-950/20" : "border-neutral-800 bg-neutral-900/20"
+          isMe ? "border-violet-500/30 bg-violet-500/12" : "border-neutral-800 bg-violet-950/20"
         }`}
       >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="truncate text-[14px] font-semibold leading-5 sm:text-[15px]">
               {name}
-              {isMe ? <span className="ml-2 text-[11px] text-amber-300">(You)</span> : null}
+              {isMe ? <span className="ml-2 text-[11px] text-violet-200">(You)</span> : null}
               {containsJP(staff) ? <span className="ml-2 text-[11px] text-red-300">⚠️JP</span> : null}
             </div>
 
@@ -491,21 +512,40 @@ export default function WeekPage() {
   if (!authed) return <div className="p-6 text-sm text-neutral-400">Loading...</div>;
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 p-3.5 sm:p-5">
+    <div className={PAGE_BG}>
+      <motion.div
+        className="mx-auto max-w-5xl space-y-6 px-4 py-8"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+      >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className={T_PAGE_TITLE}>Week</h1>
+          <p className={T_BODY}>
+            Logged in as <span className="font-medium text-white">{sanitizeDisplayName(myName) || "-"}</span>
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={BADGE_SUCCESS}>
+            <CalendarRange className="h-3 w-3" />
+            {weekLabel(startDate)}
+          </span>
+        </div>
+      </div>
+
+      <div className={`${BLUSH_GLASS} p-4 sm:p-5`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-[15px] font-semibold sm:text-base">Week</div>
-            <div className="text-xs text-neutral-400">
-              Logged in as: <span className="text-neutral-200">{sanitizeDisplayName(myName) || "-"}</span>
-            </div>
+            <div className={T_SECTION}>Weekly Schedule</div>
+            <div className={T_CAPTION}>Browse the published week and recent approved changes.</div>
           </div>
         </div>
 
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <Field label="City">
             <select
-              className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
               value={city}
               onChange={(e) => {
                 didAutoSetRef.current = true;
@@ -519,7 +559,7 @@ export default function WeekPage() {
 
           <Field label="Week (Mon-Sun)">
             <select
-              className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
               value={startDate}
               onChange={(e) => {
                 didAutoSetRef.current = true;
@@ -537,9 +577,19 @@ export default function WeekPage() {
           <div className="flex items-end gap-2">
             <button
               onClick={fetchWeek}
-              className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm hover:bg-neutral-900"
+              className={`${BLUSH_PRIMARY} min-h-10 w-full`}
             >
               Refresh
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                didAutoSetRef.current = true;
+                setStartDate(mondayOf(isoToday()));
+              }}
+              className={`${BLUSH_SECONDARY} min-h-10`}
+            >
+              Today
             </button>
           </div>
         </div>
@@ -550,9 +600,9 @@ export default function WeekPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3.5 sm:p-4">
-        <div className="text-sm font-semibold">Recent approved changes</div>
-        <div className="mt-1 text-xs text-neutral-400">
+      <div className={`${BLUSH_GLASS} p-4`}>
+        <div className={T_SECTION}>Recent Approved Changes</div>
+        <div className={`mt-1 ${T_CAPTION}`}>
           Changes synced from manager spreadsheet edits and approved by HQ/Admin.
         </div>
         {!changes.length ? (
@@ -560,7 +610,7 @@ export default function WeekPage() {
         ) : (
           <div className="mt-3 space-y-2">
             {changes.slice(0, 30).map((ev) => (
-              <div key={ev.id} className="rounded-xl border border-neutral-800 bg-neutral-950/30 px-3 py-2 text-xs">
+              <div key={ev.id} className={`${BLUSH_HIGHLIGHT} px-3 py-2 text-xs`}>
                 <div className="text-neutral-200">
                   {ev.work_date} • {ev.branch_code} • {(ev.change_type || "").replaceAll("_", " ")}
                 </div>
@@ -576,10 +626,11 @@ export default function WeekPage() {
         )}
       </div>
 
-      {/* All staff by branch */}
+      <div className={DIVIDER} />
+
       <div className="space-y-3">
         <div className="space-y-2">
-          <div className="text-sm font-semibold">All staff (by branch)</div>
+          <div className={T_SECTION}>All Staff By Branch</div>
           {availableBranches.length ? (
             <div className="flex flex-wrap gap-2">
               <button
@@ -587,8 +638,8 @@ export default function WeekPage() {
                 onClick={() => setBranchFilter("ALL")}
                 className={`rounded-full border px-3 py-1 text-[11px] transition ${
                   branchFilter === "ALL"
-                    ? "border-amber-500 bg-amber-950/25 text-amber-200"
-                    : "border-neutral-800 bg-neutral-950/30 text-neutral-300 hover:bg-neutral-900/40"
+                    ? "border-violet-500/30 bg-violet-500/15 text-violet-300"
+                    : "border-neutral-800 bg-violet-950/30 text-neutral-300 hover:bg-violet-950/45"
                 }`}
               >
                 All stores
@@ -599,8 +650,8 @@ export default function WeekPage() {
                   onClick={() => setBranchFilter("__MY__")}
                   className={`rounded-full border px-3 py-1 text-[11px] transition ${
                     branchFilter === "__MY__"
-                      ? "border-amber-500 bg-amber-950/25 text-amber-200"
-                      : "border-neutral-800 bg-neutral-950/30 text-neutral-300 hover:bg-neutral-900/40"
+                      ? "border-violet-500/30 bg-violet-500/15 text-violet-300"
+                      : "border-neutral-800 bg-violet-950/30 text-neutral-300 hover:bg-violet-950/45"
                   }`}
                 >
                   My store
@@ -613,8 +664,8 @@ export default function WeekPage() {
                   onClick={() => setBranchFilter(branch)}
                   className={`rounded-full border px-3 py-1 text-[11px] transition ${
                     branchFilter === branch
-                      ? "border-amber-500 bg-amber-950/25 text-amber-200"
-                      : "border-neutral-800 bg-neutral-950/30 text-neutral-300 hover:bg-neutral-900/40"
+                      ? "border-violet-500/30 bg-violet-500/15 text-violet-300"
+                      : "border-neutral-800 bg-violet-950/30 text-neutral-300 hover:bg-violet-950/45"
                   }`}
                 >
                   {branch}
@@ -629,8 +680,11 @@ export default function WeekPage() {
         ) : (
           <div className="space-y-4">
             {filteredGrouped.map((day) => (
-              <div key={day.date} className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3">
-                <div className="mb-2.5 text-sm font-semibold">{day.date}</div>
+              <div key={day.date} className={`${BLUSH_GLASS} p-3`}>
+                <div className="mb-2.5 flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold">{day.date}</div>
+                  <span className={BADGE_WARNING}>{day.branches.length} branches</span>
+                </div>
 
                 <div className="space-y-3">
                   {day.branches.map((b) => {
@@ -641,7 +695,7 @@ export default function WeekPage() {
                     return (
                       <div
                         key={`${day.date}-${b.branch_code || "UNASSIGNED"}`}
-                        className="rounded-xl border border-neutral-800 bg-neutral-950/20 p-2.5 sm:p-3"
+                        className={`${BLUSH_HIGHLIGHT} p-2.5 sm:p-3`}
                       >
                         <div className="mb-2.5 flex flex-wrap items-center justify-between gap-3">
                           <div className="text-sm font-semibold">{b.branch_code || "UNASSIGNED"}</div>
@@ -665,6 +719,7 @@ export default function WeekPage() {
       <div className="text-xs text-neutral-500">
         Timeline is bar-only. Time text is shown below (supports split shifts like “13–19, 21–23”).
       </div>
+      </motion.div>
     </div>
   );
 }

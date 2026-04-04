@@ -1,14 +1,28 @@
 // src/app/admin/staff/onboarding/page.tsx
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
+import { ClipboardList, Clock } from "lucide-react";
 import { getAuth } from "@/lib/auth";
+import { fmtNum } from "@/lib/formatters";
+import {
+  BADGE_ERROR,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  GLASS_CARD,
+  INPUT_CLASS,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  T_BODY,
+  T_CAPTION,
+  T_LABEL,
+  T_PAGE_TITLE,
+  T_SECTION,
+} from "@/lib/ui-tokens";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
-const LOGO_SRC = "/logo.png";
-
 async function apiGet<T = any>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`);
   const text = await res.text();
@@ -101,73 +115,71 @@ export default function StaffOnboardingDashboardPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-white">
-      <div className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-6 py-10">
-        <div className="rounded-3xl border border-neutral-800 bg-neutral-900/60 p-8 shadow-2xl">
-          <div className="flex flex-col items-center text-center">
-            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-neutral-800 bg-black">
-              <Image
-                src={LOGO_SRC}
-                alt="Sushi ZEN logo"
-                width={80}
-                height={80}
-                className="h-full w-full object-contain"
-              />
-            </div>
-
-            <h1 className="mt-5 text-2xl font-bold">Staff Onboarding Dashboard</h1>
-            <p className="mt-2 text-sm text-neutral-400">
-              HQ / ADMIN visibility for new staff creation and setup completion.
-            </p>
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: "easeOut" }} className="mx-auto max-w-6xl space-y-6 px-4 py-8">
+        <div className="mb-6 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-teal-500/5">
+            <ClipboardList className="h-5 w-5 text-emerald-400" />
           </div>
+          <div>
+            <h1 className={T_PAGE_TITLE}>Onboarding Dashboard</h1>
+            <p className={T_CAPTION}>HQ / ADMIN visibility for new staff creation and setup completion.</p>
+          </div>
+        </div>
+
+        <div className={GLASS_CARD + " p-5"}>
+          <div className="mb-2 flex items-center gap-2">
+            <Clock className="h-4 w-4 text-amber-400" />
+            <h2 className={T_SECTION}>Pending Staff Setup</h2>
+          </div>
+          <p className={T_BODY}>Filter pending onboarding items, reissue setup codes, and review completion progress.</p>
 
           <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-5">
             <div>
-              <div className="mb-1 text-xs text-neutral-400">City</div>
+              <div className={T_LABEL + " mb-1.5"}>City</div>
               <input
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                className={INPUT_CLASS}
                 placeholder="dubai / manila"
               />
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Branch</div>
+              <div className={T_LABEL + " mb-1.5"}>Branch</div>
               <input
                 value={branchCode}
                 onChange={(e) => setBranchCode(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                className={INPUT_CLASS}
                 placeholder="BB / PAR / ..."
               />
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Limit</div>
+              <div className={T_LABEL + " mb-1.5"}>Limit</div>
               <input
                 type="number"
                 value={limit}
                 onChange={(e) => setLimit(Number(e.target.value))}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                className={INPUT_CLASS}
               />
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Approver Name</div>
+              <div className={T_LABEL + " mb-1.5"}>Approver Name</div>
               <input
                 value={approverName}
                 onChange={(e) => setApproverName(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                className={INPUT_CLASS}
               />
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">PIN</div>
+              <div className={T_LABEL + " mb-1.5"}>PIN</div>
               <input
                 type="password"
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                className={INPUT_CLASS}
               />
             </div>
           </div>
@@ -177,7 +189,7 @@ export default function StaffOnboardingDashboardPage() {
               type="button"
               onClick={load}
               disabled={loading || !approverName.trim() || !pin.trim()}
-              className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
+              className={PRIMARY_BUTTON}
             >
               {loading ? "Loading..." : "Refresh Dashboard"}
             </button>
@@ -191,25 +203,25 @@ export default function StaffOnboardingDashboardPage() {
 
           {summary ? (
             <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">Total</div>
-                <div className="mt-1 text-2xl font-bold">{summary.total}</div>
+              <div className={GLASS_CARD + " p-4"}>
+                <div className={T_CAPTION}>Total</div>
+                <div className="mt-1 text-2xl font-bold">{fmtNum(summary.total)}</div>
               </div>
-              <div className="rounded-2xl border border-amber-900/40 bg-amber-950/10 p-4">
-                <div className="text-xs text-neutral-500">Pending Setup</div>
+              <div className={GLASS_CARD + " p-4"}>
+                <div className={T_CAPTION}>Pending Setup</div>
                 <div className="mt-1 text-2xl font-bold text-amber-200">
-                  {summary.pending_setup}
+                  {fmtNum(summary.pending_setup)}
                 </div>
               </div>
-              <div className="rounded-2xl border border-emerald-900/40 bg-emerald-950/10 p-4">
-                <div className="text-xs text-neutral-500">Completed Setup</div>
+              <div className={GLASS_CARD + " p-4"}>
+                <div className={T_CAPTION}>Completed Setup</div>
                 <div className="mt-1 text-2xl font-bold text-emerald-200">
-                  {summary.completed_setup}
+                  {fmtNum(summary.completed_setup)}
                 </div>
               </div>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">Active</div>
-                <div className="mt-1 text-2xl font-bold">{summary.active}</div>
+              <div className={GLASS_CARD + " p-4"}>
+                <div className={T_CAPTION}>Active</div>
+                <div className="mt-1 text-2xl font-bold">{fmtNum(summary.active)}</div>
               </div>
             </div>
           ) : null}
@@ -268,12 +280,13 @@ export default function StaffOnboardingDashboardPage() {
             </Link>
           </div>
 
-          <div className="mt-6 overflow-hidden rounded-2xl border border-neutral-800">
-            <div className="grid grid-cols-1 border-b border-neutral-800 bg-neutral-950/80 px-4 py-3 text-xs font-semibold text-neutral-300 md:grid-cols-6">
+          <div className={GLASS_CARD + " overflow-hidden"}>
+            <div className="grid grid-cols-1 border-b border-white/5 bg-white/3 px-4 py-3 text-xs font-semibold text-neutral-300 md:grid-cols-7">
               <div>Name</div>
               <div>Branch</div>
               <div>Role</div>
-              <div>Setup</div>
+              <div>Status</div>
+              <div>Progress</div>
               <div>Created By</div>
               <div>Last Activity</div>
             </div>
@@ -283,24 +296,26 @@ export default function StaffOnboardingDashboardPage() {
                 No rows found.
               </div>
             ) : (
-              rows.map((row) => (
+              rows.map((row) => {
+                const progress = row.setup_completed ? 100 : row.setup_required ? 50 : 10;
+                return (
                 <div
                   key={`${row.city}-${row.display_name}`}
-                  className="grid grid-cols-1 gap-3 border-b border-neutral-800 bg-neutral-900/30 px-4 py-4 text-sm md:grid-cols-6 md:items-start"
+                  className="grid grid-cols-1 gap-3 border-b border-white/5 bg-white/5 px-4 py-4 text-sm md:grid-cols-7 md:items-start"
                 >
                   <div>
                     <div className="font-medium">{row.display_name}</div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <a
                         href={`/admin/staff/roles?staff_name=${encodeURIComponent(row.display_name)}`}
-                        className="rounded-lg border border-amber-900/40 bg-amber-950/10 px-2.5 py-1 text-[11px] text-amber-200 hover:bg-amber-950/20"
+                        className={SECONDARY_BUTTON + " px-2.5 py-1 text-[11px]"}
                       >
                         Role
                       </a>
 
                       <a
                         href={`/admin/staff/audit?target_staff_name=${encodeURIComponent(row.display_name)}`}
-                        className="rounded-lg border border-neutral-800 bg-neutral-950/40 px-2.5 py-1 text-[11px] text-neutral-300 hover:bg-neutral-900"
+                        className={SECONDARY_BUTTON + " px-2.5 py-1 text-[11px]"}
                       >
                         Audit
                       </a>
@@ -311,8 +326,16 @@ export default function StaffOnboardingDashboardPage() {
 
                   <div>{row.role}</div>
 
-                  <div className="text-neutral-400">
-                    {row.setup_completed ? "Completed" : row.setup_required ? "Pending" : "N/A"}
+                  <div>
+                    <span className={row.setup_completed ? BADGE_SUCCESS : row.setup_required ? BADGE_WARNING : BADGE_ERROR}>
+                      {row.setup_completed ? "Completed" : row.setup_required ? "Pending" : "Not started"}
+                    </span>
+                  </div>
+
+                  <div>
+                    <div className="h-2 w-full rounded-full bg-white/8">
+                      <div className="h-2 rounded-full bg-gradient-to-r from-violet-500 to-purple-400" style={{ width: `${progress}%` }} />
+                    </div>
                     {row.setup_code_expires_at ? (
                       <div className="mt-1 text-xs text-neutral-500">
                         Expires: {row.setup_code_expires_at}
@@ -329,7 +352,7 @@ export default function StaffOnboardingDashboardPage() {
                     {row.last_login_at || row.pin_set_at || row.updated_at || "-"}
                   </div>
                 </div>
-              ))
+              )})
             )}
           </div>
 
@@ -355,7 +378,6 @@ export default function StaffOnboardingDashboardPage() {
             </div>
           </div>
         </div>
-      </div>
-    </main>
+    </motion.div>
   );
 }

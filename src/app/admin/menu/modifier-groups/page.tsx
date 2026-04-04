@@ -48,6 +48,7 @@ export default function MenuModifierGroupsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [rows, setRows] = useState<ModifierGroupRow[]>([]);
+  const [groupFilterOptions, setGroupFilterOptions] = useState<ModifierGroupRow[]>([]);
   const [importFailures, setImportFailures] = useState<ImportFailure[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkAction, setBulkAction] = useState("DEACTIVATE");
@@ -97,6 +98,25 @@ export default function MenuModifierGroupsPage() {
     if (!ready || !allowed) return;
     void loadRows();
   }, [allowed, loadRows, ready]);
+
+  useEffect(() => {
+    if (!ready || !allowed) return;
+    let cancelled = false;
+    async function loadGroupFilterOptions() {
+      try {
+        const res = await menuGet<PaginatedResponse<ModifierGroupRow>>(
+          `/api/admin/menu/modifier-groups?city=${encodeURIComponent(city)}&tab=ALL&q=&page=1&page_size=500&sort_by=sort_order&sort_dir=ASC`,
+        );
+        if (!cancelled) setGroupFilterOptions(res.rows || []);
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message || String(e));
+      }
+    }
+    void loadGroupFilterOptions();
+    return () => {
+      cancelled = true;
+    };
+  }, [allowed, city, ready]);
 
   function resetForm() {
     setEditingId("");
@@ -149,6 +169,7 @@ export default function MenuModifierGroupsPage() {
   }
 
   async function deleteGroup(groupId: string) {
+    if (!window.confirm("Delete this modifier group?")) return;
     setError("");
     setSuccess("");
     try {
@@ -244,7 +265,14 @@ export default function MenuModifierGroupsPage() {
           </label>
           <label className="text-sm text-neutral-300">
             <div className="mb-1 text-xs text-neutral-500">Search</div>
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Group name or reference" className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
+            <select value={q} onChange={(e) => setQ(e.target.value)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
+              <option value="">All modifier groups</option>
+              {groupFilterOptions.map((row) => (
+                <option key={row.id} value={row.reference || row.name || ""}>
+                  {row.name}{row.reference ? ` (${row.reference})` : ""}
+                </option>
+              ))}
+            </select>
           </label>
           <div className="flex flex-wrap items-end gap-2">
             {["ALL", "ACTIVE", "INACTIVE", "DELETED"].map((value) => (

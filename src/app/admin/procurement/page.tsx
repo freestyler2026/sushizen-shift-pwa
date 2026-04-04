@@ -1,8 +1,36 @@
 "use client";
 
+import { motion } from "framer-motion";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CheckSquare, FileSpreadsheet, RefreshCw, ShoppingCart } from "lucide-react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi, setAuth } from "@/lib/auth";
+import DatePicker from "@/components/DatePicker";
+import MonthPicker from "@/components/MonthPicker";
+import { fmtNum } from "@/lib/formatters";
+import {
+  BADGE_ERROR,
+  BADGE_INFO,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  GLASS_CARD,
+  INPUT_CLASS,
+  KPI_CARD,
+  KPI_LABEL,
+  KPI_VALUE,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  SELECT_CLASS,
+  SMALL_BUTTON,
+  T_CAPTION,
+  T_LABEL,
+  T_PAGE_TITLE,
+  T_SECTION,
+  TABLE_CELL,
+  TABLE_HEADER,
+  TABLE_ROW,
+  TEXTAREA_CLASS,
+} from "@/lib/ui-tokens";
 
 type ReqItem = {
   item_name: string;
@@ -441,7 +469,7 @@ export default function AdminProcurementPage() {
     initRef.current = true;
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
-      const can = canAccessProcurementAdmin(refreshed || auth);
+      const can = canAccessProcurementAdmin(String((refreshed || auth)?.role || ""), city === "dubai" ? "dubai" : "manila");
       setAllowed(can);
       if ((refreshed?.staffName || "").trim() && !requestedBy.trim()) {
         setRequestedBy(String(refreshed?.staffName || "").trim());
@@ -449,152 +477,201 @@ export default function AdminProcurementPage() {
       if (can) await loadAll();
     }
     void init();
-  }, [auth, loadAll, requestedBy]);
+  }, [auth, city, loadAll, requestedBy]);
 
   if (!allowed) {
     return <div className="text-sm text-red-300">Procurement page is available only to authorized admin roles.</div>;
   }
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 p-4">
-        <div className="text-lg font-semibold">Procurement Control ({cityLabel})</div>
-        <div className="mt-1 text-sm text-neutral-400">Fraud prevention, approval workflow, exception monitoring, and KPI tracking.</div>
-      </div>
-      {error ? <div className="text-sm text-red-300">{error}</div> : null}
-
-      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 lg:grid-cols-5">
-        <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Requested by / Approver name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <select
-          value={city}
-          onChange={(e) => {
-            const nextCity = String(e.target.value || "manila").toLowerCase() === "dubai" ? "dubai" : "manila";
-            setCity(nextCity);
-            setRows([]);
-            setQueueRows([]);
-            setExceptions([]);
-            setKpiSummary(null);
-            setSyncResult(null);
-            setChecklistItems(buildChecklistState([], nextCity, requestDate));
-          }}
-          className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-        >
-          <option value="manila">Manila</option>
-          <option value="dubai">Dubai</option>
-        </select>
-        <input value={storeCode} onChange={(e) => setStoreCode(e.target.value)} placeholder="Store code" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="date" value={requestDate} onChange={(e) => setRequestDate(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <label className="inline-flex items-center gap-2 text-sm text-neutral-300">
-          <input type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} />
-          Urgent
-        </label>
-        <label className="inline-flex items-center gap-2 text-sm text-neutral-300">
-          <input type="checkbox" checked={newVendor} onChange={(e) => setNewVendor(e.target.checked)} />
-          New vendor
-        </label>
-      </div>
-
-      <div className="rounded-2xl border border-emerald-800/70 bg-emerald-950/10 p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div className="text-sm font-medium text-emerald-100">Excel Sync (Main PR path)</div>
-            <div className="mt-1 text-xs text-neutral-400">
-              Sync the familiar order workbook, keep imported history, and raise PR from the synced rows. Manual PR entry remains available below as the OS path.
-            </div>
-          </div>
-          <Link href="/admin/procurement/imports" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
-            Open Imports
-          </Link>
+    <motion.div
+      className="space-y-4"
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+    >
+      <div className="mb-6 flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-violet-500/20 bg-gradient-to-br from-violet-500/20 to-purple-500/10">
+          <ShoppingCart className="h-5 w-5 text-violet-400" />
         </div>
-        <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-4">
-          <div className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-300">
-            Workbook city: {cityLabel}
-          </div>
+        <div>
+          <h1 className={T_PAGE_TITLE}>Procurement Control</h1>
+          <p className={T_CAPTION}>Manage requests, vendors, items, and approval workflows</p>
+        </div>
+      </div>
+
+      {error ? <div className={`${BADGE_ERROR} whitespace-pre-wrap`}>{error}</div> : null}
+
+      <div className={`${GLASS_CARD} mb-6 flex flex-wrap items-end gap-3 p-4`}>
+        <div className="min-w-[180px]">
+          <span className={`${T_LABEL} mb-1.5 block`}>Name</span>
           <input
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={(e) => setSyncFile(e.target.files?.[0] || null)}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm lg:col-span-2"
+            value={requestedBy}
+            onChange={(e) => setRequestedBy(e.target.value)}
+            placeholder="Requested by / Approver name"
+            className={INPUT_CLASS}
           />
-          <label className="inline-flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-300">
-            <input type="checkbox" checked={skipZeroQuantity} onChange={(e) => setSkipZeroQuantity(e.target.checked)} />
-            Skip zero quantity rows
-          </label>
-          <button
-            type="button"
-            onClick={() => void syncWorkbook()}
-            disabled={syncBusy}
-            className="rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-800/30 disabled:opacity-60"
+        </div>
+        <div className="min-w-[140px]">
+          <span className={`${T_LABEL} mb-1.5 block`}>Market</span>
+          <select
+            value={city}
+            onChange={(e) => {
+              const nextCity = String(e.target.value || "manila").toLowerCase() === "dubai" ? "dubai" : "manila";
+              setCity(nextCity);
+              setRows([]);
+              setQueueRows([]);
+              setExceptions([]);
+              setKpiSummary(null);
+              setSyncResult(null);
+              setChecklistItems(buildChecklistState([], nextCity, requestDate));
+            }}
+            className={SELECT_CLASS}
           >
-            {syncBusy ? "Syncing..." : "Sync Workbook"}
-          </button>
+            <option value="manila">Manila</option>
+            <option value="dubai">Dubai</option>
+          </select>
+        </div>
+        <div className="min-w-[160px]">
+          <span className={`${T_LABEL} mb-1.5 block`}>Store</span>
+          <input value={storeCode} onChange={(e) => setStoreCode(e.target.value)} placeholder="Store code" className={INPUT_CLASS} />
+        </div>
+        <div className="min-w-[180px]">
+          <span className={`${T_LABEL} mb-1.5 block`}>Date</span>
+          <DatePicker value={requestDate} onChange={setRequestDate} className="w-full" />
+        </div>
+        <div className="min-w-[140px]">
+          <span className={`${T_LABEL} mb-1.5 block`}>PIN</span>
+          <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className={INPUT_CLASS} />
+        </div>
+      </div>
+
+      <div className={`${GLASS_CARD} mb-4 p-4`}>
+        <h2 className={T_SECTION}>Filters</h2>
+        <div className="mt-3 flex flex-wrap gap-4">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-300">
+            <input className="h-4 w-4 accent-amber-500" type="checkbox" checked={urgent} onChange={(e) => setUrgent(e.target.checked)} />
+            Urgent
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-300">
+            <input className="h-4 w-4 accent-amber-500" type="checkbox" checked={newVendor} onChange={(e) => setNewVendor(e.target.checked)} />
+            New vendor
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-300">
+            <input className="h-4 w-4 accent-amber-500" type="checkbox" checked={skipZeroQuantity} onChange={(e) => setSkipZeroQuantity(e.target.checked)} />
+            Skip zero quantity rows in Excel sync
+          </label>
+        </div>
+      </div>
+
+      <div className={`${GLASS_CARD} mb-4 p-5`}>
+        <div className="mb-4 flex items-center gap-2">
+          <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
+          <h2 className={T_SECTION}>Excel Sync</h2>
+        </div>
+        <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <p className={T_CAPTION}>
+            Sync the familiar order workbook, keep imported history, and raise PR from the synced rows. Manual PR entry remains available below as the OS path.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/admin/procurement/imports" className={SMALL_BUTTON}>
+              Open Imports
+            </Link>
+            <Link href="/admin/procurement/ingredients" className={SMALL_BUTTON}>
+              食材マスタ
+            </Link>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+          <div>
+            <span className={`${T_LABEL} mb-1.5 block`}>Workbook City</span>
+            <div className={`${INPUT_CLASS} flex items-center`}>{cityLabel}</div>
+          </div>
+          <div className="lg:col-span-2">
+            <span className={`${T_LABEL} mb-1.5 block`}>Workbook File</span>
+            <input type="file" accept=".xlsx,.xls" onChange={(e) => setSyncFile(e.target.files?.[0] || null)} className={INPUT_CLASS} />
+          </div>
+          <div className="flex items-end">
+            <button type="button" onClick={() => void syncWorkbook()} disabled={syncBusy} className={PRIMARY_BUTTON}>
+              <RefreshCw className="mr-1.5 h-4 w-4" />
+              {syncBusy ? "Syncing..." : "Sync Workbook"}
+            </button>
+          </div>
         </div>
         {syncResult ? (
-          <div className="mt-3 grid grid-cols-1 gap-2 text-xs md:grid-cols-4">
-            <div className="rounded-lg border border-neutral-800 bg-neutral-950/40 p-3">
-              <div className="text-neutral-400">Records</div>
-              <div className="mt-1 text-sm text-white">{syncResult.record_count}</div>
-            </div>
-            <div className="rounded-lg border border-neutral-800 bg-neutral-950/40 p-3">
-              <div className="text-neutral-400">Sheets</div>
-              <div className="mt-1 text-sm text-white">{syncResult.sheet_count}</div>
-            </div>
-            <div className="rounded-lg border border-neutral-800 bg-neutral-950/40 p-3">
-              <div className="text-neutral-400">Months</div>
-              <div className="mt-1 text-sm text-white">{syncResult.month_keys.join(", ") || "-"}</div>
-            </div>
-            <div className="rounded-lg border border-neutral-800 bg-neutral-950/40 p-3">
-              <div className="text-neutral-400">Date Range</div>
-              <div className="mt-1 text-sm text-white">
-                {syncResult.date_range?.from || "-"} to {syncResult.date_range?.to || "-"}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span className={BADGE_SUCCESS}>Imported {fmtNum(syncResult.inserted_count)} rows</span>
+            <span className={BADGE_INFO}>Sheets {fmtNum(syncResult.sheet_count)}</span>
+            <span className={BADGE_INFO}>Months {syncResult.month_keys.join(", ") || "-"}</span>
+          </div>
+        ) : null}
+        {syncResult ? (
+          <div className="mt-4 grid grid-cols-1 gap-3 text-xs md:grid-cols-4">
+            {[
+              { id: "records", label: "Records", value: fmtNum(syncResult.record_count) },
+              { id: "sheets", label: "Sheets", value: fmtNum(syncResult.sheet_count) },
+              { id: "months", label: "Months", value: syncResult.month_keys.join(", ") || "-" },
+              { id: "dateRange", label: "Date Range", value: `${syncResult.date_range?.from || "-"} to ${syncResult.date_range?.to || "-"}` },
+            ].map((card, index) => (
+              <motion.div key={card.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: index * 0.05 }}>
+                <div className={KPI_CARD}>
+                  <p className={KPI_LABEL}>{card.label}</p>
+                  <p className="mt-1 text-sm text-white">{card.value}</p>
+                </div>
+              </motion.div>
+            ))}
+            <div className="md:col-span-2">
+              <div className={KPI_CARD}>
+                <p className={KPI_LABEL}>Stores</p>
+                <p className="mt-1 text-sm text-white">{Object.entries(syncResult.store_counts).map(([key, value]) => `${key}:${value}`).join(" / ") || "-"}</p>
               </div>
             </div>
-            <div className="rounded-lg border border-neutral-800 bg-neutral-950/40 p-3 md:col-span-2">
-              <div className="text-neutral-400">Stores</div>
-              <div className="mt-1 text-sm text-white">
-                {Object.entries(syncResult.store_counts).map(([key, value]) => `${key}:${value}`).join(" / ") || "-"}
-              </div>
-            </div>
-            <div className="rounded-lg border border-neutral-800 bg-neutral-950/40 p-3 md:col-span-2">
-              <div className="text-neutral-400">Types</div>
-              <div className="mt-1 text-sm text-white">
-                {Object.entries(syncResult.order_type_counts).map(([key, value]) => `${key}:${value}`).join(" / ") || "-"}
+            <div className="md:col-span-2">
+              <div className={KPI_CARD}>
+                <p className={KPI_LABEL}>Types</p>
+                <p className="mt-1 text-sm text-white">{Object.entries(syncResult.order_type_counts).map(([key, value]) => `${key}:${value}`).join(" / ") || "-"}</p>
               </div>
             </div>
           </div>
         ) : null}
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-medium">Daily Checklist (Requester)</div>
-            <div className="mt-1 text-xs text-neutral-400">Daily self-check before procurement submission. Warning only; submit is still allowed.</div>
+      <div className={`${GLASS_CARD} mb-4 p-5`}>
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckSquare className="h-4 w-4 text-sky-400" />
+            <h2 className={T_SECTION}>Daily Checklist</h2>
           </div>
-          <div className="text-xs text-neutral-400">
-            Completion: {checklistStats.doneTotal}/{checklistStats.requiredTotal}
-          </div>
+          <span className={checklistStats.pendingTotal === 0 ? BADGE_SUCCESS : BADGE_WARNING}>
+            {checklistStats.doneTotal} / {checklistStats.requiredTotal} complete
+          </span>
         </div>
-        <div className="space-y-2">
+        <div className="mb-4 h-1 rounded-full bg-white/8">
+          <div
+            className="h-1 rounded-full bg-gradient-to-r from-violet-500 to-purple-400 transition-all duration-500"
+            style={{ width: `${checklistStats.requiredTotal ? (checklistStats.doneTotal / checklistStats.requiredTotal) * 100 : 0}%` }}
+          />
+        </div>
+        <div className="space-y-1">
           {checklistItems.map((item) => (
-            <div key={item.code} className="rounded-xl border border-neutral-800 bg-neutral-950/30 p-3">
+            <div key={item.code} className="border-t border-white/5 py-2">
               <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-                <label className="flex items-start gap-3 text-sm text-neutral-200">
+                <label className="flex items-start gap-3">
                   <input
+                    className="h-4 w-4 accent-amber-500"
                     type="checkbox"
                     checked={item.done}
                     onChange={(e) =>
                       setChecklistItems((prev) => prev.map((row) => (row.code === item.code ? { ...row, done: e.target.checked } : row)))
                     }
                   />
-                  <span>
+                  <span className="text-sm text-zinc-300">
                     {item.label}
                     {item.required ? <span className="ml-2 text-[10px] uppercase tracking-wide text-amber-300">Required</span> : null}
-                    <div className="mt-1 text-xs text-neutral-500">{item.guide}</div>
+                    <div className="mt-1 text-xs text-zinc-500">{item.guide}</div>
                   </span>
                 </label>
-                <div className="text-[11px] text-neutral-500">{item.updatedAt ? `Updated: ${String(item.updatedAt).slice(0, 16).replace("T", " ")}` : "Not saved yet"}</div>
+                <div className="text-[11px] text-zinc-500">{item.updatedAt ? `Updated: ${String(item.updatedAt).slice(0, 16).replace("T", " ")}` : "Not saved yet"}</div>
               </div>
               <input
                 value={item.note}
@@ -602,158 +679,182 @@ export default function AdminProcurementPage() {
                   setChecklistItems((prev) => prev.map((row) => (row.code === item.code ? { ...row, note: e.target.value } : row)))
                 }
                 placeholder="Optional note"
-                className="mt-2 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={`${INPUT_CLASS} mt-2`}
               />
             </div>
           ))}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={saveChecklist}
-            disabled={checklistBusy}
-            className="rounded-xl border border-sky-700/60 bg-sky-900/20 px-3 py-2 text-xs text-sky-200 hover:bg-sky-800/30 disabled:opacity-60"
-          >
+          <button type="button" onClick={saveChecklist} disabled={checklistBusy} className={SECONDARY_BUTTON}>
             {checklistBusy ? "Saving..." : "Save Checklist"}
           </button>
-          <div className="text-xs text-neutral-400">
+          <div className={T_CAPTION}>
             {checklistStats.pendingTotal > 0
               ? `${checklistStats.pendingTotal} required item(s) still open`
               : "All required checklist items are complete"}
           </div>
         </div>
-        {checklistStats.pendingLabels.length ? (
-          <div className="mt-2 text-xs text-amber-300">
-            Pending: {checklistStats.pendingLabels.join(" / ")}
-          </div>
-        ) : null}
+        {checklistStats.pendingLabels.length ? <div className="mt-2 text-xs text-amber-300">Pending: {checklistStats.pendingLabels.join(" / ")}</div> : null}
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3">
-        <div className="mb-2 text-sm font-medium">Manual PR Entry (OS path)</div>
-        <div className="mb-3 text-xs text-neutral-400">Use this path for direct OS/manual PR creation. Excel Sync remains available above as the main entry from the existing workbook.</div>
-        <div className="space-y-2">
+      <div className={`${GLASS_CARD} p-6`}>
+        <div className="mb-2">
+          <h2 className={T_SECTION}>Manual PR Entry</h2>
+          <p className={T_CAPTION}>Use this path for direct OS/manual PR creation. Excel Sync remains available above as the main entry from the existing workbook.</p>
+        </div>
+        <div className="space-y-3">
           {items.map((row, idx) => (
             <div key={idx} className="grid grid-cols-1 gap-2 lg:grid-cols-5">
-              <input
-                value={row.item_name}
-                onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, item_name: e.target.value } : x)))}
-                placeholder="Item name"
-                className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              />
-              <input
-                value={row.category}
-                onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, category: e.target.value } : x)))}
-                placeholder="Category"
-                className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              />
-              <input
-                type="number"
-                value={row.qty}
-                onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, qty: Number(e.target.value || 0) } : x)))}
-                placeholder="Qty"
-                className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              />
-              <input
-                type="number"
-                value={row.unit_price}
-                onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, unit_price: Number(e.target.value || 0) } : x)))}
-                placeholder="Unit price"
-                className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              />
-              <input
-                value={row.vendor_name}
-                onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, vendor_name: e.target.value } : x)))}
-                placeholder="Vendor"
-                className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              />
+              <input value={row.item_name} onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, item_name: e.target.value } : x)))} placeholder="Item name" className={INPUT_CLASS} />
+              <input value={row.category} onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, category: e.target.value } : x)))} placeholder="Category" className={INPUT_CLASS} />
+              <input type="number" value={row.qty} onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, qty: Number(e.target.value || 0) } : x)))} placeholder="Qty" className={INPUT_CLASS} />
+              <input type="number" value={row.unit_price} onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, unit_price: Number(e.target.value || 0) } : x)))} placeholder="Unit price" className={INPUT_CLASS} />
+              <input value={row.vendor_name} onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, vendor_name: e.target.value } : x)))} placeholder="Vendor" className={INPUT_CLASS} />
             </div>
           ))}
         </div>
-        <div className="mt-2 flex gap-2">
-          <button
-            type="button"
-            onClick={() => setItems((prev) => [...prev, { item_name: "", category: "", qty: 1, unit_price: 0, vendor_name: "" }])}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900"
-          >
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" onClick={() => setItems((prev) => [...prev, { item_name: "", category: "", qty: 1, unit_price: 0, vendor_name: "" }])} className={SMALL_BUTTON}>
             Add Item
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              void createRequest();
-            }}
-            disabled={submitBusy}
-            className="rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-xs text-emerald-200 hover:bg-emerald-800/30 disabled:opacity-60"
-          >
+          <button type="button" onClick={() => void createRequest()} disabled={submitBusy} className={PRIMARY_BUTTON}>
             {submitBusy ? "Submitting..." : "Create + Submit"}
           </button>
-          <button type="button" onClick={loadAll} disabled={loading} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900 disabled:opacity-60">
+          <button type="button" onClick={() => void loadAll()} disabled={loading} className={SECONDARY_BUTTON}>
             Refresh
           </button>
         </div>
       </div>
 
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 mb-6">
+        {[
+          { id: "requests", label: "Requests", value: rows.length },
+          { id: "approvalInbox", label: "Approval Inbox", value: queueRows.length },
+          { id: "openExceptions", label: "Open Exceptions", value: exceptions.filter((x) => x.status === "OPEN").length },
+          { id: "kpiStaff", label: "Staff Count", value: Number(kpiSummary?.staff_count || 0) },
+        ].map((card, index) => (
+          <motion.div key={card.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: index * 0.05 }}>
+            <div className={KPI_CARD}>
+              <p className={KPI_LABEL}>{card.label}</p>
+              <p className={KPI_VALUE}>{fmtNum(card.value)}</p>
+            </div>
+          </motion.div>
+        ))}
+      </div>
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3">
-          <div className="text-sm font-medium">Requests</div>
-          <div className="mt-2 space-y-2">
-            {rows.map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                onClick={() => setSelectedRequestId(r.id)}
-                className={[
-                  "w-full rounded-xl border px-3 py-2 text-left text-sm",
-                  selectedRequestId === r.id ? "border-amber-500 bg-amber-950/20 text-amber-100" : "border-neutral-800 bg-neutral-950/30 text-neutral-200",
-                ].join(" ")}
-              >
-                <div className="flex items-center justify-between">
-                  <span>{r.request_no}</span>
-                  <span>{Number(r.total_amount || 0).toFixed(2)} {currencyCode}</span>
-                </div>
-                <div className="mt-1 text-xs text-neutral-400">{r.requested_by} | {r.store_code || "-"} | {r.status}</div>
-              </button>
-            ))}
-            {!rows.length ? <div className="text-xs text-neutral-500">No requests.</div> : null}
+        <div className={`${GLASS_CARD} overflow-hidden`}>
+          <div className="flex items-center justify-between p-4">
+            <h2 className={T_SECTION}>Requests</h2>
+            <span className={BADGE_INFO}>{rows.length}</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  <th className={TABLE_HEADER}>Request</th>
+                  <th className={TABLE_HEADER}>Requester</th>
+                  <th className={TABLE_HEADER}>Amount</th>
+                  <th className={TABLE_HEADER}>Status</th>
+                  <th className={TABLE_HEADER}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => {
+                  const statusBadge =
+                    String(r.status || "").toUpperCase() === "APPROVED"
+                      ? BADGE_SUCCESS
+                      : String(r.status || "").toUpperCase() === "REJECTED"
+                        ? BADGE_ERROR
+                        : String(r.status || "").toUpperCase() === "RETURNED"
+                          ? BADGE_WARNING
+                          : BADGE_INFO;
+                  return (
+                    <tr key={r.id} className={TABLE_ROW}>
+                      <td className={TABLE_CELL}>
+                        <div className="font-medium text-white">{r.request_no}</div>
+                        <div className={T_CAPTION}>{r.store_code || "-"} · {r.request_date}</div>
+                      </td>
+                      <td className={TABLE_CELL}>{r.requested_by}</td>
+                      <td className={TABLE_CELL}>{fmtNum(Number(r.total_amount || 0), currencyCode)}</td>
+                      <td className={TABLE_CELL}><span className={statusBadge}>{r.status || "-"}</span></td>
+                      <td className={TABLE_CELL}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedRequestId(r.id)}
+                          className={selectedRequestId === r.id ? `${SMALL_BUTTON} border-amber-500/40 text-amber-300` : SMALL_BUTTON}
+                        >
+                          Select
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {!rows.length ? (
+                  <tr className={TABLE_ROW}>
+                    <td className={TABLE_CELL} colSpan={5}>No requests.</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3">
-          <div className="text-sm font-medium">Approval Action</div>
-          <div className="mt-2 grid grid-cols-1 gap-2 lg:grid-cols-3">
-            <select value={approvalAction} onChange={(e) => setApprovalAction(e.target.value as "APPROVE" | "REJECT" | "RETURN")} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm">
+        <div className={`${GLASS_CARD} p-6`}>
+          <div className="mb-3">
+            <h2 className={T_SECTION}>Approval Action</h2>
+            <p className={T_CAPTION}>Run procurement approval workflow for the selected request.</p>
+          </div>
+          <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
+            <select value={approvalAction} onChange={(e) => setApprovalAction(e.target.value as "APPROVE" | "REJECT" | "RETURN")} className={SELECT_CLASS}>
               <option value="APPROVE">APPROVE</option>
               <option value="REJECT">REJECT</option>
               <option value="RETURN">RETURN</option>
             </select>
-            <input value={approvalNote} onChange={(e) => setApprovalNote(e.target.value)} placeholder="Comment" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm lg:col-span-2" />
+            <textarea value={approvalNote} onChange={(e) => setApprovalNote(e.target.value)} placeholder="Comment" className={`${TEXTAREA_CLASS} lg:col-span-2`} rows={3} />
           </div>
-          <button type="button" onClick={runApproval} disabled={actionBusy || !selectedRequestId} className="mt-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900 disabled:opacity-60">
-            {actionBusy ? "Processing..." : "Run Approval Action"}
-          </button>
-          <div className="mt-3 text-xs text-neutral-400">Queue count: {queueRows.length}</div>
-          <div className="mt-1 text-xs text-neutral-400">Open exceptions: {exceptions.filter((x) => x.status === "OPEN").length}</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" onClick={runApproval} disabled={actionBusy || !selectedRequestId} className={PRIMARY_BUTTON}>
+              {actionBusy ? "Processing..." : "Run Approval Action"}
+            </button>
+            <button type="button" onClick={() => setApprovalNote("")} className={SECONDARY_BUTTON}>
+              Clear Note
+            </button>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <span className={BADGE_INFO}>Queue count: {queueRows.length}</span>
+            <span className={exceptions.filter((x) => x.status === "OPEN").length > 0 ? BADGE_WARNING : BADGE_SUCCESS}>
+              Open exceptions: {exceptions.filter((x) => x.status === "OPEN").length}
+            </span>
+            {selectedRequestId ? <span className={BADGE_INFO}>Selected: {selectedRequestId}</span> : null}
+          </div>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <div className="text-sm font-medium">KPI Summary ({kpiMonth})</div>
-          <input
-            type="month"
-            value={kpiMonth}
-            onChange={(e) => setKpiMonth(e.target.value || monthNow())}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs"
-          />
+      <div className={`${GLASS_CARD} p-5`}>
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h2 className={T_SECTION}>KPI Summary</h2>
+            <p className={T_CAPTION}>{kpiMonth}</p>
+          </div>
+          <MonthPicker value={kpiMonth} onChange={(value) => setKpiMonth(value || monthNow())} className="w-[220px]" />
         </div>
-        <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-          <div className="rounded-lg border border-neutral-800 bg-neutral-950/30 p-2">Staff: {kpiSummary?.staff_count ?? 0}</div>
-          <div className="rounded-lg border border-neutral-800 bg-neutral-950/30 p-2">Avg Score: {Number(kpiSummary?.avg_score_total || 0).toFixed(2)}</div>
-          <div className="rounded-lg border border-neutral-800 bg-neutral-950/30 p-2">On-time: {Number(kpiSummary?.avg_on_time_rate || 0).toFixed(2)}</div>
-          <div className="rounded-lg border border-neutral-800 bg-neutral-950/30 p-2">Price Dev: {Number(kpiSummary?.avg_price_deviation || 0).toFixed(2)}</div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {[
+            { id: "staff", label: "Staff", value: Number(kpiSummary?.staff_count || 0) },
+            { id: "score", label: "Avg Score", value: Number(kpiSummary?.avg_score_total || 0) },
+            { id: "ontime", label: "On-time", value: Number(kpiSummary?.avg_on_time_rate || 0) },
+            { id: "priceDev", label: "Price Dev", value: Number(kpiSummary?.avg_price_deviation || 0) },
+          ].map((card, index) => (
+            <motion.div key={card.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: index * 0.05 }}>
+              <div className={KPI_CARD}>
+                <p className={KPI_LABEL}>{card.label}</p>
+                <p className={KPI_VALUE}>{fmtNum(card.value)}</p>
+              </div>
+            </motion.div>
+          ))}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

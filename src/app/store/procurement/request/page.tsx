@@ -80,6 +80,18 @@ function toSupplierAnchor(supplier: string): string {
   return `supplier-${supplier.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "unknown"}`;
 }
 
+const PAGE_BG = "min-h-screen text-white";
+const GLASS_PANEL = "rounded-2xl border border-white/8 bg-violet-950/30 backdrop-blur-xl";
+const SUB_PANEL = "rounded-xl border border-violet-500/20 bg-gradient-to-br from-violet-500/18 to-purple-500/10";
+const FIELD_CLASS =
+  "rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20";
+const PRIMARY_BUTTON =
+  "rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 px-4 py-2 text-sm font-semibold text-white transition-all duration-200 shadow-lg shadow-violet-500/25 hover:scale-[1.02] hover:from-violet-400 hover:to-purple-400 hover:shadow-violet-500/40 active:scale-[0.98] disabled:opacity-60";
+const SECONDARY_BUTTON =
+  "rounded-xl border border-violet-400/15 bg-violet-950/30 px-4 py-2 text-sm text-white transition-all duration-200 hover:border-violet-500/25 hover:bg-violet-950/45 disabled:opacity-60";
+const SMALL_LINK =
+  "rounded-xl border border-violet-400/15 bg-violet-950/30 px-3 py-2 text-xs text-white transition-all duration-200 hover:border-violet-500/25 hover:bg-violet-950/45";
+
 export default function StoreProcurementRequestPage() {
   const LAST_CREATED_REQUEST_KEY = "store_procurement_last_created_request";
   const LAST_CREATED_REQUEST_ITEMS_KEY = "store_procurement_last_created_request_items";
@@ -495,18 +507,19 @@ export default function StoreProcurementRequestPage() {
   }, [LAST_CREATED_MAX_AGE_MS, LAST_CREATED_REQUEST_ITEMS_KEY, LAST_CREATED_REQUEST_KEY, relativeNowMs]);
 
   return (
-    <div className="space-y-4">
-      {error ? <div className="text-sm text-red-300">{error}</div> : null}
-      {info ? <div className="text-sm text-emerald-300">{info}</div> : null}
+    <div className={PAGE_BG}>
+      <div className="mx-auto max-w-7xl space-y-4 px-4 py-8">
+      {error ? <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-sm text-red-300">{error}</div> : null}
+      {info ? <div className="rounded-xl border border-emerald-900/40 bg-emerald-950/20 px-3 py-2 text-sm text-emerald-300">{info}</div> : null}
       {lastCreatedRequestId ? (
         <div className="rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-xs text-emerald-200">
           Last created request: <span className="font-mono">{lastCreatedRequestNo || lastCreatedRequestId}</span>
           {lastCreatedRequestAt ? <span className="ml-2 text-[11px] text-emerald-300/90">({formatRelativeAge(lastCreatedRequestAt, relativeNowMs)})</span> : null}
           <div className="mt-2 flex flex-wrap gap-2">
-            <Link href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(lastCreatedRequestId)}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-[11px] hover:bg-neutral-900">
+            <Link href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(lastCreatedRequestId)}`} className={SMALL_LINK}>
               Continue to Receiving
             </Link>
-            <Link href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(lastCreatedRequestId)}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-[11px] hover:bg-neutral-900">
+            <Link href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(lastCreatedRequestId)}`} className={SMALL_LINK}>
               Continue to Claim
             </Link>
           </div>
@@ -546,29 +559,29 @@ export default function StoreProcurementRequestPage() {
         </div>
       ) : null}
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+      <div className={`${GLASS_PANEL} p-4`}>
         <div className="text-sm font-medium">Store Procurement Request</div>
         <div className="mt-1 text-xs text-neutral-500">Create a store-side purchase request and optionally submit to approval workflow.</div>
-        <div className="mt-2 text-xs text-amber-200">Current city: {cityLabel}</div>
+        <div className="mt-2 text-xs text-violet-200">Current city: {cityLabel}</div>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Link href="/store/procurement" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+          <Link href="/store/procurement" className={SMALL_LINK}>
             Home
           </Link>
-          <Link href={`/store/procurement/history?city=${encodeURIComponent(city || "manila")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+          <Link href={`/store/procurement/history?city=${encodeURIComponent(city || "manila")}`} className={SMALL_LINK}>
             Go to History
           </Link>
-          <Link href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+          <Link href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}`} className={SMALL_LINK}>
             Go to Receiving
           </Link>
-          <Link href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+          <Link href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}`} className={SMALL_LINK}>
             Go to Claim
           </Link>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 md:grid-cols-6">
-        <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Requested by" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+      <div className={`grid grid-cols-1 gap-3 p-3 md:grid-cols-6 ${GLASS_PANEL}`}>
+        <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Requested by" className={FIELD_CLASS} />
+        <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className={FIELD_CLASS} />
         <select
           value={city}
           onChange={(e) => {
@@ -582,12 +595,12 @@ export default function StoreProcurementRequestPage() {
             void loadCatalogStores(nextCity);
             void loadMyRequests(nextCity);
           }}
-          className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+          className={FIELD_CLASS}
         >
           <option value="manila">Manila</option>
           <option value="dubai">Dubai</option>
         </select>
-        <select value={storeCode} onChange={(e) => setStoreCode(String(e.target.value || ""))} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm">
+        <select value={storeCode} onChange={(e) => setStoreCode(String(e.target.value || ""))} className={FIELD_CLASS}>
           <option value="">Select store (required)</option>
           {catalogStores.map((store) => (
             <option key={store} value={store}>
@@ -595,8 +608,8 @@ export default function StoreProcurementRequestPage() {
             </option>
           ))}
         </select>
-        <input type="date" value={requestDate} onChange={(e) => setRequestDate(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <button type="button" onClick={() => void loadMyRequests()} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900">
+        <input type="date" value={requestDate} onChange={(e) => setRequestDate(e.target.value)} className={FIELD_CLASS} />
+        <button type="button" onClick={() => void loadMyRequests()} className={SECONDARY_BUTTON}>
           Refresh My Requests
         </button>
         <label className="inline-flex items-center gap-2 text-xs text-neutral-300">
@@ -609,7 +622,7 @@ export default function StoreProcurementRequestPage() {
         </label>
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+      <div className={`${GLASS_PANEL} p-4`}>
         <div className="text-sm font-medium">{city === "dubai" ? "Supplier Item List (curated catalog)" : "Supplier Item List (from Excel imports)"}</div>
         <div className="mt-1 text-xs text-neutral-400">
           {city === "dubai"
@@ -628,7 +641,7 @@ export default function StoreProcurementRequestPage() {
             <select
               value={selectedCatalogCategory}
               onChange={(e) => setSelectedCatalogCategory(String(e.target.value || "Kitchen Ingredients"))}
-              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className={FIELD_CLASS}
             >
               {catalogCategories.map((category) => (
                 <option key={category} value={category}>
@@ -637,13 +650,13 @@ export default function StoreProcurementRequestPage() {
               ))}
             </select>
           ) : null}
-          <div className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-300">
+          <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-sm text-neutral-300">
             {catalogBusy ? "Loading supplier list..." : `Suppliers: ${catalogSuppliers.length}`}
           </div>
-          <div className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-300">
+          <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-sm text-neutral-300">
             {catalogBusy ? "Loading item rows..." : `Rows: ${items.length}`}
           </div>
-          <div className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-300">
+          <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-sm text-neutral-300">
             Selected rows: {validItems.length}
           </div>
         </div>
@@ -653,7 +666,7 @@ export default function StoreProcurementRequestPage() {
               <a
                 key={section.anchor}
                 href={`#${section.anchor}`}
-                className="rounded-full border border-amber-700/40 bg-amber-950/20 px-3 py-1 text-[11px] text-amber-200 hover:bg-amber-900/30"
+                className="rounded-full border border-violet-500/25 bg-violet-500/12 px-3 py-1 text-[11px] text-violet-200 hover:bg-violet-500/18"
               >
                 {section.supplier} ({section.enteredCount}/{section.rows.length})
               </a>
@@ -662,7 +675,7 @@ export default function StoreProcurementRequestPage() {
         ) : null}
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+      <div className={`${GLASS_PANEL} p-4`}>
         <div className="mb-2 text-sm font-medium">Items</div>
         <div className="text-xs text-neutral-400">
           Supplierごとに全アイテムを表示しています。`Qty` が 0 の行は下書き・申請に含まれません。
@@ -670,15 +683,15 @@ export default function StoreProcurementRequestPage() {
         <div className="mt-3 space-y-4">
           {catalogBusy ? <div className="text-xs text-neutral-400">Loading catalog...</div> : null}
           {!catalogBusy && !supplierSections.length ? (
-            <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-950/30 px-3 py-6 text-center text-xs text-neutral-500">
+            <div className="rounded-xl border border-dashed border-white/10 bg-black/15 px-3 py-6 text-center text-xs text-neutral-500">
               Select a store to load the supplier item list.
             </div>
           ) : null}
           {supplierSections.map((section) => (
-            <section key={section.anchor} id={section.anchor} className="rounded-xl border border-neutral-800 bg-neutral-950/20">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800 px-4 py-3">
+            <section key={section.anchor} id={section.anchor} className={`${SUB_PANEL}`}>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/8 px-4 py-3">
                 <div>
-                  <div className="text-sm font-medium text-amber-300">{section.supplier}</div>
+                  <div className="text-sm font-medium text-violet-200">{section.supplier}</div>
                   <div className="text-[11px] text-neutral-400">
                     {section.enteredCount} / {section.rows.length} rows selected
                   </div>
@@ -687,7 +700,7 @@ export default function StoreProcurementRequestPage() {
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full text-xs">
-                  <thead className="sticky top-0 bg-neutral-950/95 text-neutral-300">
+                  <thead className="sticky top-0 bg-[#0c1024]/95 text-neutral-300">
                     <tr>
                       <th className="px-3 py-2 text-left">Item</th>
                       <th className="px-3 py-2 text-left">Category</th>
@@ -700,7 +713,7 @@ export default function StoreProcurementRequestPage() {
                   </thead>
                   <tbody>
                     {section.rows.map((item) => (
-                      <tr key={item.row_key || `${section.supplier}-${item.item_name}`} className="border-t border-neutral-800 bg-neutral-950/30">
+                      <tr key={item.row_key || `${section.supplier}-${item.item_name}`} className="border-t border-white/8 bg-black/15">
                         <td className="px-3 py-2 text-neutral-100">{item.item_name}</td>
                         <td className="px-3 py-2 text-neutral-300">{item.category || "-"}</td>
                         <td className="px-3 py-2 text-neutral-400">{item.spec || "-"}</td>
@@ -711,14 +724,14 @@ export default function StoreProcurementRequestPage() {
                             step="1"
                             value={item.qty}
                             onChange={(e) => updateItem(String(item.row_key || ""), { qty: Number(e.target.value || 0) })}
-                            className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-right text-xs"
+                            className="w-24 rounded-lg border border-white/8 bg-black/20 px-2 py-1.5 text-right text-xs text-white focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
                           />
                         </td>
                         <td className="px-3 py-2">
                           <input
                             value={item.unit}
                             onChange={(e) => updateItem(String(item.row_key || ""), { unit: e.target.value })}
-                            className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs"
+                            className="w-24 rounded-lg border border-white/8 bg-black/20 px-2 py-1.5 text-xs text-white focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
                           />
                         </td>
                         <td className="px-3 py-2">
@@ -728,7 +741,7 @@ export default function StoreProcurementRequestPage() {
                             step="0.01"
                             value={item.unit_price}
                             onChange={(e) => updateItem(String(item.row_key || ""), { unit_price: Number(e.target.value || 0) })}
-                            className="w-28 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-right text-xs"
+                            className="w-28 rounded-lg border border-white/8 bg-black/20 px-2 py-1.5 text-right text-xs text-white focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
                           />
                         </td>
                         <td className="px-3 py-2 text-right text-neutral-300">
@@ -759,7 +772,7 @@ export default function StoreProcurementRequestPage() {
               setShowSubmitReview(true);
             }}
             disabled={busy !== ""}
-            className="rounded-xl border border-sky-700/60 bg-sky-900/20 px-3 py-2 text-xs text-sky-200 hover:bg-sky-800/30 disabled:opacity-60"
+            className={SECONDARY_BUTTON}
           >
             Review Before Create Draft
           </button>
@@ -779,7 +792,7 @@ export default function StoreProcurementRequestPage() {
               setShowSubmitReview(true);
             }}
             disabled={busy !== ""}
-            className="rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-xs text-emerald-200 hover:bg-emerald-800/30 disabled:opacity-60"
+            className={PRIMARY_BUTTON}
           >
             Review Before Submit
           </button>
@@ -787,7 +800,7 @@ export default function StoreProcurementRequestPage() {
       </div>
 
       {showSubmitReview ? (
-        <div className="rounded-2xl border border-emerald-700/60 bg-emerald-900/10 p-4">
+        <div className={`${SUB_PANEL} p-4`}>
           <div className="text-sm font-medium text-emerald-100">
             {reviewMode === "draft" ? "Step 2: Review Draft Items" : "Step 2: Review Selected Ingredients"}
           </div>
@@ -796,9 +809,9 @@ export default function StoreProcurementRequestPage() {
               ? "Please review the draft contents carefully before creating the request."
               : "Please review your selected ingredients before sending the request."}
           </div>
-          <div className="mt-3 overflow-x-auto rounded-xl border border-neutral-800">
+          <div className="mt-3 overflow-x-auto rounded-xl border border-white/8">
             <table className="min-w-full text-xs">
-              <thead className="bg-neutral-950/70 text-neutral-300">
+              <thead className="bg-[#0c1024]/70 text-neutral-300">
                 <tr>
                   <th className="px-2 py-2 text-left">Item</th>
                   <th className="px-2 py-2 text-left">Category</th>
@@ -811,7 +824,7 @@ export default function StoreProcurementRequestPage() {
               </thead>
               <tbody>
                 {validItems.map((item, idx) => (
-                  <tr key={`${item.item_name}-${idx}`} className="border-t border-neutral-800 bg-neutral-950/30">
+                  <tr key={`${item.item_name}-${idx}`} className="border-t border-white/8 bg-black/15">
                     <td className="px-2 py-2">{item.item_name}</td>
                     <td className="px-2 py-2">{item.category || "-"}</td>
                     <td className="px-2 py-2">{item.vendor_name || "-"}</td>
@@ -843,7 +856,7 @@ export default function StoreProcurementRequestPage() {
               type="button"
               onClick={() => void createRequest(reviewMode !== "draft")}
               disabled={busy !== "" || !submitChecked}
-              className="rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-xs text-emerald-200 hover:bg-emerald-800/30 disabled:opacity-60"
+              className={PRIMARY_BUTTON}
             >
               {reviewMode === "draft"
                 ? busy === "create"
@@ -861,7 +874,7 @@ export default function StoreProcurementRequestPage() {
                 setSubmitChecked(false);
               }}
               disabled={busy !== ""}
-              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900 disabled:opacity-60"
+              className={SECONDARY_BUTTON}
             >
               Back to Edit
             </button>
@@ -869,7 +882,7 @@ export default function StoreProcurementRequestPage() {
         </div>
       ) : null}
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+      <div className={`${GLASS_PANEL} p-4`}>
         <div className="text-sm font-medium">My Recent Requests ({cityLabel})</div>
         <div className="mt-3 space-y-2">
           {rows.map((row) => (
@@ -878,7 +891,7 @@ export default function StoreProcurementRequestPage() {
               className={`rounded-xl border p-3 ${
                 row.id === lastCreatedRequestId
                   ? "border-emerald-700/60 bg-emerald-900/20"
-                  : "border-neutral-800 bg-neutral-950/40"
+                  : "border-white/8 bg-black/15"
               }`}
             >
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -892,10 +905,10 @@ export default function StoreProcurementRequestPage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="text-xs text-neutral-400">{row.status} | Level {row.current_approval_level || 0}</div>
-                  <Link href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-2 py-1 text-[11px] hover:bg-neutral-900">
+                  <Link href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`} className={SMALL_LINK}>
                     Receiving
                   </Link>
-                  <Link href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-2 py-1 text-[11px] hover:bg-neutral-900">
+                  <Link href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`} className={SMALL_LINK}>
                     Claim
                   </Link>
                 </div>
@@ -907,6 +920,7 @@ export default function StoreProcurementRequestPage() {
           ))}
           {!rows.length ? <div className="text-sm text-neutral-500">No requests yet.</div> : null}
         </div>
+      </div>
       </div>
     </div>
   );

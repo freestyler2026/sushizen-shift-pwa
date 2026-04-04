@@ -1,12 +1,32 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { MessageSquareWarning, ShieldAlert } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Field } from "@/components/Field";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
+import {
+  GLASS_CARD,
+  INPUT_CLASS,
+  SELECT_CLASS,
+  T_PAGE_TITLE,
+  T_BODY,
+  BADGE_WARNING,
+} from "@/lib/ui-tokens";
 
 type ReportType = "app-private-report" | "hq-private-report";
 
+const PAGE_BG = "min-h-screen text-white";
+const BLUSH_GLASS = `${GLASS_CARD} bg-violet-950/30`;
+const BLUSH_HIGHLIGHT = "rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/18 to-purple-500/10";
+const BLUSH_PRIMARY =
+  "rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 px-5 py-2.5 font-semibold text-white transition-all duration-200 shadow-lg shadow-violet-500/25 hover:scale-[1.02] hover:from-violet-400 hover:to-purple-400 hover:shadow-violet-500/40 active:scale-[0.98] disabled:opacity-60";
+const BLUSH_SECONDARY =
+  "rounded-xl border border-violet-400/15 bg-violet-950/30 px-5 py-2.5 text-white transition-all duration-200 hover:border-violet-500/25 hover:bg-violet-950/45 disabled:opacity-60";
+
 export default function PrivateReportPage() {
+  const router = useRouter();
   const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
   const [reportType, setReportType] = useState<ReportType>("app-private-report");
   const [city, setCity] = useState<"dubai" | "manila">("dubai");
@@ -32,11 +52,15 @@ export default function PrivateReportPage() {
   useEffect(() => {
     async function syncAuth() {
       const refreshed = await refreshAuthFromApi(auth);
+      if (!refreshed?.staffName || !refreshed?.accessToken) {
+        router.replace("/login?next=%2Fprivate-report");
+        return;
+      }
       if (!refreshed) return;
       setCity(refreshed.city || "dubai");
     }
-    syncAuth();
-  }, [auth]);
+    void syncAuth();
+  }, [auth, router]);
 
   const submit = async () => {
     setLoading(true);
@@ -46,6 +70,16 @@ export default function PrivateReportPage() {
       const refreshed = await refreshAuthFromApi(auth);
       const accessToken = refreshed?.accessToken || auth?.accessToken;
       if (!accessToken) throw new Error("Please log in again.");
+      if (!reportDatetime.trim()) throw new Error("Date / Time is required.");
+      if (reportType === "hq-private-report") {
+        if (!whatHappened.trim()) throw new Error("What happened is required.");
+        if (!whyProblem.trim()) throw new Error("Why this is a problem is required.");
+      } else {
+        if (!screenFeature.trim()) throw new Error("Screen / Feature is required.");
+        if (!problem.trim()) throw new Error("Problem is required.");
+        if (!expected.trim()) throw new Error("What you expected is required.");
+        if (!actual.trim()) throw new Error("What actually happened is required.");
+      }
 
       const body = {
         report_type: reportType,
@@ -86,20 +120,35 @@ export default function PrivateReportPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 p-4">
-        <div className="text-lg font-semibold">Private Report</div>
-        <div className="mt-1 text-sm text-neutral-400">
-          Submit private reports directly to HQ/HR. Other staff cannot see your submission.
+    <div className={PAGE_BG}>
+      <motion.div
+        className="mx-auto max-w-5xl space-y-6 px-4 py-8"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+      >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className={T_PAGE_TITLE}>Private Report</h1>
+          <p className={T_BODY}>Submit private reports directly to HQ/HR. Other staff cannot see your submission.</p>
         </div>
-        <div className="mt-3 rounded-xl border border-neutral-800 bg-neutral-950/40 p-3 text-xs text-neutral-300">
+        <div className="flex items-center gap-2">
+          <span className={BADGE_WARNING}>
+            <ShieldAlert className="h-3 w-3" />
+            Confidential
+          </span>
+        </div>
+      </div>
+
+      <div className={`${BLUSH_GLASS} p-4`}>
+        <div className={`p-3 ${BLUSH_HIGHLIGHT}`}>
           Anonymous posting notice: this report is handled as anonymous to other staff, but HQ/HR may still see your name for follow-up support.
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="Report Type">
             <select
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
               value={reportType}
               onChange={(e) => setReportType(e.target.value as ReportType)}
             >
@@ -109,7 +158,7 @@ export default function PrivateReportPage() {
           </Field>
           <Field label="City">
             <select
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
               value={city}
               onChange={(e) => setCity(e.target.value as any)}
             >
@@ -119,7 +168,7 @@ export default function PrivateReportPage() {
           </Field>
           <Field label="Store / Branch">
             <input
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
               value={branch}
               onChange={(e) => setBranch(e.target.value)}
               placeholder="e.g. BB"
@@ -127,7 +176,7 @@ export default function PrivateReportPage() {
           </Field>
           <Field label="Date / Time">
             <input
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
               value={reportDatetime}
               onChange={(e) => setReportDatetime(e.target.value)}
               placeholder="e.g. 2026-03-24 21:30"
@@ -139,7 +188,7 @@ export default function PrivateReportPage() {
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Category">
               <select
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
               >
@@ -153,7 +202,7 @@ export default function PrivateReportPage() {
             </Field>
             <Field label="Anonymous request">
               <select
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
                 value={anonymousRequest ? "yes" : "no"}
                 onChange={(e) => setAnonymousRequest(e.target.value === "yes")}
               >
@@ -163,7 +212,7 @@ export default function PrivateReportPage() {
             </Field>
             <Field label="What happened">
               <textarea
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
                 rows={3}
                 value={whatHappened}
                 onChange={(e) => setWhatHappened(e.target.value)}
@@ -171,7 +220,7 @@ export default function PrivateReportPage() {
             </Field>
             <Field label="Why this is a problem">
               <textarea
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
                 rows={3}
                 value={whyProblem}
                 onChange={(e) => setWhyProblem(e.target.value)}
@@ -179,14 +228,14 @@ export default function PrivateReportPage() {
             </Field>
             <Field label="How often it happens">
               <input
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
                 value={frequency}
                 onChange={(e) => setFrequency(e.target.value)}
               />
             </Field>
             <Field label="Who is affected">
               <input
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={INPUT_CLASS}
                 value={affectedPeople}
                 onChange={(e) => setAffectedPeople(e.target.value)}
               />
@@ -194,7 +243,7 @@ export default function PrivateReportPage() {
             <div className="sm:col-span-2">
               <Field label="What support or change is needed">
                 <textarea
-                  className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                  className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
                   rows={3}
                   value={supportNeeded}
                   onChange={(e) => setSupportNeeded(e.target.value)}
@@ -206,7 +255,7 @@ export default function PrivateReportPage() {
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Screen / Feature">
               <input
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
                 value={screenFeature}
                 onChange={(e) => setScreenFeature(e.target.value)}
               />
@@ -214,7 +263,7 @@ export default function PrivateReportPage() {
             <div />
             <Field label="Problem">
               <textarea
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
                 rows={3}
                 value={problem}
                 onChange={(e) => setProblem(e.target.value)}
@@ -222,7 +271,7 @@ export default function PrivateReportPage() {
             </Field>
             <Field label="What you expected">
               <textarea
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
                 rows={3}
                 value={expected}
                 onChange={(e) => setExpected(e.target.value)}
@@ -230,7 +279,7 @@ export default function PrivateReportPage() {
             </Field>
             <Field label="What actually happened">
               <textarea
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
                 rows={3}
                 value={actual}
                 onChange={(e) => setActual(e.target.value)}
@@ -238,7 +287,7 @@ export default function PrivateReportPage() {
             </Field>
             <Field label="Screenshot">
               <input
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={INPUT_CLASS}
                 value={screenshot}
                 onChange={(e) => setScreenshot(e.target.value)}
                 placeholder="URL or short note"
@@ -252,21 +301,35 @@ export default function PrivateReportPage() {
             type="button"
             onClick={submit}
             disabled={loading}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60"
+            className={BLUSH_PRIMARY}
           >
             {loading ? "Submitting..." : "Submit Private Report"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setError("");
+              setResult(null);
+            }}
+            className={BLUSH_SECONDARY}
+          >
+            Clear result
           </button>
           {error ? <div className="text-sm text-red-300">{error}</div> : null}
         </div>
 
         {result ? (
-          <div className="mt-4 rounded-xl border border-neutral-800 bg-neutral-950/40 p-3 text-sm text-neutral-200">
-            <div className="font-medium">Accepted</div>
+          <div className={`${BLUSH_GLASS} mt-4 p-3 text-sm text-neutral-200`}>
+            <div className="flex items-center gap-2 font-medium">
+              <MessageSquareWarning className="h-4 w-4 text-amber-300" />
+              Accepted
+            </div>
             <div className="mt-1 text-neutral-300">A receipt message was sent to your Inbox.</div>
             <pre className="mt-2 overflow-auto text-xs text-neutral-400">{JSON.stringify(result, null, 2)}</pre>
           </div>
         ) : null}
       </div>
+      </motion.div>
     </div>
   );
 }

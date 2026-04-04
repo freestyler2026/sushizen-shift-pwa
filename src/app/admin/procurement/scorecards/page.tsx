@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
+import DatePicker from "@/components/DatePicker";
+import MonthPicker from "@/components/MonthPicker";
 
 type KpiRow = {
   id: string;
@@ -181,7 +183,10 @@ export default function ProcurementScorecardsPage() {
   useEffect(() => {
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
-      const can = canAccessProcurementAdmin(refreshed || auth);
+      const can = canAccessProcurementAdmin(
+        String((refreshed || auth)?.role || ""),
+        String((refreshed || auth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
+      );
       setAllowed(can);
       if (can) await load();
     }
@@ -199,7 +204,7 @@ export default function ProcurementScorecardsPage() {
       <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 md:grid-cols-5">
         <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Approver name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
         <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="month" value={monthKey} onChange={(e) => setMonthKey(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+        <MonthPicker value={monthKey} onChange={setMonthKey} />
         <input list="owner-list" value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)} placeholder="Owner name (optional)" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
         <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60">
           {loading ? "Loading..." : "Refresh"}
@@ -279,7 +284,7 @@ export default function ProcurementScorecardsPage() {
             <input value={issueTitle} onChange={(e) => setIssueTitle(e.target.value)} placeholder="Issue title" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
             <textarea value={actionPlan} onChange={(e) => setActionPlan(e.target.value)} placeholder="Action plan" className="min-h-24 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+              <DatePicker value={dueDate} onChange={setDueDate} />
               <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm">
                 <option value="OPEN">OPEN</option>
                 <option value="IN_PROGRESS">IN_PROGRESS</option>

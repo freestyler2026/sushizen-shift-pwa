@@ -5,6 +5,7 @@ import InventoryTabs from "@/components/InventoryTabs";
 import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
+import { getInventoryQuantityStep, parseDraftNumber, stepDraftNumber } from "@/lib/quantityInput";
 
 type InventoryItemOption = {
   id: string;
@@ -95,7 +96,7 @@ export default function InventoryTransferOrdersPage() {
   const [requestedBy, setRequestedBy] = useState(auth?.staffName || "");
   const [notes, setNotes] = useState("");
   const [selectedItemId, setSelectedItemId] = useState("");
-  const [selectedQty, setSelectedQty] = useState(1);
+  const [selectedQty, setSelectedQty] = useState("1");
   const [selectedUnit, setSelectedUnit] = useState<string>("pcs");
 
   const [staffOptions, setStaffOptions] = useState<string[]>([]);
@@ -202,11 +203,19 @@ export default function InventoryTransferOrdersPage() {
     setSelectedUnit(normalizeTransferUnit(selectedItem.storage_unit));
   }, [selectedItem]);
 
+  const selectedQtyStep = getInventoryQuantityStep(selectedUnit);
+
   function addDraftItem() {
     if (!selectedItem) return;
-    const qty = Math.max(0.001, Number(selectedQty || 0));
+    const parsedQty = parseDraftNumber(selectedQty);
+    const qty = parsedQty === null ? NaN : parsedQty;
+    if (!Number.isFinite(qty) || qty <= 0) {
+      setError("Please enter a valid quantity.");
+      return;
+    }
     const unit = normalizeTransferUnit(selectedUnit);
     const key = draftItemKey(selectedItem.id, unit);
+    setError("");
     setDraftItems((prev) => {
       const existing = prev.find((item) => item.key === key);
       if (existing) {
@@ -227,7 +236,7 @@ export default function InventoryTransferOrdersPage() {
       ];
     });
     setSelectedItemId("");
-    setSelectedQty(1);
+    setSelectedQty("1");
     setSelectedUnit("pcs");
   }
 
@@ -416,11 +425,15 @@ export default function InventoryTransferOrdersPage() {
             ))}
           </select>
           <input
-            type="number"
-            min={0.001}
-            step={0.001}
+            type="text"
+            inputMode="decimal"
             value={selectedQty}
-            onChange={(e) => setSelectedQty(Number(e.target.value || 0))}
+            onChange={(e) => setSelectedQty(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+              e.preventDefault();
+              setSelectedQty((current) => stepDraftNumber(current, selectedQtyStep, e.key === "ArrowUp" ? 1 : -1));
+            }}
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
           />
           <select

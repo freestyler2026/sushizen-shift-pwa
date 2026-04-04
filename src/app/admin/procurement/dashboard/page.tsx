@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
+import DatePicker from "@/components/DatePicker";
+import MonthPicker from "@/components/MonthPicker";
 
 type KpiSummary = {
   month_key: string;
@@ -125,12 +127,12 @@ export default function ProcurementDashboardPage() {
     initRef.current = true;
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
-      const can = canAccessProcurementAdmin(refreshed || auth);
+      const can = canAccessProcurementAdmin(String((refreshed || auth)?.role || ""), city === "dubai" ? "dubai" : "manila");
       setAllowed(can);
       if (can) await load();
     }
     void init();
-  }, [auth, load]);
+  }, [auth, city, load]);
 
   if (!allowed) {
     return <div className="text-sm text-red-300">Procurement page is available only to authorized admin roles.</div>;
@@ -158,8 +160,8 @@ export default function ProcurementDashboardPage() {
           <option value="manila">Manila</option>
           <option value="dubai">Dubai</option>
         </select>
-        <input type="month" value={monthKey} onChange={(e) => setMonthKey(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="date" value={snapshotDate} onChange={(e) => setSnapshotDate(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+        <MonthPicker value={monthKey} onChange={setMonthKey} />
+        <DatePicker value={snapshotDate} onChange={setSnapshotDate} />
         <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60">
           {loading ? "Loading..." : "Refresh Dashboard"}
         </button>

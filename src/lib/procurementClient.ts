@@ -18,10 +18,11 @@ export async function procurementTokenHeaders(requestedBy: string, pin: string):
 
   async function remintAccessTokenWithPin(): Promise<string> {
     if (!requestedBy.trim() || !pin.trim()) return "";
+    const authCity = String(refreshed?.city || auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila";
     const qs = new URLSearchParams({
       staff_name: requestedBy.trim(),
       pin: pin.trim(),
-      city: "manila",
+      city: authCity,
     }).toString();
     const verifyRes = await fetch(`/api/auth/verify?${qs}`, {
       method: "POST",

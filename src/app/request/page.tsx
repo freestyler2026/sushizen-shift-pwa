@@ -2,17 +2,47 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
+import { CalendarDays, FileText } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Field } from "@/components/Field";
+import DatePicker from "@/components/DatePicker";
 import { getAuth } from "@/lib/auth";
+import {
+  GLASS_CARD,
+  SMALL_BUTTON,
+  INPUT_CLASS,
+  SELECT_CLASS,
+  T_PAGE_TITLE,
+  T_SECTION,
+  T_BODY,
+  T_CAPTION,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+} from "@/lib/ui-tokens";
 
 type ReqType = "time_change" | "day_off" | "absence" | "swap" | "paid_leave" | "vacation" | "other";
 
+const PAGE_BG = "min-h-screen text-white";
+const BLUSH_GLASS = `${GLASS_CARD} bg-violet-950/30`;
+const BLUSH_HIGHLIGHT = "rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/18 to-purple-500/10";
+const BLUSH_PRIMARY =
+  "rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 px-5 py-2.5 font-semibold text-white transition-all duration-200 shadow-lg shadow-violet-500/25 hover:scale-[1.02] hover:from-violet-400 hover:to-purple-400 hover:shadow-violet-500/40 active:scale-[0.98] disabled:opacity-60";
+const BLUSH_SECONDARY =
+  "rounded-xl border border-violet-400/15 bg-violet-950/30 px-5 py-2.5 text-white transition-all duration-200 hover:border-violet-500/25 hover:bg-violet-950/45 disabled:opacity-60";
+const BLUSH_SMALL = `${SMALL_BUTTON} bg-violet-950/30 hover:bg-violet-950/45`;
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function RequestPage() {
+  const router = useRouter();
   const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
   const [city, setCity] = useState<"dubai" | "manila">("dubai");
   const [branch, setBranch] = useState("BB");
   const [staffName, setStaffName] = useState("");
-  const [workDate, setWorkDate] = useState("2025-02-23");
+  const [workDate, setWorkDate] = useState(todayIso());
   const [requestType, setRequestType] = useState<ReqType>("time_change");
   const [reason, setReason] = useState("");
   const [medicalDoc, setMedicalDoc] = useState(false);
@@ -34,10 +64,14 @@ export default function RequestPage() {
   const canSubmitForOthers = auth?.role === "HQ" || auth?.role === "ADMIN";
 
   useEffect(() => {
+    if (!auth?.staffName || !auth?.accessToken) {
+      router.replace("/login?next=%2Frequest");
+      return;
+    }
     if (!auth) return;
     if (auth.city) setCity(auth.city);
     if (auth.staffName) setStaffName(auth.staffName);
-  }, [auth]);
+  }, [auth, router]);
 
   const submit = async () => {
     setLoading(true);
@@ -47,6 +81,24 @@ export default function RequestPage() {
     try {
       if (!auth?.accessToken) {
         throw new Error("Please log in again before submitting a request.");
+      }
+      if (!workDate.trim()) {
+        throw new Error("Work date is required.");
+      }
+      if (!reason.trim()) {
+        throw new Error("Reason is required.");
+      }
+      if (requestType === "swap" && !withStaff.trim()) {
+        throw new Error("Counterparty staff name is required for swap requests.");
+      }
+      if (requestType === "swap" && (!myTo.trim() || !theirTo.trim())) {
+        throw new Error("Both swap time fields are required.");
+      }
+      if (requestType === "time_change" && !to.trim()) {
+        throw new Error("Requested time is required.");
+      }
+      if (reason.trim().length < 10) {
+        throw new Error("Reason must be at least 10 characters.");
       }
       let payload: any = {};
       if (requestType === "time_change") {
@@ -94,17 +146,42 @@ export default function RequestPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 p-3.5 sm:p-5">
-        <div className="mb-4">
-          <div className="text-[15px] font-semibold text-neutral-100 sm:text-base">Request</div>
-          <div className="mt-1 text-sm text-neutral-400">Submit shift change, day off, absence, paid leave, vacation, other, or swap requests from your phone.</div>
+    <div className={PAGE_BG}>
+      <motion.div
+        className="mx-auto max-w-5xl space-y-6 px-4 py-8"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+      >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className={T_PAGE_TITLE}>Request</h1>
+          <p className={T_BODY}>Submit shift changes, day off, absence, vacation, or swap requests from your phone.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={BADGE_SUCCESS}>
+            <CalendarDays className="h-3 w-3" />
+            {workDate || todayIso()}
+          </span>
+        </div>
+      </div>
+
+      <div className={`${BLUSH_GLASS} p-4 sm:p-5`}>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <div className={T_SECTION}>Request Form</div>
+            <div className={T_CAPTION}>Your login is used for secure submission and approval routing.</div>
+          </div>
+          <span className={canSubmitForOthers ? BADGE_WARNING : BADGE_SUCCESS}>
+            <FileText className="h-3 w-3" />
+            {canSubmitForOthers ? "Admin mode" : "Self submit"}
+          </span>
         </div>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="City">
             <select
-              className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
               value={city}
               onChange={(e) => setCity(e.target.value as any)}
             >
@@ -114,12 +191,12 @@ export default function RequestPage() {
           </Field>
 
           <Field label="Branch (optional)">
-            <input className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={branch} onChange={(e) => setBranch(e.target.value)} />
+            <input className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`} value={branch} onChange={(e) => setBranch(e.target.value)} />
           </Field>
 
           <Field label="Staff name" hint="Exact spelling as in sheet">
             <input
-              className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm disabled:opacity-70"
+              className={`${INPUT_CLASS} disabled:opacity-70 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
               value={staffName}
               onChange={(e) => setStaffName(e.target.value)}
               readOnly={!canSubmitForOthers}
@@ -128,17 +205,12 @@ export default function RequestPage() {
           </Field>
 
           <Field label="Work date">
-            <input
-              type="date"
-              className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              value={workDate}
-              onChange={(e) => setWorkDate(e.target.value)}
-            />
+            <DatePicker value={workDate} onChange={setWorkDate} />
           </Field>
 
           <Field label="Request type">
             <select
-              className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
               value={requestType}
               onChange={(e) => setRequestType(e.target.value as ReqType)}
             >
@@ -153,7 +225,7 @@ export default function RequestPage() {
           </Field>
 
           <Field label="Medical doc (RED recommended)">
-            <label className="flex min-h-10 items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
+            <label className={`flex min-h-10 items-center gap-2 ${BLUSH_GLASS} px-3 py-2 text-sm text-neutral-200`}>
               <input type="checkbox" checked={medicalDoc} onChange={(e) => setMedicalDoc(e.target.checked)} />
               I have medical document
             </label>
@@ -174,11 +246,11 @@ export default function RequestPage() {
               tabIndex={-1}
               className="hidden"
             />
-            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
+            <div className={`mt-2 flex flex-wrap items-center gap-2 ${BLUSH_GLASS} px-3 py-2 text-sm text-neutral-200`}>
               <button
                 type="button"
                 onClick={() => medicalFileInputRef.current?.click()}
-                className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-800"
+                className={BLUSH_SMALL}
                 aria-label="Choose medical document"
               >
                 Choose File
@@ -195,7 +267,7 @@ export default function RequestPage() {
           <div className="sm:col-span-2">
             <Field label="Reason (RED requires 10+ chars)">
               <textarea
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
                 rows={3}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
@@ -205,16 +277,19 @@ export default function RequestPage() {
         </div>
 
         {/* Type-specific */}
-        <div className="mt-5 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-3.5">
-          <div className="mb-3 text-sm font-semibold">Details</div>
+        <div className={`mt-5 p-4 ${BLUSH_HIGHLIGHT}`}>
+          <div className="mb-3">
+            <div className={T_SECTION}>Details</div>
+            <div className={T_CAPTION}>Only the fields relevant to the selected request type are shown below.</div>
+          </div>
 
           {requestType === "time_change" ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="From (optional)">
-                <input className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={from} onChange={(e) => setFrom(e.target.value)} />
+                <input className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`} value={from} onChange={(e) => setFrom(e.target.value)} />
               </Field>
               <Field label="To (required)">
-                <input className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={to} onChange={(e) => setTo(e.target.value)} />
+                <input className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`} value={to} onChange={(e) => setTo(e.target.value)} />
               </Field>
             </div>
           ) : null}
@@ -222,16 +297,16 @@ export default function RequestPage() {
           {requestType === "swap" ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="With staff (counterparty)">
-                <input className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={withStaff} onChange={(e) => setWithStaff(e.target.value)} />
+                <input className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`} value={withStaff} onChange={(e) => setWithStaff(e.target.value)} />
               </Field>
               <div />
 
               <Field label="My new time (my_to)">
-                <input className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={myTo} onChange={(e) => setMyTo(e.target.value)} />
+                <input className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`} value={myTo} onChange={(e) => setMyTo(e.target.value)} />
               </Field>
 
               <Field label="Their new time (their_to)">
-                <input className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={theirTo} onChange={(e) => setTheirTo(e.target.value)} />
+                <input className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`} value={theirTo} onChange={(e) => setTheirTo(e.target.value)} />
               </Field>
 
               <div className="sm:col-span-2 text-xs text-neutral-400">
@@ -249,20 +324,32 @@ export default function RequestPage() {
           <button
             onClick={submit}
             disabled={loading}
-            className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm font-medium hover:bg-neutral-900 disabled:opacity-50 sm:w-auto"
+            className={`${BLUSH_PRIMARY} min-h-10 w-full sm:w-auto`}
           >
             {loading ? "Submitting..." : "Submit"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setReason("");
+              setError("");
+              setResult(null);
+            }}
+            className={`${BLUSH_SECONDARY} min-h-10 w-full sm:w-auto`}
+          >
+            Clear message
           </button>
           {error ? <div className="w-full text-sm text-red-300 sm:w-auto">{error}</div> : null}
         </div>
 
         {result ? (
-          <div className="mt-4 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-            <div className="text-sm font-semibold">Result</div>
+          <div className={`mt-4 p-4 ${BLUSH_GLASS}`}>
+            <div className={T_SECTION}>Result</div>
             <pre className="mt-2 overflow-auto text-xs text-neutral-300">{JSON.stringify(result, null, 2)}</pre>
           </div>
         ) : null}
       </div>
+      </motion.div>
     </div>
   );
 }

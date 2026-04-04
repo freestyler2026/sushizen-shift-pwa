@@ -2,6 +2,33 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
+import {
+  AlertCircle,
+  AlertTriangle,
+  CalendarDays,
+  BarChart2,
+  CheckCircle2,
+  CloudDownload,
+  Copy,
+  DollarSign,
+  Fingerprint,
+  Info,
+  InboxIcon,
+  KeyRound,
+  LayoutDashboard,
+  Lock,
+  Download,
+  RefreshCw,
+  Receipt,
+  Search,
+  ShieldCheck,
+  ShieldOff,
+  ShoppingBag,
+  Smartphone,
+  Table2,
+  TrendingUp,
+} from "lucide-react";
 import {
   canViewManagementPl,
   canViewSalesAnalytics,
@@ -15,6 +42,44 @@ import {
 } from "@/lib/auth";
 import { startPasskeyAuthentication, startPasskeyRegistration } from "@/lib/webauthn";
 import { normalizeCalendarDateInput } from "@/lib/dateInput";
+import DateRangePicker from "@/components/DateRangePicker";
+import MonthPicker from "@/components/MonthPicker";
+import { ManilaSalesSection } from "@/components/analytics/ManilaSalesSection";
+import ProcurementAnalyticsSection from "@/app/admin/analytics/procurement/page";
+import { fmtNum, fmtNumTitle } from "@/lib/formatters";
+import {
+  GLASS_CARD,
+  HIGHLIGHT_CARD,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  SMALL_BUTTON,
+  DANGER_BUTTON,
+  INPUT_CLASS,
+  SELECT_CLASS,
+  TAB_CONTAINER,
+  TAB_ACTIVE,
+  TAB_INACTIVE,
+  KPI_CARD,
+  KPI_LABEL,
+  KPI_VALUE,
+  TABLE_HEADER,
+  TABLE_ROW,
+  TABLE_CELL,
+  T_PAGE_TITLE,
+  T_SECTION,
+  T_CARD_TITLE,
+  T_LABEL,
+  T_BODY,
+  T_CAPTION,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  BADGE_INFO,
+  DIVIDER,
+} from "@/lib/ui-tokens";
+import { cardVariants, staggerContainerVariants, tabContentTransition } from "@/lib/motion-tokens";
+import { Spinner } from "@/components/ui/Spinner";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { FlashValue } from "@/components/ui/FlashValue";
 
 // Resolve API base at runtime so local dev always talks to FastAPI directly,
 // even when the page is opened via a LAN IP or a custom local hostname.
@@ -36,6 +101,15 @@ function normalizeApiErrorMessage(raw: string, fallback: string) {
   return text;
 }
 
+function parseApiErrorDetail(text: string) {
+  try {
+    const parsed = JSON.parse(text);
+    return typeof parsed?.detail === "string" ? parsed.detail : "";
+  } catch {
+    return "";
+  }
+}
+
 async function apiGet<T = any>(path: string): Promise<T> {
   const request = async () =>
     fetch(`${getApiBase()}${path}`, {
@@ -46,29 +120,24 @@ async function apiGet<T = any>(path: string): Promise<T> {
   let text = await res.text();
 
   if (!res.ok && res.status === 401) {
-    const detail = (() => {
-      try {
-        const j = JSON.parse(text);
-        return typeof j?.detail === "string" ? j.detail : "";
-      } catch {
-        return "";
-      }
-    })();
-    if (detail.includes("Invalid access token")) {
-      await refreshAuthFromApi(getAuth());
+    const detail = parseApiErrorDetail(text);
+    const current = getAuth();
+    if (
+      current?.pin &&
+      (
+        detail.includes("Invalid access token") ||
+        detail.includes("Authentication is required") ||
+        !current.accessToken
+      )
+    ) {
+      await refreshAuthFromApi(current, { includeMfa: true });
       res = await request();
       text = await res.text();
     }
   }
 
   if (!res.ok) {
-    let detail = "";
-    try {
-      const j = JSON.parse(text);
-      detail = typeof j?.detail === "string" ? j.detail : "";
-    } catch {
-      detail = "";
-    }
+    const detail = parseApiErrorDetail(text);
     throw new Error(normalizeApiErrorMessage(detail || text, `GET ${path} failed`));
   }
 
@@ -87,32 +156,130 @@ async function apiPost<T = any>(path: string, body: Record<string, unknown>): Pr
   let text = await res.text();
 
   if (!res.ok && res.status === 401) {
-    const detail = (() => {
-      try {
-        const j = JSON.parse(text);
-        return typeof j?.detail === "string" ? j.detail : "";
-      } catch {
-        return "";
-      }
-    })();
-    if (detail.includes("Invalid access token")) {
-      await refreshAuthFromApi(getAuth());
+    const detail = parseApiErrorDetail(text);
+    const current = getAuth();
+    if (
+      current?.pin &&
+      (
+        detail.includes("Invalid access token") ||
+        detail.includes("Authentication is required") ||
+        !current.accessToken
+      )
+    ) {
+      await refreshAuthFromApi(current, { includeMfa: true });
       res = await request();
       text = await res.text();
     }
   }
 
   if (!res.ok) {
-    let detail = "";
-    try {
-      const j = JSON.parse(text);
-      detail = typeof j?.detail === "string" ? j.detail : "";
-    } catch {
-      detail = "";
-    }
+    const detail = parseApiErrorDetail(text);
     throw new Error(normalizeApiErrorMessage(detail || text, `POST ${path} failed`));
   }
   return text ? (JSON.parse(text) as T) : ({} as T);
+}
+
+const POS_SYNC_STEP_LABELS: Record<string, string> = {
+  sales: "POS",
+  hourly: "Hourly Sales",
+  operation_time: "Operation Time",
+  product_mix: "Product Mix",
+};
+
+const PAGE_TITLE = T_PAGE_TITLE;
+const SECTION_TITLE = T_SECTION;
+const CARD_TITLE = T_CARD_TITLE;
+const BODY_TEXT = T_BODY;
+const SUBTEXT = T_CAPTION;
+const LABEL_TEXT = T_LABEL;
+const NUMERIC_BLOCK_VALUE = "mt-2 min-h-[40px] text-2xl font-bold leading-tight tracking-tight text-white tabular-nums break-words";
+const NUMERIC_SMALL_BLOCK_VALUE = "mt-1 text-lg font-bold leading-tight tracking-tight text-white tabular-nums break-words";
+const SALES_NUMERIC_VALUE = "mt-1 min-h-[40px] text-2xl font-bold leading-tight tracking-tight text-white tabular-nums break-words";
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+}
+
+function getPosSyncJobStepItems(job?: PosSyncJob | null): PosSyncJobStep[] {
+  if (!job) return [];
+  if (Array.isArray(job.result?.steps) && job.result?.steps.length) {
+    return job.result.steps;
+  }
+  const order = Array.isArray(job.progress?.order) ? job.progress?.order : [];
+  const steps = job.progress?.steps || {};
+  return order.map((step) => {
+    const state = steps[step] || {};
+    return {
+      step,
+      status: String(state.status || "pending"),
+      processed_count: Number(state.processed_count || 0),
+      duplicate_count: Number(state.duplicate_count || 0),
+      failed_count: Number(state.failed_count || 0),
+      message: String(state.last_message || ""),
+    };
+  });
+}
+
+function formatPosSyncJobMessage(job?: PosSyncJob | null, prefix = ""): string {
+  if (!job) return prefix || "";
+  const lines: string[] = [];
+  const currentLabel = POS_SYNC_STEP_LABELS[job.current_step || ""] || "queue";
+  const status = String(job.status || "").toUpperCase();
+  const header = prefix.trim();
+  if (header && header !== "POS sync job queued" && header !== "POS sync job already in progress") {
+    lines.push(header);
+  }
+  if (status === "QUEUED") {
+    lines.push("Sync queued. The worker will start shortly.");
+  } else if (status === "RUNNING") {
+    lines.push(`Sync in progress. Current step: ${currentLabel}.`);
+  } else if (status === "COMPLETED") {
+    lines.push("Sync completed successfully.");
+  } else if (status === "COMPLETED_WITH_WARNINGS") {
+    lines.push("Sync completed with some warnings.");
+  } else if (status === "FAILED") {
+    lines.push(`Sync failed${job.error_message ? `: ${job.error_message}` : "."}`);
+  }
+
+  for (const step of getPosSyncJobStepItems(job)) {
+    const label = POS_SYNC_STEP_LABELS[step.step] || step.step;
+    const summaryParts: string[] = [];
+    if (step.processed_count > 0) summaryParts.push(`${step.processed_count} new`);
+    if (step.duplicate_count > 0) summaryParts.push(`${step.duplicate_count} already synced`);
+    if (step.failed_count > 0) summaryParts.push(`${step.failed_count} warning`);
+    const fallbackStatus =
+      step.status === "pending"
+        ? "waiting"
+        : step.status === "running"
+          ? "running"
+          : step.status === "completed"
+            ? "done"
+            : step.status === "completed_with_warnings"
+              ? "done with warnings"
+              : step.status;
+    const summary = summaryParts.length ? summaryParts.join(", ") : step.message || fallbackStatus;
+    lines.push(`${label}: ${summary}`);
+  }
+
+  return lines.filter(Boolean).join("\n");
+}
+
+function normalizePasskeyUiError(raw: string): string {
+  const text = String(raw || "").trim();
+  const host = typeof window !== "undefined" ? window.location.hostname : "";
+  const isLocal = host === "localhost" || host === "127.0.0.1";
+  if (
+    /relying party id is not a registrable domain suffix|well-known\/webauthn|rp id/i.test(text) &&
+    isLocal
+  ) {
+    return "Passkeys are not available from this local preview URL. Use Verify With PIN locally, or use the deployed app for passkey verification.";
+  }
+  if (
+    /no passkeys are registered for this account|credential not found|passkey verification was cancelled|notallowederror|timed out or was not allowed/i.test(text) &&
+    isLocal
+  ) {
+    return "No local passkey is available for this localhost session. Use Verify With PIN locally.";
+  }
+  return text;
 }
 
 type BranchDailyRow = {
@@ -212,6 +379,47 @@ type ProductMixRankingResp = {
   coverage_to?: string | null;
   source_file_name?: string;
   items: ProductMixRankingRow[];
+};
+
+type PosSyncJobStep = {
+  step: string;
+  status: string;
+  processed_count: number;
+  duplicate_count: number;
+  failed_count: number;
+  message?: string;
+};
+
+type PosSyncJob = {
+  id: string;
+  job_kind: string;
+  city: string;
+  status: string;
+  current_step: string;
+  progress?: {
+    order?: string[];
+    steps?: Record<
+      string,
+      {
+        status?: string;
+        processed_count?: number;
+        duplicate_count?: number;
+        failed_count?: number;
+        last_message?: string;
+      }
+    >;
+  };
+  result?: {
+    steps?: PosSyncJobStep[];
+  };
+  error_message?: string;
+};
+
+type PosSyncJobResp = {
+  ok?: boolean;
+  message?: string;
+  reused?: boolean;
+  job?: PosSyncJob;
 };
 
 type PosAggregatorMetric = {
@@ -855,7 +1063,10 @@ const SALES_SECTION_OPTIONS = [
   { value: "menu", label: "Menu", id: "sales-menu" },
   { value: "stores", label: "Stores", id: "sales-stores" },
   { value: "daily", label: "Daily", id: "sales-daily" },
+  { value: "manilaSales", label: "Manila Sales", id: "sales-manila-sales" },
 ] as const;
+const DUBAI_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter((section) => section.value !== "manilaSales");
+const MANILA_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter((section) => section.value === "manilaSales");
 
 const FINANCE_SECTION_OPTIONS = [
   { value: "summary", label: "Summary", id: "finance-summary" },
@@ -1196,6 +1407,21 @@ function fmtMinutes(v?: number | null) {
   return `${v} min`;
 }
 
+function MetricValue({
+  value,
+  unit,
+  className = KPI_VALUE,
+}: {
+  value: number | string | null | undefined;
+  unit?: string;
+  className?: string;
+}) {
+  const isNumber = typeof value === "number" && Number.isFinite(value);
+  const text = isNumber ? fmtNum(value, unit) : String(value ?? "-");
+  const title = isNumber ? fmtNumTitle(value, unit) : String(value ?? "-");
+  return <FlashValue value={text} className={className} title={title} />;
+}
+
 function monthKeysBetween(dateFrom: string, dateTo: string): string[] {
   if (!dateFrom || !dateTo) return [];
   const start = new Date(`${dateFrom}T00:00:00`);
@@ -1207,19 +1433,6 @@ function monthKeysBetween(dateFrom: string, dateTo: string): string[] {
     cur.setMonth(cur.getMonth() + 1);
   }
   return keys;
-}
-
-function shiftIsoDateByMonths(iso: string, delta: number): string {
-  const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return iso;
-  const y = Number(m[1]);
-  const mo = Number(m[2]);
-  const d = Number(m[3]);
-  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return iso;
-  const nextFirst = new Date(y, mo - 1 + delta, 1);
-  const maxDay = new Date(nextFirst.getFullYear(), nextFirst.getMonth() + 1, 0).getDate();
-  const nextDay = Math.max(1, Math.min(d, maxDay));
-  return `${nextFirst.getFullYear()}-${String(nextFirst.getMonth() + 1).padStart(2, "0")}-${String(nextDay).padStart(2, "0")}`;
 }
 
 function safeStaffName(row: ComparisonItem) {
@@ -1316,7 +1529,7 @@ export default function AdminAnalyticsPage() {
   const [branchCode, setBranchCode] = useState("");
   const [summaryBranchCode, setSummaryBranchCode] = useState("");
   const [summaryBrandName, setSummaryBrandName] = useState("");
-  const [salesSectionView, setSalesSectionView] = useState<"summary" | "hourly" | "operationTime" | "brands" | "cancelOrders" | "productMix" | "menu" | "stores" | "daily" | "all">(
+  const [salesSectionView, setSalesSectionView] = useState<"summary" | "hourly" | "operationTime" | "brands" | "cancelOrders" | "productMix" | "menu" | "stores" | "daily" | "manilaSales" | "all">(
     "summary",
   );
   const [financeSectionView, setFinanceSectionView] = useState<"summary" | "plDetails" | "payroll" | "all">("summary");
@@ -1419,16 +1632,6 @@ export default function AdminAnalyticsPage() {
     if (!range) return;
     setDateFrom(range.from);
     setDateTo(range.to);
-  };
-
-  const shiftComplianceDateFromMonth = (delta: number) => {
-    const next = shiftIsoDateByMonths(dateFrom, delta);
-    handleDateFromChange(next);
-  };
-
-  const shiftComplianceDateToMonth = (delta: number) => {
-    const next = shiftIsoDateByMonths(dateTo, delta);
-    handleDateToChange(next);
   };
 
   const handleSummaryMonthChange = (monthKey: string) => {
@@ -1679,12 +1882,8 @@ export default function AdminAnalyticsPage() {
   }, [plVsTarget, plHeadline, financeScopeBranchCode, branchDailyRows, posBranchDailyRows, posSalesRangeTotals]);
 
   const [salesSyncing, setSalesSyncing] = useState(false);
-  const [hourlySyncing, setHourlySyncing] = useState(false);
-  const [operationTimeSyncing, setOperationTimeSyncing] = useState(false);
   const [payrollSyncing, setPayrollSyncing] = useState(false);
   const [salesSyncMessage, setSalesSyncMessage] = useState("");
-  const [hourlySyncMessage, setHourlySyncMessage] = useState("");
-  const [operationTimeSyncMessage, setOperationTimeSyncMessage] = useState("");
   const [payrollSyncMessage, setPayrollSyncMessage] = useState("");
 
   const [comparisonRows, setComparisonRows] = useState<ComparisonItem[]>([]);
@@ -1695,26 +1894,34 @@ export default function AdminAnalyticsPage() {
   const [comparisonLimit, setComparisonLimit] = useState("5000");
 
   const [viewMode, setViewMode] = useState<AnalyticsViewMode>("perfect_attendance");
-  const [analyticsTab, setAnalyticsTab] = useState<"staff" | "sales" | "evaluation" | "finance">("staff");
+  const [analyticsTab, setAnalyticsTab] = useState<"staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement">("staff");
   const [staffSearch, setStaffSearch] = useState("");
 
   const roleUpper = String(auth?.role || "STAFF").toUpperCase();
   const isHQOrAdmin = roleUpper === "HQ" || roleUpper === "ADMIN";
   const canViewStaffChannel = isHQOrAdmin;
-  const canViewSalesChannel = canViewSalesAnalytics(auth, (city as City) || "dubai");
+  const canViewDubaiSalesChannel = canViewSalesAnalytics(auth, "dubai");
+  const canViewManilaSalesChannel = canViewSalesAnalytics(auth, "manila");
+  const canViewSalesChannel = canViewDubaiSalesChannel || canViewManilaSalesChannel;
+  const canViewProcurementChannel = canViewSalesChannel;
   const canViewFinanceChannels = canViewSalesChannel;
   const canViewEvaluationChannel = canViewSalesChannel;
   const canViewManagementPlChannel = canViewManagementPl(auth);
+  const hasVisibleAnalyticsChannel = canViewStaffChannel || canViewFinanceChannels || canViewManagementPlChannel;
+  const isSalesAnalyticsTab = analyticsTab === "dubaiSales" || analyticsTab === "manilaSales";
+  const salesCity: City = analyticsTab === "manilaSales" ? "manila" : "dubai";
+  const isManilaSalesCity = analyticsTab === "manilaSales";
+  const visibleSalesSectionOptions = isManilaSalesCity ? MANILA_SALES_SECTION_OPTIONS : DUBAI_SALES_SECTION_OPTIONS;
   const salesStepUpReady = stepUpSatisfies("aal2", auth) && stepUpVerifiedThisVisit;
   const financeStepUpReady = stepUpSatisfies("aal2", auth) && stepUpVerifiedThisVisit;
   const activeSecurityRequirement =
     analyticsTab === "finance"
       ? "MFA (Passkey, TOTP, Backup code, or PIN step-up)"
-      : analyticsTab === "sales" || analyticsTab === "evaluation" || analyticsTab === "staff"
+      : isSalesAnalyticsTab || analyticsTab === "evaluation" || analyticsTab === "staff"
         ? "MFA (Passkey, TOTP, Backup code, or PIN step-up)"
         : "Login";
   const activeSecuritySatisfied =
-    analyticsTab === "finance" ? financeStepUpReady : analyticsTab === "sales" || analyticsTab === "evaluation" || analyticsTab === "staff" ? salesStepUpReady : true;
+    analyticsTab === "finance" ? financeStepUpReady : isSalesAnalyticsTab || analyticsTab === "evaluation" || analyticsTab === "staff" ? salesStepUpReady : true;
 
   const [staffSortBy, setStaffSortBy] = useState<"hours" | "days" | "segments" | "name">("hours");
   const [branchSortBy, setBranchSortBy] = useState<"totalHours" | "avgHoursPerDay" | "maxStaff" | "branch">("totalHours");
@@ -1723,7 +1930,7 @@ export default function AdminAnalyticsPage() {
   const [error, setError] = useState("");
 
   async function refreshSecurityState(options?: { allowStepUp?: boolean }) {
-    const next = await refreshAuthFromApi(getAuth());
+    const next = await refreshAuthFromApi(getAuth(), { includeMfa: true });
     const allowStepUp = Boolean(options?.allowStepUp);
     setAuthState(stepUpVerifiedThisVisit || allowStepUp ? next : stripStepUpForFreshVisit(next));
     return next;
@@ -1740,7 +1947,7 @@ export default function AdminAnalyticsPage() {
       if (raw.includes("approver_name is required")) {
         setSecurityError("Session expired. Please Logout and login again, then retry Passkey setup.");
       } else {
-        setSecurityError(raw);
+        setSecurityError(normalizePasskeyUiError(raw));
       }
     } finally {
       setSecurityBusy(false);
@@ -1911,16 +2118,90 @@ export default function AdminAnalyticsPage() {
 
   useEffect(() => {
     if (analyticsTab === "staff" && !canViewStaffChannel) {
-      setAnalyticsTab(canViewFinanceChannels ? "sales" : "staff");
+      if (canViewDubaiSalesChannel) setAnalyticsTab("dubaiSales");
+      else if (canViewManilaSalesChannel) setAnalyticsTab("manilaSales");
+      else if (canViewManagementPlChannel) setAnalyticsTab("finance");
+      else if (canViewProcurementChannel) setAnalyticsTab("procurement");
     }
-  }, [analyticsTab, canViewStaffChannel, canViewFinanceChannels]);
+  }, [analyticsTab, canViewDubaiSalesChannel, canViewManagementPlChannel, canViewManilaSalesChannel, canViewProcurementChannel, canViewStaffChannel]);
 
   useEffect(() => {
-    if (analyticsTab !== "sales" || salesSectionView === "all" || typeof window === "undefined") return;
-    const section = SALES_SECTION_OPTIONS.find((item) => item.value === salesSectionView);
+    if (analyticsTab === "dubaiSales" && !canViewDubaiSalesChannel) {
+      if (canViewManilaSalesChannel) setAnalyticsTab("manilaSales");
+      else if (canViewStaffChannel) setAnalyticsTab("staff");
+      else if (canViewManagementPlChannel) setAnalyticsTab("finance");
+    }
+    if (analyticsTab === "manilaSales" && !canViewManilaSalesChannel) {
+      if (canViewDubaiSalesChannel) setAnalyticsTab("dubaiSales");
+      else if (canViewStaffChannel) setAnalyticsTab("staff");
+      else if (canViewManagementPlChannel) setAnalyticsTab("finance");
+    }
+    if (analyticsTab === "procurement" && !canViewProcurementChannel) {
+      if (canViewDubaiSalesChannel) setAnalyticsTab("dubaiSales");
+      else if (canViewManilaSalesChannel) setAnalyticsTab("manilaSales");
+      else if (canViewStaffChannel) setAnalyticsTab("staff");
+      else if (canViewManagementPlChannel) setAnalyticsTab("finance");
+    }
+  }, [analyticsTab, canViewDubaiSalesChannel, canViewManagementPlChannel, canViewManilaSalesChannel, canViewProcurementChannel, canViewStaffChannel]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const requestedTab = String(new URLSearchParams(window.location.search).get("tab") || "").trim();
+    if (!requestedTab) return;
+    if (requestedTab === "staff" && canViewStaffChannel) {
+      setAnalyticsTab("staff");
+      return;
+    }
+    if (requestedTab === "dubaiSales" && canViewDubaiSalesChannel) {
+      setAnalyticsTab("dubaiSales");
+      return;
+    }
+    if (requestedTab === "manilaSales" && canViewManilaSalesChannel) {
+      setAnalyticsTab("manilaSales");
+      return;
+    }
+    if (requestedTab === "evaluation" && canViewEvaluationChannel) {
+      setAnalyticsTab("evaluation");
+      return;
+    }
+    if (requestedTab === "finance" && canViewManagementPlChannel) {
+      setAnalyticsTab("finance");
+      return;
+    }
+    if (requestedTab === "procurement" && canViewProcurementChannel) {
+      setAnalyticsTab("procurement");
+    }
+  }, [
+    canViewDubaiSalesChannel,
+    canViewEvaluationChannel,
+    canViewManagementPlChannel,
+    canViewManilaSalesChannel,
+    canViewProcurementChannel,
+    canViewStaffChannel,
+  ]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (url.pathname !== "/admin/analytics") return;
+    if (url.searchParams.get("tab") === analyticsTab) return;
+    url.searchParams.set("tab", analyticsTab);
+    window.history.replaceState({}, "", `${url.pathname}?${url.searchParams.toString()}`);
+  }, [analyticsTab]);
+
+  useEffect(() => {
+    if (!isSalesAnalyticsTab || salesSectionView === "all" || typeof window === "undefined") return;
+    const section = visibleSalesSectionOptions.find((item) => item.value === salesSectionView);
     if (!section) return;
     window.requestAnimationFrame(() => scrollToSection(section.id));
-  }, [analyticsTab, salesSectionView]);
+  }, [isSalesAnalyticsTab, salesSectionView, visibleSalesSectionOptions]);
+
+  useEffect(() => {
+    setSalesSectionView((current) => {
+      if (isManilaSalesCity) return current === "manilaSales" ? current : "manilaSales";
+      return current === "manilaSales" ? "summary" : current;
+    });
+  }, [isManilaSalesCity]);
 
   useEffect(() => {
     if (analyticsTab !== "finance" || financeSectionView === "all" || typeof window === "undefined") return;
@@ -2001,13 +2282,14 @@ export default function AdminAnalyticsPage() {
   }, [analyticsTab, plStoreName, approverName, financeStepUpReady]);
 
   useEffect(() => {
-    if (analyticsTab !== "sales") return;
+    if (!isSalesAnalyticsTab) return;
+    if (isManilaSalesCity) return;
     if (!approverName.trim() || !salesStepUpReady) return;
     void loadAll("sales");
     // `loadAll()` is intentionally triggered by tab, scope, and credentials changes.
     // It is recreated on render, so we avoid depending on its function identity here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [analyticsTab, hourlyStoreName, summaryBranchCode, summaryBrandName, approverName, salesStepUpReady]);
+  }, [isSalesAnalyticsTab, isManilaSalesCity, hourlyStoreName, summaryBranchCode, summaryBrandName, approverName, salesStepUpReady, analyticsTab]);
 
   useEffect(() => {
     if (analyticsTab !== "evaluation") return;
@@ -2016,7 +2298,7 @@ export default function AdminAnalyticsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analyticsTab, city, summaryDateFrom, summaryDateTo, approverName, salesStepUpReady]);
 
-  async function loadAll(scope: "all" | "sales" | "staff" | "evaluation" | "finance" = "all") {
+  async function loadAll(scope: "all" | "sales" | "staff" | "evaluation" | "finance" = "all"): Promise<string[]> {
     setLoading(true);
     setError("");
     const loadErrors: string[] = [];
@@ -2028,10 +2310,11 @@ export default function AdminAnalyticsPage() {
     const shouldLoadStaff = scope === "all" || scope === "staff" || scope === "finance";
     const shouldLoadEvaluation = scope === "all" || scope === "evaluation";
     const shouldLoadFinance = scope === "all" || scope === "finance";
+    const posCity: City = scope === "sales" ? salesCity : ((city as City) || "dubai");
 
     try {
       const posDailyQs = new URLSearchParams({
-        city,
+        city: posCity,
         date_from: summaryDateFrom,
         date_to: summaryDateTo,
         branch_code: summaryBranchCode,
@@ -2042,7 +2325,7 @@ export default function AdminAnalyticsPage() {
       });
 
       const posRankingQs = new URLSearchParams({
-        city,
+        city: posCity,
         date_from: summaryDateFrom,
         date_to: summaryDateTo,
         branch_code: summaryBranchCode,
@@ -2065,7 +2348,7 @@ export default function AdminAnalyticsPage() {
         if (!shouldLoadPos) return;
         try {
           const hourlyQs = new URLSearchParams({
-            city,
+            city: posCity,
             date_from: summaryDateFrom,
             date_to: summaryDateTo,
             approver_name: approverName.trim(),
@@ -2073,14 +2356,14 @@ export default function AdminAnalyticsPage() {
           });
           if (hourlyStoreName.trim()) hourlyQs.set("store_name", hourlyStoreName.trim());
           const salesPlQs = new URLSearchParams({
-            city,
+            city: posCity,
             date_from: summaryDateFrom,
             date_to: summaryDateTo,
             approver_name: approverName.trim(),
             pin: pin.trim(),
           });
           const cancelOrdersQs = new URLSearchParams({
-            city,
+            city: posCity,
             date_from: summaryDateFrom,
             date_to: summaryDateTo,
             brand_name: summaryBrandName,
@@ -2089,7 +2372,7 @@ export default function AdminAnalyticsPage() {
             pin: pin.trim(),
           });
           const operationTimeQs = new URLSearchParams({
-            city,
+            city: posCity,
             date_from: summaryDateFrom,
             date_to: summaryDateTo,
             limit: "400",
@@ -2097,29 +2380,80 @@ export default function AdminAnalyticsPage() {
             pin: pin.trim(),
           });
 
-          const [posDaily, posRanking, productMix, posBranches, posBrands, posBranchesDaily, cancelOrders] = await Promise.all([
-            apiGet<PosSalesDailyResp>(`/api/admin/pos/sales/daily?${posDailyQs.toString()}`),
-            apiGet<PosMenuRankingResp>(`/api/admin/pos/items/ranking?${posRankingQs.toString()}`),
-            apiGet<ProductMixRankingResp>(`/api/admin/pos/product-mix?${posRankingQs.toString()}`),
-            apiGet<PosBranchOrderResp>(`/api/admin/pos/branches/orders?${posRankingQs.toString()}`),
-            apiGet<PosBrandOrderResp>(`/api/admin/pos/brands/orders?${posRankingQs.toString()}`),
-            apiGet<PosBranchDailyResp>(`/api/admin/pos/branches/daily?${posDailyQs.toString()}`),
-            apiGet<PosCancelOrdersResp>(`/api/admin/pos/cancel-orders?${cancelOrdersQs.toString()}`),
-          ]);
+          const loadSalesDataset = async <T,>(
+            label: string,
+            request: () => Promise<T>,
+            onOk: (value: T) => void,
+            onFail: () => void
+          ) => {
+            try {
+              onOk(await request());
+            } catch (e) {
+              addLoadError(label, e);
+              onFail();
+            }
+          };
 
-          setPosSalesRows(posDaily.items || []);
-          setPosSalesRangeTotals(posDaily.totals ?? null);
-          setPosMenuRankingRows(posRanking.items || []);
-          setProductMixRankingRows(productMix.items || []);
-          setProductMixCoverage({
-            from: productMix.coverage_from ?? null,
-            to: productMix.coverage_to ?? null,
-            source: productMix.source_file_name || "",
-          });
-          setPosBranchOrderRows(posBranches.items || []);
-          setPosBrandOrderRows(posBrands.items || []);
-          setPosBranchDailyRows(posBranchesDaily.items || []);
-          setCancelOrdersAnalytics(cancelOrders ?? null);
+          await Promise.all([
+            loadSalesDataset(
+              "Sales daily",
+              () => apiGet<PosSalesDailyResp>(`/api/admin/pos/sales/daily?${posDailyQs.toString()}`),
+              (posDaily) => {
+                setPosSalesRows(posDaily.items || []);
+                setPosSalesRangeTotals(posDaily.totals ?? null);
+              },
+              () => {
+                setPosSalesRows([]);
+                setPosSalesRangeTotals(null);
+              }
+            ),
+            loadSalesDataset(
+              "Menu ranking",
+              () => apiGet<PosMenuRankingResp>(`/api/admin/pos/items/ranking?${posRankingQs.toString()}`),
+              (posRanking) => setPosMenuRankingRows(posRanking.items || []),
+              () => setPosMenuRankingRows([])
+            ),
+            loadSalesDataset(
+              "Product mix",
+              () => apiGet<ProductMixRankingResp>(`/api/admin/pos/product-mix?${posRankingQs.toString()}`),
+              (productMix) => {
+                setProductMixRankingRows(productMix.items || []);
+                setProductMixCoverage({
+                  from: productMix.coverage_from ?? null,
+                  to: productMix.coverage_to ?? null,
+                  source: productMix.source_file_name || "",
+                });
+              },
+              () => {
+                setProductMixRankingRows([]);
+                setProductMixCoverage({});
+              }
+            ),
+            loadSalesDataset(
+              "Branch ranking",
+              () => apiGet<PosBranchOrderResp>(`/api/admin/pos/branches/orders?${posRankingQs.toString()}`),
+              (posBranches) => setPosBranchOrderRows(posBranches.items || []),
+              () => setPosBranchOrderRows([])
+            ),
+            loadSalesDataset(
+              "Brand ranking",
+              () => apiGet<PosBrandOrderResp>(`/api/admin/pos/brands/orders?${posRankingQs.toString()}`),
+              (posBrands) => setPosBrandOrderRows(posBrands.items || []),
+              () => setPosBrandOrderRows([])
+            ),
+            loadSalesDataset(
+              "Branch daily",
+              () => apiGet<PosBranchDailyResp>(`/api/admin/pos/branches/daily?${posDailyQs.toString()}`),
+              (posBranchesDaily) => setPosBranchDailyRows(posBranchesDaily.items || []),
+              () => setPosBranchDailyRows([])
+            ),
+            loadSalesDataset(
+              "Cancel orders",
+              () => apiGet<PosCancelOrdersResp>(`/api/admin/pos/cancel-orders?${cancelOrdersQs.toString()}`),
+              (cancelOrders) => setCancelOrdersAnalytics(cancelOrders ?? null),
+              () => setCancelOrdersAnalytics(null)
+            ),
+          ]);
           if (canViewFinanceChannels && financeStepUpReady) {
             try {
               const salesPl = await apiGet<PlVsTargetResp>(`/api/admin/finance/pl-vs-target?${salesPlQs.toString()}`);
@@ -2407,8 +2741,11 @@ export default function AdminAnalyticsPage() {
 
       await Promise.all([posLoad, staffLoad, evaluationLoad, financeLoad]);
       setError(loadErrors.join(" | "));
+      return loadErrors;
     } catch (e: any) {
-      setError(String(e?.message || e || "Failed to load analytics"));
+      const msg = String(e?.message || e || "Failed to load analytics");
+      setError(msg);
+      return [msg];
     } finally {
       setLoading(false);
     }
@@ -2551,103 +2888,72 @@ export default function AdminAnalyticsPage() {
     }
   }
 
+  async function reloadSalesAfterSync(baseMessage: string): Promise<string> {
+    const loadErrors = await loadAll("sales");
+    if (loadErrors.length) {
+      return `${baseMessage} Refresh warning: ${loadErrors[0]}`;
+    }
+    return `${baseMessage} Reloaded data.`;
+  }
+
+  async function waitForSalesSyncJob(jobId: string, baseMessage: string): Promise<PosSyncJob> {
+    let lastError = "";
+    for (let attempt = 0; attempt < 240; attempt += 1) {
+      try {
+        const qs = new URLSearchParams({
+          approver_name: approverName.trim(),
+          pin: pin.trim(),
+          city: salesCity,
+        });
+        const res = await apiGet<{ ok?: boolean; job?: PosSyncJob }>(
+          `/api/admin/pos/sync-jobs/${encodeURIComponent(jobId)}?${qs.toString()}`
+        );
+        const job = res?.job;
+        if (!job?.id) throw new Error("POS sync job status is unavailable.");
+        setSalesSyncMessage(formatPosSyncJobMessage(job, baseMessage));
+        const status = String(job.status || "").toUpperCase();
+        if (status === "COMPLETED" || status === "COMPLETED_WITH_WARNINGS" || status === "FAILED") {
+          return job;
+        }
+        lastError = "";
+      } catch (e: any) {
+        lastError = String(e?.message || e || "Polling failed");
+        setSalesSyncMessage(`${baseMessage}\nPolling warning: ${lastError}`);
+      }
+      await sleep(3000);
+    }
+    throw new Error(lastError || "Sales sync is still running. Please check again shortly.");
+  }
+
   async function syncSalesNow() {
     if (!approverName.trim() || !salesStepUpReady) return;
     setSalesSyncing(true);
     setSalesSyncMessage("");
     try {
-      const res = await apiPost<{ ok?: boolean; duplicate?: boolean; message?: string; processed_count?: number }>(
-        "/api/admin/pos/sales/drive/sync",
-        {
-          approver_name: approverName.trim(),
-          pin: pin.trim(),
-          city_hint: city,
-          max_files: 3,
-        }
-      );
-      if (res?.duplicate) {
-        setSalesSyncMessage("POS files were already synced. Recomputed and reloaded data.");
-      } else {
-        const cnt = Number(res?.processed_count || 0);
-        setSalesSyncMessage(
-          cnt > 0 ? `POS sync completed (${cnt} files processed). Reloaded data.` : "POS sync completed. Reloaded data."
-        );
+      const payload = {
+        approver_name: approverName.trim(),
+        pin: pin.trim(),
+        city_hint: salesCity,
+      };
+      const start = await apiPost<PosSyncJobResp>("/api/admin/pos/sync/start", payload);
+      const job = start?.job;
+      if (!job?.id) {
+        throw new Error(String(start?.message || "POS sync job could not be started"));
       }
-      await loadAll();
+      const baseMessage = String(start?.message || "").trim();
+      setSalesSyncMessage(formatPosSyncJobMessage(job, baseMessage));
+      const finalJob = await waitForSalesSyncJob(job.id, baseMessage);
+      const finalStatus = String(finalJob.status || "").toUpperCase();
+      const finalMessage = formatPosSyncJobMessage(finalJob, baseMessage);
+      if (finalStatus === "COMPLETED" || finalStatus === "COMPLETED_WITH_WARNINGS") {
+        setSalesSyncMessage(await reloadSalesAfterSync(finalMessage));
+      } else {
+        setSalesSyncMessage(finalMessage);
+      }
     } catch (e: any) {
       setSalesSyncMessage(String(e?.message || e || "POS sync failed"));
     } finally {
       setSalesSyncing(false);
-    }
-  }
-
-  async function syncHourlySalesNow() {
-    if (!approverName.trim() || !salesStepUpReady) return;
-    setHourlySyncing(true);
-    setHourlySyncMessage("");
-    try {
-      const res = await apiPost<{ ok?: boolean; duplicate?: boolean; processed_count?: number; month_keys?: string[] }>(
-        "/api/admin/pos/hourly/drive/sync",
-        {
-          approver_name: approverName.trim(),
-          pin: pin.trim(),
-          city_hint: city,
-          max_files: 12,
-        }
-      );
-      const cnt = Number(res?.processed_count || 0);
-      const months = Array.isArray(res?.month_keys) ? res.month_keys.filter(Boolean).join(", ") : "";
-      if (res?.duplicate) {
-        setHourlySyncMessage(months ? `Hourly files already synced (${months}). Reloaded data.` : "Hourly files already synced. Reloaded data.");
-      } else {
-        setHourlySyncMessage(
-          cnt > 0
-            ? `Hourly sync completed (${cnt} files${months ? `, ${months}` : ""}). Reloaded data.`
-            : "Hourly sync completed. Reloaded data."
-        );
-      }
-      await loadAll("sales");
-    } catch (e: any) {
-      setHourlySyncMessage(String(e?.message || e || "Hourly sync failed"));
-    } finally {
-      setHourlySyncing(false);
-    }
-  }
-
-  async function syncOperationTimeNow() {
-    if (!approverName.trim() || !salesStepUpReady) return;
-    setOperationTimeSyncing(true);
-    setOperationTimeSyncMessage("");
-    try {
-      const res = await apiPost<{ ok?: boolean; duplicate?: boolean; processed_count?: number; work_dates?: string[] }>(
-        "/api/admin/pos/operation-time/drive/sync",
-        {
-          approver_name: approverName.trim(),
-          pin: pin.trim(),
-          city_hint: city,
-          max_files: 240,
-        }
-      );
-      const cnt = Number(res?.processed_count || 0);
-      const dates = Array.isArray(res?.work_dates) ? res.work_dates.filter(Boolean) : [];
-      const windowLabel =
-        dates.length > 1 ? `${dates[0]} -> ${dates[dates.length - 1]}` : dates.length === 1 ? dates[0] : "";
-      if (res?.duplicate) {
-        setOperationTimeSyncMessage(
-          windowLabel ? `Operation time images already synced (${windowLabel}). Reloaded data.` : "Operation time images already synced. Reloaded data."
-        );
-      } else {
-        setOperationTimeSyncMessage(
-          cnt > 0
-            ? `Operation time sync completed (${cnt} files${windowLabel ? `, ${windowLabel}` : ""}). Reloaded data.`
-            : "Operation time sync completed. Reloaded data."
-        );
-      }
-      await loadAll("sales");
-    } catch (e: any) {
-      setOperationTimeSyncMessage(String(e?.message || e || "Operation time sync failed"));
-    } finally {
-      setOperationTimeSyncing(false);
     }
   }
 
@@ -3200,7 +3506,7 @@ export default function AdminAnalyticsPage() {
       { value: "RamenZEN", label: "RamenZEN" },
       { value: "All Veggie Sushi", label: "All Veggie Sushi" },
     ];
-    if (city === "dubai") return fixedDubaiBrands;
+    if (salesCity === "dubai") return fixedDubaiBrands;
     const fromApi = posBrandOrderRows
       .map((row) => String(row.brand_name || "").trim())
       .filter(Boolean);
@@ -3209,7 +3515,7 @@ export default function AdminAnalyticsPage() {
         .sort((a, b) => a.localeCompare(b))
         .map((name) => ({ value: name, label: name })),
     );
-  }, [city, posBrandOrderRows]);
+  }, [salesCity, posBrandOrderRows]);
 
   const plStoreOptions = useMemo(() => {
     const fromPl = (plVsTarget?.available_stores || []).map((s) => String(s || "").trim()).filter(Boolean);
@@ -3243,19 +3549,19 @@ export default function AdminAnalyticsPage() {
   const hourlyStoreOptions = useMemo(() => {
     const fromApi = (hourlySalesAnalytics?.available_stores || []).map((s) => String(s || "").trim()).filter(Boolean);
     const fromPos = posBranchOrderRows.map((r) => String(r.branch_name || "").trim()).filter(Boolean);
-    const fromBranchConfig = (BRANCH_OPTIONS[city] || [])
+    const fromBranchConfig = (BRANCH_OPTIONS[salesCity] || [])
       .filter((opt) => opt.value)
       .map((opt) => opt.label);
-    if (city === "dubai") {
+    if (salesCity === "dubai") {
       return DUBAI_PL_SCOPE_CODES.map((code) => ({
-        value: branchLabelFromCode(code, city),
-        label: branchLabelFromCode(code, city),
+        value: branchLabelFromCode(code, salesCity),
+        label: branchLabelFromCode(code, salesCity),
       }));
     }
-    return Array.from(new Set([...fromApi, ...fromPos, ...fromBranchConfig].filter((name) => isStoreInCity(name, city))))
+    return Array.from(new Set([...fromApi, ...fromPos, ...fromBranchConfig].filter((name) => isStoreInCity(name, salesCity))))
       .sort((a, b) => a.localeCompare(b))
       .map((name) => ({ value: name, label: name }));
-  }, [city, hourlySalesAnalytics?.available_stores, posBranchOrderRows]);
+  }, [salesCity, hourlySalesAnalytics?.available_stores, posBranchOrderRows]);
 
   const hourlySummary = useMemo(() => {
     const totals = hourlySalesAnalytics?.totals;
@@ -3373,7 +3679,7 @@ export default function AdminAnalyticsPage() {
     return rows;
   }, [staffSummaryRows, staffSortBy]);
 
-  const exportBaseName = `${city}_${summaryDateFrom}_to_${summaryDateTo}${summaryBrandName ? `_${summaryBrandName.replace(/\s+/g, "_")}` : ""}${summaryBranchCode ? `_${summaryBranchCode}` : ""}`;
+  const exportBaseName = `${isSalesAnalyticsTab ? salesCity : city}_${summaryDateFrom}_to_${summaryDateTo}${summaryBrandName ? `_${summaryBrandName.replace(/\s+/g, "_")}` : ""}${summaryBranchCode ? `_${summaryBranchCode}` : ""}`;
 
   const branchDailyExportRows = useMemo(
     () =>
@@ -3483,231 +3789,229 @@ export default function AdminAnalyticsPage() {
     [posMenuRankingRows]
   );
   const hasComparisonRows = comparisonRows.length > 0;
+  const pageTitle =
+    analyticsTab === "staff"
+      ? "Analytics"
+      : analyticsTab === "dubaiSales"
+        ? "Dubai Sales Analytics"
+        : analyticsTab === "manilaSales"
+          ? "Manila Sales Analytics"
+          : analyticsTab === "procurement"
+            ? "Procurement Analytics"
+            : analyticsTab === "evaluation"
+              ? "Evaluation Channel"
+              : "Management P&L Channel";
+  const analyticsTabs: Array<{
+    key: "staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement";
+    label: string;
+    visible: boolean;
+  }> = [
+    { key: "staff", label: "Analytics", visible: canViewStaffChannel },
+    { key: "dubaiSales", label: "Dubai Sales Analytics", visible: canViewDubaiSalesChannel && canViewFinanceChannels },
+    { key: "manilaSales", label: "Manila Sales Analytics", visible: canViewManilaSalesChannel && canViewFinanceChannels },
+    { key: "evaluation", label: "Evaluation", visible: canViewEvaluationChannel && canViewFinanceChannels },
+    { key: "finance", label: "Management P&L", visible: canViewManagementPlChannel },
+    { key: "procurement", label: "Procurement Analytics", visible: canViewFinanceChannels },
+  ];
+  const passkeyCount = Number(auth?.mfa?.passkeyCount || 0);
+  const totpStatus = auth?.mfa?.totpEnabled ? "Enabled" : "Not set";
+  const backupCount = Number(auth?.mfa?.backupCodesRemaining || 0);
+  const mfaRequired = !activeSecuritySatisfied && activeSecurityRequirement !== "Login";
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-white">
-      <div className="mx-auto flex min-h-screen max-w-7xl flex-col justify-center px-6 py-10">
-        <div className="rounded-3xl border border-neutral-800 bg-neutral-900/60 p-8 shadow-2xl">
-          <div className="flex flex-col items-start text-left">
-            <h1 className="text-3xl font-bold">
-              {analyticsTab === "staff"
-                ? "Analytics"
-                : analyticsTab === "sales"
-                  ? "Sales Analytics"
-                  : analyticsTab === "evaluation"
-                    ? "Evaluation Channel"
-                    : "Management P&L Channel"}
-            </h1>
-            <p className="mt-2 text-sm text-neutral-400">
-              Unified operations analytics across attendance, sales, evaluation, payroll, and management finance.
-            </p>
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              {canViewStaffChannel ? (
-                <button
-                  type="button"
-                  onClick={() => setAnalyticsTab("staff")}
-                  className={[
-                    "rounded-xl border px-4 py-2 text-sm font-semibold transition",
-                    analyticsTab === "staff"
-                      ? "border-amber-500 bg-amber-950/25 text-amber-200"
-                      : "border-neutral-700 bg-neutral-950/40 text-neutral-200 hover:bg-neutral-900 hover:text-white",
-                  ].join(" ")}
-                >
-                  Analytics
-                </button>
-              ) : null}
-              {canViewFinanceChannels ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setError("");
-                      setAnalyticsTab("sales");
-                    }}
-                    className={[
-                      "rounded-xl border px-4 py-2 text-sm font-semibold transition",
-                      analyticsTab === "sales"
-                        ? "border-emerald-500 bg-emerald-950/25 text-emerald-200"
-                        : "border-neutral-700 bg-neutral-950/40 text-neutral-200 hover:bg-neutral-900 hover:text-white",
-                    ].join(" ")}
-                  >
-                    Sales Analytics
-                  </button>
-                  {canViewEvaluationChannel ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setError("");
-                        setAnalyticsTab("evaluation");
-                      }}
-                      className={[
-                        "rounded-xl border px-4 py-2 text-sm font-semibold transition",
-                        analyticsTab === "evaluation"
-                          ? "border-sky-500 bg-sky-950/25 text-sky-200"
-                          : "border-neutral-700 bg-neutral-950/40 text-neutral-200 hover:bg-neutral-900 hover:text-white",
-                      ].join(" ")}
-                    >
-                      Evaluation
-                    </button>
-                  ) : null}
-                  {canViewManagementPlChannel ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setError("");
-                      setAnalyticsTab("finance");
-                    }}
-                    className={[
-                      "rounded-xl border px-4 py-2 text-sm font-semibold transition",
-                      analyticsTab === "finance"
-                        ? "border-violet-500 bg-violet-950/25 text-violet-200"
-                        : "border-neutral-700 bg-neutral-950/40 text-neutral-200 hover:bg-neutral-900 hover:text-white",
-                    ].join(" ")}
-                  >
-                    Management P&L
-                  </button>
-                  ) : null}
-                </>
-              ) : null}
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="mx-auto max-w-5xl space-y-6 px-4 py-8"
+    >
+        <motion.div
+          key={analyticsTab}
+          className="space-y-6"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={tabContentTransition}
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-violet-500/20 bg-gradient-to-br from-violet-500/20 to-purple-500/10">
+              <BarChart2 className="h-5 w-5 text-violet-400" />
+            </div>
+            <div>
+              <h1 className={PAGE_TITLE}>{pageTitle}</h1>
+              <p className={SUBTEXT}>
+                Unified operations analytics across attendance, sales, evaluation, payroll, and management finance.
+              </p>
             </div>
           </div>
 
+          <div className={TAB_CONTAINER}>
+            {analyticsTabs.filter((tab) => tab.visible).map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => {
+                  setError("");
+                  setAnalyticsTab(tab.key);
+                }}
+                className={analyticsTab === tab.key ? TAB_ACTIVE : TAB_INACTIVE}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
           {error ? (
-            <div className="mt-6 rounded-2xl border border-amber-800/70 bg-amber-950/30 px-4 py-3 text-sm text-amber-100">
+            <div className={`${HIGHLIGHT_CARD} px-4 py-3 text-sm text-amber-100`}>
               {error}
             </div>
           ) : null}
 
-          {canViewSalesChannel || canViewManagementPlChannel ? (
-            <div className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div className="space-y-1">
-                  <div className="text-sm font-semibold">Security</div>
-                  <div className="text-xs text-neutral-400">
-                    Passkeys are recommended. Sales, Evaluation, and Management P&amp;L require recent MFA.
-                  </div>
-                  <div className="text-xs text-neutral-500">
-                    Passkeys: {Number(auth?.mfa?.passkeyCount || 0)} | TOTP: {auth?.mfa?.totpEnabled ? "Enabled" : "Not set"} | Backup codes: {Number(auth?.mfa?.backupCodesRemaining || 0)}
-                  </div>
-                  <div className="text-xs text-neutral-500">
-                    Current verification: {auth?.stepUpLevel || "aal1"}{auth?.stepUpMethod ? ` via ${auth.stepUpMethod}` : ""}{auth?.stepUpVerifiedAt ? ` at ${auth.stepUpVerifiedAt}` : ""}
-                  </div>
-                  <div className={`text-xs ${activeSecuritySatisfied ? "text-emerald-300" : "text-amber-300"}`}>
-                    {activeSecuritySatisfied ? `Access ready for ${analyticsTab === "finance" ? "Management P&L" : analyticsTab === "staff" ? "Analytics" : analyticsTab === "evaluation" ? "Evaluation" : "Sales Analytics"}.` : `This tab needs ${activeSecurityRequirement}.`}
-                  </div>
-                </div>
+          {!hasVisibleAnalyticsChannel ? (
+            <div className={`${HIGHLIGHT_CARD} px-4 py-3 text-sm text-amber-100`}>
+              No analytics channels are available for your current role. If you need access, please contact HQ or ADMIN.
+            </div>
+          ) : null}
 
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void enrollPasskey()}
-                    disabled={securityBusy}
-                    className="rounded-xl border border-neutral-700 bg-neutral-950/60 px-3 py-2 text-xs font-medium text-neutral-100 hover:bg-neutral-900 disabled:opacity-60"
-                  >
-                    Enroll Passkey
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void beginTotpEnrollment()}
-                    disabled={securityBusy}
-                    className="rounded-xl border border-neutral-700 bg-neutral-950/60 px-3 py-2 text-xs font-medium text-neutral-100 hover:bg-neutral-900 disabled:opacity-60"
-                  >
-                    Enroll TOTP
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void regenerateBackupCodes()}
-                    disabled={securityBusy}
-                    className="rounded-xl border border-neutral-700 bg-neutral-950/60 px-3 py-2 text-xs font-medium text-neutral-100 hover:bg-neutral-900 disabled:opacity-60"
-                  >
-                    Backup Codes
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      clearStepUpAuth();
-                      setStepUpVerifiedThisVisit(false);
-                      setAuthState(getAuth());
-                      setSecurityMessage("Security verification cleared.");
-                    }}
-                    disabled={securityBusy}
-                    className="rounded-xl border border-neutral-700 bg-neutral-950/60 px-3 py-2 text-xs font-medium text-neutral-100 hover:bg-neutral-900 disabled:opacity-60"
-                  >
-                    Clear Verification
-                  </button>
+          {canViewSalesChannel || canViewManagementPlChannel ? (
+            <div className={GLASS_CARD + " p-5"}>
+              <div className="mb-3 flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-violet-400" />
+                <h2 className={SECTION_TITLE}>Security</h2>
+              </div>
+              <p className={BODY_TEXT + " mb-1"}>
+                Passkeys are recommended. Sales, Evaluation, and Management P&amp;L require recent MFA.
+              </p>
+              <p className={SUBTEXT + " mb-1"}>
+                Passkeys: {passkeyCount} | TOTP: {totpStatus} | Backup codes: {backupCount}
+              </p>
+              <p className={SUBTEXT + " mb-3"}>
+                Current verification: {auth?.stepUpLevel || "aal1"}
+                {auth?.stepUpMethod ? ` via ${auth.stepUpMethod}` : ""}
+                {auth?.stepUpVerifiedAt ? ` at ${auth.stepUpVerifiedAt}` : ""}
+              </p>
+
+              {mfaRequired ? (
+                <div className={BADGE_WARNING + " mb-4 px-3 py-1.5 text-xs"}>
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  This tab needs MFA (Passkey, TOTP, Backup code, or PIN step-up).
                 </div>
+              ) : (
+                <div className={BADGE_SUCCESS + " mb-4 px-3 py-1.5 text-xs"}>
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Access ready for {pageTitle}.
+                </div>
+              )}
+
+              <div className="mb-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void enrollPasskey()}
+                  disabled={securityBusy}
+                  className={SECONDARY_BUTTON + " flex items-center gap-2 text-sm"}
+                >
+                  <KeyRound className="h-3.5 w-3.5" />
+                  Enroll Passkey
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void beginTotpEnrollment()}
+                  disabled={securityBusy}
+                  className={SECONDARY_BUTTON + " flex items-center gap-2 text-sm"}
+                >
+                  <Smartphone className="h-3.5 w-3.5" />
+                  Enroll TOTP
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void regenerateBackupCodes()}
+                  disabled={securityBusy}
+                  className={SECONDARY_BUTTON + " flex items-center gap-2 text-sm"}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  Backup Codes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearStepUpAuth();
+                    setStepUpVerifiedThisVisit(false);
+                    setAuthState(getAuth());
+                    setSecurityMessage("Security verification cleared.");
+                  }}
+                  disabled={securityBusy}
+                  className={DANGER_BUTTON + " flex items-center gap-2 text-sm"}
+                >
+                  <ShieldOff className="h-3.5 w-3.5" />
+                  Clear Verification
+                </button>
               </div>
 
-              {!activeSecuritySatisfied ? (
-                <div className="mt-4 grid gap-3 lg:grid-cols-4">
-                  <button
-                    type="button"
-                    onClick={() => void runPasskeyStepUp()}
-                    disabled={securityBusy}
-                    className="rounded-xl border border-emerald-800 bg-emerald-950/30 px-3 py-2 text-sm font-semibold text-emerald-200 hover:bg-emerald-950/40 disabled:opacity-60"
-                  >
-                    Verify With Passkey
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void runPinStepUp()}
-                    disabled={securityBusy}
-                    className="rounded-xl border border-neutral-700 bg-neutral-950/60 px-3 py-2 text-sm font-semibold text-neutral-100 hover:bg-neutral-900 disabled:opacity-60"
-                  >
-                    Verify With PIN
-                  </button>
-                  <div className="flex gap-2">
-                    <input
-                      value={totpCode}
-                      onChange={(e) => setTotpCode(e.target.value)}
-                      placeholder="TOTP code"
-                      className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void runTotpStepUp()}
-                      disabled={securityBusy}
-                      className="rounded-xl border border-neutral-700 bg-neutral-950/60 px-3 py-2 text-xs font-medium text-neutral-100 hover:bg-neutral-900 disabled:opacity-60"
-                    >
-                      Verify
-                    </button>
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      value={backupCode}
-                      onChange={(e) => setBackupCode(e.target.value)}
-                      placeholder="Backup code"
-                      className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void runBackupCodeStepUp()}
-                      disabled={securityBusy}
-                      className="rounded-xl border border-neutral-700 bg-neutral-950/60 px-3 py-2 text-xs font-medium text-neutral-100 hover:bg-neutral-900 disabled:opacity-60"
-                    >
-                      Use
-                    </button>
-                  </div>
-                </div>
-              ) : null}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void runPasskeyStepUp()}
+                  disabled={securityBusy}
+                  className={PRIMARY_BUTTON + " flex items-center gap-2 text-sm"}
+                >
+                  <Fingerprint className="h-4 w-4" />
+                  Verify With Passkey
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void runPinStepUp()}
+                  disabled={securityBusy}
+                  className={SECONDARY_BUTTON + " flex items-center gap-2 text-sm"}
+                >
+                  <Lock className="h-4 w-4" />
+                  Verify With PIN
+                </button>
+                <input
+                  value={totpCode}
+                  onChange={(e) => setTotpCode(e.target.value)}
+                  placeholder="TOTP code"
+                  className={INPUT_CLASS + " max-w-[140px]"}
+                />
+                <button
+                  type="button"
+                  onClick={() => void runTotpStepUp()}
+                  disabled={securityBusy}
+                  className={SMALL_BUTTON}
+                >
+                  Verify
+                </button>
+                <input
+                  value={backupCode}
+                  onChange={(e) => setBackupCode(e.target.value)}
+                  placeholder="Backup code"
+                  className={INPUT_CLASS + " max-w-[140px]"}
+                />
+                <button
+                  type="button"
+                  onClick={() => void runBackupCodeStepUp()}
+                  disabled={securityBusy}
+                  className={SMALL_BUTTON}
+                >
+                  Use
+                </button>
+              </div>
 
               {totpEnrollment ? (
-                <div className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900/40 p-3">
-                  <div className="text-xs font-semibold text-neutral-200">TOTP Enrollment</div>
-                  <div className="mt-1 break-all text-xs text-neutral-400">Secret: {totpEnrollment.secret}</div>
-                  <div className="mt-1 break-all text-xs text-neutral-500">{totpEnrollment.otpauthUri}</div>
+                <div className={`mt-4 p-3 ${GLASS_CARD}`}>
+                  <div className={CARD_TITLE}>TOTP Enrollment</div>
+                  <div className={`mt-1 break-all ${BODY_TEXT}`}>Secret: {totpEnrollment.secret}</div>
+                  <div className={`mt-1 break-all ${SUBTEXT}`}>{totpEnrollment.otpauthUri}</div>
                   <div className="mt-3 flex gap-2">
                     <input
                       value={totpEnrollmentCode}
                       onChange={(e) => setTotpEnrollmentCode(e.target.value)}
                       placeholder="Enter code from authenticator"
-                      className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                      className={INPUT_CLASS}
                     />
                     <button
                       type="button"
                       onClick={() => void verifyTotpEnrollment()}
                       disabled={securityBusy}
-                      className="rounded-xl border border-neutral-700 bg-neutral-950/60 px-3 py-2 text-xs font-medium text-neutral-100 hover:bg-neutral-900 disabled:opacity-60"
+                      className={SMALL_BUTTON}
                     >
                       Confirm
                     </button>
@@ -3716,11 +4020,11 @@ export default function AdminAnalyticsPage() {
               ) : null}
 
               {backupCodes.length ? (
-                <div className="mt-4 rounded-xl border border-neutral-800 bg-neutral-900/40 p-3">
-                  <div className="text-xs font-semibold text-neutral-200">Backup Codes</div>
+                <div className={`mt-4 p-3 ${GLASS_CARD}`}>
+                  <div className={CARD_TITLE}>Backup Codes</div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {backupCodes.map((code) => (
-                      <span key={code} className="rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1 font-mono text-xs text-neutral-200">
+                      <span key={code} className="rounded-lg border border-white/10 bg-white/6 px-2 py-1 font-mono text-xs text-neutral-200">
                         {code}
                       </span>
                     ))}
@@ -3734,14 +4038,17 @@ export default function AdminAnalyticsPage() {
           ) : null}
 
           {analyticsTab === "staff" && canViewStaffChannel ? (
-          <div className="mt-8 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className={GLASS_CARD + " p-5"}>
+              <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
               <div>
-                <div className="text-sm font-semibold">Compliance Analytics Period</div>
-                <div className="mt-1 text-xs text-neutral-500">
+                <div className="mb-1 flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-400" />
+                  <h2 className={SECTION_TITLE}>Compliance Analytics Period</h2>
+                </div>
+                <div className={BODY_TEXT}>
                   Period for late, problem absence, overtime, missing punch, rankings, and individual staff analytics.
                 </div>
-                <div className="mt-1 text-[11px] text-neutral-500">
+                <div className={SUBTEXT + " mt-1"}>
                   This period affects only the Compliance section.
                 </div>
               </div>
@@ -3750,19 +4057,20 @@ export default function AdminAnalyticsPage() {
                 type="button"
                 onClick={loadComparison}
                 disabled={comparisonLoading || !approverName.trim() || !salesStepUpReady}
-                className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
+                className={PRIMARY_BUTTON + " flex items-center gap-2 text-sm whitespace-nowrap"}
               >
-                {comparisonLoading ? "Loading..." : "Refresh Compliance"}
+                <RefreshCw className="h-3.5 w-3.5" />
+                {comparisonLoading ? <span className="inline-flex items-center gap-2"><Spinner size="sm" /> Loading...</span> : "Refresh Compliance"}
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div>
-                <div className="mb-1 text-xs text-neutral-400">City</div>
+                <div className={LABEL_TEXT + " mb-1.5 block"}>City</div>
                 <select
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                  className={SELECT_CLASS}
                 >
                   <option value="dubai">Dubai</option>
                   <option value="manila">Manila</option>
@@ -3770,77 +4078,30 @@ export default function AdminAnalyticsPage() {
               </div>
 
               <div>
-                <div className="mb-1 text-xs text-neutral-400">Date From</div>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => handleDateFromChange(e.target.value)}
-                  onInput={(e) => handleDateFromChange(e.currentTarget.value)}
-                  max={dateTo || undefined}
-                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                <div className={LABEL_TEXT + " mb-1.5 block"}>Compliance Range</div>
+                <DateRangePicker
+                  value={{ from: dateFrom, to: dateTo }}
+                  onChange={(range) => {
+                    handleDateFromChange(range.from);
+                    handleDateToChange(range.to);
+                  }}
                 />
-                <div className="mt-1 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => shiftComplianceDateFromMonth(-1)}
-                    className="rounded-lg border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-[11px] text-neutral-300 hover:bg-neutral-900"
-                  >
-                    -1M
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => shiftComplianceDateFromMonth(1)}
-                    className="rounded-lg border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-[11px] text-neutral-300 hover:bg-neutral-900"
-                  >
-                    +1M
-                  </button>
-                </div>
               </div>
 
               <div>
-                <div className="mb-1 text-xs text-neutral-400">Date To</div>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => handleDateToChange(e.target.value)}
-                  onInput={(e) => handleDateToChange(e.currentTarget.value)}
-                  min={dateFrom || undefined}
-                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
-                />
-                <div className="mt-1 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => shiftComplianceDateToMonth(-1)}
-                    className="rounded-lg border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-[11px] text-neutral-300 hover:bg-neutral-900"
-                  >
-                    -1M
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => shiftComplianceDateToMonth(1)}
-                    className="rounded-lg border border-neutral-800 bg-neutral-950/40 px-2 py-1 text-[11px] text-neutral-300 hover:bg-neutral-900"
-                  >
-                    +1M
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <div className="mb-1 text-xs text-neutral-400">Month Quick Select</div>
-                <input
-                  type="month"
+                <div className={LABEL_TEXT + " mb-1.5 block"}>Month Quick Select</div>
+                <MonthPicker
                   value={complianceMonthKey}
-                  onChange={(e) => handleComplianceMonthChange(e.target.value)}
-                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                  onChange={handleComplianceMonthChange}
                 />
               </div>
 
               <div>
-                <div className="mb-1 text-xs text-neutral-400">Compliance Branch</div>
+                <div className={LABEL_TEXT + " mb-1.5 block"}>Compliance Branch</div>
                 <select
                   value={branchCode}
                   onChange={(e) => setBranchCode(e.target.value)}
-                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                  className={SELECT_CLASS}
                 >
                   {(BRANCH_OPTIONS[city] || [{ value: "", label: "All Branches" }]).map((opt) => (
                     <option key={opt.value || "ALL"} value={opt.value}>
@@ -3848,15 +4109,6 @@ export default function AdminAnalyticsPage() {
                     </option>
                   ))}
                 </select>
-              </div>
-
-              <div>
-                <div className="mb-1 text-xs text-neutral-400">Comparison Limit</div>
-                <input
-                  value={comparisonLimit}
-                  onChange={(e) => setComparisonLimit(e.target.value)}
-                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
-                />
               </div>
             </div>
 
@@ -3868,7 +4120,7 @@ export default function AdminAnalyticsPage() {
                   setDateTo(todayIso());
                   setDateFrom(addDaysIso(now, -29));
                 }}
-                className="rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-xs font-semibold text-white hover:bg-neutral-900"
+                className={SMALL_BUTTON}
               >
                 Last 30 Days
               </button>
@@ -3880,38 +4132,46 @@ export default function AdminAnalyticsPage() {
                   setDateFrom(first.toISOString().slice(0, 10));
                   setDateTo(todayIso());
                 }}
-                className="rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-xs font-semibold text-white hover:bg-neutral-900"
+                className={SMALL_BUTTON}
               >
                 This Month
               </button>
               <button
                 type="button"
                 onClick={() => setBranchCode("")}
-                className="rounded-xl border border-neutral-700 bg-neutral-950/40 px-3 py-2 text-xs font-semibold text-neutral-200 hover:bg-neutral-900"
+                className={SMALL_BUTTON}
               >
                 Clear Compliance Branch
               </button>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <div className="mb-1 text-xs text-neutral-400">Approver Name</div>
+                <div className={LABEL_TEXT + " mb-1.5 block"}>Approver Name</div>
                 <input
                   value={approverName}
                   onChange={(e) => setApproverName(e.target.value)}
-                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                  className={INPUT_CLASS}
                 />
               </div>
               <div>
-                <div className="mb-1 text-xs text-neutral-400">Session</div>
+                <div className={LABEL_TEXT + " mb-1.5 block"}>Session PIN</div>
                 <input
                   type="password"
                   value={pin}
                   onChange={(e) => setPin(e.target.value)}
                   placeholder="Enter your PIN"
-                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                  className={INPUT_CLASS}
                 />
               </div>
+            </div>
+            <div className="mt-4">
+              <label className={LABEL_TEXT + " block mb-1.5"}>Comparison Limit</label>
+              <input
+                value={comparisonLimit}
+                onChange={(e) => setComparisonLimit(e.target.value)}
+                className={INPUT_CLASS + " max-w-[120px]"}
+              />
             </div>
 
             {comparisonError ? (
@@ -3925,49 +4185,44 @@ export default function AdminAnalyticsPage() {
               </div>
             ) : null}
 
-            <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-6">
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">Late Staff</div>
-                <div className="mt-1 text-2xl font-bold">
-                  {!comparisonLoadedOnce ? "-" : comparisonError ? "Failed" : comparisonSummary.lateStaffCount}
-                </div>
-              </div>
+            <motion.div
+              className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-6"
+              variants={staggerContainerVariants}
+              initial="hidden"
+              animate="visible"
+            >
+              <motion.div className={KPI_CARD} variants={cardVariants}>
+                <div className={KPI_LABEL}>Late Staff</div>
+                <MetricValue value={!comparisonLoadedOnce ? "-" : comparisonError ? "Failed" : comparisonSummary.lateStaffCount} />
+              </motion.div>
 
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">Late Count</div>
-                <div className="mt-1 text-2xl font-bold">
-                  {!comparisonLoadedOnce ? "-" : comparisonError ? "Failed" : comparisonSummary.lateEventCount}
-                </div>
-              </div>
+              <motion.div className={KPI_CARD} variants={cardVariants}>
+                <div className={KPI_LABEL}>Late Count</div>
+                <MetricValue value={!comparisonLoadedOnce ? "-" : comparisonError ? "Failed" : comparisonSummary.lateEventCount} />
+              </motion.div>
 
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">Total Late Minutes</div>
-                <div className="mt-1 text-2xl font-bold">
-                  {!comparisonLoadedOnce ? "-" : comparisonError ? "Failed" : fmtMinutes(comparisonSummary.lateMinutes)}
-                </div>
-              </div>
+              <motion.div className={KPI_CARD} variants={cardVariants}>
+                <div className={KPI_LABEL}>Total Late Minutes</div>
+                <MetricValue value={!comparisonLoadedOnce ? "-" : comparisonError ? "Failed" : comparisonSummary.lateMinutes} unit="min" />
+              </motion.div>
 
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">Problem Absence Staff</div>
-                <div className="mt-1 text-2xl font-bold">
-                  {!comparisonLoadedOnce ? "-" : comparisonError ? "Failed" : comparisonSummary.problemAbsentStaffCount}
-                </div>
-              </div>
+              <motion.div className={KPI_CARD} variants={cardVariants}>
+                <div className={KPI_LABEL}>Problem Absence Staff</div>
+                <MetricValue value={!comparisonLoadedOnce ? "-" : comparisonError ? "Failed" : comparisonSummary.problemAbsentStaffCount} />
+              </motion.div>
 
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">Total OT</div>
-                <div className="mt-1 text-2xl font-bold">
-                  {!comparisonLoadedOnce ? "-" : comparisonError ? "Failed" : fmtMinutes(comparisonSummary.overtimeMinutes)}
-                </div>
-              </div>
+              <motion.div className={KPI_CARD} variants={cardVariants}>
+                <div className={KPI_LABEL}>Total OT</div>
+                <MetricValue value={!comparisonLoadedOnce ? "-" : comparisonError ? "Failed" : comparisonSummary.overtimeMinutes} unit="min" />
+              </motion.div>
 
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="text-xs text-neutral-500">Missing IN / OUT</div>
-                <div className="mt-1 text-lg font-bold">
+              <motion.div className={KPI_CARD} variants={cardVariants}>
+                <div className={KPI_LABEL}>Missing IN / OUT</div>
+                <div className="mt-1 text-xl font-bold text-white">
                   {!comparisonLoadedOnce ? "-" : comparisonError ? "Failed" : `${comparisonSummary.missingInCount} / ${comparisonSummary.missingOutCount}`}
                 </div>
-              </div>
-            </div>
+              </motion.div>
+            </motion.div>
             <div className="mt-2 text-xs text-neutral-400">
               Strict Late (PRESENT + Check In): Staff{" "}
               <span className="text-neutral-200">
@@ -3983,17 +4238,20 @@ export default function AdminAnalyticsPage() {
               </span>
             </div>
             {comparisonLoadedOnce && !comparisonError && !comparisonNotice && !hasComparisonRows ? (
-              <div className="mt-3 rounded-2xl border border-neutral-800 bg-neutral-950/30 px-4 py-3 text-xs text-neutral-400">
-                No comparison rows for this compliance period/filter. Try another branch or date range.
+              <div className="mt-3 rounded-2xl border border-neutral-800 bg-neutral-950/30 px-4 py-1">
+                <EmptyState message="No comparison rows for this compliance period/filter. Try another branch or date range." />
               </div>
             ) : null}
 
-            <div className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
-              <div className="mb-3 text-sm font-semibold">Individual Search</div>
+            <div className={GLASS_CARD + " mt-6 p-5"}>
+              <div className="mb-4 flex items-center gap-2">
+                <Search className="h-4 w-4 text-violet-400" />
+                <h2 className={SECTION_TITLE}>Individual Search</h2>
+              </div>
               <select
                 value={staffSearch}
                 onChange={(e) => setStaffSearch(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                className={SELECT_CLASS + " mb-4"}
               >
                 <option value="">Select staff</option>
                 {staffSelectOptions.map((name) => (
@@ -4004,30 +4262,30 @@ export default function AdminAnalyticsPage() {
               </select>
 
               {staffSearch.trim() ? (
-                <div className="mt-4 overflow-x-auto">
+                <div className="overflow-hidden rounded-xl border border-white/8">
                   <table className="min-w-full text-left text-sm">
-                    <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                    <thead className="bg-white/3">
                       <tr>
-                        <th className="px-3 py-2">Staff</th>
-                        <th className="px-3 py-2">Late Count</th>
-                        <th className="px-3 py-2">Late Minutes</th>
-                        <th className="px-3 py-2">Problem Absence Days</th>
-                        <th className="px-3 py-2">Total OT</th>
-                        <th className="px-3 py-2">Missing IN</th>
-                        <th className="px-3 py-2">Missing OUT</th>
+                        <th className={TABLE_HEADER + " px-3 py-3 text-left"}>Staff</th>
+                        <th className={TABLE_HEADER + " px-3 py-3 text-left"}>Late Count</th>
+                        <th className={TABLE_HEADER + " px-3 py-3 text-left"}>Late Minutes</th>
+                        <th className={TABLE_HEADER + " px-3 py-3 text-left"}>Problem Absence Days</th>
+                        <th className={TABLE_HEADER + " px-3 py-3 text-left"}>Total OT</th>
+                        <th className={TABLE_HEADER + " px-3 py-3 text-left"}>Missing IN</th>
+                        <th className={TABLE_HEADER + " px-3 py-3 text-left"}>Missing OUT</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredStaffAnalyticsRows.length ? (
                         filteredStaffAnalyticsRows.map((row) => (
-                          <tr key={row.staff_name} className="border-b border-neutral-800/70">
-                            <td className="px-3 py-2">{row.staff_name}</td>
-                            <td className="px-3 py-2">{row.late_count}</td>
-                            <td className="px-3 py-2">{fmtMinutes(row.late_minutes)}</td>
-                            <td className="px-3 py-2">{row.problem_absence_days}</td>
-                            <td className="px-3 py-2">{fmtMinutes(row.overtime_minutes)}</td>
-                            <td className="px-3 py-2">{row.missing_in_count}</td>
-                            <td className="px-3 py-2">{row.missing_out_count}</td>
+                          <tr key={row.staff_name} className={TABLE_ROW}>
+                            <td className={TABLE_CELL + " px-3"}>{row.staff_name}</td>
+                            <td className={TABLE_CELL + " px-3"}>{row.late_count}</td>
+                            <td className={TABLE_CELL + " px-3"}>{fmtMinutes(row.late_minutes)}</td>
+                            <td className={TABLE_CELL + " px-3"}>{row.problem_absence_days}</td>
+                            <td className={TABLE_CELL + " px-3"}>{fmtMinutes(row.overtime_minutes)}</td>
+                            <td className={TABLE_CELL + " px-3"}>{row.missing_in_count}</td>
+                            <td className={TABLE_CELL + " px-3"}>{row.missing_out_count}</td>
                           </tr>
                         ))
                       ) : (
@@ -4043,7 +4301,7 @@ export default function AdminAnalyticsPage() {
               ) : null}
             </div>
 
-            <div className="mt-6 flex flex-wrap gap-2">
+            <div className={TAB_CONTAINER + " mt-6"}>
               {[
                 ["perfect_attendance", "Perfect Attendance"],
                 ["top_late", "Top 10 Late"],
@@ -4058,20 +4316,15 @@ export default function AdminAnalyticsPage() {
                 <button
                   key={key}
                   onClick={() => setViewMode(key as AnalyticsViewMode)}
-                  className={[
-                    "rounded-xl border px-4 py-2 text-sm transition",
-                    viewMode === key
-                      ? "border-amber-500 bg-amber-950/25 text-amber-200"
-                      : "border-neutral-800 bg-neutral-950/30 text-neutral-200 hover:bg-neutral-900/40 hover:text-white",
-                  ].join(" ")}
+                  className={viewMode === key ? TAB_ACTIVE : TAB_INACTIVE}
                 >
                   {label}
                 </button>
               ))}
             </div>
 
-            <div className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
-              <div className="mb-3 text-sm font-semibold">{currentAnalysisTitle}</div>
+            <div className={GLASS_CARD + " mt-6 p-5"}>
+              <div className={CARD_TITLE + " mb-3"}>{currentAnalysisTitle}</div>
 
               <div className="overflow-x-auto">
                 {viewMode === "perfect_attendance" ? (
@@ -4098,8 +4351,8 @@ export default function AdminAnalyticsPage() {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
-                            No perfect attendance data
+                          <td colSpan={5} className="px-3 py-2">
+                            <EmptyState message="No perfect attendance data" />
                           </td>
                         </tr>
                       )}
@@ -4129,8 +4382,8 @@ export default function AdminAnalyticsPage() {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={4} className="px-3 py-6 text-center text-neutral-500">
-                            No late data
+                          <td colSpan={4} className="px-3 py-2">
+                            <EmptyState message="No late data" />
                           </td>
                         </tr>
                       )}
@@ -4158,8 +4411,8 @@ export default function AdminAnalyticsPage() {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={3} className="px-3 py-6 text-center text-neutral-500">
-                            No absence data
+                          <td colSpan={3} className="px-3 py-2">
+                            <EmptyState message="No absence data" />
                           </td>
                         </tr>
                       )}
@@ -4347,315 +4600,288 @@ export default function AdminAnalyticsPage() {
               </div>
             </div>
           </div>
-          ) : analyticsTab === "sales" ? (
-          <div className="mt-8 space-y-4">
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          ) : isSalesAnalyticsTab ? (
+          <div className="mt-8 space-y-6">
+            <div className={GLASS_CARD + " p-5"}>
+              <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold">Sales Analytics Period</div>
-                  <div className="mt-1 text-xs text-neutral-500">
-                    Net sales, gross revenue, order count, menu ranking, and hourly sales analytics from synced POS
-                    files. Summary cards use the full selected date range; Days w/ sales data is the count of days with
-                    POS rows (not the calendar span).
+                  <div className="mb-1 flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-violet-400" />
+                    <h2 className={SECTION_TITLE}>{isManilaSalesCity ? "Manila Sales Analytics Period" : "Dubai Sales Analytics Period"}</h2>
+                  </div>
+                  <div className={BODY_TEXT + " max-w-2xl"}>
+                    {isManilaSalesCity
+                      ? "Menu sales, channel sales, category sales, payment method, and POS daily report analytics from Manila-specific synced exports."
+                      : "Net sales, gross revenue, order count, hourly sales, operation time, and product mix analytics from synced sales exports. Summary cards use the full selected date range; Days w/ sales data is the count of days with POS rows (not the calendar span)."}
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => loadAll("sales")}
-                    disabled={loading || !approverName.trim() || !salesStepUpReady}
-                    className="rounded-lg bg-white px-2.5 py-1.5 text-[11px] font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
-                  >
-                    {loading ? "Loading..." : "Refresh Sales"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={syncSalesNow}
-                    disabled={salesSyncing || !approverName.trim() || !salesStepUpReady}
-                    className="rounded-lg border border-emerald-700 bg-emerald-950/30 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-200 transition hover:bg-emerald-900/40 disabled:opacity-60"
-                  >
-                    {salesSyncing ? "Syncing..." : "Sync POS from Drive"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={syncHourlySalesNow}
-                    disabled={hourlySyncing || !approverName.trim() || !salesStepUpReady}
-                    className="rounded-lg border border-sky-700 bg-sky-950/30 px-2.5 py-1.5 text-[11px] font-semibold text-sky-200 transition hover:bg-sky-900/40 disabled:opacity-60"
-                  >
-                    {hourlySyncing ? "Syncing..." : "Sync Hourly Sales"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={syncOperationTimeNow}
-                    disabled={operationTimeSyncing || !approverName.trim() || !salesStepUpReady}
-                    className="rounded-lg border border-violet-700 bg-violet-950/30 px-2.5 py-1.5 text-[11px] font-semibold text-violet-200 transition hover:bg-violet-900/40 disabled:opacity-60"
-                  >
-                    {operationTimeSyncing ? "Syncing..." : "Sync Operation Time"}
-                  </button>
+                <div className="flex flex-col items-end gap-2">
+                  {!isManilaSalesCity ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => loadAll("sales")}
+                        disabled={loading || !approverName.trim() || !salesStepUpReady}
+                        className={SECONDARY_BUTTON + " flex items-center gap-2 text-sm whitespace-nowrap"}
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        {loading ? <span className="inline-flex items-center gap-2"><Spinner size="sm" /> Loading...</span> : "Refresh Sales"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={syncSalesNow}
+                        disabled={salesSyncing || !approverName.trim() || !salesStepUpReady}
+                        className={PRIMARY_BUTTON + " flex items-center gap-2 text-sm whitespace-nowrap"}
+                      >
+                        <CloudDownload className="h-3.5 w-3.5" />
+                        {salesSyncing ? "Syncing..." : "Sync Sales Data"}
+                      </button>
+                    </>
+                  ) : null}
                 </div>
               </div>
 
               {!salesStepUpReady ? (
-                <div className="mb-4 rounded-xl border border-amber-800/50 bg-amber-950/20 p-3 text-xs text-amber-100">
-                  <div className="font-semibold">How to unlock Sales Analytics</div>
-                  <div className="mt-1">1) Open the Security section above.</div>
-                  <div>2) Click <span className="font-semibold">Verify With Passkey</span> (recommended), or enter TOTP / Backup code.</div>
-                  <div>3) After verification succeeds, click <span className="font-semibold">Refresh Sales</span>.</div>
+                <div className="mb-5 rounded-xl border border-violet-500/20 bg-violet-500/8 px-4 py-3">
+                  <div className="flex items-start gap-2">
+                    <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-violet-400" />
+                    <div>
+                      <p className="mb-1 text-sm font-semibold text-violet-300">How to unlock {isManilaSalesCity ? "Manila" : "Dubai"} Sales Analytics</p>
+                      <ol className="space-y-0.5">
+                        <li className="flex items-start gap-2 text-sm text-zinc-300">
+                          <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-violet-500/20 text-[10px] font-bold text-violet-400">1</span>
+                          Open the Security section above.
+                        </li>
+                        <li className="flex items-start gap-2 text-sm text-zinc-300">
+                          <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-violet-500/20 text-[10px] font-bold text-violet-400">2</span>
+                          Click <strong className="text-violet-200">Verify With Passkey</strong> (recommended), or enter TOTP / Backup code.
+                        </li>
+                        <li className="flex items-start gap-2 text-sm text-zinc-300">
+                          <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-violet-500/20 text-[10px] font-bold text-violet-400">3</span>
+                          After verification succeeds, click <strong className="text-violet-200">Refresh Sales</strong>.
+                        </li>
+                      </ol>
+                    </div>
+                  </div>
                 </div>
               ) : null}
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
+              <div className={isManilaSalesCity ? "grid grid-cols-1 gap-3 md:grid-cols-3" : "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5"}>
                 <div>
-                  <div className="mb-1 text-xs text-neutral-400">City</div>
-                  <select
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
-                  >
-                    <option value="dubai">Dubai</option>
-                    <option value="manila">Manila</option>
-                  </select>
-                </div>
-                <div>
-                  <div className="mb-1 text-xs text-neutral-400">Summary Date From</div>
-                  <input
-                    type="date"
-                    value={summaryDateFrom}
-                    onChange={(e) => handleSummaryDateFromChange(e.target.value)}
-                    max={summaryDateTo || undefined}
-                    className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                  <div className={LABEL_TEXT + " mb-1.5 block"}>Summary Range</div>
+                  <DateRangePicker
+                    value={{ from: summaryDateFrom, to: summaryDateTo }}
+                    onChange={(range) => {
+                      handleSummaryDateFromChange(range.from);
+                      handleSummaryDateToChange(range.to);
+                    }}
                   />
                 </div>
                 <div>
-                  <div className="mb-1 text-xs text-neutral-400">Summary Date To</div>
-                  <input
-                    type="date"
-                    value={summaryDateTo}
-                    onChange={(e) => handleSummaryDateToChange(e.target.value)}
-                    min={summaryDateFrom || undefined}
-                    className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
-                  />
-                </div>
-                <div>
-                  <div className="mb-1 text-xs text-neutral-400">Month Quick Select</div>
-                  <input
-                    type="month"
+                  <div className={LABEL_TEXT + " mb-1.5 block"}>Month Quick Select</div>
+                  <MonthPicker
                     value={summaryMonthKey}
-                    onChange={(e) => handleSummaryMonthChange(e.target.value)}
-                    className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                    onChange={handleSummaryMonthChange}
                   />
                 </div>
-                <div>
-                  <div className="mb-1 text-xs text-neutral-400">Brand</div>
-                  <select
-                    value={summaryBrandName}
-                    onChange={(e) => setSummaryBrandName(e.target.value)}
-                    className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
-                  >
-                    {salesBrandOptions.map((opt) => (
-                      <option key={opt.value || "ALL"} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <div className="mb-1 text-xs text-neutral-400">Store</div>
-                  <select
-                    value={summaryBranchCode}
-                    onChange={(e) => setSummaryBranchCode(e.target.value)}
-                    className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
-                  >
-                    {(BRANCH_OPTIONS[city] || [{ value: "", label: "All Branches" }]).map((opt) => (
-                      <option key={opt.value || "ALL"} value={opt.value}>
-                        {opt.value ? opt.label : "Company total"}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <div className="mb-1 text-xs text-neutral-400">Hourly Store Scope</div>
-                  <select
-                    value={hourlyStoreName}
-                    onChange={(e) => setHourlyStoreName(e.target.value)}
-                    className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
-                  >
-                    <option value="">Company total</option>
-                    {hourlyStoreOptions.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {!isManilaSalesCity ? (
+                  <>
+                    <div>
+                      <div className={LABEL_TEXT + " mb-1.5 block"}>Brand</div>
+                      <select
+                        value={summaryBrandName}
+                        onChange={(e) => setSummaryBrandName(e.target.value)}
+                        className={SELECT_CLASS}
+                      >
+                        {salesBrandOptions.map((opt) => (
+                          <option key={opt.value || "ALL"} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <div className={LABEL_TEXT + " mb-1.5 block"}>Store</div>
+                      <select
+                        value={summaryBranchCode}
+                        onChange={(e) => setSummaryBranchCode(e.target.value)}
+                        className={SELECT_CLASS}
+                      >
+                        {(BRANCH_OPTIONS[salesCity] || [{ value: "", label: "All Branches" }]).map((opt) => (
+                          <option key={opt.value || "ALL"} value={opt.value}>
+                            {opt.value ? opt.label : "Company total"}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <div className={LABEL_TEXT + " mb-1.5 block"}>Hourly Store Scope</div>
+                      <select
+                        value={hourlyStoreName}
+                        onChange={(e) => setHourlyStoreName(e.target.value)}
+                        className={SELECT_CLASS}
+                      >
+                        <option value="">Company total</option>
+                        {hourlyStoreOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                ) : null}
               </div>
 
-              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <div className="mb-1 text-xs text-neutral-400">Approver Name</div>
+                  <div className={LABEL_TEXT + " mb-1.5 block"}>Approver Name</div>
                   <input
                     value={approverName}
                     onChange={(e) => setApproverName(e.target.value)}
-                    className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                    className={INPUT_CLASS}
                   />
                 </div>
                 <div>
-                  <div className="mb-1 text-xs text-neutral-400">Session</div>
+                  <div className={LABEL_TEXT + " mb-1.5 block"}>Session PIN</div>
                   <input
                     type="password"
                     value={pin}
                     onChange={(e) => setPin(e.target.value)}
                     placeholder="Enter your PIN"
-                    className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                    className={INPUT_CLASS}
                   />
                 </div>
               </div>
               {salesSyncMessage ? (
-                <div className="mt-3 rounded-xl border border-neutral-700 bg-neutral-950/40 px-3 py-2 text-xs text-neutral-300">
+                <div className={BADGE_INFO + " mt-3 whitespace-pre-wrap px-3 py-2 text-xs"}>
                   {salesSyncMessage}
                 </div>
               ) : null}
-              {hourlySyncMessage ? (
-                <div className="mt-3 rounded-xl border border-sky-900/40 bg-sky-950/20 px-3 py-2 text-xs text-sky-100">
-                  {hourlySyncMessage}
-                </div>
-              ) : null}
-              {operationTimeSyncMessage ? (
-                <div className="mt-3 rounded-xl border border-violet-900/40 bg-violet-950/20 px-3 py-2 text-xs text-violet-100">
-                  {operationTimeSyncMessage}
-                </div>
-              ) : null}
               {hourlyLoadError ? (
-                <div className="mt-3 rounded-xl border border-amber-900/40 bg-amber-950/20 px-3 py-2 text-xs text-amber-100">
+                <div className={BADGE_WARNING + " mt-3 px-3 py-2 text-xs"}>
                   Hourly analytics: {hourlyLoadError}
                 </div>
               ) : null}
               {operationTimeLoadError ? (
-                <div className="mt-3 rounded-xl border border-amber-900/40 bg-amber-950/20 px-3 py-2 text-xs text-amber-100">
+                <div className={BADGE_WARNING + " mt-3 px-3 py-2 text-xs"}>
                   Operation time: {operationTimeLoadError}
                 </div>
               ) : null}
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSalesSectionView("all")}
-                  className={
-                    salesSectionView === "all"
-                      ? "rounded-full border border-sky-500/70 bg-sky-500/15 px-3 py-1 text-[11px] font-semibold text-sky-100"
-                      : "rounded-full border border-neutral-700 bg-neutral-950/40 px-3 py-1 text-[11px] font-medium text-neutral-200 transition hover:bg-neutral-900 hover:text-white"
-                  }
-                >
-                  All
-                </button>
-                {SALES_SECTION_OPTIONS.map((section) => (
+              {!isManilaSalesCity ? (
+                <div className={TAB_CONTAINER + " mt-5"}>
                   <button
-                    key={section.value}
                     type="button"
-                    onClick={() => setSalesSectionView(section.value)}
-                    className={
-                      salesSectionView === section.value
-                        ? "rounded-full border border-sky-500/70 bg-sky-500/15 px-3 py-1 text-[11px] font-semibold text-sky-100"
-                        : "rounded-full border border-neutral-700 bg-neutral-950/40 px-3 py-1 text-[11px] font-medium text-neutral-200 transition hover:bg-neutral-900 hover:text-white"
-                    }
+                    onClick={() => setSalesSectionView("all")}
+                    className={salesSectionView === "all" ? TAB_ACTIVE : TAB_INACTIVE}
                   >
-                    {section.label}
+                    All
                   </button>
-                ))}
-              </div>
+                  {visibleSalesSectionOptions.map((section) => (
+                    <button
+                      key={section.value}
+                      type="button"
+                      onClick={() => setSalesSectionView(section.value)}
+                      className={salesSectionView === section.value ? TAB_ACTIVE : TAB_INACTIVE}
+                    >
+                      {section.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
             </div>
 
+            {!isManilaSalesCity ? (
+              <>
             {salesSectionView === "all" || salesSectionView === "summary" ? (
-            <div id="sales-summary" className="grid grid-cols-2 gap-3 md:grid-cols-5">
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="min-h-[32px] text-xs text-neutral-500">
-                  {posSalesSummary.revenueBasis === "revenue"
-                    ? "Net Revenue (UrbanPiper)"
-                    : posSalesSummary.revenueBasis === "pl"
-                      ? "Revenue (P&L imported)"
-                      : "Net Sales Volume"}
-                </div>
-                <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                  {formatMoney(posSalesSummary.revenuePrimary)}
-                </div>
-              </div>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="min-h-[32px] text-xs text-neutral-500">
-                  {posSalesSummary.hasProfit ? "Operating Profit (P&L)" : "Gross Revenue"}
-                </div>
-                <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                  {posSalesSummary.hasProfit
-                    ? formatMoney(posSalesSummary.operatingProfitPl)
-                    : formatMoney(posSalesSummary.totalGrossSales)}
-                </div>
-              </div>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="min-h-[32px] text-xs text-neutral-500">Order Count</div>
-                <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                  {formatCount(posSalesSummary.totalOrders)}
-                </div>
-              </div>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="min-h-[32px] text-xs text-neutral-500">
-                  {posSalesSummary.revenueBasis === "revenue" || posSalesSummary.revenueBasis === "pl"
-                    ? "Avg Revenue / Order"
-                    : "Avg Net / Order"}
-                </div>
-                <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                  {formatMoney(posSalesSummary.avgRevenuePerOrder)}
-                </div>
-              </div>
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="min-h-[32px] text-xs text-neutral-500">Days w/ sales data</div>
-                <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                  {formatCount(posSalesSummary.dayCount)}
-                </div>
-              </div>
+            <div id="sales-summary" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              {[
+                { label: "Net Sales Volume", value: posSalesSummary.revenuePrimary, color: "text-violet-300", icon: DollarSign },
+                { label: "Gross Revenue", value: posSalesSummary.hasProfit ? posSalesSummary.operatingProfitPl : posSalesSummary.totalGrossSales, color: "text-emerald-400", icon: TrendingUp },
+                { label: "Order Count", value: posSalesSummary.totalOrders, color: "text-white", icon: ShoppingBag },
+                { label: "Avg Net / Order", value: posSalesSummary.avgRevenuePerOrder, color: "text-violet-300", icon: Receipt },
+                { label: "Days w/ Sales Data", value: posSalesSummary.dayCount, color: "text-zinc-300", icon: CalendarDays },
+              ].map(({ label, value, color, icon: Icon }, i) => (
+                <motion.div
+                  key={label}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: i * 0.05 }}
+                  className={KPI_CARD}
+                >
+                  <div className="mb-2 flex items-center gap-1.5">
+                    <Icon className="h-3.5 w-3.5 text-zinc-600" />
+                    <p className={KPI_LABEL}>{label}</p>
+                  </div>
+                  <p className={`text-2xl font-bold tabular-nums break-words ${color}`}>
+                    {fmtNum(value)}
+                  </p>
+                </motion.div>
+              ))}
             </div>
             ) : null}
 
             {salesSectionView === "all" || salesSectionView === "hourly" ? (
-            <div id="sales-hourly" className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+            <div id="sales-hourly" className={GLASS_CARD + " p-5"}>
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <div className="text-sm font-semibold">Hourly Sales Analytics</div>
-                  <div className="mt-1 text-xs text-neutral-500">
+                  <div className="mb-1 flex items-center gap-2">
+                    <Table2 className="h-4 w-4 text-violet-400" />
+                    <h2 className={SECTION_TITLE}>Hourly Sales Analytics</h2>
+                  </div>
+                  <div className={T_CAPTION}>
                     Monthly hourly workbook totals are merged for the selected period. Staffing uses overlapping shift
                     hours for the same city/store scope.
                   </div>
                 </div>
-                <div className="text-xs text-neutral-500">
-                  Scope: <span className="text-neutral-300">{hourlyStoreName || "Company total"}</span>
+                <div className="flex items-center gap-3">
+                  <div className={T_CAPTION}>
+                    Scope: <span className="text-zinc-300">{hourlyStoreName || "Company total"}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      downloadCsv(
+                        `${exportBaseName}_hourly_sales.csv`,
+                        (hourlySalesAnalytics?.rows || []).map((row) => ({
+                          hour: row.hour_label,
+                          net_sales: Number(row.net_sales || 0),
+                          orders: Number(row.order_count_non_cancelled || 0),
+                          labor_hours: Number(row.labor_hours_total || 0),
+                          avg_staff: Number(row.avg_staff_count || 0),
+                          orders_per_labor_hour: Number(row.orders_per_labor_hour || 0),
+                          orders_per_staff: Number(row.orders_per_staff || 0),
+                        })),
+                      )
+                    }
+                    className={SECONDARY_BUTTON + " flex items-center gap-2 text-sm"}
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Export CSV
+                  </button>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
                 <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Hourly net sales</div>
-                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                    {formatMoney(hourlySummary.totalNetSales)}
-                  </div>
+                  <MetricValue className={SALES_NUMERIC_VALUE} value={hourlySummary.totalNetSales} />
                 </div>
                 <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Hourly order count</div>
-                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                    {formatCount(hourlySummary.totalOrders)}
-                  </div>
+                  <MetricValue className={SALES_NUMERIC_VALUE} value={hourlySummary.totalOrders} />
                 </div>
                 <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Orders / labor hour</div>
-                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                    {formatDecimal(hourlySummary.ordersPerLaborHour)}
-                  </div>
+                  <MetricValue className={SALES_NUMERIC_VALUE} value={hourlySummary.ordersPerLaborHour} />
                 </div>
                 <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Orders / staff</div>
-                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                    {formatDecimal(hourlySummary.ordersPerStaff)}
-                  </div>
+                  <MetricValue className={SALES_NUMERIC_VALUE} value={hourlySummary.ordersPerStaff} />
                 </div>
                 <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Peak hour</div>
-                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
+                  <div className={SALES_NUMERIC_VALUE} title={hourlySummary.peak?.hour_label || "—"}>
                     {hourlySummary.peak?.hour_label || "—"}
                   </div>
                   <div className="text-xs text-neutral-500">
@@ -4664,41 +4890,48 @@ export default function AdminAnalyticsPage() {
                 </div>
                 <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Imported months / hours</div>
-                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                    {formatCount(hourlySummary.monthCount)}/{formatCount(hourlySummary.hourCount)}
+                  <div className={SALES_NUMERIC_VALUE} title={`${fmtNumTitle(hourlySummary.monthCount)} / ${fmtNumTitle(hourlySummary.hourCount)}`}>
+                    {fmtNum(hourlySummary.monthCount)}/{fmtNum(hourlySummary.hourCount)}
                   </div>
                   <div className="text-xs text-neutral-500">{formatCount(hourlySummary.dayCount)} calendar days</div>
                 </div>
               </div>
 
               <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_1fr]">
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
-                  <div className="mb-3 text-sm font-semibold">Hourly order trend</div>
+                <div className={GLASS_CARD + " p-5"}>
+                  <div className="mb-3 flex items-center gap-2">
+                    <BarChart2 className="h-4 w-4 text-violet-400" />
+                    <h2 className={SECTION_TITLE}>Hourly order trend</h2>
+                  </div>
                   <div className="space-y-2">
                     {(hourlySalesAnalytics?.rows || []).map((row) => {
                       const widthPct = (Number(row.order_count_non_cancelled || 0) / hourlyTrendMaxOrders) * 100;
                       return (
                         <div key={row.hour_of_day} className="grid grid-cols-[60px_1fr_80px] items-center gap-3">
-                          <div className="text-xs text-neutral-400 tabular-nums">{row.hour_label}</div>
-                          <div className="h-3 overflow-hidden rounded-full bg-neutral-900">
-                            <div className="h-full rounded-full bg-sky-500/80" style={{ width: `${Math.max(widthPct, 2)}%` }} />
+                          <div className="text-xs tabular-nums text-zinc-400">{row.hour_label}</div>
+                          <div className="h-3 overflow-hidden rounded-full bg-zinc-900">
+                            <div className="h-full rounded-full bg-violet-400" style={{ width: `${Math.max(widthPct, 2)}%` }} />
                           </div>
-                          <div className="text-right text-xs text-neutral-300 tabular-nums">
+                          <div className="text-right text-xs tabular-nums text-zinc-300">
                             {formatCount(Number(row.order_count_non_cancelled || 0))}
                           </div>
                         </div>
                       );
                     })}
                     {!hourlySalesAnalytics?.rows?.length ? (
-                      <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 px-3 py-6 text-center text-sm text-neutral-500">
-                        No hourly sales data in this period yet.
+                      <div className="flex flex-col items-center gap-2 px-3 py-6 text-center">
+                        <InboxIcon className="h-8 w-8 text-zinc-700" />
+                        <p className={T_CAPTION}>No hourly sales data in this period yet.</p>
                       </div>
                     ) : null}
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
-                  <div className="mb-3 text-sm font-semibold">Peak-hour order density</div>
+                <div className={GLASS_CARD + " p-5"}>
+                  <div className="mb-3 flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-violet-400" />
+                    <h2 className={SECTION_TITLE}>Peak-hour order density</h2>
+                  </div>
                   {hourlySummary.peak ? (
                     <div className="space-y-2 text-sm">
                       <div className="rounded-xl border border-neutral-800 bg-neutral-950/50 px-3 py-3">
@@ -4733,51 +4966,51 @@ export default function AdminAnalyticsPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 px-3 py-6 text-center text-sm text-neutral-500">
+                    <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-6 text-center text-sm text-zinc-500">
                       Peak-hour density will appear after hourly files are synced.
                     </div>
                   )}
                 </div>
               </div>
 
-              <div className="mt-4 overflow-x-auto">
+              <div className="mt-4 overflow-hidden rounded-xl border border-white/8">
                 <table className="min-w-full text-left text-sm">
-                  <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                  <thead className="bg-white/3">
                     <tr>
-                      <th className="px-3 py-2">Hour</th>
-                      <th className="px-3 py-2">Net Sales</th>
-                      <th className="px-3 py-2">Orders</th>
-                      <th className="px-3 py-2">Labor Hours</th>
-                      <th className="px-3 py-2">Avg Staff</th>
-                      <th className="px-3 py-2">Orders / Labor Hour</th>
-                      <th className="px-3 py-2">Orders / Staff</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Hour</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Net Sales</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Orders</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Labor Hours</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Avg Staff</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Orders / Labor Hour</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Orders / Staff</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(hourlySalesAnalytics?.rows || []).map((row) => (
-                      <tr key={row.hour_of_day} className="border-b border-neutral-800/70">
-                        <td className="px-3 py-2 tabular-nums">{row.hour_label}</td>
-                        <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.net_sales || 0))}</td>
-                        <td className="px-3 py-2 tabular-nums">
+                      <tr key={row.hour_of_day} className={TABLE_ROW}>
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{row.hour_label}</td>
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatMoney(Number(row.net_sales || 0))}</td>
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>
                           {formatCount(Number(row.order_count_non_cancelled || 0))}
                         </td>
-                        <td className="px-3 py-2 tabular-nums">
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>
                           {formatDecimal(Number(row.labor_hours_total || 0))}
                         </td>
-                        <td className="px-3 py-2 tabular-nums">
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>
                           {formatDecimal(Number(row.avg_staff_count || 0))}
                         </td>
-                        <td className="px-3 py-2 tabular-nums">
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>
                           {formatDecimal(Number(row.orders_per_labor_hour || 0))}
                         </td>
-                        <td className="px-3 py-2 tabular-nums">
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>
                           {formatDecimal(Number(row.orders_per_staff || 0))}
                         </td>
                       </tr>
                     ))}
                     {!hourlySalesAnalytics?.rows?.length ? (
                       <tr>
-                        <td colSpan={7} className="px-3 py-6 text-center text-neutral-500">
+                        <td colSpan={7} className="px-4 py-12 text-center">
                           No hourly analytics data
                         </td>
                       </tr>
@@ -4789,44 +5022,64 @@ export default function AdminAnalyticsPage() {
             ) : null}
 
             {salesSectionView === "all" || salesSectionView === "operationTime" ? (
-            <div id="sales-operation-time" className="rounded-2xl border border-violet-900/40 bg-violet-950/10 p-4">
+            <div id="sales-operation-time" className={GLASS_CARD + " p-5"}>
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <div className="text-sm font-semibold">Operation Time</div>
-                  <div className="mt-1 text-xs text-neutral-500">
+                  <div className="mb-1 flex items-center gap-2">
+                    <Table2 className="h-4 w-4 text-violet-400" />
+                    <h2 className={SECTION_TITLE}>Operation Time</h2>
+                  </div>
+                  <div className={T_CAPTION}>
                     Daily UrbanPiper screenshots are OCR-parsed with a fixed template. This section is currently city-wide only.
                   </div>
                 </div>
-                <div className="text-xs text-neutral-500">
-                  Scope: <span className="text-neutral-300">Company total</span>
+                <div className="flex items-center gap-3">
+                  <div className={T_CAPTION}>
+                    Scope: <span className="text-zinc-300">Company total</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      downloadCsv(
+                        `${exportBaseName}_operation_time.csv`,
+                        (operationTimeAnalytics?.items || []).map((row) => ({
+                          date: row.work_date,
+                          completion: row.overall_completion_minutes,
+                          completion_delta_pct: row.overall_change_pct,
+                          acknowledging_seconds: row.acknowledging_seconds,
+                          preparing_minutes: row.preparing_minutes,
+                          dispatching_minutes: row.dispatching_minutes,
+                          delivering_minutes: row.delivering_minutes,
+                        })),
+                      )
+                    }
+                    className={SECONDARY_BUTTON + " flex items-center gap-2 text-sm"}
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    Export CSV
+                  </button>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
                 <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Imported days</div>
-                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                    {formatCount(operationTimeSummary.dayCount)}
-                  </div>
+                  <MetricValue className={SALES_NUMERIC_VALUE} value={operationTimeSummary.dayCount} />
                 </div>
                 <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Avg completion</div>
-                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                    {formatMinutes(operationTimeSummary.avgOverallMinutes)}
-                  </div>
+                  <MetricValue className={SALES_NUMERIC_VALUE} value={operationTimeSummary.avgOverallMinutes} unit="min" />
                 </div>
                 <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Latest completion</div>
-                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                    {formatMinutes(operationTimeSummary.latest?.overall_completion_minutes)}
-                  </div>
+                  <MetricValue className={SALES_NUMERIC_VALUE} value={operationTimeSummary.latest?.overall_completion_minutes} unit="min" />
                   <div className="text-xs text-neutral-500">
                     {operationTimeSummary.latest?.work_date || "No data"}
                   </div>
                 </div>
                 <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Latest delta</div>
-                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
+                  <div className={SALES_NUMERIC_VALUE} title={operationTimeSummary.latest?.overall_change_pct == null ? "—" : formatPct(Number(operationTimeSummary.latest.overall_change_pct), 1)}>
                     {operationTimeSummary.latest?.overall_change_pct == null
                       ? "—"
                       : formatPct(Number(operationTimeSummary.latest.overall_change_pct), 1)}
@@ -4834,52 +5087,48 @@ export default function AdminAnalyticsPage() {
                 </div>
                 <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Avg preparing</div>
-                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                    {formatMinutes(operationTimeSummary.avgPreparingMinutes)}
-                  </div>
+                  <MetricValue className={SALES_NUMERIC_VALUE} value={operationTimeSummary.avgPreparingMinutes} unit="min" />
                 </div>
                 <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Avg delivering</div>
-                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                    {formatMinutes(operationTimeSummary.avgDeliveringMinutes)}
-                  </div>
+                  <MetricValue className={SALES_NUMERIC_VALUE} value={operationTimeSummary.avgDeliveringMinutes} unit="min" />
                 </div>
               </div>
 
-              <div className="mt-4 overflow-x-auto">
+              <div className="mt-4 overflow-hidden rounded-xl border border-white/8">
                 <table className="min-w-full text-left text-sm">
-                  <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                  <thead className="bg-white/3">
                     <tr>
-                      <th className="px-3 py-2">Date</th>
-                      <th className="px-3 py-2">Completion</th>
-                      <th className="px-3 py-2">Completion Δ</th>
-                      <th className="px-3 py-2">Acknowledging</th>
-                      <th className="px-3 py-2">Preparing</th>
-                      <th className="px-3 py-2">Dispatching</th>
-                      <th className="px-3 py-2">Delivering</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Date</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Completion</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Completion Δ</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Acknowledging</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Preparing</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Dispatching</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Delivering</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(operationTimeAnalytics?.items || []).map((row) => (
-                      <tr key={row.work_date} className="border-b border-neutral-800/70">
-                        <td className="px-3 py-2 tabular-nums">{row.work_date}</td>
-                        <td className="px-3 py-2 tabular-nums">{formatMinutes(row.overall_completion_minutes)}</td>
-                        <td className="px-3 py-2 tabular-nums">
+                      <tr key={row.work_date} className={TABLE_ROW}>
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{row.work_date}</td>
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatMinutes(row.overall_completion_minutes)}</td>
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>
                           {row.overall_change_pct == null ? "—" : formatPct(Number(row.overall_change_pct), 1)}
                         </td>
-                        <td className="px-3 py-2 tabular-nums">
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>
                           {formatSeconds(row.acknowledging_seconds)}
                           {row.acknowledging_change_pct == null ? "" : ` (${formatPct(Number(row.acknowledging_change_pct), 1)})`}
                         </td>
-                        <td className="px-3 py-2 tabular-nums">
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>
                           {formatMinutes(row.preparing_minutes)}
                           {row.preparing_change_pct == null ? "" : ` (${formatPct(Number(row.preparing_change_pct), 1)})`}
                         </td>
-                        <td className="px-3 py-2 tabular-nums">
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>
                           {formatMinutes(row.dispatching_minutes)}
                           {row.dispatching_change_pct == null ? "" : ` (${formatPct(Number(row.dispatching_change_pct), 1)})`}
                         </td>
-                        <td className="px-3 py-2 tabular-nums">
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>
                           {formatMinutes(row.delivering_minutes)}
                           {row.delivering_change_pct == null ? "" : ` (${formatPct(Number(row.delivering_change_pct), 1)})`}
                         </td>
@@ -4887,7 +5136,7 @@ export default function AdminAnalyticsPage() {
                     ))}
                     {!operationTimeAnalytics?.items?.length ? (
                       <tr>
-                        <td colSpan={7} className="px-3 py-6 text-center text-neutral-500">
+                        <td colSpan={7} className="px-4 py-12 text-center">
                           No operation time screenshots imported yet
                         </td>
                       </tr>
@@ -4898,29 +5147,33 @@ export default function AdminAnalyticsPage() {
             </div>
             ) : null}
 
-            {(salesSectionView === "all" || salesSectionView === "summary") && city === "dubai" && !summaryBrandName ? (
-              <p className="text-xs text-neutral-500">
+            {(salesSectionView === "all" || salesSectionView === "summary") && salesCity === "dubai" && !summaryBrandName ? (
+              <p className={T_CAPTION}>
                 Summary totals above are <span className="text-neutral-300">city-wide net sales and orders</span>{" "}
                 (SushiZEN + RamenZEN + All Veggie Sushi, one kitchen). Management P&amp;L labor ratio uses the same
                 combined sales denominator.
               </p>
             ) : null}
+            {!isManilaSalesCity ? <div className={DIVIDER} /> : null}
 
             {salesSectionView === "all" || salesSectionView === "brands" ? (
               <>
-            {city === "dubai" && brandOrderRanking.length ? (
-              <div id="sales-brands" className="rounded-2xl border border-emerald-900/40 bg-emerald-950/15 p-4">
-                <div className="mb-3 text-sm font-semibold text-emerald-100">Dubai — orders &amp; net sales by brand and aggregator</div>
+            {salesCity === "dubai" && brandOrderRanking.length ? (
+              <div id="sales-brands" className={GLASS_CARD + " p-5"}>
+                <div className="mb-3 flex items-center gap-2">
+                  <Table2 className="h-4 w-4 text-violet-400" />
+                  <h2 className={SECTION_TITLE}>Dubai — orders &amp; net sales by brand and aggregator</h2>
+                </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   {brandOrderRanking.map((row) => (
-                    <div key={row.brand} className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-4">
-                      <div className="text-xs font-medium text-neutral-400">{row.brand}</div>
+                    <div key={row.brand} className={KPI_CARD}>
+                      <div className="text-xs font-medium text-zinc-400">{row.brand}</div>
                       <div className="mt-2 text-2xl font-bold text-white tabular-nums">{formatCount(row.orders)}</div>
-                      <div className="text-[11px] text-neutral-500">orders (non-cancelled)</div>
-                      <div className="mt-2 text-sm text-neutral-200">Net {formatMoney(row.netSales)}</div>
-                      <div className="text-[11px] text-neutral-500">Gross {formatMoney(row.grossSales)}</div>
+                      <div className="text-[11px] text-zinc-500">orders (non-cancelled)</div>
+                      <div className="mt-2 text-sm text-zinc-200">Net {formatMoney(row.netSales)}</div>
+                      <div className="text-[11px] text-zinc-500">Gross {formatMoney(row.grossSales)}</div>
                       <div className="mt-3">
-                        <div className="mb-2 text-[11px] uppercase tracking-wide text-neutral-500">Aggregator mix</div>
+                        <div className="mb-2 text-[11px] uppercase tracking-wide text-zinc-500">Aggregator mix</div>
                         <AggregatorBreakdown items={row.aggregators} dense />
                       </div>
                     </div>
@@ -4929,39 +5182,42 @@ export default function AdminAnalyticsPage() {
               </div>
             ) : null}
 
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-              <div className="mb-2 text-sm font-semibold">
-                {city === "dubai" ? "Brand ranking with aggregator breakdown" : "Brand order ranking"}
+            <div className={GLASS_CARD + " overflow-hidden"}>
+              <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
+                <div className="flex items-center gap-2">
+                  <Table2 className="h-4 w-4 text-violet-400" />
+                  <h2 className={SECTION_TITLE}>{salesCity === "dubai" ? "Brand ranking with aggregator breakdown" : "Brand order ranking"}</h2>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
-                  <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                  <thead className="bg-white/3">
                     <tr>
-                      <th className="px-3 py-2">Rank</th>
-                      <th className="px-3 py-2">Brand</th>
-                      <th className="px-3 py-2">Orders</th>
-                      <th className="px-3 py-2">Net Sales</th>
-                      <th className="px-3 py-2">Gross Sales</th>
-                      <th className="px-3 py-2">Aggregator Breakdown</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Rank</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Brand</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Orders</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Net Sales</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Gross Sales</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Aggregator Breakdown</th>
                     </tr>
                   </thead>
                   <tbody>
                     {brandOrderRanking.map((row, idx) => (
-                      <tr key={`${row.brand}-${idx}`} className="border-b border-neutral-800/70">
-                        <td className="px-3 py-2">{idx + 1}</td>
-                        <td className="px-3 py-2">{row.brand}</td>
-                        <td className="px-3 py-2 tabular-nums">{formatCount(row.orders)}</td>
-                        <td className="px-3 py-2 tabular-nums">{formatMoney(row.netSales)}</td>
-                        <td className="px-3 py-2 tabular-nums">{formatMoney(row.grossSales)}</td>
-                        <td className="px-3 py-2">
+                      <tr key={`${row.brand}-${idx}`} className={TABLE_ROW}>
+                        <td className={TABLE_CELL + " px-4"}>{idx + 1}</td>
+                        <td className={TABLE_CELL + " px-4"}>{row.brand}</td>
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatCount(row.orders)}</td>
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatMoney(row.netSales)}</td>
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatMoney(row.grossSales)}</td>
+                        <td className={TABLE_CELL + " px-4"}>
                           <AggregatorBreakdown items={row.aggregators} dense />
                         </td>
                       </tr>
                     ))}
                     {!brandOrderRanking.length ? (
                       <tr>
-                        <td colSpan={6} className="px-3 py-6 text-center text-neutral-500">
-                          No brand-level order data
+                        <td colSpan={6} className="px-4 py-12 text-center">
+                          <EmptyState message="No brand-level order data" />
                         </td>
                       </tr>
                     ) : null}
@@ -4973,57 +5229,60 @@ export default function AdminAnalyticsPage() {
             ) : null}
 
             {salesSectionView === "all" || salesSectionView === "productMix" ? (
-            <div id="sales-product-mix" className="rounded-2xl border border-violet-900/40 bg-violet-950/10 p-4">
+            <div id="sales-product-mix" className={GLASS_CARD + " p-5"}>
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold">Product Mix Ranking</div>
-                  <div className="mt-1 text-xs text-neutral-500">
+                  <div className="mb-1 flex items-center gap-2">
+                    <Table2 className="h-4 w-4 text-violet-400" />
+                    <h2 className={SECTION_TITLE}>Product Mix Ranking</h2>
+                  </div>
+                  <div className={T_CAPTION}>
                     {productMixCoverage.from && productMixCoverage.to
                       ? `Imported coverage: ${productMixCoverage.from} -> ${productMixCoverage.to}`
                       : "No Product Mix import found yet."}
                   </div>
                 </div>
-                <div className="text-xs text-neutral-500">
+                <div className={T_CAPTION}>
                   Scope:{" "}
-                  <span className="text-neutral-300">
+                  <span className="text-zinc-300">
                     {summaryBranchCode
-                      ? (BRANCH_OPTIONS[city] || []).find((opt) => opt.value === summaryBranchCode)?.label || summaryBranchCode
+                      ? (BRANCH_OPTIONS[salesCity] || []).find((opt) => opt.value === summaryBranchCode)?.label || summaryBranchCode
                       : "Company total"}
                   </span>
                 </div>
               </div>
               {summaryBrandName && summaryBrandName !== "SushiZEN" ? (
-                <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 px-3 py-6 text-center text-sm text-neutral-500">
+                <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-6 text-center text-sm text-zinc-500">
                   Product Mix is currently available for SushiZEN only.
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="overflow-hidden rounded-xl border border-white/8">
                   <table className="min-w-full text-left text-sm">
-                    <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                    <thead className="bg-white/3">
                       <tr>
-                        <th className="px-3 py-2">Rank</th>
-                        <th className="px-3 py-2">Product A</th>
-                        <th className="px-3 py-2">Product B</th>
-                        <th className="px-3 py-2">Major Orders</th>
-                        <th className="px-3 py-2">Mix Orders</th>
-                        <th className="px-3 py-2">Ratio</th>
+                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Rank</th>
+                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Product A</th>
+                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Product B</th>
+                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Major Orders</th>
+                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Mix Orders</th>
+                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Ratio</th>
                       </tr>
                     </thead>
                     <tbody>
                       {productMixRankingRows.slice(0, 50).map((row, idx) => (
-                        <tr key={`${row.product_a_name}-${row.product_b_name}-${idx}`} className="border-b border-neutral-800/70">
-                          <td className="px-3 py-2">{idx + 1}</td>
-                          <td className="px-3 py-2">{row.product_a_name}</td>
-                          <td className="px-3 py-2">{row.product_b_name}</td>
-                          <td className="px-3 py-2 tabular-nums">{formatCount(row.major_orders)}</td>
-                          <td className="px-3 py-2 tabular-nums">{formatCount(row.mix_orders)}</td>
-                          <td className="px-3 py-2 tabular-nums">{formatDecimal(Number(row.ratio || 0) * 100, 2)}%</td>
+                        <tr key={`${row.product_a_name}-${row.product_b_name}-${idx}`} className={TABLE_ROW}>
+                          <td className={TABLE_CELL + " px-4"}>{idx + 1}</td>
+                          <td className={TABLE_CELL + " px-4"}>{row.product_a_name}</td>
+                          <td className={TABLE_CELL + " px-4"}>{row.product_b_name}</td>
+                          <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatCount(row.major_orders)}</td>
+                          <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatCount(row.mix_orders)}</td>
+                          <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatDecimal(Number(row.ratio || 0) * 100, 2)}%</td>
                         </tr>
                       ))}
                       {!productMixRankingRows.length ? (
                         <tr>
-                          <td colSpan={6} className="px-3 py-6 text-center text-neutral-500">
-                            No Product Mix ranking data
+                          <td colSpan={6} className="px-4 py-12 text-center">
+                            <EmptyState message="No Product Mix ranking data" />
                           </td>
                         </tr>
                       ) : null}
@@ -5035,43 +5294,47 @@ export default function AdminAnalyticsPage() {
             ) : null}
 
             {salesSectionView === "all" || salesSectionView === "menu" ? (
-            <div id="sales-menu" className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold">Top Menu Ranking (By Quantity)</div>
+            <div id="sales-menu" className={GLASS_CARD + " overflow-hidden"}>
+              <div className="flex items-center justify-between gap-3 border-b border-white/5 px-5 py-4">
+                <div className="flex items-center gap-2">
+                  <Table2 className="h-4 w-4 text-violet-400" />
+                  <h2 className={SECTION_TITLE}>Top Menu Ranking (By Quantity)</h2>
+                </div>
                 <button
                   type="button"
                   onClick={() => downloadCsv(`${exportBaseName}_pos_menu_ranking.csv`, posMenuRankingExportRows)}
-                  className="rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-xs font-semibold text-white hover:bg-neutral-900"
+                  className={SECONDARY_BUTTON + " flex items-center gap-2 text-sm"}
                 >
+                  <Download className="h-3.5 w-3.5" />
                   Export Ranking CSV
                 </button>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
-                  <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                  <thead className="bg-white/3">
                     <tr>
-                      <th className="px-3 py-2">Rank</th>
-                      <th className="px-3 py-2">Item</th>
-                      <th className="px-3 py-2">Quantity</th>
-                      <th className="px-3 py-2">Order Lines</th>
-                      <th className="px-3 py-2">Net Sales</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Rank</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Item</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Quantity</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Order Lines</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Net Sales</th>
                     </tr>
                   </thead>
                   <tbody>
                     {posMenuRankingRows.slice(0, 50).map((row, idx) => (
-                      <tr key={`${row.item_name}-${idx}`} className="border-b border-neutral-800/70">
-                        <td className="px-3 py-2">{idx + 1}</td>
-                        <td className="px-3 py-2">{row.item_name}</td>
-                        <td className="px-3 py-2">{Number(row.quantity_total || 0).toFixed(2)}</td>
-                        <td className="px-3 py-2">{row.order_line_count}</td>
-                        <td className="px-3 py-2">{Number(row.net_sales_total || 0).toFixed(2)}</td>
+                      <tr key={`${row.item_name}-${idx}`} className={TABLE_ROW}>
+                        <td className={TABLE_CELL + " px-4"}>{idx + 1}</td>
+                        <td className={TABLE_CELL + " px-4"}>{row.item_name}</td>
+                        <td className={TABLE_CELL + " px-4"}>{Number(row.quantity_total || 0).toFixed(2)}</td>
+                        <td className={TABLE_CELL + " px-4"}>{row.order_line_count}</td>
+                        <td className={TABLE_CELL + " px-4"}>{Number(row.net_sales_total || 0).toFixed(2)}</td>
                       </tr>
                     ))}
                     {!posMenuRankingRows.length ? (
                       <tr>
-                        <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
-                          No menu ranking data
+                        <td colSpan={5} className="px-4 py-12 text-center">
+                          <EmptyState message="No menu ranking data" />
                         </td>
                       </tr>
                     ) : null}
@@ -5082,39 +5345,42 @@ export default function AdminAnalyticsPage() {
             ) : null}
 
             {salesSectionView === "all" || salesSectionView === "stores" ? (
-            <div id="sales-stores" className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold">Store Order Ranking with Aggregator Breakdown</div>
+            <div id="sales-stores" className={GLASS_CARD + " overflow-hidden"}>
+              <div className="flex items-center justify-between gap-3 border-b border-white/5 px-5 py-4">
+                <div className="flex items-center gap-2">
+                  <Table2 className="h-4 w-4 text-violet-400" />
+                  <h2 className={SECTION_TITLE}>Store Order Ranking with Aggregator Breakdown</h2>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
-                  <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                  <thead className="bg-white/3">
                     <tr>
-                      <th className="px-3 py-2">Rank</th>
-                      <th className="px-3 py-2">Store</th>
-                      <th className="px-3 py-2">Orders</th>
-                      <th className="px-3 py-2">Net Sales</th>
-                      <th className="px-3 py-2">Gross Revenue</th>
-                      <th className="px-3 py-2">Aggregator Breakdown</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Rank</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Store</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Orders</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Net Sales</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Gross Revenue</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Aggregator Breakdown</th>
                     </tr>
                   </thead>
                   <tbody>
                     {posBranchOrderRows.slice(0, 30).map((row, idx) => (
-                      <tr key={`${row.branch_name}-${idx}`} className="border-b border-neutral-800/70">
-                        <td className="px-3 py-2">{idx + 1}</td>
-                        <td className="px-3 py-2">{row.branch_name}</td>
-                        <td className="px-3 py-2 tabular-nums">{formatCount(row.order_count_non_cancelled)}</td>
-                        <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.net_revenue || 0))}</td>
-                        <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.gross_revenue || 0))}</td>
-                        <td className="px-3 py-2">
+                      <tr key={`${row.branch_name}-${idx}`} className={TABLE_ROW}>
+                        <td className={TABLE_CELL + " px-4"}>{idx + 1}</td>
+                        <td className={TABLE_CELL + " px-4"}>{row.branch_name}</td>
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatCount(row.order_count_non_cancelled)}</td>
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatMoney(Number(row.net_revenue || 0))}</td>
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatMoney(Number(row.gross_revenue || 0))}</td>
+                        <td className={TABLE_CELL + " px-4"}>
                           <AggregatorBreakdown items={row.aggregators} dense />
                         </td>
                       </tr>
                     ))}
                     {!posBranchOrderRows.length ? (
                       <tr>
-                        <td colSpan={6} className="px-3 py-6 text-center text-neutral-500">
-                          No store order data
+                        <td colSpan={6} className="px-4 py-12 text-center">
+                          <EmptyState message="No store order data" />
                         </td>
                       </tr>
                     ) : null}
@@ -5125,74 +5391,67 @@ export default function AdminAnalyticsPage() {
             ) : null}
 
             {salesSectionView === "all" || salesSectionView === "cancelOrders" ? (
-            <div id="sales-cancel-orders" className="rounded-2xl border border-rose-900/40 bg-rose-950/10 p-4">
+            <div id="sales-cancel-orders" className={GLASS_CARD + " p-5"}>
               <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <div className="text-sm font-semibold">Cancel Orders</div>
-                  <div className="mt-1 text-xs text-neutral-500">
+                  <div className="mb-1 flex items-center gap-2">
+                    <Table2 className="h-4 w-4 text-violet-400" />
+                    <h2 className={SECTION_TITLE}>Cancel Orders</h2>
+                  </div>
+                  <div className={T_CAPTION}>
                     Daily UrbanPiper lost-order CSVs are auto-synced from the POS folder and aggregated for this period.
                   </div>
                 </div>
-                <div className="text-xs text-neutral-500">
-                  Scope: <span className="text-neutral-300">{summaryBrandName || "All Brands"}</span>
+                <div className={T_CAPTION}>
+                  Scope: <span className="text-zinc-300">{summaryBrandName || "All Brands"}</span>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
                 <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Lost Orders</div>
-                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                    {formatCount(cancelOrderSummary.lostOrderCount)}
-                  </div>
+                  <MetricValue className={SALES_NUMERIC_VALUE} value={cancelOrderSummary.lostOrderCount} />
                 </div>
                 <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Lost Revenue</div>
-                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                    {formatMoney(cancelOrderSummary.lostRevenue)}
-                  </div>
+                  <MetricValue className={SALES_NUMERIC_VALUE} value={cancelOrderSummary.lostRevenue} />
                 </div>
                 <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Days w/ data</div>
-                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                    {formatCount(cancelOrderSummary.dayCount)}
-                  </div>
+                  <MetricValue className={SALES_NUMERIC_VALUE} value={cancelOrderSummary.dayCount} />
                 </div>
                 <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Cancel types</div>
-                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                    {formatCount(cancelOrderSummary.orderTypeCount)}
-                  </div>
+                  <MetricValue className={SALES_NUMERIC_VALUE} value={cancelOrderSummary.orderTypeCount} />
                 </div>
                 <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                   <div className="min-h-[32px] text-xs text-neutral-500">Platforms</div>
-                  <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                    {formatCount(cancelOrderSummary.platformCount)}
-                  </div>
+                  <MetricValue className={SALES_NUMERIC_VALUE} value={cancelOrderSummary.platformCount} />
                 </div>
               </div>
 
               <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
-                <div className="overflow-x-auto rounded-2xl border border-neutral-800 bg-neutral-950/30 p-3">
-                  <div className="mb-2 text-sm font-semibold">Order Type Summary</div>
+                <div className="overflow-hidden rounded-2xl border border-white/8 bg-white/5 p-3">
+                  <div className="mb-2 text-sm font-semibold text-white">Order Type Summary</div>
                   <table className="min-w-full text-left text-sm">
-                    <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                    <thead className="bg-white/3">
                       <tr>
-                        <th className="px-3 py-2">Type</th>
-                        <th className="px-3 py-2">Lost Orders</th>
-                        <th className="px-3 py-2">Lost Revenue</th>
+                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Type</th>
+                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Lost Orders</th>
+                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Lost Revenue</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(cancelOrdersAnalytics?.order_type_rows || []).map((row, idx) => (
-                        <tr key={`${row.order_type}-${idx}`} className="border-b border-neutral-800/70">
-                          <td className="px-3 py-2">{row.order_type}</td>
-                          <td className="px-3 py-2 tabular-nums">{formatCount(Number(row.lost_order_count || 0))}</td>
-                          <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.lost_revenue || 0))}</td>
+                        <tr key={`${row.order_type}-${idx}`} className={TABLE_ROW}>
+                          <td className={TABLE_CELL + " px-4"}>{row.order_type}</td>
+                          <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatCount(Number(row.lost_order_count || 0))}</td>
+                          <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatMoney(Number(row.lost_revenue || 0))}</td>
                         </tr>
                       ))}
                       {!cancelOrdersAnalytics?.order_type_rows?.length ? (
                         <tr>
-                          <td colSpan={3} className="px-3 py-6 text-center text-neutral-500">
+                          <td colSpan={3} className="px-4 py-12 text-center">
                             No cancel-order type data
                           </td>
                         </tr>
@@ -5201,33 +5460,33 @@ export default function AdminAnalyticsPage() {
                   </table>
                 </div>
 
-                <div className="overflow-x-auto rounded-2xl border border-neutral-800 bg-neutral-950/30 p-3">
-                  <div className="mb-2 text-sm font-semibold">Platform Breakdown</div>
+                <div className="overflow-hidden rounded-2xl border border-white/8 bg-white/5 p-3">
+                  <div className="mb-2 text-sm font-semibold text-white">Platform Breakdown</div>
                   <table className="min-w-full text-left text-sm">
-                    <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                    <thead className="bg-white/3">
                       <tr>
-                        <th className="px-3 py-2">Platform</th>
-                        <th className="px-3 py-2">Lost Orders</th>
-                        <th className="px-3 py-2">Platform pre</th>
-                        <th className="px-3 py-2">Platform post</th>
-                        <th className="px-3 py-2">Merchant pre</th>
-                        <th className="px-3 py-2">Merchant post</th>
+                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Platform</th>
+                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Lost Orders</th>
+                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Platform pre</th>
+                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Platform post</th>
+                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Merchant pre</th>
+                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Merchant post</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(cancelOrdersAnalytics?.platform_rows || []).map((row, idx) => (
-                        <tr key={`${row.platform_name}-${idx}`} className="border-b border-neutral-800/70">
-                          <td className="px-3 py-2">{row.platform_name || "Unknown"}</td>
-                          <td className="px-3 py-2 tabular-nums">{formatCount(Number(row.lost_order_count || 0))}</td>
-                          <td className="px-3 py-2 tabular-nums">{formatCount(Number(row.platform_pre_ack || 0))}</td>
-                          <td className="px-3 py-2 tabular-nums">{formatCount(Number(row.platform_post_ack || 0))}</td>
-                          <td className="px-3 py-2 tabular-nums">{formatCount(Number(row.merchant_pre_ack || 0))}</td>
-                          <td className="px-3 py-2 tabular-nums">{formatCount(Number(row.merchant_post_ack || 0))}</td>
+                        <tr key={`${row.platform_name}-${idx}`} className={TABLE_ROW}>
+                          <td className={TABLE_CELL + " px-4"}>{row.platform_name || "Unknown"}</td>
+                          <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatCount(Number(row.lost_order_count || 0))}</td>
+                          <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatCount(Number(row.platform_pre_ack || 0))}</td>
+                          <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatCount(Number(row.platform_post_ack || 0))}</td>
+                          <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatCount(Number(row.merchant_pre_ack || 0))}</td>
+                          <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatCount(Number(row.merchant_post_ack || 0))}</td>
                         </tr>
                       ))}
                       {!cancelOrdersAnalytics?.platform_rows?.length ? (
                         <tr>
-                          <td colSpan={6} className="px-3 py-6 text-center text-neutral-500">
+                          <td colSpan={6} className="px-4 py-12 text-center">
                             No platform breakdown data
                           </td>
                         </tr>
@@ -5237,30 +5496,30 @@ export default function AdminAnalyticsPage() {
                 </div>
               </div>
 
-              <div className="mt-4 overflow-x-auto">
+              <div className="mt-4 overflow-hidden rounded-xl border border-white/8">
                 <table className="min-w-full text-left text-sm">
-                  <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                  <thead className="bg-white/3">
                     <tr>
-                      <th className="px-3 py-2">Date</th>
-                      <th className="px-3 py-2">Brand</th>
-                      <th className="px-3 py-2">Lost Orders</th>
-                      <th className="px-3 py-2">Lost Revenue</th>
-                      <th className="px-3 py-2">Source File</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Date</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Brand</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Lost Orders</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Lost Revenue</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Source File</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(cancelOrdersAnalytics?.daily_rows || []).map((row, idx) => (
-                      <tr key={`${row.work_date}-${row.brand_name}-${idx}`} className="border-b border-neutral-800/70">
-                        <td className="px-3 py-2 tabular-nums">{row.work_date}</td>
-                        <td className="px-3 py-2">{row.brand_name}</td>
-                        <td className="px-3 py-2 tabular-nums">{formatCount(Number(row.lost_order_count || 0))}</td>
-                        <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.lost_revenue || 0))}</td>
-                        <td className="max-w-[320px] truncate px-3 py-2 text-xs text-neutral-400">{row.source_file_name || "—"}</td>
+                      <tr key={`${row.work_date}-${row.brand_name}-${idx}`} className={TABLE_ROW}>
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{row.work_date}</td>
+                        <td className={TABLE_CELL + " px-4"}>{row.brand_name}</td>
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatCount(Number(row.lost_order_count || 0))}</td>
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatMoney(Number(row.lost_revenue || 0))}</td>
+                        <td className={TABLE_CELL + " max-w-[320px] truncate px-4 text-xs text-zinc-400"}>{row.source_file_name || "—"}</td>
                       </tr>
                     ))}
                     {!cancelOrdersAnalytics?.daily_rows?.length ? (
                       <tr>
-                        <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
+                        <td colSpan={5} className="px-4 py-12 text-center">
                           No cancel-order daily data
                         </td>
                       </tr>
@@ -5272,45 +5531,49 @@ export default function AdminAnalyticsPage() {
             ) : null}
 
             {salesSectionView === "all" || salesSectionView === "daily" ? (
-            <div id="sales-daily" className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold">Sales Daily Details</div>
+            <div id="sales-daily" className={GLASS_CARD + " overflow-hidden"}>
+              <div className="flex items-center justify-between gap-3 border-b border-white/5 px-5 py-4">
+                <div className="flex items-center gap-2">
+                  <Table2 className="h-4 w-4 text-violet-400" />
+                  <h2 className={SECTION_TITLE}>Sales Daily Details</h2>
+                </div>
                 <button
                   type="button"
                   onClick={() => downloadCsv(`${exportBaseName}_pos_sales_daily.csv`, posSalesExportRows)}
-                  className="rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-xs font-semibold text-white hover:bg-neutral-900"
+                  className={SECONDARY_BUTTON + " flex items-center gap-2 text-sm"}
                 >
+                  <Download className="h-3.5 w-3.5" />
                   Export Sales CSV
                 </button>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
-                  <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                  <thead className="bg-white/3">
                     <tr>
-                      <th className="px-3 py-2">Date</th>
-                      <th className="px-3 py-2">Orders</th>
-                      <th className="px-3 py-2">Gross</th>
-                      <th className="px-3 py-2">Net</th>
-                      <th className="px-3 py-2">Discounts</th>
-                      <th className="px-3 py-2">Charges</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Date</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Orders</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Gross</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Net</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Discounts</th>
+                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Charges</th>
                     </tr>
                   </thead>
                   <tbody>
                     {posSalesRows.map((row) => (
-                      <tr key={`${row.city}-${row.work_date}`} className="border-b border-neutral-800/70">
-                        <td className="px-3 py-2">{row.work_date}</td>
-                        <td className="px-3 py-2 tabular-nums">{formatCount(row.order_count_non_cancelled)}</td>
-                        <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.gross_revenue || 0))}</td>
-                        <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.net_revenue || 0))}</td>
-                        <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.discounts || 0))}</td>
-                        <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.charges || 0))}</td>
+                      <tr key={`${row.city}-${row.work_date}`} className={TABLE_ROW}>
+                        <td className={TABLE_CELL + " px-4"}>{row.work_date}</td>
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatCount(row.order_count_non_cancelled)}</td>
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatMoney(Number(row.gross_revenue || 0))}</td>
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatMoney(Number(row.net_revenue || 0))}</td>
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatMoney(Number(row.discounts || 0))}</td>
+                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatMoney(Number(row.charges || 0))}</td>
                       </tr>
                     ))}
                     {!posSalesRows.length ? (
                       <tr>
-                        <td colSpan={6} className="px-3 py-6 text-center text-neutral-500">
-                          No sales data
+                        <td colSpan={6} className="px-4 py-12 text-center">
+                          <EmptyState message="No sales data" />
                         </td>
                       </tr>
                     ) : null}
@@ -5318,6 +5581,20 @@ export default function AdminAnalyticsPage() {
                 </table>
               </div>
             </div>
+            ) : null}
+              </>
+            ) : null}
+
+            {isManilaSalesCity ? (
+              <ManilaSalesSection
+                city="manila"
+                dateFrom={summaryDateFrom}
+                dateTo={summaryDateTo}
+                approverName={approverName}
+                pin={pin}
+                stepUpReady={salesStepUpReady}
+                active={analyticsTab === "manilaSales"}
+              />
             ) : null}
           </div>
           ) : analyticsTab === "evaluation" ? (
@@ -5336,26 +5613,21 @@ export default function AdminAnalyticsPage() {
                     <option value="manila">Manila</option>
                   </select>
                 </div>
-                <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:min-w-[320px]">
+                <div className="grid w-full gap-2 sm:w-auto sm:min-w-[360px]">
                   <label className="text-xs text-neutral-400">
-                    From
-                    <input
-                      type="date"
-                      value={summaryDateFrom}
-                      onChange={(e) => handleSummaryDateFromChange(e.target.value)}
-                      max={summaryDateTo || undefined}
-                      className="mt-1 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+                    Summary Range
+                    <DateRangePicker
+                      value={{ from: summaryDateFrom, to: summaryDateTo }}
+                      onChange={(range) => {
+                        handleSummaryDateFromChange(range.from);
+                        handleSummaryDateToChange(range.to);
+                      }}
+                      className="mt-1"
                     />
                   </label>
                   <label className="text-xs text-neutral-400">
-                    To
-                    <input
-                      type="date"
-                      value={summaryDateTo}
-                      onChange={(e) => handleSummaryDateToChange(e.target.value)}
-                      min={summaryDateFrom || undefined}
-                      className="mt-1 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
-                    />
+                    Month Quick Select
+                    <MonthPicker value={summaryMonthKey} onChange={handleSummaryMonthChange} className="mt-1" />
                   </label>
                 </div>
                 <button
@@ -5364,7 +5636,7 @@ export default function AdminAnalyticsPage() {
                   disabled={loading || !approverName.trim() || !salesStepUpReady}
                   className="ml-auto rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
                 >
-                  {loading ? "Loading..." : "Refresh Evaluation"}
+                  {loading ? <span className="inline-flex items-center gap-2"><Spinner size="sm" /> Loading...</span> : "Refresh Evaluation"}
                 </button>
               </div>
               <div className="text-xs text-neutral-500">
@@ -5708,7 +5980,7 @@ export default function AdminAnalyticsPage() {
                     </div>
                   </>
                 ) : (
-                  <div className="px-3 py-6 text-center text-sm text-neutral-500">No evaluation data</div>
+                  <div className="px-3 py-2"><EmptyState message="No evaluation data" /></div>
                 )}
               </div>
 
@@ -5764,7 +6036,7 @@ export default function AdminAnalyticsPage() {
                     </table>
                   </div>
                 ) : (
-                  <div className="px-3 py-6 text-center text-sm text-neutral-500">No daily timeline data</div>
+                  <div className="px-3 py-2"><EmptyState message="No daily timeline data" /></div>
                 )}
               </div>
 
@@ -6218,6 +6490,8 @@ export default function AdminAnalyticsPage() {
             </div>
             ) : null}
           </div>
+          ) : analyticsTab === "procurement" ? (
+          <ProcurementAnalyticsSection />
           ) : analyticsTab === "finance" ? (
           financeStepUpReady ? (
           <div className="mt-8 space-y-4">
@@ -6235,35 +6509,21 @@ export default function AdminAnalyticsPage() {
                     <option value="manila">Manila</option>
                   </select>
                 </div>
-                <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:min-w-[320px]">
+                <div className="grid w-full gap-2 sm:w-auto sm:min-w-[360px]">
+                  <label className="text-xs text-neutral-400">
+                    Summary Range (same as Sales Summary)
+                    <DateRangePicker
+                      value={{ from: summaryDateFrom, to: summaryDateTo }}
+                      onChange={(range) => {
+                        handleSummaryDateFromChange(range.from);
+                        handleSummaryDateToChange(range.to);
+                      }}
+                      className="mt-1"
+                    />
+                  </label>
                   <label className="text-xs text-neutral-400">
                     Month Quick Select
-                    <input
-                      type="month"
-                      value={summaryMonthKey}
-                      onChange={(e) => handleSummaryMonthChange(e.target.value)}
-                      className="mt-1 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
-                    />
-                  </label>
-                  <label className="text-xs text-neutral-400">
-                    From (same as Sales Summary)
-                    <input
-                      type="date"
-                      value={summaryDateFrom}
-                      onChange={(e) => handleSummaryDateFromChange(e.target.value)}
-                      max={summaryDateTo || undefined}
-                      className="mt-1 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
-                    />
-                  </label>
-                  <label className="text-xs text-neutral-400">
-                    To (same as Sales Summary)
-                    <input
-                      type="date"
-                      value={summaryDateTo}
-                      onChange={(e) => handleSummaryDateToChange(e.target.value)}
-                      min={summaryDateFrom || undefined}
-                      className="mt-1 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
-                    />
+                    <MonthPicker value={summaryMonthKey} onChange={handleSummaryMonthChange} className="mt-1" />
                   </label>
                   <label className="text-xs text-neutral-400">
                     Store scope (P&amp;L)
@@ -6287,7 +6547,7 @@ export default function AdminAnalyticsPage() {
                   disabled={loading || !approverName.trim() || !financeStepUpReady}
                   className="ml-auto rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
                 >
-                  {loading ? "Loading..." : "Refresh P&L"}
+                  {loading ? <span className="inline-flex items-center gap-2"><Spinner size="sm" /> Loading...</span> : "Refresh P&L"}
                 </button>
               </div>
               <div className="text-xs text-neutral-500">
@@ -6350,51 +6610,36 @@ export default function AdminAnalyticsPage() {
             <div id="finance-summary" className="grid grid-cols-2 gap-3 lg:grid-cols-6">
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Revenue (P&amp;L imported)</div>
-                <div className="mt-2 min-h-[40px] text-2xl font-bold tabular-nums">
-                  {plHeadline
-                    ? formatMoney(plHeadline.revenue)
-                    : isStoreScopedView
-                    ? "—"
-                    : formatMoney(Number(financeRatio?.sales_total ?? 0))}
-                </div>
+                <MetricValue
+                  className={NUMERIC_BLOCK_VALUE}
+                  value={plHeadline ? plHeadline.revenue : isStoreScopedView ? "—" : Number(financeRatio?.sales_total ?? 0)}
+                />
               </div>
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Opex (P&amp;L rollup)</div>
-                <div className="mt-2 min-h-[40px] text-2xl font-bold tabular-nums">
-                  {plHeadline
-                    ? formatMoney(plHeadline.opex)
-                    : isStoreScopedView
-                    ? "—"
-                    : financeBreakdown
-                    ? formatMoney(financeBreakdown.totalModeledCost)
-                    : "—"}
-                </div>
+                <MetricValue
+                  className={NUMERIC_BLOCK_VALUE}
+                  value={plHeadline ? plHeadline.opex : isStoreScopedView ? "—" : financeBreakdown ? financeBreakdown.totalModeledCost : "—"}
+                />
               </div>
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Operating profit (P&amp;L)</div>
-                <div className="mt-2 min-h-[40px] text-2xl font-bold tabular-nums">
-                  {plHeadline
-                    ? formatMoney(plHeadline.profit)
-                    : isStoreScopedView
-                    ? "—"
-                    : formatMoney(Number(financeRatio?.estimated_profit_using_targets ?? 0))}
-                </div>
+                <MetricValue
+                  className={NUMERIC_BLOCK_VALUE}
+                  value={plHeadline ? plHeadline.profit : isStoreScopedView ? "—" : Number(financeRatio?.estimated_profit_using_targets ?? 0)}
+                />
               </div>
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">FLR cost total</div>
-                <div className="mt-2 min-h-[40px] text-2xl font-bold tabular-nums">
-                  {plHeadline ? formatMoney(plHeadline.flrCost) : "—"}
-                </div>
+                <MetricValue className={NUMERIC_BLOCK_VALUE} value={plHeadline ? plHeadline.flrCost : "—"} />
               </div>
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Other expenses total</div>
-                <div className="mt-2 min-h-[40px] text-2xl font-bold tabular-nums">
-                  {plHeadline ? formatMoney(plHeadline.otherExpenses) : "—"}
-                </div>
+                <MetricValue className={NUMERIC_BLOCK_VALUE} value={plHeadline ? plHeadline.otherExpenses : "—"} />
               </div>
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Labor ratio (P&amp;L labor ÷ revenue)</div>
-                <div className="mt-2 min-h-[40px] text-2xl font-bold tabular-nums">
+                <div className={NUMERIC_BLOCK_VALUE}>
                   {plHeadline
                     ? formatPct(plHeadline.laborRatioPct)
                     : isStoreScopedView
@@ -6409,39 +6654,34 @@ export default function AdminAnalyticsPage() {
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Gross profit amount</div>
-                <div className="mt-2 min-h-[40px] text-2xl font-bold tabular-nums">
-                  {grossProfitMetrics ? formatMoney(grossProfitMetrics.grossProfitAmount) : "—"}
-                </div>
+                <MetricValue className={NUMERIC_BLOCK_VALUE} value={grossProfitMetrics ? grossProfitMetrics.grossProfitAmount : "—"} />
               </div>
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Gross profit rate</div>
-                <div className="mt-2 min-h-[40px] text-2xl font-bold tabular-nums">
+                <div className={NUMERIC_BLOCK_VALUE}>
                   {grossProfitMetrics ? formatPct(grossProfitMetrics.grossProfitRate) : "—"}
                 </div>
               </div>
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Gross profit / labor hour</div>
-                <div className="mt-2 min-h-[40px] text-2xl font-bold tabular-nums">
-                  {grossProfitMetrics?.grossProfitPerLaborHour != null
-                    ? formatMoney(grossProfitMetrics.grossProfitPerLaborHour)
-                    : "—"}
-                </div>
+                <MetricValue
+                  className={NUMERIC_BLOCK_VALUE}
+                  value={grossProfitMetrics?.grossProfitPerLaborHour != null ? grossProfitMetrics.grossProfitPerLaborHour : "—"}
+                />
               </div>
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Gross profit / attendance</div>
-                <div className="mt-2 min-h-[40px] text-2xl font-bold tabular-nums">
-                  {grossProfitMetrics?.grossProfitPerAttendance != null
-                    ? formatMoney(grossProfitMetrics.grossProfitPerAttendance)
-                    : "—"}
-                </div>
+                <MetricValue
+                  className={NUMERIC_BLOCK_VALUE}
+                  value={grossProfitMetrics?.grossProfitPerAttendance != null ? grossProfitMetrics.grossProfitPerAttendance : "—"}
+                />
               </div>
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Gross profit / order</div>
-                <div className="mt-2 min-h-[40px] text-2xl font-bold tabular-nums">
-                  {grossProfitMetrics?.grossProfitPerOrder != null
-                    ? formatMoney(grossProfitMetrics.grossProfitPerOrder)
-                    : "—"}
-                </div>
+                <MetricValue
+                  className={NUMERIC_BLOCK_VALUE}
+                  value={grossProfitMetrics?.grossProfitPerOrder != null ? grossProfitMetrics.grossProfitPerOrder : "—"}
+                />
               </div>
             </div>
             ) : null}
@@ -6620,7 +6860,7 @@ export default function AdminAnalyticsPage() {
                       disabled={loading || !approverName.trim() || !financeStepUpReady}
                       className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
                     >
-                      {loading ? "Loading..." : "Refresh Payroll"}
+                      {loading ? <span className="inline-flex items-center gap-2"><Spinner size="sm" /> Loading...</span> : "Refresh Payroll"}
                     </button>
                     <button
                       type="button"
@@ -6641,46 +6881,46 @@ export default function AdminAnalyticsPage() {
                 <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
                   <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                     <div className="text-xs text-neutral-500">Payroll Total (Net Pay)</div>
-                    <div className="mt-1 text-2xl font-bold tabular-nums">{formatMoney(payrollSummary.totalNetPay)}</div>
+                    <MetricValue className={NUMERIC_BLOCK_VALUE} value={payrollSummary.totalNetPay} />
                   </div>
                   <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                     <div className="text-xs text-neutral-500">Basic Salary</div>
-                    <div className="mt-1 text-2xl font-bold tabular-nums">{formatMoney(payrollSummary.basicSalary)}</div>
+                    <MetricValue className={NUMERIC_BLOCK_VALUE} value={payrollSummary.basicSalary} />
                   </div>
                   <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                     <div className="text-xs text-neutral-500">Accommodation</div>
-                    <div className="mt-1 text-2xl font-bold tabular-nums">{formatMoney(payrollSummary.accommodation)}</div>
+                    <MetricValue className={NUMERIC_BLOCK_VALUE} value={payrollSummary.accommodation} />
                   </div>
                   <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                     <div className="text-xs text-neutral-500">Transportation</div>
-                    <div className="mt-1 text-2xl font-bold tabular-nums">{formatMoney(payrollSummary.transportation)}</div>
+                    <MetricValue className={NUMERIC_BLOCK_VALUE} value={payrollSummary.transportation} />
                   </div>
                   <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                     <div className="text-xs text-neutral-500">Staff Rows</div>
-                    <div className="mt-1 text-2xl font-bold tabular-nums">{formatCount(payrollSummary.rowCount)}</div>
+                    <MetricValue className={NUMERIC_BLOCK_VALUE} value={payrollSummary.rowCount} />
                   </div>
                 </div>
 
                 <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-6">
                   <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                     <div className="text-xs text-neutral-500">Gross Pay (total)</div>
-                    <div className="mt-1 text-xl font-bold tabular-nums">{formatMoney(payrollSummary.grossPay)}</div>
+                    <MetricValue className={NUMERIC_SMALL_BLOCK_VALUE} value={payrollSummary.grossPay} />
                   </div>
                   <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                     <div className="text-xs text-neutral-500">Food allowance</div>
-                    <div className="mt-1 text-xl font-bold tabular-nums">{formatMoney(payrollSummary.foodAllowance)}</div>
+                    <MetricValue className={NUMERIC_SMALL_BLOCK_VALUE} value={payrollSummary.foodAllowance} />
                   </div>
                   <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                     <div className="text-xs text-neutral-500">Other allowance</div>
-                    <div className="mt-1 text-xl font-bold tabular-nums">{formatMoney(payrollSummary.otherAllowance)}</div>
+                    <MetricValue className={NUMERIC_SMALL_BLOCK_VALUE} value={payrollSummary.otherAllowance} />
                   </div>
                   <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                     <div className="text-xs text-neutral-500">Net additions</div>
-                    <div className="mt-1 text-xl font-bold tabular-nums">{formatMoney(payrollSummary.netAdditions)}</div>
+                    <MetricValue className={NUMERIC_SMALL_BLOCK_VALUE} value={payrollSummary.netAdditions} />
                   </div>
                   <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                     <div className="text-xs text-neutral-500">Net deductions</div>
-                    <div className="mt-1 text-xl font-bold tabular-nums">{formatMoney(payrollSummary.netDeductions)}</div>
+                    <MetricValue className={NUMERIC_SMALL_BLOCK_VALUE} value={payrollSummary.netDeductions} />
                   </div>
                   <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                     <div className="text-xs text-neutral-500">Arrears + / -</div>
@@ -6761,75 +7001,79 @@ export default function AdminAnalyticsPage() {
           </div>
           )
           ) : (
-          <div className="mt-8 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-6 text-sm text-neutral-400">
+          <div className={`mt-8 p-6 ${GLASS_CARD} ${BODY_TEXT}`}>
             This channel is not available for your current role/city.
           </div>
           )}
 
           {analyticsTab === "staff" && canViewStaffChannel ? (
-          <div className="mt-8 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className={GLASS_CARD + " mt-8 p-5"}>
+            <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
               <div>
-                <div className="text-sm font-semibold">Summary Analytics Period</div>
-                <div className="mt-1 text-xs text-neutral-500">
+                <div className="mb-1 flex items-center gap-2">
+                  <LayoutDashboard className="h-4 w-4 text-violet-400" />
+                  <h2 className={SECTION_TITLE}>Summary Analytics Period</h2>
+                </div>
+                <div className={BODY_TEXT}>
                   Period for total hours, top staff, city comparison, branch totals, and summary tables.
                 </div>
-                <div className="mt-1 text-[11px] text-neutral-500">
+                <div className={SUBTEXT + " mt-1"}>
                   This period affects only the Summary section.
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  loadAll("staff");
-                }}
-                disabled={loading || !approverName.trim() || !financeStepUpReady}
-                className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
-              >
-                {loading ? "Loading..." : "Refresh Summary"}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const pm = previousCalendarMonthRangeIso();
+                    setSummaryDateFrom(pm.from);
+                    setSummaryDateTo(pm.to);
+                  }}
+                  className={SECONDARY_BUTTON + " text-sm"}
+                >
+                  Reset to previous month
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    loadAll("staff");
+                  }}
+                  disabled={loading || !approverName.trim() || !financeStepUpReady}
+                  className={PRIMARY_BUTTON + " flex items-center gap-2 text-sm"}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  {loading ? "Loading..." : "Refresh Summary"}
+                </button>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
-                <div className="mb-1 text-xs text-neutral-400">Summary Date From</div>
-                <input
-                  type="date"
-                  value={summaryDateFrom}
-                  onChange={(e) => handleSummaryDateFromChange(e.target.value)}
-                  max={summaryDateTo || undefined}
-                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                <div className={LABEL_TEXT + " mb-1.5 block"}>Summary Range</div>
+                <DateRangePicker
+                  value={{ from: summaryDateFrom, to: summaryDateTo }}
+                  onChange={(range) => {
+                    handleSummaryDateFromChange(range.from);
+                    handleSummaryDateToChange(range.to);
+                  }}
                 />
               </div>
 
               <div>
-                <div className="mb-1 text-xs text-neutral-400">Summary Date To</div>
-                <input
-                  type="date"
-                  value={summaryDateTo}
-                  onChange={(e) => handleSummaryDateToChange(e.target.value)}
-                  min={summaryDateFrom || undefined}
-                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
-                />
-              </div>
-
-              <div>
-                <div className="mb-1 text-xs text-neutral-400">Month Quick Select</div>
-                <input
-                  type="month"
+                <div className={LABEL_TEXT + " mb-1.5 block"}>Month Quick Select</div>
+                <MonthPicker
                   value={summaryMonthKey}
-                  onChange={(e) => handleSummaryMonthChange(e.target.value)}
-                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                  onChange={handleSummaryMonthChange}
                 />
               </div>
               
               <div>
-                <div className="mb-1 text-xs text-neutral-400">Summary Branch</div>
+                <div className={LABEL_TEXT + " mb-1.5 block"}>Summary Branch</div>
                 <select
                   value={summaryBranchCode}
                   onChange={(e) => setSummaryBranchCode(e.target.value)}
-                  className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                  className={SELECT_CLASS}
                 >
                   {(BRANCH_OPTIONS[city] || [{ value: "", label: "All Branches" }]).map((opt) => (
                     <option key={opt.value || "ALL"} value={opt.value}>
@@ -6838,45 +7082,38 @@ export default function AdminAnalyticsPage() {
                   ))}
                 </select>
               </div>
-
-              <div className="flex items-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const pm = previousCalendarMonthRangeIso();
-                    setSummaryDateFrom(pm.from);
-                    setSummaryDateTo(pm.to);
-                  }}
-                  className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm font-semibold text-white hover:bg-neutral-900"
-                >
-                  Reset to previous month
-                </button>
-              </div>
             </div>
           </div>
           ) : null}
 
+          <div className="my-8 border-t border-white/5" />
+
           {analyticsTab === "staff" && canViewStaffChannel ? (
-          <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-6">
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <div className="text-xs text-neutral-500">Total Hours</div>
-              <div className="mt-1 text-2xl font-bold">{summary.totalHours.toFixed(1)}</div>
-            </div>
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <div className="text-xs text-neutral-500">Days</div>
-              <div className="mt-1 text-2xl font-bold">{summary.uniqueDays}</div>
-            </div>
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <div className="text-xs text-neutral-500">Branches</div>
-              <div className="mt-1 text-2xl font-bold">{summary.uniqueBranches}</div>
-            </div>
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4 md:col-span-2">
-              <div className="text-xs text-neutral-500">Top Staff</div>
-              <div className="mt-1 text-lg font-bold">{summary.topStaffName}</div>
-              <div className="text-sm text-neutral-400">{summary.topStaffHours.toFixed(1)} hrs</div>
-            </div>
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <div className="text-xs text-neutral-500">Top Absence</div>
+          <motion.div
+            className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-5"
+            variants={staggerContainerVariants}
+            initial="hidden"
+            animate="visible"
+          >
+            <motion.div className={KPI_CARD} variants={cardVariants}>
+              <div className={KPI_LABEL}>Total Hours</div>
+              <MetricValue className="mt-1 text-2xl font-bold tabular-nums break-words text-violet-300" value={summary.totalHours} />
+            </motion.div>
+            <motion.div className={KPI_CARD} variants={cardVariants}>
+              <div className={KPI_LABEL}>Days</div>
+              <MetricValue className={KPI_VALUE} value={summary.uniqueDays} />
+            </motion.div>
+            <motion.div className={KPI_CARD} variants={cardVariants}>
+              <div className={KPI_LABEL}>Branches</div>
+              <MetricValue className={KPI_VALUE} value={summary.uniqueBranches} />
+            </motion.div>
+            <motion.div className={`${KPI_CARD} md:col-span-2`} variants={cardVariants}>
+              <div className={KPI_LABEL}>Top Staff</div>
+              <div className="mt-1 text-base font-semibold text-emerald-400">{summary.topStaffName}</div>
+              <div className={BODY_TEXT}>{summary.topStaffHours.toFixed(1)} hrs</div>
+            </motion.div>
+            <motion.div className={KPI_CARD} variants={cardVariants}>
+              <div className={KPI_LABEL}>Top Absence</div>
               <div className="mt-1">
                 <span
                   className={[
@@ -6887,42 +7124,32 @@ export default function AdminAnalyticsPage() {
                   {summary.topAbsenceType}
                 </span>
               </div>
-              <div className="mt-2 text-sm text-neutral-400">{summary.topAbsenceRows} rows</div>
-            </div>
-          </div>
+              <div className={BODY_TEXT}>{summary.topAbsenceRows} rows</div>
+            </motion.div>
+          </motion.div>
           ) : null}
 
           {analyticsTab === "staff" ? (
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-5">
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <div className="min-h-[32px] text-xs text-neutral-500">Net Sales Volume</div>
-              <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                {formatMoney(posSalesSummary.totalNetSales)}
-              </div>
+          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
+            <div className={KPI_CARD}>
+              <div className={KPI_LABEL}>Net Sales Volume</div>
+              <MetricValue className={KPI_VALUE} value={posSalesSummary.totalNetSales} />
             </div>
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <div className="min-h-[32px] text-xs text-neutral-500">Gross Revenue</div>
-              <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                {formatMoney(posSalesSummary.totalGrossSales)}
-              </div>
+            <div className={KPI_CARD}>
+              <div className={KPI_LABEL}>Gross Revenue</div>
+              <MetricValue className={KPI_VALUE} value={posSalesSummary.totalGrossSales} />
             </div>
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <div className="min-h-[32px] text-xs text-neutral-500">Order Count (Non-Cancelled)</div>
-              <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                {formatCount(posSalesSummary.totalOrders)}
-              </div>
+            <div className={KPI_CARD}>
+              <div className={KPI_LABEL}>Order Count</div>
+              <MetricValue className={KPI_VALUE} value={posSalesSummary.totalOrders} />
             </div>
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <div className="min-h-[32px] text-xs text-neutral-500">Avg Net / Order</div>
-              <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                {formatMoney(posSalesSummary.avgRevenuePerOrder)}
-              </div>
+            <div className={KPI_CARD}>
+              <div className={KPI_LABEL}>Avg Net / Order</div>
+              <MetricValue className={KPI_VALUE} value={posSalesSummary.avgRevenuePerOrder} />
             </div>
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <div className="min-h-[32px] text-xs text-neutral-500">Days w/ sales data</div>
-              <div className="mt-1 min-h-[40px] min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-lg font-bold leading-tight tabular-nums sm:text-xl md:text-2xl">
-                {formatCount(posSalesSummary.dayCount)}
-              </div>
+            <div className={KPI_CARD}>
+              <div className={KPI_LABEL}>Days w/ Sales Data</div>
+              <MetricValue className={KPI_VALUE} value={posSalesSummary.dayCount} />
             </div>
           </div>
           ) : null}
@@ -6970,19 +7197,19 @@ export default function AdminAnalyticsPage() {
                       <div className="mt-4 grid grid-cols-2 gap-3">
                         <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-3">
                           <div className="text-[11px] text-neutral-500">Total Hours</div>
-                          <div className="mt-1 text-xl font-bold">{Number(s.total_hours || 0).toFixed(1)}</div>
+                          <MetricValue className={NUMERIC_SMALL_BLOCK_VALUE} value={Number(s.total_hours || 0)} />
                         </div>
                         <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-3">
                           <div className="text-[11px] text-neutral-500">Avg / Day</div>
-                          <div className="mt-1 text-xl font-bold">{Number(s.avg_hours_per_day || 0).toFixed(1)}</div>
+                          <MetricValue className={NUMERIC_SMALL_BLOCK_VALUE} value={Number(s.avg_hours_per_day || 0)} />
                         </div>
                         <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-3">
                           <div className="text-[11px] text-neutral-500">Days</div>
-                          <div className="mt-1 text-xl font-bold">{s.day_count}</div>
+                          <MetricValue className={NUMERIC_SMALL_BLOCK_VALUE} value={s.day_count} />
                         </div>
                         <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-3">
                           <div className="text-[11px] text-neutral-500">Branches</div>
-                          <div className="mt-1 text-xl font-bold">{s.branch_count}</div>
+                          <MetricValue className={NUMERIC_SMALL_BLOCK_VALUE} value={s.branch_count} />
                         </div>
                       </div>
 
@@ -7417,8 +7644,7 @@ export default function AdminAnalyticsPage() {
               <Link href="/admin/staff" className="hover:text-white">Staff Master</Link>
             </div>
           </div>
-        </div>
-      </div>
-    </main>
+        </motion.div>
+    </motion.div>
   );
 }

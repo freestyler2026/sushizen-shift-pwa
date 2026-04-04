@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MenuImportFailures from "@/components/menu/MenuImportFailures";
 import MenuPaginationControls from "@/components/menu/MenuPaginationControls";
 import { canAccessMenuAdmin, getAuth, refreshAuthFromApi, type City } from "@/lib/auth";
@@ -17,15 +18,23 @@ type ImportFailure = { row_number?: number; reason?: string };
 
 const EMPTY_FORM = { name: "", name_localized: "", reference: "", description: "", sort_order: "0" };
 
-export default function MenuGroupsPage() {
+function MenuGroupsPageInner() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const auth = useMemo(() => getAuth(), []);
+  const queryCity = (searchParams.get("city") || "").toLowerCase();
+  const queryTab = (searchParams.get("tab") || "").toUpperCase();
+  const queryQ = searchParams.get("q") || "";
+  const queryPage = Math.max(1, Number.parseInt(searchParams.get("page") || "1", 10) || 1);
+  const queryPageSize = Math.max(1, Number.parseInt(searchParams.get("page_size") || "50", 10) || 50);
   const [ready, setReady] = useState(false);
   const [allowed, setAllowed] = useState(false);
-  const [city, setCity] = useState<City>((auth?.city || "manila") as City);
-  const [tab, setTab] = useState("ALL");
-  const [q, setQ] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [city, setCity] = useState<City>(((queryCity === "manila" || queryCity === "dubai" ? queryCity : (auth?.city || "manila")) as City));
+  const [tab, setTab] = useState(["ALL", "ACTIVE", "INACTIVE", "DELETED"].includes(queryTab) ? queryTab : "ALL");
+  const [q, setQ] = useState(queryQ);
+  const [page, setPage] = useState(queryPage);
+  const [pageSize, setPageSize] = useState(queryPageSize);
   const [total, setTotal] = useState(0);
   const [hasNext, setHasNext] = useState(false);
   const [hasPrev, setHasPrev] = useState(false);
@@ -35,6 +44,7 @@ export default function MenuGroupsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [rows, setRows] = useState<MenuGroupRow[]>([]);
+  const [groupFilterOptions, setGroupFilterOptions] = useState<MenuGroupRow[]>([]);
   const [importFailures, setImportFailures] = useState<ImportFailure[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkAction, setBulkAction] = useState("DEACTIVATE");
@@ -55,6 +65,17 @@ export default function MenuGroupsPage() {
     void init();
     return () => { cancelled = true; };
   }, [auth]);
+
+  useEffect(() => {
+    const qs = new URLSearchParams();
+    qs.set("city", city);
+    if (tab !== "ALL") qs.set("tab", tab);
+    if (q) qs.set("q", q);
+    if (page > 1) qs.set("page", String(page));
+    if (pageSize !== 50) qs.set("page_size", String(pageSize));
+    const nextUrl = `${pathname}${qs.toString() ? `?${qs.toString()}` : ""}`;
+    router.replace(nextUrl, { scroll: false });
+  }, [city, page, pageSize, pathname, q, router, tab]);
 
   const loadRows = useCallback(async (nextCity = city, nextTab = tab, nextQ = q, nextPage = page, nextPageSize = pageSize) => {
     setLoading(true);
@@ -80,6 +101,23 @@ export default function MenuGroupsPage() {
     if (!ready || !allowed) return;
     void loadRows();
   }, [allowed, loadRows, ready]);
+
+  useEffect(() => {
+    if (!ready || !allowed) return;
+    let cancelled = false;
+    async function loadGroupFilterOptions() {
+      try {
+        const res = await menuGet<PaginatedResponse<MenuGroupRow>>(
+          `/api/admin/menu/groups?city=${encodeURIComponent(city)}&tab=ALL&q=&page=1&page_size=500&sort_by=sort_order&sort_dir=ASC`,
+        );
+        if (!cancelled) setGroupFilterOptions(res.rows || []);
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message || String(e));
+      }
+    }
+    void loadGroupFilterOptions();
+    return () => { cancelled = true; };
+  }, [allowed, city, ready]);
 
   function resetForm() {
     setEditingId("");
@@ -123,6 +161,7 @@ export default function MenuGroupsPage() {
   }
 
   async function deleteGroup(groupId: string) {
+    if (!window.confirm("Delete this group?")) return;
     setError("");
     setSuccess("");
     try {
@@ -213,7 +252,14 @@ export default function MenuGroupsPage() {
           </label>
           <label className="text-sm text-neutral-300">
             <div className="mb-1 text-xs text-neutral-500">Search</div>
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Group name or reference" className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
+            <select value={q} onChange={(e) => setQ(e.target.value)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
+              <option value="">All groups</option>
+              {groupFilterOptions.map((row) => (
+                <option key={row.id} value={row.reference || row.name || ""}>
+                  {row.name}{row.reference ? ` (${row.reference})` : ""}
+                </option>
+              ))}
+            </select>
           </label>
           <div className="flex flex-wrap items-end gap-2">
             {["ALL", "ACTIVE", "INACTIVE", "DELETED"].map((value) => (
@@ -287,7 +333,7 @@ export default function MenuGroupsPage() {
                 {loading ? <tr><td className="py-4 text-neutral-500" colSpan={6}>Loading groups...</td></tr> : rows.length ? rows.map((row) => (
                   <tr key={row.id} className="border-t border-neutral-800/80 align-top">
                     <td className="py-3 pr-4"><input type="checkbox" checked={selectedIds.includes(row.id)} onChange={() => toggleRow(row.id)} /></td>
-                    <td className="py-3 pr-4"><Link href={`/admin/menu/groups/${encodeURIComponent(row.id)}`} className="font-medium text-amber-200 hover:text-amber-100">{row.name}</Link><div className="mt-1 text-xs text-neutral-500">{row.name_localized || row.reference || "-"}</div></td>
+                    <td className="py-3 pr-4"><Link href={`/admin/menu/groups/${encodeURIComponent(row.id)}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`} className="font-medium text-amber-200 hover:text-amber-100">{row.name}</Link><div className="mt-1 text-xs text-neutral-500">{row.name_localized || row.reference || "-"}</div></td>
                     <td className="py-3 pr-4"><input value={sortDrafts[row.id] ?? String(row.sort_order ?? 0)} onChange={(e) => setSortDrafts((current) => ({ ...current, [row.id]: e.target.value }))} className="w-20 rounded-lg border border-neutral-700 bg-neutral-950/50 px-2 py-1 text-xs text-neutral-200" /></td>
                     <td className="py-3 pr-4 text-neutral-300"><div>{Number(row.content_summary?.product_count ?? row.product_count ?? 0)} products</div><div className="mt-1 text-xs text-neutral-500">{Number(row.content_summary?.combo_count ?? row.combo_count ?? 0)} combos</div></td>
                     <td className="py-3 pr-4"><span className="rounded-full border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300">{row.status}</span></td>
@@ -301,5 +347,13 @@ export default function MenuGroupsPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+export default function MenuGroupsPage() {
+  return (
+    <Suspense fallback={<div className="text-sm text-neutral-500">Loading groups...</div>}>
+      <MenuGroupsPageInner />
+    </Suspense>
   );
 }

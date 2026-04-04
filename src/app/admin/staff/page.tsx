@@ -2,9 +2,50 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
+import {
+  BarChart2,
+  ClipboardList,
+  ClockAlert,
+  Download,
+  KeyRound,
+  Pencil,
+  ScrollText,
+  Settings2,
+  ShieldCheck,
+  UserPlus,
+  Users,
+  X,
+  Zap,
+} from "lucide-react";
 import { canAccessAdminNav, getAuth, type City } from "@/lib/auth";
 import { apiGet, apiPost, qs } from "@/lib/api";
+import { fmtNum } from "@/lib/formatters";
+import {
+  BADGE_ACCENT,
+  BADGE_ERROR,
+  BADGE_INFO,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  DANGER_BUTTON,
+  DIVIDER,
+  GLASS_CARD,
+  INPUT_CLASS,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  SELECT_CLASS,
+  SMALL_BUTTON,
+  T_BODY,
+  T_CAPTION,
+  T_LABEL,
+  T_PAGE_TITLE,
+  T_SECTION,
+  TABLE_CELL,
+  TABLE_HEADER,
+  TABLE_ROW,
+} from "@/lib/ui-tokens";
 
 const ROLE_OPTIONS = [
   "STAFF",
@@ -123,28 +164,28 @@ function asStatus(s: any): StaffStatus {
 
 function roleBadgeClass(role: StaffRole) {
   if (role === "ADMIN") {
-    return "border-fuchsia-900/40 bg-fuchsia-950/10 text-fuchsia-200";
+    return BADGE_ACCENT;
   }
   if (role === "HQ") {
-    return "border-amber-900/40 bg-amber-950/10 text-amber-200";
+    return "inline-flex items-center rounded-full border border-amber-500/25 bg-amber-500/12 px-2.5 py-0.5 text-xs text-amber-300";
   }
   if (role === "MANAGER") {
-    return "border-sky-900/40 bg-sky-950/10 text-sky-200";
+    return BADGE_INFO;
   }
   if (role === "MANAGEMENT") {
-    return "border-cyan-900/40 bg-cyan-950/10 text-cyan-200";
+    return "inline-flex items-center rounded-full border border-sky-500/25 bg-sky-500/12 px-2.5 py-0.5 text-xs text-sky-300";
   }
   if (role === "DUBAI_MANAGEMENT" || role === "MANILA_MANAGEMENT") {
-    return "border-teal-900/40 bg-teal-950/10 text-teal-200";
+    return "inline-flex items-center rounded-full border border-teal-500/25 bg-teal-500/12 px-2.5 py-0.5 text-xs text-teal-300";
   }
-  return "border-neutral-800 bg-neutral-950/40 text-neutral-200";
+  return "inline-flex items-center rounded-full border border-white/10 bg-white/8 px-2.5 py-0.5 text-xs text-zinc-400";
 }
 
 function statusBadgeClass(status: StaffStatus) {
   if (status === "ACTIVE") {
-    return "border-emerald-900/40 bg-emerald-950/10 text-emerald-200";
+    return BADGE_SUCCESS;
   }
-  return "border-rose-900/40 bg-rose-950/10 text-rose-200";
+  return BADGE_ERROR;
 }
 
 function branchBadgeClass(branch: string) {
@@ -193,12 +234,12 @@ function skillBadgeClass(skill: string) {
 
 function setupBadgeClass(setupRequired: boolean, setupCompleted: boolean) {
   if (setupCompleted) {
-    return "border-emerald-900/40 bg-emerald-950/10 text-emerald-200";
+    return BADGE_SUCCESS;
   }
   if (setupRequired) {
-    return "border-amber-900/40 bg-amber-950/10 text-amber-200";
+    return BADGE_WARNING;
   }
-  return "border-neutral-800 bg-neutral-950/40 text-neutral-200";
+  return "inline-flex items-center rounded-full border border-white/10 bg-white/8 px-2.5 py-0.5 text-xs text-zinc-400";
 }
 
 export default function AdminStaffPage() {
@@ -231,6 +272,7 @@ export default function AdminStaffPage() {
   const [pushKeyDrafts, setPushKeyDrafts] = useState<Record<string, string>>({});
   const [pushKeySavingName, setPushKeySavingName] = useState("");
   const [pushKeySavedName, setPushKeySavedName] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     const a = getAuth();
@@ -279,15 +321,6 @@ export default function AdminStaffPage() {
       setListStaffOptions([]);
     }
   }, [city, statusFilter, approverName, loadListStaffOptions]);
-
-
-  const msgCls =
-    msg?.kind === "err"
-      ? "text-red-300"
-      : msg?.kind === "ok"
-        ? "text-emerald-200"
-        : "text-amber-200";
-
 
   const load = async () => {
     setLoading(true);
@@ -426,9 +459,7 @@ export default function AdminStaffPage() {
   };
 
   const changeRole = async (displayName: string) => {
-    setLoading(true);
     setMsg(null);
-    setRoleSavingName(displayName);
     try {
       const nm = norm(approverName);
       const p = legacyPinOrEmpty(pin);
@@ -437,6 +468,9 @@ export default function AdminStaffPage() {
       const dn = norm(displayName);
       if (!dn) throw new Error("display_name is required.");
       const nextRole = roleDrafts[dn] || asRole(rows.find((x) => norm(x.display_name) === dn)?.role);
+      if (!window.confirm(`Change role for ${dn} to ${nextRole}?`)) return;
+      setLoading(true);
+      setRoleSavingName(displayName);
 
       const res = await apiPost<ChangeRoleResp>("/api/admin/staff/change_role", {
         target_staff_name: dn,
@@ -496,7 +530,6 @@ export default function AdminStaffPage() {
   };
 
   const setStatusOnly = async (display_name: string, newStatus: StaffStatus) => {
-    setLoading(true);
     setMsg(null);
     try {
       const nm = norm(approverName);
@@ -505,6 +538,8 @@ export default function AdminStaffPage() {
 
       const dn = norm(display_name);
       if (!dn) throw new Error("display_name missing.");
+      if (!window.confirm(`Change status for ${dn} to ${newStatus}?`)) return;
+      setLoading(true);
 
       const r = await apiPost<{ ok: boolean; updated: number }>(
         "/api/admin/staff_master/set_status",
@@ -549,112 +584,175 @@ export default function AdminStaffPage() {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [rows]);
 
+  const filteredRows = useMemo(() => {
+    const q = norm(searchQuery).toLowerCase();
+    if (!q) return rows;
+    return rows.filter((row) => {
+      const name = norm(row.display_name).toLowerCase();
+      const branch = norm(row.home_branch).toLowerCase();
+      const role = norm(row.role).toLowerCase();
+      const status = norm(row.status).toLowerCase();
+      return [name, branch, role, status].some((value) => value.includes(q));
+    });
+  }, [rows, searchQuery]);
+
+  function downloadRoster() {
+    const headers = ["name", "branch", "role", "status", "setup", "push_key"];
+    const lines = [
+      headers.join(","),
+      ...filteredRows.map((row) =>
+        [
+          JSON.stringify(norm(row.display_name)),
+          JSON.stringify(norm(row.home_branch)),
+          JSON.stringify(asRole(row.role)),
+          JSON.stringify(asStatus(row.status)),
+          JSON.stringify(Boolean(row.setup_completed) ? "completed" : Boolean(row.setup_required) ? "pending" : "n/a"),
+          JSON.stringify(norm(pushKeyDrafts[norm(row.display_name)] ?? row.workforce_push_user_key)),
+        ].join(",")
+      ),
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `staff_roster_${city}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   if (!authed) return <div className="p-6 text-sm text-neutral-400">Loading...</div>;
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-        <div className="text-sm font-semibold">Quick Links</div>
-        <div className="mt-1 text-xs text-neutral-500">
-          Move between staff master, onboarding, and HQ role management.
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="mx-auto max-w-5xl space-y-6 px-4 py-8"
+    >
+      <div className="mb-6 flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-violet-500/20 bg-gradient-to-br from-violet-500/20 to-purple-500/10">
+          <Users className="h-5 w-5 text-violet-400" />
         </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
-          <a
-            href="/admin/staff/create"
-            className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4 transition hover:bg-neutral-900"
-          >
-            <div className="text-sm font-semibold">Create Staff Record</div>
-            <div className="mt-1 text-xs text-neutral-400">
-              Register a new staff member and issue setup code.
-            </div>
-          </a>
-
-          <a
-            href="/admin/analytics"
-            className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4 transition hover:bg-neutral-900"
-          >
-            <div className="text-sm font-semibold">Analytics</div>
-            <div className="mt-1 text-xs text-neutral-400">
-              Review historical hours, weekday averages, staff workload, and absences.
-            </div>
-          </a>
-
-          <a
-            href="/admin/staff/setup"
-            className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4 transition hover:bg-neutral-900"
-          >
-            <div className="text-sm font-semibold">Pending Staff Setup</div>
-            <div className="mt-1 text-xs text-neutral-400">
-              View pending setup staff and reissue codes.
-            </div>
-          </a>
-
-          <a
-            href="/admin/staff/roles"
-            className="rounded-xl border border-amber-900/40 bg-amber-950/10 p-4 transition hover:bg-amber-950/20"
-          >
-            <div className="text-sm font-semibold text-amber-200">Role Management</div>
-            <div className="mt-1 text-xs text-neutral-400">
-              HQ only. Change staff roles including ADMIN.
-            </div>
-          </a>
-
-          <a
-            href="/admin/staff/onboarding"
-            className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4 transition hover:bg-neutral-900"
-          >
-            <div className="text-sm font-semibold">Onboarding Dashboard</div>
-            <div className="mt-1 text-xs text-neutral-400">
-              View staff created, pending setup, and completed onboarding status.
-            </div>
-          </a>
-
-          <a
-            href="/admin/staff/audit"
-            className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4 transition hover:bg-neutral-900"
-          >
-            <div className="text-sm font-semibold">Audit Logs</div>
-            <div className="mt-1 text-xs text-neutral-400">
-              View staff creation, setup completion, code reissue, and role change history.
-            </div>
-          </a>
+        <div>
+          <h1 className={T_PAGE_TITLE}>Staff Master</h1>
+          <p className={T_CAPTION}>Manage roster, onboarding, role assignments, and staff analytics.</p>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 p-4">
-        <div className="text-sm font-semibold">Admin • Staff Master</div>
-        <div className="mt-1 text-xs text-neutral-500">
-          Manage roster without code changes (ACTIVE/INACTIVE, branch, constraints).
+      <div className="mb-2">
+        <div className="mb-3 flex items-center gap-2">
+          <Zap className="h-4 w-4 text-violet-400" />
+          <h2 className={T_SECTION}>Quick Links</h2>
+          <p className={T_CAPTION + " ml-1"}>Move between staff master, onboarding, and HQ role management.</p>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div>
-            <div className="mb-1 text-xs text-neutral-400">City</div>
-            <select
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              value={city}
-              onChange={(e) => setCity(e.target.value as City)}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {[
+            {
+              href: "/admin/staff/create",
+              label: "Create Staff Record",
+              desc: "Register a new staff member and issue setup code.",
+              icon: UserPlus,
+              color: "text-violet-400",
+              border: "border-violet-500/20",
+              bg: "from-violet-500/10 to-purple-500/5",
+            },
+            {
+              href: "/admin/analytics",
+              label: "Analytics",
+              desc: "Review historical hours, weekday averages, staff workload, and absences.",
+              icon: BarChart2,
+              color: "text-sky-400",
+              border: "border-sky-500/20",
+              bg: "from-sky-500/10 to-blue-500/5",
+            },
+            {
+              href: "/admin/staff/onboarding",
+              label: "Pending Staff Setup",
+              desc: "View pending setup staff and reissue codes.",
+              icon: ClockAlert,
+              color: "text-amber-400",
+              border: "border-amber-500/20",
+              bg: "from-amber-500/10 to-orange-500/5",
+            },
+            {
+              href: "/admin/staff/roles",
+              label: "Role Management",
+              desc: "HQ only. Change staff roles including ADMIN.",
+              icon: ShieldCheck,
+              color: "text-amber-300",
+              border: "border-amber-400/30",
+              bg: "from-amber-400/12 to-orange-400/6",
+            },
+            {
+              href: "/admin/staff/onboarding",
+              label: "Onboarding Dashboard",
+              desc: "View staff created, pending setup, and completed onboarding status.",
+              icon: ClipboardList,
+              color: "text-emerald-400",
+              border: "border-emerald-500/20",
+              bg: "from-emerald-500/10 to-teal-500/5",
+            },
+            {
+              href: "/admin/staff/audit",
+              label: "Audit Logs",
+              desc: "View staff creation, setup completion, code reissue, and role change history.",
+              icon: ScrollText,
+              color: "text-zinc-400",
+              border: "border-white/10",
+              bg: "from-white/5 to-white/2",
+            },
+          ].map((item, index) => (
+            <motion.div
+              key={item.label}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: index * 0.05 }}
+              className="h-full"
             >
+              <Link
+                href={item.href}
+                className={`group flex h-full min-h-[180px] flex-col rounded-2xl border ${item.border} bg-gradient-to-br ${item.bg} p-4 text-left transition-all duration-200 hover:scale-[1.02] hover:shadow-lg`}
+              >
+                <item.icon className={`mb-2 h-5 w-5 ${item.color}`} />
+                <p className="mb-1 min-h-[2.75rem] text-sm font-semibold text-white transition-colors duration-200">
+                  {item.label}
+                </p>
+                <p className={T_CAPTION + " flex-1"}>{item.desc}</p>
+              </Link>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      <div className={GLASS_CARD + " p-5"}>
+        <div className="mb-1 flex items-center gap-2">
+          <Settings2 className="h-4 w-4 text-violet-400" />
+          <h2 className={T_SECTION}>Admin · Staff Master</h2>
+        </div>
+        <p className={T_BODY + " mb-4"}>Manage roster without code changes (ACTIVE/INACTIVE, branch, constraints).</p>
+
+        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div>
+            <label className={T_LABEL + " mb-1.5 block"}>City</label>
+            <select className={SELECT_CLASS} value={city} onChange={(e) => setCity(e.target.value as City)}>
               <option value="dubai">Dubai</option>
               <option value="manila">Manila</option>
             </select>
           </div>
-
           <div>
-            <div className="mb-1 text-xs text-neutral-400">Approver name (HQ/ADMIN)</div>
+            <label className={T_LABEL + " mb-1.5 block"}>Approver Name (HQ/ADMIN)</label>
             <input
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className={INPUT_CLASS}
               value={approverName}
               onChange={(e) => setApproverName(e.target.value)}
               placeholder="e.g. Yukihiro Nishimura"
             />
           </div>
-
           <div>
-            <div className="mb-1 text-xs text-neutral-400">PIN (optional legacy)</div>
+            <label className={T_LABEL + " mb-1.5 block"}>PIN (optional legacy)</label>
             <input
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className={INPUT_CLASS}
               value={pin}
               onChange={(e) => setPin(e.target.value)}
               placeholder="Leave blank for session auth"
@@ -664,51 +762,51 @@ export default function AdminStaffPage() {
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={load}
             disabled={loading || !norm(approverName)}
-            className="rounded-xl border border-neutral-800 bg-neutral-950/30 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900/40 hover:text-white disabled:opacity-60"
-            title="Load"
+            className={PRIMARY_BUTTON + " flex items-center gap-2"}
           >
+            <ShieldCheck className="h-4 w-4" />
             {loading ? "Loading..." : "Verify & Load"}
           </button>
-
-          <button
-            type="button"
-            onClick={resetForm}
-            className="rounded-xl border border-neutral-800 bg-neutral-950/30 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900/40"
-          >
-            Clear form
+          <button type="button" onClick={resetForm} className={SECONDARY_BUTTON + " flex items-center gap-2"}>
+            <X className="h-4 w-4" />
+            Clear Form
           </button>
-
-          {msg ? <div className={`text-sm ${msgCls}`}>{msg.text}</div> : null}
         </div>
+
+        {msg ? (
+          <div className={`mt-4 rounded-xl px-4 py-3 text-sm ${msg.kind === "err" ? "border border-red-500/25 bg-red-500/10 text-red-300" : msg.kind === "ok" ? "border border-emerald-500/25 bg-emerald-500/10 text-emerald-300" : "border border-amber-500/25 bg-amber-500/10 text-amber-300"}`}>
+            {msg.text}
+          </div>
+        ) : null}
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-        <div className="text-sm font-semibold">Add New Staff</div>
-        <div className="mt-1 text-xs text-neutral-500">
-          Create only. Existing staff updates are managed from the role/status list below.
+      <div className={GLASS_CARD + " p-5"}>
+        <div className="mb-1 flex items-center gap-2">
+          <UserPlus className="h-4 w-4 text-emerald-400" />
+          <h2 className={T_SECTION}>Add New Staff</h2>
         </div>
+        <p className={T_BODY + " mb-4"}>Create only. Existing staff updates are managed from the role/status list below.</p>
 
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
-          <div className="sm:col-span-2">
-            <div className="mb-1 text-xs text-neutral-400">New staff full name</div>
+        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="sm:col-span-1">
+            <label className={T_LABEL + " mb-1.5 block"}>New Staff Full Name</label>
             <input
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className={INPUT_CLASS}
               value={newStaffName}
               onChange={(e) => setNewStaffName(e.target.value)}
               placeholder="e.g. Test User"
             />
           </div>
-
           <div>
-            <div className="mb-1 text-xs text-neutral-400">Home branch</div>
+            <label className={T_LABEL + " mb-1.5 block"}>Home Branch</label>
             <input
               list="branch_list"
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className={INPUT_CLASS}
               value={newStaffHomeBranch}
               onChange={(e) => setNewStaffHomeBranch(e.target.value)}
               placeholder="Business Bay / JLT / ..."
@@ -719,11 +817,10 @@ export default function AdminStaffPage() {
               ))}
             </datalist>
           </div>
-
           <div>
-            <div className="mb-1 text-xs text-neutral-400">Role</div>
+            <label className={T_LABEL + " mb-1.5 block"}>Role</label>
             <select
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className={SELECT_CLASS}
               value={newStaffRole}
               onChange={(e) => setNewStaffRole(e.target.value as "STAFF" | "MANAGER")}
             >
@@ -731,53 +828,59 @@ export default function AdminStaffPage() {
               <option value="MANAGER">MANAGER</option>
             </select>
           </div>
-
-          <div>
-            <div className="mb-1 text-xs text-neutral-400">Status</div>
-            <select
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              value={newStaffStatus}
-              onChange={(e) => setNewStaffStatus(e.target.value as StaffStatus)}
-            >
-              {STATUS_OPTIONS.map((x) => (
-                <option key={x} value={x}>
-                  {x}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
 
-        <div className="mt-3 flex items-center gap-2">
-          <button
-            type="button"
-            disabled={loading || !norm(approverName)}
-            onClick={createNewStaff}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60"
+        <div className="mb-4">
+          <label className={T_LABEL + " mb-1.5 block"}>Status</label>
+          <select
+            className={SELECT_CLASS + " max-w-[180px]"}
+            value={newStaffStatus}
+            onChange={(e) => setNewStaffStatus(e.target.value as StaffStatus)}
           >
-            Add New Staff
-          </button>
+            {STATUS_OPTIONS.map((x) => (
+              <option key={x} value={x}>
+                {x}
+              </option>
+            ))}
+          </select>
         </div>
+
+        <button
+          type="button"
+          disabled={loading || !norm(approverName)}
+          onClick={createNewStaff}
+          className={PRIMARY_BUTTON + " flex items-center gap-2"}
+        >
+          <UserPlus className="h-4 w-4" />
+          Add New Staff
+        </button>
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold">Role Management</div>
-            <div className="text-xs text-neutral-500">
-              Rows: <span className="text-neutral-200">{rows.length}</span>
-            </div>
+      <div className={GLASS_CARD + " overflow-hidden"}>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 px-5 py-4">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-violet-400" />
+            <h2 className={T_SECTION}>Staff Roster</h2>
+            <span className={BADGE_INFO}>{fmtNum(filteredRows.length)} members</span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <input
+              className={INPUT_CLASS + " max-w-[200px]"}
+              placeholder="Search staff..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            <button type="button" onClick={downloadRoster} className={SECONDARY_BUTTON + " flex items-center gap-2 text-sm"}>
+              <Download className="h-3.5 w-3.5" />
+              Export
+            </button>
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 border-b border-white/5 bg-white/3 px-5 py-4 sm:grid-cols-4 lg:grid-cols-5">
           <div>
-            <div className="mb-1 text-xs text-neutral-400">Status</div>
-            <select
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as StaffStatus)}
-            >
+            <label className={T_LABEL + " mb-1.5 block"}>Status</label>
+            <select className={SELECT_CLASS} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StaffStatus)}>
               {STATUS_OPTIONS.map((x) => (
                 <option key={x} value={x}>
                   {x}
@@ -785,25 +888,19 @@ export default function AdminStaffPage() {
               ))}
             </select>
           </div>
-
           <div>
-            <div className="mb-1 text-xs text-neutral-400">Home branch</div>
+            <label className={T_LABEL + " mb-1.5 block"}>Home Branch</label>
             <input
               list="branch_list"
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className={INPUT_CLASS}
               value={homeBranchFilter}
               onChange={(e) => setHomeBranchFilter(e.target.value)}
               placeholder="(optional)"
             />
           </div>
-
           <div className="sm:col-span-2">
-            <div className="mb-1 text-xs text-neutral-400">Staff</div>
-            <select
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              value={listSelectedDisplayName}
-              onChange={(e) => setListSelectedDisplayName(e.target.value)}
-            >
+            <label className={T_LABEL + " mb-1.5 block"}>Staff</label>
+            <select className={SELECT_CLASS} value={listSelectedDisplayName} onChange={(e) => setListSelectedDisplayName(e.target.value)}>
               <option value="">All staff</option>
               {listStaffOptions.map((name) => (
                 <option key={name} value={name}>
@@ -812,11 +909,10 @@ export default function AdminStaffPage() {
               ))}
             </select>
           </div>
-
           <div>
-            <div className="mb-1 text-xs text-neutral-400">Limit</div>
+            <label className={T_LABEL + " mb-1.5 block"}>Limit</label>
             <input
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className={INPUT_CLASS}
               type="number"
               min={1}
               max={5000}
@@ -826,191 +922,148 @@ export default function AdminStaffPage() {
           </div>
         </div>
 
-        <div className="mt-3 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={load}
-            disabled={loading || !norm(approverName)}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60"
-          >
-            Load List
-          </button>
-        </div>
-
-        <div className="mt-4 space-y-2">
-          {!rows.length && !loading ? (
-            <div className="text-sm text-neutral-500">No rows.</div>
-          ) : null}
-
-          {rows.map((r) => {
-            const dn = norm(r.display_name);
-            const st = asStatus(r.status);
-            const hb = norm(r.home_branch);
-            const rr = asRole(r.role);
-            const mdw = Number(r.max_days_per_week ?? 6);
-            const mcd = Number(r.max_consecutive_days ?? 6);
-            const sr = norm(r.skill_rank);
-            const setupRequired = Boolean(r.setup_required);
-            const setupCompleted = Boolean(r.setup_completed);
-            const setupLabel = setupCompleted ? "setup:done" : setupRequired ? "setup:pending" : "setup:n/a";
-
-            return (
-              <div
-                key={`${r.city}__${dn}`}
-                className="rounded-xl border border-neutral-800 bg-neutral-950/30 p-3"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm font-semibold">{dn}</div>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-neutral-400">
-                      <span
-                        className={[
-                          "inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                          branchBadgeClass(hb),
-                        ].join(" ")}
-                      >
-                        {hb || "-"}
-                      </span>
-
-                      <span
-                        className={[
-                          "inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                          roleBadgeClass(rr),
-                        ].join(" ")}
-                      >
-                        {rr}
-                      </span>
-
-                      <span
-                        className={[
-                          "inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                          statusBadgeClass(st),
-                        ].join(" ")}
-                      >
-                        {st}
-                      </span>
-
-                      <span>max/wk:{mdw}</span>
-                      <span>max/cons:{mcd}</span>
-                      {sr ? (
-                        <span
-                          className={[
-                            "inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                            skillBadgeClass(sr),
-                          ].join(" ")}
-                        >
-                          skill:{sr}
-                        </span>
-                      ) : null}
-                      <span
-                        className={[
-                          "inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                          setupBadgeClass(setupRequired, setupCompleted),
-                        ].join(" ")}
-                      >
-                        {setupLabel}
-                      </span>
-                    </div>
-                    {r.notes ? (
-                      <div className="mt-1 truncate text-xs text-neutral-500">
-                        {norm(r.notes)}
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px]">
+            <thead className="bg-white/3">
+              <tr>
+                {["Name", "Branch", "Role", "Status", "Actions"].map((col) => (
+                  <th key={col} className={TABLE_HEADER + " px-4 py-3 text-left"}>
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRows.map((r, i) => {
+                const dn = norm(r.display_name);
+                const st = asStatus(r.status);
+                const hb = norm(r.home_branch);
+                const rr = asRole(r.role);
+                const setupRequired = Boolean(r.setup_required);
+                const setupCompleted = Boolean(r.setup_completed);
+                return (
+                  <motion.tr
+                    key={`${r.city}__${dn}`}
+                    initial={{ opacity: 0, x: -6 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.2, delay: i * 0.02 }}
+                    className={TABLE_ROW}
+                  >
+                    <td className={TABLE_CELL + " px-4 align-top"}>
+                      <div className="flex items-start gap-2.5">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full border border-violet-500/20 bg-violet-500/15 text-xs font-bold text-violet-300">
+                          {dn.charAt(0) || "?"}
+                        </div>
+                        <div className="space-y-1">
+                          <span className="font-medium text-white">{dn}</span>
+                          <div className="flex flex-wrap gap-2 text-xs text-zinc-400">
+                            {r.notes ? <span>{norm(r.notes)}</span> : null}
+                            <span className={setupBadgeClass(setupRequired, setupCompleted)}>
+                              {setupCompleted ? "setup:done" : setupRequired ? "setup:pending" : "setup:n/a"}
+                            </span>
+                            {norm(r.skill_rank) ? (
+                              <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs ${skillBadgeClass(norm(r.skill_rank))}`}>
+                                skill:{norm(r.skill_rank)}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="flex max-w-[360px] items-center gap-2">
+                            <input
+                              className={INPUT_CLASS + " py-1.5 text-xs"}
+                              placeholder="workforce_push_user_key"
+                              value={pushKeyDrafts[dn] ?? norm(r.workforce_push_user_key)}
+                              onChange={(e) => setPushKeyDrafts((prev) => ({ ...prev, [dn]: e.target.value }))}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void savePushUserKey(dn)}
+                              className={SMALL_BUTTON}
+                              disabled={loading}
+                            >
+                              {pushKeySavingName === dn ? "Saving..." : "Save Key"}
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    ) : null}
-                    <div className="mt-2 flex items-center gap-2">
-                      <input
-                        className="w-72 max-w-full rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1 text-xs"
-                        placeholder="workforce_push_user_key"
-                        value={pushKeyDrafts[dn] ?? norm(r.workforce_push_user_key)}
-                        onChange={(e) =>
-                          setPushKeyDrafts((prev) => ({ ...prev, [dn]: e.target.value }))
-                        }
-                      />
-                      <button
-                        type="button"
-                        onClick={() => void savePushUserKey(dn)}
-                        className="rounded-lg border border-fuchsia-900 bg-fuchsia-950/20 px-3 py-1 text-xs text-fuchsia-200 hover:bg-fuchsia-950/40 disabled:opacity-60"
-                        disabled={loading}
-                      >
-                        {pushKeySavingName === dn ? "Saving key..." : "Save Push Key"}
-                      </button>
-                      {pushKeySavedName === dn ? (
-                        <span className="text-[11px] text-emerald-300">Saved</span>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <select
-                      className="rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1 text-xs"
-                      value={roleDrafts[dn] || rr}
-                      onChange={(e) =>
-                        setRoleDrafts((prev) => ({ ...prev, [dn]: asRole(e.target.value) }))
-                      }
-                    >
-                      {ROLE_OPTIONS.map((x) => (
-                        <option key={x} value={x}>
-                          {x}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => void changeRole(dn)}
-                      className="rounded-lg border border-amber-900 bg-amber-950/20 px-3 py-1 text-xs text-amber-200 hover:bg-amber-950/40 disabled:opacity-60"
-                      disabled={loading}
-                    >
-                      {roleSavingName === dn ? "Saving..." : "Save Role"}
-                    </button>
-                    {roleSavedName === dn ? (
-                      <span className="text-[11px] text-emerald-300">Saved</span>
-                    ) : null}
-
-                    <a
-                      href={`/admin/staff/audit?target_staff_name=${encodeURIComponent(dn)}`}
-                      className="rounded-lg border border-neutral-800 bg-neutral-950/40 px-3 py-1 text-xs text-neutral-300 hover:bg-neutral-900"
-                    >
-                      Audit
-                    </a>
-
-                    {setupRequired && !setupCompleted ? (
-                      <a
-                        href="/admin/staff/setup"
-                        className="rounded-lg border border-sky-900/40 bg-sky-950/10 px-3 py-1 text-xs text-sky-200 hover:bg-sky-950/20"
-                      >
-                        Pending Setup
-                      </a>
-                    ) : null}
-
-                    {st === "ACTIVE" ? (
-                      <button
-                        type="button"
-                        onClick={() => setStatusOnly(dn, "INACTIVE")}
-                        className="rounded-lg border border-amber-900 bg-amber-950/30 px-3 py-1 text-xs text-amber-200 hover:bg-amber-950/50"
-                        disabled={loading}
-                      >
-                        Deactivate
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setStatusOnly(dn, "ACTIVE")}
-                        className="rounded-lg border border-emerald-900 bg-emerald-950/30 px-3 py-1 text-xs text-emerald-200 hover:bg-emerald-950/50"
-                        disabled={loading}
-                      >
-                        Activate
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                    </td>
+                    <td className={TABLE_CELL + " px-4 align-top text-zinc-400"}>
+                      <div className="space-y-2">
+                        <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs ${branchBadgeClass(hb)}`}>{hb || "-"}</span>
+                        <div className="text-xs text-zinc-500">
+                          max/wk:{Number(r.max_days_per_week ?? 6)} | max/cons:{Number(r.max_consecutive_days ?? 6)}
+                        </div>
+                      </div>
+                    </td>
+                    <td className={TABLE_CELL + " px-4 align-top"}>
+                      <div className="space-y-2">
+                        <span className={roleBadgeClass(rr)}>{rr}</span>
+                        <select
+                          className={SELECT_CLASS + " max-w-[220px] py-1.5 text-xs"}
+                          value={roleDrafts[dn] || rr}
+                          onChange={(e) => setRoleDrafts((prev) => ({ ...prev, [dn]: asRole(e.target.value) }))}
+                        >
+                          {ROLE_OPTIONS.map((x) => (
+                            <option key={x} value={x}>
+                              {x}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </td>
+                    <td className={TABLE_CELL + " px-4 align-top"}>
+                      <div className="space-y-2">
+                        <span className={statusBadgeClass(st)}>{st}</span>
+                        {pushKeySavedName === dn ? <div className="text-xs text-emerald-300">Push key saved</div> : null}
+                        {roleSavedName === dn ? <div className="text-xs text-emerald-300">Role saved</div> : null}
+                      </div>
+                    </td>
+                    <td className={TABLE_CELL + " px-4 align-top"}>
+                      <div className="flex flex-wrap gap-1.5">
+                        <button type="button" onClick={() => void changeRole(dn)} className={SMALL_BUTTON + " flex items-center gap-1"} disabled={loading}>
+                          <Pencil className="h-3 w-3" />
+                          {roleSavingName === dn ? "Saving..." : "Edit"}
+                        </button>
+                        <Link href={`/admin/staff/audit?target_staff_name=${encodeURIComponent(dn)}`} className={SMALL_BUTTON + " flex items-center gap-1"}>
+                          <ScrollText className="h-3 w-3" />
+                          Audit
+                        </Link>
+                        {setupRequired && !setupCompleted ? (
+                          <Link href="/admin/staff/onboarding" className={SMALL_BUTTON + " flex items-center gap-1"}>
+                            <KeyRound className="h-3 w-3" />
+                            Reissue
+                          </Link>
+                        ) : null}
+                        {st === "ACTIVE" ? (
+                          <button type="button" onClick={() => setStatusOnly(dn, "INACTIVE")} className={DANGER_BUTTON + " px-3 py-1.5 text-xs"} disabled={loading}>
+                            Deactivate
+                          </button>
+                        ) : (
+                          <button type="button" onClick={() => setStatusOnly(dn, "ACTIVE")} className={SMALL_BUTTON + " text-xs"} disabled={loading}>
+                            Activate
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </motion.tr>
+                );
+              })}
+              {!filteredRows.length && !loading ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-12 text-center text-sm text-zinc-500">
+                    No rows.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
         </div>
 
-        <div className="mt-3 text-xs text-neutral-500">
+        <div className="px-5 py-4 text-xs text-zinc-500">
           Note: role/status changes apply from this list. If role update fails with legacy backend, redeploy backend and retry.
         </div>
       </div>
-    </div>
+
+      <div className={DIVIDER} />
+    </motion.div>
   );
 }

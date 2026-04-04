@@ -1,16 +1,25 @@
 // src/app/admin/staff/create/page.tsx
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
+import { Copy, UserPlus } from "lucide-react";
 import { getAuth } from "@/lib/auth";
 import { BRANCHES, type BranchCode, type City as BranchCity } from "@/lib/branches";
 import AdminOnboardingLinks from "@/components/admin/AdminOnboardingLinks";
+import {
+  GLASS_CARD,
+  INPUT_CLASS,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  SELECT_CLASS,
+  T_CAPTION,
+  T_LABEL,
+  T_PAGE_TITLE,
+} from "@/lib/ui-tokens";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
-const LOGO_SRC = "/logo.png";
-
 async function apiPost<T = any>(path: string, body?: any): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
@@ -119,27 +128,21 @@ export default function CreateStaffPage() {
   }
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-white">
-      <div className="mx-auto flex min-h-screen max-w-5xl flex-col justify-center px-6 py-10 space-y-6">
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: "easeOut" }} className="mx-auto max-w-5xl space-y-6 px-4 py-8">
         <AdminOnboardingLinks compact />
 
-        <div className="mx-auto w-full max-w-3xl rounded-3xl border border-neutral-800 bg-neutral-900/60 p-8 shadow-2xl">
-          <div className="flex flex-col items-center text-center">
-            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-neutral-800 bg-black">
-              <Image
-                src={LOGO_SRC}
-                alt="Sushi ZEN logo"
-                width={80}
-                height={80}
-                className="h-full w-full object-contain"
-              />
-            </div>
+        <div className="mb-6 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-violet-500/20 bg-gradient-to-br from-violet-500/20 to-purple-500/10">
+            <UserPlus className="h-5 w-5 text-violet-400" />
+          </div>
+          <div>
+            <h1 className={T_PAGE_TITLE}>Create Staff Record</h1>
+            <p className={T_CAPTION}>For store managers. Register a new staff member and issue a setup code.</p>
+          </div>
+        </div>
 
-            <h1 className="mt-5 text-2xl font-bold">Create Staff Record</h1>
-            <p className="mt-2 text-sm text-neutral-400">
-              For store managers. Register a new staff member and issue a setup code.
-            </p>
-
+        <div className={"mx-auto w-full max-w-3xl " + GLASS_CARD + " p-8"}>
+          <div className="text-center">
             <div className="mt-3 text-xs text-neutral-500">
               Verified role: <span className="text-neutral-200">{myRole || "—"}</span>
             </div>
@@ -147,11 +150,11 @@ export default function CreateStaffPage() {
 
           <form onSubmit={onSubmit} className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <div className="mb-1 text-xs text-neutral-400">City</div>
+              <div className={T_LABEL + " mb-1.5"}>City</div>
               <select
                 value={city}
                 onChange={(e) => setCity(e.target.value as BranchCity)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                className={SELECT_CLASS}
               >
                 <option value="dubai">Dubai</option>
                 <option value="manila">Manila</option>
@@ -159,11 +162,11 @@ export default function CreateStaffPage() {
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Branch</div>
+              <div className={T_LABEL + " mb-1.5"}>Branch</div>
               <select
                 value={homeBranch}
                 onChange={(e) => setHomeBranch(e.target.value as BranchCode)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                className={SELECT_CLASS}
               >
                 {BRANCHES[city].map((b) => (
                   <option key={b.code} value={b.code}>
@@ -174,21 +177,21 @@ export default function CreateStaffPage() {
             </div>
 
             <div className="md:col-span-2">
-              <div className="mb-1 text-xs text-neutral-400">Staff Name</div>
+              <div className={T_LABEL + " mb-1.5"}>Staff Name</div>
               <input
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm outline-none"
+                className={INPUT_CLASS}
                 placeholder="Enter staff full name"
               />
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Role</div>
+              <div className={T_LABEL + " mb-1.5"}>Role</div>
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value as "STAFF" | "MANAGER")}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                className={SELECT_CLASS}
               >
                 <option value="STAFF">STAFF</option>
                 <option value="MANAGER">MANAGER</option>
@@ -196,11 +199,11 @@ export default function CreateStaffPage() {
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Status</div>
+              <div className={T_LABEL + " mb-1.5"}>Status</div>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
+                className={SELECT_CLASS}
               >
                 <option value="ACTIVE">ACTIVE</option>
                 <option value="INACTIVE">INACTIVE</option>
@@ -208,22 +211,22 @@ export default function CreateStaffPage() {
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Manager Name</div>
+              <div className={T_LABEL + " mb-1.5"}>Manager Name</div>
               <input
                 value={approverName}
                 onChange={(e) => setApproverName(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm outline-none"
+                className={INPUT_CLASS}
                 placeholder="Your name"
               />
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Manager PIN</div>
+              <div className={T_LABEL + " mb-1.5"}>Manager PIN</div>
               <input
                 type="password"
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm outline-none"
+                className={INPUT_CLASS}
                 placeholder="Your PIN"
               />
             </div>
@@ -232,8 +235,9 @@ export default function CreateStaffPage() {
               <button
                 type="submit"
                 disabled={loading || !displayName.trim() || !approverName.trim() || !pin.trim()}
-                className="flex w-full items-center justify-center rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
+                className={PRIMARY_BUTTON + " flex w-full items-center justify-center gap-2"}
               >
+                <UserPlus className="h-4 w-4" />
                 {loading ? "Creating..." : "Create Staff Record"}
               </button>
             </div>
@@ -252,20 +256,20 @@ export default function CreateStaffPage() {
               </div>
 
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-3">
-                  <div className="text-[11px] text-neutral-500">Staff</div>
+                <div className={GLASS_CARD + " p-3"}>
+                  <div className={T_CAPTION}>Staff</div>
                   <div className="mt-1 text-sm text-neutral-100">{result.display_name}</div>
                 </div>
 
-                <div className="rounded-2xl border border-amber-800/50 bg-amber-950/30 p-3">
+                <div className={GLASS_CARD + " p-3"}>
                   <div className="text-[11px] text-amber-300/70">Setup Code</div>
                   <div className="mt-1 text-2xl font-bold tracking-[0.2em] text-amber-200">
                     {result.setup_code}
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-3">
-                  <div className="text-[11px] text-neutral-500">Expires At</div>
+                <div className={GLASS_CARD + " p-3"}>
+                  <div className={T_CAPTION}>Expires At</div>
                   <div className="mt-1 text-sm text-neutral-100">{result.expires_at}</div>
                 </div>
               </div>
@@ -273,28 +277,28 @@ export default function CreateStaffPage() {
               <div className="mt-4 flex flex-wrap gap-3">
                 <Link
                   href={`/setup-pin?staff_name=${encodeURIComponent(result.display_name)}`}
-                  className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200"
+                  className={PRIMARY_BUTTON + " text-sm"}
                 >
                   Open Set Up PIN
                 </Link>
 
                 <Link
                   href="/signup"
-                  className="rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-neutral-900"
+                  className={SECONDARY_BUTTON + " text-sm"}
                 >
                   Open Sign Up
                 </Link>
 
                 <Link
-                  href="/admin/staff/setup"
-                  className="rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-neutral-900"
+                  href="/admin/staff/onboarding"
+                  className={SECONDARY_BUTTON + " text-sm"}
                 >
                   Open Pending Setup
                 </Link>
 
                 <Link
                   href={`/admin/staff/audit?event_type=staff_created&target_staff_name=${encodeURIComponent(result.display_name)}`}
-                  className="rounded-2xl border border-neutral-700 bg-neutral-950/40 px-4 py-3 text-sm font-semibold text-neutral-200 transition hover:bg-neutral-900"
+                  className={SECONDARY_BUTTON + " text-sm"}
                 >
                   View Audit Logs
                 </Link>
@@ -302,8 +306,9 @@ export default function CreateStaffPage() {
                 <button
                   type="button"
                     onClick={() => navigator.clipboard.writeText(result.setup_code)}
-                    className="rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-neutral-900"
+                    className={SECONDARY_BUTTON + " flex items-center gap-2 text-sm"}
                 >
+                  <Copy className="h-4 w-4" />
                   Copy Setup Code
                 </button>
               </div>
@@ -320,12 +325,11 @@ export default function CreateStaffPage() {
             <Link href="/admin/staff" className="hover:text-white">
               ← Back to Staff Master
             </Link>
-            <Link href="/admin/staff/setup" className="hover:text-white">
+            <Link href="/admin/staff/onboarding" className="hover:text-white">
               View Pending Setup
             </Link>
           </div>
         </div>
-      </div>
-    </main>
+    </motion.div>
   );
 }

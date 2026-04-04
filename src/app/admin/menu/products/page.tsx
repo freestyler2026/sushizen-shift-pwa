@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import IngredientItemSearch, { type IngredientItemOption } from "@/components/menu/IngredientItemSearch";
 import MenuImportFailures from "@/components/menu/MenuImportFailures";
 import MenuPaginationControls from "@/components/menu/MenuPaginationControls";
 import { canAccessMenuAdmin, getAuth, refreshAuthFromApi, type City } from "@/lib/auth";
@@ -10,20 +11,13 @@ import { menuGet, menuGetText, menuPatch, menuPost } from "@/lib/menuClient";
 
 type MenuCategoryRow = { id: string; name: string; status?: string };
 type CostSummary = { ingredients_cost: number; fixed_cost: number; effective_cost: number; cost_percentage: number };
-type IngredientOption = {
-  id: string;
-  name: string;
-  sku: string;
-  storage_unit: string;
-  ingredient_unit: string;
-  cost: number;
-};
 type DraftIngredient = {
   ingredient_item_id: string;
   ingredient_name: string;
   sku: string;
   quantity: string;
   ingredient_unit: string;
+  item_type?: string;
 };
 type MenuProductRow = {
   id: string;
@@ -52,7 +46,7 @@ type MenuProductRow = {
 };
 type PaginatedResponse<T> = { rows: T[]; total: number; page: number; page_size: number; has_next: boolean; has_prev: boolean };
 type ImportFailure = { row_number?: number; reason?: string };
-const BASE_INGREDIENT_UNITS = ["kg", "g", "pcs"];
+const BASE_INGREDIENT_UNITS = ["kg", "g", "pcs", "pkt", "ml"];
 
 const EMPTY_FORM = {
   category_id: "",
@@ -60,6 +54,7 @@ const EMPTY_FORM = {
   name_localized: "",
   sku: "",
   barcode: "",
+  tax_group_id: "",
   price: "0",
   pricing_method: "FIXED_PRICE",
   selling_method: "UNIT",
@@ -75,18 +70,24 @@ const EMPTY_FORM = {
 };
 
 function MenuProductsPageInner() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const auth = useMemo(() => getAuth(), []);
   const queryCity = (searchParams.get("city") || "").toLowerCase();
   const queryCategoryId = searchParams.get("category_id") || "";
+  const queryTab = (searchParams.get("tab") || "").toUpperCase();
+  const queryQ = searchParams.get("q") || "";
+  const queryPage = Math.max(1, Number.parseInt(searchParams.get("page") || "1", 10) || 1);
+  const queryPageSize = Math.max(1, Number.parseInt(searchParams.get("page_size") || "50", 10) || 50);
   const [ready, setReady] = useState(false);
   const [allowed, setAllowed] = useState(false);
   const [city, setCity] = useState<City>(((queryCity === "manila" || queryCity === "dubai" ? queryCity : (auth?.city || "manila")) as City));
-  const [tab, setTab] = useState("ALL");
-  const [q, setQ] = useState("");
+  const [tab, setTab] = useState(["ALL", "ACTIVE", "INACTIVE", "DELETED"].includes(queryTab) ? queryTab : "ALL");
+  const [q, setQ] = useState(queryQ);
   const [categoryFilter, setCategoryFilter] = useState(queryCategoryId);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [page, setPage] = useState(queryPage);
+  const [pageSize, setPageSize] = useState(queryPageSize);
   const [total, setTotal] = useState(0);
   const [hasNext, setHasNext] = useState(false);
   const [hasPrev, setHasPrev] = useState(false);
@@ -96,8 +97,8 @@ function MenuProductsPageInner() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [rows, setRows] = useState<MenuProductRow[]>([]);
+  const [productFilterOptions, setProductFilterOptions] = useState<MenuProductRow[]>([]);
   const [categories, setCategories] = useState<MenuCategoryRow[]>([]);
-  const [ingredientOptions, setIngredientOptions] = useState<IngredientOption[]>([]);
   const [importFailures, setImportFailures] = useState<ImportFailure[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkAction, setBulkAction] = useState("DEACTIVATE");
@@ -105,7 +106,7 @@ function MenuProductsPageInner() {
   const [editingId, setEditingId] = useState("");
   const [suggestedSku, setSuggestedSku] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
-  const [selectedIngredientId, setSelectedIngredientId] = useState("");
+  const [selectedIngredient, setSelectedIngredient] = useState<IngredientItemOption | null>(null);
   const [ingredientQty, setIngredientQty] = useState("1");
   const [ingredientUnit, setIngredientUnit] = useState("kg");
   const [draftIngredients, setDraftIngredients] = useState<DraftIngredient[]>([]);
@@ -128,29 +129,47 @@ function MenuProductsPageInner() {
 
   useEffect(() => {
     setCategoryFilter(queryCategoryId);
-    setPage(1);
   }, [queryCategoryId]);
+
+  useEffect(() => {
+    const qs = new URLSearchParams();
+    qs.set("city", city);
+    if (tab !== "ALL") qs.set("tab", tab);
+    if (q) qs.set("q", q);
+    if (categoryFilter) qs.set("category_id", categoryFilter);
+    if (page > 1) qs.set("page", String(page));
+    if (pageSize !== 50) qs.set("page_size", String(pageSize));
+    const nextUrl = `${pathname}${qs.toString() ? `?${qs.toString()}` : ""}`;
+    router.replace(nextUrl, { scroll: false });
+  }, [categoryFilter, city, page, pageSize, pathname, q, router, tab]);
+
+  const loadCategoryOptions = useCallback(async (nextCity = city) => {
+    try {
+      const res = await menuGet<PaginatedResponse<MenuCategoryRow>>(
+        `/api/admin/menu/categories?city=${encodeURIComponent(nextCity)}&tab=ALL&page=1&page_size=500&sort_by=sort_order&sort_dir=ASC`,
+      );
+      const activeCategories = (res.rows || []).filter((row) => row.status !== "DELETED");
+      setCategories(activeCategories);
+      setCategoryFilter((current) => (current && !activeCategories.some((row) => row.id === current) ? "" : current));
+      setForm((current) => ({
+        ...current,
+        category_id: current.category_id && activeCategories.some((row) => row.id === current.category_id)
+          ? current.category_id
+          : activeCategories[0]?.id || "",
+      }));
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    }
+  }, [city]);
 
   const loadAll = useCallback(async (nextCity = city, nextTab = tab, nextQ = q, nextCategory = categoryFilter, nextPage = page, nextPageSize = pageSize) => {
     setLoading(true);
     setError("");
     try {
-      const [productsRes, categoriesRes, ingredientsRes] = await Promise.all([
-        menuGet<PaginatedResponse<MenuProductRow>>(
-          `/api/admin/menu/products?city=${encodeURIComponent(nextCity)}&tab=${encodeURIComponent(nextTab)}&q=${encodeURIComponent(nextQ)}&category_id=${encodeURIComponent(nextCategory)}&page=${encodeURIComponent(String(nextPage))}&page_size=${encodeURIComponent(String(nextPageSize))}&sort_by=sort_order&sort_dir=ASC`,
-        ),
-        menuGet<{ rows: MenuCategoryRow[] }>(
-          `/api/admin/menu/categories?city=${encodeURIComponent(nextCity)}&tab=ALL&page=1&page_size=200&sort_by=sort_order&sort_dir=ASC`,
-        ),
-        menuGet<{ rows: IngredientOption[] }>(
-          `/api/admin/menu/ingredient-items?city=${encodeURIComponent(nextCity)}&limit=500`,
-        ),
-      ]);
-      const activeCategories = (categoriesRes.rows || []).filter((row) => row.status !== "DELETED");
-      const activeIngredients = (ingredientsRes.rows || []).filter((row) => row.id);
+      const productsRes = await menuGet<PaginatedResponse<MenuProductRow>>(
+        `/api/admin/menu/products?city=${encodeURIComponent(nextCity)}&tab=${encodeURIComponent(nextTab)}&q=${encodeURIComponent(nextQ)}&category_id=${encodeURIComponent(nextCategory)}&page=${encodeURIComponent(String(nextPage))}&page_size=${encodeURIComponent(String(nextPageSize))}&sort_by=sort_order&sort_dir=ASC`,
+      );
       setRows(productsRes.rows || []);
-      setCategories(activeCategories);
-      setIngredientOptions(activeIngredients);
       setTotal(Number(productsRes.total || 0));
       setPage(Number(productsRes.page || nextPage));
       setPageSize(Number(productsRes.page_size || nextPageSize));
@@ -158,9 +177,6 @@ function MenuProductsPageInner() {
       setHasPrev(Boolean(productsRes.has_prev));
       setSelectedIds([]);
       setSortDrafts(Object.fromEntries((productsRes.rows || []).map((row) => [row.id, String(row.sort_order ?? 0)])));
-      setForm((current) => ({ ...current, category_id: current.category_id || activeCategories[0]?.id || "" }));
-      setSelectedIngredientId((current) => current || activeIngredients[0]?.id || "");
-      setIngredientUnit((current) => current || activeIngredients[0]?.ingredient_unit || activeIngredients[0]?.storage_unit || BASE_INGREDIENT_UNITS[0]);
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -172,6 +188,35 @@ function MenuProductsPageInner() {
     if (!ready || !allowed) return;
     void loadAll();
   }, [allowed, loadAll, ready]);
+
+  useEffect(() => {
+    if (!ready || !allowed) return;
+    void loadCategoryOptions();
+  }, [allowed, loadCategoryOptions, ready]);
+
+  useEffect(() => {
+    if (!ready || !allowed) return;
+    let cancelled = false;
+    async function loadProductFilterOptions() {
+      try {
+        const res = await menuGet<PaginatedResponse<MenuProductRow>>(
+          `/api/admin/menu/products?city=${encodeURIComponent(city)}&tab=ALL&q=&category_id=&page=1&page_size=500&sort_by=sort_order&sort_dir=ASC`,
+        );
+        if (!cancelled) setProductFilterOptions(res.rows || []);
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message || String(e));
+      }
+    }
+    void loadProductFilterOptions();
+    return () => {
+      cancelled = true;
+    };
+  }, [allowed, city, ready]);
+
+  const visibleProductFilterOptions = useMemo(
+    () => productFilterOptions.filter((row) => !categoryFilter || row.category_id === categoryFilter),
+    [categoryFilter, productFilterOptions],
+  );
 
   useEffect(() => {
     if (!ready || !allowed) return;
@@ -194,7 +239,6 @@ function MenuProductsPageInner() {
     };
   }, [allowed, city, editingId, ready]);
 
-  const selectedIngredient = ingredientOptions.find((option) => option.id === selectedIngredientId) || null;
   const ingredientUnitOptions = Array.from(
     new Set(
       [
@@ -227,6 +271,7 @@ function MenuProductsPageInner() {
         sku: selectedIngredient.sku,
         quantity: String(quantity),
         ingredient_unit: ingredientUnit,
+        item_type: selectedIngredient.item_type,
       },
     ]);
     setIngredientQty("1");
@@ -239,9 +284,9 @@ function MenuProductsPageInner() {
   function resetForm() {
     setEditingId("");
     setForm({ ...EMPTY_FORM, category_id: categories[0]?.id || "", sku: suggestedSku });
-    setSelectedIngredientId(ingredientOptions[0]?.id || "");
+    setSelectedIngredient(null);
     setIngredientQty("1");
-    setIngredientUnit(ingredientOptions[0]?.ingredient_unit || ingredientOptions[0]?.storage_unit || BASE_INGREDIENT_UNITS[0]);
+    setIngredientUnit(BASE_INGREDIENT_UNITS[0]);
     setDraftIngredients([]);
   }
 
@@ -257,8 +302,11 @@ function MenuProductsPageInner() {
         city,
         category_id: form.category_id,
         name: form.name,
+        name_localized: form.name_localized,
         sku: form.sku,
         barcode: form.barcode,
+        image_url: form.image_url,
+        tax_group_id: form.tax_group_id,
         price: Number(form.price || 0),
         pricing_method: form.pricing_method,
         selling_method: form.selling_method,
@@ -291,9 +339,9 @@ function MenuProductsPageInner() {
         setSuggestedSku(nextSku);
         setEditingId("");
         setForm({ ...EMPTY_FORM, category_id: categories[0]?.id || "", sku: nextSku });
-        setSelectedIngredientId(ingredientOptions[0]?.id || "");
+        setSelectedIngredient(null);
         setIngredientQty("1");
-        setIngredientUnit(ingredientOptions[0]?.ingredient_unit || ingredientOptions[0]?.storage_unit || BASE_INGREDIENT_UNITS[0]);
+        setIngredientUnit(BASE_INGREDIENT_UNITS[0]);
         setDraftIngredients([]);
       }
       await loadAll(city, tab, q, categoryFilter, page, pageSize);
@@ -317,6 +365,7 @@ function MenuProductsPageInner() {
   }
 
   async function deleteProduct(productId: string) {
+    if (!window.confirm("Delete this product?")) return;
     setError("");
     setSuccess("");
     try {
@@ -407,7 +456,15 @@ function MenuProductsPageInner() {
           </label>
           <label className="text-sm text-neutral-300">
             <div className="mb-1 text-xs text-neutral-500">Search</div>
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Product, SKU, barcode" className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
+            <select value={q} onChange={(e) => setQ(e.target.value)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
+              <option value="">All products</option>
+              {visibleProductFilterOptions.map((row) => (
+                <option key={row.id} value={row.sku || row.barcode || row.name || ""}>
+                  {row.name}
+                  {row.sku ? ` (${row.sku})` : row.barcode ? ` (${row.barcode})` : ""}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="text-sm text-neutral-300">
             <div className="mb-1 text-xs text-neutral-500">Category Filter</div>
@@ -455,6 +512,7 @@ function MenuProductsPageInner() {
               </select>
             </label>
             <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Name *</div><input value={form.name} onChange={(e) => setForm((current) => ({ ...current, name: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" /></label>
+            <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Localized Name</div><input value={form.name_localized} onChange={(e) => setForm((current) => ({ ...current, name_localized: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" /></label>
             {!editingId ? (
               <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
                 <div className="text-sm font-semibold text-neutral-100">Ingredients</div>
@@ -462,10 +520,16 @@ function MenuProductsPageInner() {
                 <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr),120px,120px,auto]">
                   <label className="text-sm text-neutral-300">
                     <div className="mb-1 text-xs text-neutral-500">Ingredient Item</div>
-                    <select value={selectedIngredientId} onChange={(e) => setSelectedIngredientId(e.target.value)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
-                      <option value="">Select ingredient</option>
-                      {ingredientOptions.map((item) => <option key={item.id} value={item.id}>{item.name} ({item.sku})</option>)}
-                    </select>
+                    <IngredientItemSearch
+                      city={city}
+                      selectedOption={selectedIngredient}
+                      onSelect={(option) => {
+                        setSelectedIngredient(option);
+                        if (option) {
+                          setIngredientUnit(option.ingredient_unit || option.storage_unit || BASE_INGREDIENT_UNITS[0]);
+                        }
+                      }}
+                    />
                   </label>
                   <label className="text-sm text-neutral-300">
                     <div className="mb-1 text-xs text-neutral-500">Quantity</div>
@@ -485,7 +549,12 @@ function MenuProductsPageInner() {
                   {draftIngredients.length ? draftIngredients.map((line) => (
                     <div key={line.ingredient_item_id} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-sm">
                       <div>
-                        <div className="font-medium text-neutral-100">{line.ingredient_name}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="font-medium text-neutral-100">{line.ingredient_name}</div>
+                          <span className={`rounded-full border px-2 py-0.5 text-[11px] ${String(line.item_type || "").toUpperCase() === "PRODUCT" ? "border-violet-800/80 bg-violet-950/40 text-violet-200" : "border-emerald-800/80 bg-emerald-950/30 text-emerald-200"}`}>
+                            {String(line.item_type || "").toUpperCase() === "PRODUCT" ? "CK Product" : "Ingredient"}
+                          </span>
+                        </div>
                         <div className="text-xs text-neutral-500">{line.sku} • {line.quantity} {line.ingredient_unit}</div>
                       </div>
                       <button type="button" onClick={() => removeDraftIngredient(line.ingredient_item_id)} className="rounded-lg border border-rose-800/80 px-2 py-1 text-xs text-rose-200">Remove</button>
@@ -500,6 +569,10 @@ function MenuProductsPageInner() {
                 <input value={form.sku} onChange={(e) => setForm((current) => ({ ...current, sku: e.target.value.toUpperCase() }))} placeholder={suggestedSku || "Auto suggested SKU"} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
               </label>
               <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Barcode</div><input value={form.barcode} onChange={(e) => setForm((current) => ({ ...current, barcode: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" /></label>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Image URL</div><input value={form.image_url} onChange={(e) => setForm((current) => ({ ...current, image_url: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" /></label>
+              <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Tax Group ID</div><input value={form.tax_group_id} onChange={(e) => setForm((current) => ({ ...current, tax_group_id: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" /></label>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-sm text-neutral-300"><div className="mb-1 text-xs text-neutral-500">Price</div><input value={form.price} onChange={(e) => setForm((current) => ({ ...current, price: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" /></label>
@@ -544,7 +617,7 @@ function MenuProductsPageInner() {
                 {loading ? <tr><td className="py-4 text-neutral-500" colSpan={9}>Loading products...</td></tr> : rows.length ? rows.map((row) => (
                   <tr key={row.id} className="border-t border-neutral-800/80 align-top">
                     <td className="py-3 pr-4"><input type="checkbox" checked={selectedIds.includes(row.id)} onChange={() => toggleRow(row.id)} /></td>
-                    <td className="py-3 pr-4"><Link href={`/admin/menu/products/${encodeURIComponent(row.id)}`} className="font-medium text-amber-200 hover:text-amber-100">{row.name}</Link>{row.name_localized ? <div className="mt-1 text-xs text-neutral-500">{row.name_localized}</div> : null}</td>
+                    <td className="py-3 pr-4"><Link href={`/admin/menu/products/${encodeURIComponent(row.id)}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`} className="font-medium text-amber-200 hover:text-amber-100">{row.name}</Link>{row.name_localized ? <div className="mt-1 text-xs text-neutral-500">{row.name_localized}</div> : null}</td>
                     <td className="py-3 pr-4 text-neutral-300">{row.sku}</td>
                     <td className="py-3 pr-4 text-neutral-300">{row.category_name}</td>
                     <td className="py-3 pr-4"><input value={sortDrafts[row.id] ?? String(row.sort_order ?? 0)} onChange={(e) => setSortDrafts((current) => ({ ...current, [row.id]: e.target.value }))} className="w-20 rounded-lg border border-neutral-700 bg-neutral-950/50 px-2 py-1 text-xs text-neutral-200" /></td>
@@ -553,7 +626,7 @@ function MenuProductsPageInner() {
                     <td className="py-3 pr-4"><span className="rounded-full border border-neutral-700 px-2 py-1 text-[10px] text-neutral-300">{row.status}</span></td>
                     <td className="py-3">
                       <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={() => { setEditingId(row.id); setForm({ category_id: row.category_id || "", name: row.name || "", name_localized: row.name_localized || "", sku: row.sku || "", barcode: row.barcode || "", image_url: row.image_url || "", description: row.description || "", price: String(row.price ?? 0), pricing_method: row.pricing_method || "FIXED_PRICE", selling_method: row.selling_method || "UNIT", costing_method: row.costing_method || "FROM_INGREDIENTS", fixed_cost: String(row.fixed_cost ?? 0), preparation_time: String(row.preparation_time ?? 0), walk_time: String(row.walk_time ?? 0), calories: String(row.calories ?? 0), sort_order: String(row.sort_order ?? 0), high_salt_content: Boolean(row.high_salt_content) }); }} className="rounded-xl border border-neutral-700 px-3 py-1.5 text-xs text-neutral-200">Edit</button>
+                        <button type="button" onClick={() => { setEditingId(row.id); setForm({ category_id: row.category_id || "", name: row.name || "", name_localized: row.name_localized || "", sku: row.sku || "", barcode: row.barcode || "", image_url: row.image_url || "", tax_group_id: row.tax_group_id || "", description: row.description || "", price: String(row.price ?? 0), pricing_method: row.pricing_method || "FIXED_PRICE", selling_method: row.selling_method || "UNIT", costing_method: row.costing_method || "FROM_INGREDIENTS", fixed_cost: String(row.fixed_cost ?? 0), preparation_time: String(row.preparation_time ?? 0), walk_time: String(row.walk_time ?? 0), calories: String(row.calories ?? 0), sort_order: String(row.sort_order ?? 0), high_salt_content: Boolean(row.high_salt_content) }); }} className="rounded-xl border border-neutral-700 px-3 py-1.5 text-xs text-neutral-200">Edit</button>
                         {row.status === "ACTIVE" ? <button type="button" onClick={() => void updateStatus(row.id, "INACTIVE")} className="rounded-xl border border-neutral-700 px-3 py-1.5 text-xs text-neutral-200">Inactivate</button> : row.status === "INACTIVE" ? <button type="button" onClick={() => void updateStatus(row.id, "ACTIVE")} className="rounded-xl border border-emerald-700/80 px-3 py-1.5 text-xs text-emerald-200">Activate</button> : null}
                         {row.status !== "DELETED" ? <button type="button" onClick={() => void deleteProduct(row.id)} className="rounded-xl border border-rose-800/80 px-3 py-1.5 text-xs text-rose-200">Delete</button> : null}
                       </div>

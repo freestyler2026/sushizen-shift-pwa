@@ -39,6 +39,17 @@ function formatDateTime(value: string): string {
   return value ? String(value).slice(0, 16).replace("T", " ") : "-";
 }
 
+const PAGE_BG = "min-h-screen text-white";
+const GLASS_PANEL = "rounded-2xl border border-white/8 bg-violet-950/30 backdrop-blur-xl";
+const FIELD_CLASS =
+  "rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20";
+const PRIMARY_BUTTON =
+  "rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 px-4 py-2 text-sm font-semibold text-white transition-all duration-200 shadow-lg shadow-violet-500/25 hover:scale-[1.02] hover:from-violet-400 hover:to-purple-400 hover:shadow-violet-500/40 active:scale-[0.98] disabled:opacity-60";
+const SECONDARY_BUTTON =
+  "rounded-xl border border-violet-400/15 bg-violet-950/30 px-4 py-2 text-sm text-white transition-all duration-200 hover:border-violet-500/25 hover:bg-violet-950/45 disabled:opacity-60";
+const SMALL_LINK =
+  "inline-flex rounded-xl border border-violet-400/15 bg-violet-950/30 px-3 py-2 text-xs text-white transition-all duration-200 hover:border-violet-500/25 hover:bg-violet-950/45";
+
 export default function StoreProcurementReceivingPage() {
   const LAST_CREATED_RECEIVING_KEY = "store_procurement_last_created_receiving";
   const LAST_CREATED_MAX_AGE_MS = getRecentBadgeMaxAgeMs();
@@ -249,14 +260,15 @@ export default function StoreProcurementReceivingPage() {
       await Promise.all([loadMyRequests(initialCity), loadReceivings()]);
     }
     void init();
-  }, [auth, loadMyRequests, loadReceivings, requestedBy]);
+  }, [auth, city, loadMyRequests, loadReceivings, requestedBy]);
 
   return (
-    <div className="space-y-4">
-      {error ? <div className="text-sm text-red-300">{error}</div> : null}
-      {info ? <div className="text-sm text-emerald-300">{info}</div> : null}
+    <div className={PAGE_BG}>
+      <div className="mx-auto max-w-6xl space-y-4 px-4 py-8">
+      {error ? <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-sm text-red-300">{error}</div> : null}
+      {info ? <div className="rounded-xl border border-emerald-900/40 bg-emerald-950/20 px-3 py-2 text-sm text-emerald-300">{info}</div> : null}
       {requestId.trim() ? (
-        <div className="rounded-xl border border-sky-700/60 bg-sky-900/20 px-3 py-2 text-xs text-sky-200">
+        <div className="rounded-xl border border-violet-500/25 bg-violet-500/12 px-3 py-2 text-xs text-violet-200">
           Selected request_id: <span className="font-mono">{requestId.trim()}</span>
         </div>
       ) : null}
@@ -267,7 +279,7 @@ export default function StoreProcurementReceivingPage() {
           <div className="mt-2">
             <Link
               href={`/store/procurement/claim?request_id=${encodeURIComponent(lastCreatedReceivingRequestId || requestId)}&receiving_id=${encodeURIComponent(lastCreatedReceivingId)}`}
-              className="inline-flex rounded-xl border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-[11px] hover:bg-neutral-900"
+              className={SMALL_LINK}
             >
               Continue to Claim
             </Link>
@@ -275,29 +287,29 @@ export default function StoreProcurementReceivingPage() {
         </div>
       ) : null}
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+      <div className={`${GLASS_PANEL} p-4`}>
         <div className="text-sm font-medium">Store Receiving</div>
         <div className="mt-1 text-xs text-neutral-500">Register received quantities and confirm receiving records from store operations.</div>
-        <div className="mt-2 text-xs text-amber-200">Current city: {cityLabel}</div>
+        <div className="mt-2 text-xs text-violet-200">Current city: {cityLabel}</div>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Link href="/store/procurement" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+          <Link href="/store/procurement" className={SMALL_LINK}>
             Home
           </Link>
-          <Link href={`/store/procurement/history?city=${encodeURIComponent(city || "manila")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+          <Link href={`/store/procurement/history?city=${encodeURIComponent(city || "manila")}`} className={SMALL_LINK}>
             Go to History
           </Link>
-          <Link href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+          <Link href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}`} className={SMALL_LINK}>
             Go to Request
           </Link>
-          <Link href={requestId ? `/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(requestId)}` : `/store/procurement/claim?city=${encodeURIComponent(city || "manila")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+          <Link href={requestId ? `/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(requestId)}` : `/store/procurement/claim?city=${encodeURIComponent(city || "manila")}`} className={SMALL_LINK}>
             Go to Claim
           </Link>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 md:grid-cols-5">
-        <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Requested by" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+      <div className={`grid grid-cols-1 gap-3 p-3 md:grid-cols-5 ${GLASS_PANEL}`}>
+        <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Requested by" className={FIELD_CLASS} />
+        <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className={FIELD_CLASS} />
         <select
           value={city}
           onChange={(e) => {
@@ -305,23 +317,23 @@ export default function StoreProcurementReceivingPage() {
             setCity(nextCity);
             void loadMyRequests(nextCity);
           }}
-          className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+          className={FIELD_CLASS}
         >
           <option value="manila">Manila</option>
           <option value="dubai">Dubai</option>
         </select>
-        <input value={requestId} onChange={(e) => setRequestId(e.target.value)} placeholder="Request ID" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm">
+        <input value={requestId} onChange={(e) => setRequestId(e.target.value)} placeholder="Request ID" className={FIELD_CLASS} />
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={FIELD_CLASS}>
           <option value="">All statuses</option>
           <option value="DRAFT">DRAFT</option>
           <option value="CONFIRMED">CONFIRMED</option>
         </select>
-        <button type="button" onClick={() => void Promise.all([loadMyRequests(), loadReceivings()])} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900">
+        <button type="button" onClick={() => void Promise.all([loadMyRequests(), loadReceivings()])} className={SECONDARY_BUTTON}>
           Refresh
         </button>
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+      <div className={`${GLASS_PANEL} p-4`}>
         <div className="text-sm font-medium">My Requests (for receiving, {cityLabel})</div>
         <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
           {requests.map((row) => (
@@ -331,7 +343,7 @@ export default function StoreProcurementReceivingPage() {
               onClick={() => setRequestId(row.id)}
               className={[
                 "rounded-xl border p-3 text-left",
-                requestId === row.id ? "border-amber-500 bg-amber-950/20" : "border-neutral-800 bg-neutral-950/30 hover:bg-neutral-900",
+                requestId === row.id ? "border-violet-500/30 bg-violet-500/15" : "border-white/8 bg-black/15 hover:bg-violet-950/45",
               ].join(" ")}
             >
               <div className="text-sm text-neutral-100">{row.request_no}</div>
@@ -340,7 +352,7 @@ export default function StoreProcurementReceivingPage() {
               <div className="mt-2">
                 <Link
                   href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`}
-                  className="inline-flex rounded-xl border border-neutral-800 bg-neutral-950 px-2 py-1 text-[11px] hover:bg-neutral-900"
+                  className={SMALL_LINK}
                   onClick={(e) => e.stopPropagation()}
                 >
                   Open Claim
@@ -352,23 +364,23 @@ export default function StoreProcurementReceivingPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+      <div className={`${GLASS_PANEL} p-4`}>
         <div className="text-sm font-medium">Create Receiving</div>
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <input value={poId} onChange={(e) => setPoId(e.target.value)} placeholder="PO ID (optional)" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <input value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="Vendor name (optional)" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <input value={qtyExpected} onChange={(e) => setQtyExpected(e.target.value)} placeholder="Qty expected" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <input value={qtyReceived} onChange={(e) => setQtyReceived(e.target.value)} placeholder="Qty received" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="Unit" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <input value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} placeholder={`Unit price (${currencyCode})`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <select value={qualityStatus} onChange={(e) => setQualityStatus(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm">
+          <input value={poId} onChange={(e) => setPoId(e.target.value)} placeholder="PO ID (optional)" className={FIELD_CLASS} />
+          <input value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="Vendor name (optional)" className={FIELD_CLASS} />
+          <input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} className={FIELD_CLASS} />
+          <input value={qtyExpected} onChange={(e) => setQtyExpected(e.target.value)} placeholder="Qty expected" className={FIELD_CLASS} />
+          <input value={qtyReceived} onChange={(e) => setQtyReceived(e.target.value)} placeholder="Qty received" className={FIELD_CLASS} />
+          <input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="Unit" className={FIELD_CLASS} />
+          <input value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} placeholder={`Unit price (${currencyCode})`} className={FIELD_CLASS} />
+          <select value={qualityStatus} onChange={(e) => setQualityStatus(e.target.value)} className={FIELD_CLASS}>
             <option value="ACCEPTED">ACCEPTED</option>
             <option value="QUALITY_REVIEW">QUALITY_REVIEW</option>
             <option value="REJECTED">REJECTED</option>
           </select>
-          <textarea value={varianceReason} onChange={(e) => setVarianceReason(e.target.value)} placeholder="Variance / quality note" className="min-h-20 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm md:col-span-3" />
-          <button type="button" onClick={() => void createReceiving()} disabled={busy === "create" || !requestId.trim()} className="rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-800/30 disabled:opacity-60 md:col-span-3">
+          <textarea value={varianceReason} onChange={(e) => setVarianceReason(e.target.value)} placeholder="Variance / quality note" className={`min-h-20 md:col-span-3 ${FIELD_CLASS}`} />
+          <button type="button" onClick={() => void createReceiving()} disabled={busy === "create" || !requestId.trim()} className={`md:col-span-3 ${PRIMARY_BUTTON}`}>
             {busy === "create" ? "Creating..." : "Create Receiving"}
           </button>
           {actionHint ? <div className="text-xs text-amber-300 md:col-span-3">{actionHint}</div> : null}
@@ -382,7 +394,7 @@ export default function StoreProcurementReceivingPage() {
             className={`rounded-2xl border p-4 ${
               row.id === lastCreatedReceivingId
                 ? "border-emerald-700/60 bg-emerald-900/20"
-                : "border-neutral-800 bg-neutral-900/20"
+                : "border-white/8 bg-violet-950/25"
             }`}
           >
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -408,18 +420,18 @@ export default function StoreProcurementReceivingPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {row.case_id ? (
-                  <Link href={`/admin/procurement/cases/${row.case_id}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+                  <Link href={`/admin/procurement/cases/${row.case_id}`} className={SMALL_LINK}>
                     Open Case
                   </Link>
                 ) : null}
-                <Link href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.request_id)}&receiving_id=${encodeURIComponent(row.id)}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+                <Link href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.request_id)}&receiving_id=${encodeURIComponent(row.id)}`} className={SMALL_LINK}>
                   Create Claim
                 </Link>
                 <button
                   type="button"
                   onClick={() => void confirmReceiving(row.id)}
                   disabled={busy === row.id || row.status === "CONFIRMED"}
-                  className="rounded-xl border border-sky-700/60 bg-sky-900/20 px-3 py-2 text-xs text-sky-200 hover:bg-sky-800/30 disabled:opacity-60"
+                  className={row.status === "CONFIRMED" ? SECONDARY_BUTTON : PRIMARY_BUTTON}
                 >
                   {busy === row.id ? "Confirming..." : row.status === "CONFIRMED" ? "Confirmed" : "Confirm"}
                 </button>
@@ -428,6 +440,7 @@ export default function StoreProcurementReceivingPage() {
           </div>
         ))}
         {!rows.length ? <div className="text-sm text-neutral-500">No receiving records.</div> : null}
+      </div>
       </div>
     </div>
   );

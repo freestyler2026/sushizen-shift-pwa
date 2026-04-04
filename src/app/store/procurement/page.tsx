@@ -1,10 +1,49 @@
 "use client";
 
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { useRouter } from "next/navigation";
+import {
+  ShoppingCart,
+  History,
+  PackageCheck,
+  AlertCircle,
+  RefreshCw,
+  ChevronRight,
+  MapPin,
+  Store,
+  Building2,
+  ClipboardList,
+  CheckCircle2,
+  Clock,
+  RotateCcw,
+} from "lucide-react";
+import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
 import { formatRelativeAge, getRecentBadgeMaxAgeMs, isOlderThan, parseIsoTimeMs, useRelativeAgeNow } from "@/lib/timeAgo";
+import {
+  GLASS_CARD,
+  STATUS_CARD,
+  SMALL_BUTTON,
+  DANGER_BUTTON,
+  INPUT_CLASS,
+  SELECT_CLASS,
+  T_PAGE_TITLE,
+  T_SECTION,
+  T_CARD_TITLE,
+  T_BODY,
+  T_CAPTION,
+  T_LABEL,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  BADGE_ERROR,
+  BADGE_INFO,
+  KPI_CARD,
+  KPI_LABEL,
+  KPI_VALUE,
+  DIVIDER,
+} from "@/lib/ui-tokens";
 
 type RequestRow = {
   id: string;
@@ -58,6 +97,16 @@ const DUBAI_CURATED_STORES = ["ALL", "Al Barsha", "Al Mina", "B Bay", "JLT", "M 
 const DUBAI_CURATED_CATEGORIES = ["Kitchen Ingredients", "Warehouse", "Central Kitchen"];
 
 export default function StoreProcurementHomePage() {
+  const PAGE_BG = "min-h-screen text-white";
+  const BLUSH_GLASS = `${GLASS_CARD} bg-violet-950/30`;
+  const BLUSH_HIGHLIGHT = "rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/18 to-purple-500/10";
+  const BLUSH_PRIMARY =
+    "rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 px-5 py-2.5 font-semibold text-white transition-all duration-200 shadow-lg shadow-violet-500/25 hover:scale-[1.02] hover:from-violet-400 hover:to-purple-400 hover:shadow-violet-500/40 active:scale-[0.98] disabled:opacity-60";
+  const BLUSH_SECONDARY =
+    "rounded-xl border border-violet-400/15 bg-violet-950/30 px-5 py-2.5 text-white transition-all duration-200 hover:border-violet-500/25 hover:bg-violet-950/45 disabled:opacity-60";
+  const BLUSH_SMALL = `${SMALL_BUTTON} bg-violet-950/30 hover:bg-violet-950/45`;
+
+  const router = useRouter();
   const LAST_CREATED_REQUEST_KEY = "store_procurement_last_created_request";
   const LAST_CREATED_RECEIVING_KEY = "store_procurement_last_created_receiving";
   const LAST_CREATED_CLAIM_KEY = "store_procurement_last_created_claim";
@@ -94,6 +143,7 @@ export default function StoreProcurementHomePage() {
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [canOpenAdminCase, setCanOpenAdminCase] = useState(false);
   const initRef = useRef(false);
   const cityLabel = city === "dubai" ? "Dubai" : "Manila";
   const currencyCode = city === "dubai" ? "AED" : "PHP";
@@ -221,11 +271,16 @@ export default function StoreProcurementHomePage() {
     initRef.current = true;
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
+      if (!(refreshed?.staffName || auth?.staffName) || !(refreshed?.accessToken || auth?.accessToken)) {
+        router.replace("/login?next=%2Fstore%2Fprocurement");
+        return;
+      }
       let queryCity = "";
       if (typeof window !== "undefined") {
         queryCity = String(new URLSearchParams(window.location.search).get("city") || "").toLowerCase();
       }
       const initialCity = queryCity || city || String(refreshed?.city || auth?.city || "manila").toLowerCase() || "manila";
+      setCanOpenAdminCase(canAccessProcurementAdmin(String((refreshed || auth)?.role || ""), initialCity === "dubai" ? "dubai" : "manila"));
       setCity(initialCity);
       if ((refreshed?.staffName || "").trim() && !requestedBy.trim()) {
         setRequestedBy(String(refreshed?.staffName || "").trim());
@@ -234,7 +289,7 @@ export default function StoreProcurementHomePage() {
       await loadMyRequests(initialCity);
     }
     void init();
-  }, [auth, city, loadCatalogStores, loadMyRequests, requestedBy]);
+  }, [auth, city, loadCatalogStores, loadMyRequests, requestedBy, router]);
 
   useEffect(() => {
     if (!selectedStore.trim()) {
@@ -474,17 +529,37 @@ export default function StoreProcurementHomePage() {
   }, [RECENT_ACTIVITY_ACTIONS_EXPANDED_KEY, expandedActionsByItem]);
 
   return (
-    <div className="space-y-4">
+    <div className={PAGE_BG}>
+      <motion.div
+        className="mx-auto max-w-6xl space-y-6 px-4 py-8"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+      >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className={T_PAGE_TITLE}>Store Procurement</h1>
+          <p className={T_BODY}>Central entry point for store request, receiving, and claim operations.</p>
+        </div>
+        <span className={BADGE_INFO}>
+          <MapPin className="h-3 w-3" />
+          Current city: {cityLabel}
+        </span>
+      </div>
+
       {error ? <div className="text-sm text-red-300">{error}</div> : null}
       {recentActivities.length ? (
-        <div className="rounded-xl border border-neutral-800 bg-neutral-900/20 px-3 py-2 text-xs text-neutral-200">
-          <div className="mb-2 text-xs font-medium text-neutral-300">Recent activity timeline</div>
+        <div className={`${BLUSH_GLASS} px-4 py-3 text-xs text-neutral-200`}>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div className={T_CARD_TITLE}>Recent Activity Timeline</div>
+            <span className={T_CAPTION}>{recentActivities.length} items</span>
+          </div>
           {recentActivities.length > 3 ? (
             <div className="mb-2">
               <button
                 type="button"
                 onClick={() => setShowAllRecentActivities((prev) => !prev)}
-                className="rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1 text-[11px] text-neutral-300 hover:bg-neutral-900"
+                className={BLUSH_SMALL}
               >
                 {showAllRecentActivities ? "Show less" : `View all (${recentActivities.length})`}
               </button>
@@ -492,7 +567,7 @@ export default function StoreProcurementHomePage() {
           ) : null}
           <div className="space-y-2">
             {visibleRecentActivities.map((item) => (
-              <div key={`${item.kind}:${item.id}`} className="rounded-lg border border-neutral-800 bg-neutral-950/40 p-2">
+              <div key={`${item.kind}:${item.id}`} className={`${STATUS_CARD} bg-violet-950/25 p-3`}>
                 <div className="flex flex-wrap items-center gap-2">
                   <span
                     className={`rounded-full border px-2 py-0.5 text-[10px] ${
@@ -540,7 +615,7 @@ export default function StoreProcurementHomePage() {
                                 label: "Open Claim",
                                 href: `/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(item.requestId)}`,
                               },
-                              ...(item.caseId
+                              ...(item.caseId && canOpenAdminCase
                                 ? [
                                     {
                                       label: "Open Case",
@@ -558,7 +633,7 @@ export default function StoreProcurementHomePage() {
                         <Link
                           key={`${action.label}:${action.href}`}
                           href={action.href}
-                          className="rounded-xl border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-[11px] hover:bg-neutral-900"
+                          className={BLUSH_SMALL}
                         >
                           {action.label}
                         </Link>
@@ -572,7 +647,7 @@ export default function StoreProcurementHomePage() {
                               [activityKey]: !isExpanded,
                             }))
                           }
-                          className="rounded-xl border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-[11px] text-neutral-300 hover:bg-neutral-900"
+                          className={BLUSH_SMALL}
                         >
                           {isExpanded ? "Less" : `More (${actions.length - 2})`}
                         </button>
@@ -586,91 +661,107 @@ export default function StoreProcurementHomePage() {
         </div>
       ) : null}
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-        <div className="text-sm font-medium">Store Procurement Home</div>
-        <div className="mt-1 text-xs text-neutral-500">Central entry point for store request, receiving, and claim operations.</div>
-        <div className="mt-2 text-xs text-amber-200">Current city: {cityLabel}</div>
-      </div>
-
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-        <div className="text-sm font-medium">Request Starter (Store + Supplier + Item)</div>
-        <div className="mt-1 text-xs text-neutral-500">
-          Pick store and ingredient list here, then open Request Builder with the same city/store.
+      <div className={`${BLUSH_GLASS} p-5`}>
+        <div className="mb-4 flex items-center gap-2">
+          <ShoppingCart className="h-4 w-4 text-amber-400" />
+          <h2 className={T_SECTION}>Request Starter</h2>
+          <span className={`${T_CAPTION} ml-1`}>Pick store and item, then open Request Builder</span>
         </div>
-        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-5">
-          <select
-            value={selectedStore}
-            onChange={(e) => setSelectedStore(String(e.target.value || ""))}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-          >
-            <option value="">Select store</option>
-            {catalogStores.map((store) => (
-              <option key={store} value={store}>
-                {store}
-              </option>
-            ))}
-          </select>
-          {city === "dubai" ? (
+
+        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div>
+            <label className={`${T_LABEL} mb-1.5 flex items-center gap-1.5`}>
+              <Store className="h-3 w-3" />
+              Store
+            </label>
+            <select
+              value={selectedStore}
+              onChange={(e) => setSelectedStore(String(e.target.value || ""))}
+              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
+            >
+              <option value="">Select store</option>
+              {catalogStores.map((store) => (
+                <option key={store} value={store}>
+                  {store}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Category</label>
             <select
               value={selectedCatalogCategory}
               onChange={(e) => setSelectedCatalogCategory(String(e.target.value || "Kitchen Ingredients"))}
-              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
+              disabled={city !== "dubai"}
             >
-              {catalogCategories.map((category) => (
+              {(city === "dubai" ? catalogCategories : catalogCategories.length ? catalogCategories : ["All"]).map((category) => (
                 <option key={category} value={category}>
                   {category}
                 </option>
               ))}
             </select>
-          ) : null}
-          <select
-            value={selectedSupplier}
-            onChange={(e) => {
-              const next = String(e.target.value || "");
-              setSelectedSupplier(next);
-              const firstItem =
-                (catalogSuppliers.find((row) => row.supplier === next)?.categories || [])[0]?.items?.[0];
-              setSelectedCatalogItemId(firstItem?.source_row_id || "");
-            }}
-            disabled={!selectedStore || catalogLoading}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm disabled:opacity-60"
-          >
-            <option value="">{catalogLoading ? "Loading suppliers..." : "Select supplier"}</option>
-            {catalogSuppliers.map((supplier) => (
-              <option key={supplier.supplier} value={supplier.supplier}>
-                {supplier.supplier} ({supplier.item_count})
-              </option>
-            ))}
-          </select>
-          <select
-            value={selectedCatalogItemId}
-            onChange={(e) => setSelectedCatalogItemId(String(e.target.value || ""))}
-            disabled={!selectedSupplier || catalogLoading}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm disabled:opacity-60"
-          >
-            <option value="">{catalogLoading ? "Loading items..." : "Select ingredient"}</option>
-            {supplierItems.map((item) => (
-              <option key={item.source_row_id || `${item.item_name}-${item.category_name}`} value={item.source_row_id}>
-                {item.item_name} | {item.category_name} | {Number(item.suggested_unit_price || 0).toFixed(2)} {currencyCode}
-              </option>
-            ))}
-          </select>
-          <div className="flex items-center gap-2">
-            <Link
-              href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}${selectedStore ? `&store=${encodeURIComponent(selectedStore)}` : ""}${city === "dubai" ? `&catalog_category=${encodeURIComponent(selectedCatalogCategory)}` : ""}`}
-              className="rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-xs text-emerald-200 hover:bg-emerald-800/30"
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Supplier</label>
+            <select
+              value={selectedSupplier}
+              onChange={(e) => {
+                const next = String(e.target.value || "");
+                setSelectedSupplier(next);
+                const firstItem =
+                  (catalogSuppliers.find((row) => row.supplier === next)?.categories || [])[0]?.items?.[0];
+                setSelectedCatalogItemId(firstItem?.source_row_id || "");
+              }}
+              disabled={!selectedStore || catalogLoading}
+              className={`${SELECT_CLASS} disabled:opacity-60 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
             >
-              Open Request Builder
-            </Link>
+              <option value="">{catalogLoading ? "Loading suppliers..." : "Select supplier"}</option>
+              {catalogSuppliers.map((supplier) => (
+                <option key={supplier.supplier} value={supplier.supplier}>
+                  {supplier.supplier} ({supplier.item_count})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Item</label>
+            <select
+              value={selectedCatalogItemId}
+              onChange={(e) => setSelectedCatalogItemId(String(e.target.value || ""))}
+              disabled={!selectedSupplier || catalogLoading}
+              className={`${SELECT_CLASS} disabled:opacity-60 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
+            >
+              <option value="">{catalogLoading ? "Loading items..." : "Select ingredient"}</option>
+              {supplierItems.map((item) => (
+                <option key={item.source_row_id || `${item.item_name}-${item.category_name}`} value={item.source_row_id}>
+                  {item.item_name} | {item.category_name} | {Number(item.suggested_unit_price || 0).toFixed(2)} {currencyCode}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
+
         {selectedCatalogItem ? (
-          <div className="mt-2 text-xs text-neutral-300">
-            Selected: {selectedCatalogItem.item_name} ({selectedCatalogItem.category_name}) / {selectedCatalogItem.unit || "-"} / {Number(selectedCatalogItem.suggested_unit_price || 0).toFixed(2)} {currencyCode}
+          <div className={`${BLUSH_HIGHLIGHT} mb-4 flex items-center justify-between px-4 py-2.5`}>
+            <p className="text-sm font-medium text-violet-200">
+              {selectedCatalogItem.item_name} ({selectedCatalogItem.category_name}) / {selectedCatalogItem.unit || "-"} / {Number(selectedCatalogItem.suggested_unit_price || 0).toFixed(2)} {currencyCode}
+            </p>
           </div>
         ) : null}
+        <div className="flex justify-end">
+          <Link
+            href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}${selectedStore ? `&store=${encodeURIComponent(selectedStore)}` : ""}${city === "dubai" ? `&catalog_category=${encodeURIComponent(selectedCatalogCategory)}` : ""}`}
+            className={BLUSH_PRIMARY}
+          >
+            <span className="flex items-center gap-2">
+              Open Request Builder
+              <ChevronRight className="h-4 w-4" />
+            </span>
+          </Link>
+        </div>
         {!catalogStores.length ? (
-          <div className="mt-2 text-xs text-amber-300">
+          <div className="mt-3 text-xs text-amber-300">
             {city === "dubai"
               ? `No curated catalog found for ${cityLabel}.`
               : `No item list found for ${cityLabel}. Please sync the ${cityLabel} workbook in Admin Procurement Imports first.`}
@@ -678,109 +769,173 @@ export default function StoreProcurementHomePage() {
         ) : null}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 md:grid-cols-5">
-        <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Requested by" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <select
-          value={city}
-          onChange={(e) => {
-            const nextCity = String(e.target.value || "manila").toLowerCase();
-            setCity(nextCity);
-            setSelectedStore(nextCity === "dubai" ? "ALL" : "");
-            setCatalogCategories(nextCity === "dubai" ? DUBAI_CURATED_CATEGORIES : []);
-            setSelectedCatalogCategory("Kitchen Ingredients");
-            setCatalogSuppliers([]);
-            setSelectedSupplier("");
-            setSelectedCatalogItemId("");
-            void loadCatalogStores(nextCity);
-            void loadMyRequests(nextCity);
-          }}
-          className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-        >
-          <option value="manila">Manila</option>
-          <option value="dubai">Dubai</option>
-        </select>
-        <button type="button" onClick={() => void loadMyRequests()} disabled={loading} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60">
-          {loading ? "Loading..." : "Refresh My Requests"}
-        </button>
-        <div className="text-xs text-neutral-500 self-center">Total requests ({cityLabel}): {counts.total}</div>
+      <div className={`${BLUSH_GLASS} p-4`}>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-[160px] flex-1">
+            <label className={`${T_LABEL} mb-1.5 block`}>Approver Name</label>
+            <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`} readOnly />
+          </div>
+          <div className="min-w-[140px] flex-1">
+            <label className={`${T_LABEL} mb-1.5 block`}>Session PIN</label>
+            <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="••••••••" className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`} />
+          </div>
+          <div className="min-w-[140px]">
+            <label className={`${T_LABEL} mb-1.5 flex items-center gap-1.5`}>
+              <Building2 className="h-3 w-3" />
+              City
+            </label>
+            <select
+              value={city}
+              onChange={(e) => {
+                const nextCity = String(e.target.value || "manila").toLowerCase();
+                setCity(nextCity);
+                setSelectedStore(nextCity === "dubai" ? "ALL" : "");
+                setCatalogCategories(nextCity === "dubai" ? DUBAI_CURATED_CATEGORIES : []);
+                setSelectedCatalogCategory("Kitchen Ingredients");
+                setCatalogSuppliers([]);
+                setSelectedSupplier("");
+                setSelectedCatalogItemId("");
+                void loadCatalogStores(nextCity);
+                void loadMyRequests(nextCity);
+              }}
+              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
+            >
+              <option value="manila">Manila</option>
+              <option value="dubai">Dubai</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={() => void loadMyRequests()} disabled={loading} className={BLUSH_SECONDARY}>
+              <span className="flex items-center gap-2">
+                <RefreshCw className="h-4 w-4" />
+                {loading ? "Loading..." : "Refresh"}
+              </span>
+            </button>
+            <span className={T_CAPTION}>
+              Total: <span className="font-semibold text-white">{counts.total}</span> requests
+            </span>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-          <div className="text-xs text-neutral-400">Draft</div>
-          <div className="mt-2 text-2xl font-semibold text-neutral-100">{counts.draft}</div>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+        <div className={KPI_CARD}>
+          <div className="mb-2 flex items-center gap-2">
+            <ClipboardList className="h-4 w-4 text-zinc-400" />
+            <p className={KPI_LABEL}>Draft</p>
+          </div>
+          <p className={`${KPI_VALUE} text-zinc-200`}>{counts.draft}</p>
         </div>
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-          <div className="text-xs text-neutral-400">In Review</div>
-          <div className="mt-2 text-2xl font-semibold text-sky-200">{counts.inReview}</div>
+        <div className={KPI_CARD}>
+          <div className="mb-2 flex items-center gap-2">
+            <Clock className="h-4 w-4 text-amber-400" />
+            <p className={KPI_LABEL}>In Review</p>
+          </div>
+          <p className={`${KPI_VALUE} ${counts.inReview > 0 ? "text-amber-400" : "text-zinc-500"}`}>{counts.inReview}</p>
         </div>
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-          <div className="text-xs text-neutral-400">Approved</div>
-          <div className="mt-2 text-2xl font-semibold text-emerald-200">{counts.approved}</div>
+        <div className={KPI_CARD}>
+          <div className="mb-2 flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+            <p className={KPI_LABEL}>Approved</p>
+          </div>
+          <p className={`${KPI_VALUE} ${counts.approved > 0 ? "text-emerald-400" : "text-zinc-500"}`}>{counts.approved}</p>
         </div>
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-          <div className="text-xs text-neutral-400">Returned</div>
-          <div className="mt-2 text-2xl font-semibold text-amber-200">{counts.returned}</div>
+        <div className={KPI_CARD}>
+          <div className="mb-2 flex items-center gap-2">
+            <RotateCcw className="h-4 w-4 text-red-400" />
+            <p className={KPI_LABEL}>Returned</p>
+          </div>
+          <p className={`${KPI_VALUE} ${counts.returned > 0 ? "text-red-400" : "text-zinc-500"}`}>{counts.returned}</p>
         </div>
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-          <div className="text-xs text-neutral-400">Quick Actions</div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <Link href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-xs hover:bg-neutral-900">
-              Request
+        <div className={`col-span-2 ${STATUS_CARD} bg-violet-950/25 p-4 md:col-span-1`}>
+          <p className={`${KPI_LABEL} mb-3`}>Quick Actions</p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-2">
+            <Link href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}`} className={`${BLUSH_SMALL} min-h-10 justify-center`}>
+              <span className="flex items-center justify-center gap-1.5 text-center">
+                <ShoppingCart className="h-3 w-3" /> Request
+              </span>
             </Link>
-            <Link href={`/store/procurement/history?city=${encodeURIComponent(city || "manila")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-xs hover:bg-neutral-900">
-              History
+            <Link href={`/store/procurement?city=${encodeURIComponent(city || "manila")}#history`} className={`${BLUSH_SMALL} min-h-10 justify-center`}>
+              <span className="flex items-center justify-center gap-1.5 text-center">
+                <History className="h-3 w-3" /> History
+              </span>
             </Link>
-            <Link href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-xs hover:bg-neutral-900">
-              Receiving
+            <Link href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}`} className={`${BLUSH_SMALL} min-h-10 justify-center`}>
+              <span className="flex items-center justify-center gap-1.5 text-center">
+                <PackageCheck className="h-3 w-3" /> Receiving
+              </span>
             </Link>
-            <Link href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-xs hover:bg-neutral-900">
-              Claim
+            <Link href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}`} className={`${DANGER_BUTTON} min-h-10 justify-center`}>
+              <span className="flex items-center justify-center gap-1.5 text-center">
+                <AlertCircle className="h-3 w-3" /> Claim
+              </span>
             </Link>
           </div>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-        <div className="text-sm font-medium">My Recent Requests ({cityLabel})</div>
-        <div className="mt-3 space-y-2">
+      <div id="history" className={DIVIDER} />
+
+      <div className={`${BLUSH_GLASS} p-5`}>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className={T_SECTION}>My Recent Requests ({cityLabel})</h2>
+        </div>
+
+        {rows.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-10">
+            <ShoppingCart className="h-8 w-8 text-zinc-600" />
+            <p className={T_CAPTION}>No requests yet.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
           {rows.map((row) => (
             <div
               key={row.id}
-              className={`rounded-xl border p-3 ${
+              className={`rounded-xl border px-4 py-3 transition-all duration-150 hover:border-white/15 hover:bg-white/8 ${
                 row.id === lastCreatedRequestId
                   ? "border-emerald-700/60 bg-emerald-900/20"
-                  : "border-neutral-800 bg-neutral-950/40"
+                  : "border-white/8 bg-white/4"
               }`}
             >
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-2 text-sm text-neutral-100">
-                  <span>{row.request_no}</span>
-                  {row.id === lastCreatedRequestId ? (
-                    <span className="rounded-full border border-emerald-700/60 bg-emerald-900/30 px-2 py-0.5 text-[10px] text-emerald-200">
-                      Just created
-                    </span>
-                  ) : null}
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="break-words text-base font-semibold leading-tight text-white">{row.request_no}</p>
+                  <div className="mt-2 grid gap-1 text-xs text-zinc-400 sm:grid-cols-3">
+                    <span>{row.store_code || "-"}</span>
+                    <span>{row.request_date || "-"}</span>
+                    <span>{Number(row.total_amount || 0).toFixed(2)} {currencyCode}</span>
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="text-xs text-neutral-400">{row.status} | Level {row.current_approval_level || 0}</div>
-                  <Link href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-2 py-1 text-[11px] hover:bg-neutral-900">
-                    Receiving
-                  </Link>
-                  <Link href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-2 py-1 text-[11px] hover:bg-neutral-900">
-                    Claim
-                  </Link>
+                <div className="flex flex-col gap-2 md:items-end">
+                  <div className="flex flex-wrap gap-2">
+                    {String(row.status || "").toUpperCase() === "DRAFT" ? (
+                      <span className={BADGE_WARNING}>DRAFT | Level {row.current_approval_level || 0}</span>
+                    ) : null}
+                    {String(row.status || "").toUpperCase() === "APPROVED" ? <span className={BADGE_SUCCESS}>APPROVED</span> : null}
+                    {String(row.status || "").toUpperCase() === "RETURNED" ? <span className={BADGE_ERROR}>RETURNED</span> : null}
+                    {(String(row.status || "").toUpperCase() === "IN_REVIEW" || String(row.status || "").toUpperCase() === "SUBMITTED") ? <span className={BADGE_INFO}>IN REVIEW</span> : null}
+                    {row.id === lastCreatedRequestId ? (
+                      <span className={BADGE_SUCCESS}>
+                        Just created
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 sm:flex">
+                    <Link href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`} className={`${SMALL_BUTTON} justify-center`}>
+                      Receiving
+                    </Link>
+                    <Link href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`} className={`${DANGER_BUTTON} justify-center`}>
+                      Claim
+                    </Link>
+                  </div>
                 </div>
-              </div>
-              <div className="mt-1 text-xs text-neutral-500">
-                {row.store_code || "-"} | {row.request_date || "-"} | {Number(row.total_amount || 0).toFixed(2)} {currencyCode}
               </div>
             </div>
           ))}
-          {!rows.length ? <div className="text-sm text-neutral-500">No requests yet.</div> : null}
-        </div>
+          </div>
+        )}
       </div>
+      </motion.div>
     </div>
   );
 }

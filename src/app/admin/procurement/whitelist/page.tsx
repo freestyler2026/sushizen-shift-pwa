@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
+import DatePicker from "@/components/DatePicker";
+import DateRangePicker from "@/components/DateRangePicker";
 
 type WhitelistRow = {
   id: string;
@@ -166,7 +168,10 @@ export default function ProcurementWhitelistPage() {
   useEffect(() => {
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
-      const can = canAccessProcurementAdmin(refreshed || auth);
+      const can = canAccessProcurementAdmin(
+        String((refreshed || auth)?.role || ""),
+        String((refreshed || auth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
+      );
       setAllowed(can);
       if (can) await load();
     }
@@ -184,7 +189,7 @@ export default function ProcurementWhitelistPage() {
       <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 md:grid-cols-4">
         <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Approver name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
         <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="date" value={snapshotDate} onChange={(e) => setSnapshotDate(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+        <DatePicker value={snapshotDate} onChange={setSnapshotDate} />
         <div className="flex gap-2">
           <button type="button" onClick={() => void load()} className="flex-1 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900">
             Refresh
@@ -206,8 +211,14 @@ export default function ProcurementWhitelistPage() {
         <input value={vendorCode} onChange={(e) => setVendorCode(e.target.value)} placeholder="Vendor code" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
         <input value={itemCode} onChange={(e) => setItemCode(e.target.value)} placeholder="Item code" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
         <input value={slaHours} onChange={(e) => setSlaHours(e.target.value)} placeholder="SLA hours" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+        <DateRangePicker
+          value={{ from: startDate, to: endDate }}
+          onChange={(range) => {
+            setStartDate(range.from);
+            setEndDate(range.to);
+          }}
+          className="md:col-span-2"
+        />
         <label className="inline-flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
           Active

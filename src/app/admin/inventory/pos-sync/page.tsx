@@ -31,7 +31,7 @@ export default function InventoryPosSyncPage() {
   const [ready, setReady] = useState(false);
   const [allowed, setAllowed] = useState(false);
   const [city, setCity] = useState((auth?.city || "dubai") as "manila" | "dubai");
-  const [folderId, setFolderId] = useState(DEFAULT_FOLDER_ID);
+  const [folderId] = useState(DEFAULT_FOLDER_ID);
   const [maxGroups, setMaxGroups] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -98,9 +98,10 @@ export default function InventoryPosSyncPage() {
           </select>
           <input
             value={folderId}
-            onChange={(e) => setFolderId(e.target.value)}
-            placeholder="Google Drive folder ID"
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            readOnly
+            aria-readonly="true"
+            title="Google Drive folder ID is fixed for this sync."
+            className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-neutral-400"
           />
           <input
             type="number"

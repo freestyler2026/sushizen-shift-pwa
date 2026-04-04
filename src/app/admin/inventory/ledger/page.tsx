@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { BRANCHES } from "@/lib/branches";
 import { inventoryGet } from "@/lib/inventoryClient";
 
 type BalanceRow = {
@@ -109,12 +110,18 @@ export default function InventoryLedgerPage() {
             <option value="manila">Manila</option>
             <option value="dubai">Dubai</option>
           </select>
-          <input
-            value={branchCode}
-            onChange={(e) => setBranchCode(e.target.value.toUpperCase())}
-            placeholder="Branch code filter, e.g. BUSINESSBAY"
+          <select
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-          />
+            value={branchCode}
+            onChange={(e) => setBranchCode(e.target.value)}
+          >
+            <option value="">All branches</option>
+            {BRANCHES[city].map((branch) => (
+              <option key={branch.code} value={branch.code}>
+                {branch.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         {error ? <div className="mt-3 text-sm text-rose-300">{error}</div> : null}

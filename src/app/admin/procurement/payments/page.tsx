@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
+import DatePicker from "@/components/DatePicker";
 
 type PaymentRow = {
   id: string;
@@ -140,7 +141,10 @@ export default function ProcurementPaymentsPage() {
   useEffect(() => {
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
-      const can = canAccessProcurementAdmin(refreshed || auth);
+      const can = canAccessProcurementAdmin(
+        String((refreshed || auth)?.role || ""),
+        String((refreshed || auth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
+      );
       setAllowed(can);
       if (can) await load();
     }
@@ -178,7 +182,7 @@ export default function ProcurementPaymentsPage() {
         <input value={invoiceId} onChange={(e) => setInvoiceId(e.target.value)} placeholder="Invoice ID (optional)" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
         <input value={payeeName} onChange={(e) => setPayeeName(e.target.value)} placeholder="Payee name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
         <input value={scheduledAmount} onChange={(e) => setScheduledAmount(e.target.value)} placeholder="Scheduled amount" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm md:col-span-2" />
+        <DatePicker value={scheduledDate} onChange={setScheduledDate} className="md:col-span-2" />
         <button type="button" onClick={() => void queuePayment()} disabled={busy === "queue"} className="rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-800/30 disabled:opacity-60 md:col-span-2">
           {busy === "queue" ? "Queueing..." : "Queue Payment"}
         </button>

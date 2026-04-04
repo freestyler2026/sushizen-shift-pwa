@@ -6,6 +6,7 @@ import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
+import { getInventoryQuantityStep, parseDraftNumber, stepDraftNumber } from "@/lib/quantityInput";
 
 type ProductOption = {
   id: string;
@@ -138,7 +139,7 @@ export default function InventoryProductionsPage() {
   const [creatorName, setCreatorName] = useState(auth?.staffName || "");
   const [notes, setNotes] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
-  const [selectedQty, setSelectedQty] = useState(1);
+  const [selectedQty, setSelectedQty] = useState("1");
   const [selectedUnit, setSelectedUnit] = useState<string>("pcs");
   const [historyMonth, setHistoryMonth] = useState(monthNow());
   const [loading, setLoading] = useState(false);
@@ -157,7 +158,8 @@ export default function InventoryProductionsPage() {
   const [selectedProduction, setSelectedProduction] = useState<ProductionDetail | null>(null);
   const [recipeProductId, setRecipeProductId] = useState("");
   const [recipeIngredientId, setRecipeIngredientId] = useState("");
-  const [recipeQty, setRecipeQty] = useState(1);
+  const [recipeQty, setRecipeQty] = useState("1");
+  const [recipeUnit, setRecipeUnit] = useState<string>("pcs");
   const [recipeRows, setRecipeRows] = useState<ProductionRecipeRow[]>([]);
   const [recipeLoading, setRecipeLoading] = useState(false);
   const [recipeSaving, setRecipeSaving] = useState(false);
@@ -343,6 +345,14 @@ export default function InventoryProductionsPage() {
     setSelectedUnit(normalizeProductionOutputUnit(selectedProduct.storage_unit));
   }, [selectedProduct]);
 
+  useEffect(() => {
+    if (!selectedRecipeIngredient) return;
+    setRecipeUnit(normalizeProductionOutputUnit(selectedRecipeIngredient.storage_unit));
+  }, [selectedRecipeIngredient]);
+
+  const selectedQtyStep = getInventoryQuantityStep(selectedUnit);
+  const recipeQtyStep = getInventoryQuantityStep(recipeUnit);
+
   const outputTotalCost = useMemo(
     () => draftOutputs.reduce((sum, item) => sum + item.quantity * item.unit_cost, 0),
     [draftOutputs],
@@ -362,9 +372,15 @@ export default function InventoryProductionsPage() {
 
   function addDraftOutput() {
     if (!selectedProduct) return;
-    const qty = Math.max(0.001, Number(selectedQty || 0));
+    const parsedQty = parseDraftNumber(selectedQty);
+    const qty = parsedQty === null ? NaN : parsedQty;
+    if (!Number.isFinite(qty) || qty <= 0) {
+      setError("Please enter a valid quantity.");
+      return;
+    }
     const unit = normalizeProductionOutputUnit(selectedUnit);
     const key = draftOutputKey(selectedProduct.id, unit);
+    setError("");
     setDraftOutputs((prev) => {
       const existing = prev.find((item) => item.key === key);
       if (existing) {
@@ -387,7 +403,7 @@ export default function InventoryProductionsPage() {
       ];
     });
     setSelectedProductId("");
-    setSelectedQty(1);
+    setSelectedQty("1");
     setSelectedUnit("pcs");
   }
 
@@ -397,9 +413,20 @@ export default function InventoryProductionsPage() {
 
   function addRecipeLine() {
     if (!recipeProductId || !selectedRecipeIngredient) return;
-    const qty = Math.max(0.001, Number(recipeQty || 0));
+    const parsedQty = parseDraftNumber(recipeQty);
+    const qty = parsedQty === null ? NaN : parsedQty;
+    if (!Number.isFinite(qty) || qty <= 0) {
+      setError("Please enter a valid ingredient quantity.");
+      return;
+    }
+    const unit = normalizeProductionOutputUnit(recipeUnit);
+    const existing = recipeRows.find((row) => row.ingredient_item_id === selectedRecipeIngredient.id);
+    if (existing && existing.ingredient_unit !== unit) {
+      setError("This ingredient is already added with a different unit. Remove it first to change the unit.");
+      return;
+    }
+    setError("");
     setRecipeRows((prev) => {
-      const existing = prev.find((row) => row.ingredient_item_id === selectedRecipeIngredient.id);
       if (existing) {
         return prev.map((row) =>
           row.ingredient_item_id === selectedRecipeIngredient.id
@@ -415,7 +442,7 @@ export default function InventoryProductionsPage() {
           ingredient_item_name: selectedRecipeIngredient.name,
           sku: selectedRecipeIngredient.sku,
           ingredient_qty: Number(qty.toFixed(3)),
-          ingredient_unit: selectedRecipeIngredient.storage_unit || "",
+          ingredient_unit: unit,
           yield_factor: 1,
           waste_factor: 0,
           active: true,
@@ -423,7 +450,7 @@ export default function InventoryProductionsPage() {
       ];
     });
     setRecipeIngredientId("");
-    setRecipeQty(1);
+    setRecipeQty("1");
   }
 
   function removeRecipeLine(ingredientItemId: string) {
@@ -694,11 +721,15 @@ export default function InventoryProductionsPage() {
             ))}
           </select>
           <input
-            type="number"
-            min={0.001}
-            step={0.001}
+            type="text"
+            inputMode="decimal"
             value={selectedQty}
-            onChange={(e) => setSelectedQty(Number(e.target.value || 0))}
+            onChange={(e) => setSelectedQty(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+              e.preventDefault();
+              setSelectedQty((current) => stepDraftNumber(current, selectedQtyStep, e.key === "ArrowUp" ? 1 : -1));
+            }}
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
           />
           <select
@@ -780,7 +811,7 @@ export default function InventoryProductionsPage() {
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_140px_140px]">
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_120px_140px_140px]">
           <select
             ref={recipeProductSelectRef}
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
@@ -812,14 +843,28 @@ export default function InventoryProductionsPage() {
             ))}
           </select>
           <input
-            type="number"
-            min={0.001}
-            step={0.001}
+            type="text"
+            inputMode="decimal"
             value={recipeQty}
-            onChange={(e) => setRecipeQty(Number(e.target.value || 0))}
-            disabled={!recipeProductId}
+            onChange={(e) => setRecipeQty(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+              e.preventDefault();
+              setRecipeQty((current) => stepDraftNumber(current, recipeQtyStep, e.key === "ArrowUp" ? 1 : -1));
+            }}
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
           />
+          <select
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            value={recipeUnit}
+            onChange={(e) => setRecipeUnit(e.target.value)}
+          >
+            {PRODUCTION_OUTPUT_UNITS.map((unit) => (
+              <option key={unit} value={unit}>
+                {unit}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
             onClick={addRecipeLine}

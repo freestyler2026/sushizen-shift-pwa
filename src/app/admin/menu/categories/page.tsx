@@ -59,6 +59,7 @@ export default function MenuCategoriesPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [rows, setRows] = useState<MenuCategoryRow[]>([]);
+  const [filterOptions, setFilterOptions] = useState<MenuCategoryRow[]>([]);
   const [importFailures, setImportFailures] = useState<ImportFailure[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkAction, setBulkAction] = useState("DEACTIVATE");
@@ -109,6 +110,25 @@ export default function MenuCategoriesPage() {
     void loadRows();
   }, [allowed, loadRows, ready]);
 
+  useEffect(() => {
+    if (!ready || !allowed) return;
+    let cancelled = false;
+    async function loadFilterOptions() {
+      try {
+        const res = await menuGet<PaginatedResponse<MenuCategoryRow>>(
+          `/api/admin/menu/categories?city=${encodeURIComponent(city)}&tab=ALL&q=&page=1&page_size=500&sort_by=sort_order&sort_dir=ASC`,
+        );
+        if (!cancelled) setFilterOptions(res.rows || []);
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message || String(e));
+      }
+    }
+    void loadFilterOptions();
+    return () => {
+      cancelled = true;
+    };
+  }, [allowed, city, ready]);
+
   function resetForm() {
     setEditingId("");
     setForm(EMPTY_FORM);
@@ -142,6 +162,7 @@ export default function MenuCategoriesPage() {
   }
 
   async function deleteCategory(categoryId: string) {
+    if (!window.confirm("Delete this category?")) return;
     setError("");
     setSuccess("");
     setImportFailures([]);
@@ -236,7 +257,14 @@ export default function MenuCategoriesPage() {
           </label>
           <label className="min-w-[220px] flex-1 text-sm text-neutral-300">
             <div className="mb-1 text-xs text-neutral-500">Search</div>
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Category name or reference" className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
+            <select value={q} onChange={(e) => setQ(e.target.value)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
+              <option value="">All categories</option>
+              {filterOptions.map((row) => (
+                <option key={row.id} value={row.name || ""}>
+                  {row.name}{row.reference ? ` (${row.reference})` : ""}
+                </option>
+              ))}
+            </select>
           </label>
           <div className="flex gap-2">
             {["ALL", "DELETED"].map((value) => (
@@ -277,6 +305,14 @@ export default function MenuCategoriesPage() {
             <label className="block text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">Reference</div>
               <input value={form.reference} onChange={(e) => setForm((current) => ({ ...current, reference: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
+            </label>
+            <label className="block text-sm text-neutral-300">
+              <div className="mb-1 text-xs text-neutral-500">Localized Name</div>
+              <input value={form.name_localized} onChange={(e) => setForm((current) => ({ ...current, name_localized: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
+            </label>
+            <label className="block text-sm text-neutral-300">
+              <div className="mb-1 text-xs text-neutral-500">Image URL</div>
+              <input value={form.image_url} onChange={(e) => setForm((current) => ({ ...current, image_url: e.target.value }))} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
             </label>
             <label className="block text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">Sort Order</div>

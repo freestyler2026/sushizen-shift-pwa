@@ -1,7 +1,44 @@
 "use client";
 
+import { motion } from "framer-motion";
+import {
+  BarChart3,
+  ClipboardCheck,
+  InboxIcon,
+  Lightbulb,
+  Plus,
+  RefreshCw,
+  Settings2,
+  TrendingUp,
+  Users,
+  Zap,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessBackofficeEvaluationAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { fmtNum } from "@/lib/formatters";
+import {
+  BADGE_ERROR,
+  BADGE_INFO,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  GLASS_CARD,
+  INPUT_CLASS,
+  KPI_CARD,
+  KPI_LABEL,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  SELECT_CLASS,
+  SMALL_BUTTON,
+  TABLE_CELL,
+  TABLE_HEADER,
+  TABLE_ROW,
+  TEXTAREA_CLASS,
+  T_BODY,
+  T_CAPTION,
+  T_LABEL,
+  T_PAGE_TITLE,
+  T_SECTION,
+} from "@/lib/ui-tokens";
 
 type ScoreRow = {
   city: string;
@@ -63,7 +100,7 @@ export default function AdminBackofficeEvaluationPage() {
   const [allowed, setAllowed] = useState(false);
   const [city, setCity] = useState<"dubai" | "manila">("manila");
   const [monthKey, setMonthKey] = useState(monthNow());
-  const [approverName, setApproverName] = useState(auth?.staffName || "");
+  const [approverName] = useState(auth?.staffName || "");
   const [pin, setPin] = useState(auth?.pin || "");
   const [loading, setLoading] = useState(false);
   const [syncBusy, setSyncBusy] = useState(false);
@@ -329,165 +366,310 @@ export default function AdminBackofficeEvaluationPage() {
   }
 
   const bayzatReady = bayzatSyncKey === `${city}:${monthKey}`;
+  const hasSummaryData = Boolean(summary) || rows.length > 0;
+  const scoreCriteriaEn = [
+    { label: "Workload", desc: "submission / work volume", pct: 10, color: "bg-sky-400" },
+    { label: "Speed", desc: "on-time / same-day handling", pct: 10, color: "bg-emerald-400" },
+    { label: "Quality", desc: "low error rate", pct: 35, color: "bg-violet-400" },
+    { label: "Progress", desc: "completion against plan", pct: 45, color: "bg-violet-400" },
+  ];
+  const scoreCriteriaJa = [
+    { label: "Workload", desc: "提出率・業務量", pct: 10, color: "bg-sky-400" },
+    { label: "Speed", desc: "期限内対応・当日対応", pct: 10, color: "bg-emerald-400" },
+    { label: "Quality", desc: "エラーの少なさ", pct: 35, color: "bg-violet-400" },
+    { label: "Progress", desc: "計画に対する完了率", pct: 45, color: "bg-violet-400" },
+  ];
+  const hasRoleSummary = Boolean(summary?.by_role?.length);
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 p-4">
-        <div className="text-lg font-semibold">Backoffice Daily Evaluation</div>
-        <div className="mt-1 text-sm text-neutral-400">HQ / HR Manager only. Google Forms daily reports are evaluated against benchmark metrics.</div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4 text-sm text-neutral-200 lg:grid-cols-2">
-        <div className="rounded-xl border border-neutral-800 bg-neutral-950/30 p-3">
-          <div className="font-medium text-neutral-100">Backoffice Evaluation Scoring Criteria</div>
-          <div className="mt-2 text-neutral-300">Scores are calculated using four dimensions:</div>
-          <div className="mt-2 space-y-1 text-neutral-300">
-            <div>Workload (submission / work volume): 10%</div>
-            <div>Speed (on-time / same-day handling): 10%</div>
-            <div>Quality (low error rate): 35%</div>
-            <div>Progress (completion against plan): 45%</div>
-          </div>
-          <div className="mt-3 text-xs text-neutral-400">These scores are benchmark-based and may vary by role.</div>
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="max-w-5xl mx-auto px-4 py-8 space-y-6"
+    >
+      <div className="flex items-center gap-3 mb-2">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500/20 to-purple-500/10 border border-violet-500/20">
+          <ClipboardCheck className="h-5 w-5 text-violet-400" />
         </div>
-        <div className="rounded-xl border border-neutral-800 bg-neutral-950/30 p-3">
-          <div className="font-medium text-neutral-100">Backoffice Eval 評価基準</div>
-          <div className="mt-2 text-neutral-300">点数は以下の4項目で構成されています。</div>
-          <div className="mt-2 space-y-1 text-neutral-300">
-            <div>Workload（提出率・業務量）: 10%</div>
-            <div>Speed（期限内対応・当日対応）: 10%</div>
-            <div>Quality（エラーの少なさ）: 35%</div>
-            <div>Progress（計画に対する完了率）: 45%</div>
-          </div>
-          <div className="mt-3 text-xs text-neutral-400">各項目の点数は、職種ごとの benchmark をもとに算出されます。</div>
+        <div>
+          <h1 className={T_PAGE_TITLE}>Backoffice Daily Evaluation</h1>
+          <p className={T_CAPTION}>HQ / HR Manager only. Google Forms daily reports are evaluated against benchmark metrics.</p>
         </div>
       </div>
 
-      {error ? <div className="text-sm text-red-300">{error}</div> : null}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className={`${GLASS_CARD} p-5`}>
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart3 className="h-4 w-4 text-amber-400" />
+            <h2 className={T_SECTION}>Scoring Criteria</h2>
+          </div>
+          <p className={`${T_BODY} mb-3`}>Scores are calculated using four dimensions:</p>
+          <div className="space-y-2">
+            {scoreCriteriaEn.map((d) => (
+              <div key={d.label}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-medium text-white">
+                    {d.label}
+                    <span className="text-zinc-500 font-normal"> — {d.desc}</span>
+                  </span>
+                  <span className="text-sm font-bold text-white">{d.pct}%</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-white/8">
+                  <div className={`h-1.5 rounded-full ${d.color}`} style={{ width: `${d.pct}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className={`${T_CAPTION} mt-3`}>These scores are benchmark-based and may vary by role.</p>
+        </div>
 
-      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 lg:grid-cols-6">
-        <label className="space-y-1">
-          <div className="text-xs text-neutral-400">City</div>
-          <select value={city} onChange={(e) => setCity(e.target.value as "dubai" | "manila")} className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm">
-            <option value="manila">manila</option>
-            <option value="dubai">dubai</option>
-          </select>
-        </label>
-        <label className="space-y-1">
-          <div className="text-xs text-neutral-400">Month</div>
-          <input type="month" value={monthKey} onChange={(e) => setMonthKey(e.target.value)} className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        </label>
-        <label className="space-y-1 lg:col-span-2">
-          <div className="text-xs text-neutral-400">Approver Name</div>
-          <input value={approverName} onChange={(e) => setApproverName(e.target.value)} className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        </label>
-        <label className="space-y-1">
-          <div className="text-xs text-neutral-400">PIN</div>
-          <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        </label>
-        <div className="flex items-end gap-2">
-          <button type="button" onClick={syncBayzatAttendance} disabled={attendanceSyncBusy || syncBusy} className="rounded-xl border border-sky-700/60 bg-sky-950/20 px-3 py-2 text-xs text-sky-200 hover:bg-sky-900/20 disabled:opacity-60">
+        <div className={`${GLASS_CARD} p-5`}>
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart3 className="h-4 w-4 text-violet-400" />
+            <h2 className={T_SECTION}>Backoffice Eval 評価基準</h2>
+          </div>
+          <p className={`${T_BODY} mb-3`}>点数は以下の4項目で構成されています。</p>
+          <div className="space-y-2">
+            {scoreCriteriaJa.map((d) => (
+              <div key={d.label}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-medium text-white">
+                    {d.label}
+                    <span className="text-zinc-500 font-normal">（{d.desc}）</span>
+                  </span>
+                  <span className="text-sm font-bold text-white">{d.pct}%</span>
+                </div>
+                <div className="h-1.5 rounded-full bg-white/8">
+                  <div className={`h-1.5 rounded-full ${d.color}`} style={{ width: `${d.pct}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className={`${T_CAPTION} mt-3`}>各項目の点数は、職種ごとの benchmark をもとに算出されます。</p>
+        </div>
+      </div>
+
+      {error ? <div className={`${BADGE_ERROR} px-4 py-2 text-sm`}>{error}</div> : null}
+
+      <div className={`${GLASS_CARD} p-5`}>
+        <div className="flex items-center gap-2 mb-4">
+          <Settings2 className="h-4 w-4 text-zinc-400" />
+          <h2 className={T_SECTION}>Evaluation Context</h2>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+          <div>
+            <label className={`${T_LABEL} block mb-1.5`}>City</label>
+            <select value={city} onChange={(e) => setCity(e.target.value as "dubai" | "manila")} className={SELECT_CLASS}>
+              <option value="manila">manila</option>
+              <option value="dubai">dubai</option>
+            </select>
+          </div>
+          <div>
+            <label className={`${T_LABEL} block mb-1.5`}>Month</label>
+            <input type="month" value={monthKey} onChange={(e) => setMonthKey(e.target.value)} className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} block mb-1.5`}>Approver Name</label>
+            <input value={approverName} readOnly className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} block mb-1.5`}>PIN</label>
+            <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} className={INPUT_CLASS} />
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <button
+            type="button"
+            onClick={syncBayzatAttendance}
+            disabled={attendanceSyncBusy || syncBusy}
+            className={`${SECONDARY_BUTTON} flex items-center gap-2 text-sm disabled:opacity-60`}
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
             {attendanceSyncBusy ? "Syncing Bayzat..." : "Bayzat Sync"}
           </button>
-          <button type="button" onClick={syncFromSheet} disabled={syncBusy || attendanceSyncBusy || !bayzatReady} className="rounded-xl border border-amber-600/60 bg-amber-950/20 px-3 py-2 text-xs text-amber-200 hover:bg-amber-900/20 disabled:opacity-60">
+          <button
+            type="button"
+            onClick={syncFromSheet}
+            disabled={syncBusy || attendanceSyncBusy || !bayzatReady}
+            className={`${PRIMARY_BUTTON} flex items-center gap-2 text-sm disabled:opacity-60`}
+          >
+            <Zap className="h-3.5 w-3.5" />
             {syncBusy ? "Syncing..." : "Sync + Score"}
           </button>
         </div>
-      </div>
-
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 text-xs text-neutral-300">
-        <div>Bayzat attendance available through: {attendanceStatus?.attendance_last_date || "-"}</div>
-        <div className="mt-1">Attendance coverage: {attendanceStatus?.attendance_staff_count ?? 0} staff</div>
-        <div className="mt-1 text-neutral-400">
-          {bayzatReady ? "Bayzat Sync completed for this city/month. You can run Sync + Score now." : "Click Bayzat Sync first, then Sync + Score."}
+        <div className="rounded-xl border border-white/8 bg-white/3 px-4 py-3 space-y-1">
+          <p className={T_CAPTION}>Bayzat attendance available through: <span className="text-zinc-300">{attendanceStatus?.attendance_last_date || "-"}</span></p>
+          <p className={T_CAPTION}>Attendance coverage: <span className="text-zinc-300">{fmtNum(attendanceStatus?.attendance_staff_count ?? 0)} staff</span></p>
+          <p className={T_CAPTION}>{bayzatReady ? "Bayzat Sync completed for this city/month. You can run Sync + Score now." : "Click Bayzat Sync first, then Sync + Score."}</p>
+          {attendanceError ? <div className={`${BADGE_ERROR} mt-2 px-3 py-1.5 text-sm`}>{attendanceError}</div> : null}
         </div>
-        {attendanceError ? <div className="mt-2 text-red-300">{attendanceError}</div> : null}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <div className="text-sm font-medium">Score Summary</div>
-            <button type="button" onClick={loadSummary} disabled={loading} className="rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-1 text-xs hover:bg-neutral-900 disabled:opacity-60">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className={`${GLASS_CARD} p-5`}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-emerald-400" />
+              <h2 className={T_SECTION}>Score Summary</h2>
+            </div>
+            <button
+              type="button"
+              onClick={loadSummary}
+              disabled={loading}
+              className={`${SMALL_BUTTON} flex items-center gap-1.5 disabled:opacity-60`}
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
               Refresh
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="rounded-lg border border-neutral-800 bg-neutral-950/30 p-2">Staff: {summary?.staff_count ?? 0}</div>
-            <div className="rounded-lg border border-neutral-800 bg-neutral-950/30 p-2">Avg Total: {(summary?.avg_total_score ?? 0).toFixed(1)}</div>
-            <div className="rounded-lg border border-neutral-800 bg-neutral-950/30 p-2">Workload: {(summary?.avg_workload_score ?? 0).toFixed(1)}</div>
-            <div className="rounded-lg border border-neutral-800 bg-neutral-950/30 p-2">Speed: {(summary?.avg_speed_score ?? 0).toFixed(1)}</div>
-            <div className="rounded-lg border border-neutral-800 bg-neutral-950/30 p-2">Quality: {(summary?.avg_quality_score ?? 0).toFixed(1)}</div>
-            <div className="rounded-lg border border-neutral-800 bg-neutral-950/30 p-2">Progress: {(summary?.avg_progress_score ?? 0).toFixed(1)}</div>
-          </div>
-          <div className="mt-3 space-y-2">
-            {(summary?.by_role || []).map((x) => (
-              <div key={`${x.role_name}-${x.staff_count}`} className="rounded-xl border border-neutral-800 bg-neutral-950/20 p-2 text-xs text-neutral-300">
-                {x.role_name || "(role unknown)"} - {x.staff_count} staff - avg {Number(x.avg_total_score || 0).toFixed(1)}
+          {loading ? <div className={`${GLASS_CARD} px-3 py-6 text-sm text-neutral-400`}>Loading summary...</div> : null}
+          {!loading && !hasSummaryData ? <div className={`${GLASS_CARD} px-3 py-6 text-sm text-neutral-500`}>No evaluation data found for this city and month.</div> : null}
+          {!loading && hasSummaryData ? (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: "Staff", value: summary?.staff_count ?? 0, color: "text-white" },
+                  { label: "Avg Total", value: summary?.avg_total_score ?? 0, color: "text-amber-400" },
+                  { label: "Workload", value: summary?.avg_workload_score ?? 0, color: "text-sky-400" },
+                  { label: "Speed", value: summary?.avg_speed_score ?? 0, color: "text-emerald-400" },
+                  { label: "Quality", value: summary?.avg_quality_score ?? 0, color: "text-amber-400" },
+                  { label: "Progress", value: summary?.avg_progress_score ?? 0, color: "text-violet-400" },
+                ].map((s) => (
+                  <div key={s.label} className={KPI_CARD}>
+                    <p className={KPI_LABEL}>{s.label}</p>
+                    <p className={`mt-1 text-2xl font-bold tabular-nums ${s.color}`}>{fmtNum(s.value)}</p>
+                  </div>
+                ))}
               </div>
-            ))}
-            {!summary?.by_role?.length ? <div className="text-xs text-neutral-500">No role summary yet.</div> : null}
-          </div>
+              <div className="mt-3 space-y-2">
+                {(summary?.by_role || []).map((x) => (
+                  <div key={`${x.role_name}-${x.staff_count}`} className={`${GLASS_CARD} p-3 text-xs text-neutral-300`}>
+                    {x.role_name || "(role unknown)"} - {fmtNum(x.staff_count)} staff - avg {fmtNum(x.avg_total_score)}
+                  </div>
+                ))}
+                {!hasRoleSummary && <p className={`${T_CAPTION} mt-3 text-center`}>No role summary yet.</p>}
+              </div>
+            </>
+          ) : null}
         </div>
 
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3">
-          <div className="text-sm font-medium">Staff Scores</div>
-          <div className="mt-2 space-y-2">
-            {rows.map((r) => (
-              <button
-                key={`${r.staff_name}-${r.month_key}`}
-                type="button"
-                onClick={() => setSelectedStaff(r.staff_name)}
-                className={[
-                  "w-full rounded-xl border px-3 py-2 text-left text-sm",
-                  selectedStaff === r.staff_name ? "border-amber-500 bg-amber-950/20 text-amber-100" : "border-neutral-800 bg-neutral-950/30 text-neutral-200",
-                ].join(" ")}
-              >
-                <div className="flex items-center justify-between">
-                  <span>{r.staff_name}</span>
-                  <span className="font-semibold">{Number(r.total_score || 0).toFixed(1)}</span>
-                </div>
-                <div className="mt-1 text-xs text-neutral-400">
-                  {r.role_name || "-"} | W:{Number(r.workload_score || 0).toFixed(1)} S:{Number(r.speed_score || 0).toFixed(1)} Q:{Number(r.quality_score || 0).toFixed(1)} P:{Number(r.progress_score || 0).toFixed(1)}
-                </div>
-              </button>
-            ))}
-            {!rows.length ? <div className="text-xs text-neutral-500">No score rows.</div> : null}
+        <div className={`${GLASS_CARD} p-5`}>
+          <div className="flex items-center gap-2 mb-4">
+            <Users className="h-4 w-4 text-sky-400" />
+            <h2 className={T_SECTION}>Staff Scores</h2>
           </div>
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-2">
+              <InboxIcon className="h-8 w-8 text-zinc-700" />
+              <p className={T_CAPTION}>Loading staff scores...</p>
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 gap-2">
+              <InboxIcon className="h-8 w-8 text-zinc-700" />
+              <p className={T_CAPTION}>No score rows.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr>
+                    {["Staff", "Workload", "Speed", "Quality", "Progress", "Total"].map((col) => (
+                      <th key={col} className={`${TABLE_HEADER} px-3 py-2 text-left`}>{col}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr
+                      key={i}
+                      className={`${TABLE_ROW} cursor-pointer ${selectedStaff === r.staff_name ? "bg-white/6" : ""}`}
+                      onClick={() => setSelectedStaff(r.staff_name)}
+                    >
+                      <td className={`${TABLE_CELL} px-3 font-medium`}>
+                        <div>{r.staff_name}</div>
+                        <div className="h-1 rounded-full bg-white/8 mt-1">
+                          <div
+                            className="h-1 rounded-full bg-gradient-to-r from-violet-500 to-amber-400 transition-all duration-700"
+                            style={{ width: `${Math.max(0, Math.min(100, Number(r.total_score || 0)))}%` }}
+                          />
+                        </div>
+                      </td>
+                      <td className={`${TABLE_CELL} px-3 text-sky-400`}>{fmtNum(r.workload_score)}</td>
+                      <td className={`${TABLE_CELL} px-3 text-emerald-400`}>{fmtNum(r.speed_score)}</td>
+                      <td className={`${TABLE_CELL} px-3 text-amber-400`}>{fmtNum(r.quality_score)}</td>
+                      <td className={`${TABLE_CELL} px-3 text-violet-400`}>{fmtNum(r.progress_score)}</td>
+                      <td className={`${TABLE_CELL} px-3 font-bold text-white`}>{fmtNum(r.total_score)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3">
-        <div className="text-sm font-medium">Improvement Actions {selectedStaff ? `- ${selectedStaff}` : ""}</div>
-        <div className="mt-2 grid grid-cols-1 gap-2 lg:grid-cols-5">
-          <input value={actionTitle} onChange={(e) => setActionTitle(e.target.value)} placeholder="Action title" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm lg:col-span-2" />
-          <input value={actionOwner} onChange={(e) => setActionOwner(e.target.value)} placeholder="Owner" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <input type="date" value={actionDueDate} onChange={(e) => setActionDueDate(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <select value={actionStatus} onChange={(e) => setActionStatus(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm">
-            <option value="OPEN">OPEN</option>
-            <option value="IN_PROGRESS">IN_PROGRESS</option>
-            <option value="DONE">DONE</option>
-            <option value="HOLD">HOLD</option>
-          </select>
+      <div className={`${GLASS_CARD} p-5`}>
+        <div className="flex items-center gap-2 mb-4">
+          <Lightbulb className="h-4 w-4 text-amber-400" />
+          <h2 className={T_SECTION}>Improvement Actions {selectedStaff ? `- ${selectedStaff}` : ""}</h2>
         </div>
-        <textarea value={actionDetail} onChange={(e) => setActionDetail(e.target.value)} rows={2} placeholder="Action detail" className="mt-2 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <div className="mt-2">
-          <button type="button" onClick={upsertAction} disabled={actionBusy || !selectedStaff} className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-3">
+          <div className="sm:col-span-2">
+            <label className={`${T_LABEL} block mb-1.5`}>Action Title</label>
+            <input value={actionTitle} onChange={(e) => setActionTitle(e.target.value)} placeholder="Action title" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} block mb-1.5`}>Owner</label>
+            <input value={actionOwner} onChange={(e) => setActionOwner(e.target.value)} placeholder="Owner" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} block mb-1.5`}>Status</label>
+            <select value={actionStatus} onChange={(e) => setActionStatus(e.target.value)} className={SELECT_CLASS}>
+              <option value="OPEN">OPEN</option>
+              <option value="IN_PROGRESS">IN PROGRESS</option>
+              <option value="DONE">DONE</option>
+              <option value="HOLD">HOLD</option>
+            </select>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4">
+          <div className="sm:col-span-3">
+            <label className={`${T_LABEL} block mb-1.5`}>Action Detail</label>
+            <textarea value={actionDetail} onChange={(e) => setActionDetail(e.target.value)} rows={3} placeholder="Action detail" className={TEXTAREA_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} block mb-1.5`}>Due Date</label>
+            <input type="date" value={actionDueDate} onChange={(e) => setActionDueDate(e.target.value)} className={INPUT_CLASS} />
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <button type="button" onClick={upsertAction} disabled={actionBusy || !selectedStaff} className={`${PRIMARY_BUTTON} flex items-center gap-2 disabled:opacity-60`}>
+            <Plus className="h-4 w-4" />
             {actionBusy ? "Saving..." : "Save Action"}
           </button>
         </div>
-        <div className="mt-3 space-y-2">
-          {actions.map((a) => (
-            <div key={a.id} className="rounded-xl border border-neutral-800 bg-neutral-950/30 p-2 text-xs text-neutral-300">
-              <div className="font-medium text-neutral-100">{a.action_title}</div>
-              <div className="mt-1">{a.action_detail || "-"}</div>
-              <div className="mt-1 text-neutral-400">
-                owner: {a.action_owner || "-"} | due: {a.due_date || "-"} | status: {a.status || "-"}
+
+        {actions.length > 0 && (
+          <div className="mt-5 space-y-2">
+            <hr className="border-white/5 mb-3" />
+            {actions.map((a) => (
+              <div key={a.id} className="flex items-start justify-between gap-3 rounded-xl border border-white/8 bg-white/3 px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-white">{a.action_title}</p>
+                  <p className={T_CAPTION}>{a.action_detail || "-"}</p>
+                  <p className={`${T_CAPTION} mt-1`}>{a.action_owner || "-"} · {a.due_date || "-"}</p>
+                </div>
+                <span className={a.status === "DONE" ? BADGE_SUCCESS : a.status === "IN_PROGRESS" ? BADGE_WARNING : BADGE_INFO}>
+                  {a.status || "-"}
+                </span>
               </div>
-            </div>
-          ))}
-          {!actions.length ? <div className="text-xs text-neutral-500">No action items yet.</div> : null}
-        </div>
+            ))}
+          </div>
+        )}
+
+        {!actions.length ? <div className={`${T_CAPTION} mt-3`}>No action items yet.</div> : null}
       </div>
-    </div>
+    </motion.div>
   );
 }

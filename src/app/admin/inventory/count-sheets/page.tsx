@@ -8,6 +8,7 @@ import { canAccessCountTemplatesAdmin, getAuth, refreshAuthFromApi } from "@/lib
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { emptyCountLine, lineFromItem, monthNow, withVariance, type InventoryCountLine, type InventoryItemLookup } from "@/lib/inventoryCountUtils";
 import { inventoryGet, inventoryPatch, inventoryPost } from "@/lib/inventoryClient";
+import { formatDraftNumber, getInventoryCostStep, getInventoryQuantityStep, parseDraftNumber, stepDraftNumber } from "@/lib/quantityInput";
 
 type CountSheetRow = {
   id: string;
@@ -68,6 +69,7 @@ export default function InventoryCountSheetsPage() {
   const [selectedAddQty, setSelectedAddQty] = useState("0");
   const [addQtyByItemId, setAddQtyByItemId] = useState<Record<string, string>>({});
   const [draftLines, setDraftLines] = useState<InventoryCountLine[]>([]);
+  const [draftCellInputs, setDraftCellInputs] = useState<Record<string, string>>({});
   const [itemOptions, setItemOptions] = useState<InventoryItemLookup[]>([]);
   const [historyRows, setHistoryRows] = useState<CountSheetRow[]>([]);
   const [selectedSheetId, setSelectedSheetId] = useState("");
@@ -118,6 +120,7 @@ export default function InventoryCountSheetsPage() {
     setSelectedVersionId("");
     setSelectedVersion(null);
     setDraftLines([]);
+    setDraftCellInputs({});
   }, [city]);
 
   useEffect(() => {
@@ -272,11 +275,52 @@ export default function InventoryCountSheetsPage() {
   function handleEnter(event: KeyboardEvent<HTMLInputElement>, rowIndex: number, col: EditableColumn) {
     if (event.key !== "Enter") return;
     event.preventDefault();
+    if (col === "unit_price" || col === "counted_qty") {
+      commitNumericCell(rowIndex, col);
+    }
     moveDown(rowIndex, col);
   }
 
   function updateDraftLine(index: number, patch: Partial<InventoryCountLine>) {
     setDraftLines((prev) => prev.map((line, idx) => (idx === index ? { ...line, ...patch } : line)));
+  }
+
+  function rebuildDraftCellInputs(lines: InventoryCountLine[]) {
+    const nextInputs: Record<string, string> = {};
+    lines.forEach((line, index) => {
+      nextInputs[keyOf(index, "unit_price")] = formatDraftNumber(line.unit_price, "0");
+      nextInputs[keyOf(index, "counted_qty")] = formatDraftNumber(line.counted_qty, "0");
+    });
+    setDraftCellInputs(nextInputs);
+  }
+
+  function numericCellValue(index: number, col: "unit_price" | "counted_qty", fallback: number) {
+    return draftCellInputs[keyOf(index, col)] ?? formatDraftNumber(fallback, "0");
+  }
+
+  function commitNumericCell(index: number, col: "unit_price" | "counted_qty") {
+    const line = draftLines[index];
+    if (!line) return;
+    const parsed = parseDraftNumber(numericCellValue(index, col, line[col]));
+    const nextValue = parsed === null || parsed < 0 ? 0 : parsed;
+    setDraftCellInputs((prev) => ({ ...prev, [keyOf(index, col)]: formatDraftNumber(nextValue, "0") }));
+    if (col === "counted_qty") {
+      updateDraftLine(index, withVariance({ ...line, counted_qty: nextValue }));
+      return;
+    }
+    updateDraftLine(index, { unit_price: nextValue });
+  }
+
+  function syncedDraftLines() {
+    return draftLines.map((line, index) => {
+      const unitPrice = parseDraftNumber(numericCellValue(index, "unit_price", line.unit_price));
+      const countedQty = parseDraftNumber(numericCellValue(index, "counted_qty", line.counted_qty));
+      return withVariance({
+        ...line,
+        unit_price: unitPrice === null || unitPrice < 0 ? 0 : unitPrice,
+        counted_qty: countedQty === null || countedQty < 0 ? 0 : countedQty,
+      });
+    });
   }
 
   function addQtyValue(itemId: string) {
@@ -314,22 +358,29 @@ export default function InventoryCountSheetsPage() {
 
   function appendItemToDraft(item: InventoryItemLookup, countedQty = 0) {
     if (!item) return;
-    setDraftLines((prev) => [...prev, buildDraftLine(item, countedQty, prev.length + 1)]);
+    const nextLines = [...draftLines, buildDraftLine(item, countedQty, draftLines.length + 1)];
+    setDraftLines(nextLines);
+    rebuildDraftCellInputs(nextLines);
   }
 
   function addManualItem() {
     if (!selectedItem) return;
-    appendItemToDraft(selectedItem, Number(selectedAddQty || 0));
+    const countedQty = parseDraftNumber(selectedAddQty);
+    appendItemToDraft(selectedItem, countedQty === null || countedQty < 0 ? 0 : countedQty);
     setSelectedItemId("");
     setSelectedAddQty("0");
   }
 
   function addRow() {
-    setDraftLines((prev) => [...prev, emptyCountLine(prev.length + 1)]);
+    const nextLines = [...draftLines, emptyCountLine(draftLines.length + 1)];
+    setDraftLines(nextLines);
+    rebuildDraftCellInputs(nextLines);
   }
 
   function removeDraftLine(index: number) {
-    setDraftLines((prev) => prev.filter((_, idx) => idx !== index).map((line, idx) => ({ ...line, sort_order: idx + 1 })));
+    const nextLines = draftLines.filter((_, idx) => idx !== index).map((line, idx) => ({ ...line, sort_order: idx + 1 }));
+    setDraftLines(nextLines);
+    rebuildDraftCellInputs(nextLines);
   }
 
   async function refreshItemOptions() {
@@ -339,8 +390,13 @@ export default function InventoryCountSheetsPage() {
 
   async function createQuickItem() {
     const name = newItemName.trim();
+    const parsedCost = parseDraftNumber(newItemCost);
     if (!name) {
       setError("Enter item name to register.");
+      return;
+    }
+    if (parsedCost === null || parsedCost < 0) {
+      setError("Enter a valid item cost.");
       return;
     }
     setRegisterBusy(true);
@@ -356,7 +412,7 @@ export default function InventoryCountSheetsPage() {
         ingredient_unit: newItemUnit.trim(),
         storage_to_ingredient: 1,
         costing_method: "FIXED",
-        cost: Number(newItemCost || 0),
+        cost: parsedCost,
         minimum_level: 0,
         par_level: 0,
         maximum_level: 0,
@@ -383,7 +439,9 @@ export default function InventoryCountSheetsPage() {
 
   function loadSelectedSheetIntoDraft() {
     if (!selectedSheet) return;
-    setDraftLines((selectedSheet.items || []).map((row, idx) => ({ ...row, sort_order: idx + 1 })));
+    const nextLines = (selectedSheet.items || []).map((row, idx) => ({ ...row, sort_order: idx + 1 }));
+    setDraftLines(nextLines);
+    rebuildDraftCellInputs(nextLines);
     setEditingSheetId(selectedSheet.id);
     setTemplateName(selectedSheet.name || "");
     setReference(selectedSheet.reference || "");
@@ -402,6 +460,7 @@ export default function InventoryCountSheetsPage() {
     setSelectedVersionId("");
     setSelectedVersion(null);
     setDraftLines([]);
+    setDraftCellInputs({});
     setSuccess("Started a new count template draft.");
   }
 
@@ -414,6 +473,7 @@ export default function InventoryCountSheetsPage() {
     setError("");
     setSuccess("");
     try {
+      const nextDraftLines = syncedDraftLines();
       const payload = {
         city,
         name: draftTemplateName(),
@@ -421,7 +481,7 @@ export default function InventoryCountSheetsPage() {
         branch_code: branchCode,
         cycle,
         source_sheet_name: editingSheetId ? selectedSheet?.source_sheet_name || "" : "",
-        items: draftLines.map((line, idx) => ({ ...line, sort_order: idx + 1 })),
+        items: nextDraftLines.map((line, idx) => ({ ...line, sort_order: idx + 1 })),
       };
       let countSheetId = editingSheetId;
       if (editingSheetId) {
@@ -440,11 +500,13 @@ export default function InventoryCountSheetsPage() {
         countSheetId = String(created?.row?.id || "");
         await inventoryPost(`/api/admin/inventory/count-sheets/${encodeURIComponent(countSheetId)}/items`, {
           city,
-          items: draftLines.map((line, idx) => ({ ...line, sort_order: idx + 1 })),
+          items: nextDraftLines.map((line, idx) => ({ ...line, sort_order: idx + 1 })),
         });
         setEditingSheetId(countSheetId);
         setTemplateName(String(created?.row?.name || payload.name));
       }
+      setDraftLines(nextDraftLines);
+      rebuildDraftCellInputs(nextDraftLines);
       const historyRes = await inventoryGet<{ rows: CountSheetRow[] }>(`/api/admin/inventory/count-sheets?city=${encodeURIComponent(city)}&tab=ACTIVE&limit=500`);
       setHistoryRows((historyRes.rows || []).filter((row) => row.status !== "DELETED"));
       setSelectedSheetId(countSheetId);
@@ -599,7 +661,11 @@ export default function InventoryCountSheetsPage() {
           <input value={newItemName} onChange={(e) => setNewItemName(e.target.value)} placeholder="New item name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
           <input value={newItemSku} onChange={(e) => setNewItemSku(e.target.value)} placeholder="SKU (optional)" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
           <input value={newItemUnit} onChange={(e) => setNewItemUnit(e.target.value)} placeholder="Unit" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <input type="number" min="0" step="0.01" value={newItemCost} onChange={(e) => setNewItemCost(e.target.value)} placeholder="Cost" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+          <input type="text" inputMode="decimal" value={newItemCost} onChange={(e) => setNewItemCost(e.target.value)} onKeyDown={(e) => {
+            if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+            e.preventDefault();
+            setNewItemCost((current) => stepDraftNumber(current, getInventoryCostStep(), e.key === "ArrowUp" ? 1 : -1));
+          }} placeholder="Cost" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
           <input value={newItemCategory} onChange={(e) => setNewItemCategory(e.target.value)} placeholder="Category" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
           <button type="button" onClick={() => void createQuickItem()} disabled={registerBusy} className="rounded-xl border border-sky-800 bg-sky-950/30 px-4 py-2 text-sm text-sky-200 hover:bg-sky-900/30 disabled:opacity-60">
             {registerBusy ? "Registering..." : "Register Item"}
@@ -646,7 +712,10 @@ export default function InventoryCountSheetsPage() {
                         <td className="px-3 py-2 text-right">
                           <button
                             type="button"
-                            onClick={() => appendItemToDraft(item, Number(addQtyValue(item.id) || 0))}
+                            onClick={() => {
+                              const countedQty = parseDraftNumber(addQtyValue(item.id));
+                              appendItemToDraft(item, countedQty === null || countedQty < 0 ? 0 : countedQty);
+                            }}
                             className="rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-800"
                           >
                             Add
@@ -709,10 +778,24 @@ export default function InventoryCountSheetsPage() {
                           <input ref={(el) => { cellRefs.current[`${index}:storage_unit`] = el; }} value={line.storage_unit} onChange={(e) => updateDraftLine(index, { storage_unit: e.target.value })} onKeyDown={(e) => handleEnter(e, index, "storage_unit")} className="w-20 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
                         </td>
                         <td className="px-3 py-2">
-                          <input ref={(el) => { cellRefs.current[`${index}:unit_price`] = el; }} type="number" min="0" step="0.01" value={line.unit_price} onChange={(e) => updateDraftLine(index, { unit_price: Number(e.target.value || 0) })} onKeyDown={(e) => handleEnter(e, index, "unit_price")} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-right text-xs" />
+                          <input ref={(el) => { cellRefs.current[`${index}:unit_price`] = el; }} type="text" inputMode="decimal" value={numericCellValue(index, "unit_price", line.unit_price)} onChange={(e) => setDraftCellInputs((prev) => ({ ...prev, [keyOf(index, "unit_price")]: e.target.value }))} onBlur={() => commitNumericCell(index, "unit_price")} onKeyDown={(e) => {
+                            if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                              e.preventDefault();
+                              setDraftCellInputs((prev) => ({ ...prev, [keyOf(index, "unit_price")]: stepDraftNumber(numericCellValue(index, "unit_price", line.unit_price), getInventoryCostStep(), e.key === "ArrowUp" ? 1 : -1) }));
+                              return;
+                            }
+                            handleEnter(e, index, "unit_price");
+                          }} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-right text-xs" />
                         </td>
                         <td className="px-3 py-2">
-                          <input ref={(el) => { cellRefs.current[`${index}:counted_qty`] = el; }} type="number" step="0.001" value={line.counted_qty} onChange={(e) => updateDraftLine(index, { counted_qty: Number(e.target.value || 0) })} onKeyDown={(e) => handleEnter(e, index, "counted_qty")} className="w-24 rounded-lg border border-emerald-800 bg-emerald-950/20 px-2 py-1.5 text-right text-xs text-emerald-100" />
+                          <input ref={(el) => { cellRefs.current[`${index}:counted_qty`] = el; }} type="text" inputMode="decimal" value={numericCellValue(index, "counted_qty", line.counted_qty)} onChange={(e) => setDraftCellInputs((prev) => ({ ...prev, [keyOf(index, "counted_qty")]: e.target.value }))} onBlur={() => commitNumericCell(index, "counted_qty")} onKeyDown={(e) => {
+                            if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                              e.preventDefault();
+                              setDraftCellInputs((prev) => ({ ...prev, [keyOf(index, "counted_qty")]: stepDraftNumber(numericCellValue(index, "counted_qty", line.counted_qty), getInventoryQuantityStep(line.storage_unit), e.key === "ArrowUp" ? 1 : -1) }));
+                              return;
+                            }
+                            handleEnter(e, index, "counted_qty");
+                          }} className="w-24 rounded-lg border border-emerald-800 bg-emerald-950/20 px-2 py-1.5 text-right text-xs text-emerald-100" />
                         </td>
                         <td className="px-3 py-2">
                           <input ref={(el) => { cellRefs.current[`${index}:memo`] = el; }} value={line.memo} onChange={(e) => updateDraftLine(index, { memo: e.target.value })} onKeyDown={(e) => handleEnter(e, index, "memo")} className="w-32 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />

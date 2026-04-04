@@ -1,11 +1,30 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { KeyRound, ShieldCheck, LockKeyhole, RefreshCcw } from "lucide-react";
 import { getAuth, setAuth } from "@/lib/auth";
+import {
+  GLASS_CARD,
+  INPUT_CLASS,
+  T_PAGE_TITLE,
+  T_BODY,
+  T_SECTION,
+  T_CAPTION,
+  T_LABEL,
+  BADGE_WARNING,
+} from "@/lib/ui-tokens";
+
+const PAGE_BG = "min-h-screen text-white";
+const BLUSH_GLASS = `${GLASS_CARD} bg-violet-950/30`;
+const BLUSH_HIGHLIGHT = "rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/18 to-purple-500/10";
+const BLUSH_PRIMARY =
+  "rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 px-5 py-2.5 font-semibold text-white transition-all duration-200 shadow-lg shadow-violet-500/25 hover:scale-[1.02] hover:from-violet-400 hover:to-purple-400 hover:shadow-violet-500/40 active:scale-[0.98] disabled:opacity-60";
+const BLUSH_SECONDARY =
+  "rounded-xl border border-violet-400/15 bg-violet-950/30 px-5 py-2.5 text-white transition-all duration-200 hover:border-violet-500/25 hover:bg-violet-950/45 disabled:opacity-60";
 
 function getApiBase() {
-  if (process.env.NODE_ENV !== "production") return "http://127.0.0.1:8000";
   const configured = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
   if (configured) return configured;
   return "";
@@ -29,12 +48,11 @@ export default function ChangePinPage() {
 
   useEffect(() => {
     const auth = getAuth();
-    if (!auth?.staffName) {
-      router.replace("/login?next=/change-pin");
+    if (!auth?.staffName || !auth?.accessToken) {
+      router.replace("/login?next=%2Fchange-pin");
       return;
     }
     setStaffName(auth.staffName);
-    setCurrentPin(auth.pin || "");
   }, [router]);
 
   async function onSubmit(e: React.FormEvent) {
@@ -92,30 +110,54 @@ export default function ChangePinPage() {
   }
 
   return (
-    <main className="min-h-screen bg-neutral-950 text-white">
-      <div className="mx-auto max-w-xl px-4 py-8">
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-6">
-          <h1 className="text-xl font-bold">Change PIN</h1>
-          <p className="mt-2 text-sm text-neutral-400">
-            Update your login PIN. Keep it private.
-          </p>
+    <main className={PAGE_BG}>
+      <motion.div
+        className="mx-auto max-w-3xl px-4 py-8"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
+      >
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h1 className={T_PAGE_TITLE}>Change PIN</h1>
+            <p className={T_BODY}>Update your login PIN and keep your session secure.</p>
+          </div>
+          <span className={BADGE_WARNING}>
+            <KeyRound className="h-3 w-3" />
+            Private credential
+          </span>
+        </div>
 
-          <form className="mt-6 space-y-4" onSubmit={onSubmit}>
+        <div className={`${BLUSH_GLASS} p-6`}>
+          <div className="mb-5 flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-emerald-400" />
+            <h2 className={T_SECTION}>PIN Settings</h2>
+          </div>
+
+          <div className={`${BLUSH_HIGHLIGHT} mb-6 flex items-start gap-3 px-4 py-3`}>
+            <LockKeyhole className="mt-0.5 h-4 w-4 text-amber-300" />
             <div>
-              <label className="mb-2 block text-sm text-neutral-300">Staff Name</label>
+              <p className="text-sm font-medium text-amber-200">Use a numeric PIN with 4 to 8 digits.</p>
+              <p className={T_CAPTION}>Avoid reusing your current PIN or sharing it with other staff.</p>
+            </div>
+          </div>
+
+          <form className="space-y-4" onSubmit={onSubmit}>
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Staff Name</label>
               <input
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
                 value={staffName}
-                onChange={(e) => setStaffName(e.target.value)}
+                readOnly
                 placeholder="Your exact name"
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm text-neutral-300">Current PIN</label>
+              <label className={`${T_LABEL} mb-1.5 block`}>Current PIN</label>
               <input
                 type="password"
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
                 value={currentPin}
                 onChange={(e) => setCurrentPin(e.target.value)}
                 placeholder="Current PIN"
@@ -123,10 +165,10 @@ export default function ChangePinPage() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm text-neutral-300">New PIN</label>
+              <label className={`${T_LABEL} mb-1.5 block`}>New PIN</label>
               <input
                 type="password"
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
                 value={newPin}
                 onChange={(e) => setNewPin(e.target.value)}
                 placeholder="4 to 8 digits"
@@ -134,10 +176,10 @@ export default function ChangePinPage() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm text-neutral-300">Confirm New PIN</label>
+              <label className={`${T_LABEL} mb-1.5 block`}>Confirm New PIN</label>
               <input
                 type="password"
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
                 value={confirmPin}
                 onChange={(e) => setConfirmPin(e.target.value)}
                 placeholder="Confirm new PIN"
@@ -156,16 +198,37 @@ export default function ChangePinPage() {
               </div>
             ) : null}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-black hover:bg-neutral-200 disabled:opacity-50"
-            >
-              {loading ? "Updating..." : "Update PIN"}
-            </button>
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+              <p className={T_CAPTION}>Changes update your saved local session PIN after success.</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentPin("");
+                    setNewPin("");
+                    setConfirmPin("");
+                    setError("");
+                    setSuccess("");
+                  }}
+                  className={BLUSH_SECONDARY}
+                >
+                  <span className="flex items-center gap-2">
+                    <RefreshCcw className="h-4 w-4" />
+                    Clear
+                  </span>
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className={BLUSH_PRIMARY}
+                >
+                  {loading ? "Updating..." : "Update PIN"}
+                </button>
+              </div>
+            </div>
           </form>
         </div>
-      </div>
+      </motion.div>
     </main>
   );
 }

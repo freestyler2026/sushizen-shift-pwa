@@ -5,6 +5,7 @@ import InventoryTabs from "@/components/InventoryTabs";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
+import { parseDraftNumber, stepDraftNumber } from "@/lib/quantityInput";
 
 type InventoryItemRow = {
   id: string;
@@ -32,6 +33,7 @@ type InventorySupplierRow = {
 
 export default function InventoryItemsPage() {
   const auth = useMemo(() => getAuth(), []);
+  const createCostStep = 0.1;
   const [ready, setReady] = useState(false);
   const [allowed, setAllowed] = useState(false);
   const [city, setCity] = useState((auth?.city || "manila") as "manila" | "dubai");
@@ -119,6 +121,11 @@ export default function InventoryItemsPage() {
       setError("Please enter item name.");
       return;
     }
+    const parsedCost = parseDraftNumber(createCost);
+    if (parsedCost === null || parsedCost < 0) {
+      setError("Please enter a valid cost.");
+      return;
+    }
     setCreateBusy(true);
     setError("");
     setCreateSuccess("");
@@ -154,7 +161,7 @@ export default function InventoryItemsPage() {
         ingredient_unit: createUnit.trim(),
         storage_to_ingredient: 1,
         costing_method: "FIXED",
-        cost: Number(createCost || 0),
+        cost: parsedCost,
         minimum_level: 0,
         par_level: 0,
         maximum_level: 0,
@@ -319,11 +326,15 @@ export default function InventoryItemsPage() {
               className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             />
             <input
-              type="number"
-              min="0"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={createCost}
               onChange={(e) => setCreateCost(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+                e.preventDefault();
+                setCreateCost((current) => stepDraftNumber(current, createCostStep, e.key === "ArrowUp" ? 1 : -1));
+              }}
               placeholder="Cost"
               className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             />

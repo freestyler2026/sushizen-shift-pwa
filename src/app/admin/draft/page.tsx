@@ -1,9 +1,50 @@
 "use client";
 
+import { motion } from "framer-motion";
+import {
+  ArrowDownToLine,
+  CalendarCog,
+  CheckCircle2,
+  ClipboardList,
+  InboxIcon,
+  Info,
+  PencilLine,
+  RefreshCw,
+  Send,
+  ShieldCheck,
+  Wand2,
+  XCircle,
+  Zap,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getAuth } from "@/lib/auth";
-import { BRANCHES, labelOf, type BranchCode } from "@/lib/branches";
+import { canAccessAdminNav, getAuth } from "@/lib/auth";
+import { BRANCHES, labelOf, type BranchCode, type City } from "@/lib/branches";
+import { fmtNum } from "@/lib/formatters";
+import {
+  BADGE_ERROR,
+  BADGE_INFO,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  DANGER_BUTTON,
+  GLASS_CARD,
+  INPUT_CLASS,
+  PRIMARY_BUTTON,
+  SELECT_CLASS,
+  SECONDARY_BUTTON,
+  SMALL_BUTTON,
+  TAB_ACTIVE,
+  TAB_CONTAINER,
+  TAB_INACTIVE,
+  TABLE_CELL,
+  TABLE_HEADER,
+  TABLE_ROW,
+  T_BODY,
+  T_CAPTION,
+  T_LABEL,
+  T_PAGE_TITLE,
+  T_SECTION,
+} from "@/lib/ui-tokens";
 
 type DraftRow = {
   id: string;
@@ -332,8 +373,8 @@ async function apiPost<T = any>(path: string, body?: any): Promise<T> {
 export default function AdminDraftPage() {
   const router = useRouter();
   const auth = getAuth();
-  const city = "dubai";
-  const draftBranches = useMemo(() => BRANCHES.dubai.map((b) => b.code as BranchCode), []);
+  const [city, setCity] = useState<City>(String(auth?.city || "").toLowerCase() === "manila" ? "manila" : "dubai");
+  const draftBranches = useMemo(() => BRANCHES[city].map((b) => b.code as BranchCode), [city]);
   const targetMonth = useMemo(() => nextMonthKey(new Date()), []);
 
   const [approverName, setApproverName] = useState(auth?.staffName || "");
@@ -411,6 +452,10 @@ export default function AdminDraftPage() {
   useEffect(() => {
     if (!auth?.staffName) {
       router.replace("/login");
+      return;
+    }
+    if (!canAccessAdminNav(auth)) {
+      router.replace("/week");
     }
   }, [auth, router]);
 
@@ -448,7 +493,7 @@ export default function AdminDraftPage() {
     setEditingRow(null);
     setApplyMonth(targetMonth);
     setError("");
-  }, [targetMonth]);
+  }, [city, targetMonth]);
 
   useEffect(() => {
     setApplyMonth(targetMonth);
@@ -602,7 +647,7 @@ export default function AdminDraftPage() {
       }
 
       if (!nextVersions.length) {
-        throw new Error("Failed to generate monthly drafts for Dubai branches.");
+        throw new Error(`Failed to generate monthly drafts for ${city === "dubai" ? "Dubai" : "Manila"} branches.`);
       }
 
       setVersions(nextVersions);
@@ -1034,60 +1079,78 @@ export default function AdminDraftPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 p-5">
-        <div className="text-lg font-semibold">Admin • Draft Generator / Edit / Apply</div>
-        <div className="mt-1 text-sm text-neutral-400">
-          Generate next month draft for all Dubai stores at once, edit by branch, then publish week by week.
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="max-w-5xl mx-auto px-4 py-8 space-y-6"
+    >
+      <div className="mb-2 flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-violet-500/20 bg-gradient-to-br from-violet-500/20 to-purple-500/10">
+          <CalendarCog className="h-5 w-5 text-violet-400" />
+        </div>
+        <div>
+          <h1 className={T_PAGE_TITLE}>Draft Generator / Edit / Apply</h1>
+          <p className={T_CAPTION}>Generate next month draft for all stores in the selected city, edit by branch, then publish week by week.</p>
+        </div>
+      </div>
+      <div className="mb-6 flex items-center gap-2">
+        <span className={BADGE_INFO}>
+          <ShieldCheck className="h-3 w-3" />
+          Verified role: {myRole || "HQ"}
+        </span>
+      </div>
+
+      <div className={`${GLASS_CARD} p-6`}>
+        <div className="mb-5 flex items-center gap-2">
+          <Wand2 className="h-4 w-4 text-violet-400" />
+          <h2 className={T_SECTION}>Generate Draft</h2>
         </div>
 
         {!canOperate ? (
-          <div className="mt-4 rounded-xl border border-amber-900/50 bg-amber-950/20 p-3 text-sm text-amber-200">
+          <div className={`${BADGE_WARNING} mb-4 px-4 py-2 text-sm`}>
             HQ / ADMIN only. Enter a valid approver name and PIN to verify your role.
           </div>
         ) : null}
 
-        <div className="mt-2 text-xs text-neutral-500">
-          Verified role: <span className="text-neutral-200">{myRole || "—"}</span>
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           <div>
-            <div className="mb-1 text-xs text-neutral-400">City</div>
-            <div className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
-              Dubai
-            </div>
+            <label className={`${T_LABEL} block mb-1.5`}>City</label>
+            <select
+              value={city}
+              onChange={(e) => setCity(e.target.value === "manila" ? "manila" : "dubai")}
+              className={SELECT_CLASS}
+            >
+              <option value="dubai">Dubai</option>
+              <option value="manila">Manila</option>
+            </select>
           </div>
-
           <div>
-            <div className="mb-1 text-xs text-neutral-400">Scope</div>
-            <div className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
-              All Dubai stores
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-1 text-xs text-neutral-400">Target month</div>
-            <div className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
-              {targetMonth}
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-1 text-xs text-neutral-400">Approver</div>
+            <label className={`${T_LABEL} block mb-1.5`}>Scope</label>
             <input
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className={INPUT_CLASS}
+              readOnly
+              value={`All ${city === "dubai" ? "Dubai" : "Manila"} stores`}
+            />
+          </div>
+          <div>
+            <label className={`${T_LABEL} block mb-1.5`}>Target Month</label>
+            <input type="month" className={INPUT_CLASS} readOnly value={targetMonth} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} block mb-1.5`}>Approver</label>
+            <input
+              className={INPUT_CLASS}
               value={approverName}
               onChange={(e) => setApproverName(e.target.value)}
               placeholder="Your name"
             />
           </div>
-
           <div>
-            <div className="mb-1 text-xs text-neutral-400">PIN</div>
+            <label className={`${T_LABEL} block mb-1.5`}>PIN</label>
             <input
               type="password"
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className={INPUT_CLASS}
               value={pin}
               onChange={(e) => setPin(e.target.value)}
               placeholder="PIN"
@@ -1095,85 +1158,106 @@ export default function AdminDraftPage() {
           </div>
         </div>
 
-        <div className="mt-4 rounded-2xl border border-sky-900/40 bg-sky-950/20 px-4 py-3 text-xs leading-6 text-sky-100">
-          Forecast-based generation uses previous-month Bayzat shifts as the team pattern and hourly sales history as the
-          demand signal. Branch members stay fixed, usual day-off patterns are preserved when possible, and shortages are
-          handled with limited overtime first.
+        <div className="mb-5 rounded-xl border border-sky-500/15 bg-sky-500/5 px-4 py-3">
+          <div className="flex items-start gap-2">
+            <Info className="h-4 w-4 text-sky-400 flex-shrink-0 mt-0.5" />
+            <p className={T_BODY}>
+              Forecast-based generation uses previous-month Bayzat shifts as the team pattern and hourly sales history as the demand
+              signal. Branch members stay fixed, usual day-off patterns are preserved when possible, and shortages are handled with
+              limited overtime first.
+            </p>
+          </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-4">
           <button
             type="button"
             onClick={prepareDraft}
             disabled={!canOperate || loading}
-            className="rounded-xl border border-amber-900 bg-amber-950/30 px-4 py-2 text-sm text-amber-200 hover:bg-amber-950/50 disabled:opacity-60"
+            className={`${PRIMARY_BUTTON} flex items-center gap-2 disabled:opacity-60`}
           >
+            <Zap className="h-4 w-4" />
             Prepare Generate
           </button>
-
-          <label className="inline-flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-xs text-neutral-200">
+          <label className="flex items-center gap-2.5 cursor-pointer select-none">
             <input
               type="checkbox"
+              className="accent-amber-500 h-4 w-4 rounded"
               checked={confirmChecked}
               onChange={(e) => setConfirmChecked(e.target.checked)}
               disabled={!prepared}
             />
-            I confirm generating a new monthly draft.
+            <span className="text-sm text-zinc-300">I confirm generating a new monthly draft.</span>
           </label>
-
           <button
             type="button"
             onClick={confirmGenerate}
             disabled={!canOperate || loading || !prepared || !confirmChecked}
-            className="rounded-xl border border-emerald-900 bg-emerald-950/30 px-4 py-2 text-sm text-emerald-200 hover:bg-emerald-950/50 disabled:opacity-60"
+            className={`${SECONDARY_BUTTON} flex items-center gap-2 disabled:opacity-60`}
           >
+            <CheckCircle2 className="h-4 w-4" />
             {loading ? "Working..." : "Confirm Generate"}
           </button>
         </div>
 
         {prepared ? (
-          <div className="mt-3 text-xs text-neutral-400">
-            Prepared: <span className="text-neutral-200">All Dubai stores</span> • {prepared.target_month}
-          </div>
+          <p className={`${T_CAPTION} mt-3`}>
+            Prepared: All {city === "dubai" ? "Dubai" : "Manila"} stores • {prepared.target_month}
+          </p>
         ) : null}
 
-        {error ? <div className="mt-3 whitespace-pre-wrap text-sm text-red-300">{error}</div> : null}
+        {error ? <div className={`${BADGE_ERROR} mt-3 whitespace-pre-wrap px-4 py-2 text-sm`}>{error}</div> : null}
       </div>
 
       {generateResult ? (
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
-          <div className="text-sm font-semibold">Generate result</div>
-          <div className="mt-2 space-y-1 text-xs text-neutral-400">
-            <div>target_month: <span className="text-neutral-200">{generateResult.target_month}</span></div>
-            <div>branches_generated: <span className="text-neutral-200">{generateResult.branches_generated}</span></div>
-            <div>rows_inserted: <span className="text-neutral-200">{generateResult.total_rows_inserted}</span></div>
-            <div>total_overtime_hours: <span className="text-neutral-200">{generateResult.total_overtime_hours}</span></div>
-            <div>total_unresolved_hours: <span className="text-neutral-200">{generateResult.total_unresolved_hours}</span></div>
-            {generateResult.failed_branches.length ? (
-              <div className="text-amber-300">
-                failed_branches: {generateResult.failed_branches.map((item) => item.branch_code).join(", ")}
-              </div>
-            ) : null}
+        <div className={`${GLASS_CARD} p-6`}>
+          <div className="mb-4 flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+            <h2 className={T_SECTION}>Generate Result</h2>
           </div>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+            <div>
+              <p className={T_LABEL}>Target Month</p>
+              <p className="mt-1 text-sm text-zinc-200">{generateResult.target_month}</p>
+            </div>
+            <div>
+              <p className={T_LABEL}>Branches Generated</p>
+              <p className="mt-1 text-sm text-zinc-200">{fmtNum(generateResult.branches_generated)}</p>
+            </div>
+            <div>
+              <p className={T_LABEL}>Rows Inserted</p>
+              <p className="mt-1 text-sm text-zinc-200">{fmtNum(generateResult.total_rows_inserted)}</p>
+            </div>
+            <div>
+              <p className={T_LABEL}>Overtime Hours</p>
+              <p className="mt-1 text-sm text-zinc-200">{fmtNum(generateResult.total_overtime_hours)}</p>
+            </div>
+            <div>
+              <p className={T_LABEL}>Unresolved Hours</p>
+              <p className="mt-1 text-sm text-zinc-200">{fmtNum(generateResult.total_unresolved_hours)}</p>
+            </div>
+          </div>
+          {generateResult.failed_branches.length ? (
+            <div className={`${BADGE_WARNING} mt-4 px-4 py-2 text-sm`}>
+              failed_branches: {generateResult.failed_branches.map((item) => item.branch_code).join(", ")}
+            </div>
+          ) : null}
           <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
             {generateResult.versions.map((item) => (
-              <div key={item.branch_code} className="rounded-xl border border-neutral-800 bg-neutral-950/30 p-3 text-xs text-neutral-400">
+              <div key={item.branch_code} className={`${GLASS_CARD} p-4`}>
                 <div className="text-sm font-semibold text-neutral-100">{item.branch_name}</div>
-                <div className="mt-2 space-y-1">
+                <div className="mt-2 space-y-1 text-xs text-neutral-400">
                   <div>version_id: <span className="text-neutral-200">{item.version_id}</span></div>
-                  <div>rows_inserted: <span className="text-neutral-200">{item.rows_inserted}</span></div>
-                  <div>days_generated: <span className="text-neutral-200">{item.days_generated}</span></div>
+                  <div>rows_inserted: <span className="text-neutral-200">{fmtNum(item.rows_inserted)}</span></div>
+                  <div>days_generated: <span className="text-neutral-200">{fmtNum(item.days_generated)}</span></div>
                   {typeof item.summary?.demand_coverage_ratio === "number" ? (
-                    <div>
-                      demand_coverage:{" "}
-                      <span className="text-neutral-200">{(item.summary.demand_coverage_ratio * 100).toFixed(1)}%</span>
-                    </div>
+                    <div>demand_coverage: <span className="text-neutral-200">{(item.summary.demand_coverage_ratio * 100).toFixed(1)}%</span></div>
                   ) : null}
                   {typeof item.summary?.total_overtime_hours === "number" ? (
-                    <div>overtime_hours: <span className="text-neutral-200">{item.summary.total_overtime_hours}</span></div>
+                    <div>overtime_hours: <span className="text-neutral-200">{fmtNum(item.summary.total_overtime_hours)}</span></div>
                   ) : null}
                   {typeof item.summary?.total_unresolved_hours === "number" ? (
-                    <div>unresolved_hours: <span className="text-neutral-200">{item.summary.total_unresolved_hours}</span></div>
+                    <div>unresolved_hours: <span className="text-neutral-200">{fmtNum(item.summary.total_unresolved_hours)}</span></div>
                   ) : null}
                 </div>
               </div>
@@ -1183,41 +1267,34 @@ export default function AdminDraftPage() {
       ) : null}
 
       {canOperate ? (
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-sm font-semibold">Pending sheet proposals</div>
-              <div className="mt-1 text-xs text-neutral-400">
-                Manager edits from spreadsheet are queued here until HQ/Admin bulk decision.
-              </div>
+        <div className={`${GLASS_CARD} p-6`}>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="h-4 w-4 text-sky-400" />
+              <h2 className={T_SECTION}>Pending Sheet Proposals</h2>
             </div>
-            <button
-              type="button"
-              onClick={loadPendingProposals}
-              disabled={pendingBusy}
-              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900 disabled:opacity-60"
-            >
-              Refresh Pending
-            </button>
+            <div className="flex items-center gap-2">
+              <p className={T_CAPTION}>Manager edits from spreadsheet are queued here until HQ/Admin bulk decision.</p>
+              <button
+                type="button"
+                onClick={loadPendingProposals}
+                disabled={pendingBusy}
+                className={`${SECONDARY_BUTTON} flex items-center gap-2 text-sm disabled:opacity-60`}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Refresh Pending
+              </button>
+            </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Month</div>
-              <input
-                type="month"
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-                value={applyMonth}
-                onChange={(e) => setApplyMonth(e.target.value)}
-              />
+              <label className={`${T_LABEL} block mb-1.5`}>Month</label>
+              <input type="month" className={INPUT_CLASS} value={applyMonth} onChange={(e) => setApplyMonth(e.target.value)} />
             </div>
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Branch filter</div>
-              <select
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-                value={pendingBranch}
-                onChange={(e) => setPendingBranch(e.target.value)}
-              >
+              <label className={`${T_LABEL} block mb-1.5`}>Branch Filter</label>
+              <select className={SELECT_CLASS} value={pendingBranch} onChange={(e) => setPendingBranch(e.target.value)}>
                 <option value="ALL">All branches</option>
                 {versions.map((v) => (
                   <option key={v.branch_code} value={v.branch_code}>
@@ -1226,10 +1303,10 @@ export default function AdminDraftPage() {
                 ))}
               </select>
             </div>
-            <div className="sm:col-span-2">
-              <div className="mb-1 text-xs text-neutral-400">Decision note (optional)</div>
+            <div>
+              <label className={`${T_LABEL} block mb-1.5`}>Decision Note (optional)</label>
               <input
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={INPUT_CLASS}
                 value={decisionNote}
                 onChange={(e) => setDecisionNote(e.target.value)}
                 placeholder="Reason for approve/reject"
@@ -1237,33 +1314,19 @@ export default function AdminDraftPage() {
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-2">
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Spreadsheet ID (optional)</div>
+              <label className={`${T_LABEL} block mb-1.5`}>Spreadsheet ID (optional)</label>
               <input
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={INPUT_CLASS}
                 value={sheetSpreadsheetId}
                 onChange={(e) => setSheetSpreadsheetId(e.target.value)}
                 placeholder="blank = use city export sheet env"
               />
             </div>
             <div>
-              <div className="mb-1 flex items-center justify-between text-xs text-neutral-400">
-                <span>MAIN tab name</span>
-                <button
-                  type="button"
-                  onClick={loadSheetTabs}
-                  disabled={sheetTabsBusy}
-                  className="rounded border border-neutral-700 px-1.5 py-0.5 text-[10px] text-neutral-300 hover:bg-neutral-900 disabled:opacity-60"
-                >
-                  {sheetTabsBusy ? "..." : "reload"}
-                </button>
-              </div>
-              <select
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-                value={sheetTabMain}
-                onChange={(e) => setSheetTabMain(e.target.value)}
-              >
+              <label className={`${T_LABEL} block mb-1.5`}>MAIN Tab Name</label>
+              <select className={SELECT_CLASS} value={sheetTabMain} onChange={(e) => setSheetTabMain(e.target.value)}>
                 <option value="">Select MAIN tab</option>
                 {sheetTabs.map((t) => (
                   <option key={t} value={t}>
@@ -1273,7 +1336,7 @@ export default function AdminDraftPage() {
               </select>
               {!sheetTabs.length ? (
                 <input
-                  className="mt-2 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                  className={`${INPUT_CLASS} mt-2`}
                   value={sheetTabMain}
                   onChange={(e) => setSheetTabMain(e.target.value)}
                   placeholder="fallback: type MAIN tab manually"
@@ -1281,124 +1344,143 @@ export default function AdminDraftPage() {
               ) : null}
             </div>
             <div>
-              <div className="mb-1 text-xs text-neutral-400">A1 range</div>
-              <input
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-                value={sheetRange}
-                onChange={(e) => setSheetRange(e.target.value)}
-                placeholder="A1:CL2000"
-              />
-            </div>
-            <div className="flex items-end">
-              <button
-                type="button"
-                onClick={proposeFromSheet}
-                disabled={pendingBusy || !defaultSyncBranch}
-                className="w-full rounded-xl border border-sky-900 bg-sky-950/30 px-4 py-2 text-sm text-sky-200 hover:bg-sky-950/50 disabled:opacity-60"
-              >
-                Sync Proposals From Sheet
-              </button>
+              <label className={`${T_LABEL} block mb-1.5`}>A1 Range</label>
+              <div className="flex gap-2">
+                <input
+                  className={INPUT_CLASS}
+                  value={sheetRange}
+                  onChange={(e) => setSheetRange(e.target.value)}
+                  placeholder="A1:CL2000"
+                />
+                <button
+                  type="button"
+                  onClick={loadSheetTabs}
+                  disabled={sheetTabsBusy}
+                  className={`${SMALL_BUTTON} whitespace-nowrap disabled:opacity-60`}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           </div>
-          <div className="mt-1 text-[11px] text-neutral-500">
-            sync branch: <span className="text-neutral-300">{defaultSyncBranch || "-"}</span>
+          <p className={`${T_CAPTION} mb-4`}>sync branch: {defaultSyncBranch || "-"}</p>
+
+          <div className="flex justify-end mb-4">
+            <button
+              type="button"
+              onClick={proposeFromSheet}
+              disabled={pendingBusy || !defaultSyncBranch}
+              className={`${PRIMARY_BUTTON} flex items-center gap-2 text-sm disabled:opacity-60`}
+            >
+              <ArrowDownToLine className="h-4 w-4" />
+              Sync Proposals From Sheet
+            </button>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          <hr className="border-white/5 mb-4" />
+
+          <div className="flex flex-wrap items-center gap-3 mb-4">
             <button
               type="button"
               onClick={() => runBulkDecision("APPROVE")}
               disabled={pendingBusy || selectedProposalIds.length === 0}
-              className="rounded-xl border border-emerald-900 bg-emerald-950/30 px-4 py-2 text-sm text-emerald-200 hover:bg-emerald-950/50 disabled:opacity-60"
+              className={`${PRIMARY_BUTTON} flex items-center gap-2 text-sm bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30 from-transparent to-transparent shadow-none disabled:opacity-60`}
             >
+              <CheckCircle2 className="h-4 w-4" />
               Approve Selected
             </button>
             <button
               type="button"
               onClick={() => runBulkDecision("REJECT")}
               disabled={pendingBusy || selectedProposalIds.length === 0}
-              className="rounded-xl border border-rose-900 bg-rose-950/30 px-4 py-2 text-sm text-rose-200 hover:bg-rose-950/50 disabled:opacity-60"
+              className={`${DANGER_BUTTON} flex items-center gap-2 text-sm disabled:opacity-60`}
             >
+              <XCircle className="h-4 w-4" />
               Reject Selected
             </button>
-            <div className="text-xs text-neutral-400">
-              selected: <span className="text-neutral-200">{selectedProposalIds.length}</span> /{" "}
-              <span className="text-neutral-200">{pendingVisibleRows.length}</span>
-            </div>
+            <span className={T_CAPTION}>
+              selected: {fmtNum(selectedProposalIds.length)} / {fmtNum(pendingVisibleRows.length)}
+            </span>
           </div>
 
-          {pendingMessage ? <div className="mt-2 text-xs text-amber-300">{pendingMessage}</div> : null}
+          {pendingMessage ? <div className={`${BADGE_WARNING} mb-4 px-4 py-2 text-sm`}>{pendingMessage}</div> : null}
 
-          <div className="mt-4 overflow-x-auto rounded-xl border border-neutral-800">
-            <table className="min-w-full text-xs">
-              <thead className="bg-neutral-950/70 text-neutral-300">
+          <div className="rounded-xl border border-white/8 overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-white/3">
                 <tr>
-                  <th className="px-2 py-2 text-left">
+                  <th className="px-4 py-3">
                     <input
                       type="checkbox"
-                      checked={
-                        pendingVisibleRows.length > 0 &&
-                        pendingVisibleRows.every((r) => selectedProposalIds.includes(r.id))
-                      }
+                      className="accent-amber-500 h-4 w-4"
+                      checked={pendingVisibleRows.length > 0 && pendingVisibleRows.every((r) => selectedProposalIds.includes(r.id))}
                       onChange={(e) => toggleSelectAllVisible(e.target.checked)}
                     />
                   </th>
-                  <th className="px-2 py-2 text-left">Date</th>
-                  <th className="px-2 py-2 text-left">Branch</th>
-                  <th className="px-2 py-2 text-left">Before</th>
-                  <th className="px-2 py-2 text-left">After</th>
-                  <th className="px-2 py-2 text-left">Swap</th>
-                  <th className="px-2 py-2 text-left">Note</th>
-                  <th className="px-2 py-2 text-left">By</th>
+                  {["Date", "Branch", "Before", "After", "Swap", "Note", "By"].map((col) => (
+                    <th key={col} className={`${TABLE_HEADER} px-4 py-3 text-left`}>
+                      {col}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {!pendingVisibleRows.length ? (
                   <tr>
-                    <td className="px-2 py-3 text-neutral-500" colSpan={8}>
-                      {pendingBusy ? "Loading..." : "No pending proposals."}
+                    <td colSpan={8} className="px-4 py-10 text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <InboxIcon className="h-8 w-8 text-zinc-700" />
+                        <p className={T_CAPTION}>{pendingBusy ? "Loading..." : "No pending proposals."}</p>
+                      </div>
                     </td>
                   </tr>
                 ) : (
-                  pendingVisibleRows.map((r) => (
-                    <tr key={r.id} className="border-t border-neutral-800 bg-neutral-950/20 text-neutral-300">
-                      <td className="px-2 py-2">
+                  pendingVisibleRows.map((r, index) => (
+                    <motion.tr
+                      key={r.id}
+                      initial={{ opacity: 0, x: -8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.25, delay: index * 0.03 }}
+                      className={TABLE_ROW}
+                    >
+                      <td className="px-4 py-3">
                         <input
                           type="checkbox"
+                          className="accent-amber-500 h-4 w-4"
                           checked={selectedProposalIds.includes(r.id)}
                           onChange={(e) => toggleSelectProposal(r.id, e.target.checked)}
                         />
                       </td>
-                      <td className="px-2 py-2">{r.work_date}</td>
-                      <td className="px-2 py-2">{labelOf("dubai", r.branch_code as BranchCode) || r.branch_code}</td>
-                      <td className="px-2 py-2">
+                      <td className={`${TABLE_CELL} px-4`}>{r.work_date}</td>
+                      <td className={`${TABLE_CELL} px-4`}>
+                        <span className={BADGE_INFO}>{labelOf(city, r.branch_code as BranchCode) || r.branch_code}</span>
+                      </td>
+                      <td className={`${TABLE_CELL} px-4 text-zinc-500 line-through text-xs`}>
                         {r.staff_name} {rangeText(Number(r.start_hour || 0), Number(r.end_hour || 0))}
                       </td>
                       <td
-                        className={[
-                          "px-2 py-2",
+                        className={`${TABLE_CELL} px-4 text-xs font-medium ${
                           r.staff_name !== (r.proposed_staff_name || r.staff_name) ||
                           Number(r.start_hour || 0) !== Number(r.proposed_start_hour ?? r.start_hour ?? 0) ||
                           Number(r.end_hour || 0) !== Number(r.proposed_end_hour ?? r.end_hour ?? 0)
-                            ? "text-emerald-300"
-                            : "",
-                        ].join(" ")}
+                            ? "text-emerald-400"
+                            : "text-zinc-300"
+                        }`}
                       >
                         {(r.proposed_staff_name || r.staff_name) + " "}
-                        {rangeText(
-                          Number(r.proposed_start_hour ?? r.start_hour ?? 0),
-                          Number(r.proposed_end_hour ?? r.end_hour ?? 0)
-                        )}
+                        {rangeText(Number(r.proposed_start_hour ?? r.start_hour ?? 0), Number(r.proposed_end_hour ?? r.end_hour ?? 0))}
                       </td>
-                      <td className="px-2 py-2">{r.swap_with_staff || "-"}</td>
-                      <td className="px-2 py-2">{r.note || "-"}</td>
-                      <td className="px-2 py-2">
+                      <td className={`${TABLE_CELL} px-4`}>
+                        {r.swap_with_staff ? <span className={BADGE_WARNING}>{r.swap_with_staff}</span> : <span className="text-zinc-600">-</span>}
+                      </td>
+                      <td className={`${TABLE_CELL} px-4 text-zinc-500 text-xs`}>{r.note || "-"}</td>
+                      <td className={`${TABLE_CELL} px-4 text-zinc-500 text-xs`}>
                         <div>{r.proposed_by || "-"}</div>
-                        <div className="text-[10px] text-neutral-500">
+                        <div className="text-[10px] text-zinc-600">
                           {(r.source_tab || "-")}#{r.source_row_number || 0}
                         </div>
                       </td>
-                    </tr>
+                    </motion.tr>
                   ))
                 )}
               </tbody>
@@ -1408,31 +1490,21 @@ export default function AdminDraftPage() {
       ) : null}
 
       {versions.length ? (
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
-          <div className="text-sm font-semibold">Apply draft to published</div>
-          <div className="mt-1 text-xs text-neutral-400">
-            Select a month to publish. All weeks included in that month are applied for all generated Dubai branches.
+        <div className={`${GLASS_CARD} p-6`}>
+          <div className="mb-4 flex items-center gap-2">
+            <Send className="h-4 w-4 text-emerald-400" />
+            <h2 className={T_SECTION}>Apply Draft To Published</h2>
           </div>
+          <p className={T_CAPTION}>
+            Select a month to publish. All weeks included in that month are applied for all generated branches in the selected city.
+          </p>
 
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Month to publish</div>
-              <input
-                type="month"
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-                value={applyMonth}
-                onChange={(e) => setApplyMonth(e.target.value)}
-              />
-              {monthRangeLabel(applyMonth) ? (
-                <div className="mt-2 text-xs text-neutral-500">
-                  Export range: {monthRangeLabel(applyMonth)}
-                </div>
-              ) : null}
-              {applyWeekStarts.length ? (
-                <div className="mt-2 text-xs text-neutral-500">
-                  Weeks included: {applyWeekStarts.join(", ")}
-                </div>
-              ) : null}
+              <label className={`${T_LABEL} mb-1.5 block`}>Month to Publish</label>
+              <input type="month" className={INPUT_CLASS} value={applyMonth} onChange={(e) => setApplyMonth(e.target.value)} />
+              {monthRangeLabel(applyMonth) ? <div className={`${T_CAPTION} mt-2`}>Export range: {monthRangeLabel(applyMonth)}</div> : null}
+              {applyWeekStarts.length ? <div className={`${T_CAPTION} mt-2`}>Weeks included: {applyWeekStarts.join(", ")}</div> : null}
             </div>
           </div>
 
@@ -1441,64 +1513,53 @@ export default function AdminDraftPage() {
               type="button"
               onClick={prepareApply}
               disabled={loading || !canOperate || !approverName.trim() || !pin.trim() || !applyMonth || !applyWeekStarts.length}
-              className="rounded-xl border border-amber-900 bg-amber-950/30 px-4 py-2 text-sm text-amber-200 hover:bg-amber-950/50 disabled:opacity-60"
+              className={`${PRIMARY_BUTTON} disabled:opacity-60`}
             >
               Prepare Apply
             </button>
-
             <button
               type="button"
               onClick={confirmApply}
               disabled={loading}
-              className="rounded-xl border border-emerald-900 bg-emerald-950/30 px-4 py-2 text-sm text-emerald-200 hover:bg-emerald-950/50 disabled:opacity-60"
+              className={`${SECONDARY_BUTTON} disabled:opacity-60`}
             >
               Confirm Apply
             </button>
           </div>
 
           {applyPrepared?.ok ? (
-            <div className="mt-3 space-y-1 text-xs text-neutral-400">
-              <div>
-                jobs_ready: <span className="text-neutral-200">{applyPrepared.items.length}</span>
-              </div>
-              <div>
-                preview: {applyPrepared.total_rows_count} rows / {applyPrepared.total_staff_count} staff
+            <div className={`${GLASS_CARD} mt-4 p-4`}>
+              <div className="space-y-1 text-xs text-neutral-400">
+                <div>jobs_ready: <span className="text-neutral-200">{fmtNum(applyPrepared.items.length)}</span></div>
+                <div>preview: {fmtNum(applyPrepared.total_rows_count)} rows / {fmtNum(applyPrepared.total_staff_count)} staff</div>
               </div>
             </div>
           ) : null}
 
           {applyResult?.ok ? (
-            <div className="mt-4 rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
+            <div className={`${GLASS_CARD} mt-4 p-4`}>
               <div className="text-sm font-semibold">Apply result</div>
               <div className="mt-2 space-y-1 text-xs text-neutral-400">
-                <div>
-                  jobs_applied: <span className="text-neutral-200">{applyResult.items.length}</span>
-                </div>
-                <div>rows_copied: <span className="text-neutral-200">{applyResult.total_rows_copied}</span></div>
+                <div>jobs_applied: <span className="text-neutral-200">{fmtNum(applyResult.items.length)}</span></div>
+                <div>rows_copied: <span className="text-neutral-200">{fmtNum(applyResult.total_rows_copied)}</span></div>
               </div>
               <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
                 {applyResult.items.map((item) => (
-                  <div key={`${item.branch_code}-${item.week_start}`} className="rounded-xl border border-neutral-800 bg-neutral-900/30 p-3 text-xs text-neutral-400">
+                  <div key={`${item.branch_code}-${item.week_start}`} className={`${GLASS_CARD} p-4`}>
                     <div className="text-sm font-semibold text-neutral-100">{item.branch_name}</div>
-                    <div className="mt-2 space-y-1">
+                    <div className="mt-2 space-y-1 text-xs text-neutral-400">
                       <div>week_start: <span className="text-neutral-200">{item.week_start}</span></div>
                       <div>published_version_id: <span className="text-neutral-200">{item.published_version_id || "-"}</span></div>
                       <div>rows_copied: <span className="text-neutral-200">{String(item.rows_copied ?? "-")}</span></div>
-                      {item.warning ? <div className="text-amber-300">{item.warning}</div> : null}
+                      {item.warning ? <div className={BADGE_WARNING}>{item.warning}</div> : null}
                       {item.export?.main_url ? (
                         <div>
-                          Main:{" "}
-                          <a className="underline hover:text-white" href={item.export.main_url} target="_blank" rel="noreferrer">
-                            open
-                          </a>
+                          Main: <a className="underline hover:text-white" href={item.export.main_url} target="_blank" rel="noreferrer">open</a>
                         </div>
                       ) : null}
                       {item.export?.headcount_url ? (
                         <div>
-                          Headcount:{" "}
-                          <a className="underline hover:text-white" href={item.export.headcount_url} target="_blank" rel="noreferrer">
-                            open
-                          </a>
+                          Headcount: <a className="underline hover:text-white" href={item.export.headcount_url} target="_blank" rel="noreferrer">open</a>
                         </div>
                       ) : null}
                     </div>
@@ -1511,31 +1572,25 @@ export default function AdminDraftPage() {
       ) : null}
 
       {versions.length ? (
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-sm font-semibold">Draft rows</div>
-              <div className="mt-1 text-xs text-neutral-400">
-                branch: <span className="text-neutral-200">{version?.branch_name || "-"}</span> • version_id:{" "}
-                <span className="text-neutral-200">{version?.version_id || "-"}</span> • rows:{" "}
-                <span className="text-neutral-200">{rows.length}</span> • staff:{" "}
-                <span className="text-neutral-200">{uniqueStaffCount(rows)}</span>
-              </div>
-            </div>
+        <div className={`${GLASS_CARD} p-6`}>
+          <div className="mb-4 flex items-center gap-2">
+            <PencilLine className="h-4 w-4 text-sky-400" />
+            <h2 className={T_SECTION}>Branch Edit</h2>
+          </div>
+          <div className={T_CAPTION}>
+            branch: <span className="text-neutral-200">{version?.branch_name || "-"}</span> • version_id:{" "}
+            <span className="text-neutral-200">{version?.version_id || "-"}</span> • rows:{" "}
+            <span className="text-neutral-200">{fmtNum(rows.length)}</span> • staff:{" "}
+            <span className="text-neutral-200">{fmtNum(uniqueStaffCount(rows))}</span>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className={`${TAB_CONTAINER} mt-4`}>
             {versions.map((item) => (
               <button
                 key={item.branch_code}
                 type="button"
                 onClick={() => setActiveBranchCode(item.branch_code)}
-                className={[
-                  "rounded-xl border px-3 py-2 text-sm transition",
-                  activeBranchCode === item.branch_code
-                    ? "border-amber-500 bg-amber-950/25 text-amber-200"
-                    : "border-neutral-800 bg-neutral-950/30 text-neutral-200 hover:bg-neutral-900/40 hover:text-white",
-                ].join(" ")}
+                className={activeBranchCode === item.branch_code ? TAB_ACTIVE : TAB_INACTIVE}
               >
                 {item.branch_name}
               </button>
@@ -1544,9 +1599,9 @@ export default function AdminDraftPage() {
 
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-5">
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Date</div>
+              <div className={`${T_LABEL} mb-1.5`}>Date</div>
               <input
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={INPUT_CLASS}
                 value={newWorkDate}
                 onChange={(e) => setNewWorkDate(e.target.value)}
                 placeholder="YYYY-MM-DD"
@@ -1557,12 +1612,7 @@ export default function AdminDraftPage() {
                     key={d}
                     type="button"
                     onClick={() => setNewWorkDate(d)}
-                    className={[
-                      "rounded-lg border px-2 py-1 text-xs",
-                      newWorkDate === d
-                        ? "border-amber-500 bg-amber-950/30 text-amber-200"
-                        : "border-neutral-800 bg-neutral-950 text-neutral-300 hover:bg-neutral-900",
-                    ].join(" ")}
+                    className={newWorkDate === d ? TAB_ACTIVE : TAB_INACTIVE}
                   >
                     {d.slice(5)}
                   </button>
@@ -1571,43 +1621,23 @@ export default function AdminDraftPage() {
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Staff</div>
-              <input
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-                value={newStaffName}
-                onChange={(e) => setNewStaffName(e.target.value)}
-                placeholder="Staff name"
-              />
+              <div className={`${T_LABEL} mb-1.5`}>Staff</div>
+              <input className={INPUT_CLASS} value={newStaffName} onChange={(e) => setNewStaffName(e.target.value)} placeholder="Staff name" />
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Role</div>
-              <input
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-                value={newRole}
-                onChange={(e) => setNewRole(e.target.value)}
-                placeholder="Role"
-              />
+              <div className={`${T_LABEL} mb-1.5`}>Role</div>
+              <input className={INPUT_CLASS} value={newRole} onChange={(e) => setNewRole(e.target.value)} placeholder="Role" />
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Start</div>
-              <input
-                type="number"
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-                value={newStartHour}
-                onChange={(e) => setNewStartHour(e.target.value)}
-              />
+              <div className={`${T_LABEL} mb-1.5`}>Start</div>
+              <input type="number" className={INPUT_CLASS} value={newStartHour} onChange={(e) => setNewStartHour(e.target.value)} />
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">End</div>
-              <input
-                type="number"
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-                value={newEndHour}
-                onChange={(e) => setNewEndHour(e.target.value)}
-              />
+              <div className={`${T_LABEL} mb-1.5`}>End</div>
+              <input type="number" className={INPUT_CLASS} value={newEndHour} onChange={(e) => setNewEndHour(e.target.value)} />
             </div>
           </div>
 
@@ -1616,18 +1646,13 @@ export default function AdminDraftPage() {
               type="button"
               onClick={saveRow}
               disabled={loading || !version?.version_id || !norm(newWorkDate) || !norm(newStaffName)}
-              className="rounded-xl border border-sky-900 bg-sky-950/30 px-4 py-2 text-sm text-sky-200 hover:bg-sky-950/50 disabled:opacity-60"
+              className={`${PRIMARY_BUTTON} disabled:opacity-60`}
             >
               {editingRow ? "Save Update" : "Add Row"}
             </button>
 
             {editingRow ? (
-              <button
-                type="button"
-                onClick={cancelEdit}
-                disabled={loading}
-                className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60"
-              >
+              <button type="button" onClick={cancelEdit} disabled={loading} className={`${SECONDARY_BUTTON} disabled:opacity-60`}>
                 Cancel Edit
               </button>
             ) : null}
@@ -1637,7 +1662,7 @@ export default function AdminDraftPage() {
             {!grouped.length ? <div className="text-sm text-neutral-500">No draft rows.</div> : null}
 
             {grouped.map(([day, dayRows]) => (
-              <div key={day} className="rounded-2xl border border-neutral-800 bg-neutral-950/20 p-4">
+              <div key={day} className={`${GLASS_CARD} p-4`}>
                 <div className="mb-3 text-sm font-semibold">{day}</div>
 
                 <div className="space-y-2">
@@ -1645,10 +1670,7 @@ export default function AdminDraftPage() {
                     const isEditing = editingRow?.id === r.id;
 
                     return (
-                      <div
-                        key={`${r.id}-${idx}`}
-                        className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3"
-                      >
+                      <div key={`${r.id}-${idx}`} className={`${GLASS_CARD} p-3`}>
                         {!isEditing ? (
                           <div className="flex flex-wrap items-center justify-between gap-3">
                             <div className="space-y-1">
@@ -1660,21 +1682,11 @@ export default function AdminDraftPage() {
                             </div>
 
                             <div className="flex flex-wrap gap-2">
-                              <button
-                                type="button"
-                                onClick={() => startEditRow(r)}
-                                disabled={loading}
-                                className="rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-1 text-xs hover:bg-neutral-900 disabled:opacity-60"
-                              >
+                              <button type="button" onClick={() => startEditRow(r)} disabled={loading} className={`${SMALL_BUTTON} disabled:opacity-60`}>
                                 Edit
                               </button>
 
-                              <button
-                                type="button"
-                                onClick={() => deleteRow(r)}
-                                disabled={loading}
-                                className="rounded-lg border border-rose-900 bg-rose-950/30 px-3 py-1 text-xs text-rose-200 hover:bg-rose-950/50 disabled:opacity-60"
-                              >
+                              <button type="button" onClick={() => deleteRow(r)} disabled={loading} className={`${DANGER_BUTTON} px-3 py-1 text-xs disabled:opacity-60`}>
                                 Delete
                               </button>
                             </div>
@@ -1684,53 +1696,21 @@ export default function AdminDraftPage() {
                             <div className="text-sm font-semibold text-amber-200">Editing</div>
 
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
-                              <input
-                                className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-                                value={newStaffName}
-                                onChange={(e) => setNewStaffName(e.target.value)}
-                                placeholder="Staff name"
-                              />
-                              <input
-                                className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-                                value={newRole}
-                                onChange={(e) => setNewRole(e.target.value)}
-                                placeholder="Role"
-                              />
-                              <input
-                                type="number"
-                                className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-                                value={newStartHour}
-                                onChange={(e) => setNewStartHour(e.target.value)}
-                              />
-                              <input
-                                type="number"
-                                className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-                                value={newEndHour}
-                                onChange={(e) => setNewEndHour(e.target.value)}
-                              />
+                              <input className={INPUT_CLASS} value={newStaffName} onChange={(e) => setNewStaffName(e.target.value)} placeholder="Staff name" />
+                              <input className={INPUT_CLASS} value={newRole} onChange={(e) => setNewRole(e.target.value)} placeholder="Role" />
+                              <input type="number" className={INPUT_CLASS} value={newStartHour} onChange={(e) => setNewStartHour(e.target.value)} />
+                              <input type="number" className={INPUT_CLASS} value={newEndHour} onChange={(e) => setNewEndHour(e.target.value)} />
                               <div className="flex gap-2">
-                                <button
-                                  type="button"
-                                  onClick={saveRow}
-                                  disabled={loading}
-                                  className="rounded-lg border border-emerald-900 bg-emerald-950/30 px-3 py-2 text-xs text-emerald-200 hover:bg-emerald-950/50 disabled:opacity-60"
-                                >
+                                <button type="button" onClick={saveRow} disabled={loading} className={`${PRIMARY_BUTTON} px-3 py-2 text-xs disabled:opacity-60`}>
                                   Save
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={cancelEdit}
-                                  disabled={loading}
-                                  className="rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900 disabled:opacity-60"
-                                >
+                                <button type="button" onClick={cancelEdit} disabled={loading} className={`${SECONDARY_BUTTON} px-3 py-2 text-xs disabled:opacity-60`}>
                                   Cancel
                                 </button>
                               </div>
                             </div>
 
-                            <div className="text-xs text-neutral-500">
-                              {newWorkDate} • editing row
-                            </div>
+                            <div className="text-xs text-neutral-500">{newWorkDate} • editing row</div>
                           </div>
                         )}
                       </div>
@@ -1744,17 +1724,19 @@ export default function AdminDraftPage() {
       ) : null}
 
       {published ? (
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
-          <div className="text-sm font-semibold">Published week</div>
-          <div className="mt-1 text-xs text-neutral-400">
+        <div className={`${GLASS_CARD} p-6`}>
+          <div className="mb-4 flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-emerald-400" />
+            <h2 className={T_SECTION}>Published Week</h2>
+            <span className={BADGE_SUCCESS}>published</span>
+          </div>
+          <div className={T_CAPTION}>
             week_start: <span className="text-neutral-200">{published.week_start}</span> • count:{" "}
-            <span className="text-neutral-200">{published.count}</span>
+            <span className="text-neutral-200">{fmtNum(published.count)}</span>
           </div>
 
           <div className="mt-4 space-y-4">
-            {published.rows.length === 0 ? (
-              <div className="text-sm text-neutral-500">No published rows yet.</div>
-            ) : null}
+            {published.rows.length === 0 ? <div className="text-sm text-neutral-500">No published rows yet.</div> : null}
 
             {Object.entries(
               published.rows.reduce<Record<string, typeof published.rows>>((acc, r) => {
@@ -1765,14 +1747,11 @@ export default function AdminDraftPage() {
             )
               .sort(([a], [b]) => a.localeCompare(b))
               .map(([day, dayRows]) => (
-                <div key={day} className="rounded-2xl border border-neutral-800 bg-neutral-950/20 p-4">
+                <div key={day} className={`${GLASS_CARD} p-4`}>
                   <div className="mb-3 text-sm font-semibold">{day}</div>
                   <div className="space-y-2">
                     {dayRows.map((r, idx) => (
-                      <div
-                        key={`${day}-${r.staff_name}-${r.start_hour}-${r.end_hour}-${idx}`}
-                        className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3"
-                      >
+                      <div key={`${day}-${r.staff_name}-${r.start_hour}-${r.end_hour}-${idx}`} className={`${GLASS_CARD} p-3`}>
                         <div className="text-sm font-medium">{r.staff_name}</div>
                         <div className="mt-1 text-xs text-neutral-400">
                           {r.branch_code} • {r.role || "-"} • {rangeText(r.start_hour, r.end_hour)}
@@ -1785,6 +1764,6 @@ export default function AdminDraftPage() {
           </div>
         </div>
       ) : null}
-    </div>
+    </motion.div>
   );
 }

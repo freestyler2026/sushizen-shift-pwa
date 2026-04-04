@@ -1,14 +1,37 @@
 // src/app/admin/attendance/history/page.tsx
 "use client";
 
-import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { Copy, Download, History, RefreshCw } from "lucide-react";
 import { getAuth } from "@/lib/auth";
 import { normalizeCalendarDateInput } from "@/lib/dateInput";
+import { fmtNum } from "@/lib/formatters";
+import {
+  BADGE_ERROR,
+  BADGE_INFO,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  GLASS_CARD,
+  INPUT_CLASS,
+  KPI_CARD,
+  KPI_LABEL,
+  KPI_VALUE,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  SELECT_CLASS,
+  SMALL_BUTTON,
+  TABLE_CELL,
+  TABLE_HEADER,
+  TABLE_ROW,
+  T_CAPTION,
+  T_LABEL,
+  T_PAGE_TITLE,
+  T_SECTION,
+} from "@/lib/ui-tokens";
 
 const API_BASE = "";
-const LOGO_SRC = "/logo.png";
 
 async function apiGet<T = any>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`);
@@ -71,23 +94,12 @@ function fmtDateTime(v?: string | null) {
 function statusBadgeClass(status: string) {
   const s = (status || "").toUpperCase();
 
-  if (s === "SUCCESS" || s === "IMPORTED") {
-    return "border-emerald-900/40 bg-emerald-950/10 text-emerald-200";
-  }
-  if (s === "FAILED") {
-    return "border-rose-900/40 bg-rose-950/10 text-rose-200";
-  }
-  if (s === "PARTIAL") {
-    return "border-amber-900/40 bg-amber-950/10 text-amber-200";
-  }
-  if (s === "DUPLICATE") {
-    return "border-fuchsia-900/40 bg-fuchsia-950/10 text-fuchsia-200";
-  }
-  if (s === "PROCESSING") {
-    return "border-sky-900/40 bg-sky-950/10 text-sky-200";
-  }
-
-  return "border-neutral-800 bg-neutral-950/40 text-neutral-200";
+  if (s === "SUCCESS" || s === "IMPORTED") return BADGE_SUCCESS;
+  if (s === "FAILED") return BADGE_ERROR;
+  if (s === "PARTIAL") return BADGE_WARNING;
+  if (s === "PROCESSING") return BADGE_INFO;
+  if (s === "DUPLICATE") return BADGE_WARNING;
+  return "inline-flex items-center rounded-full border border-white/10 bg-white/6 px-2.5 py-1 text-[11px] font-semibold text-zinc-300";
 }
 
 function isSuccessStatus(status: string) {
@@ -97,15 +109,9 @@ function isSuccessStatus(status: string) {
 
 function cityBadgeClass(city: string) {
   const c = (city || "").toLowerCase();
-
-  if (c === "dubai") {
-    return "border-sky-900/40 bg-sky-950/10 text-sky-200";
-  }
-  if (c === "manila") {
-    return "border-emerald-900/40 bg-emerald-950/10 text-emerald-200";
-  }
-
-  return "border-neutral-800 bg-neutral-950/40 text-neutral-200";
+  if (c === "dubai") return BADGE_INFO;
+  if (c === "manila") return BADGE_SUCCESS;
+  return "inline-flex items-center rounded-full border border-white/10 bg-white/6 px-2.5 py-1 text-[11px] font-semibold text-zinc-300";
 }
 
 function csvEscape(value: unknown) {
@@ -182,7 +188,9 @@ export default function AttendanceHistoryPage() {
     const total = filteredRows.length;
     const success = filteredRows.filter((r) => isSuccessStatus(r.status)).length;
     const failed = filteredRows.filter((r) => r.status === "FAILED").length;
-    const duplicate = filteredRows.filter((r) => Number(r.duplicate_rows || 0) > 0 || r.status === "DUPLICATE").length;
+    const duplicate = filteredRows.filter(
+      (r) => Number(r.duplicate_rows || 0) > 0 || r.status === "DUPLICATE",
+    ).length;
 
     return { total, success, failed, duplicate };
   }, [filteredRows]);
@@ -208,7 +216,7 @@ export default function AttendanceHistoryPage() {
         file_hash: r.file_hash || "",
         notes: r.notes || "",
       })),
-    [filteredRows]
+    [filteredRows],
   );
 
   async function loadHistory() {
@@ -229,7 +237,7 @@ export default function AttendanceHistoryPage() {
       if (showDuplicatesOnly) qs.set("duplicates_only", "true");
 
       const res = await apiGet<AttendanceImportHistoryResp>(
-        `/api/admin/attendance/history?${qs.toString()}`
+        `/api/admin/attendance/history?${qs.toString()}`,
       );
 
       setRows(res.rows || []);
@@ -243,114 +251,117 @@ export default function AttendanceHistoryPage() {
 
   useEffect(() => {
     if (approverName.trim() && pin.trim()) {
-      loadHistory();
+      void loadHistory();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <main className="min-h-screen bg-neutral-950 text-white">
-      <div className="mx-auto flex min-h-screen max-w-7xl flex-col justify-center px-6 py-10">
-        <div className="rounded-3xl border border-neutral-800 bg-neutral-900/60 p-8 shadow-2xl">
-          <div className="flex flex-col items-center text-center">
-            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-neutral-800 bg-black">
-              <Image
-                src={LOGO_SRC}
-                alt="Sushi ZEN logo"
-                width={80}
-                height={80}
-                className="h-full w-full object-contain"
-              />
-            </div>
-
-            <h1 className="mt-5 text-3xl font-bold">Attendance Import History</h1>
-            <p className="mt-2 text-sm text-neutral-400">
-              Review past Bayzat attendance uploads, duplicate checks, and import results.
-            </p>
+      <div className="mx-auto max-w-7xl px-6 py-10">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+        >
+          <div className="mb-6 flex flex-wrap items-center gap-3">
+            <Link href="/admin/attendance" className={SECONDARY_BUTTON}>
+              ← Back to Attendance
+            </Link>
+            <Link href="/admin/attendance/import" className={SECONDARY_BUTTON}>
+              Open Import
+            </Link>
           </div>
 
-          <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-6">
-            <div>
-              <div className="mb-1 text-xs text-neutral-400">City</div>
-              <select
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
-              >
-                <option value="">All</option>
-                <option value="dubai">Dubai</option>
-                <option value="manila">Manila</option>
-              </select>
+          <div className="mb-8 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-sky-500/20 bg-gradient-to-br from-sky-500/20 to-blue-500/10">
+              <History className="h-5 w-5 text-sky-400" />
             </div>
-
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Status</div>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
-              >
-                <option value="">All</option>
-                <option value="SUCCESS">SUCCESS</option>
-                <option value="IMPORTED">IMPORTED</option>
-                <option value="FAILED">FAILED</option>
-                <option value="PARTIAL">PARTIAL</option>
-                <option value="DUPLICATE">DUPLICATE</option>
-                <option value="PROCESSING">PROCESSING</option>
-                <option value="ROLLED_BACK">ROLLED_BACK</option>
-              </select>
-            </div>
-
-            <div>
-              <div className="mb-1 text-xs text-neutral-400">Date From</div>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => handleDateFromChange(e.target.value)}
-                max={dateTo || undefined}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
-              />
-            </div>
-
-            <div>
-              <div className="mb-1 text-xs text-neutral-400">Date To</div>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => handleDateToChange(e.target.value)}
-                min={dateFrom || undefined}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
-              />
-            </div>
-
-            <div>
-              <div className="mb-1 text-xs text-neutral-400">Search</div>
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="File / batch / user"
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
-              />
-            </div>
-
-            <div className="flex items-end gap-2">
-              <button
-                type="button"
-                onClick={loadHistory}
-                disabled={loading || !approverName.trim() || !pin.trim()}
-                className="w-full rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
-              >
-                {loading ? "Loading..." : "Refresh"}
-              </button>
+              <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-sky-500">ATTENDANCE ADMIN</p>
+              <h1 className={T_PAGE_TITLE}>Attendance Import History</h1>
+              <p className={T_CAPTION}>
+                Review past Bayzat attendance uploads, duplicate checks, and import results.
+              </p>
             </div>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-neutral-800 bg-neutral-950/40 px-4 py-3">
-            <label className="flex items-center gap-2 text-xs text-neutral-300">
+          <div className={`${GLASS_CARD} mb-4 p-4`}>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
+              <div>
+                <div className={`${T_LABEL} mb-1.5`}>City</div>
+                <select value={city} onChange={(e) => setCity(e.target.value)} className={SELECT_CLASS}>
+                  <option value="">All</option>
+                  <option value="dubai">Dubai</option>
+                  <option value="manila">Manila</option>
+                </select>
+              </div>
+
+              <div>
+                <div className={`${T_LABEL} mb-1.5`}>Status</div>
+                <select value={status} onChange={(e) => setStatus(e.target.value)} className={SELECT_CLASS}>
+                  <option value="">All</option>
+                  <option value="SUCCESS">SUCCESS</option>
+                  <option value="IMPORTED">IMPORTED</option>
+                  <option value="FAILED">FAILED</option>
+                  <option value="PARTIAL">PARTIAL</option>
+                  <option value="DUPLICATE">DUPLICATE</option>
+                  <option value="PROCESSING">PROCESSING</option>
+                  <option value="ROLLED_BACK">ROLLED_BACK</option>
+                </select>
+              </div>
+
+              <div>
+                <div className={`${T_LABEL} mb-1.5`}>From</div>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => handleDateFromChange(e.target.value)}
+                  className={INPUT_CLASS}
+                />
+              </div>
+
+              <div>
+                <div className={`${T_LABEL} mb-1.5`}>To</div>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => handleDateToChange(e.target.value)}
+                  className={INPUT_CLASS}
+                />
+              </div>
+
+              <div>
+                <div className={`${T_LABEL} mb-1.5`}>Search</div>
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="File / batch / user"
+                  className={INPUT_CLASS}
+                />
+              </div>
+
+              <div className="flex items-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => void loadHistory()}
+                  disabled={loading || !approverName.trim() || !pin.trim()}
+                  className={`${PRIMARY_BUTTON} flex w-full items-center justify-center gap-2 disabled:opacity-60`}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  {loading ? "Loading..." : "Refresh"}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className={`${GLASS_CARD} mb-4 flex flex-wrap items-center justify-between gap-3 p-4`}>
+            <label className="flex items-center gap-2 text-sm text-zinc-300">
               <input
                 type="checkbox"
                 checked={showDuplicatesOnly}
                 onChange={(e) => setShowDuplicatesOnly(e.target.checked)}
+                className="h-4 w-4 accent-amber-500"
               />
               Show duplicates only
             </label>
@@ -364,85 +375,74 @@ export default function AttendanceHistoryPage() {
                 setQ("");
                 setShowDuplicatesOnly(false);
               }}
-              className="rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-xs font-semibold text-white hover:bg-neutral-900"
+              className={SECONDARY_BUTTON}
             >
               Reset Filters
             </button>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <div className="mb-1 text-xs text-neutral-400">Approver Name</div>
-              <input
-                value={approverName}
-                onChange={(e) => setApproverName(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
-              />
-            </div>
+          <div className={`${GLASS_CARD} mb-4 p-4`}>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <div className={`${T_LABEL} mb-1.5`}>Approver Name</div>
+                <input
+                  value={approverName}
+                  onChange={(e) => setApproverName(e.target.value)}
+                  className={INPUT_CLASS}
+                />
+              </div>
 
-            <div>
-              <div className="mb-1 text-xs text-neutral-400">PIN</div>
-              <input
-                type="password"
-                value={pin}
-                onChange={(e) => setPin(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-800 bg-neutral-950 px-4 py-3 text-sm"
-              />
-            </div>
-          </div>
-
-          {error ? (
-            <div className="mt-4 rounded-2xl border border-rose-900/50 bg-rose-950/20 px-4 py-3 text-sm text-rose-200">
-              {error}
-            </div>
-          ) : null}
-
-          <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <div className="text-xs text-neutral-500">Total Batches</div>
-              <div className="mt-1 text-2xl font-bold">{summary.total}</div>
-            </div>
-
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <div className="text-xs text-neutral-500">Success</div>
-              <div className="mt-1 text-2xl font-bold">{summary.success}</div>
-            </div>
-
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <div className="text-xs text-neutral-500">Failed</div>
-              <div className="mt-1 text-2xl font-bold">{summary.failed}</div>
-            </div>
-
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-              <div className="text-xs text-neutral-500">Duplicate Related</div>
-              <div className="mt-1 text-2xl font-bold">{summary.duplicate}</div>
+              <div>
+                <div className={`${T_LABEL} mb-1.5`}>PIN</div>
+                <input
+                  type="password"
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value)}
+                  className={INPUT_CLASS}
+                />
+              </div>
             </div>
           </div>
 
-          <div className="mt-6 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+          {error ? <div className={`${BADGE_ERROR} mb-4 inline-flex`}>{error}</div> : null}
+
+          <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className={KPI_CARD}>
+              <p className={KPI_LABEL}>Total Batches</p>
+              <p className={KPI_VALUE}>{fmtNum(summary.total)}</p>
+            </div>
+            <div className={KPI_CARD}>
+              <p className={KPI_LABEL}>Success</p>
+              <p className={KPI_VALUE}>{fmtNum(summary.success)}</p>
+            </div>
+            <div className={KPI_CARD}>
+              <p className={KPI_LABEL}>Failed</p>
+              <p className={KPI_VALUE}>{fmtNum(summary.failed)}</p>
+            </div>
+            <div className={KPI_CARD}>
+              <p className={KPI_LABEL}>Duplicate Related</p>
+              <p className={KPI_VALUE}>{fmtNum(summary.duplicate)}</p>
+            </div>
+          </div>
+
+          <div className={`${GLASS_CARD} overflow-hidden p-4`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-sm font-semibold">Import Batches</div>
-                <div className="mt-1 text-xs text-neutral-500">
-                  Past daily uploads, duplicate checks, and audit trail.
-                </div>
+                <h2 className={T_SECTION}>Import Batches</h2>
+                <div className={`mt-1 ${T_CAPTION}`}>Past daily uploads, duplicate checks, and audit trail.</div>
               </div>
 
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() =>
-                    downloadCsv("attendance_import_history.csv", exportRows)
-                  }
-                  className="rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-xs font-semibold text-white hover:bg-neutral-900"
+                  onClick={() => downloadCsv("attendance_import_history.csv", exportRows)}
+                  className={`${SECONDARY_BUTTON} flex items-center gap-2`}
                 >
+                  <Download className="h-4 w-4" />
                   Export CSV
                 </button>
 
-                <Link
-                  href="/admin/attendance/import"
-                  className="rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-neutral-900"
-                >
+                <Link href="/admin/attendance/import" className={SECONDARY_BUTTON}>
                   Open Import
                 </Link>
               </div>
@@ -450,96 +450,81 @@ export default function AttendanceHistoryPage() {
 
             <div className="mt-4 overflow-x-auto">
               <table className="min-w-full text-left text-sm">
-                <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                <thead>
                   <tr>
-                    <th className="px-3 py-2">Imported At</th>
-                    <th className="px-3 py-2">City</th>
-                    <th className="px-3 py-2">File</th>
-                    <th className="px-3 py-2">Target Date</th>
-                    <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2">Imported</th>
-                    <th className="px-3 py-2">Skipped</th>
-                    <th className="px-3 py-2">Duplicates</th>
-                    <th className="px-3 py-2">Errors</th>
-                    <th className="px-3 py-2">Imported By</th>
-                    <th className="px-3 py-2">Duplicate Of</th>
-                    <th className="px-3 py-2">Batch ID</th>
+                    <th className={TABLE_HEADER}>Imported At</th>
+                    <th className={TABLE_HEADER}>City</th>
+                    <th className={TABLE_HEADER}>File</th>
+                    <th className={TABLE_HEADER}>Target Date</th>
+                    <th className={TABLE_HEADER}>Status</th>
+                    <th className={TABLE_HEADER}>Imported</th>
+                    <th className={TABLE_HEADER}>Skipped</th>
+                    <th className={TABLE_HEADER}>Duplicates</th>
+                    <th className={TABLE_HEADER}>Errors</th>
+                    <th className={TABLE_HEADER}>Imported By</th>
+                    <th className={TABLE_HEADER}>Duplicate Of</th>
+                    <th className={TABLE_HEADER}>Batch ID</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredRows.map((row) => (
-                    <tr key={row.id || row.batch_id} className="border-b border-neutral-800/70 align-top">
-                      <td className="px-3 py-2 whitespace-nowrap">
+                    <tr key={row.id || row.batch_id} className={`${TABLE_ROW} align-top`}>
+                      <td className={`${TABLE_CELL} whitespace-nowrap`}>
                         {fmtDateTime(row.created_at || row.finished_at || row.started_at)}
                       </td>
 
-                      <td className="px-3 py-2">
-                        <span
-                          className={[
-                            "inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold",
-                            cityBadgeClass(row.city),
-                          ].join(" ")}
-                        >
-                          {row.city || "-"}
-                        </span>
+                      <td className={TABLE_CELL}>
+                        <span className={cityBadgeClass(row.city)}>{row.city || "-"}</span>
                       </td>
 
-                      <td className="px-3 py-2">
+                      <td className={TABLE_CELL}>
                         <div className="font-medium">{row.file_name || "-"}</div>
-                        <div className="mt-1 text-xs text-neutral-500">
+                        <div className="mt-1 text-xs text-zinc-500">
                           {row.file_type || "-"} / {row.source_system || "-"}
                         </div>
                         {row.file_hash ? (
-                          <div className="mt-1 text-[11px] text-neutral-600 break-all">
-                            hash: {row.file_hash}
-                          </div>
+                          <div className="mt-1 break-all text-[11px] text-zinc-600">hash: {row.file_hash}</div>
                         ) : null}
                       </td>
 
-                      <td className="px-3 py-2 whitespace-nowrap">{row.target_date || "-"}</td>
+                      <td className={`${TABLE_CELL} whitespace-nowrap`}>{row.target_date || "-"}</td>
 
-                      <td className="px-3 py-2">
-                        <span
-                          className={[
-                            "inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold",
-                            statusBadgeClass(row.status),
-                          ].join(" ")}
-                        >
-                          {row.status}
-                        </span>
-                        {row.notes ? (
-                          <div className="mt-2 text-xs text-neutral-500">{row.notes}</div>
-                        ) : null}
+                      <td className={TABLE_CELL}>
+                        <span className={statusBadgeClass(row.status)}>{row.status}</span>
+                        {row.notes ? <div className="mt-2 text-xs text-zinc-500">{row.notes}</div> : null}
                       </td>
 
-                      <td className="px-3 py-2">{row.imported_rows ?? 0}</td>
-                      <td className="px-3 py-2">{row.skipped_rows ?? 0}</td>
-                      <td className="px-3 py-2">{row.duplicate_rows ?? 0}</td>
-                      <td className="px-3 py-2">{row.error_rows ?? 0}</td>
+                      <td className={TABLE_CELL}>{fmtNum(row.imported_rows ?? 0)}</td>
+                      <td className={TABLE_CELL}>{fmtNum(row.skipped_rows ?? 0)}</td>
+                      <td className={TABLE_CELL}>
+                        {Number(row.duplicate_rows ?? 0) > 0 ? (
+                          <span className={BADGE_WARNING}>{fmtNum(row.duplicate_rows ?? 0)}</span>
+                        ) : (
+                          fmtNum(row.duplicate_rows ?? 0)
+                        )}
+                      </td>
+                      <td className={TABLE_CELL}>{fmtNum(row.error_rows ?? 0)}</td>
 
-                      <td className="px-3 py-2">
+                      <td className={TABLE_CELL}>
                         <div>{row.created_by || "-"}</div>
                         {row.created_by_role ? (
-                          <div className="mt-1 text-xs text-neutral-500">{row.created_by_role}</div>
+                          <div className="mt-1 text-xs text-zinc-500">{row.created_by_role}</div>
                         ) : null}
                       </td>
 
-                      <td className="px-3 py-2">
-                        <div className="max-w-[180px] break-all text-xs text-neutral-300">
-                          {row.duplicate_of || "-"}
-                        </div>
+                      <td className={TABLE_CELL}>
+                        <div className="max-w-[180px] break-all text-xs text-zinc-300">{row.duplicate_of || "-"}</div>
                       </td>
 
-                      <td className="px-3 py-2">
-                        <div className="max-w-[180px] break-all text-xs text-neutral-300">
-                          {row.batch_id || "-"}
-                        </div>
+                      <td className={TABLE_CELL}>
+                        <div className="max-w-[180px] break-all text-xs text-zinc-300">{row.batch_id || "-"}</div>
                         {row.batch_id ? (
                           <button
                             type="button"
                             onClick={() => navigator.clipboard.writeText(row.batch_id)}
-                            className="mt-2 rounded-lg border border-neutral-700 bg-neutral-950 px-2 py-1 text-[11px] font-semibold text-white hover:bg-neutral-900"
+                            className={`${SMALL_BUTTON} mt-2 flex items-center gap-2`}
                           >
+                            <Copy className="h-3.5 w-3.5" />
                             Copy
                           </button>
                         ) : null}
@@ -549,7 +534,7 @@ export default function AttendanceHistoryPage() {
 
                   {!filteredRows.length ? (
                     <tr>
-                      <td colSpan={12} className="px-3 py-8 text-center text-neutral-500">
+                      <td colSpan={12} className={`${TABLE_CELL} py-8 text-center text-zinc-500`}>
                         No import history found.
                       </td>
                     </tr>
@@ -559,7 +544,7 @@ export default function AttendanceHistoryPage() {
             </div>
           </div>
 
-          <div className="mt-8 flex flex-col items-center gap-3 text-sm text-neutral-400 sm:flex-row sm:justify-between">
+          <div className="mt-8 flex flex-col items-center gap-3 text-sm text-zinc-400 sm:flex-row sm:justify-between">
             <Link href="/signup" className="hover:text-white">
               ← Back to Sign Up
             </Link>
@@ -573,7 +558,7 @@ export default function AttendanceHistoryPage() {
               </Link>
             </div>
           </div>
-        </div>
+        </motion.div>
       </div>
     </main>
   );

@@ -55,6 +55,7 @@ export default function MenuTagsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [rows, setRows] = useState<MenuTagRow[]>([]);
+  const [tagFilterOptions, setTagFilterOptions] = useState<MenuTagRow[]>([]);
   const [importFailures, setImportFailures] = useState<ImportFailure[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkAction, setBulkAction] = useState("DEACTIVATE");
@@ -105,6 +106,25 @@ export default function MenuTagsPage() {
     void loadRows();
   }, [allowed, loadRows, ready]);
 
+  useEffect(() => {
+    if (!ready || !allowed) return;
+    let cancelled = false;
+    async function loadTagFilterOptions() {
+      try {
+        const res = await menuGet<PaginatedResponse<MenuTagRow>>(
+          `/api/admin/menu/tags?city=${encodeURIComponent(city)}&tab=ALL&q=&page=1&page_size=500&sort_by=sort_order&sort_dir=ASC`,
+        );
+        if (!cancelled) setTagFilterOptions(res.rows || []);
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message || String(e));
+      }
+    }
+    void loadTagFilterOptions();
+    return () => {
+      cancelled = true;
+    };
+  }, [allowed, city, ready]);
+
   function resetForm() {
     setEditingId("");
     setForm(EMPTY_FORM);
@@ -147,6 +167,7 @@ export default function MenuTagsPage() {
   }
 
   async function deleteTag(tagId: string) {
+    if (!window.confirm("Delete this tag?")) return;
     setError("");
     setSuccess("");
     try {
@@ -237,7 +258,14 @@ export default function MenuTagsPage() {
           </label>
           <label className="text-sm text-neutral-300">
             <div className="mb-1 text-xs text-neutral-500">Search</div>
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Tag name or reference" className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
+            <select value={q} onChange={(e) => setQ(e.target.value)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
+              <option value="">All tags</option>
+              {tagFilterOptions.map((row) => (
+                <option key={row.id} value={row.reference || row.name || ""}>
+                  {row.name}{row.reference ? ` (${row.reference})` : ""}
+                </option>
+              ))}
+            </select>
           </label>
           <div className="flex flex-wrap items-end gap-2">
             {["ALL", "ACTIVE", "INACTIVE", "DELETED"].map((value) => (

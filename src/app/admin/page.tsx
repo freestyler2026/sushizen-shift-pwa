@@ -1,12 +1,53 @@
 // src/app/admin/page.tsx
 "use client";
 
+import { motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  AlertTriangle,
+  ArrowLeftRight,
+  BarChart3,
+  Building2,
+  CheckCheck,
+  ChevronRight,
+  Clock,
+  Download,
+  Package,
+  PenLine,
+  RefreshCw,
+  Search,
+  Shield,
+  UserX,
+  Users,
+} from "lucide-react";
 import { BRANCHES, type City as BranchCity, type BranchCode } from "@/lib/branches";
-import { canAccessInventoryWorkspace, getAuth } from "@/lib/auth";
+import { canAccessAdminNav, canAccessInventoryWorkspace, getAuth, getAuthHeaders, refreshAuthFromApi, type Auth } from "@/lib/auth";
+import DateRangePicker from "@/components/DateRangePicker";
+import MonthPicker from "@/components/MonthPicker";
+import {
+  GLASS_CARD,
+  STATUS_CARD,
+  HIGHLIGHT_CARD,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  SMALL_BUTTON,
+  INPUT_CLASS,
+  SELECT_CLASS,
+  T_PAGE_TITLE,
+  T_SECTION,
+  T_CARD_TITLE,
+  T_BODY,
+  T_CAPTION,
+  T_LABEL,
+  BADGE_INFO,
+  KPI_CARD,
+  KPI_LABEL,
+  KPI_VALUE,
+} from "@/lib/ui-tokens";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
 
 // --------------------
 // utils
@@ -23,8 +64,8 @@ function qs(obj: Record<string, any>) {
   return s ? `?${s}` : "";
 }
 
-async function apiGet<T = any>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`);
+async function apiGet<T = any>(path: string, headers?: HeadersInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, { headers });
   const text = await res.text();
   if (!res.ok) {
     try {
@@ -37,10 +78,10 @@ async function apiGet<T = any>(path: string): Promise<T> {
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
 
-async function apiPost<T = any>(path: string, body?: any): Promise<T> {
+async function apiPost<T = any>(path: string, body?: any, headers?: HeadersInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers: body ? { "Content-Type": "application/json", ...(headers || {}) } : headers,
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
@@ -60,6 +101,35 @@ function pad2(n: number) {
 }
 function monthKey(d: Date) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise<T>((resolve) => {
+    const timer = window.setTimeout(() => resolve(fallback), ms);
+    promise
+      .then((value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      })
+      .catch(() => {
+        window.clearTimeout(timer);
+        resolve(fallback);
+      });
+  });
+}
+
+function addDaysIso(base: string, days: number) {
+  const d = new Date(`${base}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function mondayOfIso(base: string) {
+  const d = new Date(`${base}T00:00:00`);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
 // --------------------
@@ -176,6 +246,95 @@ function urgencyBadge(u: string) {
   return { label: x || "GREEN", cls: "border-emerald-500/50 bg-emerald-950/30 text-emerald-200" };
 }
 
+function bucketMeta(key: keyof Overview["buckets"]) {
+  switch (key) {
+    case "red_open":
+      return {
+        title: "RED Open",
+        subtitle: "HQ not approved",
+        icon: AlertTriangle,
+        badgeClass: "border-red-500/30 bg-red-500/20 text-red-400",
+        emptyIconClass: "text-emerald-500",
+        headerIconClass: "text-red-400",
+      };
+    case "swap_pending_counterparty":
+      return {
+        title: "Swap: Counterparty Pending",
+        subtitle: "",
+        icon: ArrowLeftRight,
+        badgeClass: "border-violet-500/30 bg-violet-500/20 text-violet-300",
+        emptyIconClass: "text-emerald-500",
+        headerIconClass: "text-violet-400",
+      };
+    case "pending_manager":
+      return {
+        title: "Pending: Manager",
+        subtitle: "",
+        icon: Clock,
+        badgeClass: "border-violet-500/30 bg-violet-500/20 text-violet-300",
+        emptyIconClass: "text-emerald-500",
+        headerIconClass: "text-violet-400",
+      };
+    case "pending_hq":
+      return {
+        title: "Pending: HQ",
+        subtitle: "",
+        icon: Clock,
+        badgeClass: "border-sky-500/30 bg-sky-500/20 text-sky-400",
+        emptyIconClass: "text-emerald-500",
+        headerIconClass: "text-sky-400",
+      };
+    default:
+      return {
+        title: bucketTitle(key),
+        subtitle: "",
+        icon: Clock,
+        badgeClass: "border-white/20 bg-white/10 text-zinc-300",
+        emptyIconClass: "text-emerald-500",
+        headerIconClass: "text-zinc-300",
+      };
+  }
+}
+
+function RequestCard({
+  item,
+  selected,
+  onSelect,
+}: {
+  item: AdminItem;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const badge = urgencyBadge(item.urgency_status);
+
+  return (
+    <div
+      className={`flex items-center justify-between rounded-xl border px-4 py-3 transition-all duration-150 ${
+        selected
+          ? "border-amber-400 bg-amber-500/10 ring-1 ring-amber-400/20"
+          : "border-white/8 bg-white/4 hover:bg-white/8"
+      }`}
+    >
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-white">
+          {item.staff_name} / <span className="text-zinc-400">{item.request_type}</span>
+        </p>
+        <p className={T_CAPTION}>
+          {item.work_date} · M:{item.manager_status} · HQ:{item.hq_status}
+        </p>
+      </div>
+      <div className="ml-3 flex items-center gap-2">
+        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${badge.cls}`}>
+          {badge.label}
+        </span>
+        <button type="button" className={SMALL_BUTTON} onClick={onSelect} aria-label={`Open ${item.id}`}>
+          <ChevronRight className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function isHQOrAdmin(role: string) {
   const r = String(role || "").toUpperCase();
   return r === "HQ" || r === "ADMIN";
@@ -185,10 +344,14 @@ function isHQOrAdmin(role: string) {
 // component
 // --------------------
 export default function AdminPage() {
-  const didInit = useRef(false);
-  const auth = getAuth();
+  const router = useRouter();
+  const initialAuth = useMemo(() => getAuth(), []);
+  const [sessionAuth, setSessionAuth] = useState<Auth | null>(initialAuth);
+  const auth = sessionAuth || initialAuth;
+  const [ready, setReady] = useState(false);
+  const [allowed, setAllowed] = useState(false);
 
-  const [city, setCity] = useState<BranchCity>((auth?.city as BranchCity) || "dubai");
+  const [city, setCity] = useState<BranchCity>((initialAuth?.city as BranchCity) || "dubai");
 
   const [startDate, setStartDate] = useState("");
   const [search, setSearch] = useState("");
@@ -201,8 +364,8 @@ export default function AdminPage() {
   const [role, setRole] = useState<"MANAGER" | "HQ">("MANAGER");
   const [action, setAction] = useState<"APPROVE" | "REJECT" | "NEED_INFO">("APPROVE");
   const [note, setNote] = useState("OK");
-  const [approverName, setApproverName] = useState(auth?.staffName || "");
-  const [pin, setPin] = useState(auth?.pin || "");
+  const [approverName, setApproverName] = useState(initialAuth?.staffName || "");
+  const [pin, setPin] = useState(initialAuth?.pin || "");
   const [opMsg, setOpMsg] = useState("");
   const [opLoading, setOpLoading] = useState(false);
 
@@ -210,11 +373,11 @@ export default function AdminPage() {
   const [myRole, setMyRole] = useState<
     "STAFF" | "MANAGER" | "MANAGEMENT" | "HQ" | "ADMIN" | "HR_MANAGER" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT" | ""
   >(
-    auth?.role || ""
+    initialAuth?.role || ""
   );
-  const [exportCity, setExportCity] = useState<BranchCity>((auth?.city as BranchCity) || "dubai");
+  const [exportCity, setExportCity] = useState<BranchCity>((initialAuth?.city as BranchCity) || "dubai");
   const [exportBranch, setExportBranch] = useState<BranchCode>(
-    BRANCHES[(auth?.city as BranchCity) || "dubai"][0]?.code || "BB"
+    BRANCHES[(initialAuth?.city as BranchCity) || "dubai"][0]?.code || "BB"
   );
   const [exportMonth, setExportMonth] = useState<string>(monthKey(new Date()));
   const [exportMode, setExportMode] = useState<ExportMode>("FINAL");
@@ -230,7 +393,7 @@ export default function AdminPage() {
 
   const [tokenRemain, setTokenRemain] = useState<number | null>(null);
   const tokenTimerRef = useRef<any>(null);
-  const canOpenInventory = useMemo(() => canAccessInventoryWorkspace(auth), [auth]);
+  const canOpenInventory = useMemo(() => canAccessInventoryWorkspace(sessionAuth || auth), [auth, sessionAuth]);
 
   const clearTokenTimer = () => {
     if (tokenTimerRef.current) {
@@ -268,7 +431,7 @@ export default function AdminPage() {
     setLoading(true);
     setError("");
     try {
-      const d = await apiGet<Overview>(`/api/admin/overview${qs({ city })}`);
+      const d = await apiGet<Overview>(`/api/admin/overview${qs({ city })}`, getAuthHeaders(sessionAuth || auth));
       setData(d);
       setStartDate(d.start_date);
     } catch (e: any) {
@@ -284,7 +447,7 @@ export default function AdminPage() {
     setLoading(true);
     setError("");
     try {
-      const d = await apiGet<Overview>(`/api/admin/overview${qs({ city, start_date: startDate })}`);
+      const d = await apiGet<Overview>(`/api/admin/overview${qs({ city, start_date: startDate })}`, getAuthHeaders(sessionAuth || auth));
       setData(d);
       setStartDate(d.start_date);
     } catch (e: any) {
@@ -296,29 +459,81 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
-    if (didInit.current) return;
-    didInit.current = true;
+    let cancelled = false;
+    async function init() {
+      const localAuth = getAuth() || initialAuth;
+      try {
+        const refreshed = await withTimeout(refreshAuthFromApi(localAuth), 4000, localAuth);
+        if (cancelled) return;
 
-    try {
-      const nm = localStorage.getItem("sushizen_admin_name") || "";
-      if (nm && !approverName) setApproverName(nm);
-    } catch {}
+        const resolved = refreshed || getAuth() || localAuth || null;
+        setSessionAuth(resolved);
 
-    fetchLatest();
+        if (!resolved?.staffName) {
+          setAllowed(false);
+          setError("Admin session is missing. Please log in again.");
+          setReady(true);
+          router.replace("/login?next=%2Fadmin");
+          return;
+        }
 
+        if (!resolved?.accessToken) {
+          setAllowed(false);
+          setError("Admin session token is missing. Please log out and log in again.");
+          setReady(true);
+          return;
+        }
+
+        const hasAccess = canAccessAdminNav(resolved);
+        if (!hasAccess) {
+          setAllowed(false);
+          setError("Admin dashboard is available only to authorized admin roles.");
+          setReady(true);
+          router.replace("/week");
+          return;
+        }
+
+        setAllowed(true);
+        setError("");
+        setReady(true);
+        try {
+          const nm = localStorage.getItem("sushizen_admin_name") || "";
+          if (nm) setApproverName((prev) => prev || nm);
+        } catch {}
+      } catch (e: any) {
+        if (cancelled) return;
+
+        const fallback = getAuth() || initialAuth || null;
+        const hasAccess = Boolean(fallback?.staffName && fallback?.accessToken && canAccessAdminNav(fallback));
+
+        setSessionAuth(fallback);
+        setAllowed(hasAccess);
+        setReady(true);
+        setError(String(e?.message || e || "Failed to initialize admin dashboard."));
+
+        if (!fallback?.staffName) {
+          router.replace("/login?next=%2Fadmin");
+          return;
+        }
+        if (!hasAccess) {
+          router.replace("/week");
+        }
+      }
+    }
+    void init();
     return () => {
+      cancelled = true;
       clearTokenTimer();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [initialAuth, router]);
 
   useEffect(() => {
-    if (!didInit.current) return;
+    if (!ready || !allowed) return;
     setSelected(null);
     setSearch("");
-    fetchLatest();
+    void fetchLatest();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [city]);
+  }, [allowed, city, ready, sessionAuth?.accessToken]);
 
   useEffect(() => {
     const run = async () => {
@@ -358,6 +573,7 @@ export default function AdminPage() {
 
   const runIntentAndConfirm = async () => {
     if (!selected) return;
+    if (!window.confirm(`Are you sure you want to ${String(action || "").toLowerCase().replace("_", " ")} this request?`)) return;
 
     setOpLoading(true);
     setOpMsg("");
@@ -407,6 +623,7 @@ export default function AdminPage() {
 
   const runCounterparty = async (cpAction: "APPROVED" | "REJECTED") => {
     if (!selected) return;
+    if (!window.confirm(`Are you sure you want to mark the counterparty as ${cpAction.toLowerCase()}?`)) return;
 
     setOpLoading(true);
     setOpMsg("");
@@ -569,166 +786,165 @@ export default function AdminPage() {
       : action === "REJECT"
         ? "border-rose-700 bg-rose-950/40 hover:bg-rose-900/40"
         : "border-amber-700 bg-amber-950/40 hover:bg-amber-900/40";
+  const bucketMap = useMemo(
+    () => new Map<string, AdminItem[]>(bucketsOrdered.map(([key, items]) => [key, items])),
+    [bucketsOrdered]
+  );
+  const redItems = bucketMap.get("red_open") || [];
+  const swapItems = bucketMap.get("swap_pending_counterparty") || [];
+  const managerItems = bucketMap.get("pending_manager") || [];
+  const hqItems = bucketMap.get("pending_hq") || [];
+  const weekRangeValue = useMemo(
+    () => ({
+      from: startDate || "",
+      to: startDate ? addDaysIso(startDate, 6) : "",
+    }),
+    [startDate]
+  );
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold">Admin Dashboard ({(data?.city || city).toUpperCase()})</div>
-            <div className="mt-1 text-xs text-neutral-500">Range: {rangeLabel || "—"}</div>
+    !ready ? (
+      <div className="text-sm text-neutral-500">Loading admin dashboard...</div>
+    ) : !allowed ? (
+      <div className="text-sm text-red-300">Admin dashboard is available only to authorized admin roles.</div>
+    ) : (
+    <motion.div
+      className="space-y-6"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+    >
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <div className="mb-1 flex items-center gap-2">
+            <h1 className={T_PAGE_TITLE}>Admin Dashboard</h1>
+            <span className={BADGE_INFO}>
+              <Building2 className="h-3 w-3" />
+              {(data?.city || city).toUpperCase()}
+            </span>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/admin/analytics"
-              className="rounded-xl border border-neutral-800 bg-neutral-950/30 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900/40 hover:text-white"
-            >
-              Analytics
-            </Link>
-            <Link
-              href="/admin/absences"
-              className="rounded-xl border border-neutral-800 bg-neutral-950/30 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900/40 hover:text-white"
-            >
-              Absences
-            </Link>
-            <Link
-              href="/admin/staff"
-              className="rounded-xl border border-neutral-800 bg-neutral-950/30 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900/40 hover:text-white"
-            >
-              Staff Master
-            </Link>
-            <Link
-              href="/admin/draft"
-              className="rounded-xl border border-neutral-800 bg-neutral-950/30 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900/40 hover:text-white"
-            >
-              Draft
-            </Link>
-            {canOpenInventory ? (
-              <Link
-                href="/admin/inventory"
-                className="rounded-xl border border-emerald-800 bg-emerald-950/20 px-4 py-2 text-sm text-emerald-200 hover:bg-emerald-900/30 hover:text-emerald-100"
-              >
-                Inventory
-              </Link>
-            ) : null}
-          </div>
+          <p className={T_BODY}>
+            Range: <span className="text-zinc-300">{rangeLabel || "—"}</span>
+          </p>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-5">
-          <div>
-            <div className="mb-1 text-xs text-neutral-400">City</div>
-            <select
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              value={city}
-              onChange={(e) => setCity(e.target.value as BranchCity)}
-            >
+        <div className="flex flex-wrap gap-2">
+          <Link href="/admin/analytics" className={SMALL_BUTTON}>
+            <BarChart3 className="mr-1 h-3.5 w-3.5" /> Analytics
+          </Link>
+          <Link href="/admin/absences" className={SMALL_BUTTON}>
+            <UserX className="mr-1 h-3.5 w-3.5" /> Absences
+          </Link>
+          <Link href="/admin/staff" className={SMALL_BUTTON}>
+            <Users className="mr-1 h-3.5 w-3.5" /> Staff Master
+          </Link>
+          <Link href="/admin/draft" className={SMALL_BUTTON}>
+            <PenLine className="mr-1 h-3.5 w-3.5" /> Draft
+          </Link>
+          {canOpenInventory ? (
+            <Link href="/admin/inventory" className={`${SMALL_BUTTON} border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10`}>
+              <Package className="mr-1 h-3.5 w-3.5" /> Inventory
+            </Link>
+          ) : null}
+        </div>
+      </div>
+
+      <div className={`${GLASS_CARD} p-4`}>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-[140px]">
+            <label className={`${T_LABEL} mb-1.5 block`}>City</label>
+            <select className={SELECT_CLASS} value={city} onChange={(e) => setCity(e.target.value as BranchCity)}>
               <option value="dubai">Dubai</option>
               <option value="manila">Manila</option>
             </select>
           </div>
 
-          <div>
-            <div className="mb-1 text-xs text-neutral-400">Week start (Mon)</div>
-            <input
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              placeholder="YYYY-MM-DD"
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+          <div className="min-w-[200px] flex-1">
+            <label className={`${T_LABEL} mb-1.5 block`}>Week Range</label>
+            <DateRangePicker
+              className="w-full"
+              value={weekRangeValue}
+              onChange={(range) => setStartDate(mondayOfIso(range.from))}
             />
           </div>
 
-          <div>
-            <div className="mb-1 text-xs text-neutral-400">Search</div>
-            <div className="flex gap-2">
+          <div className="min-w-[200px] flex-1">
+            <label className={`${T_LABEL} mb-1.5 block`}>Search</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="staff / req_id / type / branch / urgency"
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className={`${INPUT_CLASS} pl-10`}
               />
-              {search.trim() ? (
-                <button
-                  type="button"
-                  onClick={() => setSearch("")}
-                  className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900"
-                >
-                  Clear
-                </button>
-              ) : null}
             </div>
           </div>
 
-          <div className="flex items-end gap-2">
-            <button
-              onClick={fetchByDate}
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60"
-              disabled={loading}
-              type="button"
-            >
-              Refresh
+          <div className="flex gap-2">
+            <button className={SECONDARY_BUTTON} onClick={fetchByDate} disabled={loading} type="button">
+              <RefreshCw className="mr-1.5 h-4 w-4" /> Refresh
             </button>
-            <button
-              onClick={fetchLatest}
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60"
-              disabled={loading}
-              type="button"
-            >
-              Latest week
+            <button className={PRIMARY_BUTTON} onClick={fetchLatest} disabled={loading} type="button">
+              Latest Week
             </button>
-          </div>
-
-          <div className="flex items-end">
-            <div className="w-full text-sm text-neutral-400">{loading ? "Loading..." : null}</div>
           </div>
         </div>
 
-        {search.trim() ? (
-          <div className="mt-3 text-xs text-neutral-500">
-            Search: <span className="text-neutral-200">{search.trim()}</span> • Matches:{" "}
-            <span className="text-neutral-200">{filteredTotal}</span>
+        {(search.trim() || loading) ? (
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            {search.trim() ? (
+              <span className={T_CAPTION}>
+                Search: <span className="text-zinc-200">{search.trim()}</span> • Matches:{" "}
+                <span className="text-zinc-200">{filteredTotal}</span>
+              </span>
+            ) : null}
+            {loading ? <span className={BADGE_INFO}>Loading...</span> : null}
           </div>
         ) : null}
 
-        {error ? <div className="mt-3 text-sm text-red-300 whitespace-pre-wrap">{error}</div> : null}
+        {error ? <div className="mt-3 whitespace-pre-wrap text-sm text-red-300">{error}</div> : null}
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+      <div className={`${HIGHLIGHT_CARD} p-4`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold">Export (HQ only)</div>
-            <div className="mt-1 text-xs text-neutral-500">
-              2-step export to shared Google Sheets (Monthly Timetable + Headcount).
+          <div className="flex items-center gap-2">
+            <Shield className="h-4 w-4 text-violet-400" />
+            <div>
+              <p className={T_CARD_TITLE}>
+                Export <span className="text-violet-400">(HQ only)</span>
+              </p>
+              <p className={T_CAPTION}>2-step export to shared Google Sheets (Monthly Timetable + Headcount).</p>
             </div>
           </div>
-          <div className="text-xs text-neutral-500">
-            Role: <span className="text-neutral-200">{myRole || "—"}</span>
+          <div className="flex items-center gap-3">
+            <span className={T_CAPTION}>
+              Role: <span className="text-white">{myRole || "—"}</span>
+            </span>
+            {showExport ? (
+              <button className={PRIMARY_BUTTON} type="button" onClick={doPrepareExport} disabled={prepLoading || !approverName.trim() || !pin.trim()}>
+                <Download className="mr-1.5 h-4 w-4" /> {prepLoading ? "Preparing..." : "Export"}
+              </button>
+            ) : (
+              <p className={T_CAPTION}>Enter your PIN so role can be verified.</p>
+            )}
           </div>
         </div>
 
-        {!showExport ? (
-          <div className="mt-3 text-sm text-neutral-500">
-            Export is available for <span className="text-neutral-200">HQ/ADMIN</span> only. (Enter your PIN so role can be verified.)
-          </div>
-        ) : (
+        {showExport ? (
           <>
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-5">
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4 xl:grid-cols-5">
               <div>
-                <div className="mb-1 text-xs text-neutral-400">City</div>
-                <select
-                  className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-                  value={exportCity}
-                  onChange={(e) => setExportCity(e.target.value as BranchCity)}
-                >
+                <label className={`${T_LABEL} mb-1.5 block`}>City</label>
+                <select className={SELECT_CLASS} value={exportCity} onChange={(e) => setExportCity(e.target.value as BranchCity)}>
                   <option value="dubai">Dubai</option>
                   <option value="manila">Manila</option>
                 </select>
               </div>
-
               <div>
-                <div className="mb-1 text-xs text-neutral-400">Branch</div>
+                <label className={`${T_LABEL} mb-1.5 block`}>Branch</label>
                 <select
-                  className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                  className={SELECT_CLASS}
                   value={exportBranch}
                   onChange={(e) => {
                     setExportBranch(e.target.value as BranchCode);
@@ -742,24 +958,20 @@ export default function AdminPage() {
                   ))}
                 </select>
               </div>
-
               <div>
-                <div className="mb-1 text-xs text-neutral-400">Month</div>
-                <input
-                  type="month"
-                  className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                <label className={`${T_LABEL} mb-1.5 block`}>Month</label>
+                <MonthPicker
                   value={exportMonth}
-                  onChange={(e) => {
-                    setExportMonth(e.target.value);
+                  onChange={(value) => {
+                    setExportMonth(value);
                     resetExportState();
                   }}
                 />
               </div>
-
               <div>
-                <div className="mb-1 text-xs text-neutral-400">Mode</div>
+                <label className={`${T_LABEL} mb-1.5 block`}>Mode</label>
                 <select
-                  className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                  className={SELECT_CLASS}
                   value={exportMode}
                   onChange={(e) => {
                     setExportMode(e.target.value as ExportMode);
@@ -770,13 +982,12 @@ export default function AdminPage() {
                   <option value="DRAFT">DRAFT</option>
                 </select>
               </div>
-
-              <div className="flex items-end gap-2">
+              <div className="flex items-end">
                 <button
                   type="button"
                   onClick={doPrepareExport}
                   disabled={prepLoading || !approverName.trim() || !pin.trim()}
-                  className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60"
+                  className={SECONDARY_BUTTON}
                   title={!pin.trim() ? "Enter PIN first" : "Prepare export (preview + token)"}
                 >
                   {prepLoading ? "Preparing..." : "Prepare"}
@@ -784,49 +995,49 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {prepErr ? <div className="mt-3 text-sm text-red-300 whitespace-pre-wrap">{prepErr}</div> : null}
+            {prepErr ? <div className="mt-3 whitespace-pre-wrap text-sm text-red-300">{prepErr}</div> : null}
 
             {prep?.ok ? (
-              <div className="mt-4 rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
+              <div className={`${STATUS_CARD} mt-4 p-4`}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <div className="text-sm font-semibold">Preview</div>
-                    <div className="mt-1 text-xs text-neutral-400">
+                    <div className={T_CARD_TITLE}>Preview</div>
+                    <div className={`${T_CAPTION} mt-1`}>
                       {prep.preview.city.toUpperCase()} • {prep.preview.branch_code} • {prep.preview.month} • {prep.preview.mode}
                     </div>
                   </div>
-                  <div className="text-xs text-neutral-400">
+                  <div className={T_CAPTION}>
                     Token expires in: <span className="text-neutral-200">{tokenRemain ?? prep.expires_in_sec}</span>s
                   </div>
                 </div>
 
-                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-4 text-sm">
-                  <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
-                    <div className="text-xs text-neutral-500">Days</div>
-                    <div className="text-neutral-200 font-semibold">{prep.preview.days}</div>
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className={KPI_CARD}>
+                    <p className={KPI_LABEL}>Days</p>
+                    <p className={KPI_VALUE}>{prep.preview.days}</p>
                   </div>
-                  <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
-                    <div className="text-xs text-neutral-500">Base shift rows</div>
-                    <div className="text-neutral-200 font-semibold">{prep.preview.shift_rows}</div>
+                  <div className={KPI_CARD}>
+                    <p className={KPI_LABEL}>Base Shift Rows</p>
+                    <p className={KPI_VALUE}>{prep.preview.shift_rows}</p>
                   </div>
-                  <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
-                    <div className="text-xs text-neutral-500">Staff count</div>
-                    <div className="text-neutral-200 font-semibold">{prep.preview.staff_count}</div>
+                  <div className={KPI_CARD}>
+                    <p className={KPI_LABEL}>Staff Count</p>
+                    <p className={KPI_VALUE}>{prep.preview.staff_count}</p>
                   </div>
-                  <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
-                    <div className="text-xs text-neutral-500">Hour range</div>
-                    <div className="text-neutral-200 font-semibold">
-                      {prep.preview.hour_range.start}–{prep.preview.hour_range.end}
-                    </div>
+                  <div className={KPI_CARD}>
+                    <p className={KPI_LABEL}>Hour Range</p>
+                    <p className={KPI_VALUE}>
+                      {prep.preview.hour_range.start}-{prep.preview.hour_range.end}
+                    </p>
                   </div>
                 </div>
 
-                <div className="mt-3 text-xs text-neutral-500">
+                <div className={`${T_CAPTION} mt-3`}>
                   Date range: {prep.preview.date_from} → {prep.preview.date_to_exclusive} (to=exclusive)
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <label className="inline-flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-xs text-neutral-200">
+                  <label className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs text-neutral-200">
                     <input type="checkbox" checked={confirmChecked} onChange={(e) => setConfirmChecked(e.target.checked)} />
                     I understand this will overwrite (or create) monthly tabs in the shared export spreadsheet.
                   </label>
@@ -835,27 +1046,22 @@ export default function AdminPage() {
                     type="button"
                     onClick={doConfirmExport}
                     disabled={confirmLoading || !confirmChecked || (tokenRemain !== null && tokenRemain <= 0)}
-                    className="rounded-xl border border-emerald-900 bg-emerald-950/30 px-4 py-2 text-sm text-emerald-200 hover:bg-emerald-950/50 disabled:opacity-60"
+                    className={PRIMARY_BUTTON}
                     title={!confirmChecked ? "Check the confirmation box" : "Confirm export"}
                   >
                     {confirmLoading ? "Exporting..." : "Confirm Export"}
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={resetExportState}
-                    className="rounded-xl border border-neutral-800 bg-neutral-950/30 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900/40"
-                  >
+                  <button type="button" onClick={resetExportState} className={SECONDARY_BUTTON}>
                     Reset
                   </button>
                 </div>
 
-                {confirmErr ? <div className="mt-3 text-sm text-red-300 whitespace-pre-wrap">{confirmErr}</div> : null}
+                {confirmErr ? <div className="mt-3 whitespace-pre-wrap text-sm text-red-300">{confirmErr}</div> : null}
 
                 {confirmOk?.ok ? (
-                  <div className="mt-3 rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
-                    <div className="text-sm font-semibold text-emerald-200">✅ Export done</div>
-
+                  <div className={`${GLASS_CARD} mt-3 p-3`}>
+                    <div className="text-sm font-semibold text-emerald-200">Export done</div>
                     <div className="mt-1 text-xs text-neutral-400">
                       {confirmOk.sheet_url ? (
                         <a className="underline hover:text-white" href={confirmOk.sheet_url} target="_blank" rel="noreferrer">
@@ -865,9 +1071,8 @@ export default function AdminPage() {
                         <>Sheet URL not returned</>
                       )}
                     </div>
-
                     {confirmOk.timetable_url || confirmOk.headcount_url ? (
-                      <div className="mt-2 text-xs text-neutral-500 space-y-1">
+                      <div className="mt-2 space-y-1 text-xs text-neutral-500">
                         {confirmOk.timetable_url ? (
                           <div>
                             Timetable:{" "}
@@ -886,7 +1091,6 @@ export default function AdminPage() {
                         ) : null}
                       </div>
                     ) : null}
-
                     {confirmOk.tab_timetable || confirmOk.tab_headcount ? (
                       <div className="mt-2 text-xs text-neutral-500">
                         Tabs: <span className="text-neutral-200">{confirmOk.tab_timetable || "—"}</span>,{" "}
@@ -898,57 +1102,55 @@ export default function AdminPage() {
               </div>
             ) : null}
           </>
-        )}
+        ) : null}
       </div>
 
       {data ? (
         <>
           {search.trim() && filteredTotal === 0 ? <div className="text-sm text-neutral-500">No matching requests.</div> : null}
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {bucketsOrdered.map(([key, items]) => (
-              <div key={key} className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-                <div className="mb-2 text-sm font-semibold">{bucketTitle(key)}</div>
-
-                {items.length === 0 ? (
-                  <div className="text-sm text-neutral-500">No items</div>
-                ) : (
-                  <div className="space-y-2">
-                    {items.map((it) => {
-                      const b = urgencyBadge(it.urgency_status);
-
-                      return (
-                        <button
-                          key={it.id}
-                          className={[
-                            "w-full rounded-xl border px-3 py-2 text-left text-sm transition",
-                            selected?.id === it.id
-                              ? "border-amber-500 bg-amber-950/20 text-amber-100"
-                              : "border-neutral-800 bg-neutral-950/30 text-neutral-200 hover:bg-neutral-900/40",
-                          ].join(" ")}
-                          onClick={() => setSelected(it)}
-                          title={it.id}
-                          type="button"
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <div className="font-medium truncate">
-                                {it.staff_name} / {it.request_type}
-                              </div>
-                              <div className="mt-1 text-xs text-neutral-500">
-                                {it.work_date} • M:{it.manager_status} • HQ:{it.hq_status}
-                              </div>
-                            </div>
-
-                            <span className={`shrink-0 rounded-lg border px-2 py-1 text-[11px] ${b.cls}`}>{b.label}</span>
-                          </div>
-                        </button>
-                      );
-                    })}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {([
+              ["red_open", redItems],
+              ["swap_pending_counterparty", swapItems],
+              ["pending_manager", managerItems],
+              ["pending_hq", hqItems],
+            ] as Array<[keyof Overview["buckets"], AdminItem[]]>).map(([key, items]) => {
+              const meta = bucketMeta(key);
+              const Icon = meta.icon;
+              return (
+                <div key={key} className={GLASS_CARD}>
+                  <div className="flex items-center gap-2 border-b border-white/5 p-4">
+                    <Icon className={`h-4 w-4 ${meta.headerIconClass}`} />
+                    <h2 className={T_SECTION}>{meta.title}</h2>
+                    {meta.subtitle ? <span className={T_CAPTION}>{meta.subtitle}</span> : null}
+                    {items.length > 0 ? (
+                      <span className={`ml-auto rounded-full border px-2 py-0.5 text-xs font-semibold ${meta.badgeClass}`}>
+                        {items.length}
+                      </span>
+                    ) : null}
                   </div>
-                )}
-              </div>
-            ))}
+                  <div className="p-4">
+                    {items.length === 0 ? (
+                      <p className={`${T_CAPTION} flex items-center gap-2`}>
+                        <CheckCheck className={`h-4 w-4 ${meta.emptyIconClass}`} /> No items
+                      </p>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        {items.map((item) => (
+                          <RequestCard
+                            key={item.id}
+                            item={item}
+                            selected={selected?.id === item.id}
+                            onSelect={() => setSelected(item)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </>
       ) : (
@@ -956,21 +1158,21 @@ export default function AdminPage() {
       )}
 
       {selected ? (
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-          <div className="mb-2 text-sm font-semibold">Selected: {selected.staff_name}</div>
-          <div className="mb-3 text-xs text-neutral-400">
-            Use the primary action box for the main Manager/HQ decision.
-            {selected.request_type === "swap" ? " Use the counterparty box only after the other staff member has replied to the swap." : ""}
+        <div className={`${GLASS_CARD} p-5`}>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 className={T_SECTION}>Selected Request</h2>
+              <p className={T_CAPTION}>
+                {selected.staff_name} / {selected.request_type} / {selected.work_date}
+              </p>
+            </div>
+            <span className={BADGE_INFO}>{selected.id}</span>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Role</div>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as any)}
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              >
+              <label className={`${T_LABEL} mb-1.5 block`}>Role</label>
+              <select value={role} onChange={(e) => setRole(e.target.value as any)} className={SELECT_CLASS}>
                 {!isHQOrAdmin(myRole) ? <option value="MANAGER">MANAGER</option> : null}
                 <option value="HQ" disabled={!isHQOrAdmin(myRole)}>
                   HQ
@@ -979,12 +1181,8 @@ export default function AdminPage() {
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">Action</div>
-              <select
-                value={action}
-                onChange={(e) => setAction(e.target.value as any)}
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              >
+              <label className={`${T_LABEL} mb-1.5 block`}>Action</label>
+              <select value={action} onChange={(e) => setAction(e.target.value as any)} className={SELECT_CLASS}>
                 <option value="APPROVE">APPROVE</option>
                 <option value="REJECT">REJECT</option>
                 <option value="NEED_INFO">NEED_INFO</option>
@@ -992,42 +1190,26 @@ export default function AdminPage() {
             </div>
 
             <div>
-              <div className="mb-1 text-xs text-neutral-400">PIN</div>
-              <input
-                placeholder="PIN"
-                type="password"
-                value={pin}
-                onChange={(e) => setPin(e.target.value)}
-                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              />
+              <label className={`${T_LABEL} mb-1.5 block`}>PIN</label>
+              <input placeholder="PIN" type="password" value={pin} onChange={(e) => setPin(e.target.value)} className={INPUT_CLASS} />
             </div>
           </div>
 
-          <div className="mt-3">
-            <div className="mb-1 text-xs text-neutral-400">Note</div>
-            <input
-              placeholder="Note"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-            />
+          <div className="mb-4">
+            <label className={`${T_LABEL} mb-1.5 block`}>Note</label>
+            <input placeholder="Note" value={note} onChange={(e) => setNote(e.target.value)} className={INPUT_CLASS} />
           </div>
 
-          <div className="mt-3">
-            <div className="mb-1 text-xs text-neutral-400">Approver Name</div>
-            <input
-              placeholder="Approver Name"
-              value={approverName}
-              onChange={(e) => setApproverName(e.target.value)}
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-            />
+          <div className="mb-4">
+            <label className={`${T_LABEL} mb-1.5 block`}>Approver Name</label>
+            <input placeholder="Approver Name" value={approverName} onChange={(e) => setApproverName(e.target.value)} className={INPUT_CLASS} />
           </div>
 
-          <div className="mt-4 space-y-3">
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-3">
+          <div className="space-y-3">
+            <div className={`${STATUS_CARD} p-4`}>
               <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Primary Decision</div>
               <div className="mb-3 text-xs text-neutral-500">
-                This button uses the selected `Action` above and applies the main decision to this request.
+                This button uses the selected action above and applies the main decision to this request.
               </div>
               <button
                 onClick={runIntentAndConfirm}
@@ -1040,7 +1222,7 @@ export default function AdminPage() {
             </div>
 
             {selected.request_type === "swap" ? (
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-950/20 p-3">
+              <div className={`${STATUS_CARD} p-4`}>
                 <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Swap Counterparty Response</div>
                 <div className="mb-3 text-xs text-neutral-500">
                   Use these only to record the other staff member&apos;s reply to the swap request.
@@ -1070,6 +1252,7 @@ export default function AdminPage() {
           {opMsg ? <div className="mt-3 whitespace-pre-wrap text-sm text-neutral-200">{opMsg}</div> : null}
         </div>
       ) : null}
-    </div>
+    </motion.div>
+    )
   );
 }

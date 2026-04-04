@@ -35,6 +35,17 @@ function formatDateTime(value: string): string {
   return value ? String(value).slice(0, 16).replace("T", " ") : "-";
 }
 
+const PAGE_BG = "min-h-screen text-white";
+const GLASS_PANEL = "rounded-2xl border border-white/8 bg-violet-950/30 backdrop-blur-xl";
+const FIELD_CLASS =
+  "rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20";
+const PRIMARY_BUTTON =
+  "rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 px-4 py-2 text-sm font-semibold text-white transition-all duration-200 shadow-lg shadow-violet-500/25 hover:scale-[1.02] hover:from-violet-400 hover:to-purple-400 hover:shadow-violet-500/40 active:scale-[0.98] disabled:opacity-60";
+const SECONDARY_BUTTON =
+  "rounded-xl border border-violet-400/15 bg-violet-950/30 px-4 py-2 text-sm text-white transition-all duration-200 hover:border-violet-500/25 hover:bg-violet-950/45 disabled:opacity-60";
+const SMALL_LINK =
+  "inline-flex rounded-xl border border-violet-400/15 bg-violet-950/30 px-3 py-2 text-xs text-white transition-all duration-200 hover:border-violet-500/25 hover:bg-violet-950/45";
+
 export default function StoreProcurementClaimPage() {
   const LAST_CREATED_CLAIM_KEY = "store_procurement_last_created_claim";
   const LAST_CREATED_MAX_AGE_MS = getRecentBadgeMaxAgeMs();
@@ -217,14 +228,15 @@ export default function StoreProcurementClaimPage() {
       await Promise.all([loadMyRequests(initialCity), loadClaims()]);
     }
     void init();
-  }, [auth, loadClaims, loadMyRequests, requestedBy]);
+  }, [auth, city, loadClaims, loadMyRequests, requestedBy]);
 
   return (
-    <div className="space-y-4">
-      {error ? <div className="text-sm text-red-300">{error}</div> : null}
-      {info ? <div className="text-sm text-emerald-300">{info}</div> : null}
+    <div className={PAGE_BG}>
+      <div className="mx-auto max-w-6xl space-y-4 px-4 py-8">
+      {error ? <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-sm text-red-300">{error}</div> : null}
+      {info ? <div className="rounded-xl border border-emerald-900/40 bg-emerald-950/20 px-3 py-2 text-sm text-emerald-300">{info}</div> : null}
       {requestId.trim() ? (
-        <div className="rounded-xl border border-sky-700/60 bg-sky-900/20 px-3 py-2 text-xs text-sky-200">
+        <div className="rounded-xl border border-violet-500/25 bg-violet-500/12 px-3 py-2 text-xs text-violet-200">
           Selected request_id: <span className="font-mono">{requestId.trim()}</span>
         </div>
       ) : null}
@@ -236,7 +248,7 @@ export default function StoreProcurementClaimPage() {
             <div className="mt-2">
               <Link
                 href={`/admin/procurement/cases/${lastCreatedClaimCaseId}`}
-                className="inline-flex rounded-xl border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-[11px] hover:bg-neutral-900"
+                className={SMALL_LINK}
               >
                 Open Case
               </Link>
@@ -245,29 +257,29 @@ export default function StoreProcurementClaimPage() {
         </div>
       ) : null}
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+      <div className={`${GLASS_PANEL} p-4`}>
         <div className="text-sm font-medium">Store Claims</div>
         <div className="mt-1 text-xs text-neutral-500">Create claim records for shortage, excess, quality issues, and invoice variance from store operations.</div>
-        <div className="mt-2 text-xs text-amber-200">Current city: {cityLabel}</div>
+        <div className="mt-2 text-xs text-violet-200">Current city: {cityLabel}</div>
         <div className="mt-3 flex flex-wrap gap-2">
-          <Link href="/store/procurement" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+          <Link href="/store/procurement" className={SMALL_LINK}>
             Home
           </Link>
-          <Link href={`/store/procurement/history?city=${encodeURIComponent(city || "manila")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+          <Link href={`/store/procurement/history?city=${encodeURIComponent(city || "manila")}`} className={SMALL_LINK}>
             Go to History
           </Link>
-          <Link href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+          <Link href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}`} className={SMALL_LINK}>
             Go to Request
           </Link>
-          <Link href={requestId ? `/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(requestId)}` : `/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+          <Link href={requestId ? `/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(requestId)}` : `/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}`} className={SMALL_LINK}>
             Go to Receiving
           </Link>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 md:grid-cols-5">
-        <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Requested by" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+      <div className={`grid grid-cols-1 gap-3 p-3 md:grid-cols-5 ${GLASS_PANEL}`}>
+        <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Requested by" className={FIELD_CLASS} />
+        <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className={FIELD_CLASS} />
         <select
           value={city}
           onChange={(e) => {
@@ -275,25 +287,25 @@ export default function StoreProcurementClaimPage() {
             setCity(nextCity);
             void loadMyRequests(nextCity);
           }}
-          className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+          className={FIELD_CLASS}
         >
           <option value="manila">Manila</option>
           <option value="dubai">Dubai</option>
         </select>
-        <input value={requestId} onChange={(e) => setRequestId(e.target.value)} placeholder="Request ID" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm">
+        <input value={requestId} onChange={(e) => setRequestId(e.target.value)} placeholder="Request ID" className={FIELD_CLASS} />
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={FIELD_CLASS}>
           <option value="">All statuses</option>
           <option value="OPEN">OPEN</option>
           <option value="ASSIGNED">ASSIGNED</option>
           <option value="ESCALATED">ESCALATED</option>
           <option value="RESOLVED">RESOLVED</option>
         </select>
-        <button type="button" onClick={() => void Promise.all([loadMyRequests(), loadClaims()])} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900">
+        <button type="button" onClick={() => void Promise.all([loadMyRequests(), loadClaims()])} className={SECONDARY_BUTTON}>
           Refresh
         </button>
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+      <div className={`${GLASS_PANEL} p-4`}>
         <div className="text-sm font-medium">My Requests (for claim, {cityLabel})</div>
         <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
           {requests.map((row) => (
@@ -303,7 +315,7 @@ export default function StoreProcurementClaimPage() {
               onClick={() => setRequestId(row.id)}
               className={[
                 "rounded-xl border p-3 text-left",
-                requestId === row.id ? "border-amber-500 bg-amber-950/20" : "border-neutral-800 bg-neutral-950/30 hover:bg-neutral-900",
+                requestId === row.id ? "border-violet-500/30 bg-violet-500/15" : "border-white/8 bg-black/15 hover:bg-violet-950/45",
               ].join(" ")}
             >
               <div className="text-sm text-neutral-100">{row.request_no}</div>
@@ -311,7 +323,7 @@ export default function StoreProcurementClaimPage() {
               <div className="mt-2">
                 <Link
                   href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`}
-                  className="inline-flex rounded-xl border border-neutral-800 bg-neutral-950 px-2 py-1 text-[11px] hover:bg-neutral-900"
+                  className={SMALL_LINK}
                   onClick={(e) => e.stopPropagation()}
                 >
                   Open Receiving
@@ -323,21 +335,21 @@ export default function StoreProcurementClaimPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+      <div className={`${GLASS_PANEL} p-4`}>
         <div className="text-sm font-medium">Create Claim</div>
         <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <input value={receivingId} onChange={(e) => setReceivingId(e.target.value)} placeholder="Receiving ID (optional)" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <input value={invoiceId} onChange={(e) => setInvoiceId(e.target.value)} placeholder="Invoice ID (optional)" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <select value={claimType} onChange={(e) => setClaimType(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm">
+          <input value={receivingId} onChange={(e) => setReceivingId(e.target.value)} placeholder="Receiving ID (optional)" className={FIELD_CLASS} />
+          <input value={invoiceId} onChange={(e) => setInvoiceId(e.target.value)} placeholder="Invoice ID (optional)" className={FIELD_CLASS} />
+          <select value={claimType} onChange={(e) => setClaimType(e.target.value)} className={FIELD_CLASS}>
             <option value="SHORTAGE">SHORTAGE</option>
             <option value="EXCESS">EXCESS</option>
             <option value="QUALITY">QUALITY</option>
             <option value="INVOICE_VARIANCE">INVOICE_VARIANCE</option>
           </select>
-          <input value={amountImpact} onChange={(e) => setAmountImpact(e.target.value)} placeholder={`Amount impact (${currencyCode})`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <input value={responsibleParty} onChange={(e) => setResponsibleParty(e.target.value)} placeholder="Responsible party (vendor/etc)" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm md:col-span-2" />
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Claim description" className="min-h-24 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm md:col-span-3" />
-          <button type="button" onClick={() => void createClaim()} disabled={busy === "create" || !requestId.trim()} className="rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-800/30 disabled:opacity-60 md:col-span-3">
+          <input value={amountImpact} onChange={(e) => setAmountImpact(e.target.value)} placeholder={`Amount impact (${currencyCode})`} className={FIELD_CLASS} />
+          <input value={responsibleParty} onChange={(e) => setResponsibleParty(e.target.value)} placeholder="Responsible party (vendor/etc)" className={`md:col-span-2 ${FIELD_CLASS}`} />
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Claim description" className={`min-h-24 md:col-span-3 ${FIELD_CLASS}`} />
+          <button type="button" onClick={() => void createClaim()} disabled={busy === "create" || !requestId.trim()} className={`md:col-span-3 ${PRIMARY_BUTTON}`}>
             {busy === "create" ? "Creating..." : "Create Claim"}
           </button>
           {actionHint ? <div className="text-xs text-amber-300 md:col-span-3">{actionHint}</div> : null}
@@ -351,7 +363,7 @@ export default function StoreProcurementClaimPage() {
             className={`rounded-2xl border p-4 ${
               row.id === lastCreatedClaimId
                 ? "border-emerald-700/60 bg-emerald-900/20"
-                : "border-neutral-800 bg-neutral-900/20"
+                : "border-white/8 bg-violet-950/25"
             }`}
           >
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -376,7 +388,7 @@ export default function StoreProcurementClaimPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {row.case_id ? (
-                  <Link href={`/admin/procurement/cases/${row.case_id}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+                  <Link href={`/admin/procurement/cases/${row.case_id}`} className={SMALL_LINK}>
                     Open Case
                   </Link>
                 ) : null}
@@ -385,6 +397,7 @@ export default function StoreProcurementClaimPage() {
           </div>
         ))}
         {!rows.length ? <div className="text-sm text-neutral-500">No claims found.</div> : null}
+      </div>
       </div>
     </div>
   );

@@ -2,7 +2,24 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { Users } from "lucide-react";
 import { getAuth } from "@/lib/auth";
+import { fmtNum } from "@/lib/formatters";
+import {
+  BADGE_ERROR,
+  BADGE_SUCCESS,
+  GLASS_CARD,
+  SECONDARY_BUTTON,
+  SELECT_CLASS,
+  SMALL_BUTTON,
+  TABLE_CELL,
+  TABLE_HEADER,
+  TABLE_ROW,
+  T_CAPTION,
+  T_LABEL,
+  T_PAGE_TITLE,
+} from "@/lib/ui-tokens";
 
 type EmployeeMatchItem = {
   employee_unique_key: string;
@@ -164,121 +181,141 @@ export default function AttendanceEmployeesPage() {
   }
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8">
-      <div className="mb-6 flex flex-wrap items-center gap-3">
-        <Link href="/admin/attendance" className="rounded border px-3 py-2 text-sm hover:bg-gray-50">
-          ← Back to Attendance
-        </Link>
-        <Link href="/admin/attendance/mapping" className="rounded border px-3 py-2 text-sm hover:bg-gray-50">
-          Location Mapping
-        </Link>
-      </div>
+    <main className="min-h-screen bg-neutral-950 text-white">
+      <div className="mx-auto max-w-7xl px-4 py-8">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+        >
+          <div className="mb-6 flex flex-wrap items-center gap-3">
+            <Link href="/admin/attendance" className={SECONDARY_BUTTON}>
+              ← Back to Attendance
+            </Link>
+            <Link href="/admin/attendance/mapping" className={SECONDARY_BUTTON}>
+              Location Mapping
+            </Link>
+          </div>
 
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Attendance Employee Matching</h1>
-        <p className="mt-2 text-sm text-neutral-400">
-          Link Bayzat employees with the Staff Master.
-        </p>
-      </div>
+          <div className="mb-6 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-violet-500/20 bg-gradient-to-br from-violet-500/20 to-indigo-500/10">
+              <Users className="h-5 w-5 text-violet-400" />
+            </div>
+            <div>
+              <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-violet-400">ATTENDANCE ADMIN</p>
+              <h1 className={T_PAGE_TITLE}>Attendance Employee Matching</h1>
+              <p className={T_CAPTION}>Link Bayzat employees with the Staff Master.</p>
+            </div>
+          </div>
 
-      <section className="mb-6 rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4 shadow-sm">
-        <div className="grid gap-4 md:grid-cols-3">
-          <label className="text-sm">
-            <div className="mb-1 font-medium">City</div>
-            <select value={city} onChange={(e) => setCity(e.target.value)} className="w-full rounded border border-neutral-700 bg-neutral-950 px-3 py-2 text-white">
-              <option value="">All</option>
-              <option value="Dubai">Dubai</option>
-              <option value="Manila">Manila</option>
-            </select>
-          </label>
+          <section className={`${GLASS_CARD} mb-6 p-5`}>
+            <div className="grid gap-4 md:grid-cols-3">
+              <label className="text-sm">
+                <div className={`${T_LABEL} mb-1.5`}>City</div>
+                <select value={city} onChange={(e) => setCity(e.target.value)} className={SELECT_CLASS}>
+                  <option value="">All</option>
+                  <option value="Dubai">Dubai</option>
+                  <option value="Manila">Manila</option>
+                </select>
+              </label>
 
-          <label className="flex items-end gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={unmatchedOnly}
-              onChange={(e) => setUnmatchedOnly(e.target.checked)}
-            />
-            <span>Unmatched only</span>
-          </label>
+              <label className="flex items-end gap-2 text-sm text-zinc-300">
+                <input
+                  type="checkbox"
+                  checked={unmatchedOnly}
+                  onChange={(e) => setUnmatchedOnly(e.target.checked)}
+                  className="h-4 w-4 accent-amber-500"
+                />
+                <span>Unmatched only</span>
+              </label>
 
-          <div className="flex items-end text-sm text-neutral-400">Total: {items.length}</div>
-        </div>
-      </section>
+              <div className="flex items-end text-sm text-zinc-400">Total: {fmtNum(items.length)}</div>
+            </div>
+          </section>
 
-      {error ? (
-        <div className="mb-4 rounded border border-rose-900/50 bg-rose-950/20 px-4 py-3 text-sm text-rose-200">
-          {error}
-        </div>
-      ) : null}
+          {error ? <div className={`${BADGE_ERROR} mb-4 inline-flex`}>{error}</div> : null}
 
-      <section className="overflow-hidden rounded-2xl border border-neutral-800 bg-neutral-900/20 shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-neutral-950 text-left text-neutral-300">
-              <tr>
-                <th className="px-4 py-3">Employee</th>
-                <th className="px-4 py-3">City</th>
-                <th className="px-4 py-3">Suggested</th>
-                <th className="px-4 py-3">Mapped Staff</th>
-                <th className="px-4 py-3">Rows</th>
-                <th className="px-4 py-3">Last Seen</th>
-                <th className="px-4 py-3">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td className="px-4 py-4 text-neutral-500" colSpan={7}>Loading...</td></tr>
-              ) : items.length === 0 ? (
-                <tr><td className="px-4 py-4 text-neutral-500" colSpan={7}>No employees found.</td></tr>
-              ) : (
-                items.map((item) => (
-                  <tr key={item.employee_unique_key} className="border-t border-neutral-800 align-top">
-                    <td className="px-4 py-3">
-                      <div className="font-medium">{item.employee_name_raw}</div>
-                      <div className="text-xs text-neutral-500">
-                        ID: {item.employee_id_raw || "-"}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">{item.city || "-"}</td>
-                    <td className="px-4 py-3">{item.suggested_staff_name || "-"}</td>
-                    <td className="px-4 py-3">
-                      <select
-                        value={selectedStaff[item.employee_unique_key] || ""}
-                        onChange={(e) =>
-                          setSelectedStaff((prev) => ({
-                            ...prev,
-                            [item.employee_unique_key]: e.target.value,
-                          }))
-                        }
-                        className="min-w-[240px] rounded border border-neutral-700 bg-neutral-950 px-3 py-2 text-white"
-                      >
-                        <option value="">Select staff</option>
-                        {filteredStaffOptions.map((staff) => (
-                          <option key={`${staff.staff_name}-${staff.city || ""}`} value={staff.staff_name}>
-                            {staff.staff_name}
-                            {staff.branch_code ? ` (${staff.branch_code})` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-4 py-3">{item.observed_row_count ?? 0}</td>
-                    <td className="px-4 py-3">{fmt(item.last_seen_at)}</td>
-                    <td className="px-4 py-3">
-                      <button
-                        onClick={() => saveMatch(item)}
-                        disabled={savingKey === item.employee_unique_key}
-                        className="rounded bg-black px-3 py-2 text-white disabled:opacity-60"
-                      >
-                        {savingKey === item.employee_unique_key ? "Saving..." : "Save"}
-                      </button>
-                    </td>
+          <section className={`${GLASS_CARD} overflow-hidden`}>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr>
+                    <th className={TABLE_HEADER}>Employee</th>
+                    <th className={TABLE_HEADER}>City</th>
+                    <th className={TABLE_HEADER}>Suggested</th>
+                    <th className={TABLE_HEADER}>Mapped Staff</th>
+                    <th className={TABLE_HEADER}>Rows</th>
+                    <th className={TABLE_HEADER}>Last Seen</th>
+                    <th className={TABLE_HEADER}>Action</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td className={`${TABLE_CELL} text-zinc-500`} colSpan={7}>Loading...</td></tr>
+                  ) : items.length === 0 ? (
+                    <tr><td className={`${TABLE_CELL} text-zinc-500`} colSpan={7}>No employees found.</td></tr>
+                  ) : (
+                    items.map((item) => (
+                      <tr key={item.employee_unique_key} className={`${TABLE_ROW} align-top`}>
+                        <td className={TABLE_CELL}>
+                          <div className="font-medium">{item.employee_name_raw}</div>
+                          <div className="text-xs text-zinc-500">
+                            ID: {item.employee_id_raw || "-"}
+                          </div>
+                        </td>
+                        <td className={TABLE_CELL}>{item.city || "-"}</td>
+                        <td className={TABLE_CELL}>
+                          {item.suggested_staff_name ? (
+                            <span className={BADGE_SUCCESS}>{item.suggested_staff_name}</span>
+                          ) : (
+                            <span className={BADGE_ERROR}>Unmatched</span>
+                          )}
+                        </td>
+                        <td className={TABLE_CELL}>
+                          <div className="mb-2">
+                            <span className={item.mapped_staff_name ? BADGE_SUCCESS : BADGE_ERROR}>
+                              {item.mapped_staff_name ? "Matched" : "Unmatched"}
+                            </span>
+                          </div>
+                          <select
+                            value={selectedStaff[item.employee_unique_key] || ""}
+                            onChange={(e) =>
+                              setSelectedStaff((prev) => ({
+                                ...prev,
+                                [item.employee_unique_key]: e.target.value,
+                              }))
+                            }
+                            className={`${SELECT_CLASS} min-w-[240px]`}
+                          >
+                            <option value="">Select staff</option>
+                            {filteredStaffOptions.map((staff) => (
+                              <option key={`${staff.staff_name}-${staff.city || ""}`} value={staff.staff_name}>
+                                {staff.staff_name}
+                                {staff.branch_code ? ` (${staff.branch_code})` : ""}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className={TABLE_CELL}>{fmtNum(item.observed_row_count ?? 0)}</td>
+                        <td className={TABLE_CELL}>{fmt(item.last_seen_at)}</td>
+                        <td className={TABLE_CELL}>
+                          <button
+                            onClick={() => saveMatch(item)}
+                            disabled={savingKey === item.employee_unique_key}
+                            className={`${SMALL_BUTTON} flex items-center gap-2 disabled:opacity-60`}
+                          >
+                            {savingKey === item.employee_unique_key ? "Saving..." : "Save"}
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </motion.div>
+      </div>
     </main>
   );
 }

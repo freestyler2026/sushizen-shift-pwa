@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
+import DatePicker from "@/components/DatePicker";
 
 type PoRow = {
   id: string;
@@ -357,7 +358,10 @@ export default function ProcurementPoPage() {
   useEffect(() => {
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
-      const can = canAccessProcurementAdmin(refreshed || auth);
+      const can = canAccessProcurementAdmin(
+        String((refreshed || auth)?.role || ""),
+        String((refreshed || auth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
+      );
       setAllowed(can);
       if (can) await load();
     }
@@ -395,7 +399,7 @@ export default function ProcurementPoPage() {
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-          <input type="date" value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+          <DatePicker value={deliveryDate} onChange={setDeliveryDate} />
           <input value={vatTreatment} onChange={(e) => setVatTreatment(e.target.value)} placeholder="VAT treatment" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
           <input value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} placeholder="Delivery address" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm md:col-span-2" />
           <input value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} placeholder="Payment terms" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm md:col-span-2" />

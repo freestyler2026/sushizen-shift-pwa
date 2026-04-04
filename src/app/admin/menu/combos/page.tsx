@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MenuImportFailures from "@/components/menu/MenuImportFailures";
 import MenuPaginationControls from "@/components/menu/MenuPaginationControls";
 import { canAccessMenuAdmin, getAuth, refreshAuthFromApi, type City } from "@/lib/auth";
@@ -31,15 +32,23 @@ type ImportFailure = { row_number?: number; reason?: string };
 
 const EMPTY_FORM = { name: "", name_localized: "", sku: "", barcode: "", image_url: "", description: "", price: "0", pricing_method: "FIXED_PRICE", costing_method: "FROM_INGREDIENTS", fixed_cost: "0", sort_order: "0" };
 
-export default function MenuCombosPage() {
+function MenuCombosPageInner() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const auth = useMemo(() => getAuth(), []);
+  const queryCity = (searchParams.get("city") || "").toLowerCase();
+  const queryTab = (searchParams.get("tab") || "").toUpperCase();
+  const queryQ = searchParams.get("q") || "";
+  const queryPage = Math.max(1, Number.parseInt(searchParams.get("page") || "1", 10) || 1);
+  const queryPageSize = Math.max(1, Number.parseInt(searchParams.get("page_size") || "50", 10) || 50);
   const [ready, setReady] = useState(false);
   const [allowed, setAllowed] = useState(false);
-  const [city, setCity] = useState<City>((auth?.city || "manila") as City);
-  const [tab, setTab] = useState("ALL");
-  const [q, setQ] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [city, setCity] = useState<City>(((queryCity === "manila" || queryCity === "dubai" ? queryCity : (auth?.city || "manila")) as City));
+  const [tab, setTab] = useState(["ALL", "ACTIVE", "INACTIVE", "DELETED"].includes(queryTab) ? queryTab : "ALL");
+  const [q, setQ] = useState(queryQ);
+  const [page, setPage] = useState(queryPage);
+  const [pageSize, setPageSize] = useState(queryPageSize);
   const [total, setTotal] = useState(0);
   const [hasNext, setHasNext] = useState(false);
   const [hasPrev, setHasPrev] = useState(false);
@@ -49,6 +58,7 @@ export default function MenuCombosPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [rows, setRows] = useState<MenuComboRow[]>([]);
+  const [comboFilterOptions, setComboFilterOptions] = useState<MenuComboRow[]>([]);
   const [importFailures, setImportFailures] = useState<ImportFailure[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkAction, setBulkAction] = useState("DEACTIVATE");
@@ -70,6 +80,17 @@ export default function MenuCombosPage() {
     void init();
     return () => { cancelled = true; };
   }, [auth]);
+
+  useEffect(() => {
+    const qs = new URLSearchParams();
+    qs.set("city", city);
+    if (tab !== "ALL") qs.set("tab", tab);
+    if (q) qs.set("q", q);
+    if (page > 1) qs.set("page", String(page));
+    if (pageSize !== 50) qs.set("page_size", String(pageSize));
+    const nextUrl = `${pathname}${qs.toString() ? `?${qs.toString()}` : ""}`;
+    router.replace(nextUrl, { scroll: false });
+  }, [city, page, pageSize, pathname, q, router, tab]);
 
   const loadRows = useCallback(async (nextCity = city, nextTab = tab, nextQ = q, nextPage = page, nextPageSize = pageSize) => {
     setLoading(true);
@@ -95,6 +116,25 @@ export default function MenuCombosPage() {
     if (!ready || !allowed) return;
     void loadRows();
   }, [allowed, loadRows, ready]);
+
+  useEffect(() => {
+    if (!ready || !allowed) return;
+    let cancelled = false;
+    async function loadComboFilterOptions() {
+      try {
+        const res = await menuGet<PaginatedResponse<MenuComboRow>>(
+          `/api/admin/menu/combos?city=${encodeURIComponent(city)}&tab=ALL&q=&page=1&page_size=500&sort_by=sort_order&sort_dir=ASC`,
+        );
+        if (!cancelled) setComboFilterOptions(res.rows || []);
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message || String(e));
+      }
+    }
+    void loadComboFilterOptions();
+    return () => {
+      cancelled = true;
+    };
+  }, [allowed, city, ready]);
 
   useEffect(() => {
     if (!ready || !allowed) return;
@@ -164,6 +204,7 @@ export default function MenuCombosPage() {
   }
 
   async function deleteCombo(comboId: string) {
+    if (!window.confirm("Delete this combo?")) return;
     setError("");
     setSuccess("");
     try {
@@ -254,7 +295,15 @@ export default function MenuCombosPage() {
           </label>
           <label className="text-sm text-neutral-300">
             <div className="mb-1 text-xs text-neutral-500">Search</div>
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Combo name, SKU, barcode" className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
+            <select value={q} onChange={(e) => setQ(e.target.value)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
+              <option value="">All combos</option>
+              {comboFilterOptions.map((row) => (
+                <option key={row.id} value={row.sku || row.barcode || row.name || ""}>
+                  {row.name}
+                  {row.sku ? ` (${row.sku})` : row.barcode ? ` (${row.barcode})` : ""}
+                </option>
+              ))}
+            </select>
           </label>
           <div className="flex flex-wrap items-end gap-2">
             {["ALL", "ACTIVE", "INACTIVE", "DELETED"].map((value) => (
@@ -341,7 +390,7 @@ export default function MenuCombosPage() {
                 {loading ? <tr><td className="py-4 text-neutral-500" colSpan={7}>Loading combos...</td></tr> : rows.length ? rows.map((row) => (
                   <tr key={row.id} className="border-t border-neutral-800/80 align-top">
                     <td className="py-3 pr-4"><input type="checkbox" checked={selectedIds.includes(row.id)} onChange={() => toggleRow(row.id)} /></td>
-                    <td className="py-3 pr-4"><Link href={`/admin/menu/combos/${encodeURIComponent(row.id)}`} className="font-medium text-amber-200 hover:text-amber-100">{row.name}</Link><div className="mt-1 text-xs text-neutral-500">{row.sku || "-"}</div></td>
+                    <td className="py-3 pr-4"><Link href={`/admin/menu/combos/${encodeURIComponent(row.id)}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`} className="font-medium text-amber-200 hover:text-amber-100">{row.name}</Link><div className="mt-1 text-xs text-neutral-500">{row.sku || "-"}</div></td>
                     <td className="py-3 pr-4"><input value={sortDrafts[row.id] ?? String(row.sort_order ?? 0)} onChange={(e) => setSortDrafts((current) => ({ ...current, [row.id]: e.target.value }))} className="w-20 rounded-lg border border-neutral-700 bg-neutral-950/50 px-2 py-1 text-xs text-neutral-200" /></td>
                     <td className="py-3 pr-4 text-neutral-300"><div>{Number(row.price || 0).toFixed(2)}</div><div className="mt-1 text-xs text-neutral-500">Cost {Number(row.cost_summary?.effective_cost || 0).toFixed(2)}</div></td>
                     <td className="py-3 pr-4 text-neutral-300">{Number(row.product_count || 0)}</td>
@@ -356,5 +405,13 @@ export default function MenuCombosPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+export default function MenuCombosPage() {
+  return (
+    <Suspense fallback={<div className="text-sm text-neutral-500">Loading combos...</div>}>
+      <MenuCombosPageInner />
+    </Suspense>
   );
 }

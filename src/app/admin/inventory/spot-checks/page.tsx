@@ -7,6 +7,7 @@ import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { defaultBranch, groupBySupplier, lineFromItem, monthNow, number3, todayIso, withVariance, type InventoryCountLine, type InventoryItemLookup } from "@/lib/inventoryCountUtils";
 import { inventoryGet, inventoryPatch, inventoryPost } from "@/lib/inventoryClient";
+import { formatDraftNumber, getInventoryQuantityStep, parseDraftNumber, stepDraftNumber } from "@/lib/quantityInput";
 
 type BalanceRow = {
   item_id: string;
@@ -44,6 +45,7 @@ export default function InventorySpotChecksPage() {
   const [itemOptions, setItemOptions] = useState<InventoryItemLookup[]>([]);
   const [balancesMap, setBalancesMap] = useState<Record<string, number>>({});
   const [draftLines, setDraftLines] = useState<InventoryCountLine[]>([]);
+  const [draftQtyInputs, setDraftQtyInputs] = useState<Record<string, string>>({});
   const [historyRows, setHistoryRows] = useState<SpotCheckRow[]>([]);
   const [selectedSpotCheckId, setSelectedSpotCheckId] = useState("");
   const [draftSpotCheckId, setDraftSpotCheckId] = useState("");
@@ -163,10 +165,38 @@ export default function InventorySpotChecksPage() {
         }),
       ),
     );
-  }, [balancesMap]);
+  }, [balancesMap, draftLines.length]);
+
+  useEffect(() => {
+    const nextInputs: Record<string, string> = {};
+    draftLines.forEach((line, index) => {
+      nextInputs[String(index)] = formatDraftNumber(line.counted_qty, "0");
+    });
+    setDraftQtyInputs(nextInputs);
+  }, [draftLines]);
 
   function updateDraftLine(index: number, patch: Partial<InventoryCountLine>) {
     setDraftLines((prev) => prev.map((line, idx) => (idx === index ? withVariance({ ...line, ...patch }) : line)));
+  }
+
+  function draftQtyValue(index: number, line: InventoryCountLine) {
+    return draftQtyInputs[String(index)] ?? formatDraftNumber(line.counted_qty, "0");
+  }
+
+  function commitDraftQty(index: number, line: InventoryCountLine) {
+    const parsedQty = parseDraftNumber(draftQtyValue(index, line));
+    const nextQty = parsedQty === null || parsedQty < 0 ? 0 : parsedQty;
+    updateDraftLine(index, { counted_qty: nextQty });
+  }
+
+  function syncedDraftLines() {
+    return draftLines.map((line, index) => {
+      const parsedQty = parseDraftNumber(draftQtyValue(index, line));
+      return withVariance({
+        ...line,
+        counted_qty: parsedQty === null || parsedQty < 0 ? 0 : parsedQty,
+      });
+    });
   }
 
   function addManualItem() {
@@ -227,8 +257,9 @@ export default function InventorySpotChecksPage() {
       setError("Please add at least one item.");
       return;
     }
-    const uniqueItemIds = new Set(draftLines.map((line) => line.item_id).filter(Boolean));
-    if (uniqueItemIds.size !== draftLines.length) {
+    const nextDraftLines = syncedDraftLines();
+    const uniqueItemIds = new Set(nextDraftLines.map((line) => line.item_id).filter(Boolean));
+    if (uniqueItemIds.size !== nextDraftLines.length) {
       setError("Duplicate items are not allowed in one spot check.");
       return;
     }
@@ -257,11 +288,12 @@ export default function InventorySpotChecksPage() {
       }
       await inventoryPost(`/api/admin/inventory/spot-checks/${encodeURIComponent(spotCheckId)}/items`, {
         city,
-        items: draftLines.map((line, index) => ({
-          ...withVariance(line),
+        items: nextDraftLines.map((line, index) => ({
+          ...line,
           sort_order: index + 1,
         })),
       });
+      setDraftLines(nextDraftLines);
       await refreshHistoryAndDetail(spotCheckId);
       setSelectedSpotCheckId(spotCheckId);
       setDraftSpotCheckId(spotCheckId);
@@ -402,7 +434,12 @@ export default function InventorySpotChecksPage() {
                           <td className="px-3 py-2 text-right text-neutral-300">{Number(line.unit_price || 0).toFixed(2)}</td>
                           <td className="px-3 py-2 text-right text-neutral-300">{number3(line.theoretical_qty)}</td>
                           <td className="px-3 py-2">
-                            <input type="number" min="0" step="0.001" value={line.counted_qty} onChange={(e) => updateDraftLine(index, { counted_qty: Number(e.target.value || 0) })} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-right text-xs" />
+                            <input type="text" inputMode="decimal" value={draftQtyValue(index, line)} onChange={(e) => setDraftQtyInputs((prev) => ({ ...prev, [String(index)]: e.target.value }))} onBlur={() => commitDraftQty(index, line)} onKeyDown={(e) => {
+                              if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+                              e.preventDefault();
+                              const step = getInventoryQuantityStep(line.storage_unit);
+                              setDraftQtyInputs((prev) => ({ ...prev, [String(index)]: stepDraftNumber(draftQtyValue(index, line), step, e.key === "ArrowUp" ? 1 : -1) }));
+                            }} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-right text-xs" />
                           </td>
                           <td className={["px-3 py-2 text-right", Number(line.variance_qty || 0) === 0 ? "text-neutral-300" : Number(line.variance_qty || 0) > 0 ? "text-emerald-300" : "text-amber-300"].join(" ")}>
                             {number3(line.variance_qty)}

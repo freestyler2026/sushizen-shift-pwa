@@ -20,6 +20,20 @@ function getApiBase() {
   return "";
 }
 
+const AUTH_REQUEST_TIMEOUT_MS = 60000;
+
+function normalizeAuthRequestError(error: unknown) {
+  const text = String((error as any)?.message || error || "").trim();
+  const apiBase = getApiBase() || "this app";
+  if ((error as any)?.name === "AbortError") {
+    return `Login request timed out. Please confirm the local API is running at ${apiBase}.`;
+  }
+  if (text === "Failed to fetch" || /networkerror|load failed|fetch failed/i.test(text)) {
+    return `Cannot reach the local API at ${apiBase}. Please restart the backend and try again.`;
+  }
+  return text || "Login failed.";
+}
+
 /**
  * Verify PIN via API and return role.
  * - If API_BASE is empty, it will call same-origin (/api/auth/verify).
@@ -40,9 +54,16 @@ async function verifyAuth(staffName: string, pin: string, city: City): Promise<{
 }> {
   const qs = new URLSearchParams({ staff_name: staffName, pin, city }).toString();
   const url = `${getApiBase()}/api/auth/verify?${qs}`;
-
-  const res = await fetch(url, { method: "POST" });
-  const text = await res.text();
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS);
+  let res: Response;
+  let text = "";
+  try {
+    res = await fetch(url, { method: "POST", signal: controller.signal });
+    text = await res.text();
+  } finally {
+    window.clearTimeout(timer);
+  }
 
   if (!res.ok) {
     let detail = "";
@@ -73,8 +94,16 @@ async function fetchStaffNames(city: City): Promise<string[]> {
     status: "ACTIVE",
     limit: "5000",
   }).toString();
-  const res = await fetch(`/api/admin/staff_master/names?${qs}`, { cache: "no-store" });
-  const text = await res.text();
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS);
+  let res: Response;
+  let text = "";
+  try {
+    res = await fetch(`/api/admin/staff_master/names?${qs}`, { cache: "no-store", signal: controller.signal });
+    text = await res.text();
+  } finally {
+    window.clearTimeout(timer);
+  }
   if (!res.ok) {
     let detail = "";
     try {
@@ -123,7 +152,7 @@ function LoginInner() {
       } catch (e: any) {
         if (!cancelled) {
           setNameOptions([]);
-          setError((prev) => prev || e?.message || String(e));
+          setError((prev) => prev || normalizeAuthRequestError(e));
         }
       } finally {
         if (!cancelled) setNameLoading(false);
@@ -184,7 +213,7 @@ function LoginInner() {
       const next = sp.get("next");
       router.replace(next || "/my-shift");
     } catch (e: any) {
-      setError(e?.message || String(e));
+      setError(normalizeAuthRequestError(e));
       setPin("");
       requestAnimationFrame(() => pinInputRef.current?.focus());
     } finally {

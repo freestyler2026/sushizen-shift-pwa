@@ -50,6 +50,7 @@ export default function MenuModifierOptionsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [rows, setRows] = useState<ModifierOptionRow[]>([]);
+  const [optionFilterOptions, setOptionFilterOptions] = useState<ModifierOptionRow[]>([]);
   const [groups, setGroups] = useState<ModifierGroupRow[]>([]);
   const [importFailures, setImportFailures] = useState<ImportFailure[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -103,6 +104,30 @@ export default function MenuModifierOptionsPage() {
     if (!ready || !allowed) return;
     void loadAll();
   }, [allowed, loadAll, ready]);
+
+  useEffect(() => {
+    if (!ready || !allowed) return;
+    let cancelled = false;
+    async function loadOptionFilterOptions() {
+      try {
+        const res = await menuGet<PaginatedResponse<ModifierOptionRow>>(
+          `/api/admin/menu/modifier-options?city=${encodeURIComponent(city)}&tab=ALL&q=&modifier_group_id=&page=1&page_size=500&sort_by=sort_order&sort_dir=ASC`,
+        );
+        if (!cancelled) setOptionFilterOptions(res.rows || []);
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message || String(e));
+      }
+    }
+    void loadOptionFilterOptions();
+    return () => {
+      cancelled = true;
+    };
+  }, [allowed, city, ready]);
+
+  const visibleOptionFilterOptions = useMemo(
+    () => optionFilterOptions.filter((row) => !groupFilter || row.modifier_group_id === groupFilter),
+    [groupFilter, optionFilterOptions],
+  );
 
   useEffect(() => {
     if (!ready || !allowed) return;
@@ -173,6 +198,7 @@ export default function MenuModifierOptionsPage() {
   }
 
   async function deleteOption(optionId: string) {
+    if (!window.confirm("Delete this modifier option?")) return;
     setError("");
     setSuccess("");
     try {
@@ -263,7 +289,15 @@ export default function MenuModifierOptionsPage() {
           </label>
           <label className="text-sm text-neutral-300">
             <div className="mb-1 text-xs text-neutral-500">Search</div>
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Option, SKU, or group" className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
+            <select value={q} onChange={(e) => setQ(e.target.value)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
+              <option value="">All options</option>
+              {visibleOptionFilterOptions.map((row) => (
+                <option key={row.id} value={row.sku || row.barcode || row.name || ""}>
+                  {row.name}
+                  {row.sku ? ` (${row.sku})` : row.barcode ? ` (${row.barcode})` : ""}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="text-sm text-neutral-300">
             <div className="mb-1 text-xs text-neutral-500">Group Filter</div>

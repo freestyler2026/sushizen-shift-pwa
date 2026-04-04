@@ -5,12 +5,14 @@ import InventoryTabs from "@/components/InventoryTabs";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
+import { getInventoryQuantityStep, parseDraftNumber, stepDraftNumber } from "@/lib/quantityInput";
 
 type InventoryItemOption = {
   id: string;
   name: string;
   sku: string;
   cost: number;
+  storage_unit: string;
   status: string;
 };
 
@@ -65,6 +67,12 @@ function number3(value: number) {
   return Number(value || 0).toFixed(3);
 }
 
+function csvEscape(value: unknown) {
+  const text = String(value ?? "");
+  if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+  return text;
+}
+
 export default function InventoryQuantityAdjustmentsPage() {
   const auth = useMemo(() => getAuth(), []);
   const [ready, setReady] = useState(false);
@@ -75,7 +83,7 @@ export default function InventoryQuantityAdjustmentsPage() {
   const [reason, setReason] = useState("WASTE");
   const [notes, setNotes] = useState("");
   const [selectedItemId, setSelectedItemId] = useState("");
-  const [selectedQty, setSelectedQty] = useState(1);
+  const [selectedQty, setSelectedQty] = useState("1");
   const [selectedActionType, setSelectedActionType] = useState("DECREASE");
   const [historyMonth, setHistoryMonth] = useState(monthNow());
   const [loading, setLoading] = useState(false);
@@ -173,10 +181,17 @@ export default function InventoryQuantityAdjustmentsPage() {
     () => itemOptions.find((item) => item.id === selectedItemId) || null,
     [itemOptions, selectedItemId],
   );
+  const selectedQtyStep = getInventoryQuantityStep(selectedItem?.storage_unit);
 
   function addDraftItem() {
     if (!selectedItem) return;
-    const qty = Math.max(0.001, Number(selectedQty || 0));
+    const parsedQty = parseDraftNumber(selectedQty);
+    const qty = parsedQty === null ? NaN : parsedQty;
+    if (!Number.isFinite(qty) || qty <= 0) {
+      setError("Please enter a valid quantity.");
+      return;
+    }
+    setError("");
     setDraftItems((prev) => [
       ...prev,
       {
@@ -189,7 +204,7 @@ export default function InventoryQuantityAdjustmentsPage() {
       },
     ]);
     setSelectedItemId("");
-    setSelectedQty(1);
+    setSelectedQty("1");
     setSelectedActionType("DECREASE");
   }
 
@@ -295,6 +310,37 @@ export default function InventoryQuantityAdjustmentsPage() {
     }
   }
 
+  function exportHistoryCsv() {
+    if (!filteredHistory.length) return;
+    const rows = filteredHistory.map((row) => ({
+      adjustment_no: row.adjustment_no || "",
+      city,
+      branch_code: row.branch_code || "",
+      branch_name: labelOf(city, row.branch_code),
+      business_date: row.business_date || "",
+      reason: row.reason || "",
+      status: row.status || "",
+      created_by: row.created_by || "",
+      notes: row.notes || "",
+      created_at: row.created_at || "",
+      updated_at: row.updated_at || "",
+    }));
+    const headers = Object.keys(rows[0]);
+    const lines = [
+      headers.map(csvEscape).join(","),
+      ...rows.map((row) => headers.map((header) => csvEscape(row[header as keyof typeof row])).join(",")),
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `quantity-adjustments-history-${city}-${historyMonth || monthNow()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   if (!ready) return <div className="text-sm text-neutral-500">Loading quantity adjustments...</div>;
   if (!allowed) return <div className="text-sm text-neutral-500">You do not have permission to open inventory.</div>;
 
@@ -364,7 +410,11 @@ export default function InventoryQuantityAdjustmentsPage() {
               </option>
             ))}
           </select>
-          <input type="number" min={0.001} step={0.001} value={selectedQty} onChange={(e) => setSelectedQty(Number(e.target.value || 0))} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+          <input type="text" inputMode="decimal" value={selectedQty} onChange={(e) => setSelectedQty(e.target.value)} onKeyDown={(e) => {
+            if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+            e.preventDefault();
+            setSelectedQty((current) => stepDraftNumber(current, selectedQtyStep, e.key === "ArrowUp" ? 1 : -1));
+          }} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
           <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={selectedActionType} onChange={(e) => setSelectedActionType(e.target.value)}>
             <option value="DECREASE">Decrease</option>
             <option value="INCREASE">Increase</option>
@@ -426,7 +476,17 @@ export default function InventoryQuantityAdjustmentsPage() {
             <div className="text-sm font-semibold text-neutral-100">History</div>
             <div className="mt-1 text-xs text-neutral-500">Review adjustment history by month.</div>
           </div>
-          <div className="text-xs text-neutral-500">{loading ? "Loading..." : `${filteredHistory.length} rows`}</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={exportHistoryCsv}
+              disabled={!filteredHistory.length}
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900 disabled:opacity-60"
+            >
+              Export CSV
+            </button>
+            <div className="text-xs text-neutral-500">{loading ? "Loading..." : `${filteredHistory.length} rows`}</div>
+          </div>
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)]">

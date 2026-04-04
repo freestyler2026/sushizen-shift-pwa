@@ -19,7 +19,6 @@ export const BRANCHES: Record<City, Branch[]> = {
   dubai: [
     { code: "BB", name: "Business Bay" },
     { code: "JLT", name: "JLT" },
-    { code: "MC", name: "Motor City" },
     { code: "ARJ", name: "Arjan" },
     { code: "AM", name: "Al Mina" },
     { code: "AB", name: "Al Barsha" },
@@ -36,6 +35,7 @@ export const BRANCHES: Record<City, Branch[]> = {
 
 export function labelOf(city: City, code: string): string {
   const u = String(code || "").toUpperCase();
+  if (city === "dubai" && u === "MC") return "Arjan";
   return BRANCHES[city].find((x) => x.code === (u as BranchCode))?.name || code;
 }
 
@@ -60,7 +60,7 @@ export function normalizeBranchCode(city: City, v: string): BranchCode | string 
     const low = s.toLowerCase();
     if (low.includes("business") || low.includes("b bay") || low === "bb") return "BB";
     if (low.includes("jlt")) return "JLT";
-    if (low.includes("motor city") || low.includes("m city") || low === "mc") return "MC";
+    if (low.includes("motor city") || low.includes("m city") || low === "mc") return "ARJ";
     if (low.includes("arj")) return "ARJ";
     if (low.includes("al mina") || low.includes("amina") || low.includes("almina")) return "AM";
     if (low.includes("barsha")) return "AB";

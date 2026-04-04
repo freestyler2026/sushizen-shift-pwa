@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson, procurementTokenHeaders } from "@/lib/procurementClient";
+import MonthPicker from "@/components/MonthPicker";
 
 type DashboardSummary = {
   month_key: string;
@@ -105,7 +106,10 @@ export default function ProcurementKpiPage() {
   useEffect(() => {
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
-      const can = canAccessProcurementAdmin(refreshed || auth);
+      const can = canAccessProcurementAdmin(
+        String((refreshed || auth)?.role || ""),
+        String((refreshed || auth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
+      );
       setAllowed(can);
       if (can) await load();
     }
@@ -123,7 +127,7 @@ export default function ProcurementKpiPage() {
       <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 md:grid-cols-4">
         <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Approver name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
         <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="month" value={monthKey} onChange={(e) => setMonthKey(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+        <MonthPicker value={monthKey} onChange={setMonthKey} />
         <div className="flex gap-2">
           <button type="button" onClick={() => void load()} className="flex-1 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900">
             Refresh

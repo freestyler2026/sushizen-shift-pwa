@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
+import DateRangePicker from "@/components/DateRangePicker";
 
 type ImportBatchRow = {
   id: string;
@@ -52,7 +53,7 @@ function fmtDateTime(value: string): string {
 }
 
 export default function ProcurementImportsPage() {
-  const auth = getAuth();
+  const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
@@ -151,14 +152,23 @@ export default function ProcurementImportsPage() {
   };
 
   useEffect(() => {
+    let cancelled = false;
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
-      const can = canAccessProcurementAdmin(refreshed || auth);
+      if (cancelled) return;
+      const can = canAccessProcurementAdmin(String((refreshed || auth)?.role || ""), city === "dubai" ? "dubai" : "manila");
       setAllowed(can);
-      if (can) await load();
     }
     void init();
-  }, [auth, load]);
+    return () => {
+      cancelled = true;
+    };
+  }, [auth, city]);
+
+  useEffect(() => {
+    if (!allowed) return;
+    void load();
+  }, [allowed, load]);
 
   if (!allowed) {
     return <div className="text-sm text-red-300">Procurement imports are available only to authorized Manila admin roles.</div>;
@@ -187,8 +197,14 @@ export default function ProcurementImportsPage() {
           <option value="CK">CK</option>
           <option value="CK_WH_to_supplier">CK_WH_to_supplier</option>
         </select>
-        <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+        <DateRangePicker
+          value={{ from: dateFrom, to: dateTo }}
+          onChange={(range) => {
+            setDateFrom(range.from);
+            setDateTo(range.to);
+          }}
+          className="lg:col-span-2"
+        />
       </div>
 
       <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">

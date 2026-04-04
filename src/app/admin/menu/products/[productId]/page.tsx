@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import IngredientItemSearch, { type IngredientItemOption } from "@/components/menu/IngredientItemSearch";
 import { canAccessMenuAdmin, getAuth, refreshAuthFromApi, type City } from "@/lib/auth";
 import { menuGet, menuPatch, menuPost } from "@/lib/menuClient";
 
@@ -75,15 +76,6 @@ type PricingSummary = {
   branches_with_custom_price: string[];
 };
 
-type IngredientOption = {
-  id: string;
-  name: string;
-  sku: string;
-  storage_unit: string;
-  ingredient_unit: string;
-  cost: number;
-};
-
 type CostSummary = {
   costing_method: string;
   ingredients_cost: number;
@@ -98,6 +90,7 @@ type IngredientRow = {
   ingredient_item_id: string;
   ingredient_name: string;
   sku: string;
+  item_type?: string;
   quantity: number;
   ingredient_unit: string;
   unit_cost: number;
@@ -123,6 +116,7 @@ type ProductRow = {
   costing_method: string;
   fixed_cost: number;
   tax_group_id: string;
+  sort_order: number;
   preparation_time: number;
   walk_time: number;
   calories: number;
@@ -136,8 +130,11 @@ type ProductRow = {
   pricing_summary?: PricingSummary;
 };
 
+const BASE_INGREDIENT_UNITS = ["kg", "g", "pcs", "pkt", "ml"];
+
 export default function MenuProductDetailPage() {
   const params = useParams<{ productId: string }>();
+  const searchParams = useSearchParams();
   const productId = String(params?.productId || "");
   const auth = useMemo(() => getAuth(), []);
   const [ready, setReady] = useState(false);
@@ -150,11 +147,10 @@ export default function MenuProductDetailPage() {
   const [success, setSuccess] = useState("");
   const [product, setProduct] = useState<ProductRow | null>(null);
   const [categories, setCategories] = useState<MenuCategoryRow[]>([]);
-  const [ingredientOptions, setIngredientOptions] = useState<IngredientOption[]>([]);
   const [modifierGroups, setModifierGroups] = useState<ModifierGroupRow[]>([]);
   const [tagOptions, setTagOptions] = useState<TagOption[]>([]);
   const [branchOptions, setBranchOptions] = useState<BranchOption[]>([]);
-  const [selectedIngredientId, setSelectedIngredientId] = useState("");
+  const [selectedIngredient, setSelectedIngredient] = useState<IngredientItemOption | null>(null);
   const [ingredientQty, setIngredientQty] = useState("1");
   const [ingredientUnit, setIngredientUnit] = useState("");
   const [editingIngredientId, setEditingIngredientId] = useState("");
@@ -189,14 +185,13 @@ export default function MenuProductDetailPage() {
     };
   }, [auth]);
 
-  const loadDetail = useCallback(async (nextCity = city) => {
+  const loadDetail = useCallback(async (nextCity: City) => {
     setLoading(true);
     setError("");
     try {
-      const [productRes, categoriesRes, ingredientsRes, modifierGroupsRes, tagsRes, branchesRes] = await Promise.all([
+      const [productRes, categoriesRes, modifierGroupsRes, tagsRes, branchesRes] = await Promise.all([
         menuGet<{ row: ProductRow }>(`/api/admin/menu/products/${encodeURIComponent(productId)}?city=${encodeURIComponent(nextCity)}`),
         menuGet<{ rows: MenuCategoryRow[] }>(`/api/admin/menu/categories?city=${encodeURIComponent(nextCity)}&tab=ALL&limit=200`),
-        menuGet<{ rows: IngredientOption[] }>(`/api/admin/menu/ingredient-items?city=${encodeURIComponent(nextCity)}&limit=500`),
         menuGet<{ rows: ModifierGroupRow[] }>(`/api/admin/menu/modifier-groups?city=${encodeURIComponent(nextCity)}&tab=ALL&limit=200`),
         menuGet<{ rows: TagOption[] }>(`/api/admin/menu/tags?city=${encodeURIComponent(nextCity)}&tab=ALL&limit=200`),
         menuGet<{ rows: BranchOption[] }>(`/api/admin/menu/branches?city=${encodeURIComponent(nextCity)}`),
@@ -204,7 +199,6 @@ export default function MenuProductDetailPage() {
       const nextProduct = productRes.row || null;
       setProduct(nextProduct);
       setCategories(categoriesRes.rows || []);
-      setIngredientOptions(ingredientsRes.rows || []);
       const nextModifierGroups = (modifierGroupsRes.rows || []).filter((row) => row.status !== "DELETED");
       setModifierGroups(nextModifierGroups);
       const nextTagOptions = (tagsRes.rows || []).filter((row) => row.status !== "DELETED");
@@ -213,8 +207,6 @@ export default function MenuProductDetailPage() {
       if (nextProduct) {
         setCity((nextProduct.city || nextCity) as City);
       }
-      setSelectedIngredientId((current) => current || ingredientsRes.rows?.[0]?.id || "");
-      setIngredientUnit((current) => current || ingredientsRes.rows?.[0]?.ingredient_unit || ingredientsRes.rows?.[0]?.storage_unit || "");
       setSelectedModifierGroupId((current) => current || nextModifierGroups[0]?.id || "");
       setSelectedTagId((current) => current || nextTagOptions[0]?.id || "");
       setPriceBranchCode((current) => current || branchesRes.rows?.[0]?.code || "");
@@ -224,14 +216,12 @@ export default function MenuProductDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [city, productId]);
+  }, [productId]);
 
   useEffect(() => {
     if (!ready || !allowed || !productId) return;
-    void loadDetail();
-  }, [allowed, loadDetail, productId, ready]);
-
-  const selectedIngredient = ingredientOptions.find((option) => option.id === selectedIngredientId) || null;
+    void loadDetail(city);
+  }, [allowed, city, loadDetail, productId, ready]);
 
   useEffect(() => {
     if (selectedIngredient && !editingIngredientId) {
@@ -251,8 +241,10 @@ export default function MenuProductDetailPage() {
           city,
           category_id: product.category_id,
           name: product.name,
+          name_localized: product.name_localized,
           sku: product.sku,
           barcode: product.barcode,
+          image_url: product.image_url,
           description: product.description,
           price: Number(product.price || 0),
           pricing_method: product.pricing_method,
@@ -260,6 +252,7 @@ export default function MenuProductDetailPage() {
           costing_method: product.costing_method,
           fixed_cost: Number(product.fixed_cost || 0),
           tax_group_id: product.tax_group_id,
+          sort_order: Number(product.sort_order || 0),
           preparation_time: Number(product.preparation_time || 0),
           walk_time: Number(product.walk_time || 0),
           calories: Number(product.calories || 0),
@@ -278,7 +271,7 @@ export default function MenuProductDetailPage() {
 
   async function addOrUpdateIngredient() {
     if (!product) return;
-    if (!selectedIngredientId) {
+    if (!selectedIngredient?.id) {
       setError("Please select ingredient item.");
       return;
     }
@@ -289,7 +282,7 @@ export default function MenuProductDetailPage() {
       if (editingIngredientId) {
         await menuPatch(`/api/admin/menu/products/${encodeURIComponent(product.id)}/ingredients?city=${encodeURIComponent(city)}`, {
           ingredient_line_id: editingIngredientId,
-          ingredient_item_id: selectedIngredientId,
+          ingredient_item_id: selectedIngredient.id,
           quantity: Number(ingredientQty || 0),
           ingredient_unit: ingredientUnit,
           applies_on: [],
@@ -297,7 +290,7 @@ export default function MenuProductDetailPage() {
         setSuccess("Ingredient updated.");
       } else {
         await menuPost(`/api/admin/menu/products/${encodeURIComponent(product.id)}/ingredients?city=${encodeURIComponent(city)}`, {
-          ingredient_item_id: selectedIngredientId,
+          ingredient_item_id: selectedIngredient.id,
           quantity: Number(ingredientQty || 0),
           ingredient_unit: ingredientUnit,
           applies_on: [],
@@ -305,9 +298,9 @@ export default function MenuProductDetailPage() {
         setSuccess("Ingredient added.");
       }
       setEditingIngredientId("");
+      setSelectedIngredient(null);
       setIngredientQty("1");
-      setSelectedIngredientId(ingredientOptions[0]?.id || "");
-      setIngredientUnit(ingredientOptions[0]?.ingredient_unit || ingredientOptions[0]?.storage_unit || "");
+      setIngredientUnit("");
       await loadDetail(city);
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -318,6 +311,7 @@ export default function MenuProductDetailPage() {
 
   async function deleteIngredient(lineId: string) {
     if (!product) return;
+    if (!window.confirm("Remove this ingredient from the product?")) return;
     setError("");
     setSuccess("");
     try {
@@ -326,7 +320,9 @@ export default function MenuProductDetailPage() {
       });
       if (editingIngredientId === lineId) {
         setEditingIngredientId("");
+        setSelectedIngredient(null);
         setIngredientQty("1");
+        setIngredientUnit("");
       }
       setSuccess("Ingredient removed.");
       await loadDetail(city);
@@ -377,6 +373,7 @@ export default function MenuProductDetailPage() {
 
   async function deleteModifier(linkId: string) {
     if (!product) return;
+    if (!window.confirm("Remove this modifier link from the product?")) return;
     setError("");
     setSuccess("");
     try {
@@ -421,6 +418,7 @@ export default function MenuProductDetailPage() {
 
   async function removeTag(tagId: string) {
     if (!product) return;
+    if (!window.confirm("Remove this tag from the product?")) return;
     setError("");
     setSuccess("");
     try {
@@ -479,6 +477,7 @@ export default function MenuProductDetailPage() {
 
   async function deleteCustomPrice(priceId: string) {
     if (!product) return;
+    if (!window.confirm("Delete this custom price?")) return;
     setError("");
     setSuccess("");
     try {
@@ -500,6 +499,7 @@ export default function MenuProductDetailPage() {
 
   async function updateStatus(status: "ACTIVE" | "INACTIVE" | "DELETED") {
     if (!product) return;
+    if (status === "DELETED" && !window.confirm("Delete this product?")) return;
     setError("");
     setSuccess("");
     try {
@@ -550,9 +550,7 @@ export default function MenuProductDetailPage() {
         selectedIngredient?.ingredient_unit || "",
         selectedIngredient?.storage_unit || "",
         ingredientUnit || "",
-        "kg",
-        "g",
-        "pcs",
+        ...BASE_INGREDIENT_UNITS,
       ]
         .map((value) => value.trim())
         .filter(Boolean),
@@ -564,12 +562,13 @@ export default function MenuProductDetailPage() {
     custom_price_count: customPrices.length,
     branches_with_custom_price: customPrices.map((row) => row.branch_code),
   };
+  const backHref = `/admin/menu/products${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <Link href="/admin/menu/products" className="text-xs text-amber-200 hover:text-amber-100">
+          <Link href={backHref} className="text-xs text-amber-200 hover:text-amber-100">
             Back to Products
           </Link>
           <div className="mt-1 text-xl font-semibold text-neutral-100">{product.name}</div>
@@ -614,6 +613,10 @@ export default function MenuProductDetailPage() {
               <input value={product.name} onChange={(e) => setProduct((current) => current ? { ...current, name: e.target.value } : current)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
             </label>
             <label className="text-sm text-neutral-300">
+              <div className="mb-1 text-xs text-neutral-500">Localized Name</div>
+              <input value={product.name_localized || ""} onChange={(e) => setProduct((current) => current ? { ...current, name_localized: e.target.value } : current)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
+            </label>
+            <label className="text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">SKU</div>
               <input value={product.sku} onChange={(e) => setProduct((current) => current ? { ...current, sku: e.target.value.toUpperCase() } : current)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
             </label>
@@ -622,12 +625,20 @@ export default function MenuProductDetailPage() {
               <input value={product.barcode} onChange={(e) => setProduct((current) => current ? { ...current, barcode: e.target.value } : current)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
             </label>
             <label className="text-sm text-neutral-300">
+              <div className="mb-1 text-xs text-neutral-500">Image URL</div>
+              <input value={product.image_url || ""} onChange={(e) => setProduct((current) => current ? { ...current, image_url: e.target.value } : current)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
+            </label>
+            <label className="text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">Price</div>
               <input value={String(product.price ?? 0)} onChange={(e) => setProduct((current) => current ? { ...current, price: Number(e.target.value || 0) } : current)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
             </label>
             <label className="text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">Fixed Cost</div>
               <input value={String(product.fixed_cost ?? 0)} onChange={(e) => setProduct((current) => current ? { ...current, fixed_cost: Number(e.target.value || 0) } : current)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
+            </label>
+            <label className="text-sm text-neutral-300">
+              <div className="mb-1 text-xs text-neutral-500">Tax Group ID</div>
+              <input value={product.tax_group_id || ""} onChange={(e) => setProduct((current) => current ? { ...current, tax_group_id: e.target.value } : current)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
             </label>
             <label className="text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">Pricing Method</div>
@@ -661,6 +672,10 @@ export default function MenuProductDetailPage() {
             <label className="text-sm text-neutral-300">
               <div className="mb-1 text-xs text-neutral-500">Calories</div>
               <input value={String(product.calories ?? 0)} onChange={(e) => setProduct((current) => current ? { ...current, calories: Number(e.target.value || 0) } : current)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
+            </label>
+            <label className="text-sm text-neutral-300">
+              <div className="mb-1 text-xs text-neutral-500">Sort Order</div>
+              <input value={String(product.sort_order ?? 0)} onChange={(e) => setProduct((current) => current ? { ...current, sort_order: Number(e.target.value || 0) } : current)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm" />
             </label>
             <label className="flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950/30 px-3 py-3 text-sm text-neutral-300">
               <input type="checkbox" checked={Boolean(product.high_salt_content)} onChange={(e) => setProduct((current) => current ? { ...current, high_salt_content: e.target.checked } : current)} />
@@ -720,11 +735,16 @@ export default function MenuProductDetailPage() {
             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
               <label className="md:col-span-2 text-sm text-neutral-300">
                 <div className="mb-1 text-xs text-neutral-500">Ingredient Item</div>
-                <select value={selectedIngredientId} onChange={(e) => setSelectedIngredientId(e.target.value)} className="w-full rounded-xl border border-neutral-700 bg-neutral-950/50 px-3 py-2 text-sm">
-                  {ingredientOptions.map((item) => (
-                    <option key={item.id} value={item.id}>{item.name} ({item.sku})</option>
-                  ))}
-                </select>
+                <IngredientItemSearch
+                  city={city}
+                  selectedOption={selectedIngredient}
+                  onSelect={(option) => {
+                    setSelectedIngredient(option);
+                    if (option) {
+                      setIngredientUnit(option.ingredient_unit || option.storage_unit || "");
+                    }
+                  }}
+                />
               </label>
               <label className="text-sm text-neutral-300">
                 <div className="mb-1 text-xs text-neutral-500">Quantity</div>
@@ -749,8 +769,9 @@ export default function MenuProductDetailPage() {
                     type="button"
                     onClick={() => {
                       setEditingIngredientId("");
+                      setSelectedIngredient(null);
                       setIngredientQty("1");
-                      setIngredientUnit(selectedIngredient?.ingredient_unit || selectedIngredient?.storage_unit || "");
+                      setIngredientUnit("");
                     }}
                     className="rounded-xl border border-neutral-700 px-4 py-2 text-sm text-neutral-200"
                   >
@@ -1050,7 +1071,12 @@ export default function MenuProductDetailPage() {
               {ingredients.length ? ingredients.map((row) => (
                 <tr key={row.id} className="border-t border-neutral-800/80 align-top">
                   <td className="py-3 pr-4">
-                    <div className="font-medium text-neutral-100">{row.ingredient_name}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-medium text-neutral-100">{row.ingredient_name}</div>
+                      <span className={`rounded-full border px-2 py-0.5 text-[11px] ${String(row.item_type || "").toUpperCase() === "PRODUCT" ? "border-violet-800/80 bg-violet-950/40 text-violet-200" : "border-emerald-800/80 bg-emerald-950/30 text-emerald-200"}`}>
+                        {String(row.item_type || "").toUpperCase() === "PRODUCT" ? "CK Product" : "Ingredient"}
+                      </span>
+                    </div>
                     <div className="mt-1 text-xs text-neutral-500">{row.ingredient_unit || row.item_ingredient_unit || row.storage_unit}</div>
                   </td>
                   <td className="py-3 pr-4 text-neutral-300">{row.sku}</td>
@@ -1063,7 +1089,15 @@ export default function MenuProductDetailPage() {
                         type="button"
                         onClick={() => {
                           setEditingIngredientId(row.id);
-                          setSelectedIngredientId(row.ingredient_item_id);
+                          setSelectedIngredient({
+                            id: row.ingredient_item_id,
+                            name: row.ingredient_name,
+                            sku: row.sku,
+                            storage_unit: row.storage_unit,
+                            ingredient_unit: row.item_ingredient_unit,
+                            cost: row.unit_cost,
+                            item_type: row.item_type,
+                          });
                           setIngredientQty(String(row.quantity ?? 0));
                           setIngredientUnit(row.ingredient_unit || row.item_ingredient_unit || row.storage_unit || "");
                         }}

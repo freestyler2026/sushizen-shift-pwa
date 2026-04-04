@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Sushi ZEN Shift",
-    short_name: "ZEN Shift",
+    name: "Sushi ZEN Workforce OS",
+    short_name: "Workforce OS",
     description: "Staff shift viewer + change requests",
     start_url: "/week",
     display: "standalone",

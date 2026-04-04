@@ -12,12 +12,33 @@ function getApiBase() {
   return "";
 }
 
+const AUTH_REQUEST_TIMEOUT_MS = 60000;
+
+function normalizeAuthRequestError(error: unknown) {
+  const text = String((error as any)?.message || error || "").trim();
+  const apiBase = getApiBase() || "this app";
+  if ((error as any)?.name === "AbortError") {
+    return `Login request timed out. Please confirm the local API is running at ${apiBase}.`;
+  }
+  if (text === "Failed to fetch" || /networkerror|load failed|fetch failed/i.test(text)) {
+    return `Cannot reach the local API at ${apiBase}. Please restart the backend and try again.`;
+  }
+  return text || "Login failed.";
+}
+
 async function verifyAuth(staffName: string, pin: string): Promise<{ staffName: string; role: StaffRole }> {
   const qs = new URLSearchParams({ staff_name: staffName, pin }).toString();
   const url = `${getApiBase()}/api/auth/verify?${qs}`;
-
-  const res = await fetch(url, { method: "POST" });
-  const text = await res.text();
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS);
+  let res: Response;
+  let text = "";
+  try {
+    res = await fetch(url, { method: "POST", signal: controller.signal });
+    text = await res.text();
+  } finally {
+    window.clearTimeout(timer);
+  }
 
   if (!res.ok) {
     let detail = "";
@@ -77,7 +98,7 @@ export default function LoginClient() {
       const next = sp.get("next");
       router.replace(next || "/week");
     } catch (e: any) {
-      setError(e?.message || String(e));
+      setError(normalizeAuthRequestError(e));
     } finally {
       setLoading(false);
     }

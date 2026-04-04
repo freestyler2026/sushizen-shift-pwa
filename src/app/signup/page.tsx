@@ -49,7 +49,7 @@ export default function SignUpPage() {
               </p>
               <div className="mt-5">
                 <Link
-                  href="/admin/staff/setup"
+                  href="/admin/staff/onboarding"
                   className="flex w-full items-center justify-center rounded-2xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
                 >
                   Open Pending Staff Setup

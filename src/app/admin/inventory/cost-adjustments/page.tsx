@@ -5,6 +5,7 @@ import InventoryTabs from "@/components/InventoryTabs";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
+import { getInventoryCostStep, parseDraftNumber, stepDraftNumber } from "@/lib/quantityInput";
 
 type InventoryItemOption = {
   id: string;
@@ -58,6 +59,30 @@ function defaultBranch(city: City) {
   return BRANCHES[city][0]?.code || "";
 }
 
+function csvEscape(value: unknown) {
+  const text = String(value ?? "");
+  if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+  return text;
+}
+
+type CostAdjustmentItemHistoryRow = {
+  adjustment_id: string;
+  adjustment_no: string;
+  branch_code: string;
+  business_date: string;
+  status: string;
+  created_by: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+  item_id: string;
+  item_name: string;
+  sku: string;
+  previous_cost: number;
+  new_cost: number;
+  delta: number;
+};
+
 export default function InventoryCostAdjustmentsPage() {
   const auth = useMemo(() => getAuth(), []);
   const [ready, setReady] = useState(false);
@@ -67,7 +92,7 @@ export default function InventoryCostAdjustmentsPage() {
   const [businessDate, setBusinessDate] = useState(todayIso());
   const [notes, setNotes] = useState("");
   const [selectedItemId, setSelectedItemId] = useState("");
-  const [selectedNewCost, setSelectedNewCost] = useState(0);
+  const [selectedNewCost, setSelectedNewCost] = useState("0");
   const [historyMonth, setHistoryMonth] = useState(monthNow());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -76,7 +101,11 @@ export default function InventoryCostAdjustmentsPage() {
   const [success, setSuccess] = useState("");
   const [itemOptions, setItemOptions] = useState<InventoryItemOption[]>([]);
   const [draftItems, setDraftItems] = useState<DraftItem[]>([]);
+  const [draftNewCostInputs, setDraftNewCostInputs] = useState<Record<string, string>>({});
   const [historyRows, setHistoryRows] = useState<CostAdjustmentRow[]>([]);
+  const [historyItemId, setHistoryItemId] = useState("");
+  const [historyDetailCache, setHistoryDetailCache] = useState<Record<string, CostAdjustmentDetail>>({});
+  const [historyItemLoading, setHistoryItemLoading] = useState(false);
   const [selectedAdjustmentId, setSelectedAdjustmentId] = useState("");
   const [selectedAdjustment, setSelectedAdjustment] = useState<CostAdjustmentDetail | null>(null);
 
@@ -99,6 +128,7 @@ export default function InventoryCostAdjustmentsPage() {
 
   useEffect(() => {
     setBranchCode(defaultBranch(city));
+    setHistoryItemId("");
     setSelectedAdjustmentId("");
     setSelectedAdjustment(null);
   }, [city]);
@@ -144,7 +174,12 @@ export default function InventoryCostAdjustmentsPage() {
         const res = await inventoryGet<{ row: CostAdjustmentDetail }>(
           `/api/admin/inventory/cost-adjustments/${encodeURIComponent(selectedAdjustmentId)}?city=${encodeURIComponent(city)}`,
         );
-        if (!cancelled) setSelectedAdjustment(res.row || null);
+        if (!cancelled) {
+          setSelectedAdjustment(res.row || null);
+          if (res.row?.id) {
+            setHistoryDetailCache((prev) => ({ ...prev, [res.row.id]: res.row }));
+          }
+        }
       } catch (e: any) {
         if (!cancelled) setError(e?.message || String(e));
       }
@@ -164,9 +199,99 @@ export default function InventoryCostAdjustmentsPage() {
     () => itemOptions.find((item) => item.id === selectedItemId) || null,
     [itemOptions, selectedItemId],
   );
+  const selectedHistoryItem = useMemo(
+    () => itemOptions.find((item) => item.id === historyItemId) || null,
+    [historyItemId, itemOptions],
+  );
+  const selectedNewCostStep = getInventoryCostStep();
+  const selectedNewCostParsed = parseDraftNumber(selectedNewCost);
+  const itemHistoryRows = useMemo<CostAdjustmentItemHistoryRow[]>(
+    () => filteredHistory.flatMap((row) => {
+      const detail = historyDetailCache[row.id];
+      if (!detail || !historyItemId) return [];
+      return (detail.items || [])
+        .filter((item) => item.item_id === historyItemId)
+        .map((item) => ({
+          adjustment_id: row.id,
+          adjustment_no: row.adjustment_no || "",
+          branch_code: row.branch_code || "",
+          business_date: row.business_date || "",
+          status: row.status || "",
+          created_by: row.created_by || "",
+          notes: row.notes || "",
+          created_at: row.created_at || "",
+          updated_at: row.updated_at || "",
+          item_id: item.item_id,
+          item_name: item.item_name || "",
+          sku: item.sku || "",
+          previous_cost: Number(item.previous_cost || 0),
+          new_cost: Number(item.new_cost || 0),
+          delta: Number(item.new_cost || 0) - Number(item.previous_cost || 0),
+        }));
+    }),
+    [filteredHistory, historyDetailCache, historyItemId],
+  );
+
+  useEffect(() => {
+    if (!selectedItem) {
+      setSelectedNewCost("0");
+      return;
+    }
+    setSelectedNewCost(Number(selectedItem.cost || 0).toFixed(2));
+  }, [selectedItem]);
+
+  useEffect(() => {
+    setDraftNewCostInputs(
+      Object.fromEntries(draftItems.map((item, index) => [String(index), item.new_cost.toFixed(2)])),
+    );
+  }, [draftItems]);
+
+  useEffect(() => {
+    if (!allowed || !historyItemId || filteredHistory.length === 0) return;
+    const missingIds = filteredHistory
+      .map((row) => row.id)
+      .filter((id) => !historyDetailCache[id]);
+    if (missingIds.length === 0) return;
+    let cancelled = false;
+    async function loadHistoryDetails() {
+      setHistoryItemLoading(true);
+      try {
+        const rows = await Promise.all(
+          missingIds.map(async (id) => {
+            const res = await inventoryGet<{ row: CostAdjustmentDetail }>(
+              `/api/admin/inventory/cost-adjustments/${encodeURIComponent(id)}?city=${encodeURIComponent(city)}`,
+            );
+            return res.row || null;
+          }),
+        );
+        if (cancelled) return;
+        setHistoryDetailCache((prev) => {
+          const next = { ...prev };
+          rows.forEach((row) => {
+            if (row?.id) next[row.id] = row;
+          });
+          return next;
+        });
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message || String(e));
+      } finally {
+        if (!cancelled) setHistoryItemLoading(false);
+      }
+    }
+    void loadHistoryDetails();
+    return () => {
+      cancelled = true;
+    };
+  }, [allowed, city, filteredHistory, historyDetailCache, historyItemId]);
 
   function addDraftItem() {
     if (!selectedItem) return;
+    const parsedCost = parseDraftNumber(selectedNewCost);
+    if (parsedCost === null || parsedCost < 0) {
+      setError("Please enter a valid new cost.");
+      return;
+    }
+    setError("");
     setDraftItems((prev) => [
       ...prev,
       {
@@ -174,15 +299,26 @@ export default function InventoryCostAdjustmentsPage() {
         item_name: selectedItem.name,
         sku: selectedItem.sku,
         previous_cost: Number(selectedItem.cost || 0),
-        new_cost: Number(selectedNewCost || 0),
+        new_cost: parsedCost,
       },
     ]);
     setSelectedItemId("");
-    setSelectedNewCost(0);
+    setSelectedNewCost("0");
   }
 
   function removeDraftItem(index: number) {
     setDraftItems((prev) => prev.filter((_, idx) => idx !== index));
+  }
+
+  function commitDraftItemCost(index: number, value: string) {
+    const parsedCost = parseDraftNumber(value);
+    setDraftItems((prev) => prev.map((item, idx) => {
+      if (idx !== index) return item;
+      return {
+        ...item,
+        new_cost: parsedCost === null || parsedCost < 0 ? item.new_cost : parsedCost,
+      };
+    }));
   }
 
   async function refreshHistoryAndDetail(nextSelectedId = selectedAdjustmentId) {
@@ -195,7 +331,60 @@ export default function InventoryCostAdjustmentsPage() {
         `/api/admin/inventory/cost-adjustments/${encodeURIComponent(nextSelectedId)}?city=${encodeURIComponent(city)}`,
       );
       setSelectedAdjustment(detailRes.row || null);
+      if (detailRes.row?.id) {
+        setHistoryDetailCache((prev) => ({ ...prev, [detailRes.row.id]: detailRes.row }));
+      }
     }
+  }
+
+  function exportHistoryCsv() {
+    const rows = historyItemId
+      ? itemHistoryRows.map((row) => ({
+          adjustment_no: row.adjustment_no,
+          city,
+          branch_code: row.branch_code,
+          branch_name: labelOf(city, row.branch_code),
+          business_date: row.business_date,
+          item_name: row.item_name,
+          sku: row.sku,
+          previous_cost: row.previous_cost.toFixed(2),
+          new_cost: row.new_cost.toFixed(2),
+          delta: row.delta.toFixed(2),
+          status: row.status,
+          created_by: row.created_by,
+          notes: row.notes,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+        }))
+      : filteredHistory.map((row) => ({
+          adjustment_no: row.adjustment_no || "",
+          city,
+          branch_code: row.branch_code || "",
+          branch_name: labelOf(city, row.branch_code),
+          business_date: row.business_date || "",
+          status: row.status || "",
+          created_by: row.created_by || "",
+          notes: row.notes || "",
+          created_at: row.created_at || "",
+          updated_at: row.updated_at || "",
+        }));
+    if (!rows.length) return;
+    const headers = Object.keys(rows[0]);
+    const lines = [
+      headers.map(csvEscape).join(","),
+      ...rows.map((row) => headers.map((header) => csvEscape(row[header as keyof typeof row])).join(",")),
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = historyItemId
+      ? `cost-adjustment-item-history-${city}-${selectedHistoryItem?.sku || historyItemId}-${historyMonth || monthNow()}.csv`
+      : `cost-adjustments-history-${city}-${historyMonth || monthNow()}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }
 
   async function createAdjustment() {
@@ -330,7 +519,7 @@ export default function InventoryCostAdjustmentsPage() {
           <div className="text-xs text-neutral-500">{itemOptions.length} registered items</div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_180px_140px]">
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_160px_180px_140px]">
           <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)}>
             <option value="">Select an item</option>
             {itemOptions.map((item) => (
@@ -339,11 +528,24 @@ export default function InventoryCostAdjustmentsPage() {
               </option>
             ))}
           </select>
-          <input type="number" min={0} step={0.01} value={selectedNewCost} onChange={(e) => setSelectedNewCost(Number(e.target.value || 0))} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+          <div className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm">
+            <div className="text-[11px] uppercase tracking-wide text-neutral-500">Current Cost</div>
+            <div className="mt-1 text-neutral-200">{selectedItem ? Number(selectedItem.cost || 0).toFixed(2) : "-"}</div>
+          </div>
+          <input type="text" inputMode="decimal" value={selectedNewCost} onChange={(e) => setSelectedNewCost(e.target.value)} onKeyDown={(e) => {
+            if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+            e.preventDefault();
+            setSelectedNewCost((current) => stepDraftNumber(current, selectedNewCostStep, e.key === "ArrowUp" ? 1 : -1));
+          }} placeholder="New cost" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
           <button type="button" onClick={addDraftItem} disabled={!selectedItem} className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900 disabled:opacity-60">
             Add Item
           </button>
         </div>
+        {selectedItem ? (
+          <div className="mt-2 text-xs text-neutral-500">
+            Delta preview: {((selectedNewCostParsed === null ? 0 : selectedNewCostParsed) - Number(selectedItem.cost || 0)).toFixed(2)}
+          </div>
+        ) : null}
 
         <div className="mt-4 overflow-x-auto">
           <table className="min-w-full text-left text-sm">
@@ -364,8 +566,29 @@ export default function InventoryCostAdjustmentsPage() {
                     <div className="mt-1 text-xs text-neutral-500">{item.sku || "-"}</div>
                   </td>
                   <td className="px-3 py-2">{item.previous_cost.toFixed(2)}</td>
-                  <td className="px-3 py-2">{item.new_cost.toFixed(2)}</td>
-                  <td className="px-3 py-2">{(item.new_cost - item.previous_cost).toFixed(2)}</td>
+                  <td className="px-3 py-2">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={draftNewCostInputs[String(index)] ?? item.new_cost.toFixed(2)}
+                      onChange={(e) => setDraftNewCostInputs((prev) => ({ ...prev, [String(index)]: e.target.value }))}
+                      onBlur={(e) => commitDraftItemCost(index, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+                        e.preventDefault();
+                        setDraftNewCostInputs((prev) => ({
+                          ...prev,
+                          [String(index)]: stepDraftNumber(prev[String(index)] ?? String(item.new_cost), selectedNewCostStep, e.key === "ArrowUp" ? 1 : -1),
+                        }));
+                      }}
+                      className="w-28 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1 text-sm"
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    {(
+                      (parseDraftNumber(draftNewCostInputs[String(index)] ?? item.new_cost.toFixed(2)) ?? item.new_cost) - item.previous_cost
+                    ).toFixed(2)}
+                  </td>
                   <td className="px-3 py-2">
                     <button type="button" onClick={() => removeDraftItem(index)} className="rounded-lg border border-rose-800/70 bg-rose-950/20 px-2 py-1 text-xs text-rose-200">
                       Remove
@@ -397,7 +620,37 @@ export default function InventoryCostAdjustmentsPage() {
             <div className="text-sm font-semibold text-neutral-100">History</div>
             <div className="mt-1 text-xs text-neutral-500">Review cost adjustment history by month.</div>
           </div>
-          <div className="text-xs text-neutral-500">{loading ? "Loading..." : `${filteredHistory.length} rows`}</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              value={historyItemId}
+              onChange={(e) => setHistoryItemId(e.target.value)}
+            >
+              <option value="">All items</option>
+              {itemOptions.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} {item.sku ? `(${item.sku})` : ""}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={exportHistoryCsv}
+              disabled={historyItemId ? !itemHistoryRows.length || historyItemLoading : !filteredHistory.length}
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900 disabled:opacity-60"
+            >
+              Export CSV
+            </button>
+            <div className="text-xs text-neutral-500">
+              {historyItemId
+                ? historyItemLoading
+                  ? "Loading item history..."
+                  : `${itemHistoryRows.length} item rows`
+                : loading
+                  ? "Loading..."
+                  : `${filteredHistory.length} rows`}
+            </div>
+          </div>
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)]">
@@ -487,6 +740,72 @@ export default function InventoryCostAdjustmentsPage() {
               </div>
             )}
           </div>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-neutral-800 bg-neutral-950/20 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="text-sm font-semibold text-neutral-100">Item Price History</div>
+              <div className="mt-1 text-xs text-neutral-500">
+                {selectedHistoryItem
+                  ? `Review cost change history for ${selectedHistoryItem.name}${selectedHistoryItem.sku ? ` (${selectedHistoryItem.sku})` : ""}.`
+                  : "Select an item above to review that item's price change history."}
+              </div>
+            </div>
+            {selectedHistoryItem ? (
+              <div className="text-xs text-neutral-500">
+                Current cost: {Number(selectedHistoryItem.cost || 0).toFixed(2)}
+              </div>
+            ) : null}
+          </div>
+
+          {!historyItemId ? (
+            <div className="mt-4 text-sm text-neutral-500">Select an item to see item-level price history.</div>
+          ) : historyItemLoading ? (
+            <div className="mt-4 text-sm text-neutral-500">Loading item history...</div>
+          ) : (
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="text-xs uppercase tracking-wide text-neutral-500">
+                  <tr>
+                    <th className="px-3 py-2">Date</th>
+                    <th className="px-3 py-2">No.</th>
+                    <th className="px-3 py-2">Branch</th>
+                    <th className="px-3 py-2">Previous Cost</th>
+                    <th className="px-3 py-2">New Cost</th>
+                    <th className="px-3 py-2">Delta</th>
+                    <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2">Created By</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {itemHistoryRows.map((row) => (
+                    <tr key={`${row.adjustment_id}:${row.item_id}`} className="border-t border-neutral-800 text-neutral-200">
+                      <td className="px-3 py-2">{String(row.business_date || "").slice(0, 10)}</td>
+                      <td className="px-3 py-2">
+                        <button type="button" onClick={() => setSelectedAdjustmentId(row.adjustment_id)} className="text-left hover:text-white">
+                          {row.adjustment_no}
+                        </button>
+                      </td>
+                      <td className="px-3 py-2">{labelOf(city, row.branch_code)}</td>
+                      <td className="px-3 py-2">{row.previous_cost.toFixed(2)}</td>
+                      <td className="px-3 py-2">{row.new_cost.toFixed(2)}</td>
+                      <td className="px-3 py-2">{row.delta.toFixed(2)}</td>
+                      <td className="px-3 py-2">{row.status || "-"}</td>
+                      <td className="px-3 py-2">{row.created_by || "-"}</td>
+                    </tr>
+                  ))}
+                  {itemHistoryRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-3 py-6 text-center text-neutral-500">
+                        No price history found for this item in the selected month.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </section>
     </div>

@@ -1,71 +1,136 @@
-import Link from "next/link";
-import AdminAttendanceLinks from "@/components/admin/AdminAttendanceLinks";
+"use client";
 
-export default function AttendanceAdminPage() {
+import Link from "next/link";
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { CalendarCheck, Download } from "lucide-react";
+import {
+  BADGE_ERROR,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  GLASS_CARD,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  DANGER_BUTTON,
+  T_BODY,
+  T_CAPTION,
+  T_LABEL,
+  T_PAGE_TITLE,
+  T_SECTION,
+} from "@/lib/ui-tokens";
+
+const monthStates = [
+  { month: "Current Month", status: "In review", badge: "warning" },
+  { month: "Previous Month", status: "Closed", badge: "success" },
+  { month: "Older Periods", status: "Open", badge: "error" },
+] as const;
+
+function badgeClass(kind: (typeof monthStates)[number]["badge"]) {
+  if (kind === "success") return BADGE_SUCCESS;
+  if (kind === "warning") return BADGE_WARNING;
+  return BADGE_ERROR;
+}
+
+export default function AttendanceMonthlyClosingPage() {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
   return (
     <main className="min-h-screen bg-neutral-950 text-white">
-      <div className="mx-auto max-w-6xl px-6 py-10">
-        <div className="rounded-3xl border border-neutral-800 bg-neutral-900/60 p-8 shadow-2xl">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="mx-auto max-w-5xl px-6 py-10">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+        >
+          <div className="mb-6 flex flex-wrap items-center gap-3">
+            <Link href="/admin/attendance" className={SECONDARY_BUTTON}>
+              ← Back to Attendance
+            </Link>
+            <Link href="/admin/analytics" className={SECONDARY_BUTTON}>
+              Open Analytics
+            </Link>
+          </div>
+
+          <div className="mb-8 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/20 to-teal-500/10">
+              <CalendarCheck className="h-5 w-5 text-emerald-400" />
+            </div>
             <div>
-              <p className="text-sm uppercase tracking-[0.2em] text-emerald-300/80">
-                Attendance Admin
+              <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-emerald-400">ATTENDANCE ADMIN</p>
+              <h1 className={T_PAGE_TITLE}>Attendance Monthly Closing</h1>
+              <p className={T_CAPTION}>Review month-end attendance status and continue payroll-related export flow.</p>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <section className={`${GLASS_CARD} p-5`}>
+              <h2 className={T_SECTION}>Month Status</h2>
+              <div className="mt-4 space-y-3">
+                {monthStates.map((item) => (
+                  <div key={item.month} className={`${GLASS_CARD} flex items-center justify-between p-4`}>
+                    <div>
+                      <p className={T_LABEL}>{item.month}</p>
+                      <p className={T_BODY}>{item.status}</p>
+                    </div>
+                    <span className={badgeClass(item.badge)}>{item.status}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className={`${GLASS_CARD} p-5`}>
+              <h2 className={T_SECTION}>Next Actions</h2>
+              <p className={`${T_BODY} mt-2`}>
+                Dedicated close-month mutation logic is not wired on this route yet, so the page currently acts as a launchpad into the existing analytics and export flow.
               </p>
-              <h1 className="mt-2 text-3xl font-bold">Bayzat Attendance Management</h1>
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-400">
-                Upload Bayzat attendance files, review import history, manage raw
-                location and employee mapping, compare scheduled vs actual
-                attendance, and operate monthly review, payroll, and corrections.
-              </p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => setConfirmOpen(true)}
+                  className={`${PRIMARY_BUTTON} flex items-center gap-2`}
+                >
+                  <CalendarCheck className="h-4 w-4" />
+                  Close Month
+                </button>
+                <Link href="/admin/analytics" className={`${SECONDARY_BUTTON} flex items-center gap-2`}>
+                  Review Attendance Analytics
+                </Link>
+                <Link href="/admin/analytics" className={`${SECONDARY_BUTTON} flex items-center gap-2`}>
+                  <Download className="h-4 w-4" />
+                  Export Payroll CSV
+                </Link>
+              </div>
+            </section>
+          </div>
+
+          {confirmOpen ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+              <div className={`${GLASS_CARD} w-full max-w-md p-5`}>
+                <p className={T_LABEL}>Close Confirmation</p>
+                <h2 className={`${T_SECTION} mt-2`}>Close current attendance month?</h2>
+                <p className={`${T_BODY} mt-2`}>
+                  Final month-closing logic is not yet available on this route. Continue to analytics to complete the current review and payroll export flow.
+                </p>
+                <div className="mt-5 flex flex-wrap justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmOpen(false)}
+                    className={SECONDARY_BUTTON}
+                  >
+                    Cancel
+                  </button>
+                  <Link
+                    href="/admin/analytics"
+                    className={`${DANGER_BUTTON} flex items-center gap-2`}
+                    onClick={() => setConfirmOpen(false)}
+                  >
+                    Continue to Analytics
+                  </Link>
+                </div>
+              </div>
             </div>
-
-            <Link
-              href="/admin/analytics"
-              className="inline-flex items-center justify-center rounded-2xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
-            >
-              Open Main Analytics
-            </Link>
-          </div>
-
-          <div className="mt-8 grid gap-4 lg:grid-cols-2">
-            <div className="rounded-2xl border border-emerald-900/40 bg-emerald-950/10 p-5">
-              <div className="text-lg font-semibold text-emerald-200">Current Scope</div>
-              <ul className="mt-3 space-y-2 text-sm leading-6 text-neutral-300">
-                <li>• Daily Bayzat attendance report upload</li>
-                <li>• Duplicate detection by file hash</li>
-                <li>• Raw location auto-registration and mapping</li>
-                <li>• Employee matching to staff master</li>
-                <li>• Scheduled vs actual comparison</li>
-                <li>• Attendance analytics and monthly review</li>
-              </ul>
-            </div>
-
-            <div className="rounded-2xl border border-sky-900/40 bg-sky-950/10 p-5">
-              <div className="text-lg font-semibold text-sky-200">Operational Flow</div>
-              <ol className="mt-3 space-y-2 text-sm leading-6 text-neutral-300">
-                <li>1. Import Bayzat file</li>
-                <li>2. Review import history and duplicates</li>
-                <li>3. Map new locations and employees</li>
-                <li>4. Review comparison and analytics</li>
-                <li>5. Apply corrections if needed</li>
-                <li>6. Review monthly summary, close month, export payroll CSV</li>
-              </ol>
-            </div>
-          </div>
-
-          <div className="mt-8">
-            <AdminAttendanceLinks />
-          </div>
-
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-between">
-            <Link href="/signup" className="text-sm text-neutral-400 transition hover:text-white">
-              ← Back to Sign Up Hub
-            </Link>
-            <Link href="/" className="text-sm text-neutral-400 transition hover:text-white">
-              Back to Home
-            </Link>
-          </div>
-        </div>
+          ) : null}
+        </motion.div>
       </div>
     </main>
   );

@@ -4,13 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { TAB_ACTIVE, TAB_CONTAINER, TAB_INACTIVE } from "@/lib/ui-tokens";
 
 const ITEMS = [
   { href: "/admin/procurement/dashboard", label: "Dashboard" },
   { href: "/admin/procurement", label: "Requests" },
   { href: "/admin/procurement/imports", label: "Imports" },
   { href: "/admin/procurement/vendors", label: "Vendors" },
-  { href: "/admin/procurement/items", label: "Items" },
+  { href: "/admin/procurement/ingredients", label: "Ingredients" },
   { href: "/admin/procurement/approval-matrix", label: "Approval Matrix" },
   { href: "/admin/procurement/approval-inbox", label: "Approval Inbox" },
   { href: "/admin/procurement/quotes", label: "Quotes" },
@@ -106,7 +107,7 @@ export default function ProcurementTabs() {
   );
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className={TAB_CONTAINER}>
       {ITEMS.map((item) => {
         const active = item.href === "/admin/procurement"
           ? pathname === item.href
@@ -120,16 +121,11 @@ export default function ProcurementTabs() {
           <Link
             key={item.href}
             href={item.href}
-            className={[
-              "inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs transition",
-              active
-                ? "border-amber-500 bg-amber-950/25 text-amber-200"
-                : "border-neutral-800 bg-neutral-950/40 text-neutral-300 hover:bg-neutral-900 hover:text-white",
-            ].join(" ")}
+            className={active ? TAB_ACTIVE : TAB_INACTIVE}
           >
             {item.label}
             {count > 0 ? (
-              <span className={`rounded-full border px-1.5 py-0.5 text-[10px] leading-none ${badgeCls}`}>
+              <span className={`ml-1.5 rounded-full border px-1.5 py-0.5 text-[10px] font-bold leading-none ${badgeCls}`}>
                 {badgeText(count)}
               </span>
             ) : null}

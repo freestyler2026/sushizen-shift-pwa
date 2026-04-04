@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const RAW_API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").trim();
 const API_BASE = RAW_API_BASE ? RAW_API_BASE.replace(/\/+$/, "") : "";
 const IS_DEV = process.env.NODE_ENV === "development";
+const CONNECT_SRC = IS_DEV
+  ? "connect-src 'self' http://127.0.0.1:8000 http://localhost:8000 https: ws: wss:;"
+  : "connect-src 'self' https: wss:;";
 const SECURITY_HEADERS = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -11,7 +14,7 @@ const SECURITY_HEADERS = [
   {
     key: "Content-Security-Policy",
     value:
-      "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: wss:;",
+      `default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; ${CONNECT_SRC}`,
   },
 ];
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import Link from "next/link";
+import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessMenuAdmin, getAuth, refreshAuthFromApi, type City } from "@/lib/auth";
 import { menuGet, menuPatch, menuPost } from "@/lib/menuClient";
@@ -17,6 +18,7 @@ type GroupRow = {
 
 export default function MenuGroupDetailPage() {
   const params = useParams<{ groupId: string }>();
+  const searchParams = useSearchParams();
   const groupId = String(params?.groupId || "");
   const auth = useMemo(() => getAuth(), []);
   const [ready, setReady] = useState(false);
@@ -162,6 +164,7 @@ export default function MenuGroupDetailPage() {
   }
 
   async function deleteProductLink(linkId: string) {
+    if (!window.confirm("Remove this product from the group?")) return;
     setError("");
     setSuccess("");
     try {
@@ -174,6 +177,7 @@ export default function MenuGroupDetailPage() {
   }
 
   async function deleteComboLink(linkId: string) {
+    if (!window.confirm("Remove this combo from the group?")) return;
     setError("");
     setSuccess("");
     try {
@@ -200,6 +204,7 @@ export default function MenuGroupDetailPage() {
 
   async function deleteGroup() {
     if (!group) return;
+    if (!window.confirm("Delete this group?")) return;
     setError("");
     setSuccess("");
     try {
@@ -216,9 +221,15 @@ export default function MenuGroupDetailPage() {
   if (!groupId) return <div className="text-sm text-rose-300">Group id is missing.</div>;
   if (loading && !group) return <div className="text-sm text-neutral-500">Loading group detail...</div>;
   if (!group) return <div className="text-sm text-rose-300">Group was not found.</div>;
+  const backHref = `/admin/menu/groups${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
 
   return (
     <div className="space-y-4">
+      <div>
+        <Link href={backHref} className="text-xs text-amber-200 hover:text-amber-100">
+          Back to Groups
+        </Link>
+      </div>
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,2fr),360px]">
         <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
           <div className="flex items-center justify-between gap-3">

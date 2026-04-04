@@ -2,9 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { CheckCircle2 } from "lucide-react";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import InventoryTabs from "@/components/InventoryTabs";
 import { canAccessCountTemplatesAdmin, canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { BADGE_SUCCESS } from "@/lib/ui-tokens";
+import { cardVariants, pageVariants, staggerContainerVariants } from "@/lib/motion-tokens";
+import { Spinner } from "@/components/ui/Spinner";
 
 type ModuleCard = {
   title: string;
@@ -129,31 +134,31 @@ export default function AdminInventoryPage() {
   }, []);
 
   if (!ready) {
-    return <div className="text-sm text-neutral-500">Loading inventory menu...</div>;
+    return <div className="flex justify-center py-8"><Spinner /></div>;
   }
 
   if (!allowed) {
     return (
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
-        <div className="text-lg font-semibold text-neutral-100">Inventory</div>
-        <div className="mt-2 text-sm text-neutral-400">You do not have permission to open the inventory workspace.</div>
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-black/20 backdrop-blur-sm">
+        <div className="text-3xl font-light tracking-tight text-white">Inventory</div>
+        <div className="mt-2 text-sm leading-relaxed text-zinc-400">You do not have permission to open the inventory workspace.</div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <motion.div className="space-y-6" variants={pageVariants} initial="hidden" animate="visible">
       <InventoryTabs />
 
-      <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
+      <motion.section className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-black/20 backdrop-blur-sm" variants={cardVariants}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-lg font-semibold text-neutral-100">Inventory</div>
-            <div className="mt-1 text-sm text-neutral-400">
+            <div className="text-3xl font-light tracking-tight text-white">Inventory</div>
+            <div className="mt-2 text-sm leading-relaxed text-zinc-400">
               Independent workspace for Foodics-style inventory management.
             </div>
           </div>
-          <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-xs text-neutral-400">
+          <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/8 to-white/3 px-3 py-2 text-xs text-zinc-500 shadow-lg shadow-black/30 backdrop-blur-sm">
             {staffName ? (
               <>
                 {staffName} • {role || "STAFF"} • {city}
@@ -165,63 +170,76 @@ export default function AdminInventoryPage() {
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-sky-800/60 bg-sky-950/15 p-4 sm:col-span-3">
-            <div className="text-sm font-semibold text-sky-100">How to start (Important)</div>
-            <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-sky-50/90">
+          <div className="rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/10 to-purple-500/5 p-4 sm:col-span-3">
+            <div className="text-base font-semibold text-white">How to start (Important)</div>
+            <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm leading-relaxed text-zinc-400">
               <li>Register ingredients and products in Ingredients / Products.</li>
               <li>Register sales-menu ingredient mappings in Sales Menu BOM.</li>
               <li>Register CK product recipes in CK Production.</li>
               <li>Then use Count Templates / Full Inventory Count / Quick Spot Check / Ledger.</li>
             </ol>
           </div>
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
-            <div className="text-xs uppercase tracking-wide text-neutral-500">Status</div>
-            <div className="mt-1 text-sm font-medium text-emerald-200">Backend connected</div>
-            <div className="mt-1 text-xs text-neutral-400">Inventory APIs, ledger, BOM, and POS staging are prepared.</div>
+          <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/8 to-white/3 p-4 shadow-lg shadow-black/30 backdrop-blur-sm">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-zinc-500">Status</div>
+            <div className={`mt-2 ${BADGE_SUCCESS}`}>
+              <CheckCircle2 className="h-3 w-3" />
+              <span>Backend connected</span>
+            </div>
+            <div className="mt-2 text-sm leading-relaxed text-zinc-400">Inventory APIs, ledger, BOM, and POS staging are prepared.</div>
           </div>
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
-            <div className="text-xs uppercase tracking-wide text-neutral-500">POS Source</div>
-            <div className="mt-1 text-sm font-medium text-neutral-100">UrbanPiper orders-by-item</div>
-            <div className="mt-1 text-xs text-neutral-400">Branch-aware CSV sync is set for Dubai inventory staging.</div>
+          <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/8 to-white/3 p-4 shadow-lg shadow-black/30 backdrop-blur-sm">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-zinc-500">POS Source</div>
+            <div className="mt-2 text-base font-semibold text-white">UrbanPiper orders-by-item</div>
+            <div className="mt-2 text-sm leading-relaxed text-zinc-400">Branch-aware CSV sync is set for Dubai inventory staging.</div>
           </div>
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
-            <div className="text-xs uppercase tracking-wide text-neutral-500">Next Step</div>
-            <div className="mt-1 text-sm font-medium text-amber-200">BOM data input</div>
-            <div className="mt-1 text-xs text-neutral-400">Theoretical stock posting starts after menu recipes are registered.</div>
+          <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/8 to-white/3 p-4 shadow-lg shadow-black/30 backdrop-blur-sm">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-zinc-500">Next Step</div>
+            <div className="mt-2 text-base font-semibold text-white">BOM data input</div>
+            <div className="mt-2 text-sm leading-relaxed text-zinc-400">Theoretical stock posting starts after menu recipes are registered.</div>
           </div>
         </div>
+
+        <div className="my-8 border-t border-white/5" />
 
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
             href="/admin"
-            className="rounded-xl border border-neutral-800 bg-neutral-950/30 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900/40 hover:text-white"
+            className="rounded-xl border border-white/15 bg-white/8 px-5 py-2.5 text-sm text-white transition-all duration-200 hover:border-white/25 hover:bg-white/15"
           >
             Back to Admin Dashboard
           </Link>
           <Link
             href="/admin/procurement"
-            className="rounded-xl border border-neutral-800 bg-neutral-950/30 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900/40 hover:text-white"
+            className="rounded-xl border border-white/15 bg-white/8 px-5 py-2.5 text-sm text-white transition-all duration-200 hover:border-white/25 hover:bg-white/15"
           >
             Open Procurement
           </Link>
         </div>
-      </section>
+      </motion.section>
 
       <InventoryRegistrationHelp />
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <motion.section
+        className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4"
+        variants={staggerContainerVariants}
+        initial="hidden"
+        animate="visible"
+      >
         {visibleModules.map((module) => (
-          <Link key={module.title} href={module.href} className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4 transition hover:border-emerald-700/70 hover:bg-neutral-900/35">
+          <motion.div key={module.title} variants={cardVariants}>
+            <Link href={module.href} className="block rounded-2xl border border-white/10 bg-white/5 p-4 shadow-xl shadow-black/20 backdrop-blur-sm transition-all duration-200 hover:border-white/15 hover:bg-white/8">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-sm font-semibold text-neutral-100">{module.title}</div>
-              <span className="rounded-full border border-emerald-700/60 bg-emerald-950/30 px-2 py-1 text-[10px] text-emerald-200">
-                {module.status}
+              <div className="text-base font-semibold text-white">{module.title}</div>
+              <span className={BADGE_SUCCESS}>
+                <CheckCircle2 className="h-3 w-3" />
+                <span>{module.status}</span>
               </span>
             </div>
-            <div className="mt-2 text-xs leading-5 text-neutral-400">{module.description}</div>
-          </Link>
+            <div className="mt-2 text-sm leading-relaxed text-zinc-400">{module.description}</div>
+            </Link>
+          </motion.div>
         ))}
-      </section>
-    </div>
+      </motion.section>
+    </motion.div>
   );
 }

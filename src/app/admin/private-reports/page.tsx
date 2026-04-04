@@ -1,7 +1,28 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertTriangle, MessageSquareText, RefreshCw, Send, ShieldAlert, MessagesSquare } from "lucide-react";
 import { canAccessPrivateReportAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
+import {
+  GLASS_CARD,
+  STATUS_CARD,
+  HIGHLIGHT_CARD,
+  PRIMARY_BUTTON,
+  SMALL_BUTTON,
+  INPUT_CLASS,
+  T_PAGE_TITLE,
+  T_SECTION,
+  T_CARD_TITLE,
+  T_BODY,
+  T_CAPTION,
+  BADGE_WARNING,
+  BADGE_SUCCESS,
+  BADGE_INFO,
+  KPI_CARD,
+  KPI_LABEL,
+  KPI_VALUE,
+} from "@/lib/ui-tokens";
 
 type ReportRow = {
   id: string;
@@ -141,29 +162,77 @@ export default function AdminPrivateReportsPage() {
   }, [auth, loadList]);
 
   if (!allowed) {
-    return <div className="text-sm text-red-300">Private Reports page is available only to HQ/HR Manager/Admin.</div>;
+    return (
+      <div className={`${GLASS_CARD} p-5`}>
+        <div className="flex items-start gap-3">
+          <ShieldAlert className="mt-0.5 h-5 w-5 text-red-400" />
+          <div>
+            <h1 className={T_SECTION}>Private Reports</h1>
+            <p className="mt-1 text-sm text-red-300">Private Reports page is available only to HQ/HR Manager/Admin.</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 p-4">
-        <div className="text-lg font-semibold">Private Reports (HQ / HR)</div>
-        <div className="mt-1 text-sm text-neutral-400">Only HQ/HR/Admin can view these reports. Other staff cannot access this page.</div>
+    <motion.div
+      className="space-y-6"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className={T_PAGE_TITLE}>Private Reports</h1>
+          <p className={T_BODY}>Restricted review channel for HQ, HR, and admin follow-up.</p>
+        </div>
+        <span className={BADGE_WARNING}>
+          <ShieldAlert className="h-3 w-3" />
+          Sensitive access
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className={KPI_CARD}>
+          <div className="mb-2 flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-violet-400" />
+            <p className={KPI_LABEL}>Open Reports</p>
+          </div>
+          <p className={KPI_VALUE}>{rows.length}</p>
+        </div>
+        <div className={KPI_CARD}>
+          <div className="mb-2 flex items-center gap-2">
+            <MessagesSquare className="h-4 w-4 text-sky-400" />
+            <p className={KPI_LABEL}>Replies</p>
+          </div>
+          <p className={KPI_VALUE}>{replies.length}</p>
+        </div>
+        <div className={`${STATUS_CARD} p-4`}>
+          <p className={`${KPI_LABEL} mb-2`}>Access Scope</p>
+          <p className="text-sm text-zinc-300">Only HQ/HR/Admin can view these reports. Other staff cannot access this page.</p>
+        </div>
       </div>
 
       {error ? <div className="text-sm text-red-300">{error}</div> : null}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3">
+        <div className={`${GLASS_CARD} p-5`}>
           <div className="mb-2 flex items-center justify-between">
-            <div className="text-sm font-medium">Reports</div>
+            <div>
+              <h2 className={T_SECTION}>Reports</h2>
+              <p className={T_CAPTION}>Choose a report to inspect its detail and reply thread.</p>
+            </div>
             <button
               type="button"
               onClick={loadList}
               disabled={loading}
-              className="rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-1 text-xs hover:bg-neutral-900 disabled:opacity-60"
+              className={SMALL_BUTTON}
             >
-              Refresh
+              <span className="flex items-center gap-2">
+                <RefreshCw className="h-3 w-3" />
+                Refresh
+              </span>
             </button>
           </div>
           <div className="space-y-2">
@@ -173,40 +242,72 @@ export default function AdminPrivateReportsPage() {
                 type="button"
                 onClick={() => loadDetail(r.id)}
                 className={[
-                  "w-full rounded-xl border px-3 py-2 text-left text-sm",
-                  selectedId === r.id ? "border-amber-500 bg-amber-950/20 text-amber-100" : "border-neutral-800 bg-neutral-950/30 text-neutral-200",
+                  "w-full rounded-2xl border px-4 py-3 text-left text-sm transition-all duration-150",
+                  selectedId === r.id
+                    ? "border-amber-400 bg-amber-500/15 text-amber-100 ring-1 ring-amber-400/20"
+                    : "border-white/8 bg-white/4 text-neutral-200 hover:border-white/15 hover:bg-white/8",
                 ].join(" ")}
               >
-                <div className="font-medium">{r.report_type}</div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-medium">{r.report_type}</div>
+                  <span className={r.reply_count > 0 ? BADGE_INFO : BADGE_SUCCESS}>
+                    {r.reply_count} replies
+                  </span>
+                </div>
                 <div className="mt-1 text-xs text-neutral-400">
-                  {r.city}/{r.branch || "-"} • {r.staff_name} • replies: {r.reply_count}
+                  {r.city}/{r.branch || "-"} • {r.staff_name}
                 </div>
               </button>
             ))}
-            {!rows.length ? <div className="text-sm text-neutral-500">No reports.</div> : null}
+            {loading ? <div className="text-sm text-neutral-500">Loading reports...</div> : null}
+            {!loading && !rows.length ? <div className="text-sm text-neutral-500">No reports.</div> : null}
           </div>
         </div>
 
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3">
-          <div className="text-sm font-medium">Detail</div>
+        <div className={`${GLASS_CARD} p-5`}>
+          <div className="mb-2">
+            <h2 className={T_SECTION}>Detail</h2>
+            <p className={T_CAPTION}>Review report data, history, and send a private reply.</p>
+          </div>
           {!detail ? (
             <div className="mt-2 text-sm text-neutral-500">Select a report.</div>
           ) : (
             <div className="mt-2 space-y-3">
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/30 p-3 text-sm">
-                <div>Type: {detail.report_type}</div>
-                <div>City/Branch: {detail.city}/{detail.branch || "-"}</div>
-                <div>Reporter: {detail.staff_name}</div>
-                <div>Anonymous request: {detail.anonymous_request ? "Yes" : "No"}</div>
+              <div className={`${HIGHLIGHT_CARD} p-4 text-sm`}>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h3 className={T_CARD_TITLE}>{detail.report_type}</h3>
+                  <span className={BADGE_INFO}>{detail.status || "OPEN"}</span>
+                </div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div>
+                    <p className={T_CAPTION}>City / Branch</p>
+                    <p className="text-sm text-zinc-200">{detail.city}/{detail.branch || "-"}</p>
+                  </div>
+                  <div>
+                    <p className={T_CAPTION}>Reporter</p>
+                    <p className="text-sm text-zinc-200">{detail.staff_name}</p>
+                  </div>
+                  <div>
+                    <p className={T_CAPTION}>Category</p>
+                    <p className="text-sm text-zinc-200">{detail.category || "-"}</p>
+                  </div>
+                  <div>
+                    <p className={T_CAPTION}>Anonymous Request</p>
+                    <p className="text-sm text-zinc-200">{detail.anonymous_request ? "Yes" : "No"}</p>
+                  </div>
+                </div>
               </div>
-              <pre className="overflow-auto rounded-xl border border-neutral-800 bg-neutral-950/30 p-3 text-xs text-neutral-300">
+              <pre className="overflow-auto rounded-2xl border border-white/8 bg-white/4 p-3 text-xs text-neutral-300">
                 {JSON.stringify(detail.payload_json || {}, null, 2)}
               </pre>
 
               <div className="space-y-2">
-                <div className="text-sm font-medium">Replies</div>
+                <div className="flex items-center gap-2">
+                  <MessageSquareText className="h-4 w-4 text-sky-400" />
+                  <div className={T_CARD_TITLE}>Replies</div>
+                </div>
                 {replies.map((rp) => (
-                  <div key={rp.id} className="rounded-xl border border-neutral-800 bg-neutral-950/30 p-2 text-xs text-neutral-300">
+                  <div key={rp.id} className={`${STATUS_CARD} p-3 text-xs text-neutral-300`}>
                     <div className="text-neutral-400">
                       {rp.author_name} ({rp.author_role}) • {rp.created_at}
                     </div>
@@ -218,7 +319,7 @@ export default function AdminPrivateReportsPage() {
 
               <div className="space-y-2">
                 <textarea
-                  className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                  className={INPUT_CLASS}
                   rows={3}
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
@@ -227,16 +328,19 @@ export default function AdminPrivateReportsPage() {
                 <button
                   type="button"
                   onClick={submitReply}
-                  disabled={submitBusy}
-                  className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60"
+                  disabled={submitBusy || !replyText.trim()}
+                  className={PRIMARY_BUTTON}
                 >
-                  {submitBusy ? "Sending..." : "Send Reply"}
+                  <span className="flex items-center gap-2">
+                    <Send className="h-4 w-4" />
+                    {submitBusy ? "Sending..." : "Send Reply"}
+                  </span>
                 </button>
               </div>
             </div>
           )}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

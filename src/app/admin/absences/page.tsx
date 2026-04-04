@@ -1,10 +1,51 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  AlertCircle,
+  ArrowLeft,
+  BarChart2,
+  CalendarOff,
+  CheckCircle2,
+  ClipboardList,
+  Download,
+  Info,
+  Save,
+  Shield,
+  Trash2,
+  Upload,
+  UserCheck,
+  UserMinus,
+  Users,
+} from "lucide-react";
 import { getAuth } from "@/lib/auth";
 import { BRANCHES, type City } from "@/lib/branches";
 import { normalizeCalendarDateInput } from "@/lib/dateInput";
+import DateRangePicker from "@/components/DateRangePicker";
+import { fmtNum } from "@/lib/formatters";
+import {
+  BADGE_ERROR,
+  BADGE_INFO,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  DANGER_BUTTON,
+  GLASS_CARD,
+  INPUT_CLASS,
+  PRIMARY_BUTTON,
+  SMALL_BUTTON,
+  SECONDARY_BUTTON,
+  SELECT_CLASS,
+  TABLE_CELL,
+  TABLE_HEADER,
+  TABLE_ROW,
+  TEXTAREA_CLASS,
+  T_CAPTION,
+  T_LABEL,
+  T_PAGE_TITLE,
+  T_SECTION,
+} from "@/lib/ui-tokens";
 
 type AbsenceType =
   | "DAY_OFF"
@@ -71,15 +112,19 @@ function toTitleAbsenceType(t: string) {
 
 function badgeClassForType(t: string) {
   const x = norm(t).toUpperCase();
-  if (x === "DAY_OFF") return "border-sky-900/40 bg-sky-950/20 text-sky-200";
-  if (x === "VACATION_LEAVE") return "border-violet-900/40 bg-violet-950/20 text-violet-200";
-  if (x === "MATERNITY_LEAVE") return "border-pink-900/40 bg-pink-950/20 text-pink-200";
-  if (x === "MEDICAL_LEAVE") return "border-orange-900/40 bg-orange-950/20 text-orange-200";
-  if (x === "INJURY") return "border-amber-900/40 bg-amber-950/20 text-amber-200";
-  if (x === "HOSPITAL") return "border-fuchsia-900/40 bg-fuchsia-950/20 text-fuchsia-200";
-  if (x === "ABSENT") return "border-rose-900/40 bg-rose-950/20 text-rose-200";
-  if (x === "BEREAVEMENT_LEAVE") return "border-indigo-900/40 bg-indigo-950/20 text-indigo-200";
-  return "border-neutral-800 bg-neutral-950/40 text-neutral-200";
+  if (x === "ABSENT") return BADGE_ERROR;
+  if (x === "LATE" || x === "INJURY" || x === "HOSPITAL" || x === "MEDICAL_LEAVE") return BADGE_WARNING;
+  if (
+    x === "LEAVE" ||
+    x === "DAY_OFF" ||
+    x === "VACATION_LEAVE" ||
+    x === "MATERNITY_LEAVE" ||
+    x === "BEREAVEMENT_LEAVE"
+  ) {
+    return BADGE_INFO;
+  }
+  if (x === "PRESENT" || x === "APPROVED") return BADGE_SUCCESS;
+  return BADGE_INFO;
 }
 
 async function apiGet<T = any>(path: string): Promise<T> {
@@ -124,8 +169,8 @@ export default function AdminAbsencesPage() {
 
   const initialCity: City = auth?.city === "manila" ? "manila" : "dubai";
   const [city, setCity] = useState<City>(initialCity);
-  const approverName = auth?.staffName || "";
-  const pin = auth?.pin || "";
+  const [approverName] = useState(auth?.staffName || "");
+  const [pin, setPin] = useState(auth?.pin || "");
 
   const [staffOptions, setStaffOptions] = useState<string[]>([]);
   const [staffName, setStaffName] = useState<string>("");
@@ -148,6 +193,7 @@ export default function AdminAbsencesPage() {
 
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [pendingDeleteRow, setPendingDeleteRow] = useState<AbsenceRow | null>(null);
 
   const handleWorkDateChange = (raw: string) => {
     const next = normalizeCalendarDateInput(raw);
@@ -186,16 +232,22 @@ export default function AdminAbsencesPage() {
   const branchOptions = useMemo(() => BRANCHES[city] || [], [city]);
   const canAuth = useMemo(() => !!norm(approverName) && !!norm(pin), [approverName, pin]);
 
-  async function loadStaffOptions(nextCity: string) {
+  const loadStaffOptions = useCallback(async (nextCity: string) => {
+    const nm = norm(approverName);
+    const p = norm(pin);
+    if (!nm || !p) {
+      setStaffOptions([]);
+      return;
+    }
     try {
       const res = await apiGet<StaffNamesResp>(
-        `/api/admin/staff_master/names?city=${encodeURIComponent(nextCity)}&status=ACTIVE&limit=5000`
+        `/api/admin/staff_master/names?city=${encodeURIComponent(nextCity)}&status=ACTIVE&limit=5000&approver_name=${encodeURIComponent(nm)}&pin=${encodeURIComponent(p)}`
       );
       setStaffOptions(Array.isArray(res?.names) ? res.names : []);
     } catch {
       setStaffOptions([]);
     }
-  }
+  }, [approverName, pin]);
 
   const load = async () => {
     setLoading(true);
@@ -231,7 +283,7 @@ export default function AdminAbsencesPage() {
   useEffect(() => {
     if (!city) return;
     loadStaffOptions(city);
-  }, [city]);
+  }, [city, loadStaffOptions]);
 
   useEffect(() => {
     setStaffName("");
@@ -363,91 +415,154 @@ export default function AdminAbsencesPage() {
     }
   };
 
-  const msgCls =
-    msg?.kind === "err"
-      ? "border-red-900/40 bg-red-950/20 text-red-200"
-      : msg?.kind === "ok"
-        ? "border-emerald-900/40 bg-emerald-950/20 text-emerald-200"
-        : "border-amber-900/40 bg-amber-950/20 text-amber-200";
+  function downloadCsv() {
+    const headers = ["staff", "date", "type", "branch", "note", "source", "created_at"];
+    const lines = [
+      headers.join(","),
+      ...rows.map((r) =>
+        [
+          norm(r.staff_name),
+          norm(r.work_date),
+          toTitleAbsenceType(r.absence_type),
+          norm(r.branch_hint),
+          norm(r.note).includes(",") ? `"${norm(r.note).replace(/"/g, '""')}"` : norm(r.note),
+          norm(r.source_sheet_name),
+          norm(r.created_at),
+        ].join(",")
+      ),
+    ];
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `absence-history-${city}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <main className="min-h-screen bg-neutral-950 text-white">
-      <div className="mx-auto max-w-7xl px-6 py-10">
-        <div className="mb-6 flex flex-wrap items-center gap-3">
-          <Link
-            href="/admin"
-            className="rounded-2xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-neutral-800"
-          >
-            ← Back to Admin
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="mx-auto max-w-3xl space-y-5 px-4 py-8"
+      >
+        <div className="mb-2 flex items-center gap-2">
+          <Link href="/admin">
+            <button className={`${SECONDARY_BUTTON} flex items-center gap-2 text-sm`}>
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back to Admin
+            </button>
           </Link>
-
-          <Link
-            href="/admin/attendance"
-            className="rounded-2xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-neutral-800"
-          >
-            Attendance
+          <Link href="/admin/attendance">
+            <button className={`${SECONDARY_BUTTON} flex items-center gap-2 text-sm`}>
+              <UserCheck className="h-3.5 w-3.5" />
+              Attendance
+            </button>
           </Link>
-
-          <Link
-            href="/admin/analytics"
-            className="rounded-2xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-neutral-800"
-          >
-            Analytics
+          <Link href="/admin/analytics">
+            <button className={`${SECONDARY_BUTTON} flex items-center gap-2 text-sm`}>
+              <BarChart2 className="h-3.5 w-3.5" />
+              Analytics
+            </button>
           </Link>
         </div>
 
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold">Absence / Leave Management</h1>
-          <p className="mt-2 text-sm text-neutral-400">
-            Register absences and leave, process bulk entries, review history, and delete manual records.
-          </p>
+        <div className="mb-6 flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-rose-500/20 bg-gradient-to-br from-rose-500/20 to-pink-500/10">
+            <CalendarOff className="h-5 w-5 text-rose-400" />
+          </div>
+          <div>
+            <h1 className={T_PAGE_TITLE}>Absence / Leave Management</h1>
+            <p className={T_CAPTION}>Register absences and leave, process bulk entries, review history, and delete manual records.</p>
+          </div>
         </div>
 
-        <section className="mb-6 rounded-3xl border border-neutral-800 bg-neutral-900/60 p-5 shadow-2xl">
-          <div className="mb-4 text-sm font-semibold text-neutral-200">Scope / Approval Context</div>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="text-sm">
-              <div className="mb-2 text-neutral-300">City</div>
+        <AnimatePresence>
+          {msg ? (
+            <motion.div
+              initial={{ opacity: 0, y: -10, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.97 }}
+              transition={{ duration: 0.2 }}
+              className={
+                msg.kind === "ok"
+                  ? BADGE_SUCCESS + " w-full justify-start rounded-xl px-4 py-3 text-sm"
+                  : BADGE_ERROR + " w-full justify-start rounded-xl px-4 py-3 text-sm"
+              }
+            >
+              {msg.kind === "ok" ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+              {msg.text}
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.05 }}
+          className={GLASS_CARD + " p-5"}
+        >
+          <div className="mb-4 flex items-center gap-2">
+            <Shield className="h-4 w-4 text-violet-400" />
+            <h2 className={T_SECTION}>Scope / Approval Context</h2>
+          </div>
+          <div className="mb-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>City</label>
               <select
                 value={city}
                 onChange={(e) => setCity((e.target.value === "manila" ? "manila" : "dubai") as City)}
-                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
+                className={SELECT_CLASS}
               >
                 <option value="dubai">Dubai</option>
                 <option value="manila">Manila</option>
               </select>
             </div>
 
-            <div className="text-sm">
-              <div className="mb-2 text-neutral-300">Approver Name</div>
-              <div className="rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white">
-                {approverName || "-"}
-              </div>
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Approver Name</label>
+              <input className={INPUT_CLASS} readOnly value={approverName || "-"} />
             </div>
 
-            <div className="text-sm">
-              <div className="mb-2 text-neutral-300">PIN</div>
-              <div className="rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white">
-                {pin ? "••••" : "-"}
-              </div>
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>PIN</label>
+              <input
+                className={INPUT_CLASS}
+                type="password"
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                placeholder="Enter PIN if needed"
+              />
             </div>
           </div>
 
-          <div className="mt-3 text-xs text-neutral-500">
+          <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+            <Info className="h-3.5 w-3.5 flex-shrink-0" />
             Using the current logged-in admin credentials stored on this device.
           </div>
-        </section>
+        </motion.div>
 
-        <section className="mb-6 rounded-3xl border border-neutral-800 bg-neutral-900/60 p-5 shadow-2xl">
-          <div className="mb-4 text-sm font-semibold text-neutral-200">Single Upsert</div>
-
-          <div className="grid gap-4 md:grid-cols-5">
-            <label className="text-sm md:col-span-2">
-              <div className="mb-2 text-neutral-300">Staff Name</div>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.1 }}
+          className={GLASS_CARD + " p-5"}
+        >
+          <div className="mb-4 flex items-center gap-2">
+            <UserMinus className="h-4 w-4 text-rose-400" />
+            <h2 className={T_SECTION}>Single Upsert</h2>
+          </div>
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Staff Name</label>
               <select
                 value={staffName}
                 onChange={(e) => setStaffName(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
+                className={SELECT_CLASS}
               >
                 <option value="">Select staff</option>
                 {staffOptions.map((name) => (
@@ -456,24 +571,24 @@ export default function AdminAbsencesPage() {
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
 
-            <label className="text-sm">
-              <div className="mb-2 text-neutral-300">Work Date</div>
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Work Date</label>
               <input
                 type="date"
                 value={workDate}
                 onChange={(e) => handleWorkDateChange(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
+                className={INPUT_CLASS}
               />
-            </label>
+            </div>
 
-            <label className="text-sm">
-              <div className="mb-2 text-neutral-300">Absence Type</div>
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Absence Type</label>
               <select
                 value={absenceType}
                 onChange={(e) => setAbsenceType(e.target.value as AbsenceType)}
-                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
+                className={SELECT_CLASS}
               >
                 {ABSENCE_TYPES.map((x) => (
                   <option key={x.value} value={x.value}>
@@ -481,14 +596,14 @@ export default function AdminAbsencesPage() {
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
 
-            <label className="text-sm">
-              <div className="mb-2 text-neutral-300">Branch Hint</div>
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Branch Hint</label>
               <select
                 value={branchHint}
                 onChange={(e) => setBranchHint(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
+                className={SELECT_CLASS}
               >
                 <option value="">Select branch</option>
                 {branchOptions.map((branch) => (
@@ -497,103 +612,93 @@ export default function AdminAbsencesPage() {
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
           </div>
 
-          <label className="mt-4 block text-sm">
-            <div className="mb-2 text-neutral-300">Note</div>
+          <div className="mb-4">
+            <label className={`${T_LABEL} mb-1.5 block`}>Note</label>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
               rows={3}
-              className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
+              className={TEXTAREA_CLASS}
               placeholder="Optional note"
             />
-          </label>
+          </div>
 
-          <div className="mt-4">
+          <div className="flex items-center justify-between border-t border-white/5 pt-4">
+            <p className={T_CAPTION}>Fields marked will override existing records for that date.</p>
             <button
               onClick={upsertSingle}
-              disabled={loading}
-              className="rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-50"
+              disabled={loading || !canAuth}
+              className={`${PRIMARY_BUTTON} flex items-center gap-2 disabled:opacity-50`}
             >
+              <Save className="h-4 w-4" />
               Save Single Absence
             </button>
           </div>
-        </section>
+        </motion.div>
 
-        <section className="mb-6 rounded-3xl border border-neutral-800 bg-neutral-900/60 p-5 shadow-2xl">
-          <div className="mb-4 text-sm font-semibold text-neutral-200">Bulk Upsert</div>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.15 }}
+          className={GLASS_CARD + " p-5"}
+        >
+          <div className="mb-4 flex items-center gap-2">
+            <Users className="h-4 w-4 text-violet-400" />
+            <h2 className={T_SECTION}>Bulk Entry</h2>
+          </div>
 
-          <div className="grid gap-4 md:grid-cols-4">
-            <label className="text-sm md:col-span-2">
-              <div className="mb-2 text-neutral-300">Staff Names</div>
-              <select
-                multiple
-                value={bulkSelectedNames}
-                onChange={(e) => {
-                  const values = Array.from(e.target.selectedOptions).map((o) => o.value);
-                  setBulkSelectedNames(values);
-                }}
-                className="h-56 w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
-              >
-                {staffOptions.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-              <div className="mt-2 text-xs text-neutral-500">
-                Hold Command on Mac to select multiple staff.
-              </div>
-            </label>
-
-            <div className="space-y-4">
-              <label className="block text-sm">
-                <div className="mb-2 text-neutral-300">Date From</div>
-                <input
-                  type="date"
-                  value={bulkDateFrom}
-                  onChange={(e) => handleBulkDateFromChange(e.target.value)}
-                  max={bulkDateTo || undefined}
-                  className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
-                />
-              </label>
-
-              <label className="block text-sm">
-                <div className="mb-2 text-neutral-300">Date To</div>
-                <input
-                  type="date"
-                  value={bulkDateTo}
-                  onChange={(e) => handleBulkDateToChange(e.target.value)}
-                  min={bulkDateFrom || undefined}
-                  className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
-                />
-              </label>
-
-              <label className="block text-sm">
-                <div className="mb-2 text-neutral-300">Absence Type</div>
-                <select
-                  value={bulkAbsenceType}
-                  onChange={(e) => setBulkAbsenceType(e.target.value as AbsenceType)}
-                  className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
-                >
-                  {ABSENCE_TYPES.map((x) => (
-                    <option key={x.value} value={x.value}>
-                      {x.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Staff Names</label>
+              <textarea
+                className={TEXTAREA_CLASS}
+                rows={6}
+                placeholder={"One name per line\ne.g.\nJohn Smith\nJane Doe"}
+                value={bulkSelectedNames.join("\n")}
+                onChange={(e) =>
+                  setBulkSelectedNames(
+                    e.target.value
+                      .split("\n")
+                      .map((name) => name.trim())
+                      .filter(Boolean)
+                  )
+                }
+              />
+              <p className={T_CAPTION + " mt-2"}>Use one staff name per line. Names are matched against the city-scoped staff list.</p>
             </div>
 
-            <div className="space-y-4">
-              <label className="block text-sm">
-                <div className="mb-2 text-neutral-300">Branch Hint</div>
+            <div className="space-y-3">
+              <div>
+                <label className={`${T_LABEL} mb-1.5 block`}>Date Range</label>
+                <div className="flex gap-2">
+                  <DateRangePicker
+                    value={{ from: bulkDateFrom, to: bulkDateTo }}
+                    onChange={(range) => {
+                      handleBulkDateFromChange(range.from);
+                      handleBulkDateToChange(range.to);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleBulkDateFromChange(todayIso());
+                      handleBulkDateToChange(todayIso());
+                    }}
+                    className={SMALL_BUTTON + " whitespace-nowrap"}
+                  >
+                    Range
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className={`${T_LABEL} mb-1.5 block`}>Branch Hint</label>
                 <select
                   value={bulkBranchHint}
                   onChange={(e) => setBulkBranchHint(e.target.value)}
-                  className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
+                  className={SELECT_CLASS}
                 >
                   <option value="">All / Optional</option>
                   {branchOptions.map((branch) => (
@@ -602,37 +707,57 @@ export default function AdminAbsencesPage() {
                     </option>
                   ))}
                 </select>
-              </label>
-
-              <label className="block text-sm">
-                <div className="mb-2 text-neutral-300">Note</div>
+              </div>
+              <div>
+                <label className={`${T_LABEL} mb-1.5 block`}>Absence Type</label>
+                <select
+                  value={bulkAbsenceType}
+                  onChange={(e) => setBulkAbsenceType(e.target.value as AbsenceType)}
+                  className={SELECT_CLASS}
+                >
+                  {ABSENCE_TYPES.map((x) => (
+                    <option key={x.value} value={x.value}>
+                      {x.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={`${T_LABEL} mb-1.5 block`}>Note</label>
                 <textarea
                   value={bulkNote}
                   onChange={(e) => setBulkNote(e.target.value)}
-                  rows={5}
-                  className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
+                  rows={2}
+                  className={TEXTAREA_CLASS}
                   placeholder="Optional bulk note"
                 />
-              </label>
-
-              <button
-                onClick={upsertBulk}
-                disabled={loading}
-                className="w-full rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-50"
-              >
-                Save Bulk Absences
-              </button>
+              </div>
             </div>
           </div>
-        </section>
 
-        <section className="mb-4 rounded-3xl border border-neutral-800 bg-neutral-900/60 p-5 shadow-2xl">
+          <div className="mt-2 flex items-center justify-between border-t border-white/5 pt-4">
+            <p className={T_CAPTION}>Bulk applies the same type to all listed staff for the selected range.</p>
+            <button
+              onClick={upsertBulk}
+              disabled={loading || !canAuth}
+              className={`${PRIMARY_BUTTON} flex items-center gap-2 disabled:opacity-50`}
+            >
+              <Upload className="h-4 w-4" />
+              Process Bulk
+            </button>
+          </div>
+        </motion.div>
+
+        <div className={`${GLASS_CARD} p-5`}>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="text-sm font-semibold text-neutral-200">Absence History</div>
+            <div>
+              <h2 className={T_SECTION}>History Filters</h2>
+              <p className={T_CAPTION}>Current records: {fmtNum(rows.length)}</p>
+            </div>
             <button
               onClick={load}
               disabled={loading || !canAuth}
-              className="rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-2 text-sm text-white transition hover:bg-neutral-900 disabled:opacity-50"
+              className={`${SECONDARY_BUTTON} text-sm disabled:opacity-50`}
             >
               Refresh
             </button>
@@ -640,11 +765,11 @@ export default function AdminAbsencesPage() {
 
           <div className="grid gap-4 md:grid-cols-5">
             <label className="text-sm md:col-span-2">
-              <div className="mb-2 text-neutral-300">Staff Filter</div>
+              <div className={`${T_LABEL} mb-1.5`}>Staff Filter</div>
               <select
                 value={filterStaffName}
                 onChange={(e) => setFilterStaffName(e.target.value)}
-                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
+                className={SELECT_CLASS}
               >
                 <option value="">All staff</option>
                 {staffOptions.map((name) => (
@@ -656,24 +781,13 @@ export default function AdminAbsencesPage() {
             </label>
 
             <label className="text-sm">
-              <div className="mb-2 text-neutral-300">Date From</div>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => handleHistoryDateFromChange(e.target.value)}
-                max={dateTo || undefined}
-                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
-              />
-            </label>
-
-            <label className="text-sm">
-              <div className="mb-2 text-neutral-300">Date To</div>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => handleHistoryDateToChange(e.target.value)}
-                min={dateFrom || undefined}
-                className="w-full rounded-2xl border border-neutral-700 bg-neutral-950 px-4 py-3 text-white outline-none"
+              <div className={`${T_LABEL} mb-1.5`}>Date Range</div>
+              <DateRangePicker
+                value={{ from: dateFrom, to: dateTo }}
+                onChange={(range) => {
+                  handleHistoryDateFromChange(range.from);
+                  handleHistoryDateToChange(range.to);
+                }}
               />
             </label>
 
@@ -681,91 +795,148 @@ export default function AdminAbsencesPage() {
               <button
                 onClick={load}
                 disabled={loading || !canAuth}
-                className="w-full rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-50"
+                className={`${PRIMARY_BUTTON} w-full disabled:opacity-50`}
               >
                 Load History
               </button>
             </div>
           </div>
-        </section>
+        </div>
 
-        {msg ? (
-          <div className={`mb-6 rounded-2xl border px-4 py-3 text-sm ${msgCls}`}>{msg.text}</div>
-        ) : null}
-
-        <section className="overflow-hidden rounded-3xl border border-neutral-800 bg-neutral-900/60 shadow-2xl">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
+          className={GLASS_CARD + " overflow-hidden"}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 px-5 py-4">
+            <div className="flex items-center gap-2">
+              <ClipboardList className="h-4 w-4 text-violet-400" />
+              <h2 className={T_SECTION}>History</h2>
+            </div>
+            <button
+              onClick={downloadCsv}
+              disabled={!rows.length}
+              className={`${SECONDARY_BUTTON} flex items-center gap-2 text-sm disabled:opacity-50`}
+            >
+              <Download className="h-3.5 w-3.5" />
+              Export CSV
+            </button>
+          </div>
           <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-neutral-950/70 text-left text-neutral-300">
+            <table className="w-full">
+              <thead className="bg-white/3">
                 <tr>
-                  <th className="px-4 py-3">Date</th>
-                  <th className="px-4 py-3">Staff</th>
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3">Branch</th>
-                  <th className="px-4 py-3">Note</th>
-                  <th className="px-4 py-3">Source</th>
-                  <th className="px-4 py-3">Created</th>
-                  <th className="px-4 py-3">Action</th>
+                  <th className={`${TABLE_HEADER} px-4 text-left`}>Staff</th>
+                  <th className={`${TABLE_HEADER} px-4 text-left`}>Date</th>
+                  <th className={`${TABLE_HEADER} px-4 text-left`}>Type</th>
+                  <th className={`${TABLE_HEADER} px-4 text-left`}>Branch</th>
+                  <th className={`${TABLE_HEADER} px-4 text-left`}>Note</th>
+                  <th className={`${TABLE_HEADER} px-4 text-left`}></th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-5 text-neutral-400">
+                    <td colSpan={6} className={`${TABLE_CELL} px-4 py-12 text-center text-zinc-500`}>
                       Loading...
                     </td>
                   </tr>
                 ) : rows.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-5 text-neutral-400">
-                      No absence rows found.
+                    <td colSpan={6} className="py-12 text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <CalendarOff className="h-8 w-8 text-zinc-700" />
+                        <p className={T_CAPTION}>No absence records found.</p>
+                      </div>
                     </td>
                   </tr>
                 ) : (
                   rows.map((r, idx) => {
                     const manual = norm(r.source_sheet_name).toUpperCase() === "MANUAL";
+                    const isPendingDelete =
+                      pendingDeleteRow &&
+                      norm(pendingDeleteRow.staff_name) === norm(r.staff_name) &&
+                      norm(pendingDeleteRow.work_date) === norm(r.work_date) &&
+                      norm(pendingDeleteRow.absence_type) === norm(r.absence_type) &&
+                      idx === rows.findIndex(
+                        (x) =>
+                          norm(x.staff_name) === norm(r.staff_name) &&
+                          norm(x.work_date) === norm(r.work_date) &&
+                          norm(x.absence_type) === norm(r.absence_type)
+                      );
                     return (
-                      <tr
-                        key={`${r.work_date}-${r.staff_name}-${r.absence_type}-${idx}`}
-                        className="border-t border-neutral-800 align-top"
-                      >
-                        <td className="px-4 py-3">{r.work_date || "-"}</td>
-                        <td className="px-4 py-3 font-medium text-white">{r.staff_name || "-"}</td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`rounded-full border px-2.5 py-1 text-xs ${badgeClassForType(
-                              r.absence_type
-                            )}`}
-                          >
-                            {toTitleAbsenceType(r.absence_type)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">{r.branch_hint || "-"}</td>
-                        <td className="px-4 py-3 text-neutral-300">{r.note || "-"}</td>
-                        <td className="px-4 py-3">{r.source_sheet_name || "-"}</td>
-                        <td className="px-4 py-3 text-neutral-400">{r.created_at || "-"}</td>
-                        <td className="px-4 py-3">
-                          {manual ? (
-                            <button
-                              onClick={() => deleteRow(r)}
-                              disabled={loading}
-                              className="rounded-xl border border-rose-900/40 bg-rose-950/20 px-3 py-2 text-xs text-rose-200 transition hover:bg-rose-950/40 disabled:opacity-50"
-                            >
-                              Delete
-                            </button>
-                          ) : (
-                            <span className="text-xs text-neutral-500">Protected</span>
-                          )}
-                        </td>
-                      </tr>
+                      <>
+                        <motion.tr
+                          key={`${r.work_date}-${r.staff_name}-${r.absence_type}-${idx}`}
+                          initial={{ opacity: 0, x: -6 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.2, delay: idx * 0.025 }}
+                          className={TABLE_ROW}
+                        >
+                          <td className={`${TABLE_CELL} px-4 font-medium`}>{r.staff_name || "-"}</td>
+                          <td className={`${TABLE_CELL} px-4 tabular-nums`}>{r.work_date || "-"}</td>
+                          <td className={`${TABLE_CELL} px-4`}>
+                            <span className={badgeClassForType(r.absence_type)}>
+                              {toTitleAbsenceType(r.absence_type)}
+                            </span>
+                          </td>
+                          <td className={`${TABLE_CELL} px-4 text-zinc-400`}>{r.branch_hint || "-"}</td>
+                          <td className={`${TABLE_CELL} px-4 max-w-[160px] truncate text-xs text-zinc-500`}>
+                            {r.note || "-"}
+                          </td>
+                          <td className={`${TABLE_CELL} px-4`}>
+                            {manual ? (
+                              <button
+                                onClick={() => setPendingDeleteRow(isPendingDelete ? null : r)}
+                                disabled={loading}
+                                className={`${DANGER_BUTTON} flex items-center gap-1 px-2.5 py-1 text-xs disabled:opacity-50`}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                                Delete
+                              </button>
+                            ) : (
+                              <span className={T_CAPTION}>Protected</span>
+                            )}
+                          </td>
+                        </motion.tr>
+                        {isPendingDelete ? (
+                          <tr className="border-t border-red-500/10 bg-red-500/5">
+                            <td colSpan={6} className="px-4 py-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="text-sm text-zinc-300">
+                                  Delete absence for <strong className="text-white">{r.staff_name}</strong> on{" "}
+                                  <strong className="text-white">{r.work_date}</strong>? This cannot be undone.
+                                </p>
+                                <div className="flex gap-2">
+                                  <button className={SECONDARY_BUTTON + " px-3 py-1.5 text-sm"} onClick={() => setPendingDeleteRow(null)}>
+                                    Cancel
+                                  </button>
+                                  <button
+                                    className={DANGER_BUTTON + " flex items-center gap-1.5 px-3 py-1.5 text-sm"}
+                                    onClick={async () => {
+                                      const row = pendingDeleteRow;
+                                      setPendingDeleteRow(null);
+                                      if (row) await deleteRow(row);
+                                    }}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    Confirm Delete
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : null}
+                      </>
                     );
                   })
                 )}
               </tbody>
             </table>
           </div>
-        </section>
-      </div>
+        </motion.div>
+      </motion.div>
     </main>
   );
 }

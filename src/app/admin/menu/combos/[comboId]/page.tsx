@@ -1,6 +1,7 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import Link from "next/link";
+import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessMenuAdmin, getAuth, refreshAuthFromApi, type City } from "@/lib/auth";
 import { menuGet, menuPatch, menuPost } from "@/lib/menuClient";
@@ -16,6 +17,7 @@ type ComboRow = {
 
 export default function MenuComboDetailPage() {
   const params = useParams<{ comboId: string }>();
+  const searchParams = useSearchParams();
   const comboId = String(params?.comboId || "");
   const auth = useMemo(() => getAuth(), []);
   const [ready, setReady] = useState(false);
@@ -81,8 +83,10 @@ export default function MenuComboDetailPage() {
       const res = await menuPatch<{ row: ComboRow }>(`/api/admin/menu/combos/${encodeURIComponent(combo.id)}?city=${encodeURIComponent(city)}`, {
         city: combo.city,
         name: combo.name,
+        name_localized: combo.name_localized,
         sku: combo.sku,
         barcode: combo.barcode,
+        image_url: combo.image_url,
         description: combo.description,
         price: Number(combo.price || 0),
         pricing_method: combo.pricing_method,
@@ -132,6 +136,7 @@ export default function MenuComboDetailPage() {
   }
 
   async function deleteLink(linkId: string) {
+    if (!window.confirm("Remove this linked product from the combo?")) return;
     setError("");
     setSuccess("");
     try {
@@ -163,6 +168,7 @@ export default function MenuComboDetailPage() {
 
   async function deleteCombo() {
     if (!combo) return;
+    if (!window.confirm("Delete this combo?")) return;
     setError("");
     setSuccess("");
     try {
@@ -179,9 +185,15 @@ export default function MenuComboDetailPage() {
   if (!comboId) return <div className="text-sm text-rose-300">Combo id is missing.</div>;
   if (loading && !combo) return <div className="text-sm text-neutral-500">Loading combo detail...</div>;
   if (!combo) return <div className="text-sm text-rose-300">Combo was not found.</div>;
+  const backHref = `/admin/menu/combos${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
 
   return (
     <div className="space-y-4">
+      <div>
+        <Link href={backHref} className="text-xs text-amber-200 hover:text-amber-100">
+          Back to Combos
+        </Link>
+      </div>
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,2fr),360px]">
         <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
           <div className="flex items-center justify-between gap-3">
@@ -193,7 +205,7 @@ export default function MenuComboDetailPage() {
           </div>
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
             {[
-              ["Name", "name"], ["Barcode", "barcode"],
+              ["Name", "name"], ["Localized Name", "name_localized"], ["Barcode", "barcode"], ["Image URL", "image_url"],
             ].map(([label, key]) => (
               <label key={key} className="block text-sm text-neutral-300">
                 <div className="mb-1 text-xs text-neutral-500">{label}</div>

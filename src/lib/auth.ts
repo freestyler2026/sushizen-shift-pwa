@@ -151,9 +151,15 @@ export function setAuth(a: Auth) {
   );
 }
 
-export async function refreshAuthFromApi(a?: Auth | null): Promise<Auth | null> {
+export async function refreshAuthFromApi(
+  a?: Auth | null,
+  options?: {
+    includeMfa?: boolean;
+  }
+): Promise<Auth | null> {
   const current = a ?? getAuth();
   if (!current?.staffName) return current;
+  const includeMfa = Boolean(options?.includeMfa);
 
   const remintAccessTokenWithPin = async (): Promise<Auth | null> => {
     if (!current.pin) return null;
@@ -161,6 +167,7 @@ export async function refreshAuthFromApi(a?: Auth | null): Promise<Auth | null> 
       staff_name: current.staffName,
       pin: current.pin,
       city: current.city,
+      ...(includeMfa ? { include_mfa: "1" } : {}),
     }).toString();
     const verifyRes = await fetch(buildAuthApiUrl(`/api/auth/verify?${qs}`), {
       method: "POST",
@@ -196,7 +203,8 @@ export async function refreshAuthFromApi(a?: Auth | null): Promise<Auth | null> 
 
     if (!current.accessToken) return current;
 
-    const res = await fetch(buildAuthApiUrl("/api/auth/session"), {
+    const sessionPath = includeMfa ? "/api/auth/session?include_mfa=1" : "/api/auth/session";
+    const res = await fetch(buildAuthApiUrl(sessionPath), {
       method: "GET",
       cache: "no-store",
       headers: getAuthHeaders(current),
@@ -271,6 +279,9 @@ export function getAuthHeaders(a?: Auth | null): HeadersInit {
   };
   if (current?.accessToken) headers.Authorization = `Bearer ${current.accessToken}`;
   if (current?.stepUpToken) headers["X-Step-Up-Token"] = current.stepUpToken;
+  if (typeof window !== "undefined" && window.location?.origin) {
+    headers["X-WebAuthn-Origin"] = window.location.origin;
+  }
   return headers;
 }
 
@@ -303,10 +314,17 @@ export function canAccessBackofficeEvaluationAdmin(a?: Auth | null): boolean {
   return role === "HQ" || role === "HR_MANAGER";
 }
 
-export function canAccessProcurementAdmin(a?: Auth | null): boolean {
+export function procurementMarketFromAuth(a?: Auth | null): City {
   const x = a ?? getAuth();
-  const role = (x?.role || "").toString().toUpperCase();
-  return role === "HQ" || role === "HR_MANAGER" || role === "ADMIN" || role === "MANILA_MANAGEMENT";
+  return String(x?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
+}
+
+export function canAccessProcurementAdmin(role: string, market: City): boolean {
+  const normalizedRole = String(role || "").toUpperCase();
+  if (normalizedRole === "HQ") return true;
+  if (market === "manila") return normalizedRole === "MANILA_MANAGEMENT";
+  if (market === "dubai") return normalizedRole === "DUBAI_MANAGEMENT";
+  return false;
 }
 
 export function canAccessInventoryAdmin(a?: Auth | null): boolean {
@@ -329,6 +347,11 @@ export function canAccessMenuAdmin(a?: Auth | null): boolean {
   const x = a ?? getAuth();
   const role = (x?.role || "").toString().toUpperCase();
   return role === "HQ" || role === "HR_MANAGER" || role === "ADMIN" || role === "DUBAI_MANAGEMENT" || role === "MANILA_MANAGEMENT";
+}
+
+export function canAccessCostAdmin(a?: Auth | null): boolean {
+  const x = a ?? getAuth();
+  return canAccessAdminNav(x) || hasPermission("cost.read", x);
 }
 
 export function canAccessCountTemplatesAdmin(a?: Auth | null): boolean {
