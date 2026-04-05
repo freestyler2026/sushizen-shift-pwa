@@ -2919,7 +2919,7 @@ export default function CostCalculationPage() {
               ))}
               {activeSheet === INGREDIENT_SHEET ? <col style={{ width: 36 }} /> : null}
             </colgroup>
-            <thead className="relative z-30 bg-[#131a2a]">
+            <thead className="sticky top-0 z-40 bg-[#131a2a] shadow-[0_1px_0_rgba(255,255,255,0.05)]">
               <tr>
                 {currentColumns.map((column) => (
                   <th
@@ -2929,15 +2929,15 @@ export default function CostCalculationPage() {
                       left: column.key === "row_num" ? 0 : undefined,
                     }}
                     className={cx(
-                      "sticky top-0 z-20 h-12 border-b border-r border-white/10 bg-[#131a2a] px-4 align-middle text-left text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-300",
-                      column.key === "row_num" && "left-0 z-30 bg-[#131a2a] text-right",
+                      "h-12 border-b border-r border-white/10 bg-[#131a2a] px-4 align-middle text-left text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-300",
+                      column.key === "row_num" && "sticky left-0 z-50 bg-[#131a2a] text-right",
                     )}
                   >
                     <span className="block leading-tight">{column.label}</span>
                   </th>
                 ))}
                 {activeSheet === INGREDIENT_SHEET ? (
-                  <th className="sticky right-0 z-20 h-12 border-b border-l border-white/10 bg-[#131a2a] px-4 align-middle text-left text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-300">
+                  <th className="sticky right-0 z-50 h-12 border-b border-l border-white/10 bg-[#131a2a] px-4 align-middle text-left text-[11px] font-medium uppercase tracking-[0.14em] text-zinc-300">
                     <span className="block leading-tight">Actions</span>
                   </th>
                 ) : null}
