@@ -429,6 +429,7 @@ export default function CostCalculationPage() {
   const [mappingCostSaveError, setMappingCostSaveError] = useState("");
   const [mappingDetailLoading, setMappingDetailLoading] = useState(false);
   const [mappingCostSaving, setMappingCostSaving] = useState(false);
+  const [mappingCostInputsDirty, setMappingCostInputsDirty] = useState(false);
   const activeSpreadsheetUrl = SPREADSHEET_URLS[city];
   const currencyCode = city === "dubai" ? "AED" : "PHP";
   const cityLabel = city === "dubai" ? "Dubai / AED" : "Manila / PHP";
@@ -848,24 +849,28 @@ export default function CostCalculationPage() {
         : fallback;
       if (!detail) return;
       setSelectedMappingIngredientDetail(detail);
-      setMappingCostPriceInput(String(Number(detail.unit_price || 0)));
-      setMappingCostFormulaInput(String(detail.unit_price_formula || ""));
-      setMappingCostFormulaNoteInput(String(detail.unit_price_formula_note || ""));
+      if (!mappingCostInputsDirty) {
+        setMappingCostPriceInput(String(Number(detail.unit_price || 0)));
+        setMappingCostFormulaInput(String(detail.unit_price_formula || ""));
+        setMappingCostFormulaNoteInput(String(detail.unit_price_formula_note || ""));
+      }
       applyIngredientDetailToLocalState(detail);
     } catch (e: any) {
       setMappingCostSaveError(e?.message || String(e));
       if (fallback) {
         setSelectedMappingIngredientDetail(fallback);
-        setMappingCostPriceInput(String(Number(fallback.unit_price || 0)));
-        setMappingCostFormulaInput(String(fallback.unit_price_formula || ""));
-        setMappingCostFormulaNoteInput(String(fallback.unit_price_formula_note || ""));
+        if (!mappingCostInputsDirty) {
+          setMappingCostPriceInput(String(Number(fallback.unit_price || 0)));
+          setMappingCostFormulaInput(String(fallback.unit_price_formula || ""));
+          setMappingCostFormulaNoteInput(String(fallback.unit_price_formula_note || ""));
+        }
       } else {
         setSelectedMappingIngredientDetail(null);
       }
     } finally {
       setMappingDetailLoading(false);
     }
-  }, [allIngredientOptions, applyIngredientDetailToLocalState, city]);
+  }, [allIngredientOptions, applyIngredientDetailToLocalState, city, mappingCostInputsDirty]);
 
   const visibleIngredientSuggestions = useMemo(() => {
     if (!editingCell || activeSheet === INGREDIENT_SHEET || editingCell.col !== "ingredient") return [];
@@ -974,8 +979,10 @@ export default function CostCalculationPage() {
       setMappingCostFormulaInput("");
       setMappingCostFormulaNoteInput("");
       setMappingCostSaveError("");
+      setMappingCostInputsDirty(false);
       return;
     }
+    setMappingCostInputsDirty(false);
     void loadMappingIngredientDetail(selectedMappingIngredientId);
   }, [activeSheet, loadMappingIngredientDetail, selectedMappingIngredientId]);
 
@@ -1377,6 +1384,7 @@ export default function CostCalculationPage() {
         setMappingCostPriceInput(String(Number(nextDetail.unit_price || 0)));
         setMappingCostFormulaInput(String(nextDetail.unit_price_formula || ""));
         setMappingCostFormulaNoteInput(String(nextDetail.unit_price_formula_note || ""));
+        setMappingCostInputsDirty(false);
         applyIngredientDetailToLocalState(nextDetail);
       } else {
         await loadMappingIngredientDetail(ingredientId);
@@ -2108,6 +2116,7 @@ export default function CostCalculationPage() {
                                 setMappingCostFormulaInput("");
                                 setMappingCostFormulaNoteInput("");
                                 setMappingCostSaveError("");
+                                setMappingCostInputsDirty(false);
                                 if (selectedIngredient) {
                                   setMappingIngredientSearch(selectedIngredient.name || "");
                                 }
@@ -2291,7 +2300,10 @@ export default function CostCalculationPage() {
                                   <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Direct Unit Price</div>
                                   <input
                                     value={mappingCostPriceInput}
-                                    onChange={(e) => setMappingCostPriceInput(e.target.value)}
+                                    onChange={(e) => {
+                                      setMappingCostPriceInput(e.target.value);
+                                      setMappingCostInputsDirty(true);
+                                    }}
                                     placeholder="0.07475"
                                     className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
                                   />
@@ -2300,7 +2312,10 @@ export default function CostCalculationPage() {
                                   <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Cost Formula</div>
                                   <input
                                     value={mappingCostFormulaInput}
-                                    onChange={(e) => setMappingCostFormulaInput(e.target.value)}
+                                    onChange={(e) => {
+                                      setMappingCostFormulaInput(e.target.value);
+                                      setMappingCostInputsDirty(true);
+                                    }}
                                     placeholder="65 / 1000 * 1.15"
                                     className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
                                   />
@@ -2310,7 +2325,10 @@ export default function CostCalculationPage() {
                                 <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Formula Note / Calculation Basis</div>
                                 <input
                                   value={mappingCostFormulaNoteInput}
-                                  onChange={(e) => setMappingCostFormulaNoteInput(e.target.value)}
+                                  onChange={(e) => {
+                                    setMappingCostFormulaNoteInput(e.target.value);
+                                    setMappingCostInputsDirty(true);
+                                  }}
                                   placeholder="65 AED/kg with 15% buffer"
                                   className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
                                 />
@@ -2337,6 +2355,7 @@ export default function CostCalculationPage() {
                                     setMappingCostFormulaInput(String(selectedMappingIngredientDetail?.unit_price_formula || ""));
                                     setMappingCostFormulaNoteInput(String(selectedMappingIngredientDetail?.unit_price_formula_note || ""));
                                     setMappingCostSaveError("");
+                                    setMappingCostInputsDirty(false);
                                   }}
                                   disabled={!selectedMappingIngredientDetail}
                                   className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
