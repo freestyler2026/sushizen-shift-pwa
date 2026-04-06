@@ -1717,6 +1717,19 @@ export default function CostCalculationPage() {
   }, [currentRows.length]);
 
   const handleGridKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const eventTarget = event.target as HTMLElement | null;
+    if (
+      eventTarget
+      && (
+        eventTarget.tagName === "INPUT"
+        || eventTarget.tagName === "TEXTAREA"
+        || eventTarget.tagName === "SELECT"
+        || eventTarget.tagName === "BUTTON"
+        || eventTarget.isContentEditable
+      )
+    ) {
+      return;
+    }
     if (editingCell) return;
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
