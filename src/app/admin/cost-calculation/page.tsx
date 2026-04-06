@@ -430,6 +430,8 @@ export default function CostCalculationPage() {
   const [mappingDetailLoading, setMappingDetailLoading] = useState(false);
   const [mappingCostSaving, setMappingCostSaving] = useState(false);
   const mappingCostInputsDirtyRef = useRef(false);
+  const allIngredientOptionsRef = useRef(allIngredientOptions);
+  const selectedIngredientDetailRef = useRef<IngredientDetail | null>(null);
   const activeSpreadsheetUrl = SPREADSHEET_URLS[city];
   const currencyCode = city === "dubai" ? "AED" : "PHP";
   const cityLabel = city === "dubai" ? "Dubai / AED" : "Manila / PHP";
@@ -795,12 +797,20 @@ export default function CostCalculationPage() {
         ? { ...item, unit_price: normalizedUnitPrice, unit_price_formula: normalizedFormula, unit_price_formula_note: normalizedFormulaNote }
         : item
     )));
-    if (selectedIngredientDetail && String(selectedIngredientDetail.id) === String(detail.id)) {
+    if (selectedIngredientDetailRef.current && String(selectedIngredientDetailRef.current.id) === String(detail.id)) {
       setSelectedIngredientDetail((prev) => prev ? { ...prev, ...detail } : prev);
       setIngredientDetailPriceInput(String(normalizedUnitPrice));
       setIngredientDetailFormulaInput(normalizedFormula);
       setIngredientDetailFormulaNoteInput(normalizedFormulaNote);
     }
+  }, []);
+
+  useEffect(() => {
+    allIngredientOptionsRef.current = allIngredientOptions;
+  }, [allIngredientOptions]);
+
+  useEffect(() => {
+    selectedIngredientDetailRef.current = selectedIngredientDetail;
   }, [selectedIngredientDetail]);
 
   const loadMappingIngredientDetail = useCallback(async (ingredientId: string) => {
@@ -813,7 +823,7 @@ export default function CostCalculationPage() {
       setMappingCostSaveError("");
       return;
     }
-    const fallback = allIngredientOptions.find((item) => String(item.id) === normalizedId) || null;
+    const fallback = allIngredientOptionsRef.current.find((item) => String(item.id) === normalizedId) || null;
     setMappingDetailLoading(true);
     setMappingCostSaveError("");
     try {
@@ -870,7 +880,7 @@ export default function CostCalculationPage() {
     } finally {
       setMappingDetailLoading(false);
     }
-  }, [allIngredientOptions, applyIngredientDetailToLocalState, city]);
+  }, [applyIngredientDetailToLocalState, city]);
 
   const visibleIngredientSuggestions = useMemo(() => {
     if (!editingCell || activeSheet === INGREDIENT_SHEET || editingCell.col !== "ingredient") return [];
