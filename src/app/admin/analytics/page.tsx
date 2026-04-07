@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -950,6 +950,73 @@ type PlVsTargetResp = {
   pl_import?: { imported_at?: string; sheet_name?: string; source?: string };
 };
 
+type BreakEvenSummary = {
+  sales: number;
+  orders: number;
+  avg_sales_per_order: number | null;
+  food_cost: number;
+  labor_cost: number;
+  rent_cost: number;
+  other_cost: number;
+  fixed_cost: number;
+  variable_cost: number;
+  variable_cost_ratio: number | null;
+  contribution_margin_ratio: number | null;
+  operating_profit: number;
+  profit_per_order: number | null;
+  break_even_sales_period: number | null;
+  break_even_sales_per_day: number | null;
+  break_even_orders_per_day: number | null;
+  margin_of_safety_amount: number | null;
+  margin_of_safety_pct: number | null;
+  days_to_break_even: number | null;
+};
+
+type BreakEvenStoreRow = BreakEvenSummary & {
+  store_name: string;
+  branch_code?: string;
+  basis_mode: "rolling_30d" | "previous_month_fallback";
+};
+
+type BreakEvenMissingPosStoreDetail = {
+  store_name: string;
+  branch_code?: string | null;
+  missing_dates: string[];
+};
+
+type BreakEvenResp = {
+  ok: boolean;
+  city: string;
+  scope: "company" | "store";
+  store_name?: string;
+  basis?: {
+    mode: "rolling_30d" | "previous_month_fallback";
+    date_from: string;
+    date_to: string;
+    as_of_date: string;
+    fallback_reason?: string;
+    source_months: string[];
+  };
+  completeness?: {
+    pos_days_expected: number;
+    pos_days_present: number;
+    missing_pos_dates?: string[];
+    missing_pos_store_details?: BreakEvenMissingPosStoreDetail[];
+    pl_months_expected: string[];
+    pl_months_present: string[];
+    missing_pl_months?: string[];
+    used_fallback: boolean;
+    rolling_reasons?: string[];
+    selected_reasons?: string[];
+    rolling_missing_pos_dates?: string[];
+    rolling_missing_pos_store_details?: BreakEvenMissingPosStoreDetail[];
+    rolling_missing_pl_months?: string[];
+  };
+  detail?: string;
+  summary?: BreakEvenSummary | null;
+  stores?: BreakEvenStoreRow[];
+};
+
 type ComparisonItem = {
   work_date: string;
   city?: string | null;
@@ -1070,6 +1137,7 @@ const MANILA_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter((section) => s
 
 const FINANCE_SECTION_OPTIONS = [
   { value: "summary", label: "Summary", id: "finance-summary" },
+  { value: "breakEven", label: "Break-even", id: "finance-break-even" },
   { value: "plDetails", label: "P&L Details", id: "finance-pl-details" },
   { value: "payroll", label: "Payroll", id: "finance-payroll" },
 ] as const;
@@ -1093,6 +1161,39 @@ function formatPct(value: number, digits = 2) {
 function formatScore(value: number | null | undefined, digits = 1) {
   if (value == null || !Number.isFinite(value)) return "—";
   return formatDecimal(Number(value), digits);
+}
+
+function formatBreakEvenBasis(mode?: "rolling_30d" | "previous_month_fallback") {
+  return mode === "previous_month_fallback" ? "Previous month fallback" : "Rolling 30 days";
+}
+
+function formatBreakEvenFallbackReason(reason?: string) {
+  if (!reason) return "";
+  if (reason === "missing_pos_days") return "Rolling 30d data was incomplete because one or more POS days were missing.";
+  if (reason === "missing_pl_month_import") return "Rolling 30d data was incomplete because monthly P&L import data was missing.";
+  if (reason === "missing_store_scope_in_pl") return "Rolling 30d data was incomplete because one or more store columns were missing in P&L.";
+  if (reason === "missing_multiple_sources") return "Rolling 30d data was incomplete because multiple source datasets were missing.";
+  return reason;
+}
+
+function formatBreakEvenReasonLabel(reason?: string) {
+  if (!reason) return "";
+  if (reason === "missing_pos_days") return "POS daily data is missing for one or more dates.";
+  if (reason === "missing_pl_month_import") return "Monthly P&L import data is missing for one or more months.";
+  if (reason === "missing_store_scope_in_pl") return "One or more store columns are missing in the P&L import.";
+  return reason;
+}
+
+function formatBreakEvenMissingDates(dates?: string[]) {
+  const items = (dates || []).filter(Boolean);
+  if (!items.length) return "";
+  if (items.length <= 6) return items.join(", ");
+  return `${items.slice(0, 6).join(", ")} (+${items.length - 6} more)`;
+}
+
+function formatBreakEvenDays(value?: number | null) {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return `${formatDecimal(Number(value), 1)} days`;
 }
 
 function AggregatorBreakdown({ items, dense = false }: { items?: PosAggregatorMetric[]; dense?: boolean }) {
@@ -1505,6 +1606,7 @@ function calculateComplianceRate(row: ComparisonItem) {
 export default function AdminAnalyticsPage() {
   const stripStepUpForFreshVisit = (value: ReturnType<typeof getAuth>) => {
     if (!value) return value;
+    if (stepUpSatisfies("aal2", value)) return value;
     return {
       ...value,
       stepUpToken: "",
@@ -1532,18 +1634,19 @@ export default function AdminAnalyticsPage() {
   const [salesSectionView, setSalesSectionView] = useState<"summary" | "hourly" | "operationTime" | "brands" | "cancelOrders" | "productMix" | "menu" | "stores" | "daily" | "manilaSales" | "all">(
     "summary",
   );
-  const [financeSectionView, setFinanceSectionView] = useState<"summary" | "plDetails" | "payroll" | "all">("summary");
+  const [financeSectionView, setFinanceSectionView] = useState<"summary" | "breakEven" | "plDetails" | "payroll" | "all">("summary");
   const [evaluationSectionView, setEvaluationSectionView] = useState<"summary" | "attendance" | "operation" | "disposal" | "backup" | "foodCost" | "purchasing" | "inventoryAccuracy" | "all">(
     "summary",
   );
   const [staffLimit] = useState(20);
 
   const [approverName, setApproverName] = useState(auth?.staffName || "");
-  const [pin, setPin] = useState("");
+  const [pin, setPin] = useState(auth?.pin || "");
   const [securityBusy, setSecurityBusy] = useState(false);
   const [securityError, setSecurityError] = useState("");
   const [securityMessage, setSecurityMessage] = useState("");
-  const [stepUpVerifiedThisVisit, setStepUpVerifiedThisVisit] = useState(false);
+  const [stepUpVerifiedThisVisit, setStepUpVerifiedThisVisit] = useState(() => stepUpSatisfies("aal2", getAuth()));
+  const stepUpVerifiedRef = useRef(stepUpSatisfies("aal2", getAuth()));
   const [totpCode, setTotpCode] = useState("");
   const [backupCode, setBackupCode] = useState("");
   const [totpEnrollment, setTotpEnrollment] = useState<null | { enrollmentToken: string; secret: string; otpauthUri: string }>(null);
@@ -1563,7 +1666,7 @@ export default function AdminAnalyticsPage() {
   const [productMixCoverage, setProductMixCoverage] = useState<{ from?: string | null; to?: string | null; source?: string }>({});
   const [posBranchOrderRows, setPosBranchOrderRows] = useState<PosBranchOrderRow[]>([]);
   const [posBrandOrderRows, setPosBrandOrderRows] = useState<PosBrandOrderRow[]>([]);
-  const [posBranchDailyRows, setPosBranchDailyRows] = useState<PosBranchDailyRow[]>([]);
+  const [, setPosBranchDailyRows] = useState<PosBranchDailyRow[]>([]);
   const [cancelOrdersAnalytics, setCancelOrdersAnalytics] = useState<PosCancelOrdersResp | null>(null);
   const [hourlySalesAnalytics, setHourlySalesAnalytics] = useState<HourlySalesAnalyticsResp | null>(null);
   const [hourlyLoadError, setHourlyLoadError] = useState("");
@@ -1576,6 +1679,7 @@ export default function AdminAnalyticsPage() {
   const [payrollRows, setPayrollRows] = useState<PayrollStaffRow[]>([]);
   const [financeRatio, setFinanceRatio] = useState<FinanceLaborRatioResp | null>(null);
   const [plVsTarget, setPlVsTarget] = useState<PlVsTargetResp | null>(null);
+  const [breakEven, setBreakEven] = useState<BreakEvenResp | null>(null);
   const [salesPlSummary, setSalesPlSummary] = useState<PlVsTargetResp | null>(null);
   const [evaluationSummary, setEvaluationSummary] = useState<EvaluationSummaryData | null>(null);
   const [evaluationStores, setEvaluationStores] = useState<EvaluationStoreRow[]>([]);
@@ -1826,7 +1930,6 @@ export default function AdminAnalyticsPage() {
   }, [plVsTarget, plStoreName]);
 
   const isStoreScopedView = plStoreName.trim().length > 0;
-  const financeScopeBranchCode = isStoreScopedView ? mapStoreToBranchCode(plStoreName) : "";
 
   const laborDisplay = useMemo(() => {
     if (!plVsTarget?.ok) return null;
@@ -1850,36 +1953,6 @@ export default function AdminAnalyticsPage() {
       variancePlVsPayroll: Number(labor.variance_pl_vs_payroll || 0),
     };
   }, [plVsTarget]);
-
-  const grossProfitMetrics = useMemo(() => {
-    if (!plVsTarget?.ok || !plHeadline) return null;
-
-    const grossProfitAmount = Number(plVsTarget.revenue_pl || 0) - Number(plVsTarget.buckets?.food.actual_amount || 0);
-    const grossProfitRate = Number(plVsTarget.revenue_pl || 0) > 0 ? (grossProfitAmount / Number(plVsTarget.revenue_pl || 0)) * 100 : 0;
-
-    const scopedBranchDailyRows = financeScopeBranchCode
-      ? branchDailyRows.filter((row) => String(row.branch_code || "").toUpperCase() === financeScopeBranchCode)
-      : branchDailyRows;
-    const laborHours = scopedBranchDailyRows.reduce((sum, row) => sum + Number(row.total_hours || 0), 0);
-    const attendanceCount = scopedBranchDailyRows.reduce((sum, row) => sum + Number(row.staff_count || 0), 0);
-
-    const orderCount = financeScopeBranchCode
-      ? posBranchDailyRows
-          .filter((row) => mapStoreToBranchCode(row.branch_name || "") === financeScopeBranchCode)
-          .reduce((sum, row) => sum + Number(row.order_count_non_cancelled || 0), 0)
-      : Number(posSalesRangeTotals?.order_count_non_cancelled || 0);
-
-    return {
-      grossProfitAmount,
-      grossProfitRate,
-      grossProfitPerLaborHour: laborHours > 0 ? grossProfitAmount / laborHours : null,
-      grossProfitPerAttendance: attendanceCount > 0 ? grossProfitAmount / attendanceCount : null,
-      grossProfitPerOrder: orderCount > 0 ? grossProfitAmount / orderCount : null,
-      laborHours,
-      attendanceCount,
-      orderCount,
-    };
-  }, [plVsTarget, plHeadline, financeScopeBranchCode, branchDailyRows, posBranchDailyRows, posSalesRangeTotals]);
 
   const [salesSyncing, setSalesSyncing] = useState(false);
   const [payrollSyncing, setPayrollSyncing] = useState(false);
@@ -1929,10 +2002,15 @@ export default function AdminAnalyticsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    stepUpVerifiedRef.current = stepUpVerifiedThisVisit;
+  }, [stepUpVerifiedThisVisit]);
+
   async function refreshSecurityState(options?: { allowStepUp?: boolean }) {
     const next = await refreshAuthFromApi(getAuth(), { includeMfa: true });
-    const allowStepUp = Boolean(options?.allowStepUp);
-    setAuthState(stepUpVerifiedThisVisit || allowStepUp ? next : stripStepUpForFreshVisit(next));
+    const keepStepUp = Boolean(options?.allowStepUp) || stepUpVerifiedRef.current || stepUpSatisfies("aal2", next);
+    setStepUpVerifiedThisVisit(keepStepUp);
+    setAuthState(keepStepUp ? next : stripStepUpForFreshVisit(next));
     return next;
   }
 
@@ -2086,14 +2164,13 @@ export default function AdminAnalyticsPage() {
   useEffect(() => {
     let cancelled = false;
     async function run() {
-      // Require fresh MFA every time this page is opened.
-      clearStepUpAuth();
-      setStepUpVerifiedThisVisit(false);
-      setAuthState(stripStepUpForFreshVisit(getAuth()));
-      const next = await refreshAuthFromApi(getAuth());
+      const next = await refreshAuthFromApi(getAuth(), { includeMfa: true });
       if (!cancelled) {
-        setAuthState(stripStepUpForFreshVisit(next));
+        const keepStepUp = stepUpSatisfies("aal2", next);
+        setStepUpVerifiedThisVisit(keepStepUp);
+        setAuthState(keepStepUp ? next : stripStepUpForFreshVisit(next));
         if (next?.staffName) setApproverName(next.staffName);
+        if (next?.pin) setPin((current) => current || next.pin || "");
       }
     }
     void run();
@@ -2585,6 +2662,7 @@ export default function AdminAnalyticsPage() {
           setPayrollRows([]);
           setFinanceRatio(null);
           setPlVsTarget(null);
+          setBreakEven(null);
           return;
         }
 
@@ -2639,6 +2717,21 @@ export default function AdminAnalyticsPage() {
               setPlVsTarget(plVs || null);
             } catch {
               setPlVsTarget(null);
+            }
+          })(),
+          (async () => {
+            try {
+              const breakEvenQs = new URLSearchParams({
+                city,
+                approver_name: approverName.trim(),
+                pin: pin.trim(),
+              });
+              if (plStoreName.trim()) breakEvenQs.set("store_name", plStoreName.trim());
+              const breakEvenRes = await apiGet<BreakEvenResp>(`/api/admin/finance/break-even?${breakEvenQs.toString()}`);
+              setBreakEven(breakEvenRes || null);
+            } catch (e) {
+              addLoadError("Management P&L (Break-even)", e);
+              setBreakEven(null);
             }
           })(),
         ]);
@@ -6556,32 +6649,36 @@ export default function AdminAnalyticsPage() {
                 available (to align with workbook totals). POS metrics remain for operations (orders/menu/store ranking).
                 HQ/Admin and city management only.
               </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setFinanceSectionView("all")}
-                  className={
-                    financeSectionView === "all"
-                      ? "rounded-full border border-violet-500/70 bg-violet-500/15 px-3 py-1 text-[11px] font-semibold text-violet-100"
-                      : "rounded-full border border-neutral-700 bg-neutral-950/40 px-3 py-1 text-[11px] font-medium text-neutral-200 transition hover:bg-neutral-900 hover:text-white"
-                  }
-                >
-                  All
-                </button>
-                {FINANCE_SECTION_OPTIONS.filter((section) => (section.value === "payroll" ? isHQOrAdmin : true)).map((section) => (
+              <div className="mt-4 rounded-2xl border border-neutral-800/80 bg-neutral-950/50 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+                <div className="flex flex-wrap gap-2">
                   <button
-                    key={section.value}
                     type="button"
-                    onClick={() => setFinanceSectionView(section.value)}
+                    onClick={() => setFinanceSectionView("all")}
+                    aria-pressed={financeSectionView === "all"}
                     className={
-                      financeSectionView === section.value
-                        ? "rounded-full border border-violet-500/70 bg-violet-500/15 px-3 py-1 text-[11px] font-semibold text-violet-100"
-                        : "rounded-full border border-neutral-700 bg-neutral-950/40 px-3 py-1 text-[11px] font-medium text-neutral-200 transition hover:bg-neutral-900 hover:text-white"
+                      financeSectionView === "all"
+                        ? "inline-flex min-h-11 items-center justify-center rounded-xl border border-violet-400/70 bg-gradient-to-r from-violet-500/25 to-fuchsia-500/20 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(139,92,246,0.18)] transition"
+                        : "inline-flex min-h-11 items-center justify-center rounded-xl border border-transparent bg-neutral-900/70 px-4 py-2.5 text-sm font-medium text-neutral-300 transition hover:border-neutral-700 hover:bg-neutral-800 hover:text-white"
                     }
                   >
-                    {section.label}
+                    All
                   </button>
-                ))}
+                  {FINANCE_SECTION_OPTIONS.filter((section) => (section.value === "payroll" ? isHQOrAdmin : true)).map((section) => (
+                    <button
+                      key={section.value}
+                      type="button"
+                      onClick={() => setFinanceSectionView(section.value)}
+                      aria-pressed={financeSectionView === section.value}
+                      className={
+                        financeSectionView === section.value
+                          ? "inline-flex min-h-11 items-center justify-center rounded-xl border border-violet-400/70 bg-gradient-to-r from-violet-500/25 to-fuchsia-500/20 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(139,92,246,0.18)] transition"
+                          : "inline-flex min-h-11 items-center justify-center rounded-xl border border-transparent bg-neutral-900/70 px-4 py-2.5 text-sm font-medium text-neutral-300 transition hover:border-neutral-700 hover:bg-neutral-800 hover:text-white"
+                      }
+                    >
+                      {section.label}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="mt-3 flex flex-wrap items-start gap-4 border-t border-neutral-800 pt-3">
                 <div className="min-w-[240px] flex-1 text-xs text-neutral-400">
@@ -6650,39 +6747,182 @@ export default function AdminAnalyticsPage() {
             </div>
             ) : null}
 
-            {financeSectionView === "all" || financeSectionView === "summary" ? (
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-              <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Gross profit amount</div>
-                <MetricValue className={NUMERIC_BLOCK_VALUE} value={grossProfitMetrics ? grossProfitMetrics.grossProfitAmount : "—"} />
+            {financeSectionView === "all" || financeSectionView === "breakEven" ? (
+            <div id="finance-break-even" className="rounded-2xl border border-emerald-900/40 bg-emerald-950/10 p-4">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <div className="text-sm font-semibold text-emerald-100">Break-even guidance</div>
+                {breakEven?.basis ? (
+                  <div className="text-[11px] text-neutral-500">
+                    Basis: {formatBreakEvenBasis(breakEven.basis.mode)}
+                    {breakEven.basis.mode === "previous_month_fallback" ? " (auto fallback)" : ""}
+                  </div>
+                ) : null}
               </div>
-              <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Gross profit rate</div>
-                <div className={NUMERIC_BLOCK_VALUE}>
-                  {grossProfitMetrics ? formatPct(grossProfitMetrics.grossProfitRate) : "—"}
+              <div className="mt-1 text-xs text-neutral-500">
+                Uses rolling 30 days when all required data is available; otherwise falls back to the previous full month.
+              </div>
+              {breakEven?.basis ? (
+                <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-neutral-400 md:grid-cols-3">
+                  <div>
+                    Range: <span className="text-neutral-200">{breakEven.basis.date_from} to {breakEven.basis.date_to}</span>
+                  </div>
+                  <div>
+                    POS coverage:{" "}
+                    <span className="text-neutral-200">
+                      {formatCount(Number(breakEven.completeness?.pos_days_present || 0))}/{formatCount(Number(breakEven.completeness?.pos_days_expected || 0))} days
+                    </span>
+                  </div>
+                  <div>
+                    P&amp;L months:{" "}
+                    <span className="text-neutral-200">
+                      {formatCount(Number(breakEven.completeness?.pl_months_present?.length || 0))}/{formatCount(Number(breakEven.completeness?.pl_months_expected?.length || 0))}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Gross profit / labor hour</div>
-                <MetricValue
-                  className={NUMERIC_BLOCK_VALUE}
-                  value={grossProfitMetrics?.grossProfitPerLaborHour != null ? grossProfitMetrics.grossProfitPerLaborHour : "—"}
-                />
-              </div>
-              <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Gross profit / attendance</div>
-                <MetricValue
-                  className={NUMERIC_BLOCK_VALUE}
-                  value={grossProfitMetrics?.grossProfitPerAttendance != null ? grossProfitMetrics.grossProfitPerAttendance : "—"}
-                />
-              </div>
-              <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Gross profit / order</div>
-                <MetricValue
-                  className={NUMERIC_BLOCK_VALUE}
-                  value={grossProfitMetrics?.grossProfitPerOrder != null ? grossProfitMetrics.grossProfitPerOrder : "—"}
-                />
-              </div>
+              ) : null}
+              {breakEven?.basis?.fallback_reason ? (
+                <div className="mt-2 rounded-xl border border-amber-900/40 bg-amber-950/20 px-3 py-2 text-xs text-amber-100">
+                  {formatBreakEvenFallbackReason(breakEven.basis.fallback_reason)}
+                  {(breakEven.completeness?.rolling_reasons || []).length ? (
+                    <div className="mt-2 space-y-1 text-[11px] text-amber-100/90">
+                      <div className="font-semibold text-amber-50">Rolling 30d was missing:</div>
+                      {(breakEven.completeness?.rolling_reasons || []).map((reason) => (
+                        <div key={`rolling-${reason}`}>- {formatBreakEvenReasonLabel(reason)}</div>
+                      ))}
+                      {(breakEven.completeness?.rolling_missing_pl_months || []).length ? (
+                        <div>Missing P&amp;L months: {formatBreakEvenMissingDates(breakEven.completeness?.rolling_missing_pl_months)}</div>
+                      ) : null}
+                      {(breakEven.completeness?.rolling_missing_pos_dates || []).length ? (
+                        <div>Missing POS dates: {formatBreakEvenMissingDates(breakEven.completeness?.rolling_missing_pos_dates)}</div>
+                      ) : null}
+                      {(breakEven.completeness?.rolling_missing_pos_store_details || []).slice(0, 8).map((item) => (
+                        <div key={`rolling-store-${item.store_name}`}>
+                          {item.store_name}: {formatBreakEvenMissingDates(item.missing_dates)}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              {(breakEven?.completeness?.selected_reasons || []).length ? (
+                <div className="mt-2 rounded-xl border border-rose-900/40 bg-rose-950/20 px-3 py-2 text-xs text-rose-100">
+                  <div className="font-semibold text-rose-50">
+                    {breakEven.basis?.mode === "previous_month_fallback" ? "Fallback month is still missing:" : "Current window is still missing:"}
+                  </div>
+                  <div className="mt-2 space-y-1 text-[11px] text-rose-100/90">
+                    {(breakEven.completeness?.selected_reasons || []).map((reason) => (
+                      <div key={`selected-${reason}`}>- {formatBreakEvenReasonLabel(reason)}</div>
+                    ))}
+                    {(breakEven.completeness?.missing_pl_months || []).length ? (
+                      <div>Missing P&amp;L months: {formatBreakEvenMissingDates(breakEven.completeness?.missing_pl_months)}</div>
+                    ) : null}
+                    {(breakEven.completeness?.missing_pos_dates || []).length ? (
+                      <div>Missing POS dates: {formatBreakEvenMissingDates(breakEven.completeness?.missing_pos_dates)}</div>
+                    ) : null}
+                    {(breakEven.completeness?.missing_pos_store_details || []).slice(0, 8).map((item) => (
+                      <div key={`selected-store-${item.store_name}`}>
+                        {item.store_name}: {formatBreakEvenMissingDates(item.missing_dates)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {breakEven?.ok && breakEven.summary ? (
+                <>
+                  <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                      <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Break-even sales / day</div>
+                      <div className={NUMERIC_BLOCK_VALUE}>
+                        {breakEven.summary.break_even_sales_per_day != null ? formatMoney(Number(breakEven.summary.break_even_sales_per_day || 0)) : "—"}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                      <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Break-even orders / day</div>
+                      <div className={NUMERIC_BLOCK_VALUE}>
+                        {breakEven.summary.break_even_orders_per_day != null ? formatDecimal(Number(breakEven.summary.break_even_orders_per_day || 0), 1) : "—"}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                      <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Safety margin</div>
+                      <div className={NUMERIC_BLOCK_VALUE}>
+                        {breakEven.summary.margin_of_safety_pct != null ? formatPct(Number(breakEven.summary.margin_of_safety_pct || 0) * 100) : "—"}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                      <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Days to break-even</div>
+                      <div className={NUMERIC_BLOCK_VALUE}>{formatBreakEvenDays(breakEven.summary.days_to_break_even)}</div>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                      <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Average sales / order</div>
+                      <div className={NUMERIC_SMALL_BLOCK_VALUE}>
+                        {breakEven.summary.avg_sales_per_order != null ? formatMoney(Number(breakEven.summary.avg_sales_per_order || 0)) : "—"}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                      <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Operating profit / order</div>
+                      <div className={NUMERIC_SMALL_BLOCK_VALUE}>
+                        {breakEven.summary.profit_per_order != null ? formatMoney(Number(breakEven.summary.profit_per_order || 0)) : "—"}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                      <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Contribution margin %</div>
+                      <div className={NUMERIC_SMALL_BLOCK_VALUE}>
+                        {breakEven.summary.contribution_margin_ratio != null ? formatPct(Number(breakEven.summary.contribution_margin_ratio || 0) * 100) : "—"}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                      <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Orders in period</div>
+                      <div className={NUMERIC_SMALL_BLOCK_VALUE}>{formatCount(Number(breakEven.summary.orders || 0))}</div>
+                    </div>
+                  </div>
+                  {breakEven.scope === "company" && (breakEven.stores || []).length ? (
+                    <div className="mt-4 overflow-x-auto rounded-2xl border border-neutral-800 bg-neutral-950/30">
+                      <table className="min-w-full text-left text-sm">
+                        <thead className="border-b border-neutral-800 text-xs text-neutral-400">
+                          <tr>
+                            <th className={TABLE_HEADER + " px-3 py-3 text-left"}>Store</th>
+                            <th className={TABLE_HEADER + " px-3 py-3 text-left"}>Sales</th>
+                            <th className={TABLE_HEADER + " px-3 py-3 text-left"}>Orders</th>
+                            <th className={TABLE_HEADER + " px-3 py-3 text-left"}>Avg sales / order</th>
+                            <th className={TABLE_HEADER + " px-3 py-3 text-left"}>Operating profit</th>
+                            <th className={TABLE_HEADER + " px-3 py-3 text-left"}>Profit / order</th>
+                            <th className={TABLE_HEADER + " px-3 py-3 text-left"}>BE sales / day</th>
+                            <th className={TABLE_HEADER + " px-3 py-3 text-left"}>BE orders / day</th>
+                            <th className={TABLE_HEADER + " px-3 py-3 text-left"}>Safety margin %</th>
+                            <th className={TABLE_HEADER + " px-3 py-3 text-left"}>Days to break-even</th>
+                            <th className={TABLE_HEADER + " px-3 py-3 text-left"}>Basis</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(breakEven.stores || []).map((row) => (
+                            <tr key={row.store_name} className={TABLE_ROW}>
+                              <td className={TABLE_CELL + " px-3"}>{row.store_name}</td>
+                              <td className={TABLE_CELL + " px-3 tabular-nums"}>{formatMoney(Number(row.sales || 0))}</td>
+                              <td className={TABLE_CELL + " px-3 tabular-nums"}>{formatCount(Number(row.orders || 0))}</td>
+                              <td className={TABLE_CELL + " px-3 tabular-nums"}>{row.avg_sales_per_order != null ? formatMoney(Number(row.avg_sales_per_order || 0)) : "—"}</td>
+                              <td className={TABLE_CELL + " px-3 tabular-nums"}>{formatMoney(Number(row.operating_profit || 0))}</td>
+                              <td className={TABLE_CELL + " px-3 tabular-nums"}>{row.profit_per_order != null ? formatMoney(Number(row.profit_per_order || 0)) : "—"}</td>
+                              <td className={TABLE_CELL + " px-3 tabular-nums"}>{row.break_even_sales_per_day != null ? formatMoney(Number(row.break_even_sales_per_day || 0)) : "—"}</td>
+                              <td className={TABLE_CELL + " px-3 tabular-nums"}>{row.break_even_orders_per_day != null ? formatDecimal(Number(row.break_even_orders_per_day || 0), 1) : "—"}</td>
+                              <td className={TABLE_CELL + " px-3 tabular-nums"}>
+                                {row.margin_of_safety_pct != null ? formatPct(Number(row.margin_of_safety_pct || 0) * 100) : "—"}
+                              </td>
+                              <td className={TABLE_CELL + " px-3 tabular-nums"}>{formatBreakEvenDays(row.days_to_break_even)}</td>
+                              <td className={TABLE_CELL + " px-3"}>{formatBreakEvenBasis(row.basis_mode)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <div className="mt-4 rounded-xl border border-neutral-800 bg-neutral-950/40 px-3 py-3 text-sm text-neutral-300">
+                  {breakEven?.detail || "Break-even data will appear after the next refresh."}
+                </div>
+              )}
             </div>
             ) : null}
 

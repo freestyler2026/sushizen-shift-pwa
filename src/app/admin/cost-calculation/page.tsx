@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Calculator, ChevronDown, ChevronRight, Clock, Database, ExternalLink, History, LayoutGrid, Loader2, Percent, Pencil, Plus, Save, Search, Trash2, User, X } from "lucide-react";
+import { AlertTriangle, Calculator, ChevronDown, ChevronRight, Clock, Database, ExternalLink, History, LayoutGrid, Loader2, Percent, Pencil, Plus, RotateCcw, Save, Search, SkipForward, Trash2, User, X } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { canAccessCostAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { costJson } from "@/lib/costClient";
@@ -29,7 +29,8 @@ type IngredientRow = {
   unit_price: number;
   unit_price_formula?: string;
   unit_price_formula_note?: string;
-  yield_rate: number;
+  buffer_rate: number;
+  yield_rate: number | null;
   notes: string;
   city: string;
   _new?: boolean;
@@ -175,6 +176,16 @@ type InvoiceItemMappingRow = {
 };
 
 const INGREDIENT_SHEET = "食材マスタ";
+/** 500 matches legacy API `le=500`; we page with `offset` so all rows load after backend supports OFFSET. */
+const INGREDIENT_LIST_PAGE_SIZE = 500;
+
+function unmatchedInvoiceItemKey(item: Pick<UnmatchedInvoiceItemRow, "supplier_name" | "item_description">) {
+  return `${item.supplier_name}::${item.item_description}`;
+}
+
+function skippedUnmatchedStorageKey(city: string) {
+  return `cost-invoice-unmatched-skipped:${city}`;
+}
 const SPREADSHEET_URLS: Record<"dubai" | "manila", string> = {
   dubai: "https://docs.google.com/spreadsheets/d/1NHfPN7bqTjRoqEVPbhJqv_H7ZbwjY9wJVF9D7Ls0n1M/edit",
   manila: "https://docs.google.com/spreadsheets/d/1xD-YKHkOpEqXO8xJqo10M771PWyTgnouBz3leveRfB0/edit",
@@ -213,6 +224,20 @@ function formatCellNumber(value: unknown, decimals = 2) {
   return Number.isFinite(num) ? num.toFixed(decimals) : "";
 }
 
+function normalizeRateValue(value: unknown) {
+  if (value == null || value === "") return null;
+  const num = Number(value);
+  return Number.isFinite(num) && num > 0 ? num : null;
+}
+
+function formatRatePercent(value: number | null, fallback = "—") {
+  return value == null ? fallback : `${(value * 100).toFixed(0)}%`;
+}
+
+function hasYieldRate(value: unknown) {
+  return normalizeRateValue(value) != null;
+}
+
 function createRecipeIngredientDraft(): RecipeIngredientDraft {
   return {
     key: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -241,6 +266,10 @@ function attachPreviousIngredientPrices(rows: PriceHistoryEntry[]) {
     ...entry,
     previous_price: entry.previous_price ?? entry.old_price ?? (index + 1 < rows.length ? rows[index + 1]?.unit_price ?? null : null),
   }));
+}
+
+function normalizeIngredientNameForMatch(value: unknown) {
+  return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 function mapMenuItemDetail(raw: any): MenuItemDetail {
@@ -300,10 +329,17 @@ function highlightMatch(text: string, query: string) {
   );
 }
 
-function yieldBadgeClass(value: number) {
+function bufferBadgeClass(value: number) {
   if (value > 1.15) return "border-amber-500/30 bg-amber-500/12 text-amber-300";
   if (value < 1.15) return "border-sky-500/30 bg-sky-500/12 text-sky-300";
   return "border-white/10 bg-white/5 text-zinc-300";
+}
+
+function yieldBadgeClass(value: number | null) {
+  if (value == null) return "border-red-500/30 bg-red-500/12 text-red-300";
+  if (value >= 0.9) return "border-emerald-500/30 bg-emerald-500/12 text-emerald-300";
+  if (value >= 0.75) return "border-amber-500/30 bg-amber-500/12 text-amber-300";
+  return "border-red-500/30 bg-red-500/12 text-red-300";
 }
 
 function costRatioBadgeClass(value: number | null) {
@@ -392,10 +428,13 @@ export default function CostCalculationPage() {
   const [editingMenuItemId, setEditingMenuItemId] = useState<string | null>(null);
   const [editingMenuPrice, setEditingMenuPrice] = useState("");
   const [ingredientDetailPriceInput, setIngredientDetailPriceInput] = useState("");
+  const [ingredientDetailBufferInput, setIngredientDetailBufferInput] = useState("");
+  const [ingredientDetailYieldInput, setIngredientDetailYieldInput] = useState("");
   const [ingredientDetailFormulaInput, setIngredientDetailFormulaInput] = useState("");
   const [ingredientDetailFormulaNoteInput, setIngredientDetailFormulaNoteInput] = useState("");
   const [ingredientDetailSaveError, setIngredientDetailSaveError] = useState("");
   const [ingredientDetailSaving, setIngredientDetailSaving] = useState(false);
+  const [ingredientDetailDeleting, setIngredientDetailDeleting] = useState(false);
   const [expandedMenuItemId, setExpandedMenuItemId] = useState<string | null>(null);
   const [menuDetails, setMenuDetails] = useState<Record<string, MenuItemDetail>>({});
   const [menuDetailLoadingId, setMenuDetailLoadingId] = useState<string | null>(null);
@@ -406,6 +445,7 @@ export default function CostCalculationPage() {
   const [invoiceMappingLoading, setInvoiceMappingLoading] = useState(false);
   const [invoiceMappingSaving, setInvoiceMappingSaving] = useState(false);
   const [selectedUnmatchedItemKey, setSelectedUnmatchedItemKey] = useState("");
+  const [skippedUnmatchedInvoiceKeys, setSkippedUnmatchedInvoiceKeys] = useState<string[]>([]);
   const [editingInvoiceMappingId, setEditingInvoiceMappingId] = useState<string | null>(null);
   const [mappingMode, setMappingMode] = useState<"create" | "edit">("create");
   const [mappingSourceSupplierName, setMappingSourceSupplierName] = useState("");
@@ -442,7 +482,8 @@ export default function CostCalculationPage() {
       { key: "name", label: "Name", width: 200, editable: true },
       { key: "unit", label: "Unit", width: 70, editable: true },
       { key: "unit_price", label: `計算単価 (${currencyCode})`, width: 110, editable: true, type: "number", align: "right" },
-      { key: "yield_rate", label: "Buffer / Yield", width: 100, editable: true, type: "number", align: "right" },
+      { key: "buffer_rate", label: "Buffer", width: 92, editable: true, type: "number", align: "right" },
+      { key: "yield_rate", label: "Yield", width: 92, editable: true, type: "number", align: "right" },
       { key: "notes", label: "Notes", width: 220, editable: true },
     ],
     [currencyCode],
@@ -466,23 +507,50 @@ export default function CostCalculationPage() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(skippedUnmatchedStorageKey(city));
+      const parsed = raw ? JSON.parse(raw) : [];
+      setSkippedUnmatchedInvoiceKeys(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setSkippedUnmatchedInvoiceKeys([]);
+    }
+  }, [city]);
+
   const loadIngredients = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await costJson<{ items?: IngredientRow[]; ingredients?: IngredientRow[] }>(
-        `/api/cost/ingredients?city=${encodeURIComponent(city)}&limit=500`,
-      );
-      const source = Array.isArray(res?.items) ? res.items : Array.isArray(res?.ingredients) ? res.ingredients : [];
-      const next = source.map((row) => ({
+      const mapRow = (row: IngredientRow) => ({
         ...row,
         notes: String((row as any).notes || ""),
         unit_price: Number(row.unit_price || 0),
         unit_price_formula: String((row as any).unit_price_formula || ""),
         unit_price_formula_note: String((row as any).unit_price_formula_note || ""),
-        yield_rate: Number((row as any).yield_rate || 0),
-      }));
-      setIngredients(next);
-      setAllIngredientOptions(next);
+        buffer_rate: Number((row as any).buffer_rate || 1.15),
+        yield_rate: normalizeRateValue((row as any).yield_rate),
+      });
+
+      const seen = new Set<string>();
+      const merged: IngredientRow[] = [];
+      let offset = 0;
+      for (let page = 0; page < 400; page += 1) {
+        const res = await costJson<{ items?: IngredientRow[]; ingredients?: IngredientRow[] }>(
+          `/api/cost/ingredients?city=${encodeURIComponent(city)}&limit=${INGREDIENT_LIST_PAGE_SIZE}&offset=${offset}`,
+        );
+        const source = Array.isArray(res?.items) ? res.items : Array.isArray(res?.ingredients) ? res.ingredients : [];
+        let added = 0;
+        for (const row of source) {
+          const id = String((row as IngredientRow).id || "");
+          if (!id || seen.has(id)) continue;
+          seen.add(id);
+          merged.push(mapRow(row as IngredientRow));
+          added += 1;
+        }
+        if (source.length < INGREDIENT_LIST_PAGE_SIZE || added === 0) break;
+        offset += INGREDIENT_LIST_PAGE_SIZE;
+      }
+      setIngredients(merged);
+      setAllIngredientOptions(merged);
     } catch (e) {
       console.error("Failed to load ingredients:", e);
       setIngredients([]);
@@ -514,7 +582,7 @@ export default function CostCalculationPage() {
   const loadInvoiceMappingData = useCallback(async () => {
     setInvoiceMappingLoading(true);
     try {
-      const [unmatchedRes, mappingsRes] = await Promise.all([
+      const [unmatchedResult, mappingsResult] = await Promise.allSettled([
         costJson<{ items?: UnmatchedInvoiceItemRow[] }>(
           `/api/admin/cost/invoice-item-mappings/unmatched?city=${encodeURIComponent(city)}&limit=100`,
         ),
@@ -522,16 +590,16 @@ export default function CostCalculationPage() {
           `/api/admin/cost/invoice-item-mappings?city=${encodeURIComponent(city)}&limit=200&is_active=true`,
         ),
       ]);
-      const nextUnmatched = Array.isArray(unmatchedRes?.items)
-        ? unmatchedRes.items.map((item) => ({
+      const nextUnmatched = unmatchedResult.status === "fulfilled" && Array.isArray(unmatchedResult.value?.items)
+        ? unmatchedResult.value.items.map((item) => ({
             ...item,
             latest_unit_price: Number(item.latest_unit_price || 0),
             invoice_count: Number(item.invoice_count || 0),
             line_count: Number(item.line_count || 0),
           }))
         : [];
-      const nextMappings = Array.isArray(mappingsRes?.items)
-        ? mappingsRes.items.map((item) => ({
+      const nextMappings = mappingsResult.status === "fulfilled" && Array.isArray(mappingsResult.value?.items)
+        ? mappingsResult.value.items.map((item) => ({
             ...item,
             id: String(item.id || ""),
             ingredient_id: String(item.ingredient_id || ""),
@@ -542,14 +610,37 @@ export default function CostCalculationPage() {
             notes: String(item.notes || ""),
           }))
         : [];
-      setUnmatchedInvoiceItems(nextUnmatched);
       setInvoiceMappings(nextMappings);
-      setSelectedUnmatchedItemKey((current) => {
-        if (current && nextUnmatched.some((item) => `${item.supplier_name}::${item.item_description}` === current)) {
-          return current;
-        }
-        return nextUnmatched[0] ? `${nextUnmatched[0].supplier_name}::${nextUnmatched[0].item_description}` : "";
-      });
+      if (unmatchedResult.status === "fulfilled") {
+        setUnmatchedInvoiceItems(nextUnmatched);
+        setSelectedUnmatchedItemKey((current) => {
+          let skippedForSelect: string[] = [];
+          try {
+            const raw = localStorage.getItem(skippedUnmatchedStorageKey(city));
+            const parsed = raw ? JSON.parse(raw) : [];
+            skippedForSelect = Array.isArray(parsed) ? parsed : [];
+          } catch {
+            skippedForSelect = [];
+          }
+          const skippedSet = new Set(skippedForSelect);
+          const visible = nextUnmatched.filter((item) => !skippedSet.has(unmatchedInvoiceItemKey(item)));
+          if (current && visible.some((item) => unmatchedInvoiceItemKey(item) === current)) {
+            return current;
+          }
+          return visible[0] ? unmatchedInvoiceItemKey(visible[0]) : "";
+        });
+      }
+      if (unmatchedResult.status === "fulfilled" && mappingsResult.status === "fulfilled") {
+        setError("");
+      } else if (unmatchedResult.status === "rejected" && mappingsResult.status === "rejected") {
+        setError("Invoice mapping data could not be loaded. Please retry in a few seconds.");
+        setUnmatchedInvoiceItems([]);
+        setInvoiceMappings([]);
+      } else if (unmatchedResult.status === "rejected") {
+        setError("Unmatched invoice items timed out. Existing mappings are still shown below.");
+      } else if (mappingsResult.status === "rejected") {
+        setError("Existing mappings could not be loaded. Unmatched invoice items are still available.");
+      }
     } catch (e: any) {
       setError(e?.message || String(e));
       setUnmatchedInvoiceItems([]);
@@ -713,20 +804,47 @@ export default function CostCalculationPage() {
     );
   }, [activeSheet, recipeMenuItems, searchText]);
 
-  const selectedUnmatchedItem = useMemo(
-    () => unmatchedInvoiceItems.find((item) => `${item.supplier_name}::${item.item_description}` === selectedUnmatchedItemKey) || null,
-    [selectedUnmatchedItemKey, unmatchedInvoiceItems],
+  const skippedUnmatchedSet = useMemo(() => new Set(skippedUnmatchedInvoiceKeys), [skippedUnmatchedInvoiceKeys]);
+  const visibleUnmatchedInvoiceItems = useMemo(
+    () => unmatchedInvoiceItems.filter((item) => !skippedUnmatchedSet.has(unmatchedInvoiceItemKey(item))),
+    [unmatchedInvoiceItems, skippedUnmatchedSet],
   );
-  const hasActiveMappingSelection = Boolean(mappingSourceItemDescription.trim());
+  const selectedUnmatchedItem = useMemo(() => {
+    if (!selectedUnmatchedItemKey || skippedUnmatchedSet.has(selectedUnmatchedItemKey)) return null;
+    return unmatchedInvoiceItems.find((item) => unmatchedInvoiceItemKey(item) === selectedUnmatchedItemKey) || null;
+  }, [selectedUnmatchedItemKey, skippedUnmatchedSet, unmatchedInvoiceItems]);
+  const activeCreateUnmatchedItem = useMemo(() => {
+    if (selectedUnmatchedItem) return selectedUnmatchedItem;
+    if (mappingMode !== "create" || !mappingSourceItemDescription.trim()) return null;
+    return visibleUnmatchedInvoiceItems.find((item) => (
+      String(item.supplier_name || "") === mappingSourceSupplierName
+      && String(item.item_description || "") === mappingSourceItemDescription
+      && String(item.unit || "") === mappingSourceInvoiceUnit
+    )) || null;
+  }, [
+    mappingMode,
+    mappingSourceInvoiceUnit,
+    mappingSourceItemDescription,
+    mappingSourceSupplierName,
+    selectedUnmatchedItem,
+    visibleUnmatchedInvoiceItems,
+  ]);
+  const activeCreateUnmatchedItemKey = useMemo(
+    () => (activeCreateUnmatchedItem ? unmatchedInvoiceItemKey(activeCreateUnmatchedItem) : ""),
+    [activeCreateUnmatchedItem],
+  );
+  const hasActiveMappingSelection = mappingMode === "create"
+    ? Boolean(activeCreateUnmatchedItem)
+    : Boolean(mappingSourceItemDescription.trim());
   const activeMappingSelectionMeta = useMemo(() => {
-    if (mappingMode === "create" && selectedUnmatchedItem) {
+    if (mappingMode === "create" && activeCreateUnmatchedItem) {
       return {
-        supplierName: selectedUnmatchedItem.supplier_name || "",
-        itemDescription: selectedUnmatchedItem.item_description || "",
-        invoiceUnit: selectedUnmatchedItem.unit || "",
-        latestUnitPrice: Number(selectedUnmatchedItem.latest_unit_price || 0),
-        invoiceCount: Number(selectedUnmatchedItem.invoice_count || 0),
-        lineCount: Number(selectedUnmatchedItem.line_count || 0),
+        supplierName: activeCreateUnmatchedItem.supplier_name || "",
+        itemDescription: activeCreateUnmatchedItem.item_description || "",
+        invoiceUnit: activeCreateUnmatchedItem.unit || "",
+        latestUnitPrice: Number(activeCreateUnmatchedItem.latest_unit_price || 0),
+        invoiceCount: Number(activeCreateUnmatchedItem.invoice_count || 0),
+        lineCount: Number(activeCreateUnmatchedItem.line_count || 0),
       };
     }
     return {
@@ -737,7 +855,7 @@ export default function CostCalculationPage() {
       invoiceCount: 0,
       lineCount: 0,
     };
-  }, [mappingMode, mappingSourceInvoiceUnit, mappingSourceItemDescription, mappingSourceSupplierName, selectedUnmatchedItem]);
+  }, [activeCreateUnmatchedItem, mappingMode, mappingSourceInvoiceUnit, mappingSourceItemDescription, mappingSourceSupplierName]);
 
   const mappingIngredientOptions = useMemo(() => {
     const q = mappingIngredientSearch.trim().toLowerCase();
@@ -746,6 +864,20 @@ export default function CostCalculationPage() {
       .filter((item) => [item.name, item.category, item.notes].some((value) => String(value || "").toLowerCase().includes(q)))
       .slice(0, 25);
   }, [allIngredientOptions, mappingIngredientSearch]);
+  const mappingNewIngredientSuggestions = useMemo(() => {
+    const q = normalizeIngredientNameForMatch(mappingNewIngredientName);
+    if (!q) return [];
+    return allIngredientOptions
+      .filter((item) => {
+        const normalizedName = normalizeIngredientNameForMatch(item.name);
+        return normalizedName.includes(q) || q.includes(normalizedName);
+      })
+      .slice(0, 5);
+  }, [allIngredientOptions, mappingNewIngredientName]);
+  const mappingNewIngredientExactMatch = useMemo(
+    () => allIngredientOptions.find((item) => normalizeIngredientNameForMatch(item.name) === normalizeIngredientNameForMatch(mappingNewIngredientName)) || null,
+    [allIngredientOptions, mappingNewIngredientName],
+  );
 
   const currentColumns = activeSheet === INGREDIENT_SHEET ? ingredientColumns : RECIPE_COLUMNS;
   const currentRows = activeSheet === INGREDIENT_SHEET ? filteredIngredientRows : filteredRecipeRows;
@@ -787,19 +919,37 @@ export default function CostCalculationPage() {
     const normalizedUnitPrice = Number(detail.unit_price || 0);
     const normalizedFormula = String(detail.unit_price_formula || "");
     const normalizedFormulaNote = String(detail.unit_price_formula_note || "");
+    const normalizedBufferRate = Number(detail.buffer_rate || 1.15);
+    const normalizedYieldRate = normalizeRateValue(detail.yield_rate);
     setIngredients((prev) => prev.map((item) => (
       String(item.id) === String(detail.id)
-        ? { ...item, unit_price: normalizedUnitPrice, unit_price_formula: normalizedFormula, unit_price_formula_note: normalizedFormulaNote }
+        ? {
+            ...item,
+            unit_price: normalizedUnitPrice,
+            unit_price_formula: normalizedFormula,
+            unit_price_formula_note: normalizedFormulaNote,
+            buffer_rate: normalizedBufferRate,
+            yield_rate: normalizedYieldRate,
+          }
         : item
     )));
     setAllIngredientOptions((prev) => prev.map((item) => (
       String(item.id) === String(detail.id)
-        ? { ...item, unit_price: normalizedUnitPrice, unit_price_formula: normalizedFormula, unit_price_formula_note: normalizedFormulaNote }
+        ? {
+            ...item,
+            unit_price: normalizedUnitPrice,
+            unit_price_formula: normalizedFormula,
+            unit_price_formula_note: normalizedFormulaNote,
+            buffer_rate: normalizedBufferRate,
+            yield_rate: normalizedYieldRate,
+          }
         : item
     )));
     if (selectedIngredientDetailRef.current && String(selectedIngredientDetailRef.current.id) === String(detail.id)) {
       setSelectedIngredientDetail((prev) => prev ? { ...prev, ...detail } : prev);
       setIngredientDetailPriceInput(String(normalizedUnitPrice));
+      setIngredientDetailBufferInput(String((normalizedBufferRate * 100).toFixed(0)));
+      setIngredientDetailYieldInput(normalizedYieldRate == null ? "" : String((normalizedYieldRate * 100).toFixed(0)));
       setIngredientDetailFormulaInput(normalizedFormula);
       setIngredientDetailFormulaNoteInput(normalizedFormulaNote);
     }
@@ -839,7 +989,8 @@ export default function CostCalculationPage() {
             unit_price: Number(res.item.unit_price || fallback?.unit_price || 0),
             unit_price_formula: String(res.item.unit_price_formula || fallback?.unit_price_formula || ""),
             unit_price_formula_note: String(res.item.unit_price_formula_note || fallback?.unit_price_formula_note || ""),
-            yield_rate: Number(res.item.yield_rate || fallback?.yield_rate || 0),
+            buffer_rate: Number(res.item.buffer_rate || fallback?.buffer_rate || 1.15),
+            yield_rate: normalizeRateValue(res.item.yield_rate ?? fallback?.yield_rate),
             notes: String(res.item.notes || fallback?.notes || ""),
             city: String(res.item.city || fallback?.city || city),
             supplier_prices: Array.isArray(res.item.supplier_prices)
@@ -922,7 +1073,8 @@ export default function CostCalculationPage() {
             unit_price: Number(res.item.unit_price || ingredient.unit_price || 0),
             unit_price_formula: String(res.item.unit_price_formula || ingredient.unit_price_formula || ""),
             unit_price_formula_note: String(res.item.unit_price_formula_note || ingredient.unit_price_formula_note || ""),
-            yield_rate: Number(res.item.yield_rate || ingredient.yield_rate || 0),
+            buffer_rate: Number(res.item.buffer_rate || ingredient.buffer_rate || 1.15),
+            yield_rate: normalizeRateValue(res.item.yield_rate ?? ingredient.yield_rate),
             notes: String(res.item.notes || ingredient.notes || ""),
             supplier_prices: Array.isArray(res.item.supplier_prices)
               ? res.item.supplier_prices.map((row) => ({
@@ -941,6 +1093,8 @@ export default function CostCalculationPage() {
         : { ...ingredient };
       setSelectedIngredientDetail(detail);
       setIngredientDetailPriceInput(String(Number(detail.unit_price || 0)));
+      setIngredientDetailBufferInput(String((Number(detail.buffer_rate || 1.15) * 100).toFixed(0)));
+      setIngredientDetailYieldInput(detail.yield_rate == null ? "" : String((Number(detail.yield_rate || 0) * 100).toFixed(0)));
       setIngredientDetailFormulaInput(String(detail.unit_price_formula || ""));
       setIngredientDetailFormulaNoteInput(String(detail.unit_price_formula_note || ""));
       setPriceHistory(
@@ -964,6 +1118,8 @@ export default function CostCalculationPage() {
     } catch {
       setSelectedIngredientDetail({ ...ingredient });
       setIngredientDetailPriceInput(String(Number(ingredient.unit_price || 0)));
+      setIngredientDetailBufferInput(String((Number(ingredient.buffer_rate || 1.15) * 100).toFixed(0)));
+      setIngredientDetailYieldInput(ingredient.yield_rate == null ? "" : String((Number(ingredient.yield_rate || 0) * 100).toFixed(0)));
       setIngredientDetailFormulaInput(String(ingredient.unit_price_formula || ""));
       setIngredientDetailFormulaNoteInput(String(ingredient.unit_price_formula_note || ""));
       setPriceHistory([]);
@@ -971,6 +1127,41 @@ export default function CostCalculationPage() {
       setHistoryLoading(false);
     }
   }, []);
+
+  const deleteSelectedIngredient = useCallback(async () => {
+    if (!selectedIngredientDetail) return;
+    const ingredientId = String(selectedIngredientDetail.id || "").trim();
+    if (!ingredientId) return;
+    const ingredientName = selectedIngredientDetail.name || "this ingredient";
+    const confirmed = window.confirm(`Delete "${ingredientName}" from Cost Calculation?`);
+    if (!confirmed) return;
+    setIngredientDetailDeleting(true);
+    setIngredientDetailSaveError("");
+    try {
+      await costJson(`/api/cost/ingredients/${ingredientId}`, {
+        method: "DELETE",
+      });
+      setIngredients((prev) => prev.filter((item) => String(item.id) !== ingredientId));
+      setAllIngredientOptions((prev) => prev.filter((item) => String(item.id) !== ingredientId));
+      if (selectedMappingIngredientId === ingredientId) {
+        setSelectedMappingIngredientId("");
+        setMappingIngredientSearch("");
+        setMappingIngredientUnit("");
+        setSelectedMappingIngredientDetail(null);
+        setMappingCostPriceInput("");
+        setMappingCostFormulaInput("");
+        setMappingCostFormulaNoteInput("");
+        setMappingCostSaveError("");
+      }
+      setSelectedIngredientDetail(null);
+      setPriceHistory([]);
+      await loadIngredients();
+    } catch (e: any) {
+      setIngredientDetailSaveError(e?.message || String(e));
+    } finally {
+      setIngredientDetailDeleting(false);
+    }
+  }, [loadIngredients, selectedIngredientDetail, selectedMappingIngredientId]);
 
   useEffect(() => {
     if (mappingMode !== "create") return;
@@ -1228,7 +1419,7 @@ export default function CostCalculationPage() {
   }, [city, loadMenuCategories, newCategoryName]);
 
   const selectUnmatchedInvoiceItem = useCallback((itemKey: string) => {
-    const item = unmatchedInvoiceItems.find((entry) => `${entry.supplier_name}::${entry.item_description}` === itemKey);
+    const item = unmatchedInvoiceItems.find((entry) => unmatchedInvoiceItemKey(entry) === itemKey);
     setSelectedUnmatchedItemKey(itemKey);
     setEditingInvoiceMappingId(null);
     setMappingMode("create");
@@ -1251,6 +1442,79 @@ export default function CostCalculationPage() {
     setMappingCostFormulaNoteInput("");
     setMappingCostSaveError("");
   }, [unmatchedInvoiceItems]);
+
+  const skipCurrentUnmatchedInvoiceItem = useCallback(() => {
+    if (mappingMode !== "create" || !activeCreateUnmatchedItemKey) return;
+    const key = activeCreateUnmatchedItemKey;
+    if (skippedUnmatchedInvoiceKeys.includes(key)) return;
+    const nextSkipped = [...skippedUnmatchedInvoiceKeys, key];
+    try {
+      localStorage.setItem(skippedUnmatchedStorageKey(city), JSON.stringify(nextSkipped));
+    } catch {
+      /* ignore quota / private mode */
+    }
+    setSkippedUnmatchedInvoiceKeys(nextSkipped);
+    const skippedSet = new Set(nextSkipped);
+    const idx = unmatchedInvoiceItems.findIndex((item) => unmatchedInvoiceItemKey(item) === key);
+    let nextKey = "";
+    for (let i = idx + 1; i < unmatchedInvoiceItems.length; i++) {
+      const k = unmatchedInvoiceItemKey(unmatchedInvoiceItems[i]);
+      if (!skippedSet.has(k)) {
+        nextKey = k;
+        break;
+      }
+    }
+    if (!nextKey) {
+      for (let i = 0; i < idx; i++) {
+        const k = unmatchedInvoiceItemKey(unmatchedInvoiceItems[i]);
+        if (!skippedSet.has(k)) {
+          nextKey = k;
+          break;
+        }
+      }
+    }
+    if (nextKey) {
+      selectUnmatchedInvoiceItem(nextKey);
+    } else {
+      setEditingInvoiceMappingId(null);
+      setMappingMode("create");
+      setSelectedUnmatchedItemKey("");
+      setMappingSourceSupplierName("");
+      setMappingSourceItemDescription("");
+      setMappingSourceInvoiceUnit("");
+      setMappingIngredientSearch("");
+      setSelectedMappingIngredientId("");
+      setMappingIngredientUnit("");
+      setMappingConversionRule("");
+      setMappingNotes("");
+      setMappingSaveError("");
+      setMappingNewIngredientName("");
+      setMappingNewIngredientCategory("");
+      setMappingNewIngredientUnit("");
+      setMappingCreateIngredientError("");
+      setSelectedMappingIngredientDetail(null);
+      setMappingCostPriceInput("");
+      setMappingCostFormulaInput("");
+      setMappingCostFormulaNoteInput("");
+      setMappingCostSaveError("");
+    }
+  }, [
+    activeCreateUnmatchedItemKey,
+    city,
+    mappingMode,
+    selectUnmatchedInvoiceItem,
+    skippedUnmatchedInvoiceKeys,
+    unmatchedInvoiceItems,
+  ]);
+
+  const clearSkippedUnmatchedInvoiceItems = useCallback(() => {
+    try {
+      localStorage.removeItem(skippedUnmatchedStorageKey(city));
+    } catch {
+      /* ignore */
+    }
+    setSkippedUnmatchedInvoiceKeys([]);
+  }, [city]);
 
   const startEditingInvoiceMapping = useCallback((mapping: InvoiceItemMappingRow) => {
     setSelectedUnmatchedItemKey("");
@@ -1371,7 +1635,8 @@ export default function CostCalculationPage() {
             unit_price: Number(res.item.unit_price || 0),
             unit_price_formula: String(res.item.unit_price_formula || ""),
             unit_price_formula_note: String(res.item.unit_price_formula_note || ""),
-            yield_rate: Number(res.item.yield_rate || 0),
+            buffer_rate: Number(res.item.buffer_rate || 1.15),
+            yield_rate: normalizeRateValue(res.item.yield_rate),
             notes: String(res.item.notes || ""),
             city: String(res.item.city || city),
             supplier_prices: Array.isArray(res.item.supplier_prices)
@@ -1414,12 +1679,33 @@ export default function CostCalculationPage() {
     selectedMappingIngredientId,
   ]);
 
+  const selectMappingIngredientOption = useCallback(async (ingredient: IngredientRow) => {
+    const nextId = String(ingredient.id || "");
+    if (!nextId) return;
+    setSelectedMappingIngredientId(nextId);
+    setMappingIngredientSearch(String(ingredient.name || ""));
+    setMappingIngredientUnit(String(ingredient.unit || ""));
+    setMappingCreateIngredientError("");
+    setSelectedMappingIngredientDetail(null);
+    setMappingCostPriceInput("");
+    setMappingCostFormulaInput("");
+    setMappingCostFormulaNoteInput("");
+    setMappingCostSaveError("");
+    mappingCostInputsDirtyRef.current = false;
+    await loadMappingIngredientDetail(nextId);
+  }, [loadMappingIngredientDetail]);
+
   const createMappingIngredient = useCallback(async () => {
     const name = mappingNewIngredientName.trim();
     const category = mappingNewIngredientCategory.trim();
     const unit = mappingNewIngredientUnit.trim();
     if (!name || !category || !unit) {
       setMappingCreateIngredientError("Name / Category / Unit を入力してください。");
+      return;
+    }
+    if (mappingNewIngredientExactMatch) {
+      setMappingCreateIngredientError("同じ名前の食材が既にあります。下の候補から選択してください。");
+      await selectMappingIngredientOption(mappingNewIngredientExactMatch);
       return;
     }
     try {
@@ -1435,7 +1721,8 @@ export default function CostCalculationPage() {
           unit_price: 0,
           unit_price_formula: "",
           unit_price_formula_note: "",
-          yield_rate: 1.15,
+          buffer_rate: 1.15,
+          yield_rate: null,
           notes: "Created from invoice item mapping panel",
         }),
       });
@@ -1458,9 +1745,11 @@ export default function CostCalculationPage() {
     city,
     loadIngredients,
     loadMappingIngredientDetail,
+    mappingNewIngredientExactMatch,
     mappingNewIngredientCategory,
     mappingNewIngredientName,
     mappingNewIngredientUnit,
+    selectMappingIngredientOption,
   ]);
 
   const disableInvoiceItemMapping = useCallback(async (mappingId: string) => {
@@ -1554,22 +1843,29 @@ export default function CostCalculationPage() {
 
     if (activeSheet === INGREDIENT_SHEET) {
       const rowId = String(visibleRow.id);
-      const nextYieldRate = col === "yield_rate" ? Math.max(0.01, Math.min(9.99, normalizeNumber(nextRawValue) / 100)) : undefined;
+      const nextBufferRate = col === "buffer_rate" ? Math.max(0.01, Math.min(9.99, normalizeNumber(nextRawValue) / 100)) : undefined;
+      const nextYieldRate = col === "yield_rate"
+        ? (nextRawValue.trim() ? Math.max(0.01, Math.min(9.99, normalizeNumber(nextRawValue) / 100)) : null)
+        : undefined;
       setIngredients((prev) =>
         prev.map((item) => {
           if (String(item.id) !== rowId) return item;
           const next: IngredientRow = { ...item, _dirty: true };
           if (col === "unit_price") next.unit_price = normalizeNumber(nextRawValue);
-          else if (col === "yield_rate") next.yield_rate = nextYieldRate || item.yield_rate;
+          else if (col === "buffer_rate") next.buffer_rate = nextBufferRate || item.buffer_rate;
+          else if (col === "yield_rate") next.yield_rate = nextYieldRate ?? null;
           else (next as any)[col] = nextRawValue;
           return next;
         }),
       );
-      if (col === "yield_rate" && !rowId.startsWith("new-")) {
+      if ((col === "buffer_rate" || col === "yield_rate") && !rowId.startsWith("new-")) {
         try {
           await costJson(`/api/cost/ingredients/${rowId}`, {
             method: "PATCH",
-            body: JSON.stringify({ yield_rate: nextYieldRate }),
+            body: JSON.stringify({
+              ...(col === "buffer_rate" ? { buffer_rate: nextBufferRate } : {}),
+              ...(col === "yield_rate" ? { yield_rate: nextYieldRate } : {}),
+            }),
           });
         } catch (e: any) {
           setError(e?.message || String(e));
@@ -1643,7 +1939,8 @@ export default function CostCalculationPage() {
           unit_price: 0,
           unit_price_formula: "",
           unit_price_formula_note: "",
-          yield_rate: 1.15,
+          buffer_rate: 1.15,
+          yield_rate: null,
           notes: "",
           city,
           _new: true,
@@ -1696,7 +1993,8 @@ export default function CostCalculationPage() {
           unit_price: Number(row.unit_price || 0),
           unit_price_formula: String(row.unit_price_formula || ""),
           unit_price_formula_note: String(row.unit_price_formula_note || ""),
-          yield_rate: Number(row.yield_rate || 0),
+          buffer_rate: Number(row.buffer_rate || 1.15),
+          yield_rate: row.yield_rate == null ? null : Number(row.yield_rate || 0),
           notes: row.notes,
         };
         if (row._new) {
@@ -2045,12 +2343,25 @@ export default function CostCalculationPage() {
           {activeSheet === INGREDIENT_SHEET ? (
             <div className="mb-6 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
               <div className="rounded-2xl border border-white/10 bg-[#0a101c] p-4">
-                <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <div className="text-sm font-semibold text-white">Invoice Item Mapping</div>
                     <div className="mt-1 text-xs text-zinc-500">Map unmatched invoice item names to ingredient master entries.</div>
                   </div>
-                  {(invoiceMappingLoading || invoiceMappingSaving) ? <Loader2 className="h-4 w-4 animate-spin text-violet-300" /> : null}
+                  <div className="flex items-center gap-2">
+                    {skippedUnmatchedInvoiceKeys.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => clearSkippedUnmatchedInvoiceItems()}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-white/[0.06] px-2.5 py-1.5 text-xs text-zinc-200 transition hover:bg-white/[0.1]"
+                        title="Show all skipped rows again in the list"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Restore skipped ({skippedUnmatchedInvoiceKeys.length})
+                      </button>
+                    ) : null}
+                    {(invoiceMappingLoading || invoiceMappingSaving) ? <Loader2 className="h-4 w-4 animate-spin text-violet-300" /> : null}
+                  </div>
                 </div>
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                   <div className="overflow-hidden rounded-xl border border-white/10">
@@ -2063,8 +2374,12 @@ export default function CostCalculationPage() {
                     <div className="max-h-80 overflow-y-auto">
                       {unmatchedInvoiceItems.length === 0 ? (
                         <div className="px-3 py-6 text-sm text-zinc-500">No unmatched invoice items.</div>
-                      ) : unmatchedInvoiceItems.map((item, index) => {
-                        const itemKey = `${item.supplier_name}::${item.item_description}`;
+                      ) : visibleUnmatchedInvoiceItems.length === 0 ? (
+                        <div className="px-3 py-6 text-sm text-zinc-500">
+                          All unmatched rows are hidden (skipped). Use &quot;Restore skipped&quot; above to show them again.
+                        </div>
+                      ) : visibleUnmatchedInvoiceItems.map((item, index) => {
+                        const itemKey = unmatchedInvoiceItemKey(item);
                         const selected = itemKey === selectedUnmatchedItemKey;
                         return (
                           <button
@@ -2198,6 +2513,39 @@ export default function CostCalculationPage() {
                                   className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
                                 />
                               </div>
+                              {mappingNewIngredientSuggestions.length ? (
+                                <div className="rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-3">
+                                  <div className="mb-2 text-[10px] uppercase tracking-[0.14em] text-amber-200">
+                                    Existing Candidates
+                                  </div>
+                                  <div className="space-y-2">
+                                    {mappingNewIngredientSuggestions.map((option) => {
+                                      const isExact = String(option.id) === String(mappingNewIngredientExactMatch?.id || "");
+                                      return (
+                                        <button
+                                          key={option.id}
+                                          type="button"
+                                          onClick={() => void selectMappingIngredientOption(option)}
+                                          className={cx(
+                                            "flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition",
+                                            isExact
+                                              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15"
+                                              : "border-white/10 bg-white/[0.04] text-zinc-200 hover:bg-white/[0.08]",
+                                          )}
+                                        >
+                                          <span>{option.name}</span>
+                                          <span className="text-xs text-zinc-400">{option.category} · {option.unit}</span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                  {mappingNewIngredientExactMatch ? (
+                                    <div className="mt-2 text-xs text-amber-200">
+                                      同じ名前の食材が既にあるため、新規作成ではなく既存食材を選択してください。
+                                    </div>
+                                  ) : null}
+                                </div>
+                              ) : null}
                               <div className="grid gap-3 sm:grid-cols-2">
                                 <div>
                                   <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Category</div>
@@ -2233,7 +2581,7 @@ export default function CostCalculationPage() {
                                 <button
                                   type="button"
                                   onClick={() => void createMappingIngredient()}
-                                  disabled={mappingCreateIngredientSaving}
+                                  disabled={mappingCreateIngredientSaving || Boolean(mappingNewIngredientExactMatch)}
                                   className="inline-flex items-center justify-center gap-2 rounded-md border border-violet-500/30 bg-violet-500/15 px-3 py-2 text-sm font-medium text-violet-200 transition hover:bg-violet-500/25 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                   <Plus className="h-4 w-4" />
@@ -2252,13 +2600,25 @@ export default function CostCalculationPage() {
                               <Save className="h-4 w-4" />
                               Save Mapping
                             </button>
+                            {mappingMode === "create" && activeCreateUnmatchedItemKey ? (
+                              <button
+                                type="button"
+                                onClick={() => skipCurrentUnmatchedInvoiceItem()}
+                                disabled={invoiceMappingSaving}
+                                className="inline-flex items-center justify-center gap-2 rounded-md border border-zinc-500/30 bg-zinc-500/10 px-3 py-2 text-sm font-medium text-zinc-200 transition hover:bg-zinc-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                title="Hide this row from the list (stored in this browser only)"
+                              >
+                                <SkipForward className="h-4 w-4" />
+                                Skip
+                              </button>
+                            ) : null}
                             {mappingMode === "edit" ? (
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const firstItem = unmatchedInvoiceItems[0];
+                                  const firstItem = visibleUnmatchedInvoiceItems[0];
                                   if (firstItem) {
-                                    selectUnmatchedInvoiceItem(`${firstItem.supplier_name}::${firstItem.item_description}`);
+                                    selectUnmatchedInvoiceItem(unmatchedInvoiceItemKey(firstItem));
                                   } else {
                                     setEditingInvoiceMappingId(null);
                                     setMappingMode("create");
@@ -3104,11 +3464,15 @@ export default function CostCalculationPage() {
                             column.key === "cost_ratio" && recipeGroupEnd && "font-semibold",
                           )}
                           onClick={() => {
-                            if (activeSheet === INGREDIENT_SHEET && column.key === "yield_rate") {
+                            if (activeSheet === INGREDIENT_SHEET && (column.key === "buffer_rate" || column.key === "yield_rate")) {
                               startEdit(
                                 rowIndex,
                                 column.key,
-                                String(Math.round(Number((ingredientRow as any).yield_rate || 0) * 100)),
+                                column.key === "buffer_rate"
+                                  ? String(Math.round(Number((ingredientRow as any).buffer_rate || 1.15) * 100))
+                                  : (ingredientRow as any).yield_rate == null
+                                    ? ""
+                                    : String(Math.round(Number((ingredientRow as any).yield_rate || 0) * 100)),
                               );
                               return;
                             }
@@ -3128,9 +3492,22 @@ export default function CostCalculationPage() {
                             <span className="inline-flex rounded-full border border-violet-500/20 bg-violet-500/10 px-2.5 py-1 text-xs font-medium text-violet-200">
                               {String(value ?? "")}
                             </span>
+                          ) : activeSheet === INGREDIENT_SHEET && column.key === "name" ? (
+                            <div className="flex items-center gap-2">
+                              <span>{String(value ?? "")}</span>
+                              {!hasYieldRate((ingredientRow as any).yield_rate) ? (
+                                <span className="inline-flex rounded-full border border-red-500/30 bg-red-500/12 px-2 py-0.5 text-[10px] font-semibold text-red-300">
+                                  歩留未設定
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : activeSheet === INGREDIENT_SHEET && column.key === "buffer_rate" ? (
+                            <span className={cx("inline-flex rounded-full border px-2.5 py-1 text-xs font-mono font-semibold", bufferBadgeClass(Number((ingredientRow as any).buffer_rate || 1.15)))}>
+                              {formatRatePercent(Number((ingredientRow as any).buffer_rate || 1.15))}
+                            </span>
                           ) : activeSheet === INGREDIENT_SHEET && column.key === "yield_rate" ? (
-                            <span className={cx("inline-flex rounded-full border px-2.5 py-1 text-xs font-mono font-semibold", yieldBadgeClass(Number((ingredientRow as any).yield_rate || 0)))}>
-                              {(Number((ingredientRow as any).yield_rate || 0) * 100).toFixed(0)}%
+                            <span className={cx("inline-flex rounded-full border px-2.5 py-1 text-xs font-mono font-semibold", yieldBadgeClass(normalizeRateValue((ingredientRow as any).yield_rate)))}>
+                              {formatRatePercent(normalizeRateValue((ingredientRow as any).yield_rate), "未設定")}
                             </span>
                           ) : column.key === "cost_ratio" && value !== "" ? (
                             <span className={cx("inline-flex rounded-full border px-2.5 py-1 text-xs font-mono font-semibold", costRatioBadgeClass(Number(value || 0)))}>
@@ -3179,7 +3556,14 @@ export default function CostCalculationPage() {
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-zinc-500">Ingredient Detail</p>
                   <p className="mt-0.5 text-sm font-semibold text-white">{selectedIngredientDetail.name}</p>
-                  <p className="text-xs text-zinc-400">{selectedIngredientDetail.category} · {selectedIngredientDetail.unit}</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <p className="text-xs text-zinc-400">{selectedIngredientDetail.category} · {selectedIngredientDetail.unit}</p>
+                    {!hasYieldRate(selectedIngredientDetail.yield_rate) ? (
+                      <span className="inline-flex rounded-full border border-red-500/30 bg-red-500/12 px-2 py-0.5 text-[10px] font-semibold text-red-300">
+                        歩留未設定
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
                 <button onClick={() => setSelectedIngredientDetail(null)} className="text-zinc-500 hover:text-white" type="button">
                   <X className="h-4 w-4" />
@@ -3194,9 +3578,15 @@ export default function CostCalculationPage() {
                   </p>
                 </div>
                 <div className="rounded border border-white/8 bg-white/4 p-3">
-                  <p className="mb-1 text-[10px] uppercase tracking-wider text-zinc-500">Buffer / Yield</p>
+                  <p className="mb-1 text-[10px] uppercase tracking-wider text-zinc-500">Buffer</p>
                   <p className="text-xl font-bold font-mono text-white">
-                    {(Number(selectedIngredientDetail.yield_rate || 0) * 100).toFixed(0)}%
+                    {formatRatePercent(Number(selectedIngredientDetail.buffer_rate || 1.15))}
+                  </p>
+                </div>
+                <div className="rounded border border-white/8 bg-white/4 p-3">
+                  <p className="mb-1 text-[10px] uppercase tracking-wider text-zinc-500">Yield</p>
+                  <p className="text-xl font-bold font-mono text-white">
+                    {formatRatePercent(normalizeRateValue(selectedIngredientDetail.yield_rate), "未設定")}
                   </p>
                 </div>
                 <div className="rounded border border-white/8 bg-white/4 p-3">
@@ -3333,6 +3723,29 @@ export default function CostCalculationPage() {
                       id="history-panel-price-input"
                     />
                   </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="mb-1 text-[10px] uppercase tracking-wider text-zinc-500">Buffer (%)</p>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={ingredientDetailBufferInput}
+                        onChange={(e) => setIngredientDetailBufferInput(e.target.value)}
+                        className="w-full rounded border border-white/15 bg-white/5 px-2 py-1.5 text-sm font-mono text-white focus:border-violet-500/50 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <p className="mb-1 text-[10px] uppercase tracking-wider text-zinc-500">Yield (%)</p>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={ingredientDetailYieldInput}
+                        onChange={(e) => setIngredientDetailYieldInput(e.target.value)}
+                        placeholder="未設定"
+                        className="w-full rounded border border-white/15 bg-white/5 px-2 py-1.5 text-sm font-mono text-white focus:border-violet-500/50 focus:outline-none"
+                      />
+                    </div>
+                  </div>
                   <div>
                     <p className="mb-1 text-[10px] uppercase tracking-wider text-zinc-500">Cost Formula</p>
                     <input
@@ -3364,8 +3777,20 @@ export default function CostCalculationPage() {
                         if (!selectedIngredientDetail) return;
                         const trimmedFormula = ingredientDetailFormulaInput.trim();
                         const numericPrice = Number(ingredientDetailPriceInput);
+                        const trimmedBuffer = ingredientDetailBufferInput.trim();
+                        const trimmedYield = ingredientDetailYieldInput.trim();
+                        const numericBuffer = Number(trimmedBuffer);
+                        const numericYield = trimmedYield === "" ? null : Number(trimmedYield);
                         if (!trimmedFormula && !Number.isFinite(numericPrice)) {
                           setIngredientDetailSaveError("数値単価を入れるか、計算式を入力してください。");
+                          return;
+                        }
+                        if (!Number.isFinite(numericBuffer) || numericBuffer <= 0) {
+                          setIngredientDetailSaveError("Buffer は 0 より大きい数値で入力してください。");
+                          return;
+                        }
+                        if (trimmedYield !== "" && (!Number.isFinite(numericYield) || Number(numericYield) <= 0)) {
+                          setIngredientDetailSaveError("Yield を入れる場合は 0 より大きい数値で入力してください。");
                           return;
                         }
                         setIngredientDetailSaving(true);
@@ -3373,6 +3798,8 @@ export default function CostCalculationPage() {
                         try {
                           const payload: Record<string, unknown> = {
                             notes_for_history: trimmedFormula ? "Ingredient cost formula updated from cost admin" : "Ingredient price updated from cost admin",
+                            buffer_rate: numericBuffer / 100,
+                            yield_rate: numericYield == null ? null : Number(numericYield) / 100,
                           };
                           if (trimmedFormula) {
                             payload.unit_price_formula = trimmedFormula;
@@ -3395,7 +3822,7 @@ export default function CostCalculationPage() {
                           setIngredientDetailSaving(false);
                         }
                       }}
-                      disabled={ingredientDetailSaving}
+                      disabled={ingredientDetailSaving || ingredientDetailDeleting}
                       className="rounded border border-violet-500/30 bg-violet-500/20 px-3 py-1.5 text-xs text-violet-300 transition-colors hover:bg-violet-500/30 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {ingredientDetailSaving ? "Saving..." : "Save"}
@@ -3404,13 +3831,25 @@ export default function CostCalculationPage() {
                       type="button"
                       onClick={() => {
                         setIngredientDetailPriceInput(String(Number(selectedIngredientDetail.unit_price || 0)));
+                        setIngredientDetailBufferInput(String((Number(selectedIngredientDetail.buffer_rate || 1.15) * 100).toFixed(0)));
+                        setIngredientDetailYieldInput(selectedIngredientDetail.yield_rate == null ? "" : String((Number(selectedIngredientDetail.yield_rate || 0) * 100).toFixed(0)));
                         setIngredientDetailFormulaInput(String(selectedIngredientDetail.unit_price_formula || ""));
                         setIngredientDetailFormulaNoteInput(String(selectedIngredientDetail.unit_price_formula_note || ""));
                         setIngredientDetailSaveError("");
                       }}
+                      disabled={ingredientDetailSaving || ingredientDetailDeleting}
                       className="rounded border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-zinc-300 transition-colors hover:bg-white/10"
                     >
                       Reset
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void deleteSelectedIngredient()}
+                      disabled={ingredientDetailSaving || ingredientDetailDeleting}
+                      className="ml-auto inline-flex items-center gap-1 rounded border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-300 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      {ingredientDetailDeleting ? "Deleting..." : "Delete"}
                     </button>
                   </div>
                 </div>

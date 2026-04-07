@@ -15,8 +15,6 @@ type StaffNameDirectory = {
 
 function getApiBase() {
   if (process.env.NODE_ENV !== "production") return "http://127.0.0.1:8000";
-  const configured = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
-  if (configured) return configured;
   return "";
 }
 
@@ -194,6 +192,7 @@ function LoginInner() {
         staffName: verified.staffName,
         city: verified.city,
         role: verified.role,
+        pin: p,
         accessToken: verified.accessToken,
         permissions: verified.permissions,
         mfa: verified.mfa

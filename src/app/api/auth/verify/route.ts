@@ -4,7 +4,7 @@ function getApiBase() {
   if (process.env.NODE_ENV !== "production") return "http://127.0.0.1:8000";
   const configured = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
   if (configured) return configured;
-  return "";
+  return "https://sushizen-shift-app-038d846023bc.herokuapp.com";
 }
 
 export async function POST(req: NextRequest) {

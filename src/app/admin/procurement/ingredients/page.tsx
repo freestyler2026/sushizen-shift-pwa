@@ -80,6 +80,8 @@ const CATEGORY_OPTIONS = [
   "Uncategorized",
 ];
 
+const INGREDIENT_LIST_PAGE_SIZE = 500;
+
 function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
 }
@@ -132,14 +134,31 @@ export default function ProcurementIngredientsPage() {
   }, [city]);
 
   const loadRows = useCallback(async () => {
-    const qs = new URLSearchParams({
-      city,
-      limit: "500",
-    });
-    if (searchText.trim()) qs.set("q", searchText.trim());
-    if (categoryFilter) qs.set("category", categoryFilter);
-    const res = await costJson<{ items: IngredientRow[] }>(`/api/cost/ingredients?${qs.toString()}`);
-    setRows(Array.isArray(res?.items) ? res.items : []);
+    const seen = new Set<string>();
+    const merged: IngredientRow[] = [];
+    let offset = 0;
+    for (let page = 0; page < 400; page += 1) {
+      const qs = new URLSearchParams({
+        city,
+        limit: String(INGREDIENT_LIST_PAGE_SIZE),
+        offset: String(offset),
+      });
+      if (searchText.trim()) qs.set("q", searchText.trim());
+      if (categoryFilter) qs.set("category", categoryFilter);
+      const res = await costJson<{ items: IngredientRow[] }>(`/api/cost/ingredients?${qs.toString()}`);
+      const batch = Array.isArray(res?.items) ? res.items : [];
+      let added = 0;
+      for (const row of batch) {
+        const id = String(row.id || "");
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        merged.push(row);
+        added += 1;
+      }
+      if (batch.length < INGREDIENT_LIST_PAGE_SIZE || added === 0) break;
+      offset += INGREDIENT_LIST_PAGE_SIZE;
+    }
+    setRows(merged);
   }, [categoryFilter, city, searchText]);
 
   const loadDetail = useCallback(async (ingredientId: string) => {

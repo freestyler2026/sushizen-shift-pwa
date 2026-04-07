@@ -39,11 +39,10 @@ export type Auth = {
 };
 
 const KEY = "sushizen_shift_auth";
+export const STEP_UP_FRESH_MS = 30 * 60 * 1000;
 
 function getAuthApiBase() {
   if (process.env.NODE_ENV !== "production") return "http://127.0.0.1:8000";
-  const configured = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
-  if (configured) return configured;
   return "";
 }
 
@@ -386,6 +385,5 @@ export function stepUpSatisfies(required: StepUpLevel, a?: Auth | null): boolean
   const verifiedAtMs = Date.parse(verifiedAtRaw);
   if (!Number.isFinite(verifiedAtMs)) return false;
   const elapsedMs = Date.now() - verifiedAtMs;
-  const maxFreshMs = 15 * 60 * 1000; // 15 minutes
-  return elapsedMs >= 0 && elapsedMs <= maxFreshMs;
+  return elapsedMs >= 0 && elapsedMs <= STEP_UP_FRESH_MS;
 }

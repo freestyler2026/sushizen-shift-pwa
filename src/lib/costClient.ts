@@ -3,11 +3,18 @@
 import { getAuth, refreshAuthFromApi, setAuth } from "@/lib/auth";
 
 function parseApiErrorDetail(text: string, fallback: string): string {
+  const trimmed = String(text || "").trim();
+  if (trimmed.startsWith("<!DOCTYPE html") || trimmed.startsWith("<html")) {
+    if (/application error/i.test(trimmed) || /request timeout/i.test(trimmed)) {
+      return "Server timeout. Please retry in a few seconds.";
+    }
+    return fallback;
+  }
   try {
-    const parsed = JSON.parse(text || "{}");
+    const parsed = JSON.parse(trimmed || "{}");
     return String(parsed?.detail || parsed?.message || fallback);
   } catch {
-    return text || fallback;
+    return trimmed || fallback;
   }
 }
 
