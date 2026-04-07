@@ -176,7 +176,7 @@ type InvoiceItemMappingRow = {
 };
 
 const INGREDIENT_SHEET = "食材マスタ";
-/** 500 matches legacy API `le=500`; we page with `offset` so all rows load after backend supports OFFSET. */
+/** Per-request limit (<= legacy 500 cap if API not updated; server may return fewer). */
 const INGREDIENT_LIST_PAGE_SIZE = 500;
 
 function unmatchedInvoiceItemKey(item: Pick<UnmatchedInvoiceItemRow, "supplier_name" | "item_description">) {
@@ -534,10 +534,17 @@ export default function CostCalculationPage() {
       const merged: IngredientRow[] = [];
       let offset = 0;
       for (let page = 0; page < 400; page += 1) {
+        const qs = new URLSearchParams({
+          city,
+          limit: String(INGREDIENT_LIST_PAGE_SIZE),
+          offset: String(offset),
+          show_inactive: "true",
+        });
         const res = await costJson<{ items?: IngredientRow[]; ingredients?: IngredientRow[] }>(
-          `/api/cost/ingredients?city=${encodeURIComponent(city)}&limit=${INGREDIENT_LIST_PAGE_SIZE}&offset=${offset}`,
+          `/api/cost/ingredients?${qs.toString()}`,
         );
         const source = Array.isArray(res?.items) ? res.items : Array.isArray(res?.ingredients) ? res.ingredients : [];
+        if (source.length === 0) break;
         let added = 0;
         for (const row of source) {
           const id = String((row as IngredientRow).id || "");
@@ -546,8 +553,9 @@ export default function CostCalculationPage() {
           merged.push(mapRow(row as IngredientRow));
           added += 1;
         }
-        if (source.length < INGREDIENT_LIST_PAGE_SIZE || added === 0) break;
-        offset += INGREDIENT_LIST_PAGE_SIZE;
+        if (added === 0) break;
+        offset += source.length;
+        if (source.length < INGREDIENT_LIST_PAGE_SIZE) break;
       }
       setIngredients(merged);
       setAllIngredientOptions(merged);
