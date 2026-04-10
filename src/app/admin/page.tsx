@@ -23,7 +23,7 @@ import {
   Users,
 } from "lucide-react";
 import { BRANCHES, type City as BranchCity, type BranchCode } from "@/lib/branches";
-import { canAccessAdminNav, canAccessInventoryWorkspace, getAuth, getAuthHeaders, refreshAuthFromApi, type Auth } from "@/lib/auth";
+import { canAccessAdminNav, canAccessInventoryWorkspace, canAccessRoleManagement, getAuth, getAuthHeaders, refreshAuthFromApi, type Auth } from "@/lib/auth";
 import DateRangePicker from "@/components/DateRangePicker";
 import MonthPicker from "@/components/MonthPicker";
 import {
@@ -373,7 +373,7 @@ export default function AdminPage() {
   const [myRole, setMyRole] = useState<
     "STAFF" | "MANAGER" | "MANAGEMENT" | "HQ" | "ADMIN" | "HR_MANAGER" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT" | ""
   >(
-    initialAuth?.role || ""
+    ((initialAuth?.role || "").toUpperCase() as "STAFF" | "MANAGER" | "MANAGEMENT" | "HQ" | "ADMIN" | "HR_MANAGER" | "DUBAI_MANAGEMENT" | "MANILA_MANAGEMENT" | "")
   );
   const [exportCity, setExportCity] = useState<BranchCity>((initialAuth?.city as BranchCity) || "dubai");
   const [exportBranch, setExportBranch] = useState<BranchCode>(
@@ -394,6 +394,7 @@ export default function AdminPage() {
   const [tokenRemain, setTokenRemain] = useState<number | null>(null);
   const tokenTimerRef = useRef<any>(null);
   const canOpenInventory = useMemo(() => canAccessInventoryWorkspace(sessionAuth || auth), [auth, sessionAuth]);
+  const canOpenRoleManagement = useMemo(() => canAccessRoleManagement(sessionAuth || auth), [auth, sessionAuth]);
 
   const clearTokenTimer = () => {
     if (tokenTimerRef.current) {
@@ -838,6 +839,11 @@ export default function AdminPage() {
           <Link href="/admin/staff" className={SMALL_BUTTON}>
             <Users className="mr-1 h-3.5 w-3.5" /> Staff Master
           </Link>
+          {canOpenRoleManagement ? (
+            <Link href="/admin/staff/roles" className={SMALL_BUTTON}>
+              <Shield className="mr-1 h-3.5 w-3.5" /> Role Management
+            </Link>
+          ) : null}
           <Link href="/admin/draft" className={SMALL_BUTTON}>
             <PenLine className="mr-1 h-3.5 w-3.5" /> Draft
           </Link>

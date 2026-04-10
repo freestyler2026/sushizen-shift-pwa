@@ -1,17 +1,7 @@
 // src/lib/auth.ts
 export type City = "dubai" | "manila";
 
-// ✅ 正式名
-export type StaffRole =
-  | "STAFF"
-  | "MANAGER"
-  | "MANAGEMENT"
-  | "HR_MANAGER"
-  | "HQ"
-  | "ADMIN"
-  | "DUBAI_MANAGEMENT"
-  | "MANILA_MANAGEMENT";
-// ✅ 互換のため alias を残す（LoginClient などが type Role を使ってもOK）
+export type StaffRole = string;
 export type Role = StaffRole;
 
 export type StepUpLevel = "aal1" | "aal2" | "phishing_resistant";
@@ -66,19 +56,7 @@ function normalizeCity(v: any): City {
 
 function normalizeRole(v: any): StaffRole | undefined {
   const s = String(v || "").toUpperCase();
-  if (
-    s === "ADMIN" ||
-    s === "HQ" ||
-    s === "MANAGER" ||
-    s === "MANAGEMENT" ||
-    s === "HR_MANAGER" ||
-    s === "STAFF" ||
-    s === "DUBAI_MANAGEMENT" ||
-    s === "MANILA_MANAGEMENT"
-  ) {
-    return s as StaffRole;
-  }
-  return undefined;
+  return s || undefined;
 }
 
 function normalizeStepUpLevel(v: any): StepUpLevel | undefined {
@@ -290,27 +268,50 @@ export function hasPermission(permission: string, a?: Auth | null): boolean {
   return permissions.includes("*") || permissions.includes(permission);
 }
 
+export function hasAnyPermission(permissionKeys: string[], a?: Auth | null): boolean {
+  return permissionKeys.some((permission) => hasPermission(permission, a));
+}
+
+export function channelPermissionKey(channelKey: string, action: string) {
+  return `channel.${channelKey}.${action}`;
+}
+
+export function hasChannelAccess(channelKey: string, actions: string[] = ["view"], a?: Auth | null): boolean {
+  return hasAnyPermission(actions.map((action) => channelPermissionKey(channelKey, action)), a);
+}
+
 export function isAdmin(a?: Auth | null): boolean {
   const x = a ?? getAuth();
   return (x?.role || "").toString().toUpperCase() === "ADMIN";
 }
 
 export function canAccessAdminNav(a?: Auth | null): boolean {
-  const x = a ?? getAuth();
-  const role = (x?.role || "").toString().toUpperCase();
-  return role === "ADMIN" || role === "HQ" || role === "MANAGEMENT" || role === "DUBAI_MANAGEMENT" || role === "MANILA_MANAGEMENT";
+  return hasAnyPermission(
+    [
+      "channel.admin.dashboard.view",
+      "channel.admin.inventory.view",
+      "channel.admin.menu.view",
+      "channel.admin.private_reports.view",
+      "channel.admin.procurement.view",
+      "channel.admin.cost_calculation.view",
+      "channel.admin.analytics.view",
+      "channel.admin.attendance.view",
+      "channel.admin.absences.view",
+      "channel.admin.staff.view",
+      "channel.admin.staff.manage_roles",
+      "channel.admin.draft.view",
+      "channel.admin.backoffice_evaluation.view",
+    ],
+    a,
+  );
 }
 
 export function canAccessPrivateReportAdmin(a?: Auth | null): boolean {
-  const x = a ?? getAuth();
-  const role = (x?.role || "").toString().toUpperCase();
-  return role === "HQ" || role === "ADMIN" || role === "HR_MANAGER";
+  return hasAnyPermission(["channel.admin.private_reports.view", "private_report.read"], a);
 }
 
 export function canAccessBackofficeEvaluationAdmin(a?: Auth | null): boolean {
-  const x = a ?? getAuth();
-  const role = (x?.role || "").toString().toUpperCase();
-  return role === "HQ" || role === "HR_MANAGER";
+  return hasAnyPermission(["channel.admin.backoffice_evaluation.view", "backoffice_eval.read"], a);
 }
 
 export function procurementMarketFromAuth(a?: Auth | null): City {
@@ -318,8 +319,18 @@ export function procurementMarketFromAuth(a?: Auth | null): City {
   return String(x?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
 }
 
-export function canAccessProcurementAdmin(role: string, market: City): boolean {
-  const normalizedRole = String(role || "").toUpperCase();
+export function canAccessProcurementAdmin(roleOrAuth: string | Auth | null | undefined, market: City): boolean {
+  if (typeof roleOrAuth === "object" || roleOrAuth == null) {
+    const authValue = typeof roleOrAuth === "object" ? roleOrAuth || undefined : undefined;
+    return hasAnyPermission(["channel.admin.procurement.view", "procurement.request.write", "procurement.approval.act"], authValue);
+  }
+  const normalizedRole = String(roleOrAuth || "").toUpperCase();
+  const current = getAuth();
+  if (current && String(current.role || "").toUpperCase() === normalizedRole) {
+    if (hasAnyPermission(["channel.admin.procurement.view", "procurement.request.write", "procurement.approval.act"], current)) {
+      return true;
+    }
+  }
   if (normalizedRole === "HQ") return true;
   if (market === "manila") return normalizedRole === "MANILA_MANAGEMENT";
   if (market === "dubai") return normalizedRole === "DUBAI_MANAGEMENT";
@@ -327,49 +338,44 @@ export function canAccessProcurementAdmin(role: string, market: City): boolean {
 }
 
 export function canAccessInventoryAdmin(a?: Auth | null): boolean {
-  const x = a ?? getAuth();
-  const role = (x?.role || "").toString().toUpperCase();
-  return role === "HQ" || role === "HR_MANAGER" || role === "ADMIN" || role === "DUBAI_MANAGEMENT" || role === "MANILA_MANAGEMENT";
+  return hasAnyPermission(["channel.admin.inventory.write", "inventory.write"], a);
 }
 
 export function canAccessInventoryLimited(a?: Auth | null): boolean {
-  const x = a ?? getAuth();
-  const role = (x?.role || "").toString().toUpperCase();
-  return role === "STAFF" || role === "MANAGER";
+  return hasAnyPermission(["channel.admin.inventory.view", "inventory.read"], a) && !canAccessInventoryAdmin(a);
 }
 
 export function canAccessInventoryWorkspace(a?: Auth | null): boolean {
-  return canAccessInventoryAdmin(a) || canAccessInventoryLimited(a);
+  return hasAnyPermission(["channel.admin.inventory.view", "channel.admin.inventory.write", "inventory.read", "inventory.write"], a);
 }
 
 export function canAccessMenuAdmin(a?: Auth | null): boolean {
-  const x = a ?? getAuth();
-  const role = (x?.role || "").toString().toUpperCase();
-  return role === "HQ" || role === "HR_MANAGER" || role === "ADMIN" || role === "DUBAI_MANAGEMENT" || role === "MANILA_MANAGEMENT";
+  return hasAnyPermission(["channel.admin.menu.view", "channel.admin.menu.write", "menu.read", "menu.write"], a);
 }
 
 export function canAccessCostAdmin(a?: Auth | null): boolean {
-  const x = a ?? getAuth();
-  return canAccessAdminNav(x) || hasPermission("cost.read", x);
+  return hasAnyPermission(["channel.admin.cost_calculation.view", "channel.admin.cost_calculation.write", "cost.read", "cost.write"], a);
 }
 
 export function canAccessCountTemplatesAdmin(a?: Auth | null): boolean {
-  const x = a ?? getAuth();
-  const role = (x?.role || "").toString().toUpperCase();
-  return role === "HQ" || role === "ADMIN";
+  return hasAnyPermission(["channel.admin.inventory.write", "inventory.write"], a);
 }
 
 export function canViewSalesAnalytics(a?: Auth | null, cityHint?: City): boolean {
   const x = a ?? getAuth();
-  const role = (x?.role || "").toString().toUpperCase();
   const city = cityHint || x?.city || "dubai";
-  return role === "HQ" || role === "ADMIN" || role === "MANAGEMENT" || (role === "DUBAI_MANAGEMENT" && city === "dubai") || (role === "MANILA_MANAGEMENT" && city === "manila");
+  if (hasAnyPermission(["channel.admin.analytics.view", "analytics.read.sales"], x)) return true;
+  return city === "dubai"
+    ? hasPermission("analytics.read.finance.city", x)
+    : hasPermission("analytics.read.finance.city", x);
 }
 
 export function canViewManagementPl(a?: Auth | null): boolean {
-  const x = a ?? getAuth();
-  const role = (x?.role || "").toString().toUpperCase();
-  return role === "HQ" || role === "ADMIN";
+  return hasAnyPermission(["pl.sync.city", "pl.import.excel", "pl.allocation.write"], a);
+}
+
+export function canAccessRoleManagement(a?: Auth | null): boolean {
+  return hasAnyPermission(["channel.admin.staff.manage_roles", "staff.role.change"], a);
 }
 
 export function stepUpSatisfies(required: StepUpLevel, a?: Auth | null): boolean {
