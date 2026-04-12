@@ -4136,10 +4136,10 @@ export default function AdminAnalyticsPage() {
             `/api/admin/attendance/schedule-policy?city=${encodeURIComponent(lowercaseCity)}&active_only=true&approver_name=${encodeURIComponent(approver)}&pin=${encodeURIComponent(pinValue)}`
           )
         ),
-        tryFetch<{ ok: boolean; items: { branch_name: string; net_revenue: number; order_count_non_cancelled: number }[] }>(
-          "pos_branch_ranking",
-          () => apiGet(`/api/admin/pos/branches/orders?${commonQs.toString()}&limit=20`)
-        ),
+        // pos_branch_ranking is optional enrichment data — silently ignore errors so missingSources stays clean
+        apiGet<{ ok: boolean; items: { branch_name: string; net_revenue: number; order_count_non_cancelled: number }[] }>(
+          `/api/admin/pos/branches/orders?${commonQs.toString()}&limit=20`
+        ).catch(() => null),
       ]);
 
       const branchDailyRows = branchDailyRes?.rows || [];
