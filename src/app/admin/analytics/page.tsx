@@ -4466,7 +4466,13 @@ export default function AdminAnalyticsPage() {
         },
       };
       const currentAuth = getAuth();
-      const streamUrl = `${getApiBase()}/api/ai/analytics/consult`;
+      // Bypass Next.js rewrite proxy for SSE streaming — Vercel's proxy buffers
+      // text/event-stream responses which breaks real-time streaming.
+      // CORS on the backend allows *.vercel.app so direct requests are fine.
+      const apiDirectBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").trim().replace(/\/+$/, "");
+      const streamUrl = apiDirectBase
+        ? `${apiDirectBase}/api/ai/analytics/consult`
+        : `${getApiBase()}/api/ai/analytics/consult`;
       const streamHeaders = {
         ...getAuthHeaders(),
         "Content-Type": "application/json",
