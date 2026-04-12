@@ -359,6 +359,7 @@ type ChatMessage = {
   timestamp: number;
   saved?: boolean;
   snapshotId?: string;
+  streaming?: boolean;
 };
 
 type AiConsultResp = {
@@ -4465,7 +4466,13 @@ export default function AdminAnalyticsPage() {
         },
       };
       const currentAuth = getAuth();
-      const res = await apiPost<AiConsultResp>("/api/ai/analytics/consult", {
+      const streamUrl = `${getApiBase()}/api/ai/analytics/consult`;
+      const streamHeaders = {
+        ...getAuthHeaders(),
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+      };
+      const streamBody = JSON.stringify({
         approver_name: currentAuth?.staffName || approverName,
         pin: currentAuth?.pin || pin,
         question: trimmed,
@@ -4478,26 +4485,105 @@ export default function AdminAnalyticsPage() {
         })),
       });
 
-      if (res.ok) {
-        setAiMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: res.answer,
-            timestamp: Date.now(),
-            saved: false,
-            snapshotId: undefined,
-            // store metadata for save action
-            _question: trimmed,
-            _model: res.model || "",
-            _inputTokens: res.input_tokens || 0,
-            _outputTokens: res.output_tokens || 0,
-            _dateFrom: summaryDateFrom,
-            _dateTo: summaryDateTo,
-            _cityScope: targetCities.length > 1 ? "both" : targetCities[0],
-          } as ChatMessage & Record<string, unknown>,
-        ]);
+      // Add placeholder assistant message immediately so user sees streaming
+      const assistantTimestamp = Date.now();
+      setAiMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant" as const,
+          content: "",
+          timestamp: assistantTimestamp,
+          saved: false,
+          streaming: true,
+        } as ChatMessage & Record<string, unknown>,
+      ]);
+
+      let streamRes = await fetch(streamUrl, {
+        method: "POST",
+        headers: streamHeaders,
+        body: streamBody,
+        cache: "no-store",
+      });
+
+      // Handle 401 with token refresh (same as apiPost)
+      if (!streamRes.ok && streamRes.status === 401) {
+        const errText = await streamRes.text();
+        const detail = parseApiErrorDetail(errText);
+        const current = getAuth();
+        if (
+          current?.pin &&
+          (detail.includes("Invalid access token") || detail.includes("Authentication is required") || !current.accessToken)
+        ) {
+          await refreshAuthFromApi(current, { includeMfa: true });
+          streamRes = await fetch(streamUrl, {
+            method: "POST",
+            headers: { ...getAuthHeaders(), "Content-Type": "application/json", Accept: "text/event-stream" },
+            body: streamBody,
+            cache: "no-store",
+          });
+        }
       }
+
+      if (!streamRes.ok) {
+        const errText = await streamRes.text();
+        const detail = parseApiErrorDetail(errText);
+        throw new Error(normalizeApiErrorMessage(detail || errText, "AI との通信に失敗しました"));
+      }
+
+      const reader = streamRes.body?.getReader();
+      if (!reader) throw new Error("Stream not supported");
+      const decoder = new TextDecoder();
+      let sseBuffer = "";
+      let streamedModel = "";
+      let streamedInputTokens = 0;
+      let streamedOutputTokens = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        sseBuffer += decoder.decode(value, { stream: true });
+        const lines = sseBuffer.split("\n");
+        sseBuffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          let event: any;
+          try { event = JSON.parse(line.slice(6)); } catch { continue; }
+          if (event.type === "text_delta" && typeof event.text === "string") {
+            setAiMessages((prev) =>
+              prev.map((m) =>
+                m.timestamp === assistantTimestamp
+                  ? { ...m, content: m.content + event.text }
+                  : m
+              )
+            );
+          } else if (event.type === "done") {
+            streamedModel = event.model || "";
+            streamedInputTokens = event.input_tokens || 0;
+            streamedOutputTokens = event.output_tokens || 0;
+          } else if (event.type === "error") {
+            throw new Error(event.message || "AI streaming error");
+          }
+        }
+      }
+
+      // Finalize the streamed message with metadata
+      setAiMessages((prev) =>
+        prev.map((m) =>
+          m.timestamp === assistantTimestamp
+            ? ({
+                ...m,
+                streaming: false,
+                _question: trimmed,
+                _model: streamedModel,
+                _inputTokens: streamedInputTokens,
+                _outputTokens: streamedOutputTokens,
+                _dateFrom: summaryDateFrom,
+                _dateTo: summaryDateTo,
+                _cityScope: targetCities.length > 1 ? "both" : targetCities[0],
+              } as ChatMessage & Record<string, unknown>)
+            : m
+        )
+      );
     } catch (e: any) {
       setAiError(e?.message || "AI との通信に失敗しました");
     } finally {
@@ -5160,7 +5246,12 @@ export default function AdminAnalyticsPage() {
                         : "border-neutral-700/40 bg-neutral-800/60 text-neutral-200",
                     ].join(" ")}
                   >
-                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                    <div className="whitespace-pre-wrap">
+                      {msg.content}
+                      {(msg as any).streaming && (
+                        <span className="ml-0.5 inline-block h-[1em] w-[2px] animate-pulse bg-neutral-400 align-text-bottom" />
+                      )}
+                    </div>
                     <div className="mt-2 flex items-center justify-between gap-2">
                       <div className="text-[10px] text-neutral-600">
                         {new Date(msg.timestamp).toLocaleTimeString("ja-JP", {
@@ -5168,7 +5259,7 @@ export default function AdminAnalyticsPage() {
                           minute: "2-digit",
                         })}
                       </div>
-                      {msg.role === "assistant" && (
+                      {msg.role === "assistant" && !(msg as any).streaming && (
                         msg.saved ? (
                           <span className="text-[11px] text-emerald-500">✅ 保存済み</span>
                         ) : (
