@@ -45,6 +45,7 @@ import { normalizeCalendarDateInput } from "@/lib/dateInput";
 import DateRangePicker from "@/components/DateRangePicker";
 import MonthPicker from "@/components/MonthPicker";
 import { ManilaSalesSection } from "@/components/analytics/ManilaSalesSection";
+import { SalesDataCheckTable, type DataCheckCell, type DataCheckColumn } from "@/components/analytics/SalesDataCheckTable";
 import ProcurementAnalyticsSection from "@/app/admin/analytics/procurement/page";
 import { fmtNum, fmtNumTitle } from "@/lib/formatters";
 import {
@@ -108,6 +109,25 @@ function parseApiErrorDetail(text: string) {
   } catch {
     return "";
   }
+}
+
+function formatDateTimeLabel(value?: string | null) {
+  const text = String(value || "").trim();
+  if (!text) return "-";
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? text : date.toLocaleString();
+}
+
+function normalizeAttendanceSyncMessage(raw: string, fallback: string) {
+  const text = String(raw || "").trim();
+  const lower = text.toLowerCase();
+  if (!text) return fallback;
+  if (lower.includes("invalid pin")) return "PINが正しくありません。";
+  if (lower.includes("forbidden") || lower.includes("permission")) return "同期権限がありません（HQ/ADMIN のPIN確認が必要です）。";
+  if (lower.includes("attendance drive source not found")) return "同期元設定が見つかりません。";
+  if (lower.includes("no attendance files found")) return "Driveフォルダに対象ファイルがありません。";
+  if (lower.includes("already imported") || lower.includes("duplicate")) return "最新ファイルは既に取り込み済みです。";
+  return text;
 }
 
 async function apiGet<T = any>(path: string): Promise<T> {
@@ -303,6 +323,22 @@ type StaffSummaryRow = {
   total_hours: number;
   worked_days: number;
   segment_count: number;
+  schedule_type?: "STANDARD" | "FLEXIBLE" | "DRIVER";
+  schedule_reason?: string;
+};
+
+type ComplianceExemptStaff = {
+  name: string;
+  schedule_type: "FLEXIBLE" | "DRIVER";
+  reason?: string;
+};
+
+type AttendancePolicyMeta = {
+  exclude_flexible_applied?: boolean;
+  excluded_staff_count?: number;
+  excluded_schedule_types?: string[];
+  policy_version?: string;
+  compliance_exempt_staff?: ComplianceExemptStaff[];
 };
 
 type AbsenceSummaryRow = {
@@ -314,8 +350,24 @@ type AbsenceSummaryRow = {
 
 type BranchDailyResp = { ok: boolean; rows: BranchDailyRow[] };
 type BranchWeekdayResp = { ok: boolean; rows: BranchWeekdayRow[] };
-type StaffSummaryResp = { ok: boolean; rows: StaffSummaryRow[] };
-type AbsenceSummaryResp = { ok: boolean; rows: AbsenceSummaryRow[] };
+type StaffSummaryResp = { ok: boolean; rows: StaffSummaryRow[]; policy_meta?: AttendancePolicyMeta };
+type AbsenceSummaryResp = { ok: boolean; rows: AbsenceSummaryRow[]; policy_meta?: AttendancePolicyMeta };
+
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: number;
+  saved?: boolean;
+  snapshotId?: string;
+};
+
+type AiConsultResp = {
+  ok: boolean;
+  answer: string;
+  model?: string;
+  input_tokens?: number;
+  output_tokens?: number;
+};
 
 type CitySummaryResp = {
   ok: boolean;
@@ -330,6 +382,7 @@ type CitySummaryResp = {
   top_branch_hours: number;
   top_absence_type: string;
   top_absence_rows: number;
+  policy_meta?: AttendancePolicyMeta;
 };
 
 type PosSalesDailyRow = {
@@ -379,6 +432,102 @@ type ProductMixRankingResp = {
   coverage_to?: string | null;
   source_file_name?: string;
   items: ProductMixRankingRow[];
+};
+
+type PosAnalyticsLatestCoverageResp = {
+  ok: boolean;
+  city: string;
+  sales_daily_latest_work_date: string;
+  menu_item_latest_work_date: string;
+  branch_daily_latest_work_date: string;
+  channel_daily_latest_work_date: string;
+  revenue_latest_work_date: string;
+  cancel_order_type_latest_work_date: string;
+  cancel_breakdown_latest_work_date: string;
+  hourly_latest_month_key: string;
+  operation_time_latest_work_date: string;
+  product_mix_latest_coverage_to: string;
+};
+
+type AttendanceLatestCoverageResp = {
+  ok: boolean;
+  city: string;
+  date_from: string;
+  date_to: string;
+  last_synced_at: string;
+  last_sync_status: string;
+  last_seen_file_name: string;
+  source_name: string;
+  drive_modified_time: string;
+  last_synced_import_job_id?: string;
+};
+
+type AttendanceAutoSyncStatusResp = {
+  ok: boolean;
+  enabled: boolean;
+  hours_utc: number[];
+  source_id: string;
+  folder_id: string;
+  city_hint: string;
+  configured: boolean;
+};
+
+type PosDataCheckRow = {
+  work_date: string;
+  sales_daily: DataCheckCell;
+  revenue_daily: DataCheckCell;
+  branch_daily: DataCheckCell;
+  channel_daily: DataCheckCell;
+  hourly_daily: DataCheckCell;
+  operation_time: DataCheckCell;
+  cancel_order_type: DataCheckCell;
+  cancel_breakdown: DataCheckCell;
+  product_mix: DataCheckCell;
+  missing_metrics: string[];
+  overall_status: string;
+  reimportable?: boolean;
+};
+
+type PosDataCheckResp = {
+  ok: boolean;
+  city: string;
+  date_from: string;
+  date_to: string;
+  rows: PosDataCheckRow[];
+  summary: {
+    total_dates: number;
+    ok_dates: number;
+    partial_dates: number;
+    missing_dates: number;
+  };
+};
+
+type ManilaSalesDataCheckRow = {
+  work_date: string;
+  source_systems: string[];
+  product: DataCheckCell;
+  channel: DataCheckCell;
+  category: DataCheckCell;
+  payment_method: DataCheckCell;
+  pos_daily: DataCheckCell;
+  hourly: DataCheckCell;
+  missing_metrics: string[];
+  overall_status: string;
+  reimportable?: boolean;
+};
+
+type ManilaSalesDataCheckResp = {
+  ok: boolean;
+  date_from: string;
+  date_to: string;
+  store_name?: string;
+  rows: ManilaSalesDataCheckRow[];
+  summary: {
+    total_dates: number;
+    ok_dates: number;
+    partial_dates: number;
+    missing_dates: number;
+  };
 };
 
 type PosSyncJobStep = {
@@ -1039,12 +1188,31 @@ type ComparisonItem = {
   has_absence_row?: boolean | null;
   absence_type?: string | null;
   effective_status_raw?: string | null;
+  schedule_type?: "STANDARD" | "FLEXIBLE" | "DRIVER";
+  schedule_reason?: string | null;
 };
 
 type ComparisonResp = {
   ok?: boolean;
   count?: number;
   items?: ComparisonItem[];
+  policy_meta?: AttendancePolicyMeta;
+};
+
+type AttendanceSchedulePolicyItem = {
+  id: string;
+  city: string;
+  canonical_staff_name: string;
+  schedule_type: "STANDARD" | "FLEXIBLE" | "DRIVER";
+  reason?: string;
+  effective_from?: string | null;
+  effective_to?: string | null;
+  is_active?: boolean;
+};
+
+type AttendanceSchedulePolicyResp = {
+  ok: boolean;
+  items: AttendanceSchedulePolicyItem[];
 };
 
 type AnalyticsViewMode =
@@ -1130,10 +1298,11 @@ const SALES_SECTION_OPTIONS = [
   { value: "menu", label: "Menu", id: "sales-menu" },
   { value: "stores", label: "Stores", id: "sales-stores" },
   { value: "daily", label: "Daily", id: "sales-daily" },
+  { value: "dataCheck", label: "Data Check", id: "sales-data-check" },
   { value: "manilaSales", label: "Manila Sales", id: "sales-manila-sales" },
 ] as const;
 const DUBAI_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter((section) => section.value !== "manilaSales");
-const MANILA_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter((section) => section.value === "manilaSales");
+const MANILA_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter((section) => section.value === "manilaSales" || section.value === "dataCheck");
 
 const FINANCE_SECTION_OPTIONS = [
   { value: "summary", label: "Summary", id: "finance-summary" },
@@ -1631,7 +1800,7 @@ export default function AdminAnalyticsPage() {
   const [branchCode, setBranchCode] = useState("");
   const [summaryBranchCode, setSummaryBranchCode] = useState("");
   const [summaryBrandName, setSummaryBrandName] = useState("");
-  const [salesSectionView, setSalesSectionView] = useState<"summary" | "hourly" | "operationTime" | "brands" | "cancelOrders" | "productMix" | "menu" | "stores" | "daily" | "manilaSales" | "all">(
+  const [salesSectionView, setSalesSectionView] = useState<"summary" | "hourly" | "operationTime" | "brands" | "cancelOrders" | "productMix" | "menu" | "stores" | "daily" | "dataCheck" | "manilaSales" | "all">(
     "summary",
   );
   const [financeSectionView, setFinanceSectionView] = useState<"summary" | "breakEven" | "plDetails" | "payroll" | "all">("summary");
@@ -1652,6 +1821,16 @@ export default function AdminAnalyticsPage() {
   const [totpEnrollment, setTotpEnrollment] = useState<null | { enrollmentToken: string; secret: string; otpauthUri: string }>(null);
   const [totpEnrollmentCode, setTotpEnrollmentCode] = useState("");
   const [backupCodes, setBackupCodes] = useState<string[]>([]);
+  const [aiMessages, setAiMessages] = useState<ChatMessage[]>([]);
+  const [aiInput, setAiInput] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const [aiDataCache, setAiDataCache] = useState<{
+    dateFrom: string;
+    dateTo: string;
+    cities: Record<string, { metrics: any; data_quality: any; city: string }>;
+  } | null>(null);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
 
   const [branchDailyRows, setBranchDailyRows] = useState<BranchDailyRow[]>([]);
   const [branchWeekdayRows, setBranchWeekdayRows] = useState<BranchWeekdayRow[]>([]);
@@ -1956,8 +2135,23 @@ export default function AdminAnalyticsPage() {
 
   const [salesSyncing, setSalesSyncing] = useState(false);
   const [payrollSyncing, setPayrollSyncing] = useState(false);
+  const [attendanceSyncing, setAttendanceSyncing] = useState(false);
   const [salesSyncMessage, setSalesSyncMessage] = useState("");
   const [payrollSyncMessage, setPayrollSyncMessage] = useState("");
+  const [attendanceSyncMessage, setAttendanceSyncMessage] = useState("");
+  const [posLatestCoverage, setPosLatestCoverage] = useState<PosAnalyticsLatestCoverageResp | null>(null);
+  const [posLatestCoverageError, setPosLatestCoverageError] = useState("");
+  const [attendanceLatestCoverage, setAttendanceLatestCoverage] = useState<AttendanceLatestCoverageResp | null>(null);
+  const [attendanceLatestCoverageError, setAttendanceLatestCoverageError] = useState("");
+  const [attendanceAutoSyncStatus, setAttendanceAutoSyncStatus] = useState<AttendanceAutoSyncStatusResp | null>(null);
+  const [attendanceAutoSyncStatusError, setAttendanceAutoSyncStatusError] = useState("");
+  const [posDataCheck, setPosDataCheck] = useState<PosDataCheckResp | null>(null);
+  const [posDataCheckError, setPosDataCheckError] = useState("");
+  const [posDataCheckSelectedDates, setPosDataCheckSelectedDates] = useState<string[]>([]);
+  const [manilaDataCheck, setManilaDataCheck] = useState<ManilaSalesDataCheckResp | null>(null);
+  const [manilaDataCheckError, setManilaDataCheckError] = useState("");
+  const [manilaDataCheckLoading, setManilaDataCheckLoading] = useState(false);
+  const [manilaDataCheckSelectedDates, setManilaDataCheckSelectedDates] = useState<string[]>([]);
 
   const [comparisonRows, setComparisonRows] = useState<ComparisonItem[]>([]);
   const [comparisonLoading, setComparisonLoading] = useState(false);
@@ -1967,7 +2161,7 @@ export default function AdminAnalyticsPage() {
   const [comparisonLimit, setComparisonLimit] = useState("5000");
 
   const [viewMode, setViewMode] = useState<AnalyticsViewMode>("perfect_attendance");
-  const [analyticsTab, setAnalyticsTab] = useState<"staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement">("staff");
+  const [analyticsTab, setAnalyticsTab] = useState<"staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai">("staff");
   const [staffSearch, setStaffSearch] = useState("");
 
   const roleUpper = String(auth?.role || "STAFF").toUpperCase();
@@ -1985,16 +2179,41 @@ export default function AdminAnalyticsPage() {
   const salesCity: City = analyticsTab === "manilaSales" ? "manila" : "dubai";
   const isManilaSalesCity = analyticsTab === "manilaSales";
   const visibleSalesSectionOptions = isManilaSalesCity ? MANILA_SALES_SECTION_OPTIONS : DUBAI_SALES_SECTION_OPTIONS;
+  const dubaiDataCheckColumns = useMemo<Array<DataCheckColumn<PosDataCheckRow>>>(
+    () => [
+      { key: "sales_daily", label: "Sales Daily", getCell: (row) => row.sales_daily },
+      { key: "revenue_daily", label: "Revenue Daily", getCell: (row) => row.revenue_daily },
+      { key: "branch_daily", label: "Branch Daily", getCell: (row) => row.branch_daily },
+      { key: "channel_daily", label: "Channel Daily", getCell: (row) => row.channel_daily },
+      { key: "hourly_daily", label: "Hourly", getCell: (row) => row.hourly_daily },
+      { key: "operation_time", label: "Op Time", getCell: (row) => row.operation_time },
+      { key: "cancel_order_type", label: "Cancel Type", getCell: (row) => row.cancel_order_type },
+      { key: "cancel_breakdown", label: "Cancel Breakdown", getCell: (row) => row.cancel_breakdown },
+      { key: "product_mix", label: "Product Mix", getCell: (row) => row.product_mix },
+    ],
+    [],
+  );
+  const manilaDataCheckColumns = useMemo<Array<DataCheckColumn<ManilaSalesDataCheckRow>>>(
+    () => [
+      { key: "product", label: "Product", getCell: (row) => row.product },
+      { key: "channel", label: "Channel", getCell: (row) => row.channel },
+      { key: "category", label: "Category", getCell: (row) => row.category },
+      { key: "payment_method", label: "Payment", getCell: (row) => row.payment_method },
+      { key: "pos_daily", label: "POS Daily", getCell: (row) => row.pos_daily },
+      { key: "hourly", label: "Hourly", getCell: (row) => row.hourly },
+    ],
+    [],
+  );
   const salesStepUpReady = stepUpSatisfies("aal2", auth) && stepUpVerifiedThisVisit;
   const financeStepUpReady = stepUpSatisfies("aal2", auth) && stepUpVerifiedThisVisit;
   const activeSecurityRequirement =
     analyticsTab === "finance"
       ? "MFA (Passkey, TOTP, Backup code, or PIN step-up)"
-      : isSalesAnalyticsTab || analyticsTab === "evaluation" || analyticsTab === "staff"
+      : isSalesAnalyticsTab || analyticsTab === "evaluation" || analyticsTab === "staff" || analyticsTab === "ai"
         ? "MFA (Passkey, TOTP, Backup code, or PIN step-up)"
         : "Login";
   const activeSecuritySatisfied =
-    analyticsTab === "finance" ? financeStepUpReady : isSalesAnalyticsTab || analyticsTab === "evaluation" || analyticsTab === "staff" ? salesStepUpReady : true;
+    analyticsTab === "finance" ? financeStepUpReady : isSalesAnalyticsTab || analyticsTab === "evaluation" || analyticsTab === "staff" || analyticsTab === "ai" ? salesStepUpReady : true;
 
   const [staffSortBy, setStaffSortBy] = useState<"hours" | "days" | "segments" | "name">("hours");
   const [branchSortBy, setBranchSortBy] = useState<"totalHours" | "avgHoursPerDay" | "maxStaff" | "branch">("totalHours");
@@ -2219,7 +2438,13 @@ export default function AdminAnalyticsPage() {
       else if (canViewStaffChannel) setAnalyticsTab("staff");
       else if (canViewManagementPlChannel) setAnalyticsTab("finance");
     }
-  }, [analyticsTab, canViewDubaiSalesChannel, canViewManagementPlChannel, canViewManilaSalesChannel, canViewProcurementChannel, canViewStaffChannel]);
+    if (analyticsTab === "ai" && !hasVisibleAnalyticsChannel) {
+      if (canViewStaffChannel) setAnalyticsTab("staff");
+      else if (canViewDubaiSalesChannel) setAnalyticsTab("dubaiSales");
+      else if (canViewManilaSalesChannel) setAnalyticsTab("manilaSales");
+      else if (canViewManagementPlChannel) setAnalyticsTab("finance");
+    }
+  }, [analyticsTab, canViewDubaiSalesChannel, canViewManagementPlChannel, canViewManilaSalesChannel, canViewProcurementChannel, canViewStaffChannel, hasVisibleAnalyticsChannel]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -2247,10 +2472,15 @@ export default function AdminAnalyticsPage() {
     }
     if (requestedTab === "procurement" && canViewProcurementChannel) {
       setAnalyticsTab("procurement");
+      return;
+    }
+    if (requestedTab === "ai" && hasVisibleAnalyticsChannel) {
+      setAnalyticsTab("ai");
     }
   }, [
     canViewDubaiSalesChannel,
     canViewEvaluationChannel,
+    hasVisibleAnalyticsChannel,
     canViewManagementPlChannel,
     canViewManilaSalesChannel,
     canViewProcurementChannel,
@@ -2369,13 +2599,37 @@ export default function AdminAnalyticsPage() {
   }, [isSalesAnalyticsTab, isManilaSalesCity, hourlyStoreName, summaryBranchCode, summaryBrandName, approverName, salesStepUpReady, analyticsTab]);
 
   useEffect(() => {
+    setPosDataCheckSelectedDates([]);
+    setManilaDataCheckSelectedDates([]);
+  }, [summaryDateFrom, summaryDateTo, analyticsTab]);
+
+  useEffect(() => {
+    if (analyticsTab !== "manilaSales") return;
+    if (!approverName.trim() || !salesStepUpReady) return;
+    void loadManilaDataCheckNow();
+    // `loadManilaDataCheckNow()` is intentionally triggered by tab, range, and credentials changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyticsTab, approverName, pin, salesStepUpReady, summaryDateFrom, summaryDateTo]);
+
+  useEffect(() => {
     if (analyticsTab !== "evaluation") return;
     if (!approverName.trim() || !salesStepUpReady) return;
     void loadAll("evaluation");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analyticsTab, city, summaryDateFrom, summaryDateTo, approverName, salesStepUpReady]);
 
-  async function loadAll(scope: "all" | "sales" | "staff" | "evaluation" | "finance" = "all"): Promise<string[]> {
+  useEffect(() => {
+    if (analyticsTab !== "ai") return;
+    if (!approverName.trim() || !salesStepUpReady) return;
+    void loadAll("ai");
+    if (canViewStaffChannel) void loadComparison();
+    setError("");
+    setAiDataCache(null);
+    // `loadAll()` and `loadComparison()` are intentionally triggered by tab, range, and credentials changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyticsTab, city, summaryDateFrom, summaryDateTo, approverName, salesStepUpReady, canViewStaffChannel]);
+
+  async function loadAll(scope: "all" | "sales" | "staff" | "evaluation" | "finance" | "ai" = "all"): Promise<string[]> {
     setLoading(true);
     setError("");
     const loadErrors: string[] = [];
@@ -2383,8 +2637,8 @@ export default function AdminAnalyticsPage() {
       const msg = String((e as any)?.message || e || "Request failed");
       loadErrors.push(`${label}: ${msg}`);
     };
-    const shouldLoadPos = scope === "all" || scope === "sales" || scope === "finance";
-    const shouldLoadStaff = scope === "all" || scope === "staff" || scope === "finance";
+    const shouldLoadPos = scope === "all" || scope === "sales" || scope === "finance" || scope === "ai";
+    const shouldLoadStaff = scope === "all" || scope === "staff" || scope === "finance" || scope === "ai";
     const shouldLoadEvaluation = scope === "all" || scope === "evaluation";
     const shouldLoadFinance = scope === "all" || scope === "finance";
     const posCity: City = scope === "sales" ? salesCity : ((city as City) || "dubai");
@@ -2417,6 +2671,7 @@ export default function AdminAnalyticsPage() {
         date_from: summaryDateFrom,
         date_to: summaryDateTo,
         limit: "5000",
+        exclude_flexible: "true",
         approver_name: approverName.trim(),
         pin: pin.trim(),
       });
@@ -2453,6 +2708,11 @@ export default function AdminAnalyticsPage() {
             date_from: summaryDateFrom,
             date_to: summaryDateTo,
             limit: "400",
+            approver_name: approverName.trim(),
+            pin: pin.trim(),
+          });
+          const coverageQs = new URLSearchParams({
+            city: posCity,
             approver_name: approverName.trim(),
             pin: pin.trim(),
           });
@@ -2530,6 +2790,30 @@ export default function AdminAnalyticsPage() {
               (cancelOrders) => setCancelOrdersAnalytics(cancelOrders ?? null),
               () => setCancelOrdersAnalytics(null)
             ),
+            loadSalesDataset(
+              "Sales latest coverage",
+              () => apiGet<PosAnalyticsLatestCoverageResp>(`/api/admin/pos/analytics/latest-coverage?${coverageQs.toString()}`),
+              (coverage) => {
+                setPosLatestCoverage(coverage);
+                setPosLatestCoverageError("");
+              },
+              () => {
+                setPosLatestCoverage(null);
+                setPosLatestCoverageError("Latest import coverage unavailable");
+              }
+            ),
+            loadSalesDataset(
+              "Sales data check",
+              () => apiGet<PosDataCheckResp>(`/api/admin/pos/analytics/data-check?${posDailyQs.toString()}`),
+              (dataCheck) => {
+                setPosDataCheck(dataCheck);
+                setPosDataCheckError("");
+              },
+              () => {
+                setPosDataCheck(null);
+                setPosDataCheckError("Data check unavailable");
+              }
+            ),
           ]);
           if (canViewFinanceChannels && financeStepUpReady) {
             try {
@@ -2573,6 +2857,10 @@ export default function AdminAnalyticsPage() {
           setSalesPlSummary(null);
           setHourlySalesAnalytics(null);
           setHourlyLoadError("");
+          setPosLatestCoverage(null);
+          setPosLatestCoverageError("");
+          setPosDataCheck(null);
+          setPosDataCheckError("");
         }
       })();
 
@@ -2586,6 +2874,11 @@ export default function AdminAnalyticsPage() {
           setDubaiSummary(null);
           setManilaSummary(null);
           setSalesComparisonRows([]);
+          setAttendanceLatestCoverage(null);
+          setAttendanceLatestCoverageError("");
+          setAttendanceAutoSyncStatus(null);
+          setAttendanceAutoSyncStatusError("");
+          setAttendanceSyncMessage("");
           return;
         }
 
@@ -2603,6 +2896,7 @@ export default function AdminAnalyticsPage() {
           date_to: summaryDateTo,
           branch_code: summaryBranchCode,
           limit: String(staffLimit),
+          exclude_flexible: "true",
           approver_name: approverName.trim(),
           pin: pin.trim(),
         });
@@ -2610,6 +2904,17 @@ export default function AdminAnalyticsPage() {
           city,
           date_from: summaryDateFrom,
           date_to: summaryDateTo,
+          exclude_flexible: "true",
+          approver_name: approverName.trim(),
+          pin: pin.trim(),
+        });
+        const attendanceCoverageQs = new URLSearchParams({
+          city,
+          approver_name: approverName.trim(),
+          pin: pin.trim(),
+        });
+        const attendanceAutoSyncQs = new URLSearchParams({
+          city,
           approver_name: approverName.trim(),
           pin: pin.trim(),
         });
@@ -2634,6 +2939,7 @@ export default function AdminAnalyticsPage() {
             () =>
               apiGet<CitySummaryResp>(
                 `/api/admin/analytics/city_summary?city=dubai&date_from=${encodeURIComponent(summaryDateFrom)}&date_to=${encodeURIComponent(summaryDateTo)}&approver_name=${encodeURIComponent(approverName.trim())}&pin=${encodeURIComponent(pin.trim())}`
+                  + `&exclude_flexible=true`
               ),
             (dubaiCity) => setDubaiSummary(dubaiCity),
             () => setDubaiSummary(null)
@@ -2643,6 +2949,7 @@ export default function AdminAnalyticsPage() {
             () =>
               apiGet<CitySummaryResp>(
                 `/api/admin/analytics/city_summary?city=manila&date_from=${encodeURIComponent(summaryDateFrom)}&date_to=${encodeURIComponent(summaryDateTo)}&approver_name=${encodeURIComponent(approverName.trim())}&pin=${encodeURIComponent(pin.trim())}`
+                  + `&exclude_flexible=true`
               ),
             (manilaCity) => setManilaSummary(manilaCity),
             () => setManilaSummary(null)
@@ -2653,6 +2960,28 @@ export default function AdminAnalyticsPage() {
             (salesComparison) => setSalesComparisonRows(Array.isArray(salesComparison?.items) ? salesComparison.items : []),
             () => setSalesComparisonRows([])
           ),
+          run(
+            "Staff analytics (latest Bayzat coverage)",
+            () => apiGet<AttendanceLatestCoverageResp>(`/api/admin/attendance/latest-coverage?${attendanceCoverageQs.toString()}`),
+            (coverage) => {
+              setAttendanceLatestCoverage(coverage);
+              setAttendanceLatestCoverageError("");
+            },
+            () => {
+              setAttendanceLatestCoverage(null);
+              setAttendanceLatestCoverageError("Latest Bayzat import coverage unavailable");
+            }
+          ),
+          (async () => {
+            try {
+              const statusResp = await apiGet<AttendanceAutoSyncStatusResp>(`/api/admin/attendance/auto-sync/status?${attendanceAutoSyncQs.toString()}`);
+              setAttendanceAutoSyncStatus(statusResp);
+              setAttendanceAutoSyncStatusError("");
+            } catch {
+              setAttendanceAutoSyncStatus(null);
+              setAttendanceAutoSyncStatusError("Auto sync status unavailable");
+            }
+          })(),
         ]);
       })();
 
@@ -2841,6 +3170,93 @@ export default function AdminAnalyticsPage() {
       return [msg];
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadManilaDataCheckNow() {
+    if (!approverName.trim() || !salesStepUpReady) return;
+    setManilaDataCheckLoading(true);
+    setManilaDataCheckError("");
+    try {
+      const res = await apiGet<ManilaSalesDataCheckResp>(
+        `/api/admin/analytics/manila/sales/data-check?${new URLSearchParams({
+          approver_name: approverName.trim(),
+          pin: pin.trim(),
+          date_from: summaryDateFrom,
+          date_to: summaryDateTo,
+        }).toString()}`
+      );
+      setManilaDataCheck(res);
+    } catch (e) {
+      setManilaDataCheck(null);
+      setManilaDataCheckError(String((e as Error)?.message || e || "Failed to load Manila data check"));
+    } finally {
+      setManilaDataCheckLoading(false);
+    }
+  }
+
+  function toggleDateSelection(workDate: string, selected: string[], setSelected: (value: string[] | ((prev: string[]) => string[])) => void) {
+    setSelected((current) => (current.includes(workDate) ? current.filter((item) => item !== workDate) : [...current, workDate].sort()));
+  }
+
+  function selectProblemDates<Row extends { work_date: string; overall_status?: string; reimportable?: boolean }>(
+    rows: Row[],
+    setSelected: (value: string[]) => void,
+  ) {
+    setSelected(
+      rows
+        .filter((row) => row.reimportable !== false && String(row.overall_status || "") !== "ok")
+        .map((row) => row.work_date)
+        .sort()
+    );
+  }
+
+  async function reimportSalesDates(cityKind: "dubai" | "manila") {
+    const targetDates = cityKind === "dubai" ? posDataCheckSelectedDates : manilaDataCheckSelectedDates;
+    if (!targetDates.length || !approverName.trim() || !salesStepUpReady) return;
+    setSalesSyncing(true);
+    setSalesSyncMessage("");
+    try {
+      const start =
+        cityKind === "dubai"
+          ? await apiPost<PosSyncJobResp>("/api/admin/pos/sync/reimport-dates", {
+              approver_name: approverName.trim(),
+              pin: pin.trim(),
+              city_hint: "dubai",
+              target_dates: targetDates,
+              force_reimport: true,
+            })
+          : await apiPost<PosSyncJobResp>("/api/admin/analytics/manila/sales/sync", {
+              approver_name: approverName.trim(),
+              pin: pin.trim(),
+              force: true,
+              target_dates: targetDates,
+            });
+      const job = start?.job;
+      if (!job?.id) {
+        throw new Error(String(start?.message || "Re-import job could not be started"));
+      }
+      const baseMessage = String(start?.message || "").trim() || `Queued ${targetDates.length} dates for re-import.`;
+      setSalesSyncMessage(formatPosSyncJobMessage(job, baseMessage));
+      const finalJob = await waitForSalesSyncJob(job.id, baseMessage);
+      const finalStatus = String(finalJob.status || "").toUpperCase();
+      const finalMessage = formatPosSyncJobMessage(finalJob, baseMessage);
+      if (finalStatus === "COMPLETED" || finalStatus === "COMPLETED_WITH_WARNINGS") {
+        if (cityKind === "dubai") {
+          setPosDataCheckSelectedDates([]);
+          setSalesSyncMessage(await reloadSalesAfterSync(finalMessage));
+        } else {
+          setManilaDataCheckSelectedDates([]);
+          await loadManilaDataCheckNow();
+          setSalesSyncMessage(`${finalMessage} Reloaded data check.`);
+        }
+      } else {
+        setSalesSyncMessage(finalMessage);
+      }
+    } catch (e: any) {
+      setSalesSyncMessage(String(e?.message || e || "Re-import failed"));
+    } finally {
+      setSalesSyncing(false);
     }
   }
 
@@ -3050,6 +3466,38 @@ export default function AdminAnalyticsPage() {
     }
   }
 
+  async function syncAttendanceNow() {
+    if (!approverName.trim() || !salesStepUpReady) return;
+    setAttendanceSyncing(true);
+    setAttendanceSyncMessage("");
+    try {
+      const res = await apiPost<{
+        ok?: boolean;
+        duplicate?: boolean;
+        message?: string;
+        date_from?: string;
+        date_to?: string;
+      }>("/api/admin/attendance/drive/sync", {
+        approver_name: approverName.trim(),
+        pin: pin.trim(),
+        city_hint: city,
+      });
+      const rawMsg = String(res?.message || "").trim();
+      if (res?.duplicate) {
+        setAttendanceSyncMessage("最新ファイルは既に取り込み済みです。");
+      } else if (rawMsg) {
+        setAttendanceSyncMessage(normalizeAttendanceSyncMessage(rawMsg, "Bayzat同期が完了しました。"));
+      } else {
+        setAttendanceSyncMessage("Bayzat同期が完了しました。");
+      }
+      await loadAll("staff");
+    } catch (e: any) {
+      setAttendanceSyncMessage(normalizeAttendanceSyncMessage(String(e?.message || e || ""), "Bayzat同期に失敗しました。"));
+    } finally {
+      setAttendanceSyncing(false);
+    }
+  }
+
   async function syncPayrollNow() {
     if (!approverName.trim() || !financeStepUpReady) return;
     setPayrollSyncing(true);
@@ -3112,20 +3560,25 @@ export default function AdminAnalyticsPage() {
       const requestedLimit = Number.parseInt(String(comparisonLimit || ""), 10);
       const safeLimit = Number.isFinite(requestedLimit) ? Math.max(100, Math.min(1500, requestedLimit)) : 1000;
       const chunks = splitDateRangeIntoChunks(dateFrom, dateTo, 7);
-      const allItems: ComparisonItem[] = [];
       let maybeTruncated = false;
 
-      for (const chunk of chunks) {
-        const qs = new URLSearchParams({
-          city: city === "dubai" ? "Dubai" : "Manila",
-          date_from: chunk.from,
-          date_to: chunk.to,
-          limit: String(safeLimit),
-          approver_name: approverName.trim(),
-          pin: pin.trim(),
-        });
-        if (branchCode) qs.set("branch", branchCode);
-        const res = await apiGet<ComparisonResp>(`/api/admin/attendance/comparison?${qs.toString()}`);
+      const chunkResponses = await Promise.all(
+        chunks.map((chunk) => {
+          const qs = new URLSearchParams({
+            city: city === "dubai" ? "Dubai" : "Manila",
+            date_from: chunk.from,
+            date_to: chunk.to,
+            limit: String(safeLimit),
+            exclude_flexible: "true",
+            approver_name: approverName.trim(),
+            pin: pin.trim(),
+          });
+          if (branchCode) qs.set("branch", branchCode);
+          return apiGet<ComparisonResp>(`/api/admin/attendance/comparison?${qs.toString()}`);
+        })
+      );
+      const allItems: ComparisonItem[] = [];
+      for (const res of chunkResponses) {
         const items = Array.isArray(res?.items) ? res.items : [];
         if (items.length >= safeLimit) maybeTruncated = true;
         allItems.push(...items);
@@ -3158,12 +3611,13 @@ export default function AdminAnalyticsPage() {
 
   useEffect(() => {
     if (!approverName.trim() || !salesStepUpReady) return;
+    if (analyticsTab === "ai") return;
     if (canViewStaffChannel) loadComparison();
     // Management roles cannot call staff analytics APIs (HQ/ADMIN only) — avoid 403/500 noise on load.
     if (canViewStaffChannel) void loadAll("staff");
     else void loadAll("sales");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canViewStaffChannel, approverName, salesStepUpReady]);
+  }, [analyticsTab, canViewStaffChannel, approverName, salesStepUpReady]);
 
   // Keep compliance reload manual to avoid repeated heavy calls while editing dates/month.
 
@@ -3577,6 +4031,443 @@ export default function AdminAnalyticsPage() {
     };
   }, [posSalesRows, posSalesRangeTotals, salesPlSummary, summaryBranchCode, summaryBrandName]);
 
+  async function sendToAi(question: string) {
+    type AiCityKey = "dubai" | "manila";
+    const cityLabels: Record<AiCityKey, string> = {
+      dubai: "Dubai",
+      manila: "Manila",
+    };
+    const questionLower = String(question || "").toLowerCase();
+    const asksDubai = questionLower.includes("dubai") || questionLower.includes("ドバイ");
+    const asksManila = questionLower.includes("manila") || questionLower.includes("マニラ");
+    const asksBoth = asksDubai && asksManila;
+    const asksComparison = /比較|compare|vs|両|both/.test(questionLower);
+    // どちらの都市名も指定がない場合は両都市を取得する
+    const targetCities: AiCityKey[] =
+      asksBoth || asksComparison
+        ? ["dubai", "manila"]
+        : asksDubai
+          ? ["dubai"]
+          : asksManila
+            ? ["manila"]
+            : ["dubai", "manila"];
+
+    const loadAiCityDataset = async (cityKey: AiCityKey) => {
+      const missingSources: Array<{ source: string; reason: string }> = [];
+      const rowCounts: Record<string, number> = {};
+      const dateFrom = summaryDateFrom;
+      const dateTo = summaryDateTo;
+      const approver = approverName.trim();
+      const pinValue = pin.trim();
+      const comparisonLimit = 1000;
+      let truncated = false;
+
+      const noteMissing = (source: string, e: unknown) => {
+        const reason = String((e as any)?.message || e || "request_failed");
+        missingSources.push({ source, reason });
+      };
+      const tryFetch = async <T,>(source: string, fn: () => Promise<T>): Promise<T | null> => {
+        try {
+          return await fn();
+        } catch (e) {
+          noteMissing(source, e);
+          return null;
+        }
+      };
+
+      const cityParam = cityKey === "dubai" ? "Dubai" : "Manila";
+      const lowercaseCity = cityKey;
+      const comparisonChunks = splitDateRangeIntoChunks(dateFrom, dateTo, 7);
+      const chunkResults = await Promise.all(
+        comparisonChunks.map((chunk) => {
+          const qs = new URLSearchParams({
+            city: cityParam,
+            date_from: chunk.from,
+            date_to: chunk.to,
+            limit: String(comparisonLimit),
+            exclude_flexible: "false",
+            include_schedule_type: "true",
+            approver_name: approver,
+            pin: pinValue,
+          });
+          return tryFetch<ComparisonResp>("attendance_comparison", () =>
+            apiGet<ComparisonResp>(`/api/admin/attendance/comparison?${qs.toString()}`)
+          );
+        })
+      );
+      const comparisonRowsRaw: ComparisonItem[] = [];
+      for (const res of chunkResults) {
+        if (!res) continue;
+        const items = Array.isArray(res.items) ? res.items : [];
+        if (items.length >= comparisonLimit) truncated = true;
+        comparisonRowsRaw.push(...items);
+      }
+      rowCounts.attendance_comparison = comparisonRowsRaw.length;
+
+      const commonQs = new URLSearchParams({
+        city: lowercaseCity,
+        date_from: dateFrom,
+        date_to: dateTo,
+        approver_name: approver,
+        pin: pinValue,
+      });
+      const staffQs = new URLSearchParams({
+        city: lowercaseCity,
+        date_from: dateFrom,
+        date_to: dateTo,
+        limit: "200",
+        exclude_flexible: "true",
+        approver_name: approver,
+        pin: pinValue,
+      });
+
+      const [branchDailyRes, staffSummaryRes, absenceSummaryRes, citySummaryRes, posDailyRes, schedulePolicyRes] = await Promise.all([
+        tryFetch<BranchDailyResp>("branch_daily_hours", () => apiGet<BranchDailyResp>(`/api/admin/analytics/branch_daily_hours?${commonQs.toString()}`)),
+        tryFetch<StaffSummaryResp>("staff_work_summary", () => apiGet<StaffSummaryResp>(`/api/admin/analytics/staff_work_summary?${staffQs.toString()}`)),
+        tryFetch<AbsenceSummaryResp>("absence_summary", () => apiGet<AbsenceSummaryResp>(`/api/admin/analytics/absence_summary?${commonQs.toString()}&exclude_flexible=true`)),
+        tryFetch<CitySummaryResp>("city_summary", () =>
+          apiGet<CitySummaryResp>(
+            `/api/admin/analytics/city_summary?city=${encodeURIComponent(lowercaseCity)}&date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}&exclude_flexible=true&approver_name=${encodeURIComponent(approver)}&pin=${encodeURIComponent(pinValue)}`
+          )
+        ),
+        tryFetch<PosSalesDailyResp>("pos_sales_daily", () => apiGet<PosSalesDailyResp>(`/api/admin/pos/sales/daily?${commonQs.toString()}`)),
+        tryFetch<AttendanceSchedulePolicyResp>("schedule_policy", () =>
+          apiGet<AttendanceSchedulePolicyResp>(
+            `/api/admin/attendance/schedule-policy?city=${encodeURIComponent(lowercaseCity)}&active_only=true&approver_name=${encodeURIComponent(approver)}&pin=${encodeURIComponent(pinValue)}`
+          )
+        ),
+      ]);
+
+      const branchDailyRows = branchDailyRes?.rows || [];
+      const staffRows = staffSummaryRes?.rows || [];
+      const absenceRows = absenceSummaryRes?.rows || [];
+      const posRows = posDailyRes?.items || [];
+      rowCounts.branch_daily_hours = branchDailyRows.length;
+      rowCounts.staff_work_summary = staffRows.length;
+      rowCounts.absence_summary = absenceRows.length;
+      rowCounts.pos_sales_daily = posRows.length;
+      rowCounts.city_summary = citySummaryRes ? 1 : 0;
+      rowCounts.schedule_policy = Array.isArray(schedulePolicyRes?.items) ? schedulePolicyRes.items.length : 0;
+
+      const exemptPolicyRows = (schedulePolicyRes?.items || []).filter(
+        (item) => item?.schedule_type === "FLEXIBLE" || item?.schedule_type === "DRIVER"
+      );
+      const operationalComparisonRows = comparisonRowsRaw.filter(
+        (row) => row.schedule_type !== "FLEXIBLE" && row.schedule_type !== "DRIVER"
+      );
+
+      const staffAgg = new Map<string, { late_count: number; late_minutes: number; overtime_minutes: number; missing_punch_count: number; problem_absence_days: number; compliance_total: number; compliance_days: number }>();
+      const rawStaffAgg = new Map<string, { late_count: number; late_minutes: number }>();
+      const comparisonDateSet = new Set<string>();
+      const comparisonDateSetRaw = new Set<string>();
+      const comparisonBranchSet = new Set<string>();
+      const comparisonBranchSetRaw = new Set<string>();
+      let totalActualMinutes = 0;
+      let totalActualMinutesRaw = 0;
+      for (const row of comparisonRowsRaw) {
+        const rawWorkDate = String((row as any)?.work_date || "").trim();
+        if (rawWorkDate) comparisonDateSetRaw.add(rawWorkDate);
+        const rawScheduledBranch = String((row as any)?.scheduled_branch_code || "").trim();
+        const rawAttendanceBranch = String((row as any)?.attendance_branch_code || "").trim();
+        const rawBranchCode = rawScheduledBranch || rawAttendanceBranch;
+        if (rawBranchCode && rawBranchCode !== "-") comparisonBranchSetRaw.add(rawBranchCode);
+        totalActualMinutesRaw += Number((row as any)?.actual_minutes || 0);
+        const rawName = safeStaffName(row);
+        if (rawName) {
+          const rawCur = rawStaffAgg.get(rawName) || { late_count: 0, late_minutes: 0 };
+          const rawLateMinutes = effectiveLateMinutes(row);
+          if (isLateAttendanceCandidate(row) && rawLateMinutes > 0) {
+            rawCur.late_count += 1;
+            rawCur.late_minutes += rawLateMinutes;
+          }
+          rawStaffAgg.set(rawName, rawCur);
+        }
+      }
+      for (const row of operationalComparisonRows) {
+        const workDate = String((row as any)?.work_date || "").trim();
+        if (workDate) comparisonDateSet.add(workDate);
+        const scheduledBranch = String((row as any)?.scheduled_branch_code || "").trim();
+        const attendanceBranch = String((row as any)?.attendance_branch_code || "").trim();
+        const branchCode = scheduledBranch || attendanceBranch;
+        if (branchCode && branchCode !== "-") comparisonBranchSet.add(branchCode);
+        totalActualMinutes += Number((row as any)?.actual_minutes || 0);
+
+        const name = safeStaffName(row);
+        if (!name) continue;
+        const cur = staffAgg.get(name) || {
+          late_count: 0,
+          late_minutes: 0,
+          overtime_minutes: 0,
+          missing_punch_count: 0,
+          problem_absence_days: 0,
+          compliance_total: 0,
+          compliance_days: 0,
+        };
+        const lateMinutes = effectiveLateMinutes(row);
+        if (isLateAttendanceCandidate(row) && lateMinutes > 0) {
+          cur.late_count += 1;
+          cur.late_minutes += lateMinutes;
+        }
+        if (isWorkedAttendance(row)) {
+          cur.overtime_minutes += Number(row.overtime_minutes ?? 0);
+          if (row.missing_check_in) cur.missing_punch_count += 1;
+          if (row.missing_check_out) cur.missing_punch_count += 1;
+        }
+        if (isProblemAbsence(row)) cur.problem_absence_days += 1;
+        const comp = calculateComplianceRate(row);
+        if (comp != null) {
+          cur.compliance_total += comp;
+          cur.compliance_days += 1;
+        }
+        staffAgg.set(name, cur);
+      }
+      const staffEntries = Array.from(staffAgg.entries()).map(([name, v]) => ({
+        staff_name: name,
+        late_count: v.late_count,
+        late_minutes: v.late_minutes,
+        overtime_minutes: v.overtime_minutes,
+        missing_punch_count: v.missing_punch_count,
+        problem_absence_days: v.problem_absence_days,
+        compliance_rate: v.compliance_days > 0 ? (v.compliance_total / v.compliance_days) * 100 : 0,
+      }));
+      const rawStaffEntries = Array.from(rawStaffAgg.entries()).map(([name, v]) => ({
+        staff_name: name,
+        late_count: v.late_count,
+        late_minutes: v.late_minutes,
+      }));
+      const lateRanking = staffEntries
+        .filter((r) => r.late_count > 0)
+        .sort((a, b) => b.late_count - a.late_count || b.late_minutes - a.late_minutes)
+        .slice(0, 5)
+        .map((r) => ({ staff_name: r.staff_name, late_count: r.late_count, late_minutes: r.late_minutes }));
+      const worstCompliance = staffEntries
+        .filter((r) => Number.isFinite(r.compliance_rate))
+        .sort((a, b) => a.compliance_rate - b.compliance_rate)
+        .slice(0, 5)
+        .map((r) => ({ staff_name: r.staff_name, score: Number(r.compliance_rate).toFixed(1) }));
+
+      const branchTotalsMap = new Map<string, { totalHours: number; days: Set<string> }>();
+      for (const row of operationalComparisonRows) {
+        const scheduledBranch = String(row.scheduled_branch_code || "").trim();
+        const attendanceBranch = String(row.attendance_branch_code || "").trim();
+        const key = scheduledBranch || attendanceBranch || "-";
+        const cur = branchTotalsMap.get(key) || { totalHours: 0, days: new Set<string>() };
+        cur.totalHours += Number(row.actual_minutes || 0) / 60;
+        if (row.work_date) cur.days.add(String(row.work_date));
+        branchTotalsMap.set(key, cur);
+      }
+      const branchTotals = Array.from(branchTotalsMap.entries())
+        .map(([branch, v]) => ({
+          branch,
+          total_hours: Number(v.totalHours.toFixed(1)),
+          avg_hours_per_day: Number((v.days.size > 0 ? v.totalHours / v.days.size : 0).toFixed(1)),
+        }))
+        .sort((a, b) => b.total_hours - a.total_hours)
+        .slice(0, 10);
+
+      const posTotals = posDailyRes?.totals || null;
+      const netSales = posTotals ? Number(posTotals.net_revenue || 0) : posRows.reduce((sum, row) => sum + Number(row.net_revenue || 0), 0);
+      const orderCount = posTotals ? Number(posTotals.order_count_non_cancelled || 0) : posRows.reduce((sum, row) => sum + Number(row.order_count_non_cancelled || 0), 0);
+      const avgPerOrder = orderCount > 0 ? netSales / orderCount : null;
+
+      const coreSourceKeys = ["attendance_comparison", "branch_daily_hours", "staff_work_summary", "absence_summary"];
+      const coreMissingCount = missingSources.filter((m) => coreSourceKeys.includes(m.source)).length;
+      const hasCoreData = coreMissingCount < coreSourceKeys.length;
+
+      return {
+        city: cityKey,
+        metrics: {
+          city: cityKey,
+          summary_range: `${dateFrom} to ${dateTo}`,
+          source_date_from: dateFrom,
+          source_date_to: dateTo,
+          late_staff_count: staffEntries.filter((r) => r.late_count > 0).length,
+          late_count: staffEntries.reduce((sum, r) => sum + Number(r.late_count || 0), 0),
+          total_late_minutes: staffEntries.reduce((sum, r) => sum + Number(r.late_minutes || 0), 0),
+          late_count_raw: rawStaffEntries.reduce((sum, r) => sum + Number(r.late_count || 0), 0),
+          total_late_minutes_raw: rawStaffEntries.reduce((sum, r) => sum + Number(r.late_minutes || 0), 0),
+          problem_absence_staff: staffEntries.filter((r) => r.problem_absence_days > 0).length,
+          total_ot_minutes: staffEntries.reduce((sum, r) => sum + Number(r.overtime_minutes || 0), 0),
+          missing_punch: staffEntries.reduce((sum, r) => sum + Number(r.missing_punch_count || 0), 0),
+          late_ranking: lateRanking,
+          worst_compliance: worstCompliance,
+          // Primary KPIs should follow Bayzat-backed comparison rows.
+          total_hours: Number((totalActualMinutes / 60).toFixed(1)),
+          total_days: comparisonDateSet.size,
+          branch_count: comparisonBranchSet.size,
+          total_hours_raw: Number((totalActualMinutesRaw / 60).toFixed(1)),
+          total_days_raw: comparisonDateSetRaw.size,
+          branch_count_raw: comparisonBranchSetRaw.size,
+          top_staff_hours: staffRows.length
+            ? `${staffRows[0].staff_name} (${Number(staffRows[0].total_hours || 0).toFixed(1)}h)`
+            : null,
+          branch_totals: branchTotals,
+          net_sales: posDailyRes ? Number(netSales || 0).toFixed(2) : null,
+          order_count: posDailyRes ? Number(orderCount || 0) : null,
+          avg_per_order: posDailyRes && avgPerOrder != null ? Number(avgPerOrder).toFixed(2) : null,
+          absence_summary: absenceRows.slice(0, 5).map((row) => ({
+            type: row.absence_type,
+            rows: row.row_count,
+            staff: row.staff_count,
+            days: row.day_count,
+          })),
+          visa_alerts: "See /admin/renewals",
+          insurance_alerts: "See /admin/renewals",
+          city_summary_reference: citySummaryRes
+            ? {
+                total_hours: Number(citySummaryRes.total_hours || 0),
+                day_count: Number(citySummaryRes.day_count || 0),
+                branch_count: Number(citySummaryRes.branch_count || 0),
+                avg_hours_per_day: Number(citySummaryRes.avg_hours_per_day || 0),
+              }
+            : null,
+          compliance_policy: {
+            policy_version: "attendance_policy_v1",
+            metrics_scope: "operational",
+            excluded_schedule_types: ["DRIVER", "FLEXIBLE"],
+            excluded_staff_count: exemptPolicyRows.length,
+          },
+          compliance_exempt_staff: exemptPolicyRows.map((item) => ({
+            name: item.canonical_staff_name,
+            schedule_type: item.schedule_type,
+            reason: item.reason || "",
+          })),
+          metrics_scope: {
+            operational: "exclude DRIVER/FLEXIBLE schedule policy staff",
+            raw: "includes all attendance rows before schedule policy exclusion",
+          },
+        },
+        data_quality: {
+          city: cityKey,
+          fetched_at: new Date().toISOString(),
+          date_from: dateFrom,
+          date_to: dateTo,
+          missing_sources: missingSources,
+          truncated,
+          row_counts: rowCounts,
+          has_core_data: hasCoreData,
+        },
+      };
+    };
+
+    const trimmed = question.trim();
+    if (!trimmed) return;
+
+    const userMsg: ChatMessage = {
+      role: "user",
+      content: trimmed,
+      timestamp: Date.now(),
+    };
+
+    setAiMessages((prev) => [...prev, userMsg]);
+    setAiInput("");
+    setAiLoading(true);
+    setAiError("");
+
+    try {
+      if (!approverName.trim() || !salesStepUpReady) {
+        throw new Error("Security verification and approver are required.");
+      }
+
+      let cityResults: Awaited<ReturnType<typeof loadAiCityDataset>>[];
+      const isCacheValid =
+        aiDataCache &&
+        aiDataCache.dateFrom === summaryDateFrom &&
+        aiDataCache.dateTo === summaryDateTo &&
+        targetCities.every((c) => aiDataCache.cities[c]);
+
+      if (isCacheValid && aiDataCache) {
+        cityResults = targetCities.map((c) => aiDataCache.cities[c] as any);
+      } else {
+        cityResults = await Promise.all(targetCities.map((targetCity) => loadAiCityDataset(targetCity)));
+        const newCities: Record<string, any> = { ...(aiDataCache?.cities || {}) };
+        for (const r of cityResults) newCities[r.city] = r;
+        setAiDataCache({ dateFrom: summaryDateFrom, dateTo: summaryDateTo, cities: newCities });
+      }
+      const hasAnyCoreData = cityResults.some((r) => r.data_quality.has_core_data);
+      if (!hasAnyCoreData) {
+        const reasons = cityResults
+          .flatMap((r) => (r.data_quality.missing_sources || []).map((m: any) => `${cityLabels[r.city as AiCityKey]}:${m.source}`))
+          .join(", ");
+        throw new Error(`分析に必要なデータが取得できませんでした。${reasons ? ` (${reasons})` : ""}`);
+      }
+      const citiesPayload = cityResults.reduce<Record<string, any>>((acc, r) => {
+        acc[r.city] = r.metrics;
+        return acc;
+      }, {});
+      const missingSourcesAll = cityResults.flatMap((r) =>
+        (r.data_quality.missing_sources || []).map((m: any) => ({
+          city: r.city,
+          source: m.source,
+          reason: m.reason,
+        }))
+      );
+      const truncatedAny = cityResults.some((r) => !!r.data_quality.truncated);
+      const rowCountsByCity = cityResults.reduce<Record<string, Record<string, number>>>((acc, r) => {
+        acc[r.city] = r.data_quality.row_counts || {};
+        return acc;
+      }, {});
+      const primaryCityContext = cityResults[0]?.metrics || {};
+      const contextPayload = {
+        ...primaryCityContext,
+        version: "ai_context_v2",
+        summary_range: `${summaryDateFrom} to ${summaryDateTo}`,
+        source_date_from: summaryDateFrom,
+        source_date_to: summaryDateTo,
+        city_scope: targetCities.length > 1 ? "both" : targetCities[0],
+        cities: citiesPayload,
+        data_quality: {
+          fetched_at: new Date().toISOString(),
+          date_from: summaryDateFrom,
+          date_to: summaryDateTo,
+          city_scope: targetCities,
+          missing_sources: missingSourcesAll,
+          truncated: truncatedAny,
+          row_counts: rowCountsByCity,
+        },
+      };
+      const currentAuth = getAuth();
+      const res = await apiPost<AiConsultResp>("/api/ai/analytics/consult", {
+        approver_name: currentAuth?.staffName || approverName,
+        pin: currentAuth?.pin || pin,
+        question: trimmed,
+        context_data: contextPayload,
+        city,
+        language: "ja",
+        history: aiMessages.slice(-10).map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
+      });
+
+      if (res.ok) {
+        setAiMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: res.answer,
+            timestamp: Date.now(),
+            saved: false,
+            snapshotId: undefined,
+            // store metadata for save action
+            _question: trimmed,
+            _model: res.model || "",
+            _inputTokens: res.input_tokens || 0,
+            _outputTokens: res.output_tokens || 0,
+            _dateFrom: summaryDateFrom,
+            _dateTo: summaryDateTo,
+            _cityScope: targetCities.length > 1 ? "both" : targetCities[0],
+          } as ChatMessage & Record<string, unknown>,
+        ]);
+      }
+    } catch (e: any) {
+      setAiError(e?.message || "AI との通信に失敗しました");
+    } finally {
+      setAiLoading(false);
+      window.setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    }
+  }
+
   const brandOrderRanking = useMemo(() => {
     return posBrandOrderRows.map((row) => ({
       brand: row.brand_name || "-",
@@ -3685,6 +4576,18 @@ export default function AdminAnalyticsPage() {
       latest,
     };
   }, [operationTimeAnalytics]);
+
+  const salesCoverageBehind = useMemo(() => {
+    const latestSalesDate = String(posLatestCoverage?.sales_daily_latest_work_date || "").trim();
+    const selectedDateTo = String(summaryDateTo || "").trim();
+    return Boolean(latestSalesDate && selectedDateTo && latestSalesDate < selectedDateTo);
+  }, [posLatestCoverage?.sales_daily_latest_work_date, summaryDateTo]);
+
+  const attendanceCoverageBehind = useMemo(() => {
+    const latestAttendanceDate = String(attendanceLatestCoverage?.date_to || "").trim();
+    const selectedDateTo = String(summaryDateTo || "").trim();
+    return Boolean(latestAttendanceDate && selectedDateTo && latestAttendanceDate < selectedDateTo);
+  }, [attendanceLatestCoverage?.date_to, summaryDateTo]);
 
   const cancelOrderSummary = useMemo(() => {
     const summary = cancelOrdersAnalytics?.summary;
@@ -3805,6 +4708,8 @@ export default function AdminAnalyticsPage() {
         total_hours: Number(r.total_hours || 0).toFixed(1),
         worked_days: r.worked_days,
         segment_count: r.segment_count,
+        schedule_type: r.schedule_type || "STANDARD",
+        schedule_reason: r.schedule_reason || "",
       })),
     [sortedStaffSummaryRows]
   );
@@ -3889,13 +4794,15 @@ export default function AdminAnalyticsPage() {
         ? "Dubai Sales Analytics"
         : analyticsTab === "manilaSales"
           ? "Manila Sales Analytics"
+        : analyticsTab === "ai"
+          ? "AI Analytics Consultant"
           : analyticsTab === "procurement"
             ? "Procurement Analytics"
             : analyticsTab === "evaluation"
               ? "Evaluation Channel"
               : "Management P&L Channel";
   const analyticsTabs: Array<{
-    key: "staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement";
+    key: "staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai";
     label: string;
     visible: boolean;
   }> = [
@@ -3905,6 +4812,7 @@ export default function AdminAnalyticsPage() {
     { key: "evaluation", label: "Evaluation", visible: canViewEvaluationChannel && canViewFinanceChannels },
     { key: "finance", label: "Management P&L", visible: canViewManagementPlChannel },
     { key: "procurement", label: "Procurement Analytics", visible: canViewFinanceChannels },
+    { key: "ai", label: "AI Analyst", visible: hasVisibleAnalyticsChannel },
   ];
   const passkeyCount = Number(auth?.mfa?.passkeyCount || 0);
   const totpStatus = auth?.mfa?.totpEnabled ? "Enabled" : "Not set";
@@ -3953,7 +4861,34 @@ export default function AdminAnalyticsPage() {
             ))}
           </div>
 
-          {error ? (
+          {canViewStaffChannel && analyticsTab !== "staff" ? (
+            <div className={`${GLASS_CARD} mt-3 flex flex-wrap items-center justify-between gap-3 p-3`}>
+              <div className="text-xs text-neutral-400">
+                Bayzat attendance sync
+                <span className="ml-2 text-neutral-500">Summary coverage details are shown in the Analytics tab.</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAnalyticsTab("staff")}
+                  className={`${SECONDARY_BUTTON} text-xs`}
+                >
+                  Open Analytics Tab
+                </button>
+                <button
+                  type="button"
+                  onClick={syncAttendanceNow}
+                  disabled={attendanceSyncing || !approverName.trim() || !salesStepUpReady}
+                  className={`${SECONDARY_BUTTON} flex items-center gap-2 text-xs disabled:opacity-60`}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  {attendanceSyncing ? "Syncing..." : "Sync Latest Bayzat Data"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {error && analyticsTab !== "ai" ? (
             <div className={`${HIGHLIGHT_CARD} px-4 py-3 text-sm text-amber-100`}>
               {error}
             </div>
@@ -4128,6 +5063,184 @@ export default function AdminAnalyticsPage() {
               {securityError ? <div className="mt-3 text-sm text-red-300">{securityError}</div> : null}
               {securityMessage ? <div className="mt-3 text-sm text-emerald-300">{securityMessage}</div> : null}
             </div>
+          ) : null}
+
+          {analyticsTab === "ai" ? (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-violet-700/30 bg-violet-950/10 p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-700/30 text-xl">
+                  🤖
+                </div>
+                <div>
+                  <div className="text-base font-bold text-neutral-100">AI Analytics Consultant</div>
+                  <div className="text-xs text-neutral-500">
+                    現在表示中のアナリティクスデータを基に、Claude AI が分析・提言を行います。
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {[
+                  "今月の勤怠状況を総括して",
+                  "遅刻・欠勤の多いスタッフへの対策を提案して",
+                  "ブランチ別のパフォーマンスを比較分析して",
+                  "売上と労働時間の関係を分析して",
+                  "来月のシフト計画で注意すべき点は？",
+                  "コスト削減のために改善できる点を教えて",
+                ].map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => void sendToAi(q)}
+                    disabled={aiLoading || !salesStepUpReady}
+                    className="rounded-xl border border-violet-700/40 bg-violet-950/20 px-3 py-1.5 text-xs text-violet-300 transition hover:bg-violet-950/40 disabled:opacity-50"
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="max-h-[500px] min-h-[300px] space-y-4 overflow-y-auto rounded-2xl border border-neutral-800 bg-neutral-900/30 p-4">
+              {aiMessages.length === 0 ? (
+                <div className="flex h-full items-center justify-center py-12 text-sm text-neutral-600">
+                  上のボタンを押すか、質問を入力してください
+                </div>
+              ) : null}
+
+              {aiMessages.map((msg, i) => (
+                <div
+                  key={`${msg.role}-${msg.timestamp}-${i}`}
+                  className={msg.role === "user" ? "flex justify-end" : "flex justify-start"}
+                >
+                  <div
+                    className={[
+                      "max-w-[85%] rounded-2xl border px-4 py-3 text-sm leading-relaxed",
+                      msg.role === "user"
+                        ? "border-violet-600/40 bg-violet-600/30 text-violet-100"
+                        : "border-neutral-700/40 bg-neutral-800/60 text-neutral-200",
+                    ].join(" ")}
+                  >
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <div className="text-[10px] text-neutral-600">
+                        {new Date(msg.timestamp).toLocaleTimeString("ja-JP", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </div>
+                      {msg.role === "assistant" && (
+                        msg.saved ? (
+                          <span className="text-[11px] text-emerald-500">✅ 保存済み</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const m = msg as ChatMessage & Record<string, unknown>;
+                              const id = crypto.randomUUID();
+                              try {
+                                const currentAuth = getAuth();
+                                await apiPost("/api/ai/analytics/snapshots", {
+                                  id,
+                                  city: (m._cityScope as string) || city,
+                                  date_from: (m._dateFrom as string) || summaryDateFrom,
+                                  date_to: (m._dateTo as string) || summaryDateTo,
+                                  question: (m._question as string) || "",
+                                  answer: msg.content,
+                                  model: (m._model as string) || "",
+                                  input_tokens: (m._inputTokens as number) || 0,
+                                  output_tokens: (m._outputTokens as number) || 0,
+                                  approver_name: currentAuth?.staffName || approverName,
+                                  pin: currentAuth?.pin || pin,
+                                });
+                                setAiMessages((prev) =>
+                                  prev.map((pm, pi) =>
+                                    pi === i ? { ...pm, saved: true, snapshotId: id } : pm
+                                  )
+                                );
+                              } catch {
+                                alert("保存に失敗しました。");
+                              }
+                            }}
+                            className="rounded-lg border border-neutral-600/40 bg-neutral-700/40 px-2 py-0.5 text-[11px] text-neutral-300 transition hover:bg-neutral-600/60"
+                          >
+                            💾 保存
+                          </button>
+                        )
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {aiLoading ? (
+                <div className="flex justify-start">
+                  <div className="rounded-2xl border border-neutral-700/40 bg-neutral-800/60 px-4 py-3">
+                    <div className="flex items-center gap-2 text-sm text-neutral-400">
+                      <Spinner size="sm" />
+                      分析中...
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {aiError ? (
+                <div className="rounded-xl border border-rose-700/40 bg-rose-950/20 px-4 py-2 text-xs text-rose-300">
+                  ❌ {aiError}
+                </div>
+              ) : null}
+
+              <div ref={chatBottomRef} />
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={aiInput}
+                onChange={(e) => setAiInput(e.target.value)}
+                placeholder="質問を入力（例：Business Bay の遅刻率が高い原因は？）"
+                disabled={aiLoading || !salesStepUpReady}
+                className="flex-1 rounded-xl border border-neutral-800 bg-neutral-900/40 px-4 py-3 text-sm text-neutral-200 placeholder:text-neutral-600 transition focus:border-violet-500/60 focus:outline-none disabled:opacity-50"
+              />
+              <button
+                type="button"
+                onClick={() => void sendToAi(aiInput)}
+                disabled={aiLoading || !aiInput.trim() || !salesStepUpReady}
+                className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:opacity-50"
+              >
+                送信
+              </button>
+              {aiMessages.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAiMessages([]);
+                    setAiError("");
+                  }}
+                  className="rounded-xl border border-neutral-800 px-4 py-3 text-xs text-neutral-400 transition hover:bg-neutral-900/40"
+                >
+                  クリア
+                </button>
+              ) : null}
+            </div>
+
+            {!salesStepUpReady ? (
+              <div className="text-[10px] text-neutral-600">
+                Security セクションで MFA / PIN step-up を完了すると AI Analyst を利用できます。
+              </div>
+            ) : (
+              <div className="flex items-center justify-between text-[10px] text-neutral-600">
+                <span>Powered by Claude (Anthropic) • 回答はデータに基づく参考情報です</span>
+                <a
+                  href="/admin/analytics/ai-history"
+                  className="text-violet-400 hover:text-violet-300 hover:underline"
+                >
+                  過去の分析履歴 →
+                </a>
+              </div>
+            )}
+          </div>
           ) : null}
 
           {analyticsTab === "staff" && canViewStaffChannel ? (
@@ -4759,6 +5872,35 @@ export default function AdminAnalyticsPage() {
                 </div>
               ) : null}
 
+              {!isManilaSalesCity && posLatestCoverage ? (
+                <div className="mb-5 rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400">
+                    Latest import coverage
+                  </div>
+                  <div className="mt-1 text-xs text-neutral-500">
+                    If your selected date is newer than these dates, zero values may simply mean data has not been imported yet.
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    <div className={BADGE_INFO}>Sales daily: {posLatestCoverage.sales_daily_latest_work_date || "-"}</div>
+                    <div className={BADGE_INFO}>Revenue daily: {posLatestCoverage.revenue_latest_work_date || "-"}</div>
+                    <div className={BADGE_INFO}>Hourly: {posLatestCoverage.hourly_latest_month_key || "-"}</div>
+                    <div className={BADGE_INFO}>Operation time: {posLatestCoverage.operation_time_latest_work_date || "-"}</div>
+                    <div className={BADGE_INFO}>Product mix: {posLatestCoverage.product_mix_latest_coverage_to || "-"}</div>
+                    <div className={BADGE_INFO}>Cancel orders: {posLatestCoverage.cancel_order_type_latest_work_date || "-"}</div>
+                  </div>
+                  {salesCoverageBehind ? (
+                    <div className={BADGE_WARNING + " mt-3 px-3 py-2 text-xs"}>
+                      Latest sales import is {posLatestCoverage.sales_daily_latest_work_date || "-"}. Selected range includes newer dates, so some metrics may be zero.
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              {!isManilaSalesCity && posLatestCoverageError ? (
+                <div className={BADGE_WARNING + " mb-5 px-3 py-2 text-xs"}>
+                  {posLatestCoverageError}
+                </div>
+              ) : null}
+
               <div className={isManilaSalesCity ? "grid grid-cols-1 gap-3 md:grid-cols-3" : "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5"}>
                 <div>
                   <div className={LABEL_TEXT + " mb-1.5 block"}>Summary Range</div>
@@ -4861,27 +6003,25 @@ export default function AdminAnalyticsPage() {
                   Operation time: {operationTimeLoadError}
                 </div>
               ) : null}
-              {!isManilaSalesCity ? (
-                <div className={TAB_CONTAINER + " mt-5"}>
+              <div className={TAB_CONTAINER + " mt-5"}>
+                <button
+                  type="button"
+                  onClick={() => setSalesSectionView("all")}
+                  className={salesSectionView === "all" ? TAB_ACTIVE : TAB_INACTIVE}
+                >
+                  All
+                </button>
+                {visibleSalesSectionOptions.map((section) => (
                   <button
+                    key={section.value}
                     type="button"
-                    onClick={() => setSalesSectionView("all")}
-                    className={salesSectionView === "all" ? TAB_ACTIVE : TAB_INACTIVE}
+                    onClick={() => setSalesSectionView(section.value)}
+                    className={salesSectionView === section.value ? TAB_ACTIVE : TAB_INACTIVE}
                   >
-                    All
+                    {section.label}
                   </button>
-                  {visibleSalesSectionOptions.map((section) => (
-                    <button
-                      key={section.value}
-                      type="button"
-                      onClick={() => setSalesSectionView(section.value)}
-                      className={salesSectionView === section.value ? TAB_ACTIVE : TAB_INACTIVE}
-                    >
-                      {section.label}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
+                ))}
+              </div>
             </div>
 
             {!isManilaSalesCity ? (
@@ -5675,19 +6815,65 @@ export default function AdminAnalyticsPage() {
               </div>
             </div>
             ) : null}
+
+            {salesSectionView === "all" || salesSectionView === "dataCheck" ? (
+              <div id="sales-data-check">
+                <SalesDataCheckTable
+                  title="Dubai Sales Data Check"
+                  caption="Per-day source coverage for the tables backing Dubai sales analytics. Monthly-only hourly coverage means hourly totals exist for the month, but not as day-grain imports."
+                  rows={posDataCheck?.rows || []}
+                  columns={dubaiDataCheckColumns}
+                  selectedDates={posDataCheckSelectedDates}
+                  onToggleDate={(workDate) => toggleDateSelection(workDate, posDataCheckSelectedDates, setPosDataCheckSelectedDates)}
+                  onSelectMissing={() => selectProblemDates(posDataCheck?.rows || [], setPosDataCheckSelectedDates)}
+                  onClearSelection={() => setPosDataCheckSelectedDates([])}
+                  onRefresh={() => void loadAll("sales")}
+                  onReimport={() => void reimportSalesDates("dubai")}
+                  refreshBusy={loading}
+                  reimportBusy={salesSyncing}
+                  message={salesSyncMessage}
+                  error={posDataCheckError}
+                />
+              </div>
+            ) : null}
               </>
             ) : null}
 
             {isManilaSalesCity ? (
-              <ManilaSalesSection
-                city="manila"
-                dateFrom={summaryDateFrom}
-                dateTo={summaryDateTo}
-                approverName={approverName}
-                pin={pin}
-                stepUpReady={salesStepUpReady}
-                active={analyticsTab === "manilaSales"}
-              />
+              <>
+                {salesSectionView === "all" || salesSectionView === "manilaSales" ? (
+                  <ManilaSalesSection
+                    city="manila"
+                    dateFrom={summaryDateFrom}
+                    dateTo={summaryDateTo}
+                    approverName={approverName}
+                    pin={pin}
+                    stepUpReady={salesStepUpReady}
+                    active={analyticsTab === "manilaSales"}
+                  />
+                ) : null}
+                {salesSectionView === "all" || salesSectionView === "dataCheck" ? (
+                  <div id="sales-data-check">
+                    <SalesDataCheckTable
+                      title="Manila Sales Data Check"
+                      caption="Per-day coverage across Manila sales datasets. `N/A` means the active source systems for that day do not support that dataset."
+                      rows={manilaDataCheck?.rows || []}
+                      columns={manilaDataCheckColumns}
+                      selectedDates={manilaDataCheckSelectedDates}
+                      onToggleDate={(workDate) => toggleDateSelection(workDate, manilaDataCheckSelectedDates, setManilaDataCheckSelectedDates)}
+                      onSelectMissing={() => selectProblemDates(manilaDataCheck?.rows || [], setManilaDataCheckSelectedDates)}
+                      onClearSelection={() => setManilaDataCheckSelectedDates([])}
+                      onRefresh={() => void loadManilaDataCheckNow()}
+                      onReimport={() => void reimportSalesDates("manila")}
+                      refreshBusy={manilaDataCheckLoading}
+                      reimportBusy={salesSyncing}
+                      message={salesSyncMessage}
+                      error={manilaDataCheckError}
+                      selectMissingLabel="Select problem days"
+                    />
+                  </div>
+                ) : null}
+              </>
             ) : null}
           </div>
           ) : analyticsTab === "evaluation" ? (
@@ -7240,7 +8426,7 @@ export default function AdminAnalyticsPage() {
             </div>
           </div>
           )
-          ) : (
+          ) : analyticsTab === "ai" ? null : (
           <div className={`mt-8 p-6 ${GLASS_CARD} ${BODY_TEXT}`}>
             This channel is not available for your current role/city.
           </div>
@@ -7323,6 +8509,80 @@ export default function AdminAnalyticsPage() {
                 </select>
               </div>
             </div>
+
+            <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400">
+                    Latest Bayzat import coverage
+                  </div>
+                  <div className="mt-1 text-xs text-neutral-500">
+                    This reflects the latest attendance import available for staff summary analytics.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={syncAttendanceNow}
+                  disabled={attendanceSyncing || !approverName.trim() || !salesStepUpReady}
+                  className={`${SECONDARY_BUTTON} flex items-center gap-2 text-xs disabled:opacity-60`}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  {attendanceSyncing ? "Syncing..." : "Sync Latest Bayzat Data"}
+                </button>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <div className={BADGE_INFO}>Coverage: {attendanceLatestCoverage?.date_from || "-"} -&gt; {attendanceLatestCoverage?.date_to || "-"}</div>
+                <div className={BADGE_INFO}>Last synced: {formatDateTimeLabel(attendanceLatestCoverage?.last_synced_at)}</div>
+                <div className={BADGE_INFO}>File: {attendanceLatestCoverage?.last_seen_file_name || "-"}</div>
+                <div className={BADGE_INFO}>Source: {attendanceLatestCoverage?.source_name || "-"}</div>
+              </div>
+              {attendanceLatestCoverage?.drive_modified_time ? (
+                <div className="mt-2 text-xs text-neutral-500">
+                  Drive modified: {formatDateTimeLabel(attendanceLatestCoverage.drive_modified_time)}
+                </div>
+              ) : null}
+              <div className="mt-2 text-xs text-neutral-500">
+                Auto sync:{" "}
+                {attendanceAutoSyncStatus?.enabled
+                  ? `ON (UTC ${(attendanceAutoSyncStatus.hours_utc || []).map((h) => String(h).padStart(2, "0") + ":00").join(", ") || "-"})`
+                  : "OFF"}
+              </div>
+              {attendanceAutoSyncStatus ? (
+                <div className="mt-1 text-xs text-neutral-500">
+                  Source:{" "}
+                  {attendanceAutoSyncStatus.source_id
+                    ? `source_id=${attendanceAutoSyncStatus.source_id}`
+                    : attendanceAutoSyncStatus.folder_id
+                      ? `folder_id=${attendanceAutoSyncStatus.folder_id}`
+                      : "-"}
+                </div>
+              ) : null}
+              {attendanceAutoSyncStatus?.enabled && !attendanceAutoSyncStatus.configured ? (
+                <div className={BADGE_WARNING + " mt-3 px-3 py-2 text-xs"}>
+                  Auto sync is enabled but source/folder is not configured.
+                </div>
+              ) : null}
+              {attendanceCoverageBehind ? (
+                <div className={BADGE_WARNING + " mt-3 px-3 py-2 text-xs"}>
+                  Latest Bayzat import is through {attendanceLatestCoverage?.date_to || "-"}. Selected range includes newer dates, so attendance metrics may be incomplete.
+                </div>
+              ) : null}
+              {attendanceSyncMessage ? (
+                <div className={`${attendanceSyncMessage.includes("既に取り込み済み") ? BADGE_INFO : BADGE_SUCCESS} mt-3 px-3 py-2 text-xs`}>
+                  {attendanceSyncMessage}
+                </div>
+              ) : null}
+            </div>
+            {attendanceLatestCoverageError ? (
+              <div className={BADGE_WARNING + " mt-4 px-3 py-2 text-xs"}>
+                {attendanceLatestCoverageError}
+              </div>
+            ) : null}
+            {attendanceAutoSyncStatusError ? (
+              <div className={BADGE_WARNING + " mt-2 px-3 py-2 text-xs"}>
+                {attendanceAutoSyncStatusError}
+              </div>
+            ) : null}
           </div>
           ) : null}
 
