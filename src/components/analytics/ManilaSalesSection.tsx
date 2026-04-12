@@ -232,6 +232,20 @@ type OverviewResp = {
 
 type ListResp<T> = { ok: boolean; items: T[] };
 
+type GrabOfflineRow = {
+  sale_date: string;
+  store_name: string;
+  grab_service: string;
+  offline_minutes: number;
+  scheduled_open_minutes: number;
+  offline_rate_pct: number | null;
+};
+
+type GrabPeakDailyRow = {
+  sale_date: string;
+  hours: number[];
+};
+
 type SyncJobStep = {
   step: string;
   status: string;
@@ -370,6 +384,8 @@ export function ManilaSalesSection({
   const [paymentMethodRows, setPaymentMethodRows] = useState<PaymentMethodRow[]>([]);
   const [discountSummary, setDiscountSummary] = useState<DiscountSummaryResp | null>(null);
   const [seniorAnalysis, setSeniorAnalysis] = useState<SeniorAnalysisResp | null>(null);
+  const [grabOfflineRows, setGrabOfflineRows] = useState<GrabOfflineRow[]>([]);
+  const [grabPeakDailyRows, setGrabPeakDailyRows] = useState<GrabPeakDailyRow[]>([]);
   const [productTrendRows, setProductTrendRows] = useState<ProductTrendRow[]>([]);
   const [posRows, setPosRows] = useState<PosRow[]>([]);
   const [selectedTransaction, setSelectedTransaction] = useState<PosRowDetail | null>(null);
@@ -407,6 +423,8 @@ export function ManilaSalesSection({
       { key: "product", label: "Menu sales" },
       { key: "channel", label: "Transaction channels" },
       { key: "hourly", label: "Peak hour data" },
+      { key: "grab_peak_hour", label: "Grab Food Peak Hour" },
+      { key: "grab_offline", label: "Grab Food Offline Hours" },
       { key: "category", label: "Categories" },
       { key: "payment_method", label: "Payment methods" },
       { key: "pos_daily", label: "POS Daily Report" },
@@ -444,7 +462,19 @@ export function ManilaSalesSection({
       const productQs = new URLSearchParams(base);
       if (categoryFilter) productQs.set("category", categoryFilter);
       productQs.set("limit", "200");
-      const [overviewRes, productRes, channelRes, categoryRes, paymentMethodRes, discountRes, seniorRes] = await Promise.all([
+      const grabPeakQs = new URLSearchParams(base);
+      if (channelFilter) grabPeakQs.set("channel", channelFilter);
+      const [
+        overviewRes,
+        productRes,
+        channelRes,
+        categoryRes,
+        paymentMethodRes,
+        discountRes,
+        seniorRes,
+        grabOfflineRes,
+        grabPeakRes,
+      ] = await Promise.all([
         apiGet<OverviewResp>(`/api/admin/analytics/manila/sales/overview?${overviewQs.toString()}`),
         apiGet<ListResp<ProductRow>>(`/api/admin/analytics/manila/sales/by-product?${productQs.toString()}`),
         apiGet<ListResp<ChannelRow>>(`/api/admin/analytics/manila/sales/by-channel?${base.toString()}`),
@@ -452,6 +482,8 @@ export function ManilaSalesSection({
         apiGet<ListResp<PaymentMethodRow>>(`/api/admin/analytics/manila/sales/by-payment-method?${base.toString()}`),
         apiGet<DiscountSummaryResp>(`/api/admin/analytics/manila/pos/discount-summary?${base.toString()}`),
         apiGet<SeniorAnalysisResp>(`/api/admin/analytics/manila/pos/senior-analysis?${base.toString()}`),
+        apiGet<ListResp<GrabOfflineRow>>(`/api/admin/analytics/manila/sales/grab-offline-hours?${base.toString()}`),
+        apiGet<ListResp<GrabPeakDailyRow>>(`/api/admin/analytics/manila/sales/grab-peak-hour-daily?${grabPeakQs.toString()}`),
       ]);
       setOverview(overviewRes);
       setProductRows(productRes.items || []);
@@ -460,6 +492,8 @@ export function ManilaSalesSection({
       setPaymentMethodRows(paymentMethodRes.items || []);
       setDiscountSummary(discountRes);
       setSeniorAnalysis(seniorRes);
+      setGrabOfflineRows(grabOfflineRes.items || []);
+      setGrabPeakDailyRows(grabPeakRes.items || []);
     } catch (e) {
       setError(String((e as Error)?.message || e || "Failed to load Manila sales analytics"));
     } finally {
@@ -731,7 +765,7 @@ export function ManilaSalesSection({
         </div>
       ) : null}
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4">
         {datasetCards.map((card) => {
           const item = overview?.dataset_availability?.[card.key];
           const statusLabel =
@@ -872,6 +906,100 @@ export function ManilaSalesSection({
                   <tr>
                     <td colSpan={4} className="px-3 py-2">
                       <EmptyState message="No channel data yet." />
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div className="my-8 border-t border-white/5" />
+
+      <div className="grid gap-4">
+        <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
+          <div className="mb-3 text-base font-semibold text-white">Grab Food Offline Hours</div>
+          <div className="mb-2 text-xs text-zinc-500">
+            Store offline minutes and scheduled open time from GrabFood exports (sync files containing &quot;store offline hours&quot; in the filename).
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-white/5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                <tr>
+                  <th className="px-2 py-2">Date</th>
+                  <th className="px-2 py-2">Store</th>
+                  <th className="px-2 py-2">Service</th>
+                  <th className="px-2 py-2 text-right">Offline (min)</th>
+                  <th className="px-2 py-2 text-right">Scheduled open (min)</th>
+                  <th className="px-2 py-2 text-right">Offline rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {grabOfflineRows.map((row) => (
+                  <tr
+                    key={`${row.sale_date}-${row.store_name}-${row.grab_service}`}
+                    className="border-t border-white/5 transition-colors duration-150 hover:bg-white/4"
+                  >
+                    <td className="px-2 py-2 font-medium text-white">{row.sale_date}</td>
+                    <td className="px-2 py-2 text-zinc-200">{row.store_name}</td>
+                    <td className="px-2 py-2 text-zinc-200">{row.grab_service}</td>
+                    <td className="px-2 py-2 text-right tabular-nums text-zinc-200">{formatCount(Number(row.offline_minutes || 0))}</td>
+                    <td className="px-2 py-2 text-right tabular-nums text-zinc-200">{formatCount(Number(row.scheduled_open_minutes || 0))}</td>
+                    <td className="px-2 py-2 text-right tabular-nums text-zinc-200">
+                      {row.offline_rate_pct != null && Number.isFinite(Number(row.offline_rate_pct))
+                        ? formatPct(Number(row.offline_rate_pct))
+                        : "—"}
+                    </td>
+                  </tr>
+                ))}
+                {!grabOfflineRows.length ? (
+                  <tr>
+                    <td colSpan={6} className="px-2 py-4">
+                      <EmptyState message="No offline-hours rows for this period. Upload Grab CSVs to Drive and run Sync Manila Sales." />
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
+          <div className="mb-3 text-base font-semibold text-white">Grab Food Peak Hour</div>
+          <div className="mb-2 text-xs text-zinc-500">
+            Daily order counts by hour (0–23) from Grab peak-hour exports. Respects the Channel filter when it matches a Grab aggregator (e.g. GrabFood).
+          </div>
+          <div className="max-h-[480px] overflow-auto">
+            <table className="min-w-max text-left text-xs">
+              <thead className="sticky top-0 z-10 border-b border-white/10 bg-neutral-950/95 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                <tr>
+                  <th className="sticky left-0 z-20 bg-neutral-950/95 px-2 py-2">Date</th>
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <th key={h} className="px-1 py-2 text-center tabular-nums">
+                      {String(h).padStart(2, "0")}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {grabPeakDailyRows.map((row) => {
+                  const hrs = Array.isArray(row.hours) && row.hours.length === 24 ? row.hours : Array.from({ length: 24 }, (_, i) => row.hours?.[i] ?? 0);
+                  return (
+                    <tr key={row.sale_date} className="border-t border-white/5 transition-colors duration-150 hover:bg-white/4">
+                      <td className="sticky left-0 z-10 bg-neutral-950/90 px-2 py-1.5 font-medium text-white">{row.sale_date}</td>
+                      {hrs.map((c, hi) => (
+                        <td key={hi} className="px-1 py-1.5 text-center tabular-nums text-zinc-200">
+                          {formatCount(Number(c || 0))}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
+                {!grabPeakDailyRows.length ? (
+                  <tr>
+                    <td colSpan={25} className="px-2 py-4">
+                      <EmptyState message="No peak-hour daily rows for this period. Import Grab peak hour CSVs via Drive sync." />
                     </td>
                   </tr>
                 ) : null}
