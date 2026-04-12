@@ -4121,7 +4121,7 @@ export default function AdminAnalyticsPage() {
         pin: pinValue,
       });
 
-      const [branchDailyRes, staffSummaryRes, absenceSummaryRes, citySummaryRes, posDailyRes, schedulePolicyRes] = await Promise.all([
+      const [branchDailyRes, staffSummaryRes, absenceSummaryRes, citySummaryRes, posDailyRes, schedulePolicyRes, posBranchRes] = await Promise.all([
         tryFetch<BranchDailyResp>("branch_daily_hours", () => apiGet<BranchDailyResp>(`/api/admin/analytics/branch_daily_hours?${commonQs.toString()}`)),
         tryFetch<StaffSummaryResp>("staff_work_summary", () => apiGet<StaffSummaryResp>(`/api/admin/analytics/staff_work_summary?${staffQs.toString()}`)),
         tryFetch<AbsenceSummaryResp>("absence_summary", () => apiGet<AbsenceSummaryResp>(`/api/admin/analytics/absence_summary?${commonQs.toString()}&exclude_flexible=true`)),
@@ -4135,6 +4135,10 @@ export default function AdminAnalyticsPage() {
           apiGet<AttendanceSchedulePolicyResp>(
             `/api/admin/attendance/schedule-policy?city=${encodeURIComponent(lowercaseCity)}&active_only=true&approver_name=${encodeURIComponent(approver)}&pin=${encodeURIComponent(pinValue)}`
           )
+        ),
+        tryFetch<{ ok: boolean; items: { branch_name: string; net_revenue: number; order_count_non_cancelled: number }[] }>(
+          "pos_branch_ranking",
+          () => apiGet(`/api/admin/pos/branches/orders?${commonQs.toString()}&limit=20`)
         ),
       ]);
 
@@ -4294,7 +4298,7 @@ export default function AdminAnalyticsPage() {
           // Primary KPIs should follow Bayzat-backed comparison rows.
           total_hours: Number((totalActualMinutes / 60).toFixed(1)),
           total_days: comparisonDateSet.size,
-          branch_count: comparisonBranchSet.size,
+          staffed_branch_count: comparisonBranchSet.size,
           total_hours_raw: Number((totalActualMinutesRaw / 60).toFixed(1)),
           total_days_raw: comparisonDateSetRaw.size,
           branch_count_raw: comparisonBranchSetRaw.size,
@@ -4305,6 +4309,16 @@ export default function AdminAnalyticsPage() {
           net_sales: posDailyRes ? Number(netSales || 0).toFixed(2) : null,
           order_count: posDailyRes ? Number(orderCount || 0) : null,
           avg_per_order: posDailyRes && avgPerOrder != null ? Number(avgPerOrder).toFixed(2) : null,
+          pos_revenue_branch_count: posBranchRes?.items ? posBranchRes.items.filter((r) => Number(r.net_revenue) > 0).length : null,
+          pos_branch_ranking: posBranchRes?.items
+            ? posBranchRes.items
+                .filter((r) => Number(r.net_revenue) > 0)
+                .map((r) => ({
+                  branch: r.branch_name,
+                  net_revenue: Number(r.net_revenue).toFixed(0),
+                  orders: r.order_count_non_cancelled,
+                }))
+            : null,
           absence_summary: absenceRows.slice(0, 5).map((row) => ({
             type: row.absence_type,
             rows: row.row_count,
