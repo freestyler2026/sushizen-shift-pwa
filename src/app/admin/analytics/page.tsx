@@ -4274,6 +4274,29 @@ export default function AdminAnalyticsPage() {
       const orderCount = posTotals ? Number(posTotals.order_count_non_cancelled || 0) : posRows.reduce((sum, row) => sum + Number(row.order_count_non_cancelled || 0), 0);
       const avgPerOrder = orderCount > 0 ? netSales / orderCount : null;
 
+      // Pre-compute branch-level sales efficiency by matching POS branch names with attendance branch codes.
+      // Uses fuzzy keyword matching since branch identifiers differ between systems.
+      const posBranchItems = (posBranchRes?.items || []).filter((r) => Number(r.net_revenue) > 0);
+      const branchEfficiency = posBranchItems.map((r) => {
+        const posName = String(r.branch_name || "").toLowerCase();
+        // Find attendance branch whose code appears as a substring of the POS branch name or vice-versa
+        const match = branchTotals.find((b) => {
+          const attCode = String(b.branch || "").toLowerCase();
+          if (!attCode || attCode === "-") return false;
+          return posName.includes(attCode) || attCode.includes(posName) ||
+            posName.split(/[\s_-]/)[0] === attCode.split(/[\s_-]/)[0];
+        });
+        const laborHours = match ? match.total_hours : null;
+        const salesPerHour = laborHours && laborHours > 0 ? Number((Number(r.net_revenue) / laborHours).toFixed(1)) : null;
+        return {
+          branch: r.branch_name,
+          net_revenue: Number(r.net_revenue).toFixed(0),
+          orders: r.order_count_non_cancelled,
+          labor_hours: laborHours,
+          sales_per_labor_hour: salesPerHour,
+        };
+      }).sort((a, b) => Number(b.net_revenue) - Number(a.net_revenue));
+
       const coreSourceKeys = ["attendance_comparison", "branch_daily_hours", "staff_work_summary", "absence_summary"];
       const coreMissingCount = missingSources.filter((m) => coreSourceKeys.includes(m.source)).length;
       const hasCoreData = coreMissingCount < coreSourceKeys.length;
@@ -4319,6 +4342,7 @@ export default function AdminAnalyticsPage() {
                   orders: r.order_count_non_cancelled,
                 }))
             : null,
+          branch_efficiency: branchEfficiency.length > 0 ? branchEfficiency : null,
           absence_summary: absenceRows.slice(0, 5).map((row) => ({
             type: row.absence_type,
             rows: row.row_count,
