@@ -18,7 +18,16 @@ import {
   T_LABEL,
   T_SECTION,
 } from "@/lib/ui-tokens";
-import { ISSUE_CATEGORIES, RATING_LABELS, type LowRatingCity, type LowRatingRow } from "@/types/lowRating";
+import {
+  DUBAI_AGGREGATORS,
+  DUBAI_BRANCHES,
+  ISSUE_CATEGORIES,
+  MANILA_AGGREGATORS,
+  MANILA_BRANCHES,
+  RATING_LABELS,
+  type LowRatingCity,
+  type LowRatingRow,
+} from "@/types/lowRating";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Spinner } from "@/components/ui/Spinner";
 import { LowRatingFormModal } from "@/components/analytics/LowRatingFormModal";
@@ -148,6 +157,24 @@ export function LowRatingsCard({
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<LowRatingRow | null>(null);
   const [saveBusy, setSaveBusy] = useState(false);
+
+  const aggregatorFilterOptions = useMemo(() => {
+    const defaults = city === "manila" ? [...MANILA_AGGREGATORS] : [...DUBAI_AGGREGATORS];
+    const cur = pending.aggregator.trim();
+    if (cur && !defaults.some((a) => a.toLowerCase() === cur.toLowerCase())) {
+      return [cur, ...defaults];
+    }
+    return defaults;
+  }, [city, pending.aggregator]);
+
+  const branchFilterOptions = useMemo(() => {
+    const defaults = city === "manila" ? [...MANILA_BRANCHES] : [...DUBAI_BRANCHES];
+    const cur = pending.branch.trim();
+    if (cur && !defaults.some((b) => b === cur)) {
+      return [cur, ...defaults];
+    }
+    return defaults;
+  }, [city, pending.branch]);
 
   useEffect(() => {
     setPending(defaultFilters);
@@ -309,22 +336,33 @@ export function LowRatingsCard({
           </label>
           <label className="block min-w-0">
             <div className={T_LABEL}>Aggregator</div>
-            <input
-              type="text"
+            <select
               value={pending.aggregator}
               onChange={(e) => setPending((p) => ({ ...p, aggregator: e.target.value }))}
-              placeholder="e.g. foodpanda"
-              className={"mt-1 w-full " + INPUT_CLASS}
-            />
+              className={"mt-1 w-full " + SELECT_CLASS}
+            >
+              <option value="">All</option>
+              {aggregatorFilterOptions.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="block min-w-0">
             <div className={T_LABEL}>Branch</div>
-            <input
-              type="text"
+            <select
               value={pending.branch}
               onChange={(e) => setPending((p) => ({ ...p, branch: e.target.value }))}
-              className={"mt-1 w-full " + INPUT_CLASS}
-            />
+              className={"mt-1 w-full " + SELECT_CLASS}
+            >
+              <option value="">All</option>
+              {branchFilterOptions.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="block min-w-0">
             <div className={T_LABEL}>Rating</div>
