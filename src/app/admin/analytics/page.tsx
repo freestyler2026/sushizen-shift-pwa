@@ -3683,6 +3683,12 @@ export default function AdminAnalyticsPage() {
   useEffect(() => {
     if (!approverName.trim() || !salesStepUpReady) return;
     if (analyticsTab === "ai") return;
+    // Manila Sales loads its own APIs in ManilaSalesSection. Running staff/compliance fan-out here
+    // competes for the same Heroku dyno/DB and triggers H12 (30s) timeouts — users see raw HTML errors.
+    if (analyticsTab === "manilaSales") {
+      if (!canViewStaffChannel) void loadAll("sales");
+      return;
+    }
     if (canViewStaffChannel) loadComparison();
     // Management roles cannot call staff analytics APIs (HQ/ADMIN only) — avoid 403/500 noise on load.
     if (canViewStaffChannel) void loadAll("staff");

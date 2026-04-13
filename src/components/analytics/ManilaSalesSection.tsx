@@ -53,6 +53,19 @@ function parseApiErrorDetail(text: string) {
   }
 }
 
+function normalizeManilaApiError(raw: string, fallback: string) {
+  const text = String(raw || "").trim();
+  const lower = text.toLowerCase();
+  if (!text) return fallback;
+  if (text.includes("<!DOCTYPE html") || lower.includes("<html") || lower.includes("application error")) {
+    return "Server timed out or was busy (Heroku 30s limit). Narrow the date range, wait a few seconds, and refresh.";
+  }
+  if (lower.includes("h12") || lower.includes("request timeout") || lower.includes("503")) {
+    return "Request timed out. Try a shorter date range or refresh.";
+  }
+  return text;
+}
+
 async function apiGet<T = unknown>(path: string): Promise<T> {
   const request = async () =>
     fetch(`${getApiBase()}${path}`, {
@@ -79,7 +92,7 @@ async function apiGet<T = unknown>(path: string): Promise<T> {
   }
   if (!res.ok) {
     const detail = parseApiErrorDetail(text);
-    throw new Error(detail || text || "Request failed");
+    throw new Error(normalizeManilaApiError(detail || text, `GET ${path} failed`));
   }
   return JSON.parse(text) as T;
 }
@@ -115,7 +128,7 @@ async function apiPost<T = unknown>(path: string, body: unknown): Promise<T> {
   }
   if (!res.ok) {
     const detail = parseApiErrorDetail(text);
-    throw new Error(detail || text || "Request failed");
+    throw new Error(normalizeManilaApiError(detail || text, `POST ${path} failed`));
   }
   return JSON.parse(text) as T;
 }
