@@ -16,7 +16,7 @@ import {
 import { BarChart2, CheckCircle2, CircleDot, RefreshCw } from "lucide-react";
 
 import { getAuth, getAuthHeaders, refreshAuthFromApi, type City } from "@/lib/auth";
-import { fmtNum, fmtNumTitle } from "@/lib/formatters";
+import { fmtNum, fmtNumTitle, formatSeconds } from "@/lib/formatters";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -246,6 +246,19 @@ type GrabPeakDailyRow = {
   hours: number[];
 };
 
+type FoodpandaOpsRow = {
+  sale_date: string;
+  store_name: string;
+  restaurant_name?: string;
+  restaurant_id?: string;
+  unavailable_time?: number;
+  order_rejection_rate?: number;
+  orders_with_avoidable_wait_time?: number;
+  average_preparation_time?: number;
+  orders_with_customer_complaints?: number;
+  food_is_ready?: number;
+};
+
 type SyncJobStep = {
   step: string;
   status: string;
@@ -354,6 +367,39 @@ function KpiCard({ title, value, hint, unit }: { title: string; value: number | 
   );
 }
 
+const MANILA_DATASET_OVERVIEW_ID = "manila-sales-dataset-overview";
+
+const MANILA_SECTION_ID_BY_CARD_KEY: Record<string, string> = {
+  product: "manila-section-product",
+  channel: "manila-section-channel",
+  hourly: "manila-section-hourly",
+  grab_offline: "manila-section-grab-offline",
+  grab_peak_hour: "manila-section-grab-peak",
+  foodpanda_ops: "manila-section-panda-ops",
+  category: "manila-section-category",
+  payment_method: "manila-section-payment",
+  pos_daily: "manila-section-pos",
+};
+
+function scrollToManilaElementId(id: string) {
+  if (typeof document === "undefined") return;
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function ManilaDatasetBackButton() {
+  return (
+    <div className="mt-4 flex justify-end border-t border-white/5 pt-3">
+      <button
+        type="button"
+        onClick={() => scrollToManilaElementId(MANILA_DATASET_OVERVIEW_ID)}
+        className="rounded-lg px-2 py-1 text-xs font-medium text-violet-300 underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60"
+      >
+        Back to dataset cards
+      </button>
+    </div>
+  );
+}
+
 export function ManilaSalesSection({
   city,
   dateFrom,
@@ -386,6 +432,7 @@ export function ManilaSalesSection({
   const [seniorAnalysis, setSeniorAnalysis] = useState<SeniorAnalysisResp | null>(null);
   const [grabOfflineRows, setGrabOfflineRows] = useState<GrabOfflineRow[]>([]);
   const [grabPeakDailyRows, setGrabPeakDailyRows] = useState<GrabPeakDailyRow[]>([]);
+  const [foodpandaOpsRows, setFoodpandaOpsRows] = useState<FoodpandaOpsRow[]>([]);
   const [productTrendRows, setProductTrendRows] = useState<ProductTrendRow[]>([]);
   const [posRows, setPosRows] = useState<PosRow[]>([]);
   const [selectedTransaction, setSelectedTransaction] = useState<PosRowDetail | null>(null);
@@ -425,6 +472,7 @@ export function ManilaSalesSection({
       { key: "hourly", label: "Peak hour data" },
       { key: "grab_peak_hour", label: "Grab Food Peak Hour" },
       { key: "grab_offline", label: "Grab Food Offline Hours" },
+      { key: "foodpanda_ops", label: "Panda Food · Ops" },
       { key: "category", label: "Categories" },
       { key: "payment_method", label: "Payment methods" },
       { key: "pos_daily", label: "POS Daily Report" },
@@ -438,6 +486,7 @@ export function ManilaSalesSection({
   const paymentDataset = overview?.dataset_availability?.payment_method;
   const posDataset = overview?.dataset_availability?.pos_daily;
   const hourlyDataset = overview?.dataset_availability?.hourly;
+  const foodpandaOpsDataset = overview?.dataset_availability?.foodpanda_ops;
 
   const hasAnyDataset = useMemo(
     () => Object.values(overview?.dataset_availability || {}).some((item) => Boolean(item?.has_data)),
@@ -474,6 +523,7 @@ export function ManilaSalesSection({
         seniorRes,
         grabOfflineRes,
         grabPeakRes,
+        foodpandaOpsRes,
       ] = await Promise.all([
         apiGet<OverviewResp>(`/api/admin/analytics/manila/sales/overview?${overviewQs.toString()}`),
         apiGet<ListResp<ProductRow>>(`/api/admin/analytics/manila/sales/by-product?${productQs.toString()}`),
@@ -484,6 +534,7 @@ export function ManilaSalesSection({
         apiGet<SeniorAnalysisResp>(`/api/admin/analytics/manila/pos/senior-analysis?${base.toString()}`),
         apiGet<ListResp<GrabOfflineRow>>(`/api/admin/analytics/manila/sales/grab-offline-hours?${base.toString()}`),
         apiGet<ListResp<GrabPeakDailyRow>>(`/api/admin/analytics/manila/sales/grab-peak-hour-daily?${grabPeakQs.toString()}`),
+        apiGet<ListResp<FoodpandaOpsRow>>(`/api/admin/analytics/manila/sales/foodpanda-ops?${base.toString()}`),
       ]);
       setOverview(overviewRes);
       setProductRows(productRes.items || []);
@@ -494,6 +545,7 @@ export function ManilaSalesSection({
       setSeniorAnalysis(seniorRes);
       setGrabOfflineRows(grabOfflineRes.items || []);
       setGrabPeakDailyRows(grabPeakRes.items || []);
+      setFoodpandaOpsRows(foodpandaOpsRes.items || []);
     } catch (e) {
       setError(String((e as Error)?.message || e || "Failed to load Manila sales analytics"));
     } finally {
@@ -765,29 +817,38 @@ export function ManilaSalesSection({
         </div>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4">
-        {datasetCards.map((card) => {
-          const item = overview?.dataset_availability?.[card.key];
-          const statusLabel =
-            item?.supported_in_scope === false ? "Not available from this source" : item?.has_data ? "Available" : "Not imported yet";
-          const statusClass =
-            item?.supported_in_scope === false
-              ? BADGE_WARNING
-              : item?.has_data
-                ? BADGE_SUCCESS
-                : BADGE_ERROR;
-          return (
-            <div key={card.key} className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/8 to-white/3 p-4 shadow-lg shadow-black/30 backdrop-blur-sm">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-zinc-500">{card.label}</div>
-              <div className={`mt-2 ${statusClass}`}>
-                {item?.has_data && item?.supported_in_scope !== false ? <CheckCircle2 className="h-3 w-3" /> : <CircleDot className="h-3 w-3" />}
-                <span>{statusLabel}</span>
-              </div>
-              <div className="mt-2 text-xs text-zinc-500">Imported files: {formatCount(Number(item?.import_count || 0))}</div>
-              {item?.note ? <div className="mt-2 text-xs text-zinc-500">{item.note}</div> : null}
-            </div>
-          );
-        })}
+      <div id={MANILA_DATASET_OVERVIEW_ID} className="scroll-mt-24">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4">
+          {datasetCards.map((card) => {
+            const item = overview?.dataset_availability?.[card.key];
+            const statusLabel =
+              item?.supported_in_scope === false ? "Not available from this source" : item?.has_data ? "Available" : "Not imported yet";
+            const statusClass =
+              item?.supported_in_scope === false
+                ? BADGE_WARNING
+                : item?.has_data
+                  ? BADGE_SUCCESS
+                  : BADGE_ERROR;
+            const sectionId = MANILA_SECTION_ID_BY_CARD_KEY[card.key];
+            return (
+              <button
+                key={card.key}
+                type="button"
+                onClick={() => sectionId && scrollToManilaElementId(sectionId)}
+                aria-label={`Scroll to ${card.label} section`}
+                className="w-full rounded-2xl border border-white/10 bg-gradient-to-br from-white/8 to-white/3 p-4 text-left shadow-lg shadow-black/30 backdrop-blur-sm transition hover:border-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50"
+              >
+                <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-zinc-500">{card.label}</div>
+                <div className={`mt-2 ${statusClass}`}>
+                  {item?.has_data && item?.supported_in_scope !== false ? <CheckCircle2 className="h-3 w-3" /> : <CircleDot className="h-3 w-3" />}
+                  <span>{statusLabel}</span>
+                </div>
+                <div className="mt-2 text-xs text-zinc-500">Imported files: {formatCount(Number(item?.import_count || 0))}</div>
+                {item?.note ? <div className="mt-2 text-xs text-zinc-500">{item.note}</div> : null}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {!loading && canLoad && !hasAnyDataset ? (
@@ -860,7 +921,7 @@ export function ManilaSalesSection({
       <div className="my-8 border-t border-white/5" />
 
       <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
+        <div id="manila-section-hourly" className="scroll-mt-24 rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
           <div className="mb-3 text-base font-semibold text-white">Peak Hour Data</div>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
@@ -880,8 +941,9 @@ export function ManilaSalesSection({
               {hourlyDataset?.supported_in_scope === false ? "Not available from this data source." : "Peak-hour rows will appear here after Grab exports are imported."}
             </div>
           ) : null}
+          <ManilaDatasetBackButton />
         </div>
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
+        <div id="manila-section-channel" className="scroll-mt-24 rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
           <div className="mb-3 text-base font-semibold text-white">Channel Comparison</div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
@@ -912,13 +974,14 @@ export function ManilaSalesSection({
               </tbody>
             </table>
           </div>
+          <ManilaDatasetBackButton />
         </div>
       </div>
 
       <div className="my-8 border-t border-white/5" />
 
       <div className="grid gap-4">
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
+        <div id="manila-section-grab-offline" className="scroll-mt-24 rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
           <div className="mb-3 text-base font-semibold text-white">Grab Food Offline Hours</div>
           <div className="mb-2 text-xs text-zinc-500">
             Store offline minutes and scheduled open time from GrabFood exports (sync files containing &quot;store offline hours&quot; in the filename).
@@ -963,9 +1026,10 @@ export function ManilaSalesSection({
               </tbody>
             </table>
           </div>
+          <ManilaDatasetBackButton />
         </div>
 
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
+        <div id="manila-section-grab-peak" className="scroll-mt-24 rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
           <div className="mb-3 text-base font-semibold text-white">Grab Food Peak Hour</div>
           <div className="mb-2 text-xs text-zinc-500">
             Daily order counts by hour (0–23) from Grab peak-hour exports. Respects the Channel filter when it matches a Grab aggregator (e.g. GrabFood).
@@ -1006,11 +1070,82 @@ export function ManilaSalesSection({
               </tbody>
             </table>
           </div>
+          <ManilaDatasetBackButton />
+        </div>
+
+        <div id="manila-section-panda-ops" className="scroll-mt-24 rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
+          <div className="mb-3 text-base font-semibold text-white">Panda Food · Ops summary</div>
+          <div className="mb-2 text-xs text-zinc-500">
+            Daily operations metrics from Foodpanda exports (<code className="rounded bg-white/10 px-1">opsSummary</code> CSV, optionally prefixed with a store slug e.g.{" "}
+            <code className="rounded bg-white/10 px-1">paranaque_opsSummary_…</code>). Sync via Drive — same Manila sales job as other CSVs.
+          </div>
+          {foodpandaOpsDataset?.note ? <div className="mb-3 text-sm leading-relaxed text-zinc-400">{foodpandaOpsDataset.note}</div> : null}
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="border-b border-white/5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                <tr>
+                  <th className="px-2 py-2">Date</th>
+                  <th className="px-2 py-2">Store</th>
+                  <th className="px-2 py-2">Restaurant</th>
+                  <th className="px-2 py-2 text-right">Unavailable time (min / h)</th>
+                  <th className="px-2 py-2 text-right">Reject rate</th>
+                  <th className="px-2 py-2 text-right">Avoidable wait %</th>
+                  <th className="px-2 py-2 text-right">Avg prep time (min / h)</th>
+                  <th className="px-2 py-2 text-right">Complaints %</th>
+                  <th className="px-2 py-2 text-right">Food ready %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {foodpandaOpsRows.map((row) => (
+                  <tr
+                    key={`${row.sale_date}-${row.store_name}-${row.restaurant_id || ""}`}
+                    className="border-t border-white/5 transition-colors duration-150 hover:bg-white/4"
+                  >
+                    <td className="px-2 py-2 font-medium text-white">{row.sale_date}</td>
+                    <td className="px-2 py-2 text-zinc-200">{row.store_name}</td>
+                    <td className="px-2 py-2 text-zinc-200">{row.restaurant_name || "—"}</td>
+                    <td className="px-2 py-2 text-right tabular-nums text-zinc-200">{formatSeconds(row.unavailable_time)}</td>
+                    <td className="px-2 py-2 text-right tabular-nums text-zinc-200">
+                      {row.order_rejection_rate != null && Number.isFinite(row.order_rejection_rate) ? formatPct(row.order_rejection_rate) : "—"}
+                    </td>
+                    <td className="px-2 py-2 text-right tabular-nums text-zinc-200">
+                      {row.orders_with_avoidable_wait_time != null && Number.isFinite(row.orders_with_avoidable_wait_time)
+                        ? formatPct(row.orders_with_avoidable_wait_time)
+                        : "—"}
+                    </td>
+                    <td className="px-2 py-2 text-right tabular-nums text-zinc-200">{formatSeconds(row.average_preparation_time)}</td>
+                    <td className="px-2 py-2 text-right tabular-nums text-zinc-200">
+                      {row.orders_with_customer_complaints != null && Number.isFinite(row.orders_with_customer_complaints)
+                        ? formatPct(row.orders_with_customer_complaints)
+                        : "—"}
+                    </td>
+                    <td className="px-2 py-2 text-right tabular-nums text-zinc-200">
+                      {row.food_is_ready != null && Number.isFinite(row.food_is_ready) ? formatPct(row.food_is_ready) : "—"}
+                    </td>
+                  </tr>
+                ))}
+                {!foodpandaOpsRows.length ? (
+                  <tr>
+                    <td colSpan={9} className="px-2 py-4">
+                      <EmptyState
+                        message={
+                          foodpandaOpsDataset?.supported_in_scope === false
+                            ? "Panda Food ops metrics are not available from the selected data source for this scope."
+                            : "No Panda Food ops rows for this period. Upload opsSummary CSVs to Drive and run Sync Manila Sales."
+                        }
+                      />
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+          <ManilaDatasetBackButton />
         </div>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
+        <div id="manila-section-product" className="scroll-mt-24 rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
           <div className="mb-3 text-sm font-semibold">Top Menu Sales</div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
@@ -1046,8 +1181,9 @@ export function ManilaSalesSection({
               </tbody>
             </table>
           </div>
+          <ManilaDatasetBackButton />
         </div>
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
+        <div id="manila-section-category" className="scroll-mt-24 rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
           <div className="mb-3 text-sm font-semibold">Category Breakdown</div>
           {categoryDataset?.note ? <div className="mb-3 text-sm text-neutral-500">{categoryDataset.note}</div> : null}
           <div className="space-y-2">
@@ -1069,6 +1205,7 @@ export function ManilaSalesSection({
               </div>
             ) : null}
           </div>
+          <ManilaDatasetBackButton />
         </div>
       </div>
 
@@ -1125,7 +1262,7 @@ export function ManilaSalesSection({
         </div>
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-xl shadow-black/20 backdrop-blur-sm">
+      <div id="manila-section-payment" className="scroll-mt-24 rounded-2xl border border-white/10 bg-white/5 p-4 shadow-xl shadow-black/20 backdrop-blur-sm">
         <div className="mb-3 text-sm font-semibold">Payment Method Table</div>
         {paymentDataset?.note ? <div className="mb-3 text-sm text-neutral-500">{paymentDataset.note}</div> : null}
         <div className="overflow-x-auto">
@@ -1161,9 +1298,11 @@ export function ManilaSalesSection({
             </tbody>
           </table>
         </div>
+        <ManilaDatasetBackButton />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
+      <section id="manila-section-pos" className="scroll-mt-24 space-y-4">
+        <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-xl shadow-black/20 backdrop-blur-sm">
           <div className="mb-3 text-sm font-semibold">OR Search</div>
           {posDataset?.note ? <div className="mb-3 text-sm text-neutral-500">{posDataset.note}</div> : null}
@@ -1280,9 +1419,9 @@ export function ManilaSalesSection({
                 )}`}
           </div>
         </div>
-      </div>
+        </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
+        <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-xl shadow-black/20 backdrop-blur-sm">
           <div className="mb-3 text-sm font-semibold">Senior Daily Trend</div>
           {posDataset?.supported_in_scope === false ? (
@@ -1352,7 +1491,9 @@ export function ManilaSalesSection({
           </table>
           )}
         </div>
-      </div>
+        </div>
+        <ManilaDatasetBackButton />
+      </section>
 
       {(selectedTransaction || transactionLoading) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
