@@ -30,13 +30,12 @@ function cellDisplay(row: GridRowState, col: ColDef): string {
 type CellEditorProps = {
   col: ColDef;
   initial: string;
-  onCommit: (v: string) => void;
+  /** close = leave edit mode; next/prev = save and move without clearing edit target first */
+  onFinish: (v: string, nav: "close" | "next" | "prev") => void;
   onCancel: () => void;
-  onTabNext: () => void;
-  onTabPrev: () => void;
 };
 
-function CellEditor({ col, initial, onCommit, onCancel, onTabNext, onTabPrev }: CellEditorProps) {
+function CellEditor({ col, initial, onFinish, onCancel }: CellEditorProps) {
   const ref = useRef<HTMLInputElement | HTMLSelectElement | null>(null);
   const skipBlurRef = useRef(false);
 
@@ -47,9 +46,9 @@ function CellEditor({ col, initial, onCommit, onCancel, onTabNext, onTabPrev }: 
     }
   }, [col.type]);
 
-  const finish = (v: string) => {
+  const finish = (v: string, nav: "close" | "next" | "prev") => {
     skipBlurRef.current = true;
-    onCommit(v);
+    onFinish(v, nav);
   };
 
   const keyDown = (e: React.KeyboardEvent) => {
@@ -58,16 +57,14 @@ function CellEditor({ col, initial, onCommit, onCancel, onTabNext, onTabPrev }: 
       onCancel();
     } else if (e.key === "Enter" && col.type !== "select") {
       e.preventDefault();
-      finish((e.target as HTMLInputElement).value);
+      finish((e.target as HTMLInputElement).value, "close");
     } else if (e.key === "Tab") {
       e.preventDefault();
       const v =
         col.type === "select"
           ? (e.target as HTMLSelectElement).value
           : (e.target as HTMLInputElement).value;
-      finish(v);
-      if (e.shiftKey) onTabPrev();
-      else onTabNext();
+      finish(v, e.shiftKey ? "prev" : "next");
     }
   };
 
@@ -76,7 +73,7 @@ function CellEditor({ col, initial, onCommit, onCancel, onTabNext, onTabPrev }: 
       skipBlurRef.current = false;
       return;
     }
-    onCommit(e.target.value);
+    onFinish(e.target.value, "close");
   };
 
   if (col.type === "select" && col.options) {
@@ -193,10 +190,9 @@ export function LowRatingsGrid({
   };
 
   const moveFocus = useCallback(
-    (delta: number) => {
-      if (!editing) return;
-      const colIdx = cols.findIndex((c) => c.key === editing.colKey);
-      const rowIdx = sortedRows.findIndex((r) => r._localId === editing.localId);
+    (delta: number, anchor: { localId: string; colKey: DataColumnKey }) => {
+      const colIdx = cols.findIndex((c) => c.key === anchor.colKey);
+      const rowIdx = sortedRows.findIndex((r) => r._localId === anchor.localId);
       if (rowIdx < 0 || colIdx < 0) return;
       let nextCol = colIdx + delta;
       let nextRow = rowIdx;
@@ -215,7 +211,7 @@ export function LowRatingsGrid({
       setEditing({ localId: sortedRows[nextRow]._localId, colKey: cols[nextCol].key });
       setEditSeed((s) => s + 1);
     },
-    [cols, editing, sortedRows],
+    [cols, sortedRows],
   );
 
   const onHeaderClick = (key: DataColumnKey) => toggleSort(key);
@@ -297,15 +293,15 @@ export function LowRatingsGrid({
                                     : ""
                                   : display
                             }
-                            onCommit={(v) => {
+                            onFinish={(v, nav) => {
                               if (col.key === "rating") updateCell(row._localId, col.key, Number(v));
                               else if (col.key === "amount") updateCell(row._localId, col.key, v);
                               else updateCell(row._localId, col.key, v);
-                              setEditing(null);
+                              if (nav === "next") moveFocus(1, { localId: row._localId, colKey: col.key });
+                              else if (nav === "prev") moveFocus(-1, { localId: row._localId, colKey: col.key });
+                              else setEditing(null);
                             }}
                             onCancel={() => setEditing(null)}
-                            onTabNext={() => moveFocus(1)}
-                            onTabPrev={() => moveFocus(-1)}
                           />
                         </div>
                       ) : (
