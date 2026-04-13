@@ -380,7 +380,10 @@ function KpiCard({ title, value, hint, unit }: { title: string; value: number | 
   );
 }
 
-const MANILA_DATASET_OVERVIEW_ID = "manila-sales-dataset-overview";
+export const MANILA_DATASET_OVERVIEW_ID = "manila-sales-dataset-overview";
+
+/** Anchor on `LowRatingsCard` when `city="manila"` (`low-ratings-${city}`). */
+export const MANILA_LOW_RATINGS_SECTION_ID = "low-ratings-manila";
 
 const MANILA_SECTION_ID_BY_CARD_KEY: Record<string, string> = {
   product: "manila-section-product",
@@ -392,6 +395,7 @@ const MANILA_SECTION_ID_BY_CARD_KEY: Record<string, string> = {
   category: "manila-section-category",
   payment_method: "manila-section-payment",
   pos_daily: "manila-section-pos",
+  low_ratings: MANILA_LOW_RATINGS_SECTION_ID,
 };
 
 function scrollToManilaElementId(id: string) {
@@ -489,6 +493,7 @@ export function ManilaSalesSection({
       { key: "category", label: "Categories" },
       { key: "payment_method", label: "Payment methods" },
       { key: "pos_daily", label: "POS Daily Report" },
+      { key: "low_ratings", label: "Low ratings" },
     ],
     [],
   );
@@ -833,11 +838,18 @@ export function ManilaSalesSection({
       <div id={MANILA_DATASET_OVERVIEW_ID} className="scroll-mt-24">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4">
           {datasetCards.map((card) => {
-            const item = overview?.dataset_availability?.[card.key];
-            const statusLabel =
-              item?.supported_in_scope === false ? "Not available from this source" : item?.has_data ? "Available" : "Not imported yet";
-            const statusClass =
-              item?.supported_in_scope === false
+            const isLowRatingsCard = card.key === "low_ratings";
+            const item = isLowRatingsCard ? undefined : overview?.dataset_availability?.[card.key];
+            const statusLabel = isLowRatingsCard
+              ? "Available"
+              : item?.supported_in_scope === false
+                ? "Not available from this source"
+                : item?.has_data
+                  ? "Available"
+                  : "Not imported yet";
+            const statusClass = isLowRatingsCard
+              ? BADGE_SUCCESS
+              : item?.supported_in_scope === false
                 ? BADGE_WARNING
                 : item?.has_data
                   ? BADGE_SUCCESS
@@ -853,10 +865,16 @@ export function ManilaSalesSection({
               >
                 <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-zinc-500">{card.label}</div>
                 <div className={`mt-2 ${statusClass}`}>
-                  {item?.has_data && item?.supported_in_scope !== false ? <CheckCircle2 className="h-3 w-3" /> : <CircleDot className="h-3 w-3" />}
+                  {(isLowRatingsCard || (item?.has_data && item?.supported_in_scope !== false)) ? (
+                    <CheckCircle2 className="h-3 w-3" />
+                  ) : (
+                    <CircleDot className="h-3 w-3" />
+                  )}
                   <span>{statusLabel}</span>
                 </div>
-                <div className="mt-2 text-xs text-zinc-500">Imported files: {formatCount(Number(item?.import_count || 0))}</div>
+                <div className="mt-2 text-xs text-zinc-500">
+                  {isLowRatingsCard ? "Manual entries & imports" : `Imported files: ${formatCount(Number(item?.import_count || 0))}`}
+                </div>
                 {item?.note ? <div className="mt-2 text-xs text-zinc-500">{item.note}</div> : null}
               </button>
             );

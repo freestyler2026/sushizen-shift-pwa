@@ -97,6 +97,11 @@ function clip(text: string, max: number) {
   return `${t.slice(0, max)}…`;
 }
 
+function scrollToElementId(id: string) {
+  if (typeof document === "undefined") return;
+  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 export function LowRatingsCard({
   city,
   title,
@@ -106,6 +111,8 @@ export function LowRatingsCard({
   active,
   defaultDateFrom,
   defaultDateTo,
+  backToCardsTargetId,
+  backToCardsLabel = "Back to dataset cards",
 }: {
   city: LowRatingCity;
   title: string;
@@ -115,6 +122,9 @@ export function LowRatingsCard({
   active: boolean;
   defaultDateFrom: string;
   defaultDateTo: string;
+  /** When set (e.g. Manila overview id), show the same “back to cards” control as other dataset sections. */
+  backToCardsTargetId?: string;
+  backToCardsLabel?: string;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -239,7 +249,10 @@ export function LowRatingsCard({
   }
 
   return (
-    <div id={`low-ratings-${city}`} className={GLASS_CARD + " overflow-hidden"}>
+    <div
+      id={`low-ratings-${city}`}
+      className={GLASS_CARD + " scroll-mt-24 overflow-hidden"}
+    >
       <div className="flex flex-col gap-3 border-b border-white/5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-amber-400" />
@@ -467,6 +480,18 @@ export function LowRatingsCard({
                 Next
               </button>
             </div>
+          </div>
+        ) : null}
+
+        {backToCardsTargetId ? (
+          <div className="mt-4 flex justify-end border-t border-white/5 pt-3">
+            <button
+              type="button"
+              onClick={() => scrollToElementId(backToCardsTargetId)}
+              className="rounded-lg px-2 py-1 text-xs font-medium text-violet-300 underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60"
+            >
+              {backToCardsLabel}
+            </button>
           </div>
         ) : null}
       </div>
