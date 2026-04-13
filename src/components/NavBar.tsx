@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
+  AlertTriangle,
   ArrowLeftRight,
   BarChart3,
   Calculator,
@@ -21,6 +22,7 @@ import {
   LayoutDashboard,
   Package,
   PenLine,
+  ScrollText,
   ShoppingCart,
   Shield,
   Truck,
@@ -40,8 +42,11 @@ import {
   canAccessProcurementAdmin,
   canAccessRoleManagement,
   getAuth,
+  getAuthHeaders,
   refreshAuthFromApi,
 } from "@/lib/auth";
+import { API_BASE } from "@/lib/api";
+import { RENEWALS_BADGE_EVENT, readRenewalsBadgeCount, setRenewalsBadgeCount } from "@/lib/renewals";
 
 type NavItem = {
   href: string;
@@ -51,6 +56,10 @@ type NavItem = {
   match?: "exact" | "prefix";
   badgeCount?: number;
   badgeCritical?: boolean;
+  badgeWarning?: boolean;
+  badgeSuccess?: boolean;
+  badgeYellow?: boolean;
+  badgePink?: boolean;
 };
 
 const PRIMARY: NavItem[] = [
@@ -76,8 +85,10 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/procurement", label: "Procurement", icon: Truck, adminOnly: true, match: "prefix" },
   { href: "/admin/cost-calculation", label: "Cost Calculation", icon: Calculator, adminOnly: true, match: "prefix" },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3, adminOnly: true, match: "exact" },
+  { href: "/admin/low-ratings", label: "Low Ratings", icon: AlertTriangle, adminOnly: true, match: "exact" },
   { href: "/admin/attendance", label: "Attendance", icon: UserCheck, adminOnly: true, match: "prefix" },
   { href: "/admin/absences", label: "Absences", icon: UserX, adminOnly: true, match: "exact" },
+  { href: "/admin/renewals", label: "Renewals", icon: ScrollText, adminOnly: true, match: "prefix" },
   { href: "/admin/staff", label: "Staff", icon: Users, adminOnly: true, match: "prefix" },
   { href: "/admin/staff/roles", label: "Role Management", icon: Shield, adminOnly: true, match: "prefix" },
   { href: "/admin/draft", label: "Draft", icon: PenLine, adminOnly: true, match: "prefix" },
@@ -94,17 +105,27 @@ function NavBtn({
   href,
   label,
   active,
-  badgeCount = 0,
+  badge = 0,
   badgeCritical = false,
+  badgeWarning = false,
+  badgeSuccess = false,
+  badgeYellow = false,
+  badgePink = false,
 }: {
   href: string;
   label: string;
   active: boolean;
-  badgeCount?: number;
+  badge?: number;
   badgeCritical?: boolean;
+  badgeWarning?: boolean;
+  badgeSuccess?: boolean;
+  badgeYellow?: boolean;
+  badgePink?: boolean;
 }) {
-  const shown = Number(badgeCount || 0);
+  const shown = Number(badge || 0);
   const badgeText = shown > 99 ? "99+" : String(shown);
+  const showDotOnly = shown <= 0 && (badgeYellow || badgePink);
+  const shouldShowBadge = shown > 0 || showDotOnly;
   return (
     <Link
       href={href}
@@ -115,19 +136,31 @@ function NavBtn({
           : "border-transparent text-neutral-400 hover:text-white",
       ].join(" ")}
     >
-      <span>{label}</span>
-      {shown > 0 ? (
+      <span className="flex items-center gap-1.5">
+        {label}
+      </span>
+      {shouldShowBadge ? (
         <span
           className={[
-            "ml-2 inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none transition-colors duration-150",
+            showDotOnly
+              ? "ml-2 inline-flex h-2.5 w-2.5 rounded-full transition-colors duration-150"
+              : "ml-2 inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none transition-colors duration-150",
             badgeCritical
               ? "bg-rose-500/20 text-rose-200"
+              : badgeWarning
+                ? "bg-orange-500 text-white"
+                : badgeSuccess
+                  ? "bg-emerald-500 text-white"
+                  : badgeYellow
+                    ? "bg-amber-500 text-white"
+                    : badgePink
+                      ? "bg-pink-500 text-white"
               : active
                 ? "bg-violet-500/20 text-violet-200"
                 : "bg-white/8 text-neutral-300 group-hover:bg-white/12 group-hover:text-white",
           ].join(" ")}
         >
-          {badgeText}
+          {showDotOnly ? null : badgeText}
         </span>
       ) : null}
     </Link>
@@ -140,6 +173,7 @@ export default function NavBar() {
   const [displayName, setDisplayName] = useState("");
   const [procurementBadgeCount, setProcurementBadgeCount] = useState(0);
   const [procurementBadgeCritical, setProcurementBadgeCritical] = useState(false);
+  const [renewalBadge, setRenewalBadge] = useState(0);
 
   function canSeeAdminItem(href: string, auth: ReturnType<typeof getAuth>) {
     if (!auth) return false;
@@ -150,14 +184,62 @@ export default function NavBar() {
     if (href === "/admin/procurement") return canAccessProcurementAdmin(auth, auth.city);
     if (href === "/admin/cost-calculation") return canAccessCostAdmin(auth);
     if (href === "/admin/analytics") return canAccessAdminNav(auth);
+    if (href === "/admin/low-ratings") return canAccessAdminNav(auth);
     if (href === "/admin/attendance") return canAccessAdminNav(auth);
     if (href === "/admin/absences") return canAccessAdminNav(auth);
+    if (href === "/admin/renewals") return canAccessAdminNav(auth);
     if (href === "/admin/staff") return canAccessAdminNav(auth);
     if (href === "/admin/staff/roles") return canAccessRoleManagement(auth);
     if (href === "/admin/draft") return canAccessAdminNav(auth);
     if (href === "/admin/backoffice-evaluation") return canAccessBackofficeEvaluationAdmin(auth);
     return false;
   }
+
+  useEffect(() => {
+    setRenewalBadge(readRenewalsBadgeCount());
+    let cancelled = false;
+    const onBadgeEvent = (event: Event) => {
+      const next = Number((event as CustomEvent<{ badgeCount?: number }>).detail?.badgeCount ?? 0);
+      if (!cancelled) setRenewalBadge(next > 0 ? next : 0);
+    };
+    const onStorage = () => {
+      if (!cancelled) setRenewalBadge(readRenewalsBadgeCount());
+    };
+    const fetchBadge = async () => {
+      try {
+        const auth = getAuth();
+        if (!auth || !canAccessAdminNav(auth)) {
+          if (!cancelled) {
+            setRenewalBadge(0);
+            setRenewalsBadgeCount(0);
+          }
+          return;
+        }
+        const res = await fetch(`${API_BASE}/api/renewals/alerts/badge`, {
+          method: "GET",
+          cache: "no-store",
+          headers: getAuthHeaders(auth),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const next = Number(data?.badge_count ?? 0);
+        if (!cancelled) {
+          setRenewalBadge(next > 0 ? next : 0);
+          setRenewalsBadgeCount(next);
+        }
+      } catch {}
+    };
+    void fetchBadge();
+    const id = window.setInterval(fetchBadge, 60_000);
+    window.addEventListener(RENEWALS_BADGE_EVENT, onBadgeEvent as EventListener);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      window.removeEventListener(RENEWALS_BADGE_EVENT, onBadgeEvent as EventListener);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -224,11 +306,17 @@ export default function NavBar() {
     return ADMIN_ITEMS
       .filter((item) => canSeeAdminItem(item.href, resolvedAuth))
       .map((item) =>
-        item.href === "/admin/procurement"
-          ? { ...item, badgeCount: procurementBadgeCount, badgeCritical: procurementBadgeCritical }
+        item.href === "/admin"
+          ? { ...item, badgeYellow: true }
+          : item.href === "/admin/private-reports"
+            ? { ...item, badgePink: true }
+            : item.href === "/admin/procurement"
+          ? { ...item, badgeCount: procurementBadgeCount, badgeCritical: procurementBadgeCritical, badgeSuccess: true }
+          : item.href === "/admin/renewals"
+            ? { ...item, badgeCount: renewalBadge, badgeWarning: true }
           : item,
       );
-  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical]);
+  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge]);
 
   const navItems = useMemo(() => [...staffItems, ...adminItems], [staffItems, adminItems]);
   const userInitials = useMemo(() => {
@@ -275,8 +363,12 @@ export default function NavBar() {
                 href={item.href}
                 label={item.label}
                 active={isActive(pathname, item)}
-                badgeCount={item.badgeCount}
+                badge={item.badgeCount}
                 badgeCritical={item.badgeCritical}
+                badgeWarning={item.badgeWarning}
+                badgeSuccess={item.badgeSuccess}
+                badgeYellow={item.badgeYellow}
+                badgePink={item.badgePink}
               />
             ))}
             <div className="ml-1 border-l border-white/10 pl-2 md:hidden">

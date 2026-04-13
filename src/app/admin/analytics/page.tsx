@@ -44,8 +44,7 @@ import { startPasskeyAuthentication, startPasskeyRegistration } from "@/lib/weba
 import { normalizeCalendarDateInput } from "@/lib/dateInput";
 import DateRangePicker from "@/components/DateRangePicker";
 import MonthPicker from "@/components/MonthPicker";
-import { LowRatingsCard } from "@/components/analytics/LowRatingsCard";
-import { ManilaSalesSection, MANILA_DATASET_OVERVIEW_ID } from "@/components/analytics/ManilaSalesSection";
+import { ManilaSalesSection } from "@/components/analytics/ManilaSalesSection";
 import { SalesDataCheckTable, type DataCheckCell, type DataCheckColumn } from "@/components/analytics/SalesDataCheckTable";
 import ProcurementAnalyticsSection from "@/app/admin/analytics/procurement/page";
 import { fmtNum, fmtNumTitle } from "@/lib/formatters";
@@ -7104,32 +7103,6 @@ export default function AdminAnalyticsPage() {
                 ) : null}
               </>
             ) : null}
-
-            {/* Low ratings: visible on Manila/Dubai sales tabs for every sub-section (not gated by salesSectionView). */}
-            {isManilaSalesCity ? (
-              <LowRatingsCard
-                city="manila"
-                title="LOW RATINGS · MANILA"
-                approverName={approverName}
-                pin={pin}
-                stepUpReady={salesStepUpReady}
-                active={analyticsTab === "manilaSales"}
-                defaultDateFrom={summaryDateFrom}
-                defaultDateTo={summaryDateTo}
-                backToCardsTargetId={MANILA_DATASET_OVERVIEW_ID}
-              />
-            ) : (
-              <LowRatingsCard
-                city="dubai"
-                title="LOW RATINGS · DUBAI"
-                approverName={approverName}
-                pin={pin}
-                stepUpReady={salesStepUpReady}
-                active={analyticsTab === "dubaiSales"}
-                defaultDateFrom={summaryDateFrom}
-                defaultDateTo={summaryDateTo}
-              />
-            )}
           </div>
           ) : analyticsTab === "evaluation" ? (
           <div className="mt-8 space-y-4">
