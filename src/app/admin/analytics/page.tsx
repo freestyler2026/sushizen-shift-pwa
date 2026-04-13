@@ -44,6 +44,7 @@ import { startPasskeyAuthentication, startPasskeyRegistration } from "@/lib/weba
 import { normalizeCalendarDateInput } from "@/lib/dateInput";
 import DateRangePicker from "@/components/DateRangePicker";
 import MonthPicker from "@/components/MonthPicker";
+import { LowRatingsCard } from "@/components/analytics/LowRatingsCard";
 import { ManilaSalesSection } from "@/components/analytics/ManilaSalesSection";
 import { SalesDataCheckTable, type DataCheckCell, type DataCheckColumn } from "@/components/analytics/SalesDataCheckTable";
 import ProcurementAnalyticsSection from "@/app/admin/analytics/procurement/page";
@@ -1510,6 +1511,65 @@ function previousCalendarMonthRangeIso(): { from: string; to: string } {
   return { from, to };
 }
 
+/**
+ * Default analytics range: current calendar month from the 1st through today (local).
+ * Avoids the trap where "previous month" during March still points at February while ops talks about March P&L.
+ */
+function currentCalendarMonthRangeThroughTodayIso(): { from: string; to: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const lastDom = new Date(y, m + 1, 0).getDate();
+  const dom = Math.min(now.getDate(), lastDom);
+  const from = `${y}-${pad(m + 1)}-01`;
+  const to = `${y}-${pad(m + 1)}-${pad(dom)}`;
+  return { from, to };
+}
+
+const EN_MONTH_NAME_TO_NUM: Record<string, string> = {
+  january: "01",
+  february: "02",
+  march: "03",
+  april: "04",
+  may: "05",
+  june: "06",
+  july: "07",
+  august: "08",
+  september: "09",
+  october: "10",
+  november: "11",
+  december: "12",
+};
+
+/** Calendar months (YYYY-MM) explicitly mentioned in a free-text question for mismatch hints. */
+function parseMentionedAnalysisMonths(question: string, defaultYear: number): string[] {
+  const q = String(question || "").trim();
+  if (!q) return [];
+  const keys = new Set<string>();
+
+  for (const m of q.matchAll(/\b(20\d{2})[/-](0?[1-9]|1[0-2])\b/g)) {
+    keys.add(`${m[1]}-${String(Number(m[2])).padStart(2, "0")}`);
+  }
+  for (const m of q.matchAll(/(20\d{2})\s*年\s*(0?[1-9]|1[0-2])\s*月/g)) {
+    keys.add(`${m[1]}-${String(Number(m[2])).padStart(2, "0")}`);
+  }
+  for (const m of q.matchAll(/(?<!\d)(0?[1-9]|1[0-2])\s*月(?!\d)/g)) {
+    const mm = Number(m[1]);
+    if (mm >= 1 && mm <= 12) {
+      keys.add(`${defaultYear}-${String(mm).padStart(2, "0")}`);
+    }
+  }
+
+  const ql = q.toLowerCase();
+  for (const [name, num] of Object.entries(EN_MONTH_NAME_TO_NUM)) {
+    if (new RegExp(`\\b${name}\\b`, "i").test(ql)) {
+      keys.add(`${defaultYear}-${num}`);
+    }
+  }
+  return [...keys];
+}
+
 const CITY_DEFAULT_RANGE: Record<string, { from: string; to: string }> = {
   dubai: { from: "2025-11-01", to: "2026-03-31" },
   manila: { from: "2025-11-01", to: "2026-03-31" },
@@ -1788,15 +1848,15 @@ export default function AdminAnalyticsPage() {
 
   const [authState, setAuthState] = useState(() => stripStepUpForFreshVisit(getAuth()));
   const auth = authState;
-  const previousMonth = previousCalendarMonthRangeIso();
+  const defaultAnalyticsRange = currentCalendarMonthRangeThroughTodayIso();
 
   const [city, setCity] = useState<string>((auth?.city || "dubai").toLowerCase());
-  const [dateFrom, setDateFrom] = useState(previousMonth.from);
-  const [dateTo, setDateTo] = useState(previousMonth.to);
-  const [summaryDateFrom, setSummaryDateFrom] = useState(previousMonth.from);
-  const [summaryDateTo, setSummaryDateTo] = useState(previousMonth.to);
-  const [complianceMonthKey, setComplianceMonthKey] = useState(previousMonth.from.slice(0, 7));
-  const [summaryMonthKey, setSummaryMonthKey] = useState(previousMonth.from.slice(0, 7));
+  const [dateFrom, setDateFrom] = useState(defaultAnalyticsRange.from);
+  const [dateTo, setDateTo] = useState(defaultAnalyticsRange.to);
+  const [summaryDateFrom, setSummaryDateFrom] = useState(defaultAnalyticsRange.from);
+  const [summaryDateTo, setSummaryDateTo] = useState(defaultAnalyticsRange.to);
+  const [complianceMonthKey, setComplianceMonthKey] = useState(defaultAnalyticsRange.from.slice(0, 7));
+  const [summaryMonthKey, setSummaryMonthKey] = useState(defaultAnalyticsRange.from.slice(0, 7));
   const [payrollStaffName, setPayrollStaffName] = useState("");
   const [branchCode, setBranchCode] = useState("");
   const [summaryBranchCode, setSummaryBranchCode] = useState("");
@@ -1867,7 +1927,7 @@ export default function AdminAnalyticsPage() {
   const [evaluationWarnings, setEvaluationWarnings] = useState<string[]>([]);
   const [evaluationRules, setEvaluationRules] = useState<EvaluationRule[]>([]);
   const [evaluationTimeline, setEvaluationTimeline] = useState<EvaluationTimelineResp | null>(null);
-  const [evaluationDetailDate, setEvaluationDetailDate] = useState(() => previousCalendarMonthRangeIso().to);
+  const [evaluationDetailDate, setEvaluationDetailDate] = useState(() => currentCalendarMonthRangeThroughTodayIso().to);
   const [evaluationDayDetails, setEvaluationDayDetails] = useState<EvaluationDayDetailsResp | null>(null);
   const [evaluationStrictnessLevel, setEvaluationStrictnessLevel] = useState(5);
   const [evaluationRuleMessage, setEvaluationRuleMessage] = useState("");
@@ -1945,6 +2005,16 @@ export default function AdminAnalyticsPage() {
     }
     setSummaryMonthKey("");
   }, [summaryDateFrom, summaryDateTo]);
+
+  const aiMentionedMonthsNotInRange = useMemo(() => {
+    const y = parseInt(summaryDateFrom.slice(0, 4), 10);
+    const defaultY = Number.isFinite(y) && y >= 2000 ? y : new Date().getFullYear();
+    const mentioned = parseMentionedAnalysisMonths(aiInput, defaultY);
+    if (!mentioned.length) return null;
+    const selected = new Set(monthKeysBetween(summaryDateFrom, summaryDateTo));
+    const missing = mentioned.filter((mk) => !selected.has(mk));
+    return missing.length ? missing : null;
+  }, [aiInput, summaryDateFrom, summaryDateTo]);
 
   const evaluationScoreScale = useMemo(() => {
     const maxOf = (values: number[], fallback: number) => {
@@ -2568,9 +2638,9 @@ export default function AdminAnalyticsPage() {
     const baseTo = new Date(r.to || todayIso());
     setDateTo(baseTo.toISOString().slice(0, 10));
     setDateFrom(addDaysIso(baseTo, -29));
-    const pm = previousCalendarMonthRangeIso();
-    setSummaryDateFrom(pm.from);
-    setSummaryDateTo(pm.to);
+    const dr = currentCalendarMonthRangeThroughTodayIso();
+    setSummaryDateFrom(dr.from);
+    setSummaryDateTo(dr.to);
     setPayrollStaffName("");
     setBranchCode("");
     setSummaryBranchCode("");
@@ -4275,28 +4345,31 @@ export default function AdminAnalyticsPage() {
       const orderCount = posTotals ? Number(posTotals.order_count_non_cancelled || 0) : posRows.reduce((sum, row) => sum + Number(row.order_count_non_cancelled || 0), 0);
       const avgPerOrder = orderCount > 0 ? netSales / orderCount : null;
 
-      // Pre-compute branch-level sales efficiency by matching POS branch names with attendance branch codes.
-      // Uses fuzzy keyword matching since branch identifiers differ between systems.
-      const posBranchItems = (posBranchRes?.items || []).filter((r) => Number(r.net_revenue) > 0);
-      const branchEfficiency = posBranchItems.map((r) => {
-        const posName = String(r.branch_name || "").toLowerCase();
-        // Find attendance branch whose code appears as a substring of the POS branch name or vice-versa
-        const match = branchTotals.find((b) => {
-          const attCode = String(b.branch || "").toLowerCase();
-          if (!attCode || attCode === "-") return false;
-          return posName.includes(attCode) || attCode.includes(posName) ||
-            posName.split(/[\s_-]/)[0] === attCode.split(/[\s_-]/)[0];
-        });
-        const laborHours = match ? match.total_hours : null;
-        const salesPerHour = laborHours && laborHours > 0 ? Number((Number(r.net_revenue) / laborHours).toFixed(1)) : null;
-        return {
-          branch: r.branch_name,
-          net_revenue: Number(r.net_revenue).toFixed(0),
-          orders: r.order_count_non_cancelled,
-          labor_hours: laborHours,
-          sales_per_labor_hour: salesPerHour,
-        };
-      }).sort((a, b) => Number(b.net_revenue) - Number(a.net_revenue));
+      // Pre-compute branch-level sales efficiency using server-side accurate join
+      // (replaces client-side fuzzy matching which was unreliable).
+      // Fetched from /api/admin/analytics/branch_efficiency which joins
+      // pos_revenue_location_daily + actual_attendance via branch_pos_map.
+      const branchEffRes = await apiGet<{
+        ok: boolean;
+        items: {
+          branch: string;
+          pos_branch_name: string;
+          attendance_code: string;
+          net_revenue: number;
+          orders: number;
+          labor_hours: number | null;
+          sales_per_labor_hour: number | null;
+          is_revenue_branch: boolean;
+        }[];
+      }>(`/api/admin/analytics/branch_efficiency?city=${lowercaseCity}&date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}`).catch(() => null);
+
+      const branchEfficiency = (branchEffRes?.items || []).map((r) => ({
+        branch: r.branch,
+        net_revenue: String(r.net_revenue),
+        orders: r.orders,
+        labor_hours: r.labor_hours,
+        sales_per_labor_hour: r.sales_per_labor_hour,
+      }));
 
       const coreSourceKeys = ["attendance_comparison", "branch_daily_hours", "staff_work_summary", "absence_summary"];
       const coreMissingCount = missingSources.filter((m) => coreSourceKeys.includes(m.source)).length;
@@ -4333,7 +4406,7 @@ export default function AdminAnalyticsPage() {
           net_sales: posDailyRes ? Number(netSales || 0).toFixed(2) : null,
           order_count: posDailyRes ? Number(orderCount || 0) : null,
           avg_per_order: posDailyRes && avgPerOrder != null ? Number(avgPerOrder).toFixed(2) : null,
-          pos_revenue_branch_count: posBranchRes?.items ? posBranchRes.items.filter((r) => Number(r.net_revenue) > 0).length : null,
+          pos_revenue_branch_count: branchEfficiency.length > 0 ? branchEfficiency.length : (posBranchRes?.items ? posBranchRes.items.filter((r) => Number(r.net_revenue) > 0).length : null),
           pos_branch_ranking: posBranchRes?.items
             ? posBranchRes.items
                 .filter((r) => Number(r.net_revenue) > 0)
@@ -5231,6 +5304,23 @@ export default function AdminAnalyticsPage() {
                 ))}
               </div>
             </div>
+
+            {salesStepUpReady ? (
+              <div className="space-y-2 rounded-xl border border-neutral-700/50 bg-neutral-900/50 p-3">
+                <div className="text-xs text-neutral-200">
+                  <span className="font-bold text-neutral-100">分析期間（AI に送信）: </span>
+                  {summaryDateFrom} 〜 {summaryDateTo}
+                </div>
+                <div className="text-[11px] text-neutral-500">
+                  Staff タブの Summary Analytics Period（Summary Range / Month Quick Select、または「今月（月初〜今日）」）から変更できます。
+                </div>
+                {aiMentionedMonthsNotInRange ? (
+                  <div className="rounded-lg border border-amber-600/40 bg-amber-950/30 px-2 py-1.5 text-[11px] leading-snug text-amber-200">
+                    質問に含まれる月（{aiMentionedMonthsNotInRange.join("・")}）が、上記の分析期間に含まれていません。意図とずれている場合は期間を合わせてから送信してください。
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             <div className="max-h-[500px] min-h-[300px] space-y-4 overflow-y-auto rounded-2xl border border-neutral-800 bg-neutral-900/30 p-4">
               {aiMessages.length === 0 ? (
@@ -6524,6 +6614,21 @@ export default function AdminAnalyticsPage() {
             ) : null}
             {!isManilaSalesCity ? <div className={DIVIDER} /> : null}
 
+            {!isManilaSalesCity && salesSectionView === "all" ? (
+              <div className="mb-4">
+                <LowRatingsCard
+                  city="dubai"
+                  title="LOW RATINGS · DUBAI"
+                  approverName={approverName}
+                  pin={pin}
+                  stepUpReady={salesStepUpReady}
+                  active={analyticsTab === "dubaiSales"}
+                  defaultDateFrom={summaryDateFrom}
+                  defaultDateTo={summaryDateTo}
+                />
+              </div>
+            ) : null}
+
             {salesSectionView === "all" || salesSectionView === "brands" ? (
               <>
             {salesCity === "dubai" && brandOrderRanking.length ? (
@@ -6986,6 +7091,20 @@ export default function AdminAnalyticsPage() {
                     stepUpReady={salesStepUpReady}
                     active={analyticsTab === "manilaSales"}
                   />
+                ) : null}
+                {salesSectionView === "all" || salesSectionView === "manilaSales" ? (
+                  <div className="mt-4">
+                    <LowRatingsCard
+                      city="manila"
+                      title="LOW RATINGS · MANILA"
+                      approverName={approverName}
+                      pin={pin}
+                      stepUpReady={salesStepUpReady}
+                      active={analyticsTab === "manilaSales"}
+                      defaultDateFrom={summaryDateFrom}
+                      defaultDateTo={summaryDateTo}
+                    />
+                  </div>
                 ) : null}
                 {salesSectionView === "all" || salesSectionView === "dataCheck" ? (
                   <div id="sales-data-check">
@@ -8583,7 +8702,18 @@ export default function AdminAnalyticsPage() {
                 </div>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cur = currentCalendarMonthRangeThroughTodayIso();
+                    setSummaryDateFrom(cur.from);
+                    setSummaryDateTo(cur.to);
+                  }}
+                  className={SECONDARY_BUTTON + " text-sm"}
+                >
+                  今月（月初〜今日）
+                </button>
                 <button
                   type="button"
                   onClick={() => {
