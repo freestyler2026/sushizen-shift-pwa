@@ -76,7 +76,6 @@ import {
   BADGE_SUCCESS,
   BADGE_WARNING,
   BADGE_INFO,
-  DIVIDER,
 } from "@/lib/ui-tokens";
 import { cardVariants, staggerContainerVariants, tabContentTransition } from "@/lib/motion-tokens";
 import { Spinner } from "@/components/ui/Spinner";
@@ -6618,22 +6617,6 @@ export default function AdminAnalyticsPage() {
                 combined sales denominator.
               </p>
             ) : null}
-            {!isManilaSalesCity ? <div className={DIVIDER} /> : null}
-
-            {!isManilaSalesCity && salesSectionView === "all" ? (
-              <div className="mb-4">
-                <LowRatingsCard
-                  city="dubai"
-                  title="LOW RATINGS · DUBAI"
-                  approverName={approverName}
-                  pin={pin}
-                  stepUpReady={salesStepUpReady}
-                  active={analyticsTab === "dubaiSales"}
-                  defaultDateFrom={summaryDateFrom}
-                  defaultDateTo={summaryDateTo}
-                />
-              </div>
-            ) : null}
 
             {salesSectionView === "all" || salesSectionView === "brands" ? (
               <>
@@ -7098,21 +7081,6 @@ export default function AdminAnalyticsPage() {
                     active={analyticsTab === "manilaSales"}
                   />
                 ) : null}
-                {salesSectionView === "all" || salesSectionView === "manilaSales" ? (
-                  <div className="mt-4">
-                    <LowRatingsCard
-                      city="manila"
-                      title="LOW RATINGS · MANILA"
-                      approverName={approverName}
-                      pin={pin}
-                      stepUpReady={salesStepUpReady}
-                      active={analyticsTab === "manilaSales"}
-                      defaultDateFrom={summaryDateFrom}
-                      defaultDateTo={summaryDateTo}
-                      backToCardsTargetId={MANILA_DATASET_OVERVIEW_ID}
-                    />
-                  </div>
-                ) : null}
                 {salesSectionView === "all" || salesSectionView === "dataCheck" ? (
                   <div id="sales-data-check">
                     <SalesDataCheckTable
@@ -7136,6 +7104,32 @@ export default function AdminAnalyticsPage() {
                 ) : null}
               </>
             ) : null}
+
+            {/* Low ratings: visible on Manila/Dubai sales tabs for every sub-section (not gated by salesSectionView). */}
+            {isManilaSalesCity ? (
+              <LowRatingsCard
+                city="manila"
+                title="LOW RATINGS · MANILA"
+                approverName={approverName}
+                pin={pin}
+                stepUpReady={salesStepUpReady}
+                active={analyticsTab === "manilaSales"}
+                defaultDateFrom={summaryDateFrom}
+                defaultDateTo={summaryDateTo}
+                backToCardsTargetId={MANILA_DATASET_OVERVIEW_ID}
+              />
+            ) : (
+              <LowRatingsCard
+                city="dubai"
+                title="LOW RATINGS · DUBAI"
+                approverName={approverName}
+                pin={pin}
+                stepUpReady={salesStepUpReady}
+                active={analyticsTab === "dubaiSales"}
+                defaultDateFrom={summaryDateFrom}
+                defaultDateTo={summaryDateTo}
+              />
+            )}
           </div>
           ) : analyticsTab === "evaluation" ? (
           <div className="mt-8 space-y-4">

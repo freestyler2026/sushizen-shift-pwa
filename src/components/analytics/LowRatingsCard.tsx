@@ -183,8 +183,13 @@ export function LowRatingsCard({
       if (!res.ok) {
         throw new Error(parseApiErrorDetail(text) || text || "Failed to load");
       }
-      const data = JSON.parse(text) as ListResp;
-      setRows(data.rows || []);
+      let data: ListResp;
+      try {
+        data = JSON.parse(text) as ListResp;
+      } catch {
+        throw new Error("Invalid response from server");
+      }
+      setRows(Array.isArray(data.rows) ? data.rows : []);
       setTotal(Number(data.total || 0));
       const rc = data.rating_counts || {};
       setRatingCounts({
@@ -196,6 +201,7 @@ export function LowRatingsCard({
       setError(e instanceof Error ? e.message : "Failed to load");
       setRows([]);
       setTotal(0);
+      setRatingCounts({ "1": 0, "2": 0, "3": 0 });
     } finally {
       setLoading(false);
     }
@@ -276,6 +282,11 @@ export function LowRatingsCard({
         <p className={T_CAPTION}>
           Aggregator reviews rated 1–3. Filters apply to the list and the rating summary below.
         </p>
+        {!canLoad ? (
+          <p className={T_BODY + " rounded-lg border border-violet-500/20 bg-violet-500/10 px-3 py-2 text-sm text-violet-100"}>
+            Enter approver name and complete security verification above to load and add low ratings.
+          </p>
+        ) : null}
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <label className="block min-w-0">
