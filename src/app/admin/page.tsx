@@ -58,11 +58,12 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, ""
 type AdminDashView = "requests" | "lowRatings" | "orderEntry" | "ratingEntry";
 
 /** Spec: requests · low-ratings · order-entry · ratings-entry (rating-entry URL key = ratings-entry) */
+/** Ratings before Number of Orders so the new tab is less likely to sit off-screen (horizontal scroll). */
 const ADMIN_DASH_TABS = [
   { view: "requests" as const, label: "Requests", icon: "📋", tabQuery: null as string | null },
   { view: "lowRatings" as const, label: "Low Ratings", icon: "⚠️", tabQuery: "low-ratings" },
-  { view: "orderEntry" as const, label: "Number of Orders", icon: "📦", tabQuery: "order-entry" },
   { view: "ratingEntry" as const, label: "Ratings", icon: "⭐", tabQuery: "ratings-entry" },
+  { view: "orderEntry" as const, label: "Number of Orders", icon: "📦", tabQuery: "order-entry" },
 ] as const;
 
 function tabParamToDashView(tab: string | null): AdminDashView {
@@ -1110,7 +1111,7 @@ function AdminPageInner() {
       </div>
 
       <div className={`${TAB_CONTAINER} w-full max-w-full overflow-x-auto`} role="tablist" aria-label="Admin dashboard sections">
-        <div className="flex min-w-min flex-nowrap items-center gap-1">
+        <div className="flex min-w-min flex-wrap items-center gap-1">
           {ADMIN_DASH_TABS.map((tab) => (
             <button
               key={tab.view}
@@ -1131,10 +1132,10 @@ function AdminPageInner() {
 
       {dashView === "lowRatings" ? (
         <LowRatingsAdminPanel />
-      ) : dashView === "orderEntry" ? (
-        <OrderEntryTab />
       ) : dashView === "ratingEntry" ? (
         <RatingEntryTab />
+      ) : dashView === "orderEntry" ? (
+        <OrderEntryTab />
       ) : (
         <>
       <div className={`${GLASS_CARD} p-4`}>
