@@ -4214,9 +4214,9 @@ export default function AdminAnalyticsPage() {
     const asksManila = questionLower.includes("manila") || questionLower.includes("マニラ");
     const asksBoth = asksDubai && asksManila;
     const asksComparison = /比較|compare|vs|両|both/.test(questionLower);
-    // Manila branch codes — 地名ではなくブランチコードとして判定する
-    const asksManilaByBranch = /cubao|taft|paran[aã]que|paranaque|\bpar\b|\bck\b|central kitchen/i.test(trimmedQ);
-    // Dubai branch codes
+    // Manila branch names (store codes) — 都市名ではなくブランチ名で Manila と判定
+    const asksManilaByBranch = /cubao|taft|paran[aã]que|paranaque|\bpar\b|central kitchen ph/i.test(trimmedQ);
+    // Dubai branch names
     const asksDubaiByBranch = /al barsha|\balb\b|difc|\bjbr\b|jebel ali|\bjba\b|time square|\btsc\b/i.test(trimmedQ);
     const effectiveAsksManila = asksManila || asksManilaByBranch;
     const effectiveAsksDubai = asksDubai || asksDubaiByBranch;
@@ -4228,6 +4228,8 @@ export default function AdminAnalyticsPage() {
           : effectiveAsksManila && !effectiveAsksDubai
             ? ["manila"]
             : ["dubai", "manila"];
+    // 単一都市に絞った質問では UI の city ではなく取得対象と payload.city を一致させる（Cubao 等で Manila のみ取得時に dubai が送られないように）
+    const consultCity = targetCities.length === 1 ? targetCities[0] : city;
 
     const loadAiCityDataset = async (cityKey: AiCityKey) => {
       const missingSources: Array<{ source: string; reason: string }> = [];
@@ -4661,7 +4663,7 @@ export default function AdminAnalyticsPage() {
         pin: currentAuth?.pin || pin,
         question: trimmed,
         context_data: contextPayload,
-        city,
+        city: consultCity,
         language: "ja",
         history: aiMessages.slice(-10).map((m) => ({
           role: m.role,
