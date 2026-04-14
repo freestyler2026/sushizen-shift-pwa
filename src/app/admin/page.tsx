@@ -2,16 +2,15 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   ArrowLeftRight,
   BarChart3,
   Building2,
   CheckCheck,
-  ChevronRight,
   Clock,
   Download,
   Package,
@@ -26,6 +25,8 @@ import { BRANCHES, type City as BranchCity, type BranchCode } from "@/lib/branch
 import { canAccessAdminNav, canAccessInventoryWorkspace, canAccessRoleManagement, getAuth, getAuthHeaders, refreshAuthFromApi, type Auth } from "@/lib/auth";
 import DateRangePicker from "@/components/DateRangePicker";
 import MonthPicker from "@/components/MonthPicker";
+import OrderEntryTab from "@/components/admin/OrderEntryTab";
+import { LowRatingsAdminPanel } from "@/components/lowratings/LowRatingsAdminPanel";
 import {
   GLASS_CARD,
   STATUS_CARD,
@@ -45,6 +46,9 @@ import {
   KPI_CARD,
   KPI_LABEL,
   KPI_VALUE,
+  TAB_ACTIVE,
+  TAB_CONTAINER,
+  TAB_INACTIVE,
 } from "@/lib/ui-tokens";
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
@@ -212,6 +216,11 @@ type ExportConfirmResp = {
   headcount_url?: string;
   meta?: any;
 };
+type AttendanceDriveSyncResp = {
+  ok?: boolean;
+  duplicate?: boolean;
+  message?: string;
+};
 
 const BUCKET_ORDER: Array<keyof Overview["buckets"]> = [
   "red_open",
@@ -298,41 +307,191 @@ function bucketMeta(key: keyof Overview["buckets"]) {
 
 function RequestCard({
   item,
-  selected,
-  onSelect,
+  isExpanded,
+  onToggle,
+  role,
+  setRole,
+  pin,
+  setPin,
+  note,
+  setNote,
+  opLoading,
+  opMsg,
+  canUseHQRole,
+  onApprove,
+  onReject,
+  onNeedInfo,
+  onCounterpartyApprove,
+  onCounterpartyReject,
 }: {
   item: AdminItem;
-  selected: boolean;
-  onSelect: () => void;
+  isExpanded: boolean;
+  onToggle: () => void;
+  role: "MANAGER" | "HQ";
+  setRole: (next: "MANAGER" | "HQ") => void;
+  pin: string;
+  setPin: (next: string) => void;
+  note: string;
+  setNote: (next: string) => void;
+  opLoading: boolean;
+  opMsg: string;
+  canUseHQRole: boolean;
+  onApprove: () => void;
+  onReject: () => void;
+  onNeedInfo: () => void;
+  onCounterpartyApprove: () => void;
+  onCounterpartyReject: () => void;
 }) {
   const badge = urgencyBadge(item.urgency_status);
 
   return (
-    <div
-      className={`flex items-center justify-between rounded-xl border px-4 py-3 transition-all duration-150 ${
-        selected
-          ? "border-amber-400 bg-amber-500/10 ring-1 ring-amber-400/20"
-          : "border-white/8 bg-white/4 hover:bg-white/8"
-      }`}
-    >
-      <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-white">
-          {item.staff_name} / <span className="text-zinc-400">{item.request_type}</span>
-        </p>
-        <p className={T_CAPTION}>
-          {item.work_date} · M:{item.manager_status} · HQ:{item.hq_status}
-        </p>
-      </div>
-      <div className="ml-3 flex items-center gap-2">
-        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${badge.cls}`}>
-          {badge.label}
-        </span>
-        <button type="button" className={SMALL_BUTTON} onClick={onSelect} aria-label={`Open ${item.id}`}>
-          <ChevronRight className="h-3.5 w-3.5" />
-        </button>
-      </div>
+    <div>
+      <button
+        className={[
+          "w-full rounded-xl border px-3 py-2 text-left text-sm transition",
+          isExpanded
+            ? "rounded-b-none border-amber-500 bg-amber-950/20 text-amber-100"
+            : "border-neutral-800 bg-neutral-950/30 text-neutral-200 hover:bg-neutral-900/40",
+        ].join(" ")}
+        onClick={onToggle}
+        type="button"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="font-medium truncate">{item.staff_name} / {item.request_type}</div>
+            <div className="mt-1 text-xs text-neutral-500">
+              {item.work_date} • M:{item.manager_status} • HQ:{item.hq_status}
+            </div>
+            {item.counterparty_name ? <div className="text-xs text-neutral-500">↔ {item.counterparty_name}</div> : null}
+            {item.reason ? <div className="text-xs text-neutral-400 truncate italic">{item.reason}</div> : null}
+          </div>
+          <span className={`shrink-0 rounded-lg border px-2 py-1 text-[11px] ${badge.cls}`}>{badge.label}</span>
+        </div>
+      </button>
+
+      {isExpanded ? (
+        <div className="space-y-3 rounded-b-xl border border-t-0 border-amber-500/60 bg-neutral-900/60 px-3 py-3">
+          <div className="space-y-0.5 text-xs text-neutral-500">
+            <div>
+              ID: <span className="font-mono text-neutral-400">{item.id.slice(0, 8)}...</span>
+            </div>
+            {item.days_before != null ? (
+              <div>
+                Days before: <span className="text-neutral-300">{item.days_before}</span>
+              </div>
+            ) : null}
+            {item.counterparty_status ? (
+              <div>
+                Counterparty status: <span className="text-neutral-300">{item.counterparty_status}</span>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <div className="mb-1 text-[10px] text-neutral-500">Role</div>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value as "MANAGER" | "HQ")}
+                className="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs"
+              >
+                <option value="MANAGER">MANAGER</option>
+                <option value="HQ" disabled={!canUseHQRole}>
+                  HQ
+                </option>
+              </select>
+            </div>
+            <div>
+              <div className="mb-1 text-[10px] text-neutral-500">PIN</div>
+              <input
+                type="password"
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                placeholder="PIN"
+                className="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs"
+              />
+            </div>
+            <div>
+              <div className="mb-1 text-[10px] text-neutral-500">Note</div>
+              <input
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder="OK"
+                className="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={opLoading || !pin.trim()}
+              onClick={onApprove}
+              className="rounded-lg border border-emerald-600/60 bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-200 hover:bg-emerald-950/50 disabled:opacity-50"
+            >
+              {opLoading ? "..." : "✅ APPROVE"}
+            </button>
+            <button
+              type="button"
+              disabled={opLoading || !pin.trim()}
+              onClick={onReject}
+              className="rounded-lg border border-rose-600/60 bg-rose-950/30 px-3 py-1.5 text-xs text-rose-200 hover:bg-rose-950/50 disabled:opacity-50"
+            >
+              {opLoading ? "..." : "❌ REJECT"}
+            </button>
+            <button
+              type="button"
+              disabled={opLoading || !pin.trim()}
+              onClick={onNeedInfo}
+              className="rounded-lg border border-amber-600/60 bg-amber-950/30 px-3 py-1.5 text-xs text-amber-200 hover:bg-amber-950/50 disabled:opacity-50"
+            >
+              ℹ️ NEED_INFO
+            </button>
+            {item.request_type === "swap" ? (
+              <>
+                <button
+                  type="button"
+                  disabled={opLoading || !pin.trim()}
+                  onClick={onCounterpartyApprove}
+                  className="rounded-lg border border-sky-600/60 bg-sky-950/30 px-3 py-1.5 text-xs text-sky-200 hover:bg-sky-950/50 disabled:opacity-50"
+                >
+                  👥 CP APPROVE
+                </button>
+                <button
+                  type="button"
+                  disabled={opLoading || !pin.trim()}
+                  onClick={onCounterpartyReject}
+                  className="rounded-lg border border-neutral-600/60 bg-neutral-950/30 px-3 py-1.5 text-xs text-neutral-400 hover:bg-neutral-900/40 disabled:opacity-50"
+                >
+                  👥 CP REJECT
+                </button>
+              </>
+            ) : null}
+          </div>
+
+          {opMsg ? (
+            <div className={`text-xs ${opMsg.startsWith("✅") ? "text-emerald-300" : "text-rose-300"}`}>{opMsg}</div>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function hydrateApproverFromAuth(
+  currentApproverName: string,
+  currentPin: string,
+  setApproverName: (value: string) => void,
+  setPin: (value: string) => void,
+) {
+  const auth = getAuth();
+  if (!auth) return;
+  if (!currentApproverName.trim() && auth.staffName) {
+    setApproverName(auth.staffName);
+  }
+  if (!currentPin.trim() && auth.pin) {
+    setPin(auth.pin);
+  }
 }
 
 function isHQOrAdmin(role: string) {
@@ -340,12 +499,27 @@ function isHQOrAdmin(role: string) {
   return r === "HQ" || r === "ADMIN";
 }
 
+function needsManagerDecision(item: AdminItem | null) {
+  if (!item) return false;
+  return String(item.manager_status || "").toUpperCase() !== "APPROVED";
+}
+
 // --------------------
 // component
 // --------------------
 export default function AdminPage() {
+  return (
+    <Suspense fallback={<div className="text-sm text-neutral-500">Loading admin dashboard...</div>}>
+      <AdminPageInner />
+    </Suspense>
+  );
+}
+
+function AdminPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const initialAuth = useMemo(() => getAuth(), []);
+  const [dashView, setDashView] = useState<"requests" | "lowRatings" | "orderEntry">("requests");
   const [sessionAuth, setSessionAuth] = useState<Auth | null>(initialAuth);
   const auth = sessionAuth || initialAuth;
   const [ready, setReady] = useState(false);
@@ -362,12 +536,13 @@ export default function AdminPage() {
   const [selected, setSelected] = useState<AdminItem | null>(null);
 
   const [role, setRole] = useState<"MANAGER" | "HQ">("MANAGER");
-  const [action, setAction] = useState<"APPROVE" | "REJECT" | "NEED_INFO">("APPROVE");
   const [note, setNote] = useState("OK");
   const [approverName, setApproverName] = useState(initialAuth?.staffName || "");
   const [pin, setPin] = useState(initialAuth?.pin || "");
   const [opMsg, setOpMsg] = useState("");
   const [opLoading, setOpLoading] = useState(false);
+  const [attendanceSyncing, setAttendanceSyncing] = useState(false);
+  const [attendanceSyncMessage, setAttendanceSyncMessage] = useState("");
 
   // ---- HQ Export state ----
   const [myRole, setMyRole] = useState<
@@ -530,11 +705,28 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!ready || !allowed) return;
+    const tab = searchParams.get("tab");
+    if (tab === "low-ratings") setDashView("lowRatings");
+    else if (tab === "order-entry") setDashView("orderEntry");
+    else setDashView("requests");
+  }, [ready, allowed, searchParams]);
+
+  useEffect(() => {
+    if (!ready || !allowed || dashView !== "requests") return;
+    const t = searchParams.get("tab");
+    if (t === "low-ratings" || t === "order-entry") return;
     setSelected(null);
     setSearch("");
     void fetchLatest();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allowed, city, ready, sessionAuth?.accessToken]);
+  }, [allowed, city, ready, sessionAuth?.accessToken, dashView, searchParams]);
+
+  const setDashTab = (next: "requests" | "lowRatings" | "orderEntry") => {
+    setDashView(next);
+    if (next === "lowRatings") router.replace("/admin?tab=low-ratings", { scroll: false });
+    else if (next === "orderEntry") router.replace("/admin?tab=order-entry", { scroll: false });
+    else router.replace("/admin", { scroll: false });
+  };
 
   useEffect(() => {
     const run = async () => {
@@ -556,14 +748,20 @@ export default function AdminPage() {
   }, [approverName, pin]);
 
   useEffect(() => {
-    if (isHQOrAdmin(myRole) && role !== "HQ") {
-      setRole("HQ");
-      return;
-    }
     if (!isHQOrAdmin(myRole) && role !== "MANAGER") {
       setRole("MANAGER");
     }
   }, [myRole, role]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const nextRole: "MANAGER" | "HQ" = needsManagerDecision(selected) ? "MANAGER" : "HQ";
+    if (nextRole === "HQ" && !isHQOrAdmin(myRole)) {
+      setRole("MANAGER");
+      return;
+    }
+    setRole(nextRole);
+  }, [selected, myRole]);
 
   useEffect(() => {
     const first = BRANCHES[exportCity][0]?.code;
@@ -572,9 +770,8 @@ export default function AdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exportCity]);
 
-  const runIntentAndConfirm = async () => {
-    if (!selected) return;
-    if (!window.confirm(`Are you sure you want to ${String(action || "").toLowerCase().replace("_", " ")} this request?`)) return;
+  const runIntentAndConfirm = async (item: AdminItem, targetAction: "APPROVE" | "REJECT" | "NEED_INFO") => {
+    if (!window.confirm(`Are you sure you want to ${String(targetAction || "").toLowerCase().replace("_", " ")} this request?`)) return;
 
     setOpLoading(true);
     setOpMsg("");
@@ -589,13 +786,16 @@ export default function AdminPage() {
         localStorage.setItem("sushizen_admin_name", nm);
       } catch {}
 
-      const confirmRole: "MANAGER" | "HQ" = isHQOrAdmin(myRole) ? "HQ" : "MANAGER";
+      const confirmRole: "MANAGER" | "HQ" = role;
+      if (confirmRole === "HQ" && !isHQOrAdmin(myRole)) {
+        throw new Error("HQ approval requires HQ or ADMIN role.");
+      }
 
       await apiPost(
         `/api/shift_change/intent${qs({
-          req_id: selected.id,
+          req_id: item.id,
           role: confirmRole,
-          action,
+          action: targetAction,
         })}`
       );
 
@@ -603,8 +803,8 @@ export default function AdminPage() {
 
       await apiPost(
         `${confirmPath}${qs({
-          req_id: selected.id,
-          action: action === "APPROVE" ? "APPROVED" : action === "REJECT" ? "REJECTED" : "NEED_INFO",
+          req_id: item.id,
+          action: targetAction === "APPROVE" ? "APPROVED" : targetAction === "REJECT" ? "REJECTED" : "NEED_INFO",
           note,
           approver_name: nm,
           pin: p,
@@ -622,22 +822,21 @@ export default function AdminPage() {
     }
   };
 
-  const runCounterparty = async (cpAction: "APPROVED" | "REJECTED") => {
-    if (!selected) return;
+  const runCounterparty = async (item: AdminItem, cpAction: "APPROVED" | "REJECTED") => {
     if (!window.confirm(`Are you sure you want to mark the counterparty as ${cpAction.toLowerCase()}?`)) return;
 
     setOpLoading(true);
     setOpMsg("");
 
     try {
-      const cp = (selected.counterparty_name || "").trim();
+      const cp = (item.counterparty_name || "").trim();
       if (!cp) throw new Error("counterparty_name missing");
       const p = pin.trim();
       if (!p) throw new Error("PIN required (counterparty)");
 
       await apiPost(
         `/api/shift_change/counterparty/respond${qs({
-          req_id: selected.id,
+          req_id: item.id,
           staff_name: cp,
           approver_name: approverName.trim(),
           action: cpAction,
@@ -724,6 +923,46 @@ export default function AdminPage() {
     }
   };
 
+  const normalizeAttendanceSyncMessage = (raw: string, fallback: string) => {
+    const text = String(raw || "").trim();
+    const lower = text.toLowerCase();
+    if (!text) return fallback;
+    if (lower.includes("invalid pin")) return "PINが正しくありません。";
+    if (lower.includes("forbidden") || lower.includes("permission")) return "同期権限がありません（HQ/ADMIN のPIN確認が必要です）。";
+    if (lower.includes("attendance drive source not found")) return "同期元設定が見つかりません。";
+    if (lower.includes("no attendance files found")) return "Driveフォルダに対象ファイルがありません。";
+    if (lower.includes("already imported") || lower.includes("duplicate")) return "最新ファイルは既に取り込み済みです。";
+    return text;
+  };
+
+  const syncAttendanceNow = async () => {
+    if (!approverName.trim() || !pin.trim()) {
+      setAttendanceSyncMessage("同期には approver name と PIN が必要です。");
+      return;
+    }
+    setAttendanceSyncing(true);
+    setAttendanceSyncMessage("");
+    try {
+      const res = await apiPost<AttendanceDriveSyncResp>("/api/admin/attendance/drive/sync", {
+        approver_name: approverName.trim(),
+        pin: pin.trim(),
+        city_hint: city,
+      });
+      const rawMsg = String(res?.message || "").trim();
+      if (res?.duplicate) {
+        setAttendanceSyncMessage("最新ファイルは既に取り込み済みです。");
+      } else if (rawMsg) {
+        setAttendanceSyncMessage(normalizeAttendanceSyncMessage(rawMsg, "Bayzat同期が完了しました。"));
+      } else {
+        setAttendanceSyncMessage("Bayzat同期が完了しました。");
+      }
+    } catch (e: any) {
+      setAttendanceSyncMessage(normalizeAttendanceSyncMessage(String(e?.message || e || ""), "Bayzat同期に失敗しました。"));
+    } finally {
+      setAttendanceSyncing(false);
+    }
+  };
+
   const rangeLabel = useMemo(() => {
     if (!data) return "";
     return `${data.start_date} → ${data.end_date}`;
@@ -774,19 +1013,6 @@ export default function AdminPage() {
   }, [data, selected?.id]);
 
   const showExport = useMemo(() => isHQOrAdmin(myRole), [myRole]);
-  const decisionRoleLabel = isHQOrAdmin(myRole) ? "HQ" : "Manager";
-  const primaryActionLabel =
-    action === "APPROVE"
-      ? `Approve Request as ${decisionRoleLabel}`
-      : action === "REJECT"
-        ? `Reject Request as ${decisionRoleLabel}`
-        : `Send Back for More Info as ${decisionRoleLabel}`;
-  const primaryActionButtonClass =
-    action === "APPROVE"
-      ? "border-emerald-700 bg-emerald-950/40 hover:bg-emerald-900/40"
-      : action === "REJECT"
-        ? "border-rose-700 bg-rose-950/40 hover:bg-rose-900/40"
-        : "border-amber-700 bg-amber-950/40 hover:bg-amber-900/40";
   const bucketMap = useMemo(
     () => new Map<string, AdminItem[]>(bucketsOrdered.map(([key, items]) => [key, items])),
     [bucketsOrdered]
@@ -802,6 +1028,15 @@ export default function AdminPage() {
     }),
     [startDate]
   );
+  const toggleSelectedRequest = (item: AdminItem) => {
+    const isSame = selected?.id === item.id;
+    if (isSame) {
+      setSelected(null);
+      return;
+    }
+    hydrateApproverFromAuth(approverName, pin, setApproverName, setPin);
+    setSelected(item);
+  };
 
   return (
     !ready ? (
@@ -855,6 +1090,36 @@ export default function AdminPage() {
         </div>
       </div>
 
+      <div className={TAB_CONTAINER}>
+        <button
+          type="button"
+          className={dashView === "requests" ? TAB_ACTIVE : TAB_INACTIVE}
+          onClick={() => setDashTab("requests")}
+        >
+          Requests
+        </button>
+        <button
+          type="button"
+          className={dashView === "lowRatings" ? TAB_ACTIVE : TAB_INACTIVE}
+          onClick={() => setDashTab("lowRatings")}
+        >
+          Low Ratings
+        </button>
+        <button
+          type="button"
+          className={dashView === "orderEntry" ? TAB_ACTIVE : TAB_INACTIVE}
+          onClick={() => setDashTab("orderEntry")}
+        >
+          Number of Orders
+        </button>
+      </div>
+
+      {dashView === "lowRatings" ? (
+        <LowRatingsAdminPanel />
+      ) : dashView === "orderEntry" ? (
+        <OrderEntryTab approverName={approverName} pin={pin} />
+      ) : (
+        <>
       <div className={`${GLASS_CARD} p-4`}>
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[140px]">
@@ -894,10 +1159,20 @@ export default function AdminPage() {
             <button className={PRIMARY_BUTTON} onClick={fetchLatest} disabled={loading} type="button">
               Latest Week
             </button>
+            <button
+              className={SECONDARY_BUTTON}
+              onClick={syncAttendanceNow}
+              disabled={attendanceSyncing || !approverName.trim() || !pin.trim()}
+              type="button"
+              title={!pin.trim() ? "PIN required" : "Sync latest Bayzat attendance data"}
+            >
+              <RefreshCw className="mr-1.5 h-4 w-4" />
+              {attendanceSyncing ? "Syncing..." : "Sync Latest Bayzat"}
+            </button>
           </div>
         </div>
 
-        {(search.trim() || loading) ? (
+        {(search.trim() || loading || attendanceSyncMessage) ? (
           <div className="mt-3 flex flex-wrap items-center gap-3">
             {search.trim() ? (
               <span className={T_CAPTION}>
@@ -906,6 +1181,7 @@ export default function AdminPage() {
               </span>
             ) : null}
             {loading ? <span className={BADGE_INFO}>Loading...</span> : null}
+            {attendanceSyncMessage ? <span className={BADGE_INFO}>{attendanceSyncMessage}</span> : null}
           </div>
         ) : null}
 
@@ -1147,8 +1423,22 @@ export default function AdminPage() {
                           <RequestCard
                             key={item.id}
                             item={item}
-                            selected={selected?.id === item.id}
-                            onSelect={() => setSelected(item)}
+                            isExpanded={selected?.id === item.id}
+                            onToggle={() => toggleSelectedRequest(item)}
+                            role={role}
+                            setRole={setRole}
+                            pin={pin}
+                            setPin={setPin}
+                            note={note}
+                            setNote={setNote}
+                            opLoading={opLoading}
+                            opMsg={selected?.id === item.id ? opMsg : ""}
+                            canUseHQRole={isHQOrAdmin(myRole)}
+                            onApprove={() => void runIntentAndConfirm(item, "APPROVE")}
+                            onReject={() => void runIntentAndConfirm(item, "REJECT")}
+                            onNeedInfo={() => void runIntentAndConfirm(item, "NEED_INFO")}
+                            onCounterpartyApprove={() => void runCounterparty(item, "APPROVED")}
+                            onCounterpartyReject={() => void runCounterparty(item, "REJECTED")}
                           />
                         ))}
                       </div>
@@ -1162,102 +1452,9 @@ export default function AdminPage() {
       ) : (
         <div className="text-sm text-neutral-500">No data.</div>
       )}
+        </>
+      )}
 
-      {selected ? (
-        <div className={`${GLASS_CARD} p-5`}>
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h2 className={T_SECTION}>Selected Request</h2>
-              <p className={T_CAPTION}>
-                {selected.staff_name} / {selected.request_type} / {selected.work_date}
-              </p>
-            </div>
-            <span className={BADGE_INFO}>{selected.id}</span>
-          </div>
-
-          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div>
-              <label className={`${T_LABEL} mb-1.5 block`}>Role</label>
-              <select value={role} onChange={(e) => setRole(e.target.value as any)} className={SELECT_CLASS}>
-                {!isHQOrAdmin(myRole) ? <option value="MANAGER">MANAGER</option> : null}
-                <option value="HQ" disabled={!isHQOrAdmin(myRole)}>
-                  HQ
-                </option>
-              </select>
-            </div>
-
-            <div>
-              <label className={`${T_LABEL} mb-1.5 block`}>Action</label>
-              <select value={action} onChange={(e) => setAction(e.target.value as any)} className={SELECT_CLASS}>
-                <option value="APPROVE">APPROVE</option>
-                <option value="REJECT">REJECT</option>
-                <option value="NEED_INFO">NEED_INFO</option>
-              </select>
-            </div>
-
-            <div>
-              <label className={`${T_LABEL} mb-1.5 block`}>PIN</label>
-              <input placeholder="PIN" type="password" value={pin} onChange={(e) => setPin(e.target.value)} className={INPUT_CLASS} />
-            </div>
-          </div>
-
-          <div className="mb-4">
-            <label className={`${T_LABEL} mb-1.5 block`}>Note</label>
-            <input placeholder="Note" value={note} onChange={(e) => setNote(e.target.value)} className={INPUT_CLASS} />
-          </div>
-
-          <div className="mb-4">
-            <label className={`${T_LABEL} mb-1.5 block`}>Approver Name</label>
-            <input placeholder="Approver Name" value={approverName} onChange={(e) => setApproverName(e.target.value)} className={INPUT_CLASS} />
-          </div>
-
-          <div className="space-y-3">
-            <div className={`${STATUS_CARD} p-4`}>
-              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Primary Decision</div>
-              <div className="mb-3 text-xs text-neutral-500">
-                This button uses the selected action above and applies the main decision to this request.
-              </div>
-              <button
-                onClick={runIntentAndConfirm}
-                className={`rounded-xl border px-4 py-2 text-sm text-white disabled:opacity-60 ${primaryActionButtonClass}`}
-                disabled={opLoading}
-                type="button"
-              >
-                {opLoading ? "Processing..." : primaryActionLabel}
-              </button>
-            </div>
-
-            {selected.request_type === "swap" ? (
-              <div className={`${STATUS_CARD} p-4`}>
-                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Swap Counterparty Response</div>
-                <div className="mb-3 text-xs text-neutral-500">
-                  Use these only to record the other staff member&apos;s reply to the swap request.
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => runCounterparty("APPROVED")}
-                    className="rounded-xl border border-sky-700 bg-sky-950/30 px-4 py-2 text-sm text-white hover:bg-sky-900/30 disabled:opacity-60"
-                    disabled={opLoading}
-                    type="button"
-                  >
-                    Record Counterparty Approval
-                  </button>
-                  <button
-                    onClick={() => runCounterparty("REJECTED")}
-                    className="rounded-xl border border-rose-700 bg-rose-950/30 px-4 py-2 text-sm text-white hover:bg-rose-900/30 disabled:opacity-60"
-                    disabled={opLoading}
-                    type="button"
-                  >
-                    Record Counterparty Rejection
-                  </button>
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          {opMsg ? <div className="mt-3 whitespace-pre-wrap text-sm text-neutral-200">{opMsg}</div> : null}
-        </div>
-      ) : null}
     </motion.div>
     )
   );
