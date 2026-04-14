@@ -1683,30 +1683,32 @@ function ymdLocal(d: Date): string {
  * 見つからない場合は先月（直近の完結した月）を返す。
  */
 function detectPeriodFromQuestion(question: string): { dateFrom: string; dateTo: string; detected: boolean } {
+  const q = question.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xff10 + 0x30));
+
   const now = new Date();
   const currentYear = now.getFullYear();
 
-  if (/先々月|さ先月|2\s*months?\s*ago/i.test(question)) {
+  if (/先々月|さ先月|2\s*months?\s*ago/i.test(q)) {
     const d = new Date(now.getFullYear(), now.getMonth() - 2, 1);
     const from = ymdLocal(new Date(d.getFullYear(), d.getMonth(), 1));
     const to = ymdLocal(new Date(d.getFullYear(), d.getMonth() + 1, 0));
     return { dateFrom: from, dateTo: to, detected: true };
   }
 
-  if (/先月|last\s*month/i.test(question)) {
+  if (/先月|last\s*month/i.test(q)) {
     const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const from = ymdLocal(new Date(d.getFullYear(), d.getMonth(), 1));
     const to = ymdLocal(new Date(d.getFullYear(), d.getMonth() + 1, 0));
     return { dateFrom: from, dateTo: to, detected: true };
   }
 
-  if (/今月|this\s*month/i.test(question)) {
+  if (/今月|this\s*month/i.test(q)) {
     const from = ymdLocal(new Date(now.getFullYear(), now.getMonth(), 1));
     const to = ymdLocal(now);
     return { dateFrom: from, dateTo: to, detected: true };
   }
 
-  const yearMonthMatch = question.match(/(\d{4})[年\-/](\d{1,2})月?/);
+  const yearMonthMatch = q.match(/(\d{4})[年\-/](\d{1,2})月?/);
   if (yearMonthMatch) {
     const y = parseInt(yearMonthMatch[1], 10);
     const mo = parseInt(yearMonthMatch[2], 10) - 1;
@@ -1731,7 +1733,7 @@ function detectPeriodFromQuestion(question: string): { dateFrom: string; dateTo:
     "november",
     "december",
   ];
-  const monthJaMatch = question.match(/(\d{1,2})月/);
+  const monthJaMatch = q.match(/(\d{1,2})月/);
   if (monthJaMatch) {
     const mo = parseInt(monthJaMatch[1], 10) - 1;
     if (mo >= 0 && mo <= 11) {
@@ -1741,7 +1743,7 @@ function detectPeriodFromQuestion(question: string): { dateFrom: string; dateTo:
       return { dateFrom: from, dateTo: to, detected: true };
     }
   }
-  const monthEnMatch = question.toLowerCase().match(new RegExp(`(${MONTH_NAMES_EN.join("|")})`, "i"));
+  const monthEnMatch = q.toLowerCase().match(new RegExp(`(${MONTH_NAMES_EN.join("|")})`, "i"));
   if (monthEnMatch) {
     const mo = MONTH_NAMES_EN.indexOf(monthEnMatch[1].toLowerCase());
     if (mo >= 0) {
