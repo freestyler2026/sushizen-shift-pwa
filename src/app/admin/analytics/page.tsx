@@ -84,6 +84,7 @@ import { FlashValue } from "@/components/ui/FlashValue";
 import AggregatorRatingsTab from "@/components/analytics/dubai/AggregatorRatingsTab";
 import { ManilaRatingsTab } from "@/components/analytics/ManilaRatingsTab";
 import NumberOfOrdersTab from "@/components/analytics/dubai/NumberOfOrdersTab";
+import { ManilaOrderCountsTab } from "@/components/analytics/ManilaOrderCountsTab";
 
 // Resolve API base at runtime so local dev always talks to FastAPI directly,
 // even when the page is opened via a LAN IP or a custom local hostname.
@@ -7213,16 +7214,13 @@ export default function AdminAnalyticsPage() {
                   </div>
                 ) : null}
                 {salesSectionView === "all" || salesSectionView === "orderCounts" ? (
-                  <div
-                    id="sales-order-counts"
-                    className="rounded-2xl border border-neutral-800 bg-neutral-900/20 px-6 py-12 text-center"
-                  >
-                    <p className="text-lg font-semibold text-neutral-200">Manila order count data</p>
-                    <p className="mt-2 text-sm text-neutral-500">
-                      Coming soon — manual entry or CSV import from StoreHub POS data.
-                    </p>
-                    <p className="mt-3 text-xs text-neutral-600">Dubai-only data is available under Dubai Sales → Number of Orders.</p>
-                  </div>
+                  <ManilaOrderCountsTab
+                    dateFrom={summaryDateFrom}
+                    dateTo={summaryDateTo}
+                    approverName={approverName}
+                    pin={pin}
+                    stepUpReady={salesStepUpReady}
+                  />
                 ) : null}
                 {salesSectionView === "all" || salesSectionView === "manilaLowRatings" ? (
                   <ManilaRatingsTab
