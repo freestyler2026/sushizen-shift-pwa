@@ -170,7 +170,7 @@ export function ManilaOrderCountsTab({
           <p className="text-sm text-rose-400">{error}</p>
         ) : !sortedItems.length ? (
           <p className={T_BODY}>
-            No order count rows for this range. Run Manila sales sync or widen the date range.
+            期間内にデータがありません（同期未実施の可能性があります）。Manila sales の同期を実行するか、日付範囲を広げてください。
           </p>
         ) : (
           <>
