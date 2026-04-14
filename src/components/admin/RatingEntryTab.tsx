@@ -6,7 +6,8 @@ import { useCallback, useEffect, useState } from "react";
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { GLASS_CARD, INPUT_CLASS, T_CAPTION, T_LABEL } from "@/lib/ui-tokens";
 
-export const RATING_GRID_CONFIG = {
+// ── Dubai ──────────────────────────────────────────────────────────────────
+export const DUBAI_RATING_GRID_CONFIG = {
   "Sushi Zen": {
     aggregators: ["Careem", "NOON", "Talabat", "Deliveroo"],
     branches: ["Business Bay", "JLT", "Arjan", "Al Hudaiba", "Al Barsha"],
@@ -29,8 +30,26 @@ export const RATING_GRID_CONFIG = {
   },
 } as const;
 
-export type RatingBrand = keyof typeof RATING_GRID_CONFIG;
-export const RATING_ENTRY_BRANDS = Object.keys(RATING_GRID_CONFIG) as RatingBrand[];
+// ── Manila ──────────────────────────────────────────────────────────────────
+export const MANILA_RATING_GRID_CONFIG = {
+  "Sushi ZEN": {
+    aggregators: ["FoodPanda", "GrabFood"],
+    branches: ["CK", "Taft", "Paranaque"],
+    note: "",
+  },
+} as const;
+
+/** Dubai default (backward compatible) */
+export const RATING_GRID_CONFIG = DUBAI_RATING_GRID_CONFIG;
+
+export type RatingBrand = string;
+export const RATING_ENTRY_BRANDS = Object.keys(DUBAI_RATING_GRID_CONFIG) as string[];
+
+export type RatingBrandGridConfig = {
+  readonly aggregators: readonly string[];
+  readonly branches: readonly string[];
+  readonly note: string;
+};
 
 export type CellKey = string;
 
@@ -86,26 +105,54 @@ function scoreBgClass(score: number | null | undefined): string {
   return "bg-red-500/10";
 }
 
-const BRAND_COLOR: Record<RatingBrand, string> = {
+const BRAND_COLOR: Record<string, string> = {
   "Sushi Zen": "border-indigo-500/40 bg-indigo-500/5",
+  "Sushi ZEN": "border-indigo-500/40 bg-indigo-500/5",
   "Ramen Zen": "border-orange-500/40 bg-orange-500/5",
   "All Veggie Sushi": "border-green-500/40 bg-green-500/5",
   "J-Deli": "border-purple-500/40 bg-purple-500/5",
 };
 
-const BRAND_DOT_COLOR: Record<RatingBrand, string> = {
+const BRAND_DOT_COLOR: Record<string, string> = {
   "Sushi Zen": "#6366f1",
+  "Sushi ZEN": "#6366f1",
   "Ramen Zen": "#f97316",
   "All Veggie Sushi": "#22c55e",
   "J-Deli": "#a855f7",
 };
 
-const BRAND_TEXT_COLOR: Record<RatingBrand, string> = {
+const BRAND_TEXT_COLOR: Record<string, string> = {
   "Sushi Zen": "text-indigo-400",
+  "Sushi ZEN": "text-indigo-400",
   "Ramen Zen": "text-orange-400",
   "All Veggie Sushi": "text-green-400",
   "J-Deli": "text-purple-400",
 };
+
+function brandBorderClass(brand: string) {
+  return BRAND_COLOR[brand] ?? BRAND_COLOR["Sushi Zen"]!;
+}
+function brandDotColor(brand: string) {
+  return BRAND_DOT_COLOR[brand] ?? BRAND_DOT_COLOR["Sushi Zen"]!;
+}
+function brandTextClass(brand: string) {
+  return BRAND_TEXT_COLOR[brand] ?? BRAND_TEXT_COLOR["Sushi Zen"]!;
+}
+
+function getCityConfig(city: string): Record<string, RatingBrandGridConfig> {
+  if (city === "manila") return MANILA_RATING_GRID_CONFIG as unknown as Record<string, RatingBrandGridConfig>;
+  return DUBAI_RATING_GRID_CONFIG as unknown as Record<string, RatingBrandGridConfig>;
+}
+
+function getCityBrandOrder(city: string): string[] {
+  if (city === "manila") return Object.keys(MANILA_RATING_GRID_CONFIG);
+  return ["Sushi Zen", "Ramen Zen", "All Veggie Sushi", "J-Deli"];
+}
+
+function getCityApiBase(city: string): string {
+  if (city === "manila") return "/api/admin/analytics/manila/aggregator-ratings";
+  return "/api/admin/analytics/dubai/aggregator-ratings";
+}
 
 function getApiBase() {
   if (process.env.NODE_ENV !== "production") return "http://127.0.0.1:8000";
@@ -181,7 +228,15 @@ function branchShortLabel(branch: string) {
   return branch;
 }
 
-function RatingEntryTab() {
+function RatingEntryTab({ city = "dubai" }: { city?: string }) {
+  const cityKey = city === "manila" ? "manila" : "dubai";
+  const cityLabel = cityKey === "manila" ? "Manila" : "Dubai";
+  const salesLabel = cityKey === "manila" ? "Manila" : "Dubai";
+
+  const brandOrder = getCityBrandOrder(cityKey);
+  const cityGrid = getCityConfig(cityKey);
+  const apiBasePath = getCityApiBase(cityKey);
+
   const [approverName, setApproverName] = useState("");
   const [pin, setPin] = useState("");
   const todayStr = todayLocalYmd();
@@ -189,9 +244,9 @@ function RatingEntryTab() {
   const [gridData, setGridData] = useState<RatingGridData>({});
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
-  const [saving, setSaving] = useState<Partial<Record<RatingBrand, boolean>>>({});
-  const [saved, setSaved] = useState<Partial<Record<RatingBrand, boolean>>>({});
-  const [dirty, setDirty] = useState<Partial<Record<RatingBrand, boolean>>>({});
+  const [saving, setSaving] = useState<Partial<Record<string, boolean>>>({});
+  const [saved, setSaved] = useState<Partial<Record<string, boolean>>>({});
+  const [dirty, setDirty] = useState<Partial<Record<string, boolean>>>({});
   const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
@@ -221,7 +276,7 @@ function RatingEntryTab() {
         });
         const json = await apiGet<{
           rows?: Array<{ brand: string; aggregator: string; branch: string; rating_score: number | null; review_count?: string }>;
-        }>(`/api/admin/analytics/dubai/aggregator-ratings/by-date?${qs}`);
+        }>(`${apiBasePath}/by-date?${qs}`);
         const next: RatingGridData = {};
         for (const row of json.rows || []) {
           const k = ratingCellKey(row.brand, row.aggregator, row.branch);
@@ -239,7 +294,7 @@ function RatingEntryTab() {
         setLoading(false);
       }
     },
-    [approverName, pin],
+    [approverName, pin, apiBasePath],
   );
 
   useEffect(() => {
@@ -263,7 +318,11 @@ function RatingEntryTab() {
     }
     setSaving((prev) => ({ ...prev, [brand]: true }));
     setSaveError("");
-    const cfg = RATING_GRID_CONFIG[brand];
+    const cfg = cityGrid[brand];
+    if (!cfg) {
+      setSaving((prev) => ({ ...prev, [brand]: false }));
+      return;
+    }
     const rows = cfg.aggregators.flatMap((agg) =>
       cfg.branches.map((branch) => {
         const cell = gridData[ratingCellKey(brand, agg, branch)] ?? { score: null, count: "" };
@@ -276,7 +335,7 @@ function RatingEntryTab() {
       }),
     );
     try {
-      await apiPostJson("/api/admin/analytics/dubai/aggregator-ratings/save-day", {
+      await apiPostJson(`${apiBasePath}/save-day`, {
         record_date: selectedDate,
         brand,
         rows,
@@ -293,7 +352,7 @@ function RatingEntryTab() {
   };
 
   const saveAll = async () => {
-    for (const b of RATING_ENTRY_BRANDS) {
+    for (const b of brandOrder) {
       if (dirty[b]) await saveBrand(b);
     }
   };
@@ -313,7 +372,8 @@ function RatingEntryTab() {
     aggIdx: number,
     branchIdx: number,
   ) => {
-    const cfg = RATING_GRID_CONFIG[brand];
+    const cfg = cityGrid[brand];
+    if (!cfg) return;
     const totalBranches = cfg.branches.length;
     const totalAggs = cfg.aggregators.length;
     let nextAgg = aggIdx;
@@ -363,7 +423,9 @@ function RatingEntryTab() {
     }
   };
 
-  const anyDirty = RATING_ENTRY_BRANDS.some((b) => dirty[b]);
+  const anyDirty = brandOrder.some((b) => dirty[b]);
+  const firstBrand = brandOrder[0];
+  const restBrands = brandOrder.slice(1);
 
   return (
     <div className="space-y-6">
@@ -373,7 +435,7 @@ function RatingEntryTab() {
             <span>⭐</span> Aggregator Ratings Entry
           </h2>
           <p className="mt-0.5 text-xs text-gray-500">
-            Dubai · Daily ratings by brand × aggregator × branch · Format:{" "}
+            {cityLabel} · Daily ratings by brand × aggregator × branch · Format:{" "}
             <span className="font-mono text-gray-400">4.5 (999+)</span>
           </p>
         </div>
@@ -392,7 +454,7 @@ function RatingEntryTab() {
 
       <div className={`${GLASS_CARD} space-y-3 p-4`}>
         <p className={T_CAPTION}>
-          Same approver name and PIN as other Dubai sales analytics (HQ). Required to load and save ratings.
+          Same approver name and PIN as other {salesLabel} sales analytics (HQ). Required to load and save ratings.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block min-w-0">
@@ -482,34 +544,42 @@ function RatingEntryTab() {
         <p className="text-sm text-amber-300">Fill approver name and PIN above to load and save.</p>
       ) : null}
 
-      <RatingBrandGrid
-        brand="Sushi Zen"
-        selectedDate={selectedDate}
-        gridData={gridData}
-        onChange={handleCellChange}
-        onKeyDown={handleKeyDown}
-        onSave={() => void saveBrand("Sushi Zen")}
-        saving={saving["Sushi Zen"] ?? false}
-        saved={saved["Sushi Zen"] ?? false}
-        dirty={dirty["Sushi Zen"] ?? false}
-      />
+      {firstBrand && cityGrid[firstBrand] ? (
+        <RatingBrandGrid
+          brand={firstBrand}
+          gridConfig={cityGrid[firstBrand]!}
+          selectedDate={selectedDate}
+          gridData={gridData}
+          onChange={handleCellChange}
+          onKeyDown={handleKeyDown}
+          onSave={() => void saveBrand(firstBrand)}
+          saving={saving[firstBrand] ?? false}
+          saved={saved[firstBrand] ?? false}
+          dirty={dirty[firstBrand] ?? false}
+        />
+      ) : null}
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        {(["Ramen Zen", "All Veggie Sushi", "J-Deli"] as RatingBrand[]).map((brand) => (
-          <RatingBrandGrid
-            key={brand}
-            brand={brand}
-            selectedDate={selectedDate}
-            gridData={gridData}
-            onChange={handleCellChange}
-            onKeyDown={handleKeyDown}
-            onSave={() => void saveBrand(brand)}
-            saving={saving[brand] ?? false}
-            saved={saved[brand] ?? false}
-            dirty={dirty[brand] ?? false}
-          />
-        ))}
-      </div>
+      {restBrands.length > 0 ? (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+          {restBrands.map((brand) =>
+            cityGrid[brand] ? (
+              <RatingBrandGrid
+                key={brand}
+                brand={brand}
+                gridConfig={cityGrid[brand]!}
+                selectedDate={selectedDate}
+                gridData={gridData}
+                onChange={handleCellChange}
+                onKeyDown={handleKeyDown}
+                onSave={() => void saveBrand(brand)}
+                saving={saving[brand] ?? false}
+                saved={saved[brand] ?? false}
+                dirty={dirty[brand] ?? false}
+              />
+            ) : null,
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -519,6 +589,7 @@ export { RatingEntryTab };
 
 interface RatingBrandGridProps {
   brand: RatingBrand;
+  gridConfig: RatingBrandGridConfig;
   selectedDate: string;
   gridData: RatingGridData;
   onChange: (brand: RatingBrand, agg: string, branch: string, raw: string) => void;
@@ -531,6 +602,7 @@ interface RatingBrandGridProps {
 
 function RatingBrandGrid({
   brand,
+  gridConfig,
   selectedDate,
   gridData,
   onChange,
@@ -540,7 +612,7 @@ function RatingBrandGrid({
   saved,
   dirty,
 }: RatingBrandGridProps) {
-  const cfg = RATING_GRID_CONFIG[brand];
+  const cfg = gridConfig;
   const aggs = cfg.aggregators as readonly string[];
   const branches = cfg.branches as readonly string[];
 
@@ -557,11 +629,11 @@ function RatingBrandGrid({
   }
 
   return (
-    <div className={`overflow-hidden rounded-xl border ${BRAND_COLOR[brand]}`}>
+    <div className={`overflow-hidden rounded-xl border ${brandBorderClass(brand)}`}>
       <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">
-          <h3 className={`flex items-center gap-2 text-sm font-bold ${BRAND_TEXT_COLOR[brand]}`}>
-            <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: BRAND_DOT_COLOR[brand] }} />
+          <h3 className={`flex items-center gap-2 text-sm font-bold ${brandTextClass(brand)}`}>
+            <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: brandDotColor(brand) }} />
             {brand}
           </h3>
           {cfg.note ? <span className="truncate text-[10px] font-normal text-gray-600">({cfg.note})</span> : null}

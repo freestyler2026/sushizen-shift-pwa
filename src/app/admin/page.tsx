@@ -1130,7 +1130,7 @@ function AdminPageInner() {
       {dashView === "lowRatings" ? (
         <LowRatingsAdminPanel />
       ) : dashView === "ratingEntry" ? (
-        <RatingEntryTab />
+        <RatingEntryTab city={city} />
       ) : dashView === "orderEntry" ? (
         <OrderEntryTab />
       ) : (
