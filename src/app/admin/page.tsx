@@ -26,6 +26,7 @@ import { canAccessAdminNav, canAccessInventoryWorkspace, canAccessRoleManagement
 import DateRangePicker from "@/components/DateRangePicker";
 import MonthPicker from "@/components/MonthPicker";
 import OrderEntryTab from "@/components/admin/OrderEntryTab";
+import RatingEntryTab from "@/components/admin/RatingEntryTab";
 import { LowRatingsAdminPanel } from "@/components/lowratings/LowRatingsAdminPanel";
 import {
   GLASS_CARD,
@@ -519,7 +520,7 @@ function AdminPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialAuth = useMemo(() => getAuth(), []);
-  const [dashView, setDashView] = useState<"requests" | "lowRatings" | "orderEntry">("requests");
+  const [dashView, setDashView] = useState<"requests" | "lowRatings" | "orderEntry" | "ratingEntry">("requests");
   const [sessionAuth, setSessionAuth] = useState<Auth | null>(initialAuth);
   const auth = sessionAuth || initialAuth;
   const [ready, setReady] = useState(false);
@@ -708,23 +709,25 @@ function AdminPageInner() {
     const tab = searchParams.get("tab");
     if (tab === "low-ratings") setDashView("lowRatings");
     else if (tab === "order-entry") setDashView("orderEntry");
+    else if (tab === "ratings-entry") setDashView("ratingEntry");
     else setDashView("requests");
   }, [ready, allowed, searchParams]);
 
   useEffect(() => {
     if (!ready || !allowed || dashView !== "requests") return;
     const t = searchParams.get("tab");
-    if (t === "low-ratings" || t === "order-entry") return;
+    if (t === "low-ratings" || t === "order-entry" || t === "ratings-entry") return;
     setSelected(null);
     setSearch("");
     void fetchLatest();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowed, city, ready, sessionAuth?.accessToken, dashView, searchParams]);
 
-  const setDashTab = (next: "requests" | "lowRatings" | "orderEntry") => {
+  const setDashTab = (next: "requests" | "lowRatings" | "orderEntry" | "ratingEntry") => {
     setDashView(next);
     if (next === "lowRatings") router.replace("/admin?tab=low-ratings", { scroll: false });
     else if (next === "orderEntry") router.replace("/admin?tab=order-entry", { scroll: false });
+    else if (next === "ratingEntry") router.replace("/admin?tab=ratings-entry", { scroll: false });
     else router.replace("/admin", { scroll: false });
   };
 
@@ -1112,12 +1115,21 @@ function AdminPageInner() {
         >
           Number of Orders
         </button>
+        <button
+          type="button"
+          className={dashView === "ratingEntry" ? TAB_ACTIVE : TAB_INACTIVE}
+          onClick={() => setDashTab("ratingEntry")}
+        >
+          Ratings
+        </button>
       </div>
 
       {dashView === "lowRatings" ? (
         <LowRatingsAdminPanel />
       ) : dashView === "orderEntry" ? (
         <OrderEntryTab />
+      ) : dashView === "ratingEntry" ? (
+        <RatingEntryTab />
       ) : (
         <>
       <div className={`${GLASS_CARD} p-4`}>
