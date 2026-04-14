@@ -1082,9 +1082,6 @@ function AdminPageInner() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Link href="/admin?tab=ratings-entry" className={SMALL_BUTTON} title="Dubai aggregator ratings (daily entry)">
-            ⭐ Ratings
-          </Link>
           <Link href="/admin/analytics" className={SMALL_BUTTON}>
             <BarChart3 className="mr-1 h-3.5 w-3.5" /> Analytics
           </Link>
