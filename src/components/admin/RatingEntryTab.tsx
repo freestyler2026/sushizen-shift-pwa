@@ -228,7 +228,12 @@ function branchShortLabel(branch: string) {
   return branch;
 }
 
-function RatingEntryTab({ city = "dubai" }: { city?: string }) {
+export interface RatingEntryTabProps {
+  /** "dubai" | "manila" — drives grid config and aggregator-ratings API path */
+  city?: string;
+}
+
+function RatingEntryTab({ city = "dubai" }: RatingEntryTabProps) {
   const cityKey = city === "manila" ? "manila" : "dubai";
   const cityLabel = cityKey === "manila" ? "Manila" : "Dubai";
   const salesLabel = cityKey === "manila" ? "Manila" : "Dubai";

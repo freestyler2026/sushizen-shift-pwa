@@ -1683,7 +1683,10 @@ function ymdLocal(d: Date): string {
  * 見つからない場合は先月（直近の完結した月）を返す。
  */
 function detectPeriodFromQuestion(question: string): { dateFrom: string; dateTo: string; detected: boolean } {
-  const q = question.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xff10 + 0x30));
+  const q = question
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xff10 + 0x30))
+    .replace(/[Ａ-Ｚ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xff21 + 0x41))
+    .replace(/[ａ-ｚ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xff41 + 0x61));
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -4211,13 +4214,18 @@ export default function AdminAnalyticsPage() {
     const asksManila = questionLower.includes("manila") || questionLower.includes("マニラ");
     const asksBoth = asksDubai && asksManila;
     const asksComparison = /比較|compare|vs|両|both/.test(questionLower);
-    // どちらの都市名も指定がない場合は両都市を取得する
+    // Manila branch codes — 地名ではなくブランチコードとして判定する
+    const asksManilaByBranch = /cubao|taft|paran[aã]que|paranaque|\bpar\b|\bck\b|central kitchen/i.test(trimmedQ);
+    // Dubai branch codes
+    const asksDubaiByBranch = /al barsha|\balb\b|difc|\bjbr\b|jebel ali|\bjba\b|time square|\btsc\b/i.test(trimmedQ);
+    const effectiveAsksManila = asksManila || asksManilaByBranch;
+    const effectiveAsksDubai = asksDubai || asksDubaiByBranch;
     const targetCities: AiCityKey[] =
       asksBoth || asksComparison
         ? ["dubai", "manila"]
-        : asksDubai
+        : effectiveAsksDubai && !effectiveAsksManila
           ? ["dubai"]
-          : asksManila
+          : effectiveAsksManila && !effectiveAsksDubai
             ? ["manila"]
             : ["dubai", "manila"];
 
