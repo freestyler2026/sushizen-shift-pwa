@@ -26,6 +26,7 @@ import { canAccessAdminNav, canAccessInventoryWorkspace, canAccessRoleManagement
 import DateRangePicker from "@/components/DateRangePicker";
 import MonthPicker from "@/components/MonthPicker";
 import OrderEntryTab from "@/components/admin/OrderEntryTab";
+import ManilaOfflineOrderEntryTab from "@/components/admin/ManilaOfflineOrderEntryTab";
 import { RatingEntryTab } from "@/components/admin/RatingEntryTab";
 import { LowRatingsAdminPanel } from "@/components/lowratings/LowRatingsAdminPanel";
 import {
@@ -56,6 +57,8 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, ""
 
 // Admin Dashboard sub-tabs: single source of truth (?tab= ↔ in-app view)
 type AdminDashView = "requests" | "lowRatings" | "orderEntry" | "ratingEntry";
+
+type OrderEntrySub = "dubai" | "manila";
 
 /** Spec: requests · low-ratings · order-entry · ratings-entry (rating-entry URL key = ratings-entry) */
 /** Ratings before Number of Orders so the new tab is less likely to sit off-screen (horizontal scroll). */
@@ -539,6 +542,7 @@ function AdminPageInner() {
   const searchParams = useSearchParams();
   const initialAuth = useMemo(() => getAuth(), []);
   const [dashView, setDashView] = useState<AdminDashView>("requests");
+  const [orderEntrySub, setOrderEntrySub] = useState<OrderEntrySub>("dubai");
   const [sessionAuth, setSessionAuth] = useState<Auth | null>(initialAuth);
   const auth = sessionAuth || initialAuth;
   const [ready, setReady] = useState(false);
@@ -1132,7 +1136,31 @@ function AdminPageInner() {
       ) : dashView === "ratingEntry" ? (
         <RatingEntryTab city={city} />
       ) : dashView === "orderEntry" ? (
-        <OrderEntryTab />
+        <div className="space-y-4">
+          <div className={`${TAB_CONTAINER} w-full max-w-full overflow-x-auto`} role="tablist" aria-label="Number of Orders region">
+            <div className="flex min-w-min flex-wrap items-center gap-1">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={orderEntrySub === "dubai"}
+                className={`shrink-0 whitespace-nowrap ${orderEntrySub === "dubai" ? TAB_ACTIVE : TAB_INACTIVE}`}
+                onClick={() => setOrderEntrySub("dubai")}
+              >
+                Dubai
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={orderEntrySub === "manila"}
+                className={`shrink-0 whitespace-nowrap ${orderEntrySub === "manila" ? TAB_ACTIVE : TAB_INACTIVE}`}
+                onClick={() => setOrderEntrySub("manila")}
+              >
+                Manila (Offline)
+              </button>
+            </div>
+          </div>
+          {orderEntrySub === "dubai" ? <OrderEntryTab /> : <ManilaOfflineOrderEntryTab />}
+        </div>
       ) : (
         <>
       <div className={`${GLASS_CARD} p-4`}>
