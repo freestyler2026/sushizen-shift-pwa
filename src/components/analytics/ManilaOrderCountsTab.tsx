@@ -57,13 +57,19 @@ async function apiGet<T = unknown>(path: string): Promise<T> {
 
 function formatStoreLabel(storeName: string): string {
   const s = String(storeName || "").trim();
-  if (s === "QC") return "Cubao (QC)";
+  if (s === "QC" || s === "QC (Quezon City)") return "Cubao";
   if (!s) return "—";
   return s;
 }
 
 function formatInt(n: number): string {
   return new Intl.NumberFormat("en-PH").format(Math.round(n));
+}
+
+function formatPhp(n: number): string {
+  return new Intl.NumberFormat("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(
+    Math.round(n),
+  );
 }
 
 type OrderRow = {
@@ -198,7 +204,8 @@ export function ManilaOrderCountsTab({
                     <th className="px-3 py-2">Store</th>
                     <th className="px-3 py-2">Channel</th>
                     <th className="px-3 py-2 text-right">Orders</th>
-                    <th className="hidden px-3 py-2 text-right sm:table-cell">Net sales (PHP)</th>
+                    <th className="px-3 py-2 text-right">Total sales (PHP)</th>
+                    <th className="px-3 py-2 text-right">Net sales (PHP)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -209,8 +216,11 @@ export function ManilaOrderCountsTab({
                       <td className="px-3 py-2 text-right font-medium tabular-nums">
                         {formatInt(row.total_transactions || 0)}
                       </td>
-                      <td className="hidden px-3 py-2 text-right tabular-nums text-neutral-400 sm:table-cell">
-                        {row.net_sales != null ? formatInt(Number(row.net_sales)) : "—"}
+                      <td className="px-3 py-2 text-right tabular-nums text-neutral-300">
+                        {row.total_sales != null ? formatPhp(Number(row.total_sales)) : "—"}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-neutral-400">
+                        {row.net_sales != null ? formatPhp(Number(row.net_sales)) : "—"}
                       </td>
                     </tr>
                   ))}
