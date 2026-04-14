@@ -1068,6 +1068,9 @@ function AdminPageInner() {
         </div>
 
         <div className="flex flex-wrap gap-2">
+          <Link href="/admin?tab=ratings-entry" className={SMALL_BUTTON} title="Dubai aggregator ratings (daily entry)">
+            ⭐ Ratings
+          </Link>
           <Link href="/admin/analytics" className={SMALL_BUTTON}>
             <BarChart3 className="mr-1 h-3.5 w-3.5" /> Analytics
           </Link>
@@ -1093,35 +1096,37 @@ function AdminPageInner() {
         </div>
       </div>
 
-      <div className={TAB_CONTAINER}>
-        <button
-          type="button"
-          className={dashView === "requests" ? TAB_ACTIVE : TAB_INACTIVE}
-          onClick={() => setDashTab("requests")}
-        >
-          Requests
-        </button>
-        <button
-          type="button"
-          className={dashView === "lowRatings" ? TAB_ACTIVE : TAB_INACTIVE}
-          onClick={() => setDashTab("lowRatings")}
-        >
-          Low Ratings
-        </button>
-        <button
-          type="button"
-          className={dashView === "orderEntry" ? TAB_ACTIVE : TAB_INACTIVE}
-          onClick={() => setDashTab("orderEntry")}
-        >
-          Number of Orders
-        </button>
-        <button
-          type="button"
-          className={dashView === "ratingEntry" ? TAB_ACTIVE : TAB_INACTIVE}
-          onClick={() => setDashTab("ratingEntry")}
-        >
-          Ratings
-        </button>
+      <div className={`${TAB_CONTAINER} w-full max-w-full overflow-x-auto`}>
+        <div className="flex min-w-min flex-nowrap items-center gap-1">
+          <button
+            type="button"
+            className={`shrink-0 whitespace-nowrap ${dashView === "requests" ? TAB_ACTIVE : TAB_INACTIVE}`}
+            onClick={() => setDashTab("requests")}
+          >
+            Requests
+          </button>
+          <button
+            type="button"
+            className={`shrink-0 whitespace-nowrap ${dashView === "lowRatings" ? TAB_ACTIVE : TAB_INACTIVE}`}
+            onClick={() => setDashTab("lowRatings")}
+          >
+            Low Ratings
+          </button>
+          <button
+            type="button"
+            className={`shrink-0 whitespace-nowrap ${dashView === "orderEntry" ? TAB_ACTIVE : TAB_INACTIVE}`}
+            onClick={() => setDashTab("orderEntry")}
+          >
+            Number of Orders
+          </button>
+          <button
+            type="button"
+            className={`shrink-0 whitespace-nowrap ${dashView === "ratingEntry" ? TAB_ACTIVE : TAB_INACTIVE}`}
+            onClick={() => setDashTab("ratingEntry")}
+          >
+            ⭐ Ratings
+          </button>
+        </div>
       </div>
 
       {dashView === "lowRatings" ? (
