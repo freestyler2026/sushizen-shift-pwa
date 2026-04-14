@@ -55,7 +55,15 @@ const nextConfig: NextConfig = {
     ];
   },
   async headers() {
+    // Admin HTML must not be cached long at the edge/browser, or users can keep an old
+    // document shell that references pre-Ratings-tab JS after a deploy.
+    const adminNoStore = [
+      ...SECURITY_HEADERS,
+      { key: "Cache-Control", value: "private, no-store, must-revalidate" },
+    ] as const;
     return [
+      { source: "/admin", headers: [...adminNoStore] },
+      { source: "/admin/:path*", headers: [...adminNoStore] },
       {
         source: "/:path*",
         headers: SECURITY_HEADERS,
