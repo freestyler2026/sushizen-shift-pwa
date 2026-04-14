@@ -732,6 +732,13 @@ function AdminPageInner() {
   }, [ready, allowed, searchParams]);
 
   useEffect(() => {
+    if (!ready || !allowed) return;
+    const oe = searchParams.get("orderEntry");
+    if (oe === "manila") setOrderEntrySub("manila");
+    else if (oe === "dubai") setOrderEntrySub("dubai");
+  }, [ready, allowed, searchParams]);
+
+  useEffect(() => {
     if (!ready || !allowed || dashView !== "requests") return;
     const t = searchParams.get("tab");
     if (t && ADMIN_DASH_TABS.some((x) => x.tabQuery === t)) return;
