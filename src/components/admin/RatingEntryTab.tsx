@@ -181,7 +181,7 @@ function branchShortLabel(branch: string) {
   return branch;
 }
 
-export default function RatingEntryTab() {
+function RatingEntryTab() {
   const [approverName, setApproverName] = useState("");
   const [pin, setPin] = useState("");
   const todayStr = todayLocalYmd();
@@ -513,6 +513,9 @@ export default function RatingEntryTab() {
     </div>
   );
 }
+
+export default RatingEntryTab;
+export { RatingEntryTab };
 
 interface RatingBrandGridProps {
   brand: RatingBrand;

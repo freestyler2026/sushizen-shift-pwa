@@ -26,7 +26,7 @@ import { canAccessAdminNav, canAccessInventoryWorkspace, canAccessRoleManagement
 import DateRangePicker from "@/components/DateRangePicker";
 import MonthPicker from "@/components/MonthPicker";
 import OrderEntryTab from "@/components/admin/OrderEntryTab";
-import RatingEntryTab from "@/components/admin/RatingEntryTab";
+import { RatingEntryTab } from "@/components/admin/RatingEntryTab";
 import { LowRatingsAdminPanel } from "@/components/lowratings/LowRatingsAdminPanel";
 import {
   GLASS_CARD,
@@ -53,6 +53,23 @@ import {
 } from "@/lib/ui-tokens";
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
+
+// Admin Dashboard sub-tabs: single source of truth (?tab= ↔ in-app view)
+type AdminDashView = "requests" | "lowRatings" | "orderEntry" | "ratingEntry";
+
+/** Spec: requests · low-ratings · order-entry · ratings-entry (rating-entry URL key = ratings-entry) */
+const ADMIN_DASH_TABS = [
+  { view: "requests" as const, label: "Requests", icon: "📋", tabQuery: null as string | null },
+  { view: "lowRatings" as const, label: "Low Ratings", icon: "⚠️", tabQuery: "low-ratings" },
+  { view: "orderEntry" as const, label: "Number of Orders", icon: "📦", tabQuery: "order-entry" },
+  { view: "ratingEntry" as const, label: "Ratings", icon: "⭐", tabQuery: "ratings-entry" },
+] as const;
+
+function tabParamToDashView(tab: string | null): AdminDashView {
+  if (!tab) return "requests";
+  const row = ADMIN_DASH_TABS.find((x) => x.tabQuery === tab);
+  return row ? row.view : "requests";
+}
 
 // --------------------
 // utils
@@ -520,7 +537,7 @@ function AdminPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialAuth = useMemo(() => getAuth(), []);
-  const [dashView, setDashView] = useState<"requests" | "lowRatings" | "orderEntry" | "ratingEntry">("requests");
+  const [dashView, setDashView] = useState<AdminDashView>("requests");
   const [sessionAuth, setSessionAuth] = useState<Auth | null>(initialAuth);
   const auth = sessionAuth || initialAuth;
   const [ready, setReady] = useState(false);
@@ -706,29 +723,25 @@ function AdminPageInner() {
 
   useEffect(() => {
     if (!ready || !allowed) return;
-    const tab = searchParams.get("tab");
-    if (tab === "low-ratings") setDashView("lowRatings");
-    else if (tab === "order-entry") setDashView("orderEntry");
-    else if (tab === "ratings-entry") setDashView("ratingEntry");
-    else setDashView("requests");
+    setDashView(tabParamToDashView(searchParams.get("tab")));
   }, [ready, allowed, searchParams]);
 
   useEffect(() => {
     if (!ready || !allowed || dashView !== "requests") return;
     const t = searchParams.get("tab");
-    if (t === "low-ratings" || t === "order-entry" || t === "ratings-entry") return;
+    if (t && ADMIN_DASH_TABS.some((x) => x.tabQuery === t)) return;
     setSelected(null);
     setSearch("");
     void fetchLatest();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowed, city, ready, sessionAuth?.accessToken, dashView, searchParams]);
 
-  const setDashTab = (next: "requests" | "lowRatings" | "orderEntry" | "ratingEntry") => {
+  const setDashTab = (next: AdminDashView) => {
     setDashView(next);
-    if (next === "lowRatings") router.replace("/admin?tab=low-ratings", { scroll: false });
-    else if (next === "orderEntry") router.replace("/admin?tab=order-entry", { scroll: false });
-    else if (next === "ratingEntry") router.replace("/admin?tab=ratings-entry", { scroll: false });
-    else router.replace("/admin", { scroll: false });
+    const row = ADMIN_DASH_TABS.find((x) => x.view === next);
+    const q = row?.tabQuery;
+    if (!q) router.replace("/admin", { scroll: false });
+    else router.replace(`/admin?tab=${encodeURIComponent(q)}`, { scroll: false });
   };
 
   useEffect(() => {
@@ -1096,36 +1109,23 @@ function AdminPageInner() {
         </div>
       </div>
 
-      <div className={`${TAB_CONTAINER} w-full max-w-full overflow-x-auto`}>
+      <div className={`${TAB_CONTAINER} w-full max-w-full overflow-x-auto`} role="tablist" aria-label="Admin dashboard sections">
         <div className="flex min-w-min flex-nowrap items-center gap-1">
-          <button
-            type="button"
-            className={`shrink-0 whitespace-nowrap ${dashView === "requests" ? TAB_ACTIVE : TAB_INACTIVE}`}
-            onClick={() => setDashTab("requests")}
-          >
-            Requests
-          </button>
-          <button
-            type="button"
-            className={`shrink-0 whitespace-nowrap ${dashView === "lowRatings" ? TAB_ACTIVE : TAB_INACTIVE}`}
-            onClick={() => setDashTab("lowRatings")}
-          >
-            Low Ratings
-          </button>
-          <button
-            type="button"
-            className={`shrink-0 whitespace-nowrap ${dashView === "orderEntry" ? TAB_ACTIVE : TAB_INACTIVE}`}
-            onClick={() => setDashTab("orderEntry")}
-          >
-            Number of Orders
-          </button>
-          <button
-            type="button"
-            className={`shrink-0 whitespace-nowrap ${dashView === "ratingEntry" ? TAB_ACTIVE : TAB_INACTIVE}`}
-            onClick={() => setDashTab("ratingEntry")}
-          >
-            ⭐ Ratings
-          </button>
+          {ADMIN_DASH_TABS.map((tab) => (
+            <button
+              key={tab.view}
+              type="button"
+              role="tab"
+              aria-selected={dashView === tab.view}
+              className={`shrink-0 whitespace-nowrap ${dashView === tab.view ? TAB_ACTIVE : TAB_INACTIVE}`}
+              onClick={() => setDashTab(tab.view)}
+            >
+              <span className="mr-1" aria-hidden>
+                {tab.icon}
+              </span>
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
