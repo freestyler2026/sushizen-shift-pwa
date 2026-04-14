@@ -394,3 +394,33 @@ export function stepUpSatisfies(required: StepUpLevel, a?: Auth | null): boolean
   const elapsedMs = Date.now() - verifiedAtMs;
   return elapsedMs >= 0 && elapsedMs <= STEP_UP_FRESH_MS;
 }
+
+/**
+ * If the access token expired within the server grace window, exchange it for a new one.
+ * Updates localStorage on success. Does not replace PIN-based remint when no token exists.
+ */
+export async function tryRefreshAccessToken(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+  const current = getAuth();
+  if (!current?.accessToken) return false;
+
+  try {
+    const res = await fetch(buildAuthApiUrl("/api/auth/refresh"), {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${current.accessToken}`,
+        ...(window.location?.origin ? { "X-WebAuthn-Origin": window.location.origin } : {}),
+      },
+    });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { access_token?: string };
+    const nextToken = String(data?.access_token || "").trim();
+    if (!nextToken) return false;
+    setAuth({ ...current, accessToken: nextToken });
+    return true;
+  } catch {
+    return false;
+  }
+}

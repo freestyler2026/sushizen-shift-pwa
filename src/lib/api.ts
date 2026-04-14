@@ -1,5 +1,5 @@
 // src/lib/api.ts
-import { getAuthHeaders } from "@/lib/auth";
+import { getAuthHeaders, tryRefreshAccessToken } from "@/lib/auth";
 
 export type ShiftRow = {
   work_date: string;
@@ -51,11 +51,18 @@ export function qs(params: Record<string, any>) {
 
 export async function apiGet<T>(path: string): Promise<T> {
   const url = `${API_BASE}${path}`;
-  const res = await fetch(url, {
-    method: "GET",
-    credentials: "omit",
-    headers: getAuthHeaders(),
-  });
+  const doFetch = () =>
+    fetch(url, {
+      method: "GET",
+      credentials: "omit",
+      headers: getAuthHeaders(),
+    });
+
+  let res = await doFetch();
+  if (res.status === 401) {
+    const refreshed = await tryRefreshAccessToken();
+    if (refreshed) res = await doFetch();
+  }
 
   const text = await res.text();
 
@@ -73,12 +80,19 @@ export async function apiGet<T>(path: string): Promise<T> {
 
 export async function apiPost<T>(path: string, body: any): Promise<T> {
   const url = `${API_BASE}${path}`;
-  const res = await fetch(url, {
-    method: "POST",
-    credentials: "omit",
-    headers: getAuthHeaders(),
-    body: JSON.stringify(body ?? {}),
-  });
+  const doFetch = () =>
+    fetch(url, {
+      method: "POST",
+      credentials: "omit",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(body ?? {}),
+    });
+
+  let res = await doFetch();
+  if (res.status === 401) {
+    const refreshed = await tryRefreshAccessToken();
+    if (refreshed) res = await doFetch();
+  }
 
   const text = await res.text();
 

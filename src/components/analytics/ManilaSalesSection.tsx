@@ -15,7 +15,7 @@ import {
 } from "recharts";
 import { BarChart2, CheckCircle2, CircleDot, RefreshCw } from "lucide-react";
 
-import { getAuth, getAuthHeaders, refreshAuthFromApi, type City } from "@/lib/auth";
+import { getAuth, getAuthHeaders, refreshAuthFromApi, tryRefreshAccessToken, type City } from "@/lib/auth";
 import { fmtNum, fmtNumTitle, formatSeconds } from "@/lib/formatters";
 import {
   GLASS_CARD,
@@ -74,6 +74,13 @@ async function apiGet<T = unknown>(path: string): Promise<T> {
     });
   let res = await request();
   let text = await res.text();
+  if (res.status === 401) {
+    const refreshed = await tryRefreshAccessToken();
+    if (refreshed) {
+      res = await request();
+      text = await res.text();
+    }
+  }
   if (!res.ok && res.status === 401) {
     const detail = parseApiErrorDetail(text);
     const current = getAuth();
@@ -110,6 +117,13 @@ async function apiPost<T = unknown>(path: string, body: unknown): Promise<T> {
     });
   let res = await request();
   let text = await res.text();
+  if (res.status === 401) {
+    const refreshed = await tryRefreshAccessToken();
+    if (refreshed) {
+      res = await request();
+      text = await res.text();
+    }
+  }
   if (!res.ok && res.status === 401) {
     const detail = parseApiErrorDetail(text);
     const current = getAuth();

@@ -38,6 +38,7 @@ import {
   refreshAuthFromApi,
   setStepUpAuth,
   stepUpSatisfies,
+  tryRefreshAccessToken,
   type City,
 } from "@/lib/auth";
 import { startPasskeyAuthentication, startPasskeyRegistration } from "@/lib/webauthn";
@@ -140,6 +141,14 @@ async function apiGet<T = any>(path: string): Promise<T> {
   let res = await request();
   let text = await res.text();
 
+  if (res.status === 401) {
+    const refreshed = await tryRefreshAccessToken();
+    if (refreshed) {
+      res = await request();
+      text = await res.text();
+    }
+  }
+
   if (!res.ok && res.status === 401) {
     const detail = parseApiErrorDetail(text);
     const current = getAuth();
@@ -175,6 +184,14 @@ async function apiPost<T = any>(path: string, body: Record<string, unknown>): Pr
     });
   let res = await request();
   let text = await res.text();
+
+  if (res.status === 401) {
+    const refreshed = await tryRefreshAccessToken();
+    if (refreshed) {
+      res = await request();
+      text = await res.text();
+    }
+  }
 
   if (!res.ok && res.status === 401) {
     const detail = parseApiErrorDetail(text);
