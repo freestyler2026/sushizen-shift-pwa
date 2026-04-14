@@ -1593,6 +1593,7 @@ function mapStoreToBranchCode(raw: string) {
   if (compact === "par") return "PAR";
   if (compact === "taft") return "TAFT";
   if (compact === "cubao") return "CUBAO";
+  if (compact === "qc") return "CUBAO";
   if (compact === "ck") return "CK";
   if (x.includes("business bay")) return "BB";
   if (x.includes("jlt")) return "JLT";
@@ -1604,6 +1605,8 @@ function mapStoreToBranchCode(raw: string) {
   if (x.includes("paranaque") || x.includes("parañaque")) return "PAR";
   if (x.includes("taft")) return "TAFT";
   if (x.includes("cubao")) return "CUBAO";
+  if (x.includes("quezon")) return "CUBAO";
+  if (/\bqc\b/.test(x)) return "CUBAO";
   if (x.includes("central kitchen")) return "CK";
   return "";
 }
@@ -4215,7 +4218,9 @@ export default function AdminAnalyticsPage() {
     const asksBoth = asksDubai && asksManila;
     const asksComparison = /比較|compare|vs|両|both/.test(questionLower);
     // Manila branch names (store codes) — 都市名ではなくブランチ名で Manila と判定
-    const asksManilaByBranch = /cubao|taft|paran[aã]que|paranaque|\bpar\b|central kitchen ph/i.test(trimmedQ);
+    const asksManilaByBranch = /cubao|quezon|taft|paran[aã]que|paranaque|\bpar\b|central kitchen ph/i.test(
+      trimmedQ,
+    );
     // Dubai branch names
     const asksDubaiByBranch = /al barsha|\balb\b|difc|\bjbr\b|jebel ali|\bjba\b|time square|\btsc\b/i.test(trimmedQ);
     const effectiveAsksManila = asksManila || asksManilaByBranch;
