@@ -80,6 +80,8 @@ import { cardVariants, staggerContainerVariants, tabContentTransition } from "@/
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FlashValue } from "@/components/ui/FlashValue";
+import AggregatorRatingsTab from "@/components/analytics/dubai/AggregatorRatingsTab";
+import NumberOfOrdersTab from "@/components/analytics/dubai/NumberOfOrdersTab";
 
 // Resolve API base at runtime so local dev always talks to FastAPI directly,
 // even when the page is opened via a LAN IP or a custom local hostname.
@@ -1299,10 +1301,14 @@ const SALES_SECTION_OPTIONS = [
   { value: "stores", label: "Stores", id: "sales-stores" },
   { value: "daily", label: "Daily", id: "sales-daily" },
   { value: "dataCheck", label: "Data Check", id: "sales-data-check" },
+  { value: "orderCounts", label: "Number of Orders", id: "sales-order-counts" },
+  { value: "aggregatorRatings", label: "Ratings", id: "sales-aggregator-ratings" },
   { value: "manilaSales", label: "Manila Sales", id: "sales-manila-sales" },
 ] as const;
 const DUBAI_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter((section) => section.value !== "manilaSales");
-const MANILA_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter((section) => section.value === "manilaSales" || section.value === "dataCheck");
+const MANILA_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter(
+  (section) => section.value === "manilaSales" || section.value === "dataCheck" || section.value === "orderCounts",
+);
 
 const FINANCE_SECTION_OPTIONS = [
   { value: "summary", label: "Summary", id: "finance-summary" },
@@ -1859,7 +1865,22 @@ export default function AdminAnalyticsPage() {
   const [branchCode, setBranchCode] = useState("");
   const [summaryBranchCode, setSummaryBranchCode] = useState("");
   const [summaryBrandName, setSummaryBrandName] = useState("");
-  const [salesSectionView, setSalesSectionView] = useState<"summary" | "hourly" | "operationTime" | "brands" | "cancelOrders" | "productMix" | "menu" | "stores" | "daily" | "dataCheck" | "manilaSales" | "all">(
+  const [salesSectionView, setSalesSectionView] = useState<
+    | "summary"
+    | "hourly"
+    | "operationTime"
+    | "brands"
+    | "cancelOrders"
+    | "productMix"
+    | "menu"
+    | "stores"
+    | "daily"
+    | "dataCheck"
+    | "orderCounts"
+    | "aggregatorRatings"
+    | "manilaSales"
+    | "all"
+  >(
     "summary",
   );
   const [financeSectionView, setFinanceSectionView] = useState<"summary" | "breakEven" | "plDetails" | "payroll" | "all">("summary");
@@ -7064,6 +7085,17 @@ export default function AdminAnalyticsPage() {
                 />
               </div>
             ) : null}
+
+            {salesSectionView === "all" || salesSectionView === "orderCounts" ? (
+              <div id="sales-order-counts">
+                <NumberOfOrdersTab approverName={approverName} pin={pin} stepUpReady={salesStepUpReady} />
+              </div>
+            ) : null}
+            {salesSectionView === "all" || salesSectionView === "aggregatorRatings" ? (
+              <div id="sales-aggregator-ratings">
+                <AggregatorRatingsTab approverName={approverName} pin={pin} stepUpReady={salesStepUpReady} />
+              </div>
+            ) : null}
               </>
             ) : null}
 
@@ -7099,6 +7131,18 @@ export default function AdminAnalyticsPage() {
                       error={manilaDataCheckError}
                       selectMissingLabel="Select problem days"
                     />
+                  </div>
+                ) : null}
+                {salesSectionView === "all" || salesSectionView === "orderCounts" ? (
+                  <div
+                    id="sales-order-counts"
+                    className="rounded-2xl border border-neutral-800 bg-neutral-900/20 px-6 py-12 text-center"
+                  >
+                    <p className="text-lg font-semibold text-neutral-200">Manila order count data</p>
+                    <p className="mt-2 text-sm text-neutral-500">
+                      Coming soon — manual entry or CSV import from StoreHub POS data.
+                    </p>
+                    <p className="mt-3 text-xs text-neutral-600">Dubai-only data is available under Dubai Sales → Number of Orders.</p>
                   </div>
                 ) : null}
               </>

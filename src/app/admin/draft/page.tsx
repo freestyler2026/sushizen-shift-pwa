@@ -6,6 +6,7 @@ import {
   CalendarCog,
   CheckCircle2,
   ClipboardList,
+  ExternalLink,
   InboxIcon,
   Info,
   PencilLine,
@@ -28,6 +29,7 @@ import {
   BADGE_WARNING,
   DANGER_BUTTON,
   GLASS_CARD,
+  HIGHLIGHT_CARD,
   INPUT_CLASS,
   PRIMARY_BUTTON,
   SELECT_CLASS,
@@ -369,6 +371,11 @@ async function apiPost<T = any>(path: string, body?: any): Promise<T> {
   }
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
+
+const DUBAI_DRAFT_SHEET_URL =
+  "https://docs.google.com/spreadsheets/d/1IkpYJUAa8OkysEPY2cRs8svrEBHZRIBVY6jGw309uco/edit?gid=2068736399#gid=2068736399";
+const MANILA_DRAFT_SHEET_URL =
+  "https://docs.google.com/spreadsheets/d/1Eoj02lU8YWnDXSVWeJNeRLpYwLf5i3CHRN87nYVpHJs/edit?gid=0#gid=0";
 
 export default function AdminDraftPage() {
   const router = useRouter();
@@ -1156,6 +1163,19 @@ export default function AdminDraftPage() {
               placeholder="PIN"
             />
           </div>
+        </div>
+
+        <div className={`mb-5 ${HIGHLIGHT_CARD} p-4 shadow-lg shadow-violet-500/15 ring-1 ring-violet-400/30`}>
+          <div className={`${T_LABEL} mb-2 text-violet-300`}>Draft spreadsheet (Google Sheets)</div>
+          <a
+            href={city === "dubai" ? DUBAI_DRAFT_SHEET_URL : MANILA_DRAFT_SHEET_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`${PRIMARY_BUTTON} inline-flex items-center gap-2.5 text-sm no-underline shadow-xl shadow-violet-500/40 ring-2 ring-violet-300/50 hover:ring-violet-200/60`}
+          >
+            <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
+            {city === "dubai" ? "Open Dubai draft spreadsheet" : "Open Manila draft spreadsheet"}
+          </a>
         </div>
 
         <div className="mb-5 rounded-xl border border-sky-500/15 bg-sky-500/5 px-4 py-3">

@@ -375,7 +375,8 @@ export function canViewManagementPl(a?: Auth | null): boolean {
 }
 
 export function canAccessRoleManagement(a?: Auth | null): boolean {
-  return hasAnyPermission(["channel.admin.staff.manage_roles", "staff.role.change"], a);
+  const x = a ?? getAuth();
+  return String(x?.role || "").toUpperCase() === "HQ";
 }
 
 export function stepUpSatisfies(required: StepUpLevel, a?: Auth | null): boolean {

@@ -142,7 +142,6 @@ export default function ProcurementIngredientsPage() {
         city,
         limit: String(INGREDIENT_LIST_PAGE_SIZE),
         offset: String(offset),
-        show_inactive: "true",
       });
       if (searchText.trim()) qs.set("q", searchText.trim());
       if (categoryFilter) qs.set("category", categoryFilter);
@@ -156,9 +155,8 @@ export default function ProcurementIngredientsPage() {
         merged.push(row);
         added += 1;
       }
-      if (added === 0) break;
-      offset += batch.length;
-      if (batch.length < INGREDIENT_LIST_PAGE_SIZE) break;
+      if (batch.length < INGREDIENT_LIST_PAGE_SIZE || added === 0) break;
+      offset += INGREDIENT_LIST_PAGE_SIZE;
     }
     setRows(merged);
   }, [categoryFilter, city, searchText]);

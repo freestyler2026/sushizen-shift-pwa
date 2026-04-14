@@ -2,28 +2,28 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { MessageSquareWarning, ShieldAlert } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { Field } from "@/components/Field";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
-import {
-  GLASS_CARD,
-  INPUT_CLASS,
-  SELECT_CLASS,
-  T_PAGE_TITLE,
-  T_BODY,
-  BADGE_WARNING,
-} from "@/lib/ui-tokens";
+import { BRANCHES, type City as BranchCity } from "@/lib/branches";
+import { GLASS_CARD, T_PAGE_TITLE, T_BODY, BADGE_WARNING } from "@/lib/ui-tokens";
 
 type ReportType = "app-private-report" | "hq-private-report";
+type PrivateReportResult = {
+  ok?: boolean;
+  report_id?: string;
+  status?: string;
+  receipt_message?: string;
+};
 
 const PAGE_BG = "min-h-screen text-white";
 const BLUSH_GLASS = `${GLASS_CARD} bg-violet-950/30`;
-const BLUSH_HIGHLIGHT = "rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/18 to-purple-500/10";
-const BLUSH_PRIMARY =
-  "rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 px-5 py-2.5 font-semibold text-white transition-all duration-200 shadow-lg shadow-violet-500/25 hover:scale-[1.02] hover:from-violet-400 hover:to-purple-400 hover:shadow-violet-500/40 active:scale-[0.98] disabled:opacity-60";
-const BLUSH_SECONDARY =
-  "rounded-xl border border-violet-400/15 bg-violet-950/30 px-5 py-2.5 text-white transition-all duration-200 hover:border-violet-500/25 hover:bg-violet-950/45 disabled:opacity-60";
+const LABEL_CLASS = "mb-1.5 text-xs font-medium tracking-wide text-neutral-400 uppercase";
+const INPUT_POLISH =
+  "w-full rounded-xl border border-white/10 bg-white/6 px-4 py-3 text-sm text-neutral-200 placeholder:text-neutral-600 focus:outline-none focus:border-violet-500/60 focus:bg-white/8 transition";
+const SELECT_POLISH =
+  "w-full appearance-none rounded-xl border border-white/10 bg-white/6 px-4 py-3 text-sm text-neutral-200 focus:outline-none focus:border-violet-500/60 transition cursor-pointer";
+const TEXTAREA_POLISH = `${INPUT_POLISH} min-h-[104px]`;
 
 export default function PrivateReportPage() {
   const router = useRouter();
@@ -31,7 +31,7 @@ export default function PrivateReportPage() {
   const [reportType, setReportType] = useState<ReportType>("app-private-report");
   const [city, setCity] = useState<"dubai" | "manila">("dubai");
   const [branch, setBranch] = useState("");
-  const [reportDatetime, setReportDatetime] = useState("");
+  const [dateTimeLocal, setDateTimeLocal] = useState("");
   const [category, setCategory] = useState("Suggestion");
   const [whatHappened, setWhatHappened] = useState("");
   const [whyProblem, setWhyProblem] = useState("");
@@ -45,9 +45,21 @@ export default function PrivateReportPage() {
   const [actual, setActual] = useState("");
   const [screenshot, setScreenshot] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [result, setResult] = useState<any>(null);
+  const [submitError, setSubmitError] = useState("");
+  const [result, setResult] = useState<PrivateReportResult | null>(null);
   const auth = useMemo(() => getAuth(), []);
+
+  const resetForm = () => {
+    setResult(null);
+    setSubmitError("");
+    setBranch("");
+    setDateTimeLocal("");
+    setScreenFeature("");
+    setProblem("");
+    setExpected("");
+    setActual("");
+    setScreenshot("");
+  };
 
   useEffect(() => {
     async function syncAuth() {
@@ -64,13 +76,14 @@ export default function PrivateReportPage() {
 
   const submit = async () => {
     setLoading(true);
-    setError("");
+    setSubmitError("");
     setResult(null);
     try {
       const refreshed = await refreshAuthFromApi(auth);
       const accessToken = refreshed?.accessToken || auth?.accessToken;
       if (!accessToken) throw new Error("Please log in again.");
-      if (!reportDatetime.trim()) throw new Error("Date / Time is required.");
+      if (!dateTimeLocal.trim()) throw new Error("Date / Time is required.");
+      const dateTimeForApi = dateTimeLocal.replace("T", " ");
       if (reportType === "hq-private-report") {
         if (!whatHappened.trim()) throw new Error("What happened is required.");
         if (!whyProblem.trim()) throw new Error("Why this is a problem is required.");
@@ -85,7 +98,7 @@ export default function PrivateReportPage() {
         report_type: reportType,
         city,
         branch,
-        report_datetime: reportDatetime,
+        report_datetime: dateTimeForApi,
         category,
         what_happened: whatHappened,
         why_problem: whyProblem,
@@ -113,7 +126,7 @@ export default function PrivateReportPage() {
       if (!res.ok) throw new Error(text || `Submit failed (${res.status})`);
       setResult(JSON.parse(text));
     } catch (e: any) {
-      setError(e?.message || String(e));
+      setSubmitError(e?.message || String(e));
     } finally {
       setLoading(false);
     }
@@ -127,208 +140,268 @@ export default function PrivateReportPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
       >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className={T_PAGE_TITLE}>Private Report</h1>
-          <p className={T_BODY}>Submit private reports directly to HQ/HR. Other staff cannot see your submission.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={BADGE_WARNING}>
-            <ShieldAlert className="h-3 w-3" />
-            Confidential
-          </span>
-        </div>
-      </div>
-
-      <div className={`${BLUSH_GLASS} p-4`}>
-        <div className={`p-3 ${BLUSH_HIGHLIGHT}`}>
-          Anonymous posting notice: this report is handled as anonymous to other staff, but HQ/HR may still see your name for follow-up support.
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className={T_PAGE_TITLE}>Private Report</h1>
+            <p className={T_BODY}>Submit private reports directly to HQ/HR. Other staff cannot see your submission.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={BADGE_WARNING}>
+              <ShieldAlert className="h-3 w-3" />
+              Confidential
+            </span>
+          </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Report Type">
-            <select
-              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-              value={reportType}
-              onChange={(e) => setReportType(e.target.value as ReportType)}
-            >
-              <option value="app-private-report">app-private-report</option>
-              <option value="hq-private-report">hq-private-report</option>
-            </select>
-          </Field>
-          <Field label="City">
-            <select
-              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-              value={city}
-              onChange={(e) => setCity(e.target.value as any)}
-            >
-              <option value="dubai">Dubai</option>
-              <option value="manila">Manila</option>
-            </select>
-          </Field>
-          <Field label="Store / Branch">
-            <input
-              className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-              placeholder="e.g. BB"
-            />
-          </Field>
-          <Field label="Date / Time">
-            <input
-              className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-              value={reportDatetime}
-              onChange={(e) => setReportDatetime(e.target.value)}
-              placeholder="e.g. 2026-03-24 21:30"
-            />
-          </Field>
-        </div>
+        <div className={`${BLUSH_GLASS} p-4`}>
+          <div className="flex items-start gap-3 rounded-2xl border border-violet-700/30 bg-violet-950/20 px-4 py-3">
+            <span className="mt-0.5 shrink-0 text-violet-400">🔒</span>
+            <p className="text-xs leading-relaxed text-neutral-400">
+              <span className="font-semibold text-neutral-300">Anonymous posting notice:</span>{" "}
+              This report is handled as anonymous to other staff, but HQ/HR may still see your name for follow-up support.
+            </p>
+          </div>
 
-        {reportType === "hq-private-report" ? (
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Category">
-              <select
-                className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                <option value="App">App</option>
-                <option value="Operation">Operation</option>
-                <option value="Management">Management</option>
-                <option value="Staff issue">Staff issue</option>
-                <option value="Suggestion">Suggestion</option>
-                <option value="Other">Other</option>
-              </select>
-            </Field>
-            <Field label="Anonymous request">
-              <select
-                className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-                value={anonymousRequest ? "yes" : "no"}
-                onChange={(e) => setAnonymousRequest(e.target.value === "yes")}
-              >
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
-            </Field>
-            <Field label="What happened">
-              <textarea
-                className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-                rows={3}
-                value={whatHappened}
-                onChange={(e) => setWhatHappened(e.target.value)}
-              />
-            </Field>
-            <Field label="Why this is a problem">
-              <textarea
-                className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-                rows={3}
-                value={whyProblem}
-                onChange={(e) => setWhyProblem(e.target.value)}
-              />
-            </Field>
-            <Field label="How often it happens">
-              <input
-                className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-                value={frequency}
-                onChange={(e) => setFrequency(e.target.value)}
-              />
-            </Field>
-            <Field label="Who is affected">
-              <input
-                className={INPUT_CLASS}
-                value={affectedPeople}
-                onChange={(e) => setAffectedPeople(e.target.value)}
-              />
-            </Field>
-            <div className="sm:col-span-2">
-              <Field label="What support or change is needed">
-                <textarea
-                  className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-                  rows={3}
-                  value={supportNeeded}
-                  onChange={(e) => setSupportNeeded(e.target.value)}
-                />
-              </Field>
+          {!result?.ok ? (
+            <>
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <div className={LABEL_CLASS}>Report Type</div>
+                  <select
+                    className={SELECT_POLISH}
+                    value={reportType}
+                    onChange={(e) => setReportType(e.target.value as ReportType)}
+                  >
+                    <option value="app-private-report">app-private-report</option>
+                    <option value="hq-private-report">hq-private-report</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <div className={LABEL_CLASS}>City</div>
+                  <select
+                    className={SELECT_POLISH}
+                    value={city}
+                    onChange={(e) => {
+                      setCity(e.target.value as BranchCity);
+                      setBranch("");
+                    }}
+                  >
+                    <option value="dubai">Dubai</option>
+                    <option value="manila">Manila</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <div className={LABEL_CLASS}>Store / Branch</div>
+                  <select className={SELECT_POLISH} value={branch} onChange={(e) => setBranch(e.target.value)}>
+                    <option value="">- Select branch -</option>
+                    {(BRANCHES[(city as BranchCity) || "dubai"] || []).map((b) => (
+                      <option key={b.code} value={b.code}>
+                        {b.name} ({b.code})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <div className={LABEL_CLASS}>Date / Time</div>
+                  <input
+                    type="datetime-local"
+                    className={`${INPUT_POLISH} [color-scheme:dark]`}
+                    value={dateTimeLocal}
+                    onChange={(e) => setDateTimeLocal(e.target.value)}
+                  />
+                </label>
+              </div>
+
+              {reportType === "hq-private-report" ? (
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <div className={LABEL_CLASS}>Category</div>
+                    <select className={SELECT_POLISH} value={category} onChange={(e) => setCategory(e.target.value)}>
+                      <option value="App">App</option>
+                      <option value="Operation">Operation</option>
+                      <option value="Management">Management</option>
+                      <option value="Staff issue">Staff issue</option>
+                      <option value="Suggestion">Suggestion</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </label>
+                  <label className="block">
+                    <div className={LABEL_CLASS}>Anonymous request</div>
+                    <select
+                      className={SELECT_POLISH}
+                      value={anonymousRequest ? "yes" : "no"}
+                      onChange={(e) => setAnonymousRequest(e.target.value === "yes")}
+                    >
+                      <option value="yes">Yes</option>
+                      <option value="no">No</option>
+                    </select>
+                  </label>
+                  <label className="block">
+                    <div className={LABEL_CLASS}>What happened</div>
+                    <textarea
+                      className={TEXTAREA_POLISH}
+                      rows={3}
+                      value={whatHappened}
+                      onChange={(e) => setWhatHappened(e.target.value)}
+                    />
+                  </label>
+                  <label className="block">
+                    <div className={LABEL_CLASS}>Why this is a problem</div>
+                    <textarea
+                      className={TEXTAREA_POLISH}
+                      rows={3}
+                      value={whyProblem}
+                      onChange={(e) => setWhyProblem(e.target.value)}
+                    />
+                  </label>
+                  <label className="block">
+                    <div className={LABEL_CLASS}>How often it happens</div>
+                    <input className={INPUT_POLISH} value={frequency} onChange={(e) => setFrequency(e.target.value)} />
+                  </label>
+                  <label className="block">
+                    <div className={LABEL_CLASS}>Who is affected</div>
+                    <input
+                      className={INPUT_POLISH}
+                      value={affectedPeople}
+                      onChange={(e) => setAffectedPeople(e.target.value)}
+                    />
+                  </label>
+                  <div className="sm:col-span-2">
+                    <label className="block">
+                      <div className={LABEL_CLASS}>What support or change is needed</div>
+                      <textarea
+                        className={TEXTAREA_POLISH}
+                        rows={3}
+                        value={supportNeeded}
+                        onChange={(e) => setSupportNeeded(e.target.value)}
+                      />
+                    </label>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="block">
+                    <div className={LABEL_CLASS}>Screen / Feature</div>
+                    <input
+                      className={INPUT_POLISH}
+                      value={screenFeature}
+                      onChange={(e) => setScreenFeature(e.target.value)}
+                    />
+                  </label>
+                  <div />
+                  <label className="block">
+                    <div className={LABEL_CLASS}>Problem</div>
+                    <textarea
+                      className={TEXTAREA_POLISH}
+                      rows={3}
+                      value={problem}
+                      onChange={(e) => setProblem(e.target.value)}
+                    />
+                  </label>
+                  <label className="block">
+                    <div className={LABEL_CLASS}>What you expected</div>
+                    <textarea
+                      className={TEXTAREA_POLISH}
+                      rows={3}
+                      value={expected}
+                      onChange={(e) => setExpected(e.target.value)}
+                    />
+                  </label>
+                  <label className="block">
+                    <div className={LABEL_CLASS}>What actually happened</div>
+                    <textarea
+                      className={TEXTAREA_POLISH}
+                      rows={3}
+                      value={actual}
+                      onChange={(e) => setActual(e.target.value)}
+                    />
+                  </label>
+                  <label className="block">
+                    <div className={LABEL_CLASS}>Screenshot</div>
+                    <input
+                      className={INPUT_POLISH}
+                      value={screenshot}
+                      onChange={(e) => setScreenshot(e.target.value)}
+                      placeholder="URL or short note"
+                    />
+                  </label>
+                </div>
+              )}
+
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={submit}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {loading ? (
+                    <>
+                      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                      </svg>
+                      Submitting...
+                    </>
+                  ) : (
+                    "Submit Private Report"
+                  )}
+                </button>
+              </div>
+            </>
+          ) : null}
+
+          {submitError ? (
+            <div className="mt-6 rounded-2xl border border-rose-700/40 bg-rose-950/30 p-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-700/30 text-lg">
+                  ❌
+                </div>
+                <div>
+                  <div className="text-sm font-semibold text-rose-200">Submission Failed</div>
+                  <div className="mt-0.5 text-xs text-rose-400/80">{submitError}</div>
+                </div>
+              </div>
             </div>
-          </div>
-        ) : (
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Screen / Feature">
-              <input
-                className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-                value={screenFeature}
-                onChange={(e) => setScreenFeature(e.target.value)}
-              />
-            </Field>
-            <div />
-            <Field label="Problem">
-              <textarea
-                className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-                rows={3}
-                value={problem}
-                onChange={(e) => setProblem(e.target.value)}
-              />
-            </Field>
-            <Field label="What you expected">
-              <textarea
-                className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-                rows={3}
-                value={expected}
-                onChange={(e) => setExpected(e.target.value)}
-              />
-            </Field>
-            <Field label="What actually happened">
-              <textarea
-                className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-                rows={3}
-                value={actual}
-                onChange={(e) => setActual(e.target.value)}
-              />
-            </Field>
-            <Field label="Screenshot">
-              <input
-                className={INPUT_CLASS}
-                value={screenshot}
-                onChange={(e) => setScreenshot(e.target.value)}
-                placeholder="URL or short note"
-              />
-            </Field>
-          </div>
-        )}
+          ) : null}
 
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={submit}
-            disabled={loading}
-            className={BLUSH_PRIMARY}
-          >
-            {loading ? "Submitting..." : "Submit Private Report"}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setError("");
-              setResult(null);
-            }}
-            className={BLUSH_SECONDARY}
-          >
-            Clear result
-          </button>
-          {error ? <div className="text-sm text-red-300">{error}</div> : null}
-        </div>
+          {result?.ok ? (
+            <div className="mt-6 rounded-2xl border border-emerald-700/40 bg-emerald-950/30 p-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-700/30 text-xl">
+                  ✅
+                </div>
+                <div>
+                  <div className="text-base font-semibold text-emerald-200">Report Submitted</div>
+                  <div className="text-xs text-emerald-400/70">Your report has been received by HQ/HR</div>
+                </div>
+              </div>
 
-        {result ? (
-          <div className={`${BLUSH_GLASS} mt-4 p-3 text-sm text-neutral-200`}>
-            <div className="flex items-center gap-2 font-medium">
-              <MessageSquareWarning className="h-4 w-4 text-amber-300" />
-              Accepted
+              {result.receipt_message ? (
+                <p className="mt-4 text-sm leading-relaxed text-neutral-300">{result.receipt_message}</p>
+              ) : null}
+
+              {result.report_id ? (
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="text-xs text-neutral-500">Report ID:</span>
+                  <code className="rounded bg-neutral-900/60 px-2 py-0.5 text-[11px] font-mono text-neutral-400">
+                    {result.report_id}
+                  </code>
+                </div>
+              ) : null}
+
+              <div className="mt-5 flex gap-3">
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="rounded-xl border border-emerald-700/50 bg-emerald-950/40 px-4 py-2 text-sm text-emerald-200 transition hover:bg-emerald-950/60"
+                >
+                  Submit Another Report
+                </button>
+              </div>
             </div>
-            <div className="mt-1 text-neutral-300">A receipt message was sent to your Inbox.</div>
-            <pre className="mt-2 overflow-auto text-xs text-neutral-400">{JSON.stringify(result, null, 2)}</pre>
-          </div>
-        ) : null}
-      </div>
+          ) : null}
+        </div>
       </motion.div>
     </div>
   );

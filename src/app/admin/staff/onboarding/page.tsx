@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ClipboardList, Clock } from "lucide-react";
-import { getAuth } from "@/lib/auth";
+import { canAccessRoleManagement, getAuth } from "@/lib/auth";
 import { fmtNum } from "@/lib/formatters";
 import {
   BADGE_ERROR,
@@ -68,6 +68,7 @@ type DashboardResp = {
 
 export default function StaffOnboardingDashboardPage() {
   const auth = getAuth();
+  const canOpenRoleManagement = canAccessRoleManagement(auth);
 
   const [city, setCity] = useState("");
   const [branchCode, setBranchCode] = useState("");
@@ -306,12 +307,14 @@ export default function StaffOnboardingDashboardPage() {
                   <div>
                     <div className="font-medium">{row.display_name}</div>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      <a
-                        href={`/admin/staff/roles?staff_name=${encodeURIComponent(row.display_name)}`}
-                        className={SECONDARY_BUTTON + " px-2.5 py-1 text-[11px]"}
-                      >
-                        Role
-                      </a>
+                      {canOpenRoleManagement ? (
+                        <a
+                          href={`/admin/staff/roles?staff_name=${encodeURIComponent(row.display_name)}`}
+                          className={SECONDARY_BUTTON + " px-2.5 py-1 text-[11px]"}
+                        >
+                          Role
+                        </a>
+                      ) : null}
 
                       <a
                         href={`/admin/staff/audit?target_staff_name=${encodeURIComponent(row.display_name)}`}

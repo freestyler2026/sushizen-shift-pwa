@@ -6,7 +6,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
-  AlertTriangle,
   ArrowLeftRight,
   BarChart3,
   Calculator,
@@ -85,7 +84,6 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/procurement", label: "Procurement", icon: Truck, adminOnly: true, match: "prefix" },
   { href: "/admin/cost-calculation", label: "Cost Calculation", icon: Calculator, adminOnly: true, match: "prefix" },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3, adminOnly: true, match: "exact" },
-  { href: "/admin/low-ratings", label: "Low Ratings", icon: AlertTriangle, adminOnly: true, match: "exact" },
   { href: "/admin/attendance", label: "Attendance", icon: UserCheck, adminOnly: true, match: "prefix" },
   { href: "/admin/absences", label: "Absences", icon: UserX, adminOnly: true, match: "exact" },
   { href: "/admin/renewals", label: "Renewals", icon: ScrollText, adminOnly: true, match: "prefix" },
@@ -184,7 +182,6 @@ export default function NavBar() {
     if (href === "/admin/procurement") return canAccessProcurementAdmin(auth, auth.city);
     if (href === "/admin/cost-calculation") return canAccessCostAdmin(auth);
     if (href === "/admin/analytics") return canAccessAdminNav(auth);
-    if (href === "/admin/low-ratings") return canAccessAdminNav(auth);
     if (href === "/admin/attendance") return canAccessAdminNav(auth);
     if (href === "/admin/absences") return canAccessAdminNav(auth);
     if (href === "/admin/renewals") return canAccessAdminNav(auth);

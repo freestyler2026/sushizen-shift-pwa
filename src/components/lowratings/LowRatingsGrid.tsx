@@ -148,6 +148,7 @@ export function LowRatingsGrid({
   updateCell,
   deleteRow,
   addRow,
+  picOptions = [],
 }: {
   city: LowRatingCity;
   rows: GridRowState[];
@@ -155,8 +156,18 @@ export function LowRatingsGrid({
   updateCell: (localId: string, key: keyof GridRowState, value: unknown) => void;
   deleteRow: (localId: string) => void | Promise<void>;
   addRow: () => void;
+  /** Staff names for PIC / approver column (select). */
+  picOptions?: string[];
 }) {
-  const cols = useMemo(() => getColumnsForCity(city), [city]);
+  const cols = useMemo(() => {
+    const base = getColumnsForCity(city);
+    const opts = ["", ...picOptions.filter(Boolean)];
+    return base.map((c) =>
+      c.key === "pic"
+        ? { ...c, type: "select" as const, label: "APPROVER", width: 132, options: opts }
+        : c,
+    );
+  }, [city, picOptions]);
   const [sortKey, setSortKey] = useState<DataColumnKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>(null);
   const [editing, setEditing] = useState<EditTarget>(null);
@@ -218,6 +229,9 @@ export function LowRatingsGrid({
 
   return (
     <div className="space-y-3">
+      <button type="button" className={PRIMARY_BUTTON + " inline-flex items-center gap-2 text-sm"} onClick={addRow}>
+        ＋ Add row
+      </button>
       <div className="relative overflow-x-auto rounded-xl border border-[#333] bg-[#141428]">
         {loading ? (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/30">
@@ -338,10 +352,6 @@ export function LowRatingsGrid({
           </tbody>
         </table>
       </div>
-
-      <button type="button" className={PRIMARY_BUTTON + " inline-flex items-center gap-2 text-sm"} onClick={addRow}>
-        ＋ Add row
-      </button>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 // src/app/admin/staff/page.tsx
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -20,7 +20,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { canAccessAdminNav, getAuth, type City } from "@/lib/auth";
+import { canAccessAdminNav, canAccessRoleManagement, getAuth, type City } from "@/lib/auth";
 import { apiGet, apiPost, qs } from "@/lib/api";
 import { fmtNum } from "@/lib/formatters";
 import {
@@ -251,7 +251,7 @@ export default function AdminStaffPage() {
   const [approverName, setApproverName] = useState("");
   const [pin, setPin] = useState("");
 
-  const [statusFilter, setStatusFilter] = useState<StaffStatus>("ACTIVE");
+  const [statusFilter, setStatusFilter] = useState<StaffStatus | "">("");
   const [homeBranchFilter, setHomeBranchFilter] = useState("");
   const q = "";
   const [limit, setLimit] = useState(2000);
@@ -273,6 +273,17 @@ export default function AdminStaffPage() {
   const [pushKeySavingName, setPushKeySavingName] = useState("");
   const [pushKeySavedName, setPushKeySavedName] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const hasLoaded = useRef(false);
+  const canOpenRoleManagement = canAccessRoleManagement(authed);
+
+  useEffect(() => {
+    // Only auto-reload if the user has already authenticated and
+    // loaded data at least once — prevents firing before login
+    if (!hasLoaded.current) return;
+    if (!norm(approverName)) return;
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, homeBranchFilter, q, limit, listSelectedDisplayName]);
 
   useEffect(() => {
     const a = getAuth();
@@ -291,7 +302,7 @@ export default function AdminStaffPage() {
   }, [router]);
 
 
-  const loadListStaffOptions = useCallback(async (nextCity: City, nextStatus: StaffStatus) => {
+  const loadListStaffOptions = useCallback(async (nextCity: City, nextStatus: StaffStatus | "") => {
     try {
       const nm = norm(approverName);
       if (!nm) {
@@ -302,7 +313,7 @@ export default function AdminStaffPage() {
       const res = await apiGet<{ ok?: boolean; names?: string[] }>(
         `/api/admin/staff_master/names${qs({
           city: nextCity,
-          status: nextStatus,
+          ...(nextStatus ? { status: nextStatus } : {}),
           limit: 5000,
           approver_name: nm,
           ...(p ? { pin: p } : {}),
@@ -333,7 +344,7 @@ export default function AdminStaffPage() {
       const res = await apiGet<{ ok: boolean; rows: StaffRow[] }>(
         `/api/admin/staff_master${qs({
           city,
-          status: statusFilter,
+          ...(statusFilter ? { status: statusFilter } : {}),
           home_branch: homeBranchFilter,
           q: norm(listSelectedDisplayName) || q,
           limit,
@@ -354,6 +365,7 @@ export default function AdminStaffPage() {
 
       const deduped = dedupeStaffRows(list);
       setRows(deduped);
+      hasLoaded.current = true;
       setMsg({ kind: "ok", text: `Loaded: ${deduped.length} rows` });
     } catch (e: any) {
       const errText = String(e?.message || e || "");
@@ -402,6 +414,7 @@ export default function AdminStaffPage() {
           );
           const deduped = dedupeStaffRows(detailRows);
           setRows(deduped);
+          hasLoaded.current = true;
           setMsg({ kind: "info", text: `Legacy backend fallback used. Loaded: ${deduped.length} rows` });
           return;
         } catch (fallbackErr: any) {
@@ -535,6 +548,7 @@ export default function AdminStaffPage() {
       const nm = norm(approverName);
       const p = legacyPinOrEmpty(pin);
       if (!nm) throw new Error("Approver name is required.");
+      if (!p) throw new Error("PIN is required for status change.");
 
       const dn = norm(display_name);
       if (!dn) throw new Error("display_name missing.");
@@ -542,13 +556,12 @@ export default function AdminStaffPage() {
       setLoading(true);
 
       const r = await apiPost<{ ok: boolean; updated: number }>(
-        "/api/admin/staff_master/set_status",
+        "/api/admin/staff/change_status",
         {
-          city,
-          display_name: dn,
-          status: newStatus,
+          target_staff_name: dn,
+          new_status: newStatus,
           approver_name: nm,
-          ...(p ? { pin: p } : {}),
+          pin: p,
         }
       );
 
@@ -556,6 +569,16 @@ export default function AdminStaffPage() {
         kind: "ok",
         text: `Status updated: ${dn} → ${newStatus} (updated=${r.updated ?? 0})`,
       });
+      setRows((prev) =>
+        prev.map((row) =>
+          norm(row.display_name) === dn
+            ? {
+                ...row,
+                status: newStatus,
+              }
+            : row
+        )
+      );
       await load();
     } catch (e: any) {
       setMsg({ kind: "err", text: friendlyErrorText(String(e?.message || e || "")) });
@@ -585,16 +608,21 @@ export default function AdminStaffPage() {
   }, [rows]);
 
   const filteredRows = useMemo(() => {
+    const statusNeedle = norm(statusFilter).toUpperCase();
+    const statusScopedRows = !statusNeedle
+      ? rows
+      : rows.filter((row) => norm(row.status).toUpperCase() === statusNeedle);
+
     const q = norm(searchQuery).toLowerCase();
-    if (!q) return rows;
-    return rows.filter((row) => {
+    if (!q) return statusScopedRows;
+    return statusScopedRows.filter((row) => {
       const name = norm(row.display_name).toLowerCase();
       const branch = norm(row.home_branch).toLowerCase();
       const role = norm(row.role).toLowerCase();
       const status = norm(row.status).toLowerCase();
       return [name, branch, role, status].some((value) => value.includes(q));
     });
-  }, [rows, searchQuery]);
+  }, [rows, searchQuery, statusFilter]);
 
   function downloadRoster() {
     const headers = ["name", "branch", "role", "status", "setup", "push_key"];
@@ -675,15 +703,17 @@ export default function AdminStaffPage() {
               border: "border-amber-500/20",
               bg: "from-amber-500/10 to-orange-500/5",
             },
-            {
-              href: "/admin/staff/roles",
-              label: "Role Management",
-              desc: "HQ only. Change staff roles including ADMIN.",
-              icon: ShieldCheck,
-              color: "text-amber-300",
-              border: "border-amber-400/30",
-              bg: "from-amber-400/12 to-orange-400/6",
-            },
+            ...(canOpenRoleManagement
+              ? [{
+                  href: "/admin/staff/roles",
+                  label: "Role Management",
+                  desc: "HQ only. Manage channel visibility and staff role assignments.",
+                  icon: ShieldCheck,
+                  color: "text-amber-300",
+                  border: "border-amber-400/30",
+                  bg: "from-amber-400/12 to-orange-400/6",
+                }]
+              : []),
             {
               href: "/admin/staff/onboarding",
               label: "Onboarding Dashboard",
@@ -770,7 +800,7 @@ export default function AdminStaffPage() {
             className={PRIMARY_BUTTON + " flex items-center gap-2"}
           >
             <ShieldCheck className="h-4 w-4" />
-            {loading ? "Loading..." : "Verify & Load"}
+            {loading ? (hasLoaded.current ? "Refreshing..." : "Loading...") : hasLoaded.current ? "Refresh list" : "Login & Load"}
           </button>
           <button type="button" onClick={resetForm} className={SECONDARY_BUTTON + " flex items-center gap-2"}>
             <X className="h-4 w-4" />
@@ -880,7 +910,19 @@ export default function AdminStaffPage() {
         <div className="grid grid-cols-1 gap-3 border-b border-white/5 bg-white/3 px-5 py-4 sm:grid-cols-4 lg:grid-cols-5">
           <div>
             <label className={T_LABEL + " mb-1.5 block"}>Status</label>
-            <select className={SELECT_CLASS} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StaffStatus)}>
+            <select
+              className={[
+                "w-full rounded-xl border px-3 py-2 text-sm bg-neutral-950",
+                statusFilter === "INACTIVE"
+                  ? "border-amber-500 text-amber-200"
+                  : statusFilter === "ACTIVE"
+                  ? "border-emerald-700 text-emerald-200"
+                  : "border-neutral-800",
+              ].join(" ")}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as StaffStatus | "")}
+            >
+              <option value="">All statuses</option>
               {STATUS_OPTIONS.map((x) => (
                 <option key={x} value={x}>
                   {x}
@@ -921,6 +963,7 @@ export default function AdminStaffPage() {
             />
           </div>
         </div>
+        <p className="px-5 pb-3 text-[11px] italic text-neutral-500">(auto-refreshes on filter change)</p>
 
         <div className="overflow-x-auto">
           <table className="w-full min-w-[980px]">
@@ -947,7 +990,7 @@ export default function AdminStaffPage() {
                     initial={{ opacity: 0, x: -6 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.2, delay: i * 0.02 }}
-                    className={TABLE_ROW}
+                    className={[TABLE_ROW, !statusFilter && st === "INACTIVE" ? "opacity-60" : ""].join(" ")}
                   >
                     <td className={TABLE_CELL + " px-4 align-top"}>
                       <div className="flex items-start gap-2.5">
@@ -1023,6 +1066,12 @@ export default function AdminStaffPage() {
                           <Pencil className="h-3 w-3" />
                           {roleSavingName === dn ? "Saving..." : "Edit"}
                         </button>
+                        {canOpenRoleManagement ? (
+                          <Link href={`/admin/staff/roles?staff_name=${encodeURIComponent(dn)}`} className={SMALL_BUTTON + " flex items-center gap-1"}>
+                            <ShieldCheck className="h-3 w-3" />
+                            Roles
+                          </Link>
+                        ) : null}
                         <Link href={`/admin/staff/audit?target_staff_name=${encodeURIComponent(dn)}`} className={SMALL_BUTTON + " flex items-center gap-1"}>
                           <ScrollText className="h-3 w-3" />
                           Audit
@@ -1059,7 +1108,7 @@ export default function AdminStaffPage() {
         </div>
 
         <div className="px-5 py-4 text-xs text-zinc-500">
-          Note: role/status changes apply from this list. If role update fails with legacy backend, redeploy backend and retry.
+          Note: role/status changes apply from this list and require PIN re-authentication.
         </div>
       </div>
 

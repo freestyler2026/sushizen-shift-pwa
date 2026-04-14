@@ -3,20 +3,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { CalendarRange } from "lucide-react";
+import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { Field } from "@/components/Field";
 import { apiGet, qs, type WeekView, type ShiftRow } from "@/lib/api";
 import { mondayOf, isoToday } from "@/lib/date";
 import { getAuth, type City } from "@/lib/auth";
 import {
   GLASS_CARD,
   SELECT_CLASS,
-  T_PAGE_TITLE,
-  T_SECTION,
-  T_BODY,
-  T_CAPTION,
-  BADGE_SUCCESS,
   BADGE_WARNING,
   DIVIDER,
 } from "@/lib/ui-tokens";
@@ -75,6 +69,13 @@ function sanitizeDisplayName(s: string) {
   return (s || "").replace(/\([^)]*[^\x00-\x7F][^)]*\)/g, "").trim();
 }
 
+function normalizeBranchName(s: string) {
+  const raw = String(s || "").trim();
+  const compact = raw.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (compact === "businessbay" || compact === "bbay") return "Business Bay";
+  return raw;
+}
+
 function badgeForRow(r: ShiftRow) {
   const ov = (r as any)?.override;
   if (ov?.status === "FINAL") {
@@ -89,10 +90,6 @@ function badgeForRow(r: ShiftRow) {
 const PAGE_BG = "min-h-screen text-white";
 const BLUSH_GLASS = `${GLASS_CARD} bg-violet-950/30`;
 const BLUSH_HIGHLIGHT = "rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/18 to-purple-500/10";
-const BLUSH_PRIMARY =
-  "rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 px-5 py-2.5 font-semibold text-white transition-all duration-200 shadow-lg shadow-violet-500/25 hover:scale-[1.02] hover:from-violet-400 hover:to-purple-400 hover:shadow-violet-500/40 active:scale-[0.98] disabled:opacity-60";
-const BLUSH_SECONDARY =
-  "rounded-xl border border-violet-400/15 bg-violet-950/30 px-5 py-2.5 text-white transition-all duration-200 hover:border-violet-500/25 hover:bg-violet-950/45 disabled:opacity-60";
 
 // -----------------------------
 // Absence helpers (robust)
@@ -173,7 +170,8 @@ function buildBranchMapForDay(rows: ShiftRow[]): Map<string, DayBranchGroup> {
   const bmap = new Map<string, DayBranchGroup>();
 
   for (const r of rows) {
-    const bc = String((r as any).branch_code || "").trim();
+    const rawBc = String((r as any).branch_code || "").trim();
+    const bc = normalizeBranchName(rawBc);
     const area = String((r as any).area || "").trim();
     const staff = String(r.staff_name || "").trim();
     if (!staff) continue;
@@ -181,6 +179,7 @@ function buildBranchMapForDay(rows: ShiftRow[]): Map<string, DayBranchGroup> {
     // guard: header-like rows
     const sU = staff.toUpperCase();
     if (sU === "UNASSIGNED" || sU === "UNKNOWN") continue;
+    if (rawBc && staff === rawBc) continue;
     if (bc && staff === bc) continue;
     if (area && staff === area) continue;
 
@@ -228,15 +227,18 @@ function Timeline2Rows({ rows }: { rows: ShiftRow[] }) {
 
   return (
     <div className="mt-2 space-y-1">
-      <div className="flex items-center justify-between text-[9px] text-neutral-500 sm:text-[10px]">
+      <div className="flex items-center justify-between text-[10px] text-neutral-600">
         {ticks.map((t) => (
-          <div key={t} className="w-0 flex-1 text-center">
+          <div
+            key={t}
+            className={`w-0 flex-1 text-center ${[12, 20, 30].includes(t) ? "hidden sm:block" : ""}`}
+          >
             {hourText(t)}
           </div>
         ))}
       </div>
 
-      <div className="relative h-7 overflow-hidden rounded-lg border border-neutral-800 bg-neutral-950/30">
+      <div className="relative h-8 overflow-hidden rounded-lg border border-neutral-800 bg-neutral-950/30">
         <div className="absolute inset-0 flex">
           {Array.from({ length: TL_TOTAL }).map((_, i) => (
             <div key={i} className="flex-1 border-r border-neutral-900/60 last:border-r-0" />
@@ -269,7 +271,7 @@ function Timeline2Rows({ rows }: { rows: ShiftRow[] }) {
           return (
             <div
               key={`${r.staff_name}-${idx}-${st}-${en}`}
-              className={`absolute top-0.5 h-5 rounded-md border ${barCls}`}
+              className={`absolute top-1 h-6 rounded-md border ${barCls}`}
               style={{ left: `${left}%`, width: `${width}%` }}
               title={`${(r.role || "").toString()} ${full}`}
             />
@@ -469,42 +471,38 @@ export default function WeekPage() {
     return (
       <div
         key={staff}
-        className={`rounded-lg border p-2 sm:p-2.5 ${
-          isMe ? "border-violet-500/30 bg-violet-500/12" : "border-neutral-800 bg-violet-950/20"
+        className={`relative overflow-hidden rounded-xl border ${
+          isMe ? "border-amber-700/50 bg-amber-950/10" : "border-neutral-800 bg-neutral-900/20"
         }`}
       >
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="truncate text-[14px] font-semibold leading-5 sm:text-[15px]">
-              {name}
-              {isMe ? <span className="ml-2 text-[11px] text-violet-200">(You)</span> : null}
-              {containsJP(staff) ? <span className="ml-2 text-[11px] text-red-300">⚠️JP</span> : null}
+        {isMe ? <div className="absolute left-0 top-0 h-full w-1 rounded-l-xl bg-amber-500" /> : null}
+        <div className={`p-3 ${isMe ? "pl-4" : ""}`}>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span className="truncate text-sm font-semibold text-white">{name}</span>
+              {isMe ? <span className="shrink-0 text-[10px] font-medium text-amber-300">YOU</span> : null}
+              {containsJP(staff) ? <span className="shrink-0 text-[10px] text-red-300">JP</span> : null}
             </div>
-
-            <div className="mt-0.5 text-[11px] text-neutral-400">{roleText}</div>
-          </div>
-
-          <div className="shrink-0 text-right">
-            <div className="text-[11px] text-neutral-500">
-              {absence ? "ABSENCE" : `${rows.length} shift${rows.length === 1 ? "" : "s"}`}
-            </div>
-            <span className={`mt-1 inline-block rounded-md border px-1.5 py-0.5 text-[9px] ${badge.cls}`}>
+            <span className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[10px] ${badge.cls}`}>
               {badge.label}
             </span>
           </div>
-        </div>
 
-        {absence ? (
-          <div className="mt-2 rounded-lg border border-neutral-800 bg-neutral-950/40 px-2 py-1.5">
-            {absNote ? (
-              <div className="text-xs text-neutral-300">{absNote}</div>
-            ) : (
-              <div className="text-xs text-neutral-500">—</div>
-            )}
+          <div className="mt-0.5 flex items-center justify-between gap-2">
+            <span className="truncate text-xs text-neutral-500">{roleText}</span>
+            <span className="shrink-0 text-[10px] text-neutral-600">
+              {absence ? "ABSENCE" : `${rows.length} shift`}
+            </span>
           </div>
-        ) : (
-          <Timeline2Rows rows={rows} />
-        )}
+
+          {absence ? (
+            <div className="mt-2 rounded-lg bg-neutral-950/40 px-2 py-1.5 text-xs text-neutral-400">
+              {absNote || absType}
+            </div>
+          ) : (
+            <Timeline2Rows rows={rows} />
+          )}
+        </div>
       </div>
     );
   };
@@ -514,52 +512,92 @@ export default function WeekPage() {
   return (
     <div className={PAGE_BG}>
       <motion.div
-        className="mx-auto max-w-5xl space-y-6 px-4 py-8"
+        className="mx-auto max-w-5xl space-y-4 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-8"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
       >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className={T_PAGE_TITLE}>Week</h1>
-          <p className={T_BODY}>
-            Logged in as <span className="font-medium text-white">{sanitizeDisplayName(myName) || "-"}</span>
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={BADGE_SUCCESS}>
-            <CalendarRange className="h-3 w-3" />
-            {weekLabel(startDate)}
-          </span>
-        </div>
-      </div>
-
-      <div className={`${BLUSH_GLASS} p-4 sm:p-5`}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className={T_SECTION}>Weekly Schedule</div>
-            <div className={T_CAPTION}>Browse the published week and recent approved changes.</div>
-          </div>
-        </div>
-
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <Field label="City">
+      <div className={`${BLUSH_GLASS} p-3 sm:p-4`}>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <h1 className="shrink-0 text-lg font-bold text-white">Week</h1>
             <select
-              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
               value={city}
               onChange={(e) => {
                 didAutoSetRef.current = true;
                 setCity(e.target.value as City);
               }}
+              className="min-w-0 rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-1.5 text-sm text-white"
             >
               <option value="dubai">Dubai</option>
               <option value="manila">Manila</option>
             </select>
-          </Field>
+          </div>
+          <button
+            onClick={fetchWeek}
+            className="flex items-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-300 transition hover:bg-neutral-800 active:scale-95"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            <span>Refresh</span>
+          </button>
+        </div>
+        <div className="mt-1 text-[11px] text-neutral-500">
+          Logged in as <span className="text-neutral-300">{sanitizeDisplayName(myName) || "-"}</span>
+        </div>
+        <div className="mt-2 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => {
+              const d = new Date(startDate + "T00:00:00");
+              d.setDate(d.getDate() - 7);
+              didAutoSetRef.current = true;
+              setStartDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+            }}
+            className="rounded-xl p-2 text-neutral-400 transition hover:bg-neutral-800 hover:text-white active:scale-95"
+            aria-label="Previous week"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
 
-          <Field label="Week (Mon-Sun)">
+          <div className="text-center">
+            <div className="text-base font-semibold text-white">
+              {(() => {
+                const s = new Date(startDate + "T00:00:00");
+                const e = new Date(startDate + "T00:00:00");
+                e.setDate(e.getDate() + 6);
+                const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                return `${fmt(s)} – ${fmt(e)}, ${s.getFullYear()}`;
+              })()}
+            </div>
+            {loading ? (
+              <div className="mt-0.5 flex items-center justify-center gap-1.5 text-xs text-neutral-500">
+                <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-neutral-700 border-t-violet-400" />
+                Loading…
+              </div>
+            ) : null}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              const d = new Date(startDate + "T00:00:00");
+              d.setDate(d.getDate() + 7);
+              didAutoSetRef.current = true;
+              setStartDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+            }}
+            className="rounded-xl p-2 text-neutral-400 transition hover:bg-neutral-800 hover:text-white active:scale-95"
+            aria-label="Next week"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </div>
+
+        {error ? <div className="mt-2 text-xs text-red-400">{error}</div> : null}
+
+        <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+          <div className="hidden sm:block">
             <select
-              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
+              className={`${SELECT_CLASS} h-full rounded-lg border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-white`}
               value={startDate}
               onChange={(e) => {
                 didAutoSetRef.current = true;
@@ -572,37 +610,47 @@ export default function WeekPage() {
                 </option>
               ))}
             </select>
-          </Field>
-
-          <div className="flex items-end gap-2">
-            <button
-              onClick={fetchWeek}
-              className={`${BLUSH_PRIMARY} min-h-10 w-full`}
-            >
-              Refresh
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                didAutoSetRef.current = true;
-                setStartDate(mondayOf(isoToday()));
-              }}
-              className={`${BLUSH_SECONDARY} min-h-10`}
-            >
-              Today
-            </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              didAutoSetRef.current = true;
+              setStartDate(mondayOf(isoToday()));
+            }}
+            className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-300 transition hover:bg-neutral-800 active:scale-95"
+          >
+            Today
+          </button>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          {loading ? <div className="text-sm text-neutral-400">Loading...</div> : null}
-          {error ? <div className="text-sm text-red-300">{error}</div> : null}
+        <div className="mt-2 sm:hidden">
+          <select
+            className={`${SELECT_CLASS} rounded-lg border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-white`}
+            value={startDate}
+            onChange={(e) => {
+              didAutoSetRef.current = true;
+              setStartDate(e.target.value);
+            }}
+          >
+            {weekOptions.map((ws) => (
+              <option key={ws} value={ws}>
+                {weekLabel(ws)}
+              </option>
+            ))}
+          </select>
         </div>
+
+        {!error && loading ? (
+          <div className="mt-2 text-xs text-neutral-500 sm:hidden">
+            Updating week…
+          </div>
+        ) : null}
       </div>
 
-      <div className={`${BLUSH_GLASS} p-4`}>
-        <div className={T_SECTION}>Recent Approved Changes</div>
-        <div className={`mt-1 ${T_CAPTION}`}>
+      <div className={`${BLUSH_GLASS} p-3 sm:p-4`}>
+        <div className="text-sm font-semibold text-white">Recent Approved Changes</div>
+        <div className="mt-1 text-xs text-neutral-500 sm:text-sm">
           Changes synced from manager spreadsheet edits and approved by HQ/Admin.
         </div>
         {!changes.length ? (
@@ -610,11 +658,11 @@ export default function WeekPage() {
         ) : (
           <div className="mt-3 space-y-2">
             {changes.slice(0, 30).map((ev) => (
-              <div key={ev.id} className={`${BLUSH_HIGHLIGHT} px-3 py-2 text-xs`}>
-                <div className="text-neutral-200">
-                  {ev.work_date} • {ev.branch_code} • {(ev.change_type || "").replaceAll("_", " ")}
+              <div key={ev.id} className={`${BLUSH_HIGHLIGHT} rounded-xl px-3 py-2 text-xs`}>
+                <div className="text-neutral-200/95">
+                  {ev.work_date} • {normalizeBranchName(ev.branch_code)} • {(ev.change_type || "").replaceAll("_", " ")}
                 </div>
-                <div className="mt-1 text-neutral-400">
+                <div className="mt-1 text-neutral-400/90">
                   {(ev.before_json?.staff_name || "-")} {rangeText(Number(ev.before_json?.start_hour || 0), Number(ev.before_json?.end_hour || 0))}
                   {" -> "}
                   {(ev.after_json?.staff_name || "-")} {rangeText(Number(ev.after_json?.start_hour || 0), Number(ev.after_json?.end_hour || 0))}
@@ -630,13 +678,16 @@ export default function WeekPage() {
 
       <div className="space-y-3">
         <div className="space-y-2">
-          <div className={T_SECTION}>All Staff By Branch</div>
+          <div className="space-y-1">
+            <div className="text-sm font-semibold text-white">All Staff By Branch</div>
+            <div className="text-[11px] text-neutral-500">Swipe horizontally to filter by branch.</div>
+          </div>
           {availableBranches.length ? (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               <button
                 type="button"
                 onClick={() => setBranchFilter("ALL")}
-                className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                className={`shrink-0 rounded-full border px-3 py-1 text-[11px] transition ${
                   branchFilter === "ALL"
                     ? "border-violet-500/30 bg-violet-500/15 text-violet-300"
                     : "border-neutral-800 bg-violet-950/30 text-neutral-300 hover:bg-violet-950/45"
@@ -648,7 +699,7 @@ export default function WeekPage() {
                 <button
                   type="button"
                   onClick={() => setBranchFilter("__MY__")}
-                  className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                  className={`shrink-0 rounded-full border px-3 py-1 text-[11px] transition ${
                     branchFilter === "__MY__"
                       ? "border-violet-500/30 bg-violet-500/15 text-violet-300"
                       : "border-neutral-800 bg-violet-950/30 text-neutral-300 hover:bg-violet-950/45"
@@ -662,7 +713,7 @@ export default function WeekPage() {
                   key={branch}
                   type="button"
                   onClick={() => setBranchFilter(branch)}
-                  className={`rounded-full border px-3 py-1 text-[11px] transition ${
+                  className={`shrink-0 rounded-full border px-3 py-1 text-[11px] transition ${
                     branchFilter === branch
                       ? "border-violet-500/30 bg-violet-500/15 text-violet-300"
                       : "border-neutral-800 bg-violet-950/30 text-neutral-300 hover:bg-violet-950/45"
@@ -680,10 +731,13 @@ export default function WeekPage() {
         ) : (
           <div className="space-y-4">
             {filteredGrouped.map((day) => (
-              <div key={day.date} className={`${BLUSH_GLASS} p-3`}>
-                <div className="mb-2.5 flex items-center justify-between gap-3">
-                  <div className="text-sm font-semibold">{day.date}</div>
-                  <span className={BADGE_WARNING}>{day.branches.length} branches</span>
+              <div key={day.date} className={`${BLUSH_GLASS} p-2.5 sm:p-3`}>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="h-4 w-1 rounded-full bg-violet-500" />
+                    <span className="truncate text-sm font-bold text-white">{day.date}</span>
+                  </div>
+                  <span className={`${BADGE_WARNING} shrink-0`}>{day.branches.length} branches</span>
                 </div>
 
                 <div className="space-y-3">
@@ -697,12 +751,16 @@ export default function WeekPage() {
                         key={`${day.date}-${b.branch_code || "UNASSIGNED"}`}
                         className={`${BLUSH_HIGHLIGHT} p-2.5 sm:p-3`}
                       >
-                        <div className="mb-2.5 flex flex-wrap items-center justify-between gap-3">
-                          <div className="text-sm font-semibold">{b.branch_code || "UNASSIGNED"}</div>
-                          <div className="text-xs text-neutral-500">{staffEntries.length} staff</div>
+                        <div className="mb-2 flex items-center gap-2">
+                          <span className="text-xs font-bold uppercase tracking-wider text-neutral-300">
+                            {b.branch_code || "UNASSIGNED"}
+                          </span>
+                          <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-[10px] text-neutral-500">
+                            {staffEntries.length}
+                          </span>
                         </div>
 
-                        <div className="space-y-2.5">
+                        <div className="space-y-2">
                           {staffEntries.map(([staff, rows]) => renderStaffRow(staff, rows))}
                         </div>
                       </div>
@@ -716,8 +774,8 @@ export default function WeekPage() {
         )}
       </div>
 
-      <div className="text-xs text-neutral-500">
-        Timeline is bar-only. Time text is shown below (supports split shifts like “13–19, 21–23”).
+      <div className="rounded-xl border border-neutral-900 bg-neutral-950/20 px-3 py-2 text-[11px] text-neutral-500">
+        Timeline is bar-only. Time text is shown below and supports split shifts like “13–19, 21–23”.
       </div>
       </motion.div>
     </div>

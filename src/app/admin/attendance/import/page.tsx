@@ -37,6 +37,18 @@ type DriveSyncResponse = {
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
 const DEFAULT_FOLDER_ID = "0AJRy_FdAYDp2Uk9PVA";
 
+function normalizeAttendanceSyncError(raw: string) {
+  const text = String(raw || "").trim();
+  const lower = text.toLowerCase();
+  if (!text) return "同期に失敗しました。時間をおいて再試行してください。";
+  if (lower.includes("invalid pin")) return "PINが正しくありません。";
+  if (lower.includes("permission") || lower.includes("forbidden")) return "同期権限がありません（HQ/ADMIN のPIN確認が必要です）。";
+  if (lower.includes("attendance drive source not found")) return "同期元設定が見つかりません。";
+  if (lower.includes("no attendance files found")) return "Driveフォルダに対象ファイルがありません。";
+  if (lower.includes("already imported") || lower.includes("duplicate")) return "最新ファイルは既に取り込み済みです。";
+  return text;
+}
+
 async function apiPost<T = any>(path: string, body?: any): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
@@ -94,7 +106,7 @@ export default function AttendanceImportPage() {
       });
       setResult(data);
     } catch (err: any) {
-      setError(String(err?.message || err || "Drive sync failed"));
+      setError(normalizeAttendanceSyncError(String(err?.message || err || "Drive sync failed")));
     } finally {
       setLoadingLatest(false);
     }
@@ -116,7 +128,7 @@ export default function AttendanceImportPage() {
       });
       setResult(data);
     } catch (err: any) {
-      setError(String(err?.message || err || "Drive sync failed"));
+      setError(normalizeAttendanceSyncError(String(err?.message || err || "Drive sync failed")));
     } finally {
       setLoadingSelected(false);
     }
@@ -196,6 +208,7 @@ export default function AttendanceImportPage() {
                 >
                   {folderId}
                 </div>
+                <p className={T_CAPTION}>Fixed Bayzat shared drive folder is used for latest sync.</p>
               </label>
 
               <label className="space-y-2 md:col-span-2">
@@ -210,10 +223,10 @@ export default function AttendanceImportPage() {
             </div>
 
             <div className="mt-6">
-              <div className={`${GLASS_CARD} cursor-pointer border-2 border-dashed border-white/15 p-6 text-center transition-all duration-200 hover:border-amber-500/40`}>
+              <div className={`${GLASS_CARD} border-2 border-dashed border-white/15 p-6 text-center`}>
                 <Upload className="mx-auto mb-2 h-8 w-8 text-zinc-500" />
-                <p className="text-sm text-zinc-400">Drop Bayzat Excel/CSV file or click to browse</p>
-                <p className={`${T_CAPTION} mt-1`}>Supports .xlsx, .csv</p>
+                <p className="text-sm text-zinc-400">This page syncs from Google Drive. Local file upload is not supported here.</p>
+                <p className={`${T_CAPTION} mt-1`}>Use &quot;Sync Latest from Drive&quot; or specify a Drive file ID below.</p>
               </div>
             </div>
 
@@ -225,7 +238,7 @@ export default function AttendanceImportPage() {
                 className={`${SECONDARY_BUTTON} flex items-center gap-2 disabled:opacity-50`}
               >
                 <RefreshCw className="h-4 w-4" />
-                {loadingSelected ? "Syncing..." : "Drive Sync"}
+                {loadingSelected ? "Syncing..." : "Sync Specific File ID"}
               </button>
 
               <button
@@ -235,9 +248,12 @@ export default function AttendanceImportPage() {
                 className={`${PRIMARY_BUTTON} flex items-center gap-2 disabled:opacity-50`}
               >
                 <Upload className="h-4 w-4" />
-                {loadingLatest ? "Syncing..." : "Import Latest File"}
+                {loadingLatest ? "Syncing..." : "Sync Latest from Drive"}
               </button>
             </div>
+            {!canSyncSelected ? (
+              <p className={`${T_CAPTION} mt-2`}>Sync Specific File ID requires approver name, PIN, and a Drive file ID.</p>
+            ) : null}
           </section>
 
           {error ? (
@@ -247,8 +263,8 @@ export default function AttendanceImportPage() {
           ) : null}
 
           {result ? (
-            <section className={`${GLASS_CARD} mt-6 p-6 shadow-2xl`}>
-              <div className="mb-4 flex items-center gap-2">
+            <section className={`${GLASS_CARD} mt-6 p-4 shadow-2xl sm:p-6`}>
+              <div className="mb-3 flex items-center gap-2 sm:mb-4">
                 <Upload className="h-4 w-4 text-sky-400" />
                 <div>
                   <h2 className={T_SECTION}>Sync Result</h2>
@@ -256,31 +272,31 @@ export default function AttendanceImportPage() {
                 </div>
               </div>
 
-              <div className="mb-4 flex flex-wrap gap-2">
-                <span className={result.duplicate ? BADGE_INFO : BADGE_SUCCESS}>
+              <div className="mb-3 flex flex-wrap gap-2 sm:mb-4">
+                <span className={`${result.duplicate ? BADGE_INFO : BADGE_SUCCESS} text-xs`}>
                   {result.message || (result.duplicate ? "Duplicate file" : "Sync completed")}
                 </span>
-                <span className={result.duplicate ? BADGE_INFO : BADGE_SUCCESS}>
+                <span className={`${result.duplicate ? BADGE_INFO : BADGE_SUCCESS} text-xs`}>
                   Duplicate: {result.duplicate ? "Yes" : "No"}
                 </span>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className={`${GLASS_CARD} p-4`}>
+              <div className="grid gap-2 sm:gap-3 md:grid-cols-2">
+                <div className={`${GLASS_CARD} p-3 sm:p-4`}>
                   <p className={T_LABEL}>Import Job ID</p>
-                  <p className="mt-1 text-sm text-zinc-200">{result.import_job?.id || "-"}</p>
+                  <p className="mt-1 break-all text-xs leading-relaxed text-zinc-200 sm:text-sm">{result.import_job?.id || "-"}</p>
                 </div>
-                <div className={`${GLASS_CARD} p-4`}>
+                <div className={`${GLASS_CARD} p-3 sm:p-4`}>
                   <p className={T_LABEL}>Drive File ID</p>
-                  <p className="mt-1 break-all text-sm text-zinc-200">{result.drive_file?.id || "-"}</p>
+                  <p className="mt-1 break-all text-xs leading-relaxed text-zinc-200 sm:text-sm">{result.drive_file?.id || "-"}</p>
                 </div>
-                <div className={`${GLASS_CARD} p-4`}>
+                <div className={`${GLASS_CARD} p-3 sm:p-4`}>
                   <p className={T_LABEL}>Drive File Name</p>
-                  <p className="mt-1 text-sm text-zinc-200">{result.drive_file?.name || "-"}</p>
+                  <p className="mt-1 break-all text-xs leading-relaxed text-zinc-200 sm:text-sm">{result.drive_file?.name || "-"}</p>
                 </div>
-                <div className={`${GLASS_CARD} p-4`}>
+                <div className={`${GLASS_CARD} p-3 sm:p-4`}>
                   <p className={T_LABEL}>Modified Time</p>
-                  <p className="mt-1 text-sm text-zinc-200">{result.drive_file?.modifiedTime || "-"}</p>
+                  <p className="mt-1 break-all text-xs leading-relaxed text-zinc-200 sm:text-sm">{result.drive_file?.modifiedTime || "-"}</p>
                 </div>
               </div>
 

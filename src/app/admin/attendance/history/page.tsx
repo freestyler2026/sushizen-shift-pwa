@@ -76,6 +76,8 @@ type AttendanceImportHistoryRow = {
   created_at?: string | null;
   file_hash?: string | null;
   target_date?: string | null;
+  date_from?: string | null;
+  date_to?: string | null;
   duplicate_of?: string | null;
 };
 
@@ -205,6 +207,8 @@ export default function AttendanceHistoryPage() {
         file_name: r.file_name,
         file_type: r.file_type,
         target_date: r.target_date || "",
+        date_from: r.date_from || "",
+        date_to: r.date_to || "",
         duplicate_of: r.duplicate_of || "",
         status: r.status,
         imported_rows: r.imported_rows,
@@ -456,6 +460,7 @@ export default function AttendanceHistoryPage() {
                     <th className={TABLE_HEADER}>City</th>
                     <th className={TABLE_HEADER}>File</th>
                     <th className={TABLE_HEADER}>Target Date</th>
+                    <th className={TABLE_HEADER}>Coverage</th>
                     <th className={TABLE_HEADER}>Status</th>
                     <th className={TABLE_HEADER}>Imported</th>
                     <th className={TABLE_HEADER}>Skipped</th>
@@ -488,6 +493,10 @@ export default function AttendanceHistoryPage() {
                       </td>
 
                       <td className={`${TABLE_CELL} whitespace-nowrap`}>{row.target_date || "-"}</td>
+
+                      <td className={`${TABLE_CELL} whitespace-nowrap`}>
+                        {row.date_from || row.date_to ? `${row.date_from || "-"} -> ${row.date_to || "-"}` : "-"}
+                      </td>
 
                       <td className={TABLE_CELL}>
                         <span className={statusBadgeClass(row.status)}>{row.status}</span>
@@ -534,7 +543,7 @@ export default function AttendanceHistoryPage() {
 
                   {!filteredRows.length ? (
                     <tr>
-                      <td colSpan={12} className={`${TABLE_CELL} py-8 text-center text-zinc-500`}>
+                      <td colSpan={13} className={`${TABLE_CELL} py-8 text-center text-zinc-500`}>
                         No import history found.
                       </td>
                     </tr>

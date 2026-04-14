@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Download, ScrollText } from "lucide-react";
-import { getAuth } from "@/lib/auth";
+import { canAccessRoleManagement, getAuth } from "@/lib/auth";
 import { fmtNum } from "@/lib/formatters";
 import {
   BADGE_ERROR,
@@ -134,6 +134,7 @@ function renderAuditPayload(eventType: string, payload: Record<string, any>) {
 
 function StaffAuditPageInner() {
   const auth = getAuth();
+  const canOpenRoleManagement = canAccessRoleManagement(auth);
   const searchParams = useSearchParams();
 
   const [city, setCity] = useState("");
@@ -369,12 +370,16 @@ function StaffAuditPageInner() {
                           <span className={eventBadgeClass(row.event_type)}>{row.event_type}</span>
                         </td>
                         <td className={TABLE_CELL + " px-4"}>
-                          <a
-                            href={`/admin/staff/roles?staff_name=${encodeURIComponent(row.target_staff_name)}`}
-                            className="font-medium text-amber-200 underline-offset-2 hover:text-amber-100 hover:underline"
-                          >
-                            {row.target_staff_name}
-                          </a>
+                          {canOpenRoleManagement ? (
+                            <a
+                              href={`/admin/staff/roles?staff_name=${encodeURIComponent(row.target_staff_name)}`}
+                              className="font-medium text-amber-200 underline-offset-2 hover:text-amber-100 hover:underline"
+                            >
+                              {row.target_staff_name}
+                            </a>
+                          ) : (
+                            <span className="font-medium text-white">{row.target_staff_name}</span>
+                          )}
                         </td>
                         <td className={TABLE_CELL + " px-4 text-neutral-400"}>
                           {row.city || "-"} {row.branch_code ? `• ${row.branch_code}` : ""}
@@ -391,12 +396,14 @@ function StaffAuditPageInner() {
                               <a href="/admin/staff" className={SECONDARY_BUTTON + " px-2.5 py-1 text-[11px]"}>
                                 Staff Master
                               </a>
-                              <a
-                                href={`/admin/staff/roles?staff_name=${encodeURIComponent(row.target_staff_name)}`}
-                                className={SECONDARY_BUTTON + " px-2.5 py-1 text-[11px]"}
-                              >
-                                Role
-                              </a>
+                              {canOpenRoleManagement ? (
+                                <a
+                                  href={`/admin/staff/roles?staff_name=${encodeURIComponent(row.target_staff_name)}`}
+                                  className={SECONDARY_BUTTON + " px-2.5 py-1 text-[11px]"}
+                                >
+                                  Role
+                                </a>
+                              ) : null}
                             </div>
                           </div>
                         </td>

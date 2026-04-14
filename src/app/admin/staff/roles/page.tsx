@@ -29,6 +29,7 @@ type AccessChannel = {
   group_name?: string;
   is_system?: boolean;
   is_active?: boolean;
+  view_role_count?: number;
 };
 
 type AccessRole = {
@@ -63,6 +64,31 @@ type RolePermissionsResp = {
   effective_permissions: string[];
 };
 
+type ChannelRoleMatrixRole = {
+  role_key: string;
+  label: string;
+  description?: string;
+  is_system?: boolean;
+  is_active?: boolean;
+  assigned: boolean;
+  locked?: boolean;
+};
+
+type ChannelRoleMatrixResp = {
+  ok: boolean;
+  channel: AccessChannel;
+  permission: {
+    permission_key: string;
+    label: string;
+    description?: string;
+    channel_key: string;
+    action_key: string;
+  };
+  roles: ChannelRoleMatrixRole[];
+  assigned_count: number;
+  updated_role_keys?: string[];
+};
+
 type StaffAssignment = {
   role_key: string;
   is_primary: boolean;
@@ -78,6 +104,13 @@ type StaffAssignmentsResp = {
   assignments: StaffAssignment[];
   effective_role: string;
   effective_permissions: string[];
+};
+
+type StaffNameListResp = {
+  ok: boolean;
+  city: string;
+  status: string;
+  names: string[];
 };
 
 async function apiRequest<T>(path: string, options: RequestInit = {}, auth?: Auth | null): Promise<T> {
@@ -108,13 +141,18 @@ function StaffRolesPageInner() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<"roles" | "channels" | "assignments">("roles");
+  const [tab, setTab] = useState<"roles" | "channels" | "assignments">("channels");
 
   const [channels, setChannels] = useState<AccessChannel[]>([]);
   const [roles, setRoles] = useState<AccessRole[]>([]);
   const [selectedRoleKey, setSelectedRoleKey] = useState("");
+  const [selectedChannelKey, setSelectedChannelKey] = useState("");
   const [rolePermissions, setRolePermissions] = useState<RolePermissionsResp | null>(null);
   const [checkedPermissions, setCheckedPermissions] = useState<Record<string, boolean>>({});
+  const [channelMatrix, setChannelMatrix] = useState<ChannelRoleMatrixResp | null>(null);
+  const [channelRoleDrafts, setChannelRoleDrafts] = useState<Record<string, boolean>>({});
+  const [channelMatrixBusy, setChannelMatrixBusy] = useState(false);
+  const [channelMatrixDirty, setChannelMatrixDirty] = useState(false);
 
   const [newRoleKey, setNewRoleKey] = useState("");
   const [newRoleLabel, setNewRoleLabel] = useState("");
@@ -127,20 +165,79 @@ function StaffRolesPageInner() {
   const [assignmentRoleKey, setAssignmentRoleKey] = useState("");
   const [assignmentPrimary, setAssignmentPrimary] = useState(true);
   const [staffAssignments, setStaffAssignments] = useState<StaffAssignmentsResp | null>(null);
+  const [staffOptions, setStaffOptions] = useState<string[]>([]);
+  const [staffOptionsLoading, setStaffOptionsLoading] = useState(false);
+  const [assignmentDrafts, setAssignmentDrafts] = useState<Record<string, string>>({});
+  const [assignmentSavingRoleKey, setAssignmentSavingRoleKey] = useState("");
 
   const canManage = canAccessRoleManagement(auth);
 
-  async function loadBootstrap(currentAuth?: Auth | null) {
+  function applyChannelRoleDrafts(data: ChannelRoleMatrixResp | null) {
+    const nextDrafts: Record<string, boolean> = {};
+    (data?.roles || []).forEach((role) => {
+      nextDrafts[role.role_key] = Boolean(role.assigned);
+    });
+    setChannelRoleDrafts(nextDrafts);
+    setChannelMatrixDirty(false);
+  }
+
+  function syncChannelCount(channelKey: string, assignedCount: number) {
+    setChannels((prev) =>
+      prev.map((channel) =>
+        channel.channel_key === channelKey
+          ? {
+              ...channel,
+              view_role_count: assignedCount,
+            }
+          : channel,
+      ),
+    );
+  }
+
+  async function loadChannelRoleMatrix(channelKey: string, currentAuth?: Auth | null) {
+    const active = currentAuth || auth;
+    if (!active || !channelKey) return;
+    setChannelMatrixBusy(true);
+    try {
+      const data = await apiRequest<ChannelRoleMatrixResp>(`/api/admin/access/channels/${encodeURIComponent(channelKey)}/role-matrix`, {}, active);
+      setChannelMatrix(data);
+      setSelectedChannelKey(channelKey);
+      applyChannelRoleDrafts(data);
+      syncChannelCount(channelKey, data.assigned_count || 0);
+    } finally {
+      setChannelMatrixBusy(false);
+    }
+  }
+
+  async function loadBootstrap(currentAuth?: Auth | null, preferredChannelKey?: string, preferredRoleKey?: string) {
     const active = currentAuth || auth;
     if (!active) return;
     const data = await apiRequest<BootstrapResp>("/api/admin/access/bootstrap", {}, active);
-    setChannels(data.channels || []);
-    setRoles(data.roles || []);
-    const firstRole = selectedRoleKey || data.roles?.[0]?.role_key || "";
-    setSelectedRoleKey(firstRole);
-    if (!assignmentRoleKey && data.roles?.[0]?.role_key) setAssignmentRoleKey(data.roles[0].role_key);
-    if (firstRole) {
-      await loadRolePermissions(firstRole, active);
+    const nextChannels = data.channels || [];
+    const nextRoles = data.roles || [];
+    setChannels(nextChannels);
+    setRoles(nextRoles);
+    await loadStaffOptions(active);
+
+    const nextRoleKey = preferredRoleKey || selectedRoleKey || nextRoles[0]?.role_key || "";
+    const nextChannelKey = preferredChannelKey || selectedChannelKey || nextChannels[0]?.channel_key || "";
+
+    setSelectedRoleKey(nextRoleKey);
+    setSelectedChannelKey(nextChannelKey);
+    if (!assignmentRoleKey && nextRoles[0]?.role_key) setAssignmentRoleKey(nextRoles[0].role_key);
+
+    if (nextRoleKey) {
+      await loadRolePermissions(nextRoleKey, active);
+    } else {
+      setRolePermissions(null);
+      setCheckedPermissions({});
+    }
+    if (nextChannelKey) {
+      await loadChannelRoleMatrix(nextChannelKey, active);
+    } else {
+      setChannelMatrix(null);
+      setChannelRoleDrafts({});
+      setChannelMatrixDirty(false);
     }
   }
 
@@ -156,12 +253,36 @@ function StaffRolesPageInner() {
     setCheckedPermissions(nextChecked);
   }
 
+  async function loadStaffOptions(currentAuth?: Auth | null) {
+    const active = currentAuth || auth;
+    if (!active) return;
+    setStaffOptionsLoading(true);
+    try {
+      const base = `/api/admin/staff_master/names?city=${encodeURIComponent(active.city)}`;
+      const [activeNames, inactiveNames] = await Promise.all([
+        apiRequest<StaffNameListResp>(`${base}&status=ACTIVE&limit=5000`, {}, active),
+        apiRequest<StaffNameListResp>(`${base}&status=INACTIVE&limit=5000`, {}, active),
+      ]);
+      const merged = Array.from(new Set([...(activeNames.names || []), ...(inactiveNames.names || [])])).sort((a, b) => a.localeCompare(b));
+      setStaffOptions(merged);
+    } catch {
+      setStaffOptions([]);
+    } finally {
+      setStaffOptionsLoading(false);
+    }
+  }
+
   async function loadStaffAssignments(targetName?: string, currentAuth?: Auth | null) {
     const active = currentAuth || auth;
     const target = String(targetName || staffName || "").trim();
     if (!active || !target) return;
     const data = await apiRequest<StaffAssignmentsResp>(`/api/admin/access/staff/${encodeURIComponent(target)}/roles`, {}, active);
     setStaffAssignments(data);
+    const nextDrafts: Record<string, string> = {};
+    (data.assignments || []).forEach((assignment) => {
+      nextDrafts[assignment.role_key] = assignment.role_key;
+    });
+    setAssignmentDrafts(nextDrafts);
   }
 
   useEffect(() => {
@@ -204,18 +325,33 @@ function StaffRolesPageInner() {
     return Array.from(grouped.entries());
   }, [rolePermissions]);
 
+  const filteredStaffOptions = useMemo(() => {
+    const q = staffName.trim().toLowerCase();
+    if (!q) return staffOptions.slice(0, 18);
+    return staffOptions.filter((name) => name.toLowerCase().includes(q)).slice(0, 18);
+  }, [staffName, staffOptions]);
+
+  const selectedStaffRoleKeys = useMemo(
+    () => new Set((staffAssignments?.assignments || []).map((assignment) => assignment.role_key)),
+    [staffAssignments],
+  );
+
   async function handleCreateRole() {
     if (!auth) return;
     setBusy(true);
     setError("");
     try {
-      await apiRequest("/api/admin/access/roles", {
-        method: "POST",
-        body: JSON.stringify({ role_key: newRoleKey, label: newRoleLabel || newRoleKey, description: "" }),
-      }, auth);
+      const created = await apiRequest<{ ok: boolean; role: AccessRole }>(
+        "/api/admin/access/roles",
+        {
+          method: "POST",
+          body: JSON.stringify({ role_key: newRoleKey, label: newRoleLabel || newRoleKey, description: "" }),
+        },
+        auth,
+      );
       setNewRoleKey("");
       setNewRoleLabel("");
-      await loadBootstrap(auth);
+      await loadBootstrap(auth, selectedChannelKey, created.role.role_key);
     } catch (err: any) {
       setError(String(err?.message || err || "Failed to create role"));
     } finally {
@@ -231,12 +367,16 @@ function StaffRolesPageInner() {
       const permissions = Object.entries(checkedPermissions)
         .filter(([, checked]) => checked)
         .map(([permission_key]) => ({ permission_key }));
-      await apiRequest(`/api/admin/access/roles/${encodeURIComponent(selectedRoleKey)}/permissions`, {
-        method: "PUT",
-        body: JSON.stringify({ permissions }),
-      }, auth);
+      await apiRequest(
+        `/api/admin/access/roles/${encodeURIComponent(selectedRoleKey)}/permissions`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ permissions }),
+        },
+        auth,
+      );
       await loadRolePermissions(selectedRoleKey, auth);
-      await loadBootstrap(auth);
+      await loadBootstrap(auth, selectedChannelKey, selectedRoleKey);
     } catch (err: any) {
       setError(String(err?.message || err || "Failed to save permissions"));
     } finally {
@@ -252,7 +392,7 @@ function StaffRolesPageInner() {
       await apiRequest(`/api/admin/access/roles/${encodeURIComponent(roleKey)}`, { method: "DELETE" }, auth);
       setSelectedRoleKey("");
       setRolePermissions(null);
-      await loadBootstrap(auth);
+      await loadBootstrap(auth, selectedChannelKey);
     } catch (err: any) {
       setError(String(err?.message || err || "Failed to delete role"));
     } finally {
@@ -265,21 +405,26 @@ function StaffRolesPageInner() {
     setBusy(true);
     setError("");
     try {
-      await apiRequest("/api/admin/access/channels", {
-        method: "POST",
-        body: JSON.stringify({
-          channel_key: newChannelKey,
-          label: newChannelLabel || newChannelKey,
-          route_path: newChannelRoute,
-          group_name: newChannelKey.startsWith("admin.") ? "admin" : "general",
-          route_match: "prefix",
-          is_admin_channel: newChannelKey.startsWith("admin."),
-        }),
-      }, auth);
+      const created = await apiRequest<{ ok: boolean; channel: AccessChannel }>(
+        "/api/admin/access/channels",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            channel_key: newChannelKey,
+            label: newChannelLabel || newChannelKey,
+            route_path: newChannelRoute,
+            group_name: newChannelKey.startsWith("admin.") ? "admin" : "general",
+            route_match: "prefix",
+            is_admin_channel: newChannelKey.startsWith("admin."),
+          }),
+        },
+        auth,
+      );
       setNewChannelKey("");
       setNewChannelLabel("");
       setNewChannelRoute("");
-      await loadBootstrap(auth);
+      await loadBootstrap(auth, created.channel.channel_key, selectedRoleKey);
+      setTab("channels");
     } catch (err: any) {
       setError(String(err?.message || err || "Failed to create channel"));
     } finally {
@@ -293,7 +438,9 @@ function StaffRolesPageInner() {
     setError("");
     try {
       await apiRequest(`/api/admin/access/channels/${encodeURIComponent(channelKey)}`, { method: "DELETE" }, auth);
-      await loadBootstrap(auth);
+      const fallbackChannelKey = channels.find((channel) => channel.channel_key !== channelKey)?.channel_key || "";
+      setSelectedChannelKey(fallbackChannelKey);
+      await loadBootstrap(auth, fallbackChannelKey, selectedRoleKey);
     } catch (err: any) {
       setError(String(err?.message || err || "Failed to delete channel"));
     } finally {
@@ -301,19 +448,108 @@ function StaffRolesPageInner() {
     }
   }
 
+  async function handleSaveChannelAccess() {
+    if (!auth || !selectedChannelKey) return;
+    setChannelMatrixBusy(true);
+    setError("");
+    try {
+      const role_keys = Object.entries(channelRoleDrafts)
+        .filter(([, assigned]) => assigned)
+        .map(([roleKey]) => roleKey);
+      const data = await apiRequest<ChannelRoleMatrixResp>(
+        `/api/admin/access/channels/${encodeURIComponent(selectedChannelKey)}/role-matrix`,
+        {
+          method: "PUT",
+          body: JSON.stringify({ role_keys }),
+        },
+        auth,
+      );
+      setChannelMatrix(data);
+      applyChannelRoleDrafts(data);
+      syncChannelCount(selectedChannelKey, data.assigned_count || 0);
+    } catch (err: any) {
+      setError(String(err?.message || err || "Failed to save channel access"));
+    } finally {
+      setChannelMatrixBusy(false);
+    }
+  }
+
+  function handleResetChannelAccess() {
+    applyChannelRoleDrafts(channelMatrix);
+  }
+
   async function handleAddAssignment() {
     if (!auth || !staffName.trim() || !assignmentRoleKey) return;
+    if (selectedStaffRoleKeys.has(assignmentRoleKey)) {
+      setError("That role is already assigned to this staff member");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
-      await apiRequest("/api/admin/access/staff/roles", {
-        method: "POST",
-        body: JSON.stringify({ staff_name: staffName.trim(), role_key: assignmentRoleKey, is_primary: assignmentPrimary }),
-      }, auth);
+      await apiRequest(
+        "/api/admin/access/staff/roles",
+        {
+          method: "POST",
+          body: JSON.stringify({ staff_name: staffName.trim(), role_key: assignmentRoleKey, is_primary: assignmentPrimary }),
+        },
+        auth,
+      );
       await loadStaffAssignments(staffName.trim(), auth);
     } catch (err: any) {
       setError(String(err?.message || err || "Failed to add assignment"));
     } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleReplaceAssignment(fromRoleKey: string) {
+    if (!auth || !staffAssignments?.staff_name) return;
+    const nextRoleKey = String(assignmentDrafts[fromRoleKey] || "").trim();
+    if (!nextRoleKey || nextRoleKey === fromRoleKey) return;
+    const currentAssignment = (staffAssignments.assignments || []).find((assignment) => assignment.role_key === fromRoleKey);
+    if (!currentAssignment) return;
+    const targetStaffName = staffAssignments.staff_name;
+    const targetExists = (staffAssignments.assignments || []).some((assignment) => assignment.role_key === nextRoleKey);
+    const confirmed = window.confirm(`Replace ${fromRoleKey} with ${nextRoleKey} for ${targetStaffName}?`);
+    if (!confirmed) return;
+    setBusy(true);
+    setAssignmentSavingRoleKey(fromRoleKey);
+    setError("");
+    try {
+      if (!targetExists) {
+        await apiRequest(
+          "/api/admin/access/staff/roles",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              staff_name: targetStaffName,
+              role_key: nextRoleKey,
+              is_primary: Boolean(currentAssignment.is_primary),
+            }),
+          },
+          auth,
+        );
+      } else if (currentAssignment.is_primary) {
+        await apiRequest(
+          "/api/admin/access/staff/roles/primary",
+          {
+            method: "POST",
+            body: JSON.stringify({ staff_name: targetStaffName, role_key: nextRoleKey }),
+          },
+          auth,
+        );
+      }
+      await apiRequest(
+        `/api/admin/access/staff/${encodeURIComponent(targetStaffName)}/roles/${encodeURIComponent(fromRoleKey)}`,
+        { method: "DELETE" },
+        auth,
+      );
+      await loadStaffAssignments(targetStaffName, auth);
+    } catch (err: any) {
+      setError(String(err?.message || err || "Failed to change assignment"));
+    } finally {
+      setAssignmentSavingRoleKey("");
       setBusy(false);
     }
   }
@@ -323,10 +559,14 @@ function StaffRolesPageInner() {
     setBusy(true);
     setError("");
     try {
-      await apiRequest("/api/admin/access/staff/roles/primary", {
-        method: "POST",
-        body: JSON.stringify({ staff_name: staffName.trim(), role_key: roleKey }),
-      }, auth);
+      await apiRequest(
+        "/api/admin/access/staff/roles/primary",
+        {
+          method: "POST",
+          body: JSON.stringify({ staff_name: staffName.trim(), role_key: roleKey }),
+        },
+        auth,
+      );
       await loadStaffAssignments(staffName.trim(), auth);
     } catch (err: any) {
       setError(String(err?.message || err || "Failed to update primary role"));
@@ -340,7 +580,11 @@ function StaffRolesPageInner() {
     setBusy(true);
     setError("");
     try {
-      await apiRequest(`/api/admin/access/staff/${encodeURIComponent(staffName.trim())}/roles/${encodeURIComponent(roleKey)}`, { method: "DELETE" }, auth);
+      await apiRequest(
+        `/api/admin/access/staff/${encodeURIComponent(staffName.trim())}/roles/${encodeURIComponent(roleKey)}`,
+        { method: "DELETE" },
+        auth,
+      );
       await loadStaffAssignments(staffName.trim(), auth);
     } catch (err: any) {
       setError(String(err?.message || err || "Failed to remove assignment"));
@@ -358,7 +602,7 @@ function StaffRolesPageInner() {
       <div className="mx-auto max-w-4xl px-4 py-8">
         <div className={`${GLASS_CARD} p-6`}>
           <h1 className={T_PAGE_TITLE}>Role Management</h1>
-          <p className="mt-3 text-sm text-rose-300">This page is available only to users with role-management permissions.</p>
+          <p className="mt-3 text-sm text-rose-300">Role Management is available only to HQ users.</p>
         </div>
       </div>
     );
@@ -373,7 +617,7 @@ function StaffRolesPageInner() {
           </div>
           <div>
             <h1 className={T_PAGE_TITLE}>Role Management</h1>
-            <p className={T_CAPTION}>Manage custom roles, channel permissions, and staff assignments from one screen.</p>
+            <p className={T_CAPTION}>HQ-only workspace for channel view access, detailed permissions, and staff role assignments.</p>
             <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-300">
               Signed in as {auth?.staffName || "Unknown"}
             </div>
@@ -394,8 +638,8 @@ function StaffRolesPageInner() {
 
       <div className="flex flex-wrap gap-2">
         {([
-          ["roles", "Roles"],
           ["channels", "Channels"],
+          ["roles", "Roles"],
           ["assignments", "Staff Assignments"],
         ] as const).map(([key, label]) => (
           <button
@@ -409,6 +653,142 @@ function StaffRolesPageInner() {
         ))}
       </div>
 
+      {tab === "channels" ? (
+        <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
+          <div className={`${GLASS_CARD} p-5`}>
+            <div className="mb-3">
+              <h2 className={T_SECTION}>Channel Access</h2>
+              <p className={`${T_CAPTION} mt-1`}>See which roles can open each channel and update view access in one place.</p>
+            </div>
+            <div className="space-y-2">
+              {channels.map((channel) => (
+                <button
+                  key={channel.channel_key}
+                  type="button"
+                  onClick={() => loadChannelRoleMatrix(channel.channel_key, auth)}
+                  className={`w-full rounded-2xl border px-3 py-3 text-left transition ${selectedChannelKey === channel.channel_key ? "border-violet-500 bg-violet-500/10" : "border-white/10 bg-white/5 hover:bg-white/10"}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-white">{channel.label}</div>
+                      <div className="text-xs text-neutral-400">{channel.channel_key}</div>
+                      <div className="text-xs text-neutral-500">{channel.route_path || "No route path"}</div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={BADGE_INFO}>{channel.view_role_count || 0} roles</span>
+                      {channel.is_system ? <span className={BADGE_INFO}>System</span> : null}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-5 space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className={T_LABEL}>Create Custom Channel</div>
+              <input value={newChannelKey} onChange={(e) => setNewChannelKey(e.target.value)} className={INPUT_CLASS} placeholder="e.g. admin.ops" />
+              <input value={newChannelLabel} onChange={(e) => setNewChannelLabel(e.target.value)} className={INPUT_CLASS} placeholder="Channel label" />
+              <input value={newChannelRoute} onChange={(e) => setNewChannelRoute(e.target.value)} className={INPUT_CLASS} placeholder="/admin/ops" />
+              <button type="button" onClick={handleCreateChannel} disabled={busy || !newChannelKey.trim()} className={PRIMARY_BUTTON}>
+                Create Channel
+              </button>
+            </div>
+          </div>
+
+          <div className={`${GLASS_CARD} p-5`}>
+            {channelMatrix ? (
+              <>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className={T_SECTION}>{channelMatrix.channel.label}</h2>
+                    <p className={T_CAPTION}>{channelMatrix.channel.description || "This screen manages channel view access only."}</p>
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-neutral-400">
+                      <span>{channelMatrix.channel.channel_key}</span>
+                      <span>{channelMatrix.channel.route_path || "No route path"}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={BADGE_INFO}>{channelMatrix.assigned_count || 0} roles can view</span>
+                    {!channelMatrix.channel.is_system ? (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteChannel(channelMatrix.channel.channel_key)}
+                        disabled={busy}
+                        className={`${SECONDARY_BUTTON} text-rose-300`}
+                      >
+                        <Trash2 className="mr-1 h-4 w-4" /> Delete Channel
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-sm font-semibold text-white">View access</div>
+                  <div className="mt-1 text-xs text-neutral-400">
+                    HQ is always allowed and cannot be removed. This screen manages channel view access only.
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {channelMatrix.roles.map((role) => {
+                      const checked = Boolean(channelRoleDrafts[role.role_key]);
+                      const disabled = Boolean(role.locked || role.is_active === false);
+                      return (
+                        <label
+                          key={role.role_key}
+                          className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 ${checked ? "border-violet-500/30 bg-violet-500/10" : "border-white/10 bg-neutral-950/30"}`}
+                        >
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="text-sm font-semibold text-white">{role.label}</div>
+                              {role.is_system ? <span className={BADGE_INFO}>System</span> : null}
+                              {role.locked ? <span className={BADGE_INFO}>Locked</span> : null}
+                              {role.is_active === false ? <span className={BADGE_INFO}>Inactive</span> : null}
+                            </div>
+                            <div className="text-xs text-neutral-500">{role.role_key}</div>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={disabled}
+                            onChange={(e) => {
+                              const nextChecked = e.target.checked;
+                              setChannelRoleDrafts((prev) => ({ ...prev, [role.role_key]: nextChecked }));
+                              setChannelMatrixDirty(true);
+                            }}
+                            className="h-4 w-4"
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mt-5 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleSaveChannelAccess}
+                    disabled={channelMatrixBusy || !channelMatrixDirty}
+                    className={PRIMARY_BUTTON}
+                  >
+                    {channelMatrixBusy ? "Saving..." : "Save Channel Access"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetChannelAccess}
+                    disabled={channelMatrixBusy || !channelMatrixDirty}
+                    className={SECONDARY_BUTTON}
+                  >
+                    Reset
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm text-neutral-400">
+                Select a channel to manage which roles can view it.
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+
       {tab === "roles" ? (
         <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
           <div className={`${GLASS_CARD} p-5`}>
@@ -416,6 +796,7 @@ function StaffRolesPageInner() {
               <Layers3 className="h-4 w-4 text-violet-300" />
               <h2 className={T_SECTION}>Roles</h2>
             </div>
+            <p className={`${T_CAPTION} mb-4`}>Detailed permission editing for roles. Daily channel visibility is easier to manage from the Channels tab.</p>
             <div className="space-y-2">
               {roles.map((role) => (
                 <button
@@ -510,45 +891,6 @@ function StaffRolesPageInner() {
         </div>
       ) : null}
 
-      {tab === "channels" ? (
-        <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
-          <div className={`${GLASS_CARD} p-5`}>
-            <h2 className={T_SECTION}>Create Custom Channel</h2>
-            <p className={`${T_CAPTION} mt-1`}>Custom channels appear in the access model and can later be attached to roles.</p>
-            <div className="mt-4 space-y-3">
-              <input value={newChannelKey} onChange={(e) => setNewChannelKey(e.target.value)} className={INPUT_CLASS} placeholder="e.g. admin.ops" />
-              <input value={newChannelLabel} onChange={(e) => setNewChannelLabel(e.target.value)} className={INPUT_CLASS} placeholder="Channel label" />
-              <input value={newChannelRoute} onChange={(e) => setNewChannelRoute(e.target.value)} className={INPUT_CLASS} placeholder="/admin/ops" />
-              <button type="button" onClick={handleCreateChannel} disabled={busy || !newChannelKey.trim()} className={PRIMARY_BUTTON}>
-                Create Channel
-              </button>
-            </div>
-          </div>
-
-          <div className={`${GLASS_CARD} p-5`}>
-            <h2 className={T_SECTION}>Seeded And Custom Channels</h2>
-            <div className="mt-4 grid gap-3">
-              {channels.map((channel) => (
-                <div key={channel.channel_key} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  <div>
-                    <div className="text-sm font-semibold text-white">{channel.label}</div>
-                    <div className="text-xs text-neutral-500">{channel.channel_key} {channel.route_path ? `· ${channel.route_path}` : ""}</div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {channel.is_system ? <span className={BADGE_INFO}>System</span> : null}
-                    {!channel.is_system ? (
-                      <button type="button" onClick={() => handleDeleteChannel(channel.channel_key)} className={`${SECONDARY_BUTTON} text-rose-300`}>
-                        <Trash2 className="mr-1 h-4 w-4" /> Delete
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       {tab === "assignments" ? (
         <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
           <div className={`${GLASS_CARD} p-5`}>
@@ -556,8 +898,42 @@ function StaffRolesPageInner() {
               <Users className="h-4 w-4 text-violet-300" />
               <h2 className={T_SECTION}>Staff Assignments</h2>
             </div>
+            <p className={`${T_CAPTION} mb-4`}>HQ-only staff role assignment management.</p>
             <div className="space-y-3">
-              <input value={staffName} onChange={(e) => setStaffName(e.target.value)} className={INPUT_CLASS} placeholder="Staff full name" />
+              <div className="space-y-2">
+                <input
+                  list="staff-role-options"
+                  value={staffName}
+                  onChange={(e) => setStaffName(e.target.value)}
+                  className={INPUT_CLASS}
+                  placeholder="Staff full name"
+                />
+                <datalist id="staff-role-options">
+                  {staffOptions.map((name) => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
+                <div className="text-xs text-neutral-500">
+                  {staffOptionsLoading ? "Loading staff list..." : `${staffOptions.length} staff available`}
+                </div>
+                {filteredStaffOptions.length ? (
+                  <div className="max-h-48 space-y-2 overflow-auto rounded-2xl border border-white/10 bg-white/5 p-2">
+                    {filteredStaffOptions.map((name) => (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => {
+                          setStaffName(name);
+                          loadStaffAssignments(name, auth);
+                        }}
+                        className={`w-full rounded-xl border px-3 py-2 text-left text-sm transition ${staffAssignments?.staff_name === name ? "border-violet-500 bg-violet-500/10 text-white" : "border-white/10 bg-neutral-950/30 text-neutral-300 hover:bg-white/10"}`}
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
               <select value={assignmentRoleKey} onChange={(e) => setAssignmentRoleKey(e.target.value)} className={SELECT_CLASS}>
                 {roles.map((role) => (
                   <option key={role.role_key} value={role.role_key}>{role.label}</option>
@@ -587,12 +963,51 @@ function StaffRolesPageInner() {
                   <span className={BADGE_INFO}>Effective role: {staffAssignments.effective_role}</span>
                   <span className={BADGE_INFO}>Permissions: {staffAssignments.effective_permissions?.length || 0}</span>
                 </div>
+                <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-400">Current roles</div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {staffAssignments.assignments.length ? (
+                      staffAssignments.assignments.map((assignment) => (
+                        <span
+                          key={assignment.role_key}
+                          className={`inline-flex items-center rounded-full border px-3 py-1 text-xs ${assignment.is_primary ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-white/10 bg-neutral-950/40 text-neutral-300"}`}
+                        >
+                          {assignment.role_label || assignment.role_key}
+                          {assignment.is_primary ? " · primary" : ""}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-sm text-neutral-400">No active roles assigned.</span>
+                    )}
+                  </div>
+                </div>
                 <div className="mt-4 space-y-3">
                   {staffAssignments.assignments.map((assignment) => (
                     <div key={`${assignment.role_key}-${assignment.assigned_by || "na"}`} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                      <div>
+                      <div className="min-w-[260px] flex-1">
                         <div className="text-sm font-semibold text-white">{assignment.role_label || assignment.role_key}</div>
                         <div className="text-xs text-neutral-500">{assignment.role_key}</div>
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <select
+                            value={assignmentDrafts[assignment.role_key] || assignment.role_key}
+                            onChange={(e) => setAssignmentDrafts((prev) => ({ ...prev, [assignment.role_key]: e.target.value }))}
+                            className={`${SELECT_CLASS} max-w-[220px]`}
+                          >
+                            {roles.map((role) => (
+                              <option key={role.role_key} value={role.role_key}>
+                                {role.label}
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => handleReplaceAssignment(assignment.role_key)}
+                            disabled={busy || (assignmentDrafts[assignment.role_key] || assignment.role_key) === assignment.role_key}
+                            className={SECONDARY_BUTTON}
+                          >
+                            {assignmentSavingRoleKey === assignment.role_key ? "Saving..." : "Change Role"}
+                          </button>
+                        </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         {assignment.is_primary ? <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-300">Primary</span> : null}

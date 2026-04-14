@@ -11,20 +11,12 @@ import DateRangePicker from "@/components/DateRangePicker";
 import {
   GLASS_CARD,
   SELECT_CLASS,
-  T_PAGE_TITLE,
-  T_SECTION,
-  T_BODY,
-  T_CAPTION,
-  T_LABEL,
-  BADGE_SUCCESS,
   DIVIDER,
 } from "@/lib/ui-tokens";
 
 const PAGE_BG = "min-h-screen text-white";
 const BLUSH_GLASS = `${GLASS_CARD} bg-violet-950/30`;
 const BLUSH_HIGHLIGHT = "rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/18 to-purple-500/10";
-const BLUSH_PRIMARY =
-  "rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 px-5 py-2.5 font-semibold text-white transition-all duration-200 shadow-lg shadow-violet-500/25 hover:scale-[1.02] hover:from-violet-400 hover:to-purple-400 hover:shadow-violet-500/40 active:scale-[0.98] disabled:opacity-60";
 
 type RangeView = {
   ok: boolean;
@@ -138,29 +130,29 @@ function ShiftGroupsSection({ title, rows }: { title: string; rows: ShiftRow[] }
   const groups = useMemo(() => groupRowsByBranch(rows), [rows]);
 
   return (
-    <div className={BLUSH_HIGHLIGHT + " p-3.5"}>
-      <div className="text-sm font-semibold">{title}</div>
-      <div className="mt-3 space-y-3">
+    <div className={BLUSH_HIGHLIGHT + " p-3 sm:p-4"}>
+      <div className="text-sm font-semibold text-white sm:text-base">{title}</div>
+      <div className="mt-3 space-y-2.5 sm:space-y-3">
         {groups.map((group) => (
-          <div key={group.branch_code} className="rounded-xl border border-violet-500/20 bg-violet-950/25 p-2.5">
+          <div key={group.branch_code} className="rounded-2xl border border-violet-500/20 bg-violet-950/25 p-2.5 sm:p-3">
             <div className="mb-2 flex items-center justify-between gap-2">
-              <div className="text-sm font-semibold">{group.branch_code}</div>
-              <div className="text-xs text-neutral-500">{group.staff.length} staff</div>
+              <div className="text-sm font-semibold text-white">{group.branch_code}</div>
+              <div className="text-[11px] text-neutral-500">{group.staff.length} staff</div>
             </div>
             <div className="space-y-2">
               {group.staff.map((staff) => {
                 const workRows = staff.rows.filter((row) => !isAbsenceRow(row));
                 const absenceRows = staff.rows.filter((row) => isAbsenceRow(row));
                 return (
-                  <div key={`${group.branch_code}-${staff.name}`} className="rounded-lg border border-white/8 bg-black/15 px-2.5 py-2">
+                  <div key={`${group.branch_code}-${staff.name}`} className="rounded-xl border border-white/8 bg-black/15 px-3 py-2.5">
                     <div className="text-sm font-medium text-neutral-100">{staff.name}</div>
                     {workRows.map((row, idx) => (
-                      <div key={`${staff.name}-work-${idx}`} className="mt-1 text-xs text-neutral-300">
+                      <div key={`${staff.name}-work-${idx}`} className="mt-1.5 text-xs leading-relaxed text-neutral-300">
                         {row.role} • {hoursLabel(row.start_hour, row.end_hour)}
                       </div>
                     ))}
                     {absenceRows.map((row, idx) => (
-                      <div key={`${staff.name}-absence-${idx}`} className="mt-1 text-xs text-violet-200">
+                      <div key={`${staff.name}-absence-${idx}`} className="mt-1.5 text-xs leading-relaxed text-violet-200">
                         {row.role}
                         {row.applied?.note ? ` • ${String(row.applied.note)}` : ""}
                       </div>
@@ -329,47 +321,72 @@ export default function CalendarPage() {
   return (
     <div className={PAGE_BG}>
       <motion.div
-        className="mx-auto max-w-5xl space-y-6 px-4 py-8"
+        className="mx-auto max-w-5xl space-y-4 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-8"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
       >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className={T_PAGE_TITLE}>Calendar</h1>
-          <p className={T_BODY}>Browse daily and same-month range shifts by store.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={BADGE_SUCCESS}>
-            <CalendarDays className="h-3 w-3" />
-            {selectedDate}
-          </span>
-        </div>
-      </div>
-
-      <div className={`${BLUSH_GLASS} p-4 sm:p-5`}>
-        <div className="mb-4">
-          <div className={T_SECTION}>Calendar Filters</div>
-          <div className={T_CAPTION}>Pick a month, selected day, and same-month range to inspect store schedules.</div>
-        </div>
-
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div>
-            <div className={`mb-1 ${T_LABEL}`}>City</div>
+      <div className={`${BLUSH_GLASS} p-3 sm:p-4`}>
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <h1 className="text-lg font-bold text-white sm:text-2xl">Calendar</h1>
+            <p className="mt-1 text-xs text-neutral-400 sm:text-sm">Browse daily and same-month range shifts by store.</p>
+          </div>
+          <div className="flex items-center gap-2">
             <select
-              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
+              className="rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-xs text-white"
               value={city}
               onChange={(e) => setCity(e.target.value as City)}
             >
               <option value="dubai">Dubai</option>
               <option value="manila">Manila</option>
             </select>
+            <span className="hidden sm:inline-flex items-center gap-1 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] font-medium text-emerald-200">
+              <CalendarDays className="h-3 w-3" />
+              {selectedDate}
+            </span>
           </div>
-
+        </div>
+        <div className="mt-3 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => {
+              const d = parseMonthKey(mKey);
+              d.setMonth(d.getMonth() - 1);
+              setMKey(toMonthKey(d));
+            }}
+            className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-400 transition hover:bg-neutral-800 hover:text-white active:scale-95"
+            aria-label="Previous month"
+          >
+            {"<"}
+          </button>
+          <div className="text-center">
+            <div className="text-base font-semibold text-white sm:text-lg">
+              {monthDate.toLocaleString("en-US", { month: "long", year: "numeric" })}
+            </div>
+            <div className="mt-0.5 text-[11px] text-neutral-500 sm:hidden">{selectedDate}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const d = parseMonthKey(mKey);
+              d.setMonth(d.getMonth() + 1);
+              setMKey(toMonthKey(d));
+            }}
+            className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-neutral-400 transition hover:bg-neutral-800 hover:text-white active:scale-95"
+            aria-label="Next month"
+          >
+            {">"}
+          </button>
+        </div>
+        <div className="mt-3 hidden sm:block">
+          <MonthPicker value={mKey} onChange={setMKey} />
+        </div>
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
           <div>
-            <div className={`mb-1 ${T_LABEL}`}>Store</div>
+            <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.2em] text-neutral-500">Store</div>
             <select
-              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
+              className={`${SELECT_CLASS} rounded-2xl px-3 py-2.5 text-sm focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
               value={branchCode}
               onChange={(e) => setBranchCode(e.target.value)}
             >
@@ -380,103 +397,130 @@ export default function CalendarPage() {
               ))}
             </select>
           </div>
-
-          <div>
-            <div className={`mb-1 ${T_LABEL}`}>Month</div>
-            <MonthPicker value={mKey} onChange={setMKey} />
-          </div>
-
-          <div className={`${BLUSH_HIGHLIGHT} px-3 py-2`}>
-            <div className={T_LABEL}>Selected day</div>
-            <div className="mt-1 text-sm font-medium text-neutral-100">{selectedDate}</div>
+          <div className="rounded-2xl border border-violet-500/20 bg-violet-950/25 px-3 py-2.5">
+            <div className="text-[10px] font-medium uppercase tracking-[0.2em] text-violet-300">Selected Day</div>
+            <div className="mt-1 text-sm font-medium text-white">{selectedDate}</div>
           </div>
         </div>
-
         <div className="mt-3">
-          <div className="mb-1 text-xs text-neutral-400">Date range</div>
-          <DateRangePicker
-            value={{ from: rangeStart, to: rangeEnd }}
-            onChange={(range) => {
-              const monthStart = `${mKey}-01`;
-              const monthEnd = iso(endOfMonth(monthDate));
-              const nextFrom = clampIsoToRange(range.from, monthStart, monthEnd);
-              const nextTo = clampIsoToRange(range.to, monthStart, monthEnd);
-              const from = nextFrom <= nextTo ? nextFrom : nextTo;
-              const to = nextTo >= nextFrom ? nextTo : nextFrom;
-              setRangeStart(from);
-              setRangeEnd(to);
-            }}
-          />
+          <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.2em] text-neutral-500">Date Range</div>
+          <div className="rounded-2xl border border-white/10 bg-black/10 p-2">
+            <DateRangePicker
+              value={{ from: rangeStart, to: rangeEnd }}
+              onChange={(range) => {
+                const monthStart = `${mKey}-01`;
+                const monthEnd = iso(endOfMonth(monthDate));
+                const nextFrom = clampIsoToRange(range.from, monthStart, monthEnd);
+                const nextTo = clampIsoToRange(range.to, monthStart, monthEnd);
+                const from = nextFrom <= nextTo ? nextFrom : nextTo;
+                const to = nextTo >= nextFrom ? nextTo : nextFrom;
+                setRangeStart(from);
+                setRangeEnd(to);
+              }}
+            />
+          </div>
         </div>
       </div>
 
-      <div className={`${BLUSH_GLASS} p-4`}>
-        <div className="grid grid-cols-7">
-          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((item) => (
-            <div key={item} className="py-2 text-center text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+      <div className={`${BLUSH_GLASS} p-3 sm:p-4`}>
+        <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-neutral-500">
+          {["M", "T", "W", "T", "F", "S", "S"].map((item, idx) => (
+            <div key={`${item}-${idx}`} className="py-1">
               {item}
             </div>
           ))}
         </div>
-        <div className="mt-2 grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-7 gap-1 sm:gap-2">
           {calCells.map((cell, idx) => {
             if (cell.kind === "blank") {
-              return <div key={`blank-${idx}`} className="min-h-[80px] rounded-xl border border-transparent" />;
+              return <div key={`blank-${idx}`} className="h-14 rounded-2xl border border-transparent sm:min-h-[88px]" />;
             }
 
             const isSelected = cell.iso === selectedDate;
             const isToday = cell.iso === todayIso;
+            const dayRows = (rangeView?.days || []).find((day) => day.work_date === cell.iso)?.rows || [];
+            const hasWork = dayRows.some((row) => !isAbsenceRow(row));
+            const hasAbs = dayRows.some((row) => isAbsenceRow(row));
             return (
               <button
                 key={cell.iso}
                 type="button"
                 onClick={() => setSelectedDate(cell.iso)}
                 className={[
-                  "min-h-[80px] rounded-xl border p-2 text-left text-[11px] transition-all duration-150",
-                  isToday ? "border-violet-500/25 bg-violet-500/12" : "border-white/5",
-                  isSelected ? "border-violet-500/30 bg-violet-500/15 ring-1 ring-rose-400/20" : "hover:border-white/15 hover:bg-violet-950/45",
+                  "h-14 rounded-2xl border px-1 py-1.5 text-white transition active:scale-95 sm:min-h-[88px]",
+                  isSelected ? "border-violet-400 bg-violet-600 text-white" : "border-white/8 bg-black/10 hover:border-white/15 hover:bg-violet-950/45",
+                  isToday ? "ring-1 ring-yellow-400" : "",
                 ].join(" ")}
               >
-                <div className={`font-medium ${isSelected ? "text-violet-200" : isToday ? "text-violet-300" : "text-neutral-100"}`}>{cell.date.getDate()}</div>
+                <div className="flex h-full flex-col items-center justify-center gap-0.5">
+                  <span className={`text-sm font-medium leading-none ${!isSelected && isToday ? "text-yellow-300" : !isSelected ? "text-neutral-100" : ""}`}>
+                    {cell.date.getDate()}
+                  </span>
+                  {hasWork ? (
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  ) : hasAbs ? (
+                    <span className="h-1.5 w-1.5 rounded-full bg-violet-300" />
+                  ) : (
+                    <span className="h-1.5 w-1.5" />
+                  )}
+                </div>
               </button>
             );
           })}
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-[10px] text-neutral-400 sm:flex sm:flex-wrap sm:gap-3">
+          <div className="inline-flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            Work shift
+          </div>
+          <div className="inline-flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-violet-300" />
+            Absence
+          </div>
+          <div className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-violet-600" />
+            Selected
+          </div>
+          <div className="inline-flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full border border-yellow-400" />
+            Today
+          </div>
         </div>
       </div>
 
       <div className={DIVIDER} />
 
       <div className="space-y-3">
-        <div className={`${BLUSH_GLASS} p-4`}>
-          <div className="flex items-center justify-between gap-3">
+        <div className={`${BLUSH_GLASS} p-3 sm:p-4`}>
+          <div className="flex items-center justify-between gap-2">
             <div>
-              <div className={T_SECTION}>Selected Day</div>
-              <div className={T_CAPTION}>{selectedDate}</div>
+              <div className="text-sm font-semibold text-white">Selected Day</div>
+              <div className="mt-1 text-xs text-neutral-500">{selectedDate}</div>
             </div>
             <button
               onClick={() => fetchDay(selectedDate)}
-              className={BLUSH_PRIMARY}
+              className="rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 px-3 py-2 text-xs font-semibold text-white transition-all duration-200 shadow-lg shadow-violet-500/20 hover:from-violet-400 hover:to-purple-400 active:scale-[0.98] disabled:opacity-60 sm:px-4 sm:text-sm"
             >
               <span className="inline-flex items-center gap-2"><RefreshCcw className="h-4 w-4" />Refresh day</span>
             </button>
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            {dayLoading ? <div className="text-sm text-neutral-400">Loading selected day...</div> : null}
-            {dayErr ? <div className="text-sm text-red-300">{dayErr}</div> : null}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {dayLoading ? <div className="text-xs text-neutral-400 sm:text-sm">Loading selected day...</div> : null}
+            {dayErr ? <div className="text-xs text-red-300 sm:text-sm">{dayErr}</div> : null}
           </div>
         </div>
         <ShiftGroupsSection title="Daily shifts" rows={dayView?.rows || []} />
       </div>
 
       <div className="space-y-3">
-        <div className={`${BLUSH_GLASS} p-4`}>
-          <div className={T_SECTION}>Selected Range</div>
-          <div className={`mt-1 ${T_CAPTION}`}>
+        <div className={`${BLUSH_GLASS} p-3 sm:p-4`}>
+          <div className="text-sm font-semibold text-white">Selected Range</div>
+          <div className="mt-1 text-xs text-neutral-500 sm:text-sm">
             {rangeStart} to {rangeEnd}
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            {rangeLoading ? <div className="text-sm text-neutral-400">Loading range...</div> : null}
-            {rangeErr ? <div className="text-sm text-red-300">{rangeErr}</div> : null}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {rangeLoading ? <div className="text-xs text-neutral-400 sm:text-sm">Loading range...</div> : null}
+            {rangeErr ? <div className="text-xs text-red-300 sm:text-sm">{rangeErr}</div> : null}
           </div>
         </div>
 
@@ -485,7 +529,7 @@ export default function CalendarPage() {
             <ShiftGroupsSection key={day.work_date} title={day.work_date} rows={day.rows || []} />
           ))}
           {!rangeLoading && !rangeErr && !nonEmptyRangeDays.length ? (
-            <div className={`${BLUSH_GLASS} p-3.5 text-sm text-neutral-500`}>
+            <div className={`${BLUSH_GLASS} rounded-2xl p-3.5 text-sm text-neutral-500`}>
               No shifts found in this range.
             </div>
           ) : null}

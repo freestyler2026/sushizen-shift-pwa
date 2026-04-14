@@ -95,6 +95,7 @@ type MenuItemRow = {
   category: string;
   city: string;
   selling_price: number;
+  yield_rate: number;
   total_cost: number;
   cost_ratio: number | null;
 };
@@ -129,6 +130,95 @@ type MenuItemDetail = MenuItemRow & {
   price_history: MenuPriceHistoryEntry[];
 };
 
+type CostSection = "ingredient" | "processed" | "product" | "draft";
+
+type MasterComponentType = "ingredient" | "processed_item";
+
+type MasterItemSummary = {
+  id: string;
+  city: string;
+  category: string;
+  name: string;
+  description: string;
+  selling_price: number;
+  item_type: "processed" | "product" | "draft";
+  source_type: string;
+  status: string;
+  display_order: number;
+  output_unit: string;
+  output_qty: number;
+  buffer_rate: number;
+  yield_rate: number | null;
+  yield_configured: boolean;
+  cost_unit_price: number;
+  cost_unit_price_formula: string;
+  cost_unit_price_formula_note: string;
+  computed_unit_cost?: number;
+  raw_cost: number;
+  yield_adjusted_total: number;
+  total_cost: number;
+  unit_cost: number;
+  cost_ratio: number | null;
+  component_count: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+
+type MasterComponentDetail = {
+  id: string;
+  component_type: MasterComponentType;
+  ingredient_id: string;
+  component_menu_item_id: string;
+  name: string;
+  category: string;
+  unit: string;
+  quantity: number;
+  unit_cost: number;
+  cost: number;
+  sort_order: number;
+  unit_price_formula?: string;
+  unit_price_formula_note?: string;
+  ingredient_detail_loaded?: boolean;
+};
+
+type MasterItemDetail = MasterItemSummary & {
+  components: MasterComponentDetail[];
+  price_history: MenuPriceHistoryEntry[];
+};
+
+type ComponentOption = {
+  component_type: MasterComponentType;
+  id: string;
+  name: string;
+  category: string;
+  unit: string;
+  unit_cost: number;
+  item_type?: "processed" | "product" | "draft";
+};
+
+type MasterEditorDraft = {
+  id: string;
+  city: string;
+  category: string;
+  name: string;
+  description: string;
+  item_type: "processed" | "product" | "draft";
+  source_type: string;
+  status: string;
+  display_order: number;
+  output_unit: string;
+  output_qty: number;
+  buffer_rate: number;
+  yield_rate: number | null;
+  yield_configured: boolean;
+  cost_unit_price: number;
+  cost_unit_price_formula: string;
+  cost_unit_price_formula_note: string;
+  selling_price: number;
+  components: MasterComponentDetail[];
+};
+
 type RecipeIngredientDraft = {
   key: string;
   ingredient_id: string;
@@ -146,8 +236,10 @@ type SheetMeta = {
 };
 
 type CategoryItem = {
-  category: string;
+  key: string;
+  name: string;
   item_count: number;
+  is_system?: boolean;
 };
 
 type UnmatchedInvoiceItemRow = {
@@ -176,7 +268,7 @@ type InvoiceItemMappingRow = {
 };
 
 const INGREDIENT_SHEET = "食材マスタ";
-/** Per-request limit (<= legacy 500 cap if API not updated; server may return fewer). */
+/** 500 matches legacy API `le=500`; we page with `offset` so all rows load after backend supports OFFSET. */
 const INGREDIENT_LIST_PAGE_SIZE = 500;
 
 function unmatchedInvoiceItemKey(item: Pick<UnmatchedInvoiceItemRow, "supplier_name" | "item_description">) {
@@ -246,12 +338,78 @@ function createRecipeIngredientDraft(): RecipeIngredientDraft {
   };
 }
 
-function computeMenuTotals(ingredients: Array<{ quantity: number; unit_price: number }>, sellingPrice: number) {
-  const totalCost = ingredients.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_price || 0), 0);
+function normalizeMenuBufferRate(value: unknown) {
+  const numeric = Number(value || 0);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : 1.15;
+}
+
+function quantityToGrams(quantity: number, unit: string) {
+  const normalizedUnit = String(unit || "").trim().toLowerCase();
+  if (!Number.isFinite(quantity)) return 0;
+  if (["g", "gram", "grams"].includes(normalizedUnit)) return quantity;
+  if (["kg", "kilogram", "kilograms"].includes(normalizedUnit)) return quantity * 1000;
+  return 0;
+}
+
+function formatGramTotal(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "0 g";
+  return `${value.toFixed(value % 1 === 0 ? 0 : 1)} g`;
+}
+
+function computeMenuTotals(ingredients: Array<{ quantity: number; unit_price: number }>, sellingPrice: number, bufferRate: number = 1.15) {
+  const rawTotal = ingredients.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_price || 0), 0);
+  const totalCost = rawTotal * normalizeMenuBufferRate(bufferRate);
   return {
+    raw_cost: rawTotal,
     total_cost: totalCost,
     cost_ratio: sellingPrice > 0 ? totalCost / sellingPrice : null,
   };
+}
+
+function computeMasterTotalsLocal(
+  components: Array<{ quantity: number; unit_cost: number }>,
+  {
+    sellingPrice,
+    bufferRate,
+    yieldRate,
+    outputQty,
+  }: {
+    sellingPrice: number;
+    bufferRate: number;
+    yieldRate: number | null;
+    outputQty: number;
+  },
+) {
+  const rawCost = components.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_cost || 0), 0);
+  const normalizedYield = normalizeRateValue(yieldRate);
+  const normalizedBuffer = normalizeMenuBufferRate(bufferRate);
+  const normalizedOutputQty = Number(outputQty || 0) > 0 ? Number(outputQty) : 1;
+  const yieldAdjustedTotal = normalizedYield ? rawCost / normalizedYield : rawCost;
+  const totalCost = yieldAdjustedTotal * normalizedBuffer;
+  const unitCost = totalCost / normalizedOutputQty;
+  return {
+    raw_cost: rawCost,
+    yield_adjusted_total: yieldAdjustedTotal,
+    total_cost: totalCost,
+    unit_cost: unitCost,
+    cost_ratio: sellingPrice > 0 ? totalCost / sellingPrice : null,
+  };
+}
+
+const COST_FORMULA_ALLOWED_RE = /^[0-9+\-*/().\s]+$/;
+
+function evaluateCostFormulaExpression(formula: string): number | null {
+  const text = String(formula || "").trim();
+  if (!text) return null;
+  if (!COST_FORMULA_ALLOWED_RE.test(text)) return null;
+  try {
+    const result = Function(`"use strict"; return (${text});`)();
+    const numeric = Number(result);
+    if (!Number.isFinite(numeric)) return null;
+    return numeric;
+  } catch {
+    return null;
+  }
 }
 
 function attachPreviousMenuPrices(rows: MenuPriceHistoryEntry[]) {
@@ -287,7 +445,8 @@ function mapMenuItemDetail(raw: any): MenuItemDetail {
       }))
     : [];
   const sellingPrice = Number(raw?.selling_price || 0);
-  const totals = computeMenuTotals(ingredients, sellingPrice);
+  const yieldRate = normalizeMenuBufferRate(raw?.yield_rate);
+  const totals = computeMenuTotals(ingredients, sellingPrice, yieldRate);
   const priceHistory = attachPreviousMenuPrices(
     Array.isArray(raw?.price_history)
       ? raw.price_history.map((entry: any) => ({
@@ -307,13 +466,123 @@ function mapMenuItemDetail(raw: any): MenuItemDetail {
     city: String(raw?.city || ""),
     description: String(raw?.description || ""),
     selling_price: sellingPrice,
-    raw_cost: Number(raw?.raw_cost ?? totals.total_cost),
+    yield_rate: yieldRate,
+    raw_cost: Number(raw?.raw_cost ?? totals.raw_cost),
     total_cost: Number(raw?.total_cost ?? totals.total_cost),
     cost_ratio: sellingPrice > 0 ? Number(raw?.cost_ratio ?? totals.cost_ratio ?? 0) : null,
     ingredient_count: Number(raw?.ingredient_count || ingredients.length),
     ingredients,
     price_history: priceHistory,
   };
+}
+
+function mapMasterComponent(raw: any): MasterComponentDetail {
+  return {
+    id: String(raw?.id || ""),
+    component_type: String(raw?.component_type || "ingredient") === "processed_item" ? "processed_item" : "ingredient",
+    ingredient_id: String(raw?.ingredient_id || ""),
+    component_menu_item_id: String(raw?.component_menu_item_id || ""),
+    name: String(raw?.name || raw?.component_name || ""),
+    category: String(raw?.category || raw?.component_category || ""),
+    unit: String(raw?.unit || ""),
+    quantity: Number(raw?.quantity || 0),
+    unit_cost: Number(raw?.unit_cost || 0),
+    cost: Number(raw?.cost || 0),
+    sort_order: Number(raw?.sort_order || 0),
+    unit_price_formula: "",
+    unit_price_formula_note: "",
+    ingredient_detail_loaded: false,
+  };
+}
+
+function mapMasterItemDetail(raw: any): MasterItemDetail {
+  const components = Array.isArray(raw?.components) ? raw.components.map(mapMasterComponent) : [];
+  const sellingPrice = Number(raw?.selling_price || 0);
+  const bufferRate = normalizeMenuBufferRate(raw?.buffer_rate);
+  const yieldRate = normalizeRateValue(raw?.yield_rate);
+  const outputQty = Number(raw?.output_qty || 1) > 0 ? Number(raw.output_qty) : 1;
+  const totals = computeMasterTotalsLocal(
+    components.map((component) => ({ quantity: component.quantity, unit_cost: component.unit_cost })),
+    { sellingPrice, bufferRate, yieldRate, outputQty },
+  );
+  const priceHistory = attachPreviousMenuPrices(
+    Array.isArray(raw?.price_history)
+      ? raw.price_history.map((entry: any) => ({
+          id: String(entry.id || ""),
+          menu_item_id: String(entry.menu_item_id || raw?.id || ""),
+          selling_price: Number(entry.selling_price || 0),
+          changed_at: String(entry.changed_at || ""),
+          changed_by: String(entry.changed_by || ""),
+          notes: String(entry.notes || ""),
+        }))
+      : [],
+  );
+  return {
+    id: String(raw?.id || ""),
+    city: String(raw?.city || ""),
+    category: String(raw?.category || ""),
+    name: String(raw?.name || ""),
+    description: String(raw?.description || ""),
+    selling_price: sellingPrice,
+    item_type: (String(raw?.item_type || "product") as MasterItemSummary["item_type"]),
+    source_type: String(raw?.source_type || "manual"),
+    status: String(raw?.status || "active"),
+    display_order: Number(raw?.display_order || 0),
+    output_unit: String(raw?.output_unit || ""),
+    output_qty: outputQty,
+    buffer_rate: bufferRate,
+    yield_rate: yieldRate,
+    yield_configured: Boolean(raw?.yield_configured ?? false),
+    cost_unit_price: Number(raw?.cost_unit_price ?? totals.unit_cost),
+    cost_unit_price_formula: String(raw?.cost_unit_price_formula || ""),
+    cost_unit_price_formula_note: String(raw?.cost_unit_price_formula_note || ""),
+    computed_unit_cost: Number(raw?.computed_unit_cost ?? totals.unit_cost),
+    raw_cost: Number(raw?.raw_cost ?? totals.raw_cost),
+    yield_adjusted_total: Number(raw?.yield_adjusted_total ?? totals.yield_adjusted_total),
+    total_cost: Number(raw?.total_cost ?? totals.total_cost),
+    unit_cost: Number(raw?.unit_cost ?? totals.unit_cost),
+    cost_ratio: sellingPrice > 0 ? Number(raw?.cost_ratio ?? totals.cost_ratio ?? 0) : null,
+    component_count: Number(raw?.component_count || components.length),
+    is_active: Boolean(raw?.is_active ?? true),
+    created_at: String(raw?.created_at || ""),
+    updated_at: String(raw?.updated_at || ""),
+    components,
+    price_history: priceHistory,
+  };
+}
+
+function createEmptyMasterEditor(itemType: "processed" | "product" | "draft", city: "dubai" | "manila"): MasterEditorDraft {
+  return {
+    id: "",
+    city,
+    category: itemType === "processed" ? "加工品マスタ" : itemType === "draft" ? "新商品" : "商品マスタ",
+    name: "",
+    description: "",
+    item_type: itemType,
+    source_type: "manual",
+    status: itemType === "draft" ? "draft" : "active",
+    display_order: 0,
+    output_unit: itemType === "processed" ? "pc" : "",
+    output_qty: 1,
+    buffer_rate: 1.15,
+    yield_rate: null,
+    yield_configured: false,
+    cost_unit_price: 0,
+    cost_unit_price_formula: "",
+    cost_unit_price_formula_note: "",
+    selling_price: 0,
+    components: [],
+  };
+}
+
+function masterItemTypeLabel(itemType: MasterEditorDraft["item_type"]) {
+  if (itemType === "processed") return "加工品";
+  if (itemType === "draft") return "新商品";
+  return "商品";
+}
+
+function masterComponentOptionLabel(itemType: MasterEditorDraft["item_type"]) {
+  return itemType === "processed" ? "Processed" : "Master Item";
 }
 
 function highlightMatch(text: string, query: string) {
@@ -395,16 +664,15 @@ export default function CostCalculationPage() {
 
   const [allowed, setAllowed] = useState(false);
   const [city, setCity] = useState<"dubai" | "manila">(String(auth?.city || "dubai").toLowerCase() === "manila" ? "manila" : "dubai");
+  const [activeSection, setActiveSection] = useState<CostSection>("ingredient");
+  const [showLegacyProductSheets, setShowLegacyProductSheets] = useState(false);
   const [activeSheet, setActiveSheet] = useState<SheetKey>(INGREDIENT_SHEET);
   const [searchText, setSearchText] = useState("");
   const [ingredientCategoryFilter, setIngredientCategoryFilter] = useState("all");
   const [menuCategories, setMenuCategories] = useState<CategoryItem[]>([]);
-  const [showAddCategoryForm, setShowAddCategoryForm] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState("");
   const [ingredients, setIngredients] = useState<IngredientRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [recipes, setRecipes] = useState<Record<string, RecipeRow[]>>({});
-  const [loadedRecipeSheets, setLoadedRecipeSheets] = useState<Record<string, boolean>>({});
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
   const [editingCell, setEditingCell] = useState<SelectedCell | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -418,12 +686,30 @@ export default function CostCalculationPage() {
   const [selectedIngredientDetail, setSelectedIngredientDetail] = useState<IngredientDetail | null>(null);
   const [priceHistory, setPriceHistory] = useState<PriceHistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [recipeMenuItems, setRecipeMenuItems] = useState<MenuItemRow[]>([]);
+  const [recipeMenuItemsBySheet, setRecipeMenuItemsBySheet] = useState<Record<string, MenuItemRow[]>>({});
   const [recipeLoading, setRecipeLoading] = useState(false);
+  const [masterItemsByType, setMasterItemsByType] = useState<Record<"processed" | "product" | "draft", MasterItemSummary[]>>({
+    processed: [],
+    product: [],
+    draft: [],
+  });
+  const [masterItemsLoading, setMasterItemsLoading] = useState(false);
+  const [componentOptions, setComponentOptions] = useState<ComponentOption[]>([]);
+  const [componentOptionsLoading, setComponentOptionsLoading] = useState(false);
+  const [activeMasterComponentLookupId, setActiveMasterComponentLookupId] = useState<string | null>(null);
+  const [selectedMasterItemId, setSelectedMasterItemId] = useState<string | null>(null);
+  const [masterEditor, setMasterEditor] = useState<MasterEditorDraft | null>(null);
+  const [masterDetailLoadingId, setMasterDetailLoadingId] = useState<string | null>(null);
+  const [masterDetailSaving, setMasterDetailSaving] = useState(false);
+  const [masterActionBusy, setMasterActionBusy] = useState(false);
+  const [ingredientPromotionKey, setIngredientPromotionKey] = useState<string | null>(null);
+  const [activeIngredientActionMenuId, setActiveIngredientActionMenuId] = useState<string | null>(null);
+  const [categoryActionBusy, setCategoryActionBusy] = useState(false);
   const [showAddItemForm, setShowAddItemForm] = useState(false);
   const [newItemName, setNewItemName] = useState("");
   const [newItemCategory, setNewItemCategory] = useState("");
   const [newItemPrice, setNewItemPrice] = useState("");
+  const [newItemBuffer, setNewItemBuffer] = useState("115");
   const [newItemIngredients, setNewItemIngredients] = useState<RecipeIngredientDraft[]>([createRecipeIngredientDraft()]);
   const [editingMenuItemId, setEditingMenuItemId] = useState<string | null>(null);
   const [editingMenuPrice, setEditingMenuPrice] = useState("");
@@ -475,6 +761,10 @@ export default function CostCalculationPage() {
   const activeSpreadsheetUrl = SPREADSHEET_URLS[city];
   const currencyCode = city === "dubai" ? "AED" : "PHP";
   const cityLabel = city === "dubai" ? "Dubai / AED" : "Manila / PHP";
+  const activeMasterType = activeSection === "processed" ? "processed" : activeSection === "draft" ? "draft" : "product";
+  const isIngredientSection = activeSection === "ingredient";
+  const isMasterSection = activeSection === "processed" || activeSection === "draft" || activeSection === "product";
+  const showLegacyRecipeSection = activeSection === "product" && showLegacyProductSheets;
   const ingredientColumns = useMemo<SpreadsheetColumn[]>(
     () => [
       { key: "row_num", label: "", width: 44, frozen: true, editable: false },
@@ -501,6 +791,10 @@ export default function CostCalculationPage() {
     const handler = (event: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
         setShowSuggestions(false);
+      }
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest?.("[data-ingredient-action-menu]")) {
+        setActiveIngredientActionMenuId(null);
       }
     };
     document.addEventListener("mousedown", handler);
@@ -534,17 +828,10 @@ export default function CostCalculationPage() {
       const merged: IngredientRow[] = [];
       let offset = 0;
       for (let page = 0; page < 400; page += 1) {
-        const qs = new URLSearchParams({
-          city,
-          limit: String(INGREDIENT_LIST_PAGE_SIZE),
-          offset: String(offset),
-          show_inactive: "true",
-        });
         const res = await costJson<{ items?: IngredientRow[]; ingredients?: IngredientRow[] }>(
-          `/api/cost/ingredients?${qs.toString()}`,
+          `/api/cost/ingredients?city=${encodeURIComponent(city)}&limit=${INGREDIENT_LIST_PAGE_SIZE}&offset=${offset}`,
         );
         const source = Array.isArray(res?.items) ? res.items : Array.isArray(res?.ingredients) ? res.ingredients : [];
-        if (source.length === 0) break;
         let added = 0;
         for (const row of source) {
           const id = String((row as IngredientRow).id || "");
@@ -553,9 +840,8 @@ export default function CostCalculationPage() {
           merged.push(mapRow(row as IngredientRow));
           added += 1;
         }
-        if (added === 0) break;
-        offset += source.length;
-        if (source.length < INGREDIENT_LIST_PAGE_SIZE) break;
+        if (source.length < INGREDIENT_LIST_PAGE_SIZE || added === 0) break;
+        offset += INGREDIENT_LIST_PAGE_SIZE;
       }
       setIngredients(merged);
       setAllIngredientOptions(merged);
@@ -570,17 +856,19 @@ export default function CostCalculationPage() {
 
   const loadMenuCategories = useCallback(async () => {
     try {
-      const res = await costJson<{ items?: CategoryItem[] }>(`/api/cost/categories?city=${encodeURIComponent(city)}`);
+      const res = await costJson<{ items?: CategoryItem[] }>(`/api/cost/recipe-sheets?city=${encodeURIComponent(city)}`);
       const items = Array.isArray(res?.items)
         ? res.items
           .map((item) => ({
-            category: String(item.category || "").trim(),
+            key: String(item.key || item.name || "").trim(),
+            name: String(item.name || item.key || "").trim(),
             item_count: Number(item.item_count || 0),
+            is_system: Boolean((item as any).is_system),
           }))
-          .filter((item) => item.category)
+          .filter((item) => item.key && item.name)
         : [];
       setMenuCategories(items);
-      setNewItemCategory((current) => (current || items[0]?.category || ""));
+      setNewItemCategory((current) => (current || items[0]?.name || ""));
     } catch (e: any) {
       setError(e?.message || String(e));
       setMenuCategories([]);
@@ -663,25 +951,425 @@ export default function CostCalculationPage() {
     setRecipeLoading(true);
     try {
       const res = await costJson<{ items: MenuItemRow[] }>(
-        `/api/cost/menu-items?city=${encodeURIComponent(city)}&category=${encodeURIComponent(sheet)}`,
+        `/api/cost/menu-items?city=${encodeURIComponent(city)}&sheet=${encodeURIComponent(sheet)}`,
       );
       const items = Array.isArray(res?.items)
         ? res.items.map((item) => ({
             ...item,
             selling_price: Number(item.selling_price || 0),
+            yield_rate: normalizeMenuBufferRate((item as any).yield_rate),
             total_cost: Number(item.total_cost || 0),
             cost_ratio: item.cost_ratio == null ? null : Number(item.cost_ratio),
           }))
         : [];
-      setRecipeMenuItems(items);
-      setLoadedRecipeSheets((prev) => ({ ...prev, [sheet]: true }));
+      setRecipeMenuItemsBySheet((prev) => ({ ...prev, [sheet]: items }));
     } catch (e: any) {
       setError(e?.message || String(e));
-      setRecipeMenuItems([]);
+      setRecipeMenuItemsBySheet((prev) => ({ ...prev, [sheet]: [] }));
     } finally {
       setRecipeLoading(false);
     }
   }, [city]);
+
+  const loadMasterItems = useCallback(async (itemType: "processed" | "product" | "draft") => {
+    setMasterItemsLoading(true);
+    try {
+      const res = await costJson<{ items?: any[] }>(
+        `/api/cost/master-items?city=${encodeURIComponent(city)}&type=${encodeURIComponent(itemType)}`,
+      );
+      const items = Array.isArray(res?.items)
+        ? res.items.map((item) => {
+            const detail = mapMasterItemDetail(item);
+            return {
+              id: detail.id,
+              city: detail.city,
+              category: detail.category,
+              name: detail.name,
+              description: detail.description,
+              selling_price: detail.selling_price,
+              item_type: detail.item_type,
+              source_type: detail.source_type,
+              status: detail.status,
+              display_order: detail.display_order,
+              output_unit: detail.output_unit,
+              output_qty: detail.output_qty,
+              buffer_rate: detail.buffer_rate,
+              yield_rate: detail.yield_rate,
+              yield_configured: detail.yield_configured,
+              cost_unit_price: detail.cost_unit_price,
+              cost_unit_price_formula: detail.cost_unit_price_formula,
+              cost_unit_price_formula_note: detail.cost_unit_price_formula_note,
+              computed_unit_cost: detail.computed_unit_cost,
+              raw_cost: detail.raw_cost,
+              yield_adjusted_total: detail.yield_adjusted_total,
+              total_cost: detail.total_cost,
+              unit_cost: detail.unit_cost,
+              cost_ratio: detail.cost_ratio,
+              component_count: detail.component_count,
+              is_active: detail.is_active,
+              created_at: detail.created_at,
+              updated_at: detail.updated_at,
+            } satisfies MasterItemSummary;
+          })
+        : [];
+      setMasterItemsByType((prev) => ({ ...prev, [itemType]: items }));
+    } catch (e: any) {
+      setError(e?.message || String(e));
+      setMasterItemsByType((prev) => ({ ...prev, [itemType]: [] }));
+    } finally {
+      setMasterItemsLoading(false);
+    }
+  }, [city]);
+
+  const loadComponentOptions = useCallback(async () => {
+    setComponentOptionsLoading(true);
+    try {
+      const res = await costJson<{ items?: ComponentOption[] }>(
+        `/api/cost/component-options?city=${encodeURIComponent(city)}`,
+      );
+      const items = Array.isArray(res?.items)
+        ? res.items.map((item) => ({
+            component_type: (String(item.component_type || "ingredient") === "processed_item" ? "processed_item" : "ingredient") as MasterComponentType,
+            id: String(item.id || ""),
+            name: String(item.name || ""),
+            category: String(item.category || ""),
+            unit: String(item.unit || ""),
+            unit_cost: Number(item.unit_cost || 0),
+          }))
+        : [];
+      setComponentOptions(items);
+    } catch (e: any) {
+      setError(e?.message || String(e));
+      setComponentOptions([]);
+    } finally {
+      setComponentOptionsLoading(false);
+    }
+  }, [city]);
+
+  const loadMasterDetail = useCallback(async (id: string) => {
+    if (!id) return;
+    setMasterDetailLoadingId(id);
+    try {
+      const res = await costJson<{ item?: any }>(`/api/cost/master-items/${id}`);
+      if (res?.item) {
+        const detail = mapMasterItemDetail(res.item);
+        setSelectedMasterItemId(detail.id);
+        setMasterEditor({
+          id: detail.id,
+          city: detail.city || city,
+          category: detail.category,
+          name: detail.name,
+          description: detail.description,
+          item_type: detail.item_type,
+          source_type: detail.source_type,
+          status: detail.status,
+          display_order: detail.display_order,
+          output_unit: detail.output_unit,
+          output_qty: detail.output_qty,
+          buffer_rate: detail.buffer_rate,
+          yield_rate: detail.yield_rate,
+          yield_configured: detail.yield_configured,
+          cost_unit_price: detail.cost_unit_price,
+          cost_unit_price_formula: detail.cost_unit_price_formula,
+          cost_unit_price_formula_note: detail.cost_unit_price_formula_note,
+          selling_price: detail.selling_price,
+          components: detail.components,
+        });
+      }
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setMasterDetailLoadingId((current) => (current === id ? null : current));
+    }
+  }, [city]);
+
+  const applyMasterDetailToEditor = useCallback((detail: MasterItemDetail) => {
+    setSelectedMasterItemId(detail.id);
+    setMasterEditor({
+      id: detail.id,
+      city: detail.city || city,
+      category: detail.category,
+      name: detail.name,
+      description: detail.description,
+      item_type: detail.item_type,
+      source_type: detail.source_type,
+      status: detail.status,
+      display_order: detail.display_order,
+      output_unit: detail.output_unit,
+      output_qty: detail.output_qty,
+      buffer_rate: detail.buffer_rate,
+      yield_rate: detail.yield_rate,
+      yield_configured: detail.yield_configured,
+      cost_unit_price: detail.cost_unit_price,
+      cost_unit_price_formula: detail.cost_unit_price_formula,
+      cost_unit_price_formula_note: detail.cost_unit_price_formula_note,
+      selling_price: detail.selling_price,
+      components: detail.components,
+    });
+  }, [city]);
+
+  const updateMasterEditor = useCallback((updater: (current: MasterEditorDraft) => MasterEditorDraft) => {
+    setMasterEditor((current) => (current ? updater(current) : current));
+  }, []);
+
+  const createNewMasterEditor = useCallback((itemType: "processed" | "product" | "draft") => {
+    setSelectedMasterItemId(null);
+    setMasterEditor(createEmptyMasterEditor(itemType, city));
+  }, [city]);
+
+  const addMasterComponentRow = useCallback((componentType: MasterComponentType = "ingredient") => {
+    updateMasterEditor((current) => ({
+      ...current,
+      components: [
+        ...current.components,
+        {
+          id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          component_type: componentType,
+          ingredient_id: "",
+          component_menu_item_id: "",
+          name: "",
+          category: "",
+          unit: "",
+          quantity: 0,
+          unit_cost: 0,
+          cost: 0,
+          sort_order: current.components.length,
+          unit_price_formula: "",
+          unit_price_formula_note: "",
+          ingredient_detail_loaded: false,
+        },
+      ],
+    }));
+  }, [updateMasterEditor]);
+
+  const removeMasterComponentRow = useCallback((id: string) => {
+    updateMasterEditor((current) => ({
+      ...current,
+      components: current.components
+        .filter((component) => component.id !== id)
+        .map((component, index) => ({ ...component, sort_order: index })),
+    }));
+  }, [updateMasterEditor]);
+
+  const updateMasterComponentRow = useCallback((id: string, updater: (component: MasterComponentDetail) => MasterComponentDetail) => {
+    updateMasterEditor((current) => ({
+      ...current,
+      components: current.components.map((component) => (
+        component.id === id ? updater(component) : component
+      )),
+    }));
+  }, [updateMasterEditor]);
+
+  const saveMasterEditor = useCallback(async () => {
+    if (!masterEditor) return;
+    const name = masterEditor.name.trim();
+    const category = masterEditor.category.trim();
+    if (!name || !category) {
+      setError("Name and category are required.");
+      return;
+    }
+    const payload = {
+      city,
+      category,
+      name,
+      item_type: masterEditor.item_type,
+      description: masterEditor.description,
+      selling_price: Number(masterEditor.selling_price || 0),
+      buffer_rate: normalizeMenuBufferRate(masterEditor.buffer_rate),
+      yield_rate: normalizeRateValue(masterEditor.yield_rate),
+      output_unit: masterEditor.output_unit,
+      output_qty: Number(masterEditor.output_qty || 1),
+      cost_unit_price: masterEditor.item_type !== "draft" ? Number(masterEditor.cost_unit_price || 0) : null,
+      cost_unit_price_formula: masterEditor.item_type !== "draft" ? masterEditor.cost_unit_price_formula : "",
+      cost_unit_price_formula_note: masterEditor.item_type === "processed" ? masterEditor.cost_unit_price_formula_note : "",
+      display_order: Number(masterEditor.display_order || 0),
+      source_type: masterEditor.source_type || "manual",
+      status: masterEditor.status || (masterEditor.item_type === "draft" ? "draft" : "active"),
+      components: masterEditor.components
+        .filter((component) => (
+          component.quantity > 0
+          && (
+            (component.component_type === "ingredient" && Number(component.ingredient_id || 0) > 0)
+            || (component.component_type === "processed_item" && Number(component.component_menu_item_id || 0) > 0)
+          )
+        ))
+        .map((component, index) => ({
+          component_type: component.component_type,
+          ingredient_id: component.component_type === "ingredient" ? Number(component.ingredient_id || 0) : null,
+          component_menu_item_id: component.component_type === "processed_item" ? Number(component.component_menu_item_id || 0) : null,
+          quantity: Number(component.quantity || 0),
+          unit: component.unit,
+          sort_order: index,
+        })),
+    };
+    if (!payload.components.length) {
+      setError("At least one component is required.");
+      return;
+    }
+    try {
+      setMasterDetailSaving(true);
+      const endpoint = masterEditor.id
+        ? (masterEditor.item_type === "draft" ? `/api/cost/product-drafts/${masterEditor.id}` : `/api/cost/master-items/${masterEditor.id}`)
+        : (masterEditor.item_type === "draft" ? "/api/cost/product-drafts" : "/api/cost/master-items");
+      const method = masterEditor.id ? "PATCH" : "POST";
+      const res = await costJson<{ item?: any }>(endpoint, {
+        method,
+        body: JSON.stringify(payload),
+      });
+      if (res?.item) {
+        const detail = mapMasterItemDetail(res.item);
+        setMasterEditor({
+          id: detail.id,
+          city: detail.city || city,
+          category: detail.category,
+          name: detail.name,
+          description: detail.description,
+          item_type: detail.item_type,
+          source_type: detail.source_type,
+          status: detail.status,
+          display_order: detail.display_order,
+          output_unit: detail.output_unit,
+          output_qty: detail.output_qty,
+          buffer_rate: detail.buffer_rate,
+          yield_rate: detail.yield_rate,
+          yield_configured: detail.yield_configured,
+          cost_unit_price: detail.cost_unit_price,
+          cost_unit_price_formula: detail.cost_unit_price_formula,
+          cost_unit_price_formula_note: detail.cost_unit_price_formula_note,
+          selling_price: detail.selling_price,
+          components: detail.components,
+        });
+        setSelectedMasterItemId(detail.id);
+        await loadMasterItems(detail.item_type);
+        await loadComponentOptions();
+      }
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setMasterDetailSaving(false);
+    }
+  }, [city, loadComponentOptions, loadMasterItems, masterEditor]);
+
+  const archiveSelectedMasterItem = useCallback(async () => {
+    if (!masterEditor?.id) return;
+    const confirmed = window.confirm(`Archive "${masterEditor.name}"?`);
+    if (!confirmed) return;
+    try {
+      setMasterActionBusy(true);
+      await costJson(`/api/cost/master-items/${masterEditor.id}`, { method: "DELETE" });
+      await loadMasterItems(masterEditor.item_type);
+      await loadComponentOptions();
+      setSelectedMasterItemId(null);
+      setMasterEditor(null);
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setMasterActionBusy(false);
+    }
+  }, [loadComponentOptions, loadMasterItems, masterEditor]);
+
+  const moveMasterItemToProcessed = useCallback(async () => {
+    if (!masterEditor?.id || masterEditor.item_type !== "product") return;
+    const confirmed = window.confirm(`"${masterEditor.name}" を 加工品マスタ へ移動しますか？`);
+    if (!confirmed) return;
+    try {
+      setMasterActionBusy(true);
+      setError("");
+      const res = await costJson<{ item?: any }>(`/api/cost/master-items/${masterEditor.id}/move`, {
+        method: "POST",
+        body: JSON.stringify({ target_type: "processed" }),
+      });
+      if (!res?.item) return;
+      const detail = mapMasterItemDetail(res.item);
+      await loadMasterItems("product");
+      await loadMasterItems("processed");
+      await loadComponentOptions();
+      setActiveSection("processed");
+      applyMasterDetailToEditor(detail);
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setMasterActionBusy(false);
+    }
+  }, [applyMasterDetailToEditor, loadComponentOptions, loadMasterItems, masterEditor]);
+
+  const promoteIngredientToMaster = useCallback(async (ingredient: IngredientRow, targetType: "processed" | "product") => {
+    const ingredientId = String(ingredient?.id || "");
+    if (!ingredientId || ingredientId.startsWith("new-")) return;
+    const targetLabel = targetType === "processed" ? "加工品マスタ" : "商品マスタ";
+    const confirmed = window.confirm(`"${ingredient.name}" を ${targetLabel} へ移動しますか？`);
+    if (!confirmed) return;
+    const promotionKey = `${targetType}:${ingredientId}`;
+    try {
+      setIngredientPromotionKey(promotionKey);
+      setError("");
+      const res = await costJson<{ item?: any }>(`/api/cost/ingredients/${ingredientId}/promote`, {
+        method: "POST",
+        body: JSON.stringify({ target_type: targetType }),
+      });
+      if (!res?.item) return;
+      const detail = mapMasterItemDetail(res.item);
+      await loadIngredients();
+      await loadMasterItems(targetType);
+      await loadComponentOptions();
+      setSelectedIngredientDetail((current) => (String(current?.id || "") === ingredientId ? null : current));
+      setHighlightedIngredientId(null);
+      setActiveSection(targetType);
+      if (targetType === "product") {
+        setShowLegacyProductSheets(false);
+      }
+      applyMasterDetailToEditor(detail);
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setIngredientPromotionKey((current) => (current === promotionKey ? null : current));
+    }
+  }, [applyMasterDetailToEditor, loadComponentOptions, loadIngredients, loadMasterItems]);
+
+  const publishSelectedDraft = useCallback(async () => {
+    if (!masterEditor?.id || masterEditor.item_type !== "draft") return;
+    try {
+      setMasterActionBusy(true);
+      const res = await costJson<{ item?: any }>(`/api/cost/product-drafts/${masterEditor.id}/publish`, {
+        method: "POST",
+        body: JSON.stringify({ category: masterEditor.category }),
+      });
+      if (res?.item) {
+        const detail = mapMasterItemDetail(res.item);
+        await loadMasterItems("draft");
+        await loadMasterItems("product");
+        await loadComponentOptions();
+        setActiveSection("product");
+        setShowLegacyProductSheets(false);
+        setSelectedMasterItemId(detail.id);
+        setMasterEditor({
+          id: detail.id,
+          city: detail.city || city,
+          category: detail.category,
+          name: detail.name,
+          description: detail.description,
+          item_type: detail.item_type,
+          source_type: detail.source_type,
+          status: detail.status,
+          display_order: detail.display_order,
+          output_unit: detail.output_unit,
+          output_qty: detail.output_qty,
+          buffer_rate: detail.buffer_rate,
+          yield_rate: detail.yield_rate,
+          yield_configured: detail.yield_configured,
+          cost_unit_price: detail.cost_unit_price,
+          cost_unit_price_formula: detail.cost_unit_price_formula,
+          cost_unit_price_formula_note: detail.cost_unit_price_formula_note,
+          selling_price: detail.selling_price,
+          components: detail.components,
+        });
+      }
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setMasterActionBusy(false);
+    }
+  }, [city, loadComponentOptions, loadMasterItems, masterEditor]);
 
   useEffect(() => {
     if (!allowed) return;
@@ -692,15 +1380,12 @@ export default function CostCalculationPage() {
 
   useEffect(() => {
     if (!allowed) return;
-    setLoadedRecipeSheets({});
     setRecipes({});
-    setRecipeMenuItems([]);
+    setRecipeMenuItemsBySheet({});
     setMenuDetails({});
     setExpandedMenuItemId(null);
     setMenuDraftLine({});
     setShowAddItemForm(false);
-    setShowAddCategoryForm(false);
-    setNewCategoryName("");
     setUnmatchedInvoiceItems([]);
     setInvoiceMappings([]);
     setSelectedUnmatchedItemKey("");
@@ -727,17 +1412,41 @@ export default function CostCalculationPage() {
     setDirtyRows(new Set());
     setSelectedCell(null);
     setEditingCell(null);
+    setMasterItemsByType({ processed: [], product: [], draft: [] });
+    setComponentOptions([]);
+    setSelectedMasterItemId(null);
+    setMasterEditor(null);
   }, [allowed, city]);
 
   useEffect(() => {
     if (!allowed) return;
-    if (activeSheet !== INGREDIENT_SHEET && !loadedRecipeSheets[activeSheet]) {
+    if (activeSheet !== INGREDIENT_SHEET) {
       void loadRecipeSheet(activeSheet);
     }
     setDirtyRows(new Set());
     setSelectedCell(null);
     setEditingCell(null);
-  }, [activeSheet, allowed, loadedRecipeSheets, loadRecipeSheet]);
+  }, [activeSheet, allowed, loadRecipeSheet]);
+
+  useEffect(() => {
+    if (!allowed) return;
+    if (!isMasterSection) return;
+    if (activeSection === "product" && showLegacyProductSheets) return;
+    void loadMasterItems(activeMasterType);
+    void loadComponentOptions();
+  }, [activeMasterType, activeSection, allowed, isMasterSection, loadComponentOptions, loadMasterItems, showLegacyProductSheets]);
+
+  useEffect(() => {
+    if (!isMasterSection || showLegacyRecipeSection) return;
+    if (masterEditor && masterEditor.item_type !== activeMasterType) {
+      setSelectedMasterItemId(null);
+      setMasterEditor(null);
+    }
+  }, [activeMasterType, isMasterSection, masterEditor, showLegacyRecipeSection]);
+
+  useEffect(() => {
+    gridRef.current?.scrollTo({ top: 0, behavior: "auto" });
+  }, [activeSection, showLegacyProductSheets]);
 
   const filteredIngredientRows = useMemo(() => {
     const q = searchText.trim().toLowerCase();
@@ -748,25 +1457,153 @@ export default function CostCalculationPage() {
     });
   }, [ingredientCategoryFilter, ingredients, searchText]);
 
+  const visibleMasterItems = useMemo(() => {
+    const q = searchText.trim().toLowerCase();
+    const rows = masterItemsByType[activeMasterType] || [];
+    if (!q) return rows;
+    return rows.filter((row) =>
+      [row.name, row.category, row.description].some((value) => String(value || "").toLowerCase().includes(q)),
+    );
+  }, [activeMasterType, masterItemsByType, searchText]);
+
+  const processedComponentOptions = useMemo(
+    () => componentOptions.filter((option) => option.component_type === "processed_item"),
+    [componentOptions],
+  );
+
+  const masterComponentSummary = useMemo(() => {
+    if (!masterEditor) {
+      return {
+        totalAmount: 0,
+        totalGrams: 0,
+      };
+    }
+    return masterEditor.components.reduce(
+      (summary, component) => ({
+        totalAmount: summary.totalAmount + Number(component.quantity || 0) * Number(component.unit_cost || 0),
+        totalGrams: summary.totalGrams + quantityToGrams(Number(component.quantity || 0), component.unit || ""),
+      }),
+      { totalAmount: 0, totalGrams: 0 },
+    );
+  }, [masterEditor]);
+
+  const masterEditorPreview = useMemo(() => {
+    if (!masterEditor) return null;
+    const preview = computeMasterTotalsLocal(
+      masterEditor.components.map((component) => ({
+        quantity: Number(component.quantity || 0),
+        unit_cost: Number(component.unit_cost || 0),
+      })),
+      {
+        sellingPrice: Number(masterEditor.selling_price || 0),
+        bufferRate: masterEditor.buffer_rate,
+        yieldRate: masterEditor.yield_rate,
+        outputQty: masterEditor.output_qty,
+      },
+    );
+    const overrideUnitCost = Number(masterEditor.cost_unit_price || 0);
+    if (masterEditor.item_type !== "draft" && overrideUnitCost > 0) {
+      const outputQty = Number(masterEditor.output_qty || 0) > 0 ? Number(masterEditor.output_qty) : 1;
+      const totalCost = overrideUnitCost * outputQty;
+      return {
+        ...preview,
+        total_cost: totalCost,
+        unit_cost: overrideUnitCost,
+        cost_ratio: Number(masterEditor.selling_price || 0) > 0 ? totalCost / Number(masterEditor.selling_price || 0) : null,
+      };
+    }
+    return preview;
+  }, [masterEditor]);
+
+  const masterFormulaResult = useMemo(() => {
+    if (!masterEditor || masterEditor.item_type === "draft") return null;
+    return evaluateCostFormulaExpression(masterEditor.cost_unit_price_formula);
+  }, [masterEditor]);
+
+  const getMasterComponentSuggestions = useCallback((component: MasterComponentDetail) => {
+    const query = String(component.name || "").trim().toLowerCase();
+    if (component.component_type === "ingredient") {
+      const ingredientMatches = allIngredientOptions
+        .filter((option) => {
+          if (!query) return false;
+          return [option.name, option.category, option.unit].some((value) => String(value || "").toLowerCase().includes(query));
+        })
+        .slice(0, 12)
+        .map((option) => ({
+          component_type: "ingredient" as const,
+          id: String(option.id || ""),
+          name: String(option.name || ""),
+          category: String(option.category || ""),
+          unit: String(option.unit || ""),
+          unit_cost: Number(option.unit_price || 0),
+        }));
+      if (masterEditor?.item_type !== "processed") {
+        const masterMatches = processedComponentOptions
+          .filter((option) => {
+            if (!query) return false;
+            return [option.name, option.category, option.unit].some((value) => String(value || "").toLowerCase().includes(query));
+          })
+          .slice(0, Math.max(0, 12 - ingredientMatches.length));
+        return [...ingredientMatches, ...masterMatches];
+      }
+      const processedMatches = processedComponentOptions
+        .filter((option) => {
+          if (!query) return false;
+          return [option.name, option.category, option.unit].some((value) => String(value || "").toLowerCase().includes(query));
+        })
+        .slice(0, Math.max(0, 12 - ingredientMatches.length));
+      return [...ingredientMatches, ...processedMatches];
+    }
+    return processedComponentOptions
+      .filter((option) => {
+        if (!query) return false;
+        return [option.name, option.category, option.unit].some((value) => String(value || "").toLowerCase().includes(query));
+      })
+      .slice(0, 12);
+  }, [allIngredientOptions, masterEditor?.item_type, processedComponentOptions]);
+
+  const selectMasterComponentOption = useCallback((componentId: string, option: ComponentOption) => {
+    updateMasterComponentRow(componentId, (current) => ({
+      ...current,
+      component_type: option.component_type,
+      ingredient_id: option.component_type === "ingredient" ? option.id : "",
+      component_menu_item_id: option.component_type === "processed_item" ? option.id : "",
+      name: option.name,
+      category: option.category,
+      unit: option.unit,
+      unit_cost: Number(option.unit_cost || 0),
+      unit_price_formula: "",
+      unit_price_formula_note: "",
+      ingredient_detail_loaded: option.component_type !== "ingredient",
+    }));
+    setActiveMasterComponentLookupId(null);
+  }, [updateMasterComponentRow]);
+
   const ingredientCategories = useMemo(() => {
     const cats = [...new Set(ingredients.map((item) => item.category).filter(Boolean))];
     return cats.sort((a, b) => a.localeCompare(b, "ja"));
   }, [ingredients]);
 
-  const sheets = useMemo<SheetMeta[]>(
-    () => [
-      { key: INGREDIENT_SHEET, name: INGREDIENT_SHEET },
-      ...menuCategories.map((item) => ({ key: item.category, name: item.category })),
-    ],
+  const legacySheets = useMemo<SheetMeta[]>(
+    () => menuCategories.map((item) => ({ key: item.key, name: item.name })),
     [menuCategories],
   );
 
   useEffect(() => {
     if (activeSheet === INGREDIENT_SHEET) return;
-    if (!menuCategories.some((item) => item.category === activeSheet)) {
+    if (!menuCategories.some((item) => item.key === activeSheet)) {
       setActiveSheet(INGREDIENT_SHEET);
     }
   }, [activeSheet, menuCategories]);
+
+  const activeCategoryMeta = useMemo(
+    () => menuCategories.find((item) => item.key === activeSheet) || null,
+    [activeSheet, menuCategories],
+  );
+  const activeRecipeMenuItems = useMemo(
+    () => (activeSheet === INGREDIENT_SHEET ? [] : (recipeMenuItemsBySheet[activeSheet] || [])),
+    [activeSheet, recipeMenuItemsBySheet],
+  );
 
   useEffect(() => {
     if (activeSheet !== INGREDIENT_SHEET) {
@@ -806,11 +1643,11 @@ export default function CostCalculationPage() {
   const visibleRecipeMenuItems = useMemo(() => {
     if (activeSheet === INGREDIENT_SHEET) return [];
     const q = searchText.trim().toLowerCase();
-    if (!q) return recipeMenuItems;
-    return recipeMenuItems.filter((item) =>
+    if (!q) return activeRecipeMenuItems;
+    return activeRecipeMenuItems.filter((item) =>
       [item.name, item.category].some((value) => String(value || "").toLowerCase().includes(q)),
     );
-  }, [activeSheet, recipeMenuItems, searchText]);
+  }, [activeRecipeMenuItems, activeSheet, searchText]);
 
   const skippedUnmatchedSet = useMemo(() => new Set(skippedUnmatchedInvoiceKeys), [skippedUnmatchedInvoiceKeys]);
   const visibleUnmatchedInvoiceItems = useMemo(
@@ -891,12 +1728,12 @@ export default function CostCalculationPage() {
   const currentRows = activeSheet === INGREDIENT_SHEET ? filteredIngredientRows : filteredRecipeRows;
   const recipeStats = useMemo(() => recipeGroupStats(filteredRecipeRows), [filteredRecipeRows]);
   const averageCostRatio = useMemo(() => {
-    const values = recipeMenuItems
+    const values = activeRecipeMenuItems
       .map((item) => Number(item.cost_ratio))
       .filter((value) => Number.isFinite(value) && value >= 0);
     if (!values.length) return null;
     return values.reduce((sum, value) => sum + value, 0) / values.length;
-  }, [recipeMenuItems]);
+  }, [activeRecipeMenuItems]);
 
   const dirtyCount = useMemo(() => {
     if (activeSheet === INGREDIENT_SHEET) return ingredients.filter((row) => row._dirty || row._new).length;
@@ -970,6 +1807,47 @@ export default function CostCalculationPage() {
   useEffect(() => {
     selectedIngredientDetailRef.current = selectedIngredientDetail;
   }, [selectedIngredientDetail]);
+
+  const loadMasterComponentIngredientDetail = useCallback(async (componentId: string, ingredientId: string) => {
+    const normalizedId = String(ingredientId || "").trim();
+    if (!normalizedId) return;
+    const fallback = allIngredientOptionsRef.current.find((item) => String(item.id) === normalizedId) || null;
+    try {
+      const res = await costJson<{ item?: IngredientDetail }>(`/api/cost/ingredients/${normalizedId}`);
+      const detail = res?.item
+        ? {
+            ...(fallback || {}),
+            ...res.item,
+            id: String(res.item.id || normalizedId),
+            category: String(res.item.category || fallback?.category || ""),
+            name: String(res.item.name || fallback?.name || ""),
+            unit: String(res.item.unit || fallback?.unit || ""),
+            unit_price: Number(res.item.unit_price || fallback?.unit_price || 0),
+            unit_price_formula: String(res.item.unit_price_formula || fallback?.unit_price_formula || ""),
+            unit_price_formula_note: String(res.item.unit_price_formula_note || fallback?.unit_price_formula_note || ""),
+            buffer_rate: Number(res.item.buffer_rate || fallback?.buffer_rate || 1.15),
+            yield_rate: normalizeRateValue(res.item.yield_rate ?? fallback?.yield_rate),
+            notes: String(res.item.notes || fallback?.notes || ""),
+            city: String(res.item.city || fallback?.city || city),
+          }
+        : fallback;
+      if (!detail) return;
+      applyIngredientDetailToLocalState(detail);
+      updateMasterComponentRow(componentId, (current) => (
+        current.component_type === "ingredient" && String(current.ingredient_id) === normalizedId
+          ? {
+              ...current,
+              unit_cost: Number(detail.unit_price || current.unit_cost || 0),
+              unit_price_formula: String(detail.unit_price_formula || ""),
+              unit_price_formula_note: String(detail.unit_price_formula_note || ""),
+              ingredient_detail_loaded: true,
+            }
+          : current
+      ));
+    } catch {
+      updateMasterComponentRow(componentId, (current) => ({ ...current, ingredient_detail_loaded: true }));
+    }
+  }, [applyIngredientDetailToLocalState, city, updateMasterComponentRow]);
 
   const loadMappingIngredientDetail = useCallback(async (ingredientId: string) => {
     const normalizedId = String(ingredientId || "").trim();
@@ -1052,6 +1930,7 @@ export default function CostCalculationPage() {
 
   const newItemPreview = useMemo(() => {
     const sellingPrice = normalizeNumber(newItemPrice);
+    const bufferRate = normalizeMenuBufferRate(normalizeNumber(newItemBuffer) / 100);
     const lines = newItemIngredients
       .map((row) => {
         const ingredient = allIngredientOptions.find((item) => String(item.id) === String(row.ingredient_id));
@@ -1064,8 +1943,8 @@ export default function CostCalculationPage() {
           : null;
       })
       .filter((row): row is { quantity: number; unit_price: number } => Boolean(row) && row.quantity > 0);
-    return computeMenuTotals(lines, sellingPrice);
-  }, [allIngredientOptions, newItemIngredients, newItemPrice]);
+    return computeMenuTotals(lines, sellingPrice, bufferRate);
+  }, [allIngredientOptions, newItemBuffer, newItemIngredients, newItemPrice]);
 
   const openIngredientDetail = useCallback(async (ingredient: IngredientRow) => {
     setHistoryLoading(true);
@@ -1136,6 +2015,25 @@ export default function CostCalculationPage() {
     }
   }, []);
 
+  const removeLocalIngredientRow = useCallback((ingredientId: string) => {
+    const normalizedId = String(ingredientId || "").trim();
+    if (!normalizedId) return;
+    setIngredients((prev) => prev.filter((item) => String(item.id) !== normalizedId));
+    setAllIngredientOptions((prev) => prev.filter((item) => String(item.id) !== normalizedId));
+    setSelectedIngredientDetail((current) => (String(current?.id || "") === normalizedId ? null : current));
+    if (String(selectedMappingIngredientId || "") === normalizedId) {
+      setSelectedMappingIngredientId("");
+      setMappingIngredientSearch("");
+      setMappingIngredientUnit("");
+      setSelectedMappingIngredientDetail(null);
+      setMappingCostPriceInput("");
+      setMappingCostFormulaInput("");
+      setMappingCostFormulaNoteInput("");
+      setMappingCostSaveError("");
+    }
+    setPriceHistory((current) => (String(selectedIngredientDetailRef.current?.id || "") === normalizedId ? [] : current));
+  }, [selectedMappingIngredientId]);
+
   const deleteSelectedIngredient = useCallback(async () => {
     if (!selectedIngredientDetail) return;
     const ingredientId = String(selectedIngredientDetail.id || "").trim();
@@ -1143,6 +2041,10 @@ export default function CostCalculationPage() {
     const ingredientName = selectedIngredientDetail.name || "this ingredient";
     const confirmed = window.confirm(`Delete "${ingredientName}" from Cost Calculation?`);
     if (!confirmed) return;
+    if (ingredientId.startsWith("new-")) {
+      removeLocalIngredientRow(ingredientId);
+      return;
+    }
     setIngredientDetailDeleting(true);
     setIngredientDetailSaveError("");
     try {
@@ -1169,7 +2071,7 @@ export default function CostCalculationPage() {
     } finally {
       setIngredientDetailDeleting(false);
     }
-  }, [loadIngredients, selectedIngredientDetail, selectedMappingIngredientId]);
+  }, [loadIngredients, removeLocalIngredientRow, selectedIngredientDetail, selectedMappingIngredientId]);
 
   useEffect(() => {
     if (mappingMode !== "create") return;
@@ -1227,13 +2129,13 @@ export default function CostCalculationPage() {
       const current = prev[menuItemId];
       if (!current) return prev;
       const next = updater(current);
-      const totals = computeMenuTotals(next.ingredients, next.selling_price);
+      const totals = computeMenuTotals(next.ingredients, next.selling_price, next.yield_rate);
       return {
         ...prev,
         [menuItemId]: {
           ...next,
           total_cost: totals.total_cost,
-          raw_cost: totals.total_cost,
+          raw_cost: totals.raw_cost,
           cost_ratio: totals.cost_ratio,
           ingredient_count: next.ingredients.length,
         },
@@ -1262,16 +2164,68 @@ export default function CostCalculationPage() {
     }
   }, [expandedMenuItemId, refreshActiveRecipeTab, refreshMenuDetail]);
 
+  const saveRecipeMenuItemBuffer = useCallback(async (id: string, value: string) => {
+    const nextValue = normalizeMenuBufferRate(normalizeNumber(value) / 100);
+    try {
+      setMenuDetailSavingId(id);
+      await costJson(`/api/cost/menu-items/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ yield_rate: nextValue }),
+      });
+      await refreshActiveRecipeTab();
+      await refreshMenuDetail(id);
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setMenuDetailSavingId((current) => (current === id ? null : current));
+    }
+  }, [refreshActiveRecipeTab, refreshMenuDetail]);
+
+  const deleteRecipeMenuItem = useCallback(async (id: string, name: string) => {
+    const confirmed = window.confirm(`Delete item "${name}"?`);
+    if (!confirmed) return;
+    try {
+      setMenuDetailSavingId(id);
+      await costJson(`/api/cost/menu-items/${id}`, {
+        method: "DELETE",
+      });
+      setExpandedMenuItemId((current) => (current === id ? null : current));
+      setMenuDetails((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      setMenuDraftLine((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      await loadMenuCategories();
+      await refreshActiveRecipeTab();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setMenuDetailSavingId((current) => (current === id ? null : current));
+    }
+  }, [loadMenuCategories, refreshActiveRecipeTab]);
+
   const saveMenuCategory = useCallback(async (menuItemId: string, nextCategory: string) => {
     const category = String(nextCategory || "").trim();
     if (!category) return;
+    const sourceCategory = String(activeSheet || "").trim();
     try {
       setMenuDetailSavingId(menuItemId);
       await costJson(`/api/cost/menu-items/${menuItemId}`, {
         method: "PATCH",
-        body: JSON.stringify({ category }),
+        body: JSON.stringify({ category, description: `Imported from ${category}` }),
       });
       await loadMenuCategories();
+      setRecipeMenuItemsBySheet((prev) => {
+        const next = { ...prev };
+        delete next[sourceCategory];
+        delete next[category];
+        return next;
+      });
       setExpandedMenuItemId((current) => (current === menuItemId ? null : current));
       setActiveSheet(category);
       await loadRecipeSheet(category);
@@ -1280,7 +2234,92 @@ export default function CostCalculationPage() {
     } finally {
       setMenuDetailSavingId((current) => (current === menuItemId ? null : current));
     }
-  }, [loadMenuCategories, loadRecipeSheet]);
+  }, [activeSheet, loadMenuCategories, loadRecipeSheet]);
+
+  const createMenuCategory = useCallback(async () => {
+    const name = window.prompt("New category name");
+    const categoryName = String(name || "").trim();
+    if (!categoryName) return;
+    try {
+      setCategoryActionBusy(true);
+      await costJson("/api/cost/categories", {
+        method: "POST",
+        body: JSON.stringify({ city, name: categoryName }),
+      });
+      await loadMenuCategories();
+      setNewItemCategory(categoryName);
+      setActiveSheet(categoryName);
+      await loadRecipeSheet(categoryName);
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setCategoryActionBusy(false);
+    }
+  }, [city, loadMenuCategories, loadRecipeSheet]);
+
+  const renameActiveCategory = useCallback(async () => {
+    if (activeSheet === INGREDIENT_SHEET || !activeCategoryMeta || activeCategoryMeta.is_system) return;
+    const nextName = window.prompt("Rename category", activeCategoryMeta.name);
+    const categoryName = String(nextName || "").trim();
+    if (!categoryName || categoryName === activeCategoryMeta.name) return;
+    try {
+      setCategoryActionBusy(true);
+      await costJson(`/api/cost/categories/${encodeURIComponent(activeCategoryMeta.name)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ city, name: categoryName }),
+      });
+      await loadMenuCategories();
+      setExpandedMenuItemId(null);
+      setActiveSheet(categoryName);
+      await loadRecipeSheet(categoryName);
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setCategoryActionBusy(false);
+    }
+  }, [activeCategoryMeta, activeSheet, city, loadMenuCategories, loadRecipeSheet]);
+
+  const deleteActiveCategory = useCallback(async () => {
+    if (activeSheet === INGREDIENT_SHEET || !activeCategoryMeta) return;
+    const itemCount = activeRecipeMenuItems.length;
+    let moveTo = "";
+    if (itemCount > 0) {
+      const candidates = menuCategories
+        .map((item) => item.name)
+        .filter((name) => name !== activeCategoryMeta.name);
+      const target = window.prompt(
+        `Move ${itemCount} item(s) to category before deleting "${activeCategoryMeta.name}".\nAvailable: ${candidates.join(", ")}`,
+        candidates[0] || "",
+      );
+      moveTo = String(target || "").trim();
+      if (!moveTo) return;
+    } else {
+      const confirmed = window.confirm(`Delete category "${activeCategoryMeta.name}"?`);
+      if (!confirmed) return;
+    }
+    try {
+      setCategoryActionBusy(true);
+      const qs = new URLSearchParams({ city });
+      if (moveTo) qs.set("move_to", moveTo);
+      await costJson(`/api/cost/categories/${encodeURIComponent(activeCategoryMeta.name)}?${qs.toString()}`, {
+        method: "DELETE",
+      });
+      await loadMenuCategories();
+      setRecipeMenuItemsBySheet((prev) => {
+        const next = { ...prev };
+        delete next[activeCategoryMeta.name];
+        if (moveTo) delete next[moveTo];
+        return next;
+      });
+      setExpandedMenuItemId(null);
+      setActiveSheet(moveTo || INGREDIENT_SHEET);
+      if (moveTo) await loadRecipeSheet(moveTo);
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setCategoryActionBusy(false);
+    }
+  }, [activeCategoryMeta, activeRecipeMenuItems.length, activeSheet, city, loadMenuCategories, loadRecipeSheet, menuCategories]);
 
   const persistMenuIngredients = useCallback(async (menuItemId: string, ingredients: MenuIngredientDetail[]) => {
     try {
@@ -1389,13 +2428,16 @@ export default function CostCalculationPage() {
           city,
           name,
           category,
+          description: `Imported from ${activeSheet}`,
           selling_price: normalizeNumber(newItemPrice),
+          yield_rate: normalizeMenuBufferRate(normalizeNumber(newItemBuffer) / 100),
           ingredients: ingredientsPayload,
         }),
       });
       setShowAddItemForm(false);
       setNewItemName("");
       setNewItemPrice("");
+      setNewItemBuffer("115");
       setNewItemIngredients([createRecipeIngredientDraft()]);
       await refreshActiveRecipeTab();
       if (res?.item?.id) {
@@ -1406,25 +2448,7 @@ export default function CostCalculationPage() {
     } catch (e: any) {
       setError(e?.message || String(e));
     }
-  }, [activeSheet, city, newItemCategory, newItemIngredients, newItemName, newItemPrice, refreshActiveRecipeTab]);
-
-  const createMenuCategory = useCallback(async () => {
-    const name = String(newCategoryName || "").trim();
-    if (!name) return;
-    try {
-      await costJson("/api/cost/categories", {
-        method: "POST",
-        body: JSON.stringify({ city, name }),
-      });
-      await loadMenuCategories();
-      setShowAddCategoryForm(false);
-      setNewCategoryName("");
-      setNewItemCategory(name);
-      setActiveSheet(name);
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    }
-  }, [city, loadMenuCategories, newCategoryName]);
+  }, [activeSheet, city, newItemBuffer, newItemCategory, newItemIngredients, newItemName, newItemPrice, refreshActiveRecipeTab]);
 
   const selectUnmatchedInvoiceItem = useCallback((itemKey: string) => {
     const item = unmatchedInvoiceItems.find((entry) => unmatchedInvoiceItemKey(entry) === itemKey);
@@ -1937,6 +2961,7 @@ export default function CostCalculationPage() {
 
   const addRow = () => {
     if (activeSheet === INGREDIENT_SHEET) {
+      const nextIndex = currentRows.length;
       setIngredients((prev) => [
         ...prev,
         {
@@ -1955,9 +2980,10 @@ export default function CostCalculationPage() {
           _dirty: true,
         },
       ]);
-      const nextIndex = currentRows.length;
       setDirtyRowIndex(nextIndex);
-      setSelectedCell({ row: nextIndex, col: "category" });
+      setSelectedCell({ row: nextIndex, col: "name" });
+      setEditingCell({ row: nextIndex, col: "name" });
+      setEditValue("");
     } else {
       setRecipes((prev) => ({
         ...prev,
@@ -2144,6 +3170,37 @@ export default function CostCalculationPage() {
           </div>
         </div>
 
+        <div className="border-b border-white/10 bg-black/10 px-6 pt-3">
+          <div className="flex items-end gap-1 overflow-x-auto">
+            {[
+              { key: "ingredient" as CostSection, label: "食材マスタ" },
+              { key: "processed" as CostSection, label: "加工品マスタ" },
+              { key: "product" as CostSection, label: "商品マスタ" },
+              { key: "draft" as CostSection, label: "新商品用コスト計算" },
+            ].map((section) => (
+              <button
+                key={section.key}
+                type="button"
+                onClick={() => {
+                  setActiveSection(section.key);
+                  if (section.key === "ingredient") {
+                    setActiveSheet(INGREDIENT_SHEET);
+                    setShowLegacyProductSheets(false);
+                  }
+                }}
+                className={cx(
+                  "rounded-t-xl border border-b-0 px-4 py-2.5 text-sm font-medium transition",
+                  activeSection === section.key
+                    ? "border-white/15 bg-[#111827] text-white"
+                    : "border-transparent bg-transparent text-zinc-500 hover:text-zinc-300",
+                )}
+              >
+                {section.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="shrink-0 border-b border-white/10 bg-black/10 px-6 py-4">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
             <div ref={searchRef} className="relative min-w-0 flex-1">
@@ -2162,7 +3219,7 @@ export default function CostCalculationPage() {
                       setShowSuggestions(false);
                     }
                   }}
-                  placeholder={activeSheet === INGREDIENT_SHEET ? "Search ingredients..." : "Search menu items or ingredients..."}
+                  placeholder={isIngredientSection ? "Search ingredients..." : "Search items or components..."}
                   className="w-full rounded-md border border-white/10 bg-white/[0.04] py-2.5 pl-10 pr-10 text-sm text-white outline-none transition focus:border-sky-500/50 focus:bg-white/[0.06]"
                 />
                 {searchText ? (
@@ -2179,7 +3236,7 @@ export default function CostCalculationPage() {
                   </button>
                 ) : null}
               </div>
-              {showSuggestions && activeSheet === INGREDIENT_SHEET && suggestions.length > 0 ? (
+              {showSuggestions && isIngredientSection && suggestions.length > 0 ? (
                 <div className="absolute left-0 top-full z-50 mt-2 w-full max-w-md overflow-hidden rounded-xl border border-white/10 bg-[#111827] shadow-2xl shadow-black/40">
                   <div className="border-b border-white/5 px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
                     {suggestions.length} suggestions
@@ -2212,7 +3269,7 @@ export default function CostCalculationPage() {
               ) : null}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {activeSheet === INGREDIENT_SHEET ? (
+              {isIngredientSection ? (
                 <select
                   value={ingredientCategoryFilter}
                   onChange={(e) => setIngredientCategoryFilter(e.target.value)}
@@ -2226,7 +3283,7 @@ export default function CostCalculationPage() {
                   ))}
                 </select>
               ) : null}
-              {activeSheet === INGREDIENT_SHEET ? (
+              {isIngredientSection ? (
                 <>
                   <button
                     className="inline-flex items-center gap-2 rounded-md border border-sky-500/30 bg-sky-500/15 px-3.5 py-2.5 text-sm font-medium text-sky-200 transition hover:bg-sky-500/25"
@@ -2234,7 +3291,7 @@ export default function CostCalculationPage() {
                     type="button"
                   >
                     <Plus className="h-4 w-4" />
-                    + 行を追加
+                    食材を追加
                   </button>
                   <button
                     className="inline-flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/15 px-3.5 py-2.5 text-sm font-medium text-emerald-200 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-60"
@@ -2249,6 +3306,34 @@ export default function CostCalculationPage() {
                     </span>
                   </button>
                 </>
+              ) : null}
+              {activeSection === "product" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLegacyProductSheets((prev) => {
+                      const next = !prev;
+                      if (next && activeSheet === INGREDIENT_SHEET && legacySheets[0]) {
+                        setActiveSheet(legacySheets[0].key);
+                      }
+                      return next;
+                    });
+                  }}
+                  className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-sm font-medium text-zinc-200 transition hover:bg-white/[0.08]"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                  {showLegacyProductSheets ? "商品マスタを表示" : "既存カテゴリを表示"}
+                </button>
+              ) : null}
+              {isMasterSection && (!showLegacyRecipeSection || activeSection !== "product") ? (
+                <button
+                  type="button"
+                  onClick={() => createNewMasterEditor(activeMasterType)}
+                  className="inline-flex items-center gap-2 rounded-md border border-violet-500/30 bg-violet-500/15 px-3.5 py-2.5 text-sm font-medium text-violet-200 transition hover:bg-violet-500/25"
+                >
+                  <Plus className="h-4 w-4" />
+                  {activeSection === "processed" ? "加工品を追加" : activeSection === "draft" ? "Draft を追加" : "商品を追加"}
+                </button>
               ) : null}
               <button
                 type="button"
@@ -2283,54 +3368,20 @@ export default function CostCalculationPage() {
           </div>
         </div>
 
-        <div className="border-b border-white/10 bg-black/10 px-6 pt-2">
-          <div className="flex items-end gap-1 overflow-x-auto border-b border-white/10">
-            {sheets.map((sheet) => (
-              <SheetTab
-                key={sheet.key}
-                name={sheet.name}
-                active={sheet.key === activeSheet}
-                onClick={() => setActiveSheet(sheet.key)}
-              />
-            ))}
-            {showAddCategoryForm ? (
-              <div className="mb-0.5 flex items-center gap-2 rounded-t-md border border-white/10 border-b-transparent bg-white/[0.04] px-3 py-2">
-                <input
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      void createMenuCategory();
-                    }
-                    if (e.key === "Escape") {
-                      setShowAddCategoryForm(false);
-                      setNewCategoryName("");
-                    }
-                  }}
-                  placeholder="New category"
-                  className="w-36 bg-transparent text-sm text-white outline-none placeholder:text-zinc-500"
+        {showLegacyRecipeSection ? (
+          <div className="border-b border-white/10 bg-black/10 px-6 pt-2">
+            <div className="flex items-end gap-1 overflow-x-auto border-b border-white/10">
+              {legacySheets.map((sheet) => (
+                <SheetTab
+                  key={sheet.key}
+                  name={sheet.name}
+                  active={sheet.key === activeSheet}
+                  onClick={() => setActiveSheet(sheet.key)}
                 />
-                <button
-                  type="button"
-                  onClick={() => void createMenuCategory()}
-                  className="rounded-md border border-emerald-500/30 bg-emerald-500/15 px-2.5 py-1 text-xs text-emerald-200"
-                >
-                  Save
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowAddCategoryForm(true)}
-                className="mb-0.5 inline-flex items-center gap-2 rounded-t-md border border-dashed border-white/10 border-b-transparent bg-white/[0.03] px-3 py-2 text-sm text-zinc-300 hover:bg-white/[0.05]"
-              >
-                <Plus className="h-4 w-4" />
-                Add Category
-              </button>
-            )}
+              ))}
+            </div>
           </div>
-        </div>
+        ) : null}
 
         {error ? (
           <div className="mx-6 mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-100">
@@ -2348,7 +3399,402 @@ export default function CostCalculationPage() {
           onKeyDown={handleGridKeyDown}
           className="flex-1 overflow-auto px-6 py-4 outline-none"
         >
-          {activeSheet === INGREDIENT_SHEET ? (
+          {isMasterSection && !showLegacyRecipeSection ? (
+            <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
+              <div className="rounded-2xl border border-white/10 bg-[#0a101c] p-4">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-lg font-semibold text-white">
+                      {activeSection === "processed" ? "加工品マスタ" : activeSection === "draft" ? "新商品用コスト計算" : "商品マスタ"}
+                    </div>
+                    <div className="mt-1 text-xs text-zinc-500">
+                      {activeSection === "processed"
+                        ? "食材と他の加工品を組み合わせた中間品を管理します。"
+                        : activeSection === "draft"
+                          ? "新商品の試算ドラフトを保存し、商品マスタへ publish できます。"
+                          : "食材と加工品を使う販売商品を管理します。"}
+                    </div>
+                  </div>
+                  {masterItemsLoading ? <Loader2 className="h-4 w-4 animate-spin text-violet-300" /> : null}
+                </div>
+                <div className="space-y-2">
+                  {visibleMasterItems.length === 0 ? (
+                    <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-6 text-sm text-zinc-500">
+                      No items found.
+                    </div>
+                  ) : visibleMasterItems.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => void loadMasterDetail(item.id)}
+                      className={cx(
+                        "w-full rounded-xl border px-4 py-3 text-left transition",
+                        selectedMasterItemId === item.id || masterEditor?.id === item.id
+                          ? "border-violet-500/30 bg-violet-500/10"
+                          : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]",
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <div className="truncate font-medium text-white">{item.name}</div>
+                            {item.item_type !== "draft" && !item.yield_configured ? (
+                              <span className="inline-flex shrink-0 rounded-full border border-red-500/30 bg-red-500/12 px-2 py-0.5 text-[10px] font-semibold text-red-300">
+                                歩留未設定
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="mt-1 text-xs text-zinc-500">{item.category || "—"}</div>
+                        </div>
+                        <div className="text-right text-xs">
+                          <div className="font-mono text-zinc-300">{currencyCode} {Number(item.total_cost || 0).toFixed(2)}</div>
+                          <div className="mt-1 text-zinc-500">{item.component_count} comps</div>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-[#0a101c] p-4">
+                {masterDetailLoadingId ? (
+                  <div className="flex items-center gap-2 text-sm text-zinc-500">
+                    <Loader2 className="h-4 w-4 animate-spin text-violet-300" />
+                    Loading item detail...
+                  </div>
+                ) : masterEditor ? (
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="text-lg font-semibold text-white">
+                            {masterEditor.id ? masterEditor.name || "Unnamed item" : "New item"}
+                          </div>
+                          {masterEditor.item_type !== "draft" && !masterEditor.yield_configured ? (
+                            <span className="inline-flex rounded-full border border-red-500/30 bg-red-500/12 px-2 py-0.5 text-[10px] font-semibold text-red-300">
+                              歩留未設定
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="mt-1 text-xs text-zinc-500">
+                          {masterEditor.item_type === "processed" ? "Processed master" : masterEditor.item_type === "draft" ? "Draft" : "Product master"}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void saveMasterEditor()}
+                          disabled={masterDetailSaving}
+                          className="inline-flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/15 px-3 py-2 text-sm font-medium text-emerald-200 hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Save className="h-4 w-4" />
+                          Save
+                        </button>
+                        {masterEditor.id && masterEditor.item_type === "product" ? (
+                          <button
+                            type="button"
+                            onClick={() => void moveMasterItemToProcessed()}
+                            disabled={masterActionBusy}
+                            className="inline-flex items-center gap-2 rounded-md border border-violet-500/30 bg-violet-500/15 px-3 py-2 text-sm font-medium text-violet-200 hover:bg-violet-500/25 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <SkipForward className="h-4 w-4" />
+                            加工品へ移動
+                          </button>
+                        ) : null}
+                        {masterEditor.id ? (
+                          <button
+                            type="button"
+                            onClick={() => void archiveSelectedMasterItem()}
+                            disabled={masterActionBusy}
+                            className="inline-flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-200 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Archive
+                          </button>
+                        ) : null}
+                        {masterEditor.id && masterEditor.item_type === "draft" ? (
+                          <button
+                            type="button"
+                            onClick={() => void publishSelectedDraft()}
+                            disabled={masterActionBusy}
+                            className="inline-flex items-center gap-2 rounded-md border border-sky-500/30 bg-sky-500/15 px-3 py-2 text-sm font-medium text-sky-200 hover:bg-sky-500/25 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                            Publish
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      <div>
+                        <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Name</div>
+                        <input value={masterEditor.name} onChange={(e) => updateMasterEditor((current) => ({ ...current, name: e.target.value }))} className="w-full rounded border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50" />
+                      </div>
+                      <div>
+                        <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Category</div>
+                        <input value={masterEditor.category} onChange={(e) => updateMasterEditor((current) => ({ ...current, category: e.target.value }))} className="w-full rounded border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50" />
+                      </div>
+                      <div>
+                        <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">{`Selling Price (${currencyCode})`}</div>
+                        <input type="number" value={masterEditor.selling_price} onChange={(e) => updateMasterEditor((current) => ({ ...current, selling_price: normalizeNumber(e.target.value) }))} className="w-full rounded border border-white/15 bg-white/5 px-3 py-2 text-sm font-mono text-white outline-none focus:border-violet-500/50" />
+                      </div>
+                      <div>
+                        <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Buffer (%)</div>
+                        <input type="number" value={Math.round(normalizeMenuBufferRate(masterEditor.buffer_rate) * 100)} onChange={(e) => updateMasterEditor((current) => ({ ...current, buffer_rate: normalizeMenuBufferRate(normalizeNumber(e.target.value) / 100) }))} className="w-full rounded border border-white/15 bg-white/5 px-3 py-2 text-sm font-mono text-white outline-none focus:border-violet-500/50" />
+                      </div>
+                      <div>
+                        <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">{masterItemTypeLabel(masterEditor.item_type)} Yield (%)</div>
+                        <input type="number" value={masterEditor.yield_rate == null ? "" : Math.round(masterEditor.yield_rate * 100)} onChange={(e) => updateMasterEditor((current) => ({ ...current, yield_rate: e.target.value.trim() ? normalizeNumber(e.target.value) / 100 : null }))} className="w-full rounded border border-white/15 bg-white/5 px-3 py-2 text-sm font-mono text-white outline-none focus:border-violet-500/50" />
+                        <div className="mt-1 text-[11px] text-zinc-500">
+                          {masterItemTypeLabel(masterEditor.item_type)}全体の歩留率です。各食材ごとに歩留やバッファー計算は入れず、食材マスタの単価を使って上部の歩留率とバッファーを{masterItemTypeLabel(masterEditor.item_type)}全体へ適用します。
+                        </div>
+                      </div>
+                      <div>
+                        <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Output Qty</div>
+                        <input type="number" value={masterEditor.output_qty} onChange={(e) => updateMasterEditor((current) => ({ ...current, output_qty: Math.max(1, normalizeNumber(e.target.value)) }))} className="w-full rounded border border-white/15 bg-white/5 px-3 py-2 text-sm font-mono text-white outline-none focus:border-violet-500/50" />
+                      </div>
+                      <div>
+                        <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Output Unit</div>
+                        <input value={masterEditor.output_unit} onChange={(e) => updateMasterEditor((current) => ({ ...current, output_unit: e.target.value }))} className="w-full rounded border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50" />
+                      </div>
+                      <div>
+                        <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Description</div>
+                        <input value={masterEditor.description} onChange={(e) => updateMasterEditor((current) => ({ ...current, description: e.target.value }))} className="w-full rounded border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50" />
+                      </div>
+                    </div>
+
+                    {masterEditor.item_type !== "draft" ? (
+                      <div className={`grid gap-3 ${masterEditor.item_type === "processed" ? "md:grid-cols-[160px_minmax(0,1fr)_minmax(0,1fr)]" : "md:grid-cols-[180px_minmax(0,1fr)]"}`}>
+                        <div>
+                          <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Cost Unit Price</div>
+                          <input
+                            type="number"
+                            value={masterEditor.cost_unit_price}
+                            onChange={(e) => updateMasterEditor((current) => ({ ...current, cost_unit_price: normalizeNumber(e.target.value) }))}
+                            className="w-full rounded border border-white/15 bg-white/5 px-3 py-2 text-sm font-mono text-white outline-none focus:border-sky-500/50"
+                          />
+                          <div className="mt-1 text-[11px] text-zinc-500">
+                            空欄または 0 の場合は、下の材料原価から自動計算します。
+                          </div>
+                        </div>
+                        <div>
+                          <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Formula</div>
+                          <input
+                            value={masterEditor.cost_unit_price_formula}
+                            onChange={(e) => updateMasterEditor((current) => {
+                              const nextFormula = e.target.value;
+                              const evaluated = evaluateCostFormulaExpression(nextFormula);
+                              return {
+                                ...current,
+                                cost_unit_price_formula: nextFormula,
+                                cost_unit_price: evaluated != null ? evaluated : current.cost_unit_price,
+                              };
+                            })}
+                            placeholder="(raw total / yield) * buffer / output qty"
+                            className="w-full rounded border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
+                          />
+                          {masterEditor.cost_unit_price_formula.trim() ? (
+                            <div className={`mt-1 text-[11px] ${masterFormulaResult != null ? "text-emerald-300" : "text-rose-300"}`}>
+                              {masterFormulaResult != null
+                                ? `Formula result: ${currencyCode} ${masterFormulaResult.toFixed(6)}`
+                                : "Formula を計算できません"}
+                            </div>
+                          ) : null}
+                        </div>
+                        {masterEditor.item_type === "processed" ? (
+                          <div>
+                            <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Formula Note</div>
+                            <input
+                              value={masterEditor.cost_unit_price_formula_note}
+                              onChange={(e) => updateMasterEditor((current) => ({ ...current, cost_unit_price_formula_note: e.target.value }))}
+                              placeholder="加工品自体の単価メモ"
+                              className="w-full rounded border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
+                            />
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                        <div className="text-[10px] uppercase tracking-wide text-zinc-500">合計金額</div>
+                        <div className="mt-2 font-mono text-lg text-white">{currencyCode} {masterComponentSummary.totalAmount.toFixed(2)}</div>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                        <div className="text-[10px] uppercase tracking-wide text-zinc-500">合計グラム数</div>
+                        <div className="mt-2 font-mono text-lg text-white">{formatGramTotal(masterComponentSummary.totalGrams)}</div>
+                      </div>
+                    </div>
+
+                    <div className="overflow-visible rounded-xl border border-white/10">
+                      <div className="grid grid-cols-[110px_minmax(0,1fr)_120px_100px_100px_40px] gap-2 border-b border-white/10 bg-white/[0.04] px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+                        <div>Type</div>
+                        <div>Component</div>
+                        <div className="text-right">Qty</div>
+                        <div>Unit</div>
+                        <div className="text-right">Cost</div>
+                        <div />
+                      </div>
+                      <div className="border-b border-white/5 bg-sky-500/5 px-3 py-2 text-xs text-sky-100/80">
+                        この画面では各構成食材ごとの歩留率やバッファー計算は設定しません。食材マスタの単価と、必要に応じて他の加工品マスタや商品マスタを使い、上部の {masterItemTypeLabel(masterEditor.item_type)} 用 Buffer / Yield を {masterItemTypeLabel(masterEditor.item_type)} 全体に適用します。
+                      </div>
+                      {masterEditor.components.map((component) => {
+                        const suggestions = getMasterComponentSuggestions(component);
+                        const selectedOption = component.component_type === "ingredient"
+                          ? allIngredientOptions.find((option) => String(option.id) === String(component.ingredient_id))
+                          : processedComponentOptions.find((option) => String(option.id) === String(component.component_menu_item_id));
+                        return (
+                          <div key={component.id} className="border-b border-white/5 px-3 py-3 last:border-b-0">
+                            <div className="grid grid-cols-[110px_minmax(0,1fr)_120px_100px_100px_40px] items-center gap-2 text-sm">
+                              <select
+                                value={component.component_type}
+                                onChange={(e) => updateMasterComponentRow(component.id, (current) => ({
+                                  ...current,
+                                  component_type: e.target.value === "processed_item" ? "processed_item" : "ingredient",
+                                  ingredient_id: "",
+                                  component_menu_item_id: "",
+                                  name: "",
+                                  category: "",
+                                  unit: "",
+                                  unit_cost: 0,
+                                  unit_price_formula: "",
+                                  unit_price_formula_note: "",
+                                  ingredient_detail_loaded: false,
+                                }))}
+                                className="rounded border border-white/15 bg-white/5 px-2 py-2 text-sm text-white outline-none focus:border-violet-500/50"
+                              >
+                                <option value="ingredient">Ingredient</option>
+                                <option value="processed_item">{masterComponentOptionLabel(masterEditor.item_type)}</option>
+                              </select>
+                              <div className="relative">
+                                <input
+                                  value={component.name}
+                                  onFocus={() => {
+                                    setActiveMasterComponentLookupId(component.id);
+                                    if (
+                                      component.component_type === "ingredient"
+                                      && component.ingredient_id
+                                      && !component.ingredient_detail_loaded
+                                    ) {
+                                      void loadMasterComponentIngredientDetail(component.id, component.ingredient_id);
+                                    }
+                                  }}
+                                  onBlur={() => {
+                                    window.setTimeout(() => {
+                                      setActiveMasterComponentLookupId((current) => (current === component.id ? null : current));
+                                    }, 120);
+                                  }}
+                                  onChange={(e) => updateMasterComponentRow(component.id, (current) => ({
+                                    ...current,
+                                    ingredient_id: "",
+                                    component_menu_item_id: "",
+                                    name: e.target.value,
+                                    category: "",
+                                    unit: "",
+                                    unit_cost: 0,
+                                    unit_price_formula: "",
+                                    unit_price_formula_note: "",
+                                    ingredient_detail_loaded: false,
+                                  }))}
+                                  placeholder={component.component_type === "ingredient" ? "Type ingredient name" : `Type ${masterComponentOptionLabel(masterEditor.item_type).toLowerCase()} name`}
+                                  className="w-full rounded border border-white/15 bg-white/5 px-2 py-2 text-sm text-white outline-none focus:border-violet-500/50"
+                                />
+                                {activeMasterComponentLookupId === component.id && component.name.trim().length > 0 ? (
+                                  <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-64 overflow-y-auto rounded-lg border border-white/10 bg-[#111827] shadow-2xl shadow-black/40">
+                                    {componentOptionsLoading && component.component_type === "processed_item" ? (
+                                      <div className="px-3 py-2 text-xs text-zinc-500">Loading...</div>
+                                    ) : suggestions.length > 0 ? (
+                                      suggestions.map((option) => (
+                                        <button
+                                          key={`${component.id}-${option.component_type}-${option.id}`}
+                                          type="button"
+                                          onMouseDown={(event) => {
+                                            event.preventDefault();
+                                            selectMasterComponentOption(component.id, option);
+                                            if (option.component_type === "ingredient") {
+                                              void loadMasterComponentIngredientDetail(component.id, option.id);
+                                            }
+                                          }}
+                                          className="flex w-full items-center justify-between gap-3 border-b border-white/5 px-3 py-2 text-left text-sm text-zinc-200 transition last:border-b-0 hover:bg-white/[0.06]"
+                                        >
+                                          <span className="min-w-0 truncate">{option.name}</span>
+                                          <span className="shrink-0 text-xs text-zinc-500">{option.category} · {option.unit || "—"}</span>
+                                        </button>
+                                      ))
+                                    ) : (
+                                      <div className="px-3 py-2 text-xs text-zinc-500">
+                                        {component.component_type === "ingredient" ? "No ingredient matches." : "No master-item matches."}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : null}
+                                {selectedOption ? (
+                                  <div className="mt-1 text-[11px] text-zinc-500">
+                                    {selectedOption.category} · {selectedOption.unit || "—"}
+                                  </div>
+                                ) : component.name.trim() ? (
+                                  <div className="mt-1 text-[11px] text-amber-300">候補から選択してください</div>
+                                ) : null}
+                              </div>
+                              <input
+                                type="number"
+                                value={component.quantity}
+                                onChange={(e) => updateMasterComponentRow(component.id, (current) => ({ ...current, quantity: normalizeNumber(e.target.value) }))}
+                                className="rounded border border-white/15 bg-white/5 px-2 py-2 text-right text-sm font-mono text-white outline-none focus:border-violet-500/50"
+                              />
+                              <div className="text-zinc-300">{component.unit || selectedOption?.unit || "—"}</div>
+                              <div className="text-right font-mono text-zinc-300">{currencyCode} {(Number(component.quantity || 0) * Number(component.unit_cost || 0)).toFixed(2)}</div>
+                              <button type="button" onClick={() => removeMasterComponentRow(component.id)} className="flex h-8 w-8 items-center justify-center rounded border border-white/10 bg-white/5 text-zinc-500 hover:bg-white/10 hover:text-white">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button type="button" onClick={() => addMasterComponentRow("ingredient")} className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-200 hover:bg-white/[0.08]">
+                        <Plus className="mr-1 inline h-3.5 w-3.5" />
+                        Add Ingredient
+                      </button>
+                      <button type="button" onClick={() => addMasterComponentRow("processed_item")} className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-200 hover:bg-white/[0.08]">
+                        <Plus className="mr-1 inline h-3.5 w-3.5" />
+                        {masterEditor.item_type === "processed" ? "Add Processed Item" : "Add Master Item"}
+                      </button>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-4">
+                      <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                        <div className="text-[10px] uppercase tracking-wide text-zinc-500">Raw Cost</div>
+                        <div className="mt-2 font-mono text-lg text-white">{currencyCode} {Number(masterEditorPreview?.raw_cost || 0).toFixed(2)}</div>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                        <div className="text-[10px] uppercase tracking-wide text-zinc-500">Total Cost</div>
+                        <div className="mt-2 font-mono text-lg text-white">{currencyCode} {Number(masterEditorPreview?.total_cost || 0).toFixed(2)}</div>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                        <div className="text-[10px] uppercase tracking-wide text-zinc-500">Unit Cost</div>
+                        <div className="mt-2 font-mono text-lg text-white">{currencyCode} {Number(masterEditorPreview?.unit_cost || 0).toFixed(2)}</div>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                        <div className="text-[10px] uppercase tracking-wide text-zinc-500">Cost Ratio</div>
+                        <div className="mt-2 font-mono text-lg text-white">
+                          {masterEditorPreview?.cost_ratio == null ? "—" : `${(masterEditorPreview.cost_ratio * 100).toFixed(1)}%`}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-10 text-sm text-zinc-500">
+                    Select an item from the list or create a new one.
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : isIngredientSection ? (
             <div className="mb-6 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
               <div className="rounded-2xl border border-white/10 bg-[#0a101c] p-4">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -2855,6 +4301,7 @@ export default function CostCalculationPage() {
             </div>
           ) : null}
 
+          <div className={cx(isMasterSection && !showLegacyRecipeSection && "hidden")}>
           {activeSheet === INGREDIENT_SHEET && loading ? (
             <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-6 animate-pulse">
               <div className="h-10 rounded-lg bg-white/[0.05]" />
@@ -2867,26 +4314,65 @@ export default function CostCalculationPage() {
               <Database className="h-8 w-8 text-zinc-700" />
               <p>食材データがありません</p>
             </div>
-          ) : activeSheet !== INGREDIENT_SHEET ? (
+          ) : showLegacyRecipeSection ? (
             <div className="flex h-full flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-6">
               <div className="mb-5 flex items-center justify-between gap-3">
                 <div>
                   <div className="text-lg font-semibold text-white">{sheetName(activeSheet)}</div>
-                  <div className="mt-1 text-sm text-zinc-500">Click a menu name to open and edit its recipe.</div>
+                  <div className="mt-1 text-sm text-zinc-500">
+                    {activeCategoryMeta?.is_system
+                      ? "Excel sheet tab. You can move items out, then delete this tab if you no longer need it."
+                      : "Click a menu name to open and edit its recipe."}
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowAddItemForm((prev) => !prev)}
-                  className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-medium text-zinc-200 hover:bg-white/[0.08]"
-                >
-                  <Plus className="h-4 w-4" />
-                  + Add Item
-                </button>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void createMenuCategory()}
+                    disabled={categoryActionBusy}
+                    className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-medium text-zinc-200 hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Category
+                  </button>
+                  {activeCategoryMeta ? (
+                    <>
+                      {!activeCategoryMeta?.is_system ? (
+                      <button
+                        type="button"
+                        onClick={() => void renameActiveCategory()}
+                        disabled={categoryActionBusy}
+                        className="inline-flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-200 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Rename Category
+                      </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => void deleteActiveCategory()}
+                        disabled={categoryActionBusy}
+                        className="inline-flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-200 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete Category
+                      </button>
+                    </>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setShowAddItemForm((prev) => !prev)}
+                    className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-medium text-zinc-200 hover:bg-white/[0.08]"
+                  >
+                    <Plus className="h-4 w-4" />
+                    + Add Item
+                  </button>
+                </div>
               </div>
 
               {showAddItemForm ? (
                 <div className="mb-5 rounded-2xl border border-white/10 bg-[#0c1322] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                  <div className="mb-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_220px_180px]">
+                  <div className="mb-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_220px_180px_140px]">
                     <div>
                       <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Item Name</div>
                       <input
@@ -2904,8 +4390,8 @@ export default function CostCalculationPage() {
                       >
                         <option value="">Select category</option>
                         {menuCategories.map((item) => (
-                          <option key={item.category} value={item.category}>
-                            {item.category}
+                          <option key={item.key} value={item.name}>
+                            {item.name}
                           </option>
                         ))}
                       </select>
@@ -2916,6 +4402,15 @@ export default function CostCalculationPage() {
                         type="number"
                         value={newItemPrice}
                         onChange={(e) => setNewItemPrice(e.target.value)}
+                        className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm font-mono text-white outline-none focus:border-sky-500/50"
+                      />
+                    </div>
+                    <div>
+                      <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Buffer (%)</div>
+                      <input
+                        type="number"
+                        value={newItemBuffer}
+                        onChange={(e) => setNewItemBuffer(e.target.value)}
                         className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm font-mono text-white outline-none focus:border-sky-500/50"
                       />
                     </div>
@@ -3011,6 +4506,7 @@ export default function CostCalculationPage() {
                         setShowAddItemForm(false);
                         setNewItemName("");
                         setNewItemPrice("");
+                        setNewItemBuffer("115");
                         setNewItemIngredients([createRecipeIngredientDraft()]);
                       }}
                       className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-300 hover:bg-white/[0.08]"
@@ -3131,7 +4627,18 @@ export default function CostCalculationPage() {
                                     </div>
                                   ) : detail ? (
                                     <div className="space-y-4">
-                                      <div className="grid gap-3 md:grid-cols-[220px_220px_220px_1fr]">
+                                      <div className="flex flex-wrap items-center justify-end gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => void deleteRecipeMenuItem(item.id, item.name)}
+                                          disabled={menuDetailSavingId === item.id}
+                                          className="inline-flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-200 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                          Delete Item
+                                        </button>
+                                      </div>
+                                      <div className="grid gap-3 md:grid-cols-[220px_220px_160px_220px_1fr]">
                                         <div>
                                           <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Category</div>
                                           <select
@@ -3140,11 +4647,13 @@ export default function CostCalculationPage() {
                                             onBlur={() => void saveMenuCategory(item.id, menuDetails[item.id]?.category ?? detail.category)}
                                             className="w-full rounded border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
                                           >
-                                            {menuCategories.map((categoryItem) => (
-                                              <option key={categoryItem.category} value={categoryItem.category}>
-                                                {categoryItem.category}
+                                            {[detail.category, ...menuCategories.map((categoryItem) => categoryItem.name)]
+                                              .filter((value, index, values) => Boolean(value) && values.indexOf(value) === index)
+                                              .map((categoryName) => (
+                                              <option key={categoryName} value={categoryName}>
+                                                {categoryName}
                                               </option>
-                                            ))}
+                                              ))}
                                           </select>
                                         </div>
                                         <div>
@@ -3163,6 +4672,26 @@ export default function CostCalculationPage() {
                                               className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/15 px-3 py-2 text-xs font-medium text-emerald-200 transition-colors hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-60"
                                             >
                                               <Save className="h-3.5 w-3.5" />
+                                              Save
+                                            </button>
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Buffer (%)</div>
+                                          <div className="flex gap-2">
+                                            <input
+                                              type="number"
+                                              value={Math.round(normalizeMenuBufferRate(detail.yield_rate) * 100)}
+                                              onChange={(e) => updateMenuDetailLocal(item.id, (current) => ({ ...current, yield_rate: normalizeMenuBufferRate(normalizeNumber(e.target.value) / 100) }))}
+                                              className="w-full rounded border border-white/15 bg-white/5 px-3 py-2 text-sm font-mono text-white outline-none focus:border-violet-500/50"
+                                            />
+                                            <button
+                                              type="button"
+                                              onClick={() => void saveRecipeMenuItemBuffer(item.id, String(Math.round(normalizeMenuBufferRate(menuDetails[item.id]?.yield_rate ?? detail.yield_rate) * 100)))}
+                                              disabled={menuDetailSavingId === item.id}
+                                              className="inline-flex items-center gap-1 rounded-md border border-sky-500/30 bg-sky-500/15 px-3 py-2 text-xs font-medium text-sky-200 transition-colors hover:bg-sky-500/25 disabled:cursor-not-allowed disabled:opacity-60"
+                                            >
+                                              <Percent className="h-3.5 w-3.5" />
                                               Save
                                             </button>
                                           </div>
@@ -3327,7 +4856,7 @@ export default function CostCalculationPage() {
               {currentColumns.map((column) => (
                 <col key={column.key} style={{ width: column.width }} />
               ))}
-              {activeSheet === INGREDIENT_SHEET ? <col style={{ width: 36 }} /> : null}
+              {activeSheet === INGREDIENT_SHEET ? <col style={{ width: 96 }} /> : null}
             </colgroup>
             <thead className="sticky top-0 z-40 bg-[#131a2a] shadow-[0_1px_0_rgba(255,255,255,0.05)]">
               <tr>
@@ -3472,6 +5001,13 @@ export default function CostCalculationPage() {
                             column.key === "cost_ratio" && recipeGroupEnd && "font-semibold",
                           )}
                           onClick={() => {
+                            if (activeSheet === INGREDIENT_SHEET && ingredientRow._new) {
+                              selectCell(rowIndex, column.key);
+                              if (column.key !== "row_num") {
+                                startEdit(rowIndex, column.key);
+                              }
+                              return;
+                            }
                             if (activeSheet === INGREDIENT_SHEET && (column.key === "buffer_rate" || column.key === "yield_rate")) {
                               startEdit(
                                 rowIndex,
@@ -3534,15 +5070,63 @@ export default function CostCalculationPage() {
                       );
                     })}
                     {activeSheet === INGREDIENT_SHEET ? (
-                      <td className="sticky right-0 w-8 border-l border-white/10 bg-inherit opacity-0 transition-opacity group-hover:opacity-100">
-                        <button
-                          type="button"
-                          onClick={() => void openIngredientDetail(ingredientRow)}
-                          title="詳細を見る"
-                          className="flex h-full w-full items-center justify-center text-zinc-500 hover:text-sky-300"
-                        >
-                          <History className="h-3.5 w-3.5" />
-                        </button>
+                      <td
+                        className={cx(
+                          "sticky right-0 w-[96px] min-w-[96px] border-l border-white/10 px-2 py-2 overflow-visible",
+                          activeIngredientActionMenuId === String(ingredientRow.id) ? "z-40" : "z-20",
+                          activeSheet === INGREDIENT_SHEET && highlightedIngredientId === String(ingredientRow.id)
+                            ? "bg-[#172033]"
+                            : rowIndex % 2 === 0
+                              ? "bg-[#0f1625]"
+                              : "bg-[#0c1322]",
+                        )}
+                      >
+                        <div className="relative flex items-center justify-end gap-1" data-ingredient-action-menu>
+                          <button
+                            type="button"
+                            onClick={() => setActiveIngredientActionMenuId((current) => current === ingredientRow.id ? null : String(ingredientRow.id))}
+                            disabled={ingredientPromotionKey != null}
+                            className="inline-flex items-center rounded border border-violet-500/30 bg-violet-500/10 px-2 py-1 text-[11px] text-violet-200 hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            移動
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void openIngredientDetail(ingredientRow)}
+                            title="詳細を見る"
+                            className="inline-flex h-7 w-7 items-center justify-center rounded border border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10 hover:text-sky-300"
+                          >
+                            <History className="h-3.5 w-3.5" />
+                          </button>
+                          {activeIngredientActionMenuId === String(ingredientRow.id) ? (
+                            <div className="absolute right-0 top-full z-[70] mt-1 w-36 rounded-lg border border-white/10 bg-[#111827] p-1 shadow-2xl shadow-black/40">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveIngredientActionMenuId(null);
+                                  void promoteIngredientToMaster(ingredientRow, "processed");
+                                }}
+                                disabled={ingredientPromotionKey != null}
+                                className="flex w-full items-center justify-center gap-1 rounded px-2 py-2 text-[11px] text-violet-200 hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {ingredientPromotionKey === `processed:${ingredientRow.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                                加工品へ移動
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveIngredientActionMenuId(null);
+                                  void promoteIngredientToMaster(ingredientRow, "product");
+                                }}
+                                disabled={ingredientPromotionKey != null}
+                                className="flex w-full items-center justify-center gap-1 rounded px-2 py-2 text-[11px] text-emerald-200 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {ingredientPromotionKey === `product:${ingredientRow.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                                商品へ移動
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
                       </td>
                     ) : null}
                   </tr>
@@ -3551,6 +5135,7 @@ export default function CostCalculationPage() {
             </tbody>
           </table>
           )}
+          </div>
         </div>
 
         {selectedIngredientDetail ? (

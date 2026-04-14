@@ -2,26 +2,16 @@
 
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, MessageSquareText, RefreshCw, Send, ShieldAlert, MessagesSquare } from "lucide-react";
+import { RefreshCw, ShieldAlert } from "lucide-react";
 import { canAccessPrivateReportAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import {
   GLASS_CARD,
-  STATUS_CARD,
-  HIGHLIGHT_CARD,
-  PRIMARY_BUTTON,
   SMALL_BUTTON,
-  INPUT_CLASS,
   T_PAGE_TITLE,
   T_SECTION,
-  T_CARD_TITLE,
   T_BODY,
   T_CAPTION,
   BADGE_WARNING,
-  BADGE_SUCCESS,
-  BADGE_INFO,
-  KPI_CARD,
-  KPI_LABEL,
-  KPI_VALUE,
 } from "@/lib/ui-tokens";
 
 type ReportRow = {
@@ -37,6 +27,7 @@ type ReportRow = {
   created_at: string;
   updated_at: string;
   reply_count: number;
+  payload_json?: Record<string, any>;
 };
 
 type ReportDetail = {
@@ -62,6 +53,49 @@ type ReportReply = {
   created_at: string;
 };
 
+function StatusBadge({ status }: { status: string }) {
+  const s = String(status || "").toUpperCase();
+  const map: Record<string, string> = {
+    RECEIVED: "border-sky-700/40 bg-sky-950/30 text-sky-300",
+    IN_PROGRESS: "border-amber-600/40 bg-amber-950/30 text-amber-300",
+    RESOLVED: "border-emerald-700/40 bg-emerald-950/30 text-emerald-300",
+    CLOSED: "border-neutral-700/40 bg-neutral-800/30 text-neutral-400",
+  };
+  const cls = map[s] || "border-neutral-700/40 bg-neutral-800/30 text-neutral-400";
+  return <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${cls}`}>{s || "OPEN"}</span>;
+}
+
+function ReportField({
+  label,
+  value,
+  highlight = false,
+}: {
+  label: string;
+  value: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={[
+        "rounded-xl border p-3",
+        highlight ? "border-amber-700/30 bg-amber-950/20" : "border-neutral-800/60 bg-neutral-900/30",
+      ].join(" ")}
+    >
+      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">{label}</div>
+      <p className="whitespace-pre-wrap text-sm leading-relaxed text-neutral-200">{value}</p>
+    </div>
+  );
+}
+
+function pickText(payload: Record<string, any> | null | undefined, ...keys: string[]): string {
+  if (!payload) return "";
+  for (const k of keys) {
+    const v = payload[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return "";
+}
+
 export default function AdminPrivateReportsPage() {
   const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
   const auth = useMemo(() => getAuth(), []);
@@ -74,6 +108,8 @@ export default function AdminPrivateReportsPage() {
   const [replies, setReplies] = useState<ReportReply[]>([]);
   const [replyText, setReplyText] = useState("");
   const [submitBusy, setSubmitBusy] = useState(false);
+  const openCount = rows.length;
+  const replyCount = rows.reduce((sum, r) => sum + Number(r.reply_count || 0), 0);
 
   const tokenHeaders = useCallback(async () => {
     const refreshed = await refreshAuthFromApi(auth);
@@ -193,24 +229,23 @@ export default function AdminPrivateReportsPage() {
         </span>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div className={KPI_CARD}>
-          <div className="mb-2 flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-violet-400" />
-            <p className={KPI_LABEL}>Open Reports</p>
-          </div>
-          <p className={KPI_VALUE}>{rows.length}</p>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-2xl border border-amber-700/30 bg-amber-950/10 p-4">
+          <div className="text-xs font-semibold uppercase tracking-wider text-amber-500/70">Open Reports</div>
+          <div className="mt-1 text-3xl font-bold text-amber-200">{openCount}</div>
+          <div className="mt-1 text-xs text-neutral-500">awaiting review</div>
         </div>
-        <div className={KPI_CARD}>
-          <div className="mb-2 flex items-center gap-2">
-            <MessagesSquare className="h-4 w-4 text-sky-400" />
-            <p className={KPI_LABEL}>Replies</p>
-          </div>
-          <p className={KPI_VALUE}>{replies.length}</p>
+        <div className="rounded-2xl border border-violet-700/30 bg-violet-950/10 p-4">
+          <div className="text-xs font-semibold uppercase tracking-wider text-violet-400/70">Replies Sent</div>
+          <div className="mt-1 text-3xl font-bold text-violet-200">{replyCount}</div>
+          <div className="mt-1 text-xs text-neutral-500">total replies</div>
         </div>
-        <div className={`${STATUS_CARD} p-4`}>
-          <p className={`${KPI_LABEL} mb-2`}>Access Scope</p>
-          <p className="text-sm text-zinc-300">Only HQ/HR/Admin can view these reports. Other staff cannot access this page.</p>
+        <div className="rounded-2xl border border-neutral-700/40 bg-neutral-900/30 p-4">
+          <div className="text-xs font-semibold uppercase tracking-wider text-neutral-500">Access Scope</div>
+          <div className="mt-2 text-xs leading-relaxed text-neutral-400">
+            Only <span className="font-medium text-neutral-200">HQ / HR / Admin</span> can view these reports. Other staff
+            cannot access this page.
+          </div>
         </div>
       </div>
 
@@ -242,20 +277,45 @@ export default function AdminPrivateReportsPage() {
                 type="button"
                 onClick={() => loadDetail(r.id)}
                 className={[
-                  "w-full rounded-2xl border px-4 py-3 text-left text-sm transition-all duration-150",
+                  "w-full rounded-xl border px-4 py-3 text-left transition",
                   selectedId === r.id
-                    ? "border-amber-400 bg-amber-500/15 text-amber-100 ring-1 ring-amber-400/20"
-                    : "border-white/8 bg-white/4 text-neutral-200 hover:border-white/15 hover:bg-white/8",
+                    ? "border-amber-500/60 bg-amber-950/20"
+                    : "border-neutral-800 bg-neutral-900/30 hover:bg-neutral-800/40",
                 ].join(" ")}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="font-medium">{r.report_type}</div>
-                  <span className={r.reply_count > 0 ? BADGE_INFO : BADGE_SUCCESS}>
-                    {r.reply_count} replies
-                  </span>
-                </div>
-                <div className="mt-1 text-xs text-neutral-400">
-                  {r.city}/{r.branch || "-"} • {r.staff_name}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-semibold text-neutral-200">{r.report_type}</span>
+                      <StatusBadge status={r.status} />
+                    </div>
+                    {pickText(r.payload_json, "problem") ? (
+                      <p className="mt-0.5 truncate text-xs text-neutral-500">{pickText(r.payload_json, "problem").slice(0, 60)}...</p>
+                    ) : null}
+                    <div className="mt-1 text-[11px] text-neutral-600">
+                      {r.city}/{r.branch || "-"} • {r.staff_name}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div
+                      className={[
+                        "inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                        r.reply_count > 0 ? "bg-violet-900/50 text-violet-200" : "bg-neutral-800/60 text-neutral-500",
+                      ].join(" ")}
+                    >
+                      {r.reply_count} {r.reply_count === 1 ? "reply" : "replies"}
+                    </div>
+                    {r.created_at ? (
+                      <div className="mt-1 text-[10px] text-neutral-600">
+                        {new Date(r.created_at).toLocaleDateString("en-GB", {
+                          day: "numeric",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </button>
             ))}
@@ -273,70 +333,125 @@ export default function AdminPrivateReportsPage() {
             <div className="mt-2 text-sm text-neutral-500">Select a report.</div>
           ) : (
             <div className="mt-2 space-y-3">
-              <div className={`${HIGHLIGHT_CARD} p-4 text-sm`}>
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <h3 className={T_CARD_TITLE}>{detail.report_type}</h3>
-                  <span className={BADGE_INFO}>{detail.status || "OPEN"}</span>
-                </div>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
+                <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className={T_CAPTION}>City / Branch</p>
-                    <p className="text-sm text-zinc-200">{detail.city}/{detail.branch || "-"}</p>
-                  </div>
-                  <div>
-                    <p className={T_CAPTION}>Reporter</p>
-                    <p className="text-sm text-zinc-200">{detail.staff_name}</p>
-                  </div>
-                  <div>
-                    <p className={T_CAPTION}>Category</p>
-                    <p className="text-sm text-zinc-200">{detail.category || "-"}</p>
-                  </div>
-                  <div>
-                    <p className={T_CAPTION}>Anonymous Request</p>
-                    <p className="text-sm text-zinc-200">{detail.anonymous_request ? "Yes" : "No"}</p>
-                  </div>
-                </div>
-              </div>
-              <pre className="overflow-auto rounded-2xl border border-white/8 bg-white/4 p-3 text-xs text-neutral-300">
-                {JSON.stringify(detail.payload_json || {}, null, 2)}
-              </pre>
-
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <MessageSquareText className="h-4 w-4 text-sky-400" />
-                  <div className={T_CARD_TITLE}>Replies</div>
-                </div>
-                {replies.map((rp) => (
-                  <div key={rp.id} className={`${STATUS_CARD} p-3 text-xs text-neutral-300`}>
-                    <div className="text-neutral-400">
-                      {rp.author_name} ({rp.author_role}) • {rp.created_at}
+                    <div className="text-base font-bold text-neutral-100">{detail.report_type}</div>
+                    <div className="mt-1 text-xs text-neutral-500">
+                      Submitted: {detail.created_at ? new Date(detail.created_at).toLocaleString("en-GB") : "-"}
                     </div>
-                    <div className="mt-1 whitespace-pre-wrap">{rp.message}</div>
                   </div>
-                ))}
-                {!replies.length ? <div className="text-xs text-neutral-500">No replies yet.</div> : null}
+                  <StatusBadge status={detail.status} />
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {[
+                    { label: "City / Branch", value: `${detail.city}/${detail.branch || "-"}` },
+                    { label: "Reporter", value: detail.staff_name || "-" },
+                    { label: "Category", value: detail.category || "-" },
+                    { label: "Anonymous", value: detail.anonymous_request ? "Yes" : "No" },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="rounded-xl border border-neutral-800/60 bg-neutral-900/20 p-2.5">
+                      <div className="text-[10px] font-medium uppercase tracking-wide text-neutral-600">{label}</div>
+                      <div className="mt-0.5 text-sm font-medium text-neutral-200">{value}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <textarea
-                  className={INPUT_CLASS}
-                  rows={3}
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  placeholder="Write private reply to the reporter"
-                />
-                <button
-                  type="button"
-                  onClick={submitReply}
-                  disabled={submitBusy || !replyText.trim()}
-                  className={PRIMARY_BUTTON}
-                >
-                  <span className="flex items-center gap-2">
-                    <Send className="h-4 w-4" />
-                    {submitBusy ? "Sending..." : "Send Reply"}
-                  </span>
-                </button>
+              <div className="mt-4 space-y-3">
+                <div className="flex flex-wrap gap-2 text-xs text-neutral-500">
+                  {pickText(detail.payload_json, "date_time", "report_datetime", "datetime") ? (
+                    <span className="rounded-lg bg-neutral-800/60 px-2 py-1">
+                      🕐 {pickText(detail.payload_json, "date_time", "report_datetime", "datetime")}
+                    </span>
+                  ) : null}
+                  {pickText(detail.payload_json, "store_branch", "branch") ? (
+                    <span className="rounded-lg bg-neutral-800/60 px-2 py-1">
+                      🏪 {pickText(detail.payload_json, "store_branch", "branch")}
+                    </span>
+                  ) : null}
+                  {pickText(detail.payload_json, "screen_feature") ? (
+                    <span className="rounded-lg bg-neutral-800/60 px-2 py-1">
+                      📱 {pickText(detail.payload_json, "screen_feature")}
+                    </span>
+                  ) : null}
+                </div>
+
+                {pickText(detail.payload_json, "problem") ? (
+                  <ReportField label="Problem" value={pickText(detail.payload_json, "problem")} highlight />
+                ) : null}
+                {pickText(detail.payload_json, "expected") ? (
+                  <ReportField label="What was expected" value={pickText(detail.payload_json, "expected")} />
+                ) : null}
+                {pickText(detail.payload_json, "actual") ? (
+                  <ReportField label="What actually happened" value={pickText(detail.payload_json, "actual")} />
+                ) : null}
+                {pickText(detail.payload_json, "screenshot") ? (
+                  <ReportField label="Screenshot / Note" value={pickText(detail.payload_json, "screenshot")} />
+                ) : null}
               </div>
+
+              <div className="mt-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <div className="text-sm font-semibold text-neutral-200">Replies</div>
+                  {replies.length > 0 ? (
+                    <span className="rounded-full bg-violet-900/40 px-2 py-0.5 text-[10px] text-violet-300">{replies.length}</span>
+                  ) : null}
+                </div>
+                {replies.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-neutral-800 p-4 text-center text-xs text-neutral-600">
+                    No replies yet.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {replies.map((rp) => (
+                      <div key={rp.id} className="rounded-xl border border-neutral-800 bg-neutral-900/30 px-4 py-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-neutral-300">{rp.author_name}</span>
+                          <span className="text-[10px] text-neutral-600">{rp.created_at}</span>
+                        </div>
+                        <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-neutral-300">{rp.message}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-3 space-y-2">
+                  <textarea
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    placeholder="Write a private reply to the reporter..."
+                    rows={3}
+                    className="w-full resize-none rounded-xl border border-neutral-800 bg-neutral-900/40 px-4 py-3 text-sm text-neutral-200 placeholder:text-neutral-600 transition focus:border-violet-500/60 focus:outline-none"
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      disabled={!replyText.trim() || submitBusy}
+                      onClick={submitReply}
+                      className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {submitBusy ? "Sending..." : "Send Reply"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {pickText(detail.payload_json, "what_happened", "why_problem", "support_needed", "affected_people") ? (
+                <div className="space-y-3">
+                  {pickText(detail.payload_json, "what_happened") ? (
+                    <ReportField label="What happened" value={pickText(detail.payload_json, "what_happened")} />
+                  ) : null}
+                  {pickText(detail.payload_json, "why_problem") ? (
+                    <ReportField label="Why this is a problem" value={pickText(detail.payload_json, "why_problem")} />
+                  ) : null}
+                  {pickText(detail.payload_json, "affected_people") ? (
+                    <ReportField label="Who is affected" value={pickText(detail.payload_json, "affected_people")} />
+                  ) : null}
+                  {pickText(detail.payload_json, "support_needed") ? (
+                    <ReportField label="Support needed" value={pickText(detail.payload_json, "support_needed")} />
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           )}
         </div>
