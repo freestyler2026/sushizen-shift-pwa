@@ -1556,49 +1556,6 @@ function currentCalendarMonthRangeThroughTodayIso(): { from: string; to: string 
   return { from, to };
 }
 
-const EN_MONTH_NAME_TO_NUM: Record<string, string> = {
-  january: "01",
-  february: "02",
-  march: "03",
-  april: "04",
-  may: "05",
-  june: "06",
-  july: "07",
-  august: "08",
-  september: "09",
-  october: "10",
-  november: "11",
-  december: "12",
-};
-
-/** Calendar months (YYYY-MM) explicitly mentioned in a free-text question for mismatch hints. */
-function parseMentionedAnalysisMonths(question: string, defaultYear: number): string[] {
-  const q = String(question || "").trim();
-  if (!q) return [];
-  const keys = new Set<string>();
-
-  for (const m of q.matchAll(/\b(20\d{2})[/-](0?[1-9]|1[0-2])\b/g)) {
-    keys.add(`${m[1]}-${String(Number(m[2])).padStart(2, "0")}`);
-  }
-  for (const m of q.matchAll(/(20\d{2})\s*年\s*(0?[1-9]|1[0-2])\s*月/g)) {
-    keys.add(`${m[1]}-${String(Number(m[2])).padStart(2, "0")}`);
-  }
-  for (const m of q.matchAll(/(?<!\d)(0?[1-9]|1[0-2])\s*月(?!\d)/g)) {
-    const mm = Number(m[1]);
-    if (mm >= 1 && mm <= 12) {
-      keys.add(`${defaultYear}-${String(mm).padStart(2, "0")}`);
-    }
-  }
-
-  const ql = q.toLowerCase();
-  for (const [name, num] of Object.entries(EN_MONTH_NAME_TO_NUM)) {
-    if (new RegExp(`\\b${name}\\b`, "i").test(ql)) {
-      keys.add(`${defaultYear}-${num}`);
-    }
-  }
-  return [...keys];
-}
-
 const CITY_DEFAULT_RANGE: Record<string, { from: string; to: string }> = {
   dubai: { from: "2025-11-01", to: "2026-03-31" },
   manila: { from: "2025-11-01", to: "2026-03-31" },
@@ -1712,6 +1669,93 @@ function monthRangeFromMonthKey(monthKey: string): { from: string; to: string } 
     from: `${m[1]}-${m[2]}-01`,
     to: `${m[1]}-${m[2]}-${String(last).padStart(2, "0")}`,
   };
+}
+
+function ymdLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * 質問文から言及されている年月を抽出する。
+ * 見つからない場合は先月（直近の完結した月）を返す。
+ */
+function detectPeriodFromQuestion(question: string): { dateFrom: string; dateTo: string; detected: boolean } {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+
+  if (/先々月|さ先月|2\s*months?\s*ago/i.test(question)) {
+    const d = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+    const from = ymdLocal(new Date(d.getFullYear(), d.getMonth(), 1));
+    const to = ymdLocal(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+    return { dateFrom: from, dateTo: to, detected: true };
+  }
+
+  if (/先月|last\s*month/i.test(question)) {
+    const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const from = ymdLocal(new Date(d.getFullYear(), d.getMonth(), 1));
+    const to = ymdLocal(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+    return { dateFrom: from, dateTo: to, detected: true };
+  }
+
+  if (/今月|this\s*month/i.test(question)) {
+    const from = ymdLocal(new Date(now.getFullYear(), now.getMonth(), 1));
+    const to = ymdLocal(now);
+    return { dateFrom: from, dateTo: to, detected: true };
+  }
+
+  const yearMonthMatch = question.match(/(\d{4})[年\-/](\d{1,2})月?/);
+  if (yearMonthMatch) {
+    const y = parseInt(yearMonthMatch[1], 10);
+    const mo = parseInt(yearMonthMatch[2], 10) - 1;
+    if (mo >= 0 && mo <= 11) {
+      const from = ymdLocal(new Date(y, mo, 1));
+      const to = ymdLocal(new Date(y, mo + 1, 0));
+      return { dateFrom: from, dateTo: to, detected: true };
+    }
+  }
+
+  const MONTH_NAMES_EN = [
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+  ];
+  const monthJaMatch = question.match(/(\d{1,2})月/);
+  if (monthJaMatch) {
+    const mo = parseInt(monthJaMatch[1], 10) - 1;
+    if (mo >= 0 && mo <= 11) {
+      const y = mo > now.getMonth() ? currentYear - 1 : currentYear;
+      const from = ymdLocal(new Date(y, mo, 1));
+      const to = ymdLocal(new Date(y, mo + 1, 0));
+      return { dateFrom: from, dateTo: to, detected: true };
+    }
+  }
+  const monthEnMatch = question.toLowerCase().match(new RegExp(`(${MONTH_NAMES_EN.join("|")})`, "i"));
+  if (monthEnMatch) {
+    const mo = MONTH_NAMES_EN.indexOf(monthEnMatch[1].toLowerCase());
+    if (mo >= 0) {
+      const y = mo > now.getMonth() ? currentYear - 1 : currentYear;
+      const from = ymdLocal(new Date(y, mo, 1));
+      const to = ymdLocal(new Date(y, mo + 1, 0));
+      return { dateFrom: from, dateTo: to, detected: true };
+    }
+  }
+
+  const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const from = ymdLocal(new Date(d.getFullYear(), d.getMonth(), 1));
+  const to = ymdLocal(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+  return { dateFrom: from, dateTo: to, detected: false };
 }
 
 function splitDateRangeIntoChunks(dateFrom: string, dateTo: string, chunkSize = 7) {
@@ -2050,16 +2094,6 @@ export default function AdminAnalyticsPage() {
     }
     setSummaryMonthKey("");
   }, [summaryDateFrom, summaryDateTo]);
-
-  const aiMentionedMonthsNotInRange = useMemo(() => {
-    const y = parseInt(summaryDateFrom.slice(0, 4), 10);
-    const defaultY = Number.isFinite(y) && y >= 2000 ? y : new Date().getFullYear();
-    const mentioned = parseMentionedAnalysisMonths(aiInput, defaultY);
-    if (!mentioned.length) return null;
-    const selected = new Set(monthKeysBetween(summaryDateFrom, summaryDateTo));
-    const missing = mentioned.filter((mk) => !selected.has(mk));
-    return missing.length ? missing : null;
-  }, [aiInput, summaryDateFrom, summaryDateTo]);
 
   const evaluationScoreScale = useMemo(() => {
     const maxOf = (values: number[], fallback: number) => {
@@ -4160,12 +4194,17 @@ export default function AdminAnalyticsPage() {
   }, [posSalesRows, posSalesRangeTotals, salesPlSummary, summaryBranchCode, summaryBrandName]);
 
   async function sendToAi(question: string) {
+    const trimmedQ = String(question || "").trim();
+    if (!trimmedQ) return;
+
+    const { dateFrom: aiPeriodFrom, dateTo: aiPeriodTo } = detectPeriodFromQuestion(trimmedQ);
+
     type AiCityKey = "dubai" | "manila";
     const cityLabels: Record<AiCityKey, string> = {
       dubai: "Dubai",
       manila: "Manila",
     };
-    const questionLower = String(question || "").toLowerCase();
+    const questionLower = trimmedQ.toLowerCase();
     const asksDubai = questionLower.includes("dubai") || questionLower.includes("ドバイ");
     const asksManila = questionLower.includes("manila") || questionLower.includes("マニラ");
     const asksBoth = asksDubai && asksManila;
@@ -4183,8 +4222,8 @@ export default function AdminAnalyticsPage() {
     const loadAiCityDataset = async (cityKey: AiCityKey) => {
       const missingSources: Array<{ source: string; reason: string }> = [];
       const rowCounts: Record<string, number> = {};
-      const dateFrom = summaryDateFrom;
-      const dateTo = summaryDateTo;
+      const dateFrom = aiPeriodFrom;
+      const dateTo = aiPeriodTo;
       const approver = approverName.trim();
       const pinValue = pin.trim();
       const comparisonLimit = 1000;
@@ -4519,8 +4558,7 @@ export default function AdminAnalyticsPage() {
       };
     };
 
-    const trimmed = question.trim();
-    if (!trimmed) return;
+    const trimmed = trimmedQ;
 
     const userMsg: ChatMessage = {
       role: "user",
@@ -4541,8 +4579,8 @@ export default function AdminAnalyticsPage() {
       let cityResults: Awaited<ReturnType<typeof loadAiCityDataset>>[];
       const isCacheValid =
         aiDataCache &&
-        aiDataCache.dateFrom === summaryDateFrom &&
-        aiDataCache.dateTo === summaryDateTo &&
+        aiDataCache.dateFrom === aiPeriodFrom &&
+        aiDataCache.dateTo === aiPeriodTo &&
         targetCities.every((c) => aiDataCache.cities[c]);
 
       if (isCacheValid && aiDataCache) {
@@ -4551,7 +4589,7 @@ export default function AdminAnalyticsPage() {
         cityResults = await Promise.all(targetCities.map((targetCity) => loadAiCityDataset(targetCity)));
         const newCities: Record<string, any> = { ...(aiDataCache?.cities || {}) };
         for (const r of cityResults) newCities[r.city] = r;
-        setAiDataCache({ dateFrom: summaryDateFrom, dateTo: summaryDateTo, cities: newCities });
+        setAiDataCache({ dateFrom: aiPeriodFrom, dateTo: aiPeriodTo, cities: newCities });
       }
       const hasAnyCoreData = cityResults.some((r) => r.data_quality.has_core_data);
       if (!hasAnyCoreData) {
@@ -4580,15 +4618,15 @@ export default function AdminAnalyticsPage() {
       const contextPayload = {
         ...primaryCityContext,
         version: "ai_context_v2",
-        summary_range: `${summaryDateFrom} to ${summaryDateTo}`,
-        source_date_from: summaryDateFrom,
-        source_date_to: summaryDateTo,
+        summary_range: `${aiPeriodFrom} to ${aiPeriodTo}`,
+        source_date_from: aiPeriodFrom,
+        source_date_to: aiPeriodTo,
         city_scope: targetCities.length > 1 ? "both" : targetCities[0],
         cities: citiesPayload,
         data_quality: {
           fetched_at: new Date().toISOString(),
-          date_from: summaryDateFrom,
-          date_to: summaryDateTo,
+          date_from: aiPeriodFrom,
+          date_to: aiPeriodTo,
           city_scope: targetCities,
           missing_sources: missingSourcesAll,
           truncated: truncatedAny,
@@ -4713,8 +4751,8 @@ export default function AdminAnalyticsPage() {
                 _model: streamedModel,
                 _inputTokens: streamedInputTokens,
                 _outputTokens: streamedOutputTokens,
-                _dateFrom: summaryDateFrom,
-                _dateTo: summaryDateTo,
+                _dateFrom: aiPeriodFrom,
+                _dateTo: aiPeriodTo,
                 _cityScope: targetCities.length > 1 ? "both" : targetCities[0],
               } as ChatMessage & Record<string, unknown>)
             : m
@@ -5364,18 +5402,10 @@ export default function AdminAnalyticsPage() {
 
             {salesStepUpReady ? (
               <div className="space-y-2 rounded-xl border border-neutral-700/50 bg-neutral-900/50 p-3">
-                <div className="text-xs text-neutral-200">
-                  <span className="font-bold text-neutral-100">分析期間（AI に送信）: </span>
-                  {summaryDateFrom} 〜 {summaryDateTo}
-                </div>
-                <div className="text-[11px] text-neutral-500">
-                  Staff タブの Summary Analytics Period（Summary Range / Month Quick Select、または「今月（月初〜今日）」）から変更できます。
-                </div>
-                {aiMentionedMonthsNotInRange ? (
-                  <div className="rounded-lg border border-amber-600/40 bg-amber-950/30 px-2 py-1.5 text-[11px] leading-snug text-amber-200">
-                    質問に含まれる月（{aiMentionedMonthsNotInRange.join("・")}）が、上記の分析期間に含まれていません。意図とずれている場合は期間を合わせてから送信してください。
-                  </div>
-                ) : null}
+                <p className="text-xs text-neutral-500">
+                  ✨ 質問に月を含めると自動で期間を検出します（例:「3月の」「先月の」）。
+                  指定がない場合は先月のデータを使用します。
+                </p>
               </div>
             ) : null}
 
