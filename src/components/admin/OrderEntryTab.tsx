@@ -4,6 +4,7 @@ import type { KeyboardEvent } from "react";
 import { useCallback, useEffect, useState } from "react";
 
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
+import { GLASS_CARD, INPUT_CLASS, T_CAPTION, T_LABEL } from "@/lib/ui-tokens";
 
 export const BRAND_GRID_CONFIG = {
   "Sushi Zen": {
@@ -123,12 +124,9 @@ async function apiPostJson<T>(path: string, body: unknown): Promise<T> {
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
 
-type Props = {
-  approverName: string;
-  pin: string;
-};
-
-export default function OrderEntryTab({ approverName, pin }: Props) {
+export default function OrderEntryTab() {
+  const [approverName, setApproverName] = useState("");
+  const [pin, setPin] = useState("");
   const todayStr = todayLocalYmd();
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [gridData, setGridData] = useState<GridData>({});
@@ -138,6 +136,12 @@ export default function OrderEntryTab({ approverName, pin }: Props) {
   const [saved, setSaved] = useState<Partial<Record<Brand, boolean>>>({});
   const [dirty, setDirty] = useState<Partial<Record<Brand, boolean>>>({});
   const [saveError, setSaveError] = useState("");
+
+  useEffect(() => {
+    const a = getAuth();
+    if (a?.staffName) setApproverName((p) => p.trim() || a.staffName || "");
+    if (a?.pin) setPin((p) => p.trim() || a.pin || "");
+  }, []);
 
   const loadDate = useCallback(
     async (date: string) => {
@@ -318,6 +322,34 @@ export default function OrderEntryTab({ approverName, pin }: Props) {
 
       {saveError ? <div className="text-sm text-red-300">{saveError}</div> : null}
 
+      <div className={`${GLASS_CARD} space-y-3 p-4`}>
+        <p className={T_CAPTION}>
+          Same approver name and PIN as other Dubai sales analytics (HQ). Required to load and save counts.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block min-w-0">
+            <div className={T_LABEL}>Approver name</div>
+            <input
+              type="text"
+              value={approverName}
+              onChange={(e) => setApproverName(e.target.value)}
+              className={"mt-1 w-full " + INPUT_CLASS}
+              autoComplete="name"
+            />
+          </label>
+          <label className="block min-w-0">
+            <div className={T_LABEL}>PIN</div>
+            <input
+              type="password"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              className={"mt-1 w-full " + INPUT_CLASS}
+              autoComplete="off"
+            />
+          </label>
+        </div>
+      </div>
+
       <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
@@ -364,7 +396,7 @@ export default function OrderEntryTab({ approverName, pin }: Props) {
       {loadError ? <div className="text-sm text-amber-300">{loadError}</div> : null}
 
       {!approverName.trim() || !pin.trim() ? (
-        <p className="text-sm text-amber-300">Enter approver name and PIN in the export section above to load and save.</p>
+        <p className="text-sm text-amber-300">Fill approver name and PIN above to load and save.</p>
       ) : null}
 
       <BrandGrid

@@ -1117,7 +1117,7 @@ function AdminPageInner() {
       {dashView === "lowRatings" ? (
         <LowRatingsAdminPanel />
       ) : dashView === "orderEntry" ? (
-        <OrderEntryTab approverName={approverName} pin={pin} />
+        <OrderEntryTab />
       ) : (
         <>
       <div className={`${GLASS_CARD} p-4`}>
