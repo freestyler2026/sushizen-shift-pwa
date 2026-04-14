@@ -82,6 +82,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FlashValue } from "@/components/ui/FlashValue";
 import AggregatorRatingsTab from "@/components/analytics/dubai/AggregatorRatingsTab";
+import { ManilaRatingsTab } from "@/components/analytics/ManilaRatingsTab";
 import NumberOfOrdersTab from "@/components/analytics/dubai/NumberOfOrdersTab";
 
 // Resolve API base at runtime so local dev always talks to FastAPI directly,
@@ -1321,10 +1322,17 @@ const SALES_SECTION_OPTIONS = [
   { value: "orderCounts", label: "Number of Orders", id: "sales-order-counts" },
   { value: "aggregatorRatings", label: "Ratings", id: "sales-aggregator-ratings" },
   { value: "manilaSales", label: "Manila Sales", id: "sales-manila-sales" },
+  { value: "manilaLowRatings", label: "Ratings", id: "sales-manila-low-ratings" },
 ] as const;
-const DUBAI_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter((section) => section.value !== "manilaSales");
+const DUBAI_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter(
+  (section) => section.value !== "manilaSales" && section.value !== "manilaLowRatings",
+);
 const MANILA_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter(
-  (section) => section.value === "manilaSales" || section.value === "dataCheck" || section.value === "orderCounts",
+  (section) =>
+    section.value === "manilaSales" ||
+    section.value === "dataCheck" ||
+    section.value === "orderCounts" ||
+    section.value === "manilaLowRatings",
 );
 
 const FINANCE_SECTION_OPTIONS = [
@@ -1896,6 +1904,7 @@ export default function AdminAnalyticsPage() {
     | "orderCounts"
     | "aggregatorRatings"
     | "manilaSales"
+    | "manilaLowRatings"
     | "all"
   >(
     "summary",
@@ -2611,9 +2620,15 @@ export default function AdminAnalyticsPage() {
   }, [isSalesAnalyticsTab, salesSectionView, visibleSalesSectionOptions]);
 
   useEffect(() => {
+    const manilaSectionKeys = new Set<string>(MANILA_SALES_SECTION_OPTIONS.map((s) => s.value));
     setSalesSectionView((current) => {
-      if (isManilaSalesCity) return current === "manilaSales" ? current : "manilaSales";
-      return current === "manilaSales" ? "summary" : current;
+      if (isManilaSalesCity) {
+        if (current === "all") return "all";
+        if (manilaSectionKeys.has(current as string)) return current;
+        return "manilaSales";
+      }
+      if (manilaSectionKeys.has(current as string)) return "summary";
+      return current;
     });
   }, [isManilaSalesCity]);
 
@@ -7161,6 +7176,15 @@ export default function AdminAnalyticsPage() {
                     </p>
                     <p className="mt-3 text-xs text-neutral-600">Dubai-only data is available under Dubai Sales → Number of Orders.</p>
                   </div>
+                ) : null}
+                {salesSectionView === "all" || salesSectionView === "manilaLowRatings" ? (
+                  <ManilaRatingsTab
+                    dateFrom={summaryDateFrom}
+                    dateTo={summaryDateTo}
+                    approverName={approverName}
+                    pin={pin}
+                    stepUpReady={salesStepUpReady}
+                  />
                 ) : null}
               </>
             ) : null}
