@@ -2026,6 +2026,7 @@ export default function AdminAnalyticsPage() {
   const [posBrandOrderRows, setPosBrandOrderRows] = useState<PosBrandOrderRow[]>([]);
   const [, setPosBranchDailyRows] = useState<PosBranchDailyRow[]>([]);
   const [cancelOrdersAnalytics, setCancelOrdersAnalytics] = useState<PosCancelOrdersResp | null>(null);
+  const [cancelOrdersLoadError, setCancelOrdersLoadError] = useState("");
   const [hourlySalesAnalytics, setHourlySalesAnalytics] = useState<HourlySalesAnalyticsResp | null>(null);
   const [hourlyLoadError, setHourlyLoadError] = useState("");
   const [operationTimeAnalytics, setOperationTimeAnalytics] = useState<OperationTimeResp | null>(null);
@@ -2877,6 +2878,7 @@ export default function AdminAnalyticsPage() {
       const posLoad = (async () => {
         if (!shouldLoadPos) return;
         try {
+          setCancelOrdersLoadError("");
           const hourlyQs = new URLSearchParams({
             city: posCity,
             date_from: summaryDateFrom,
@@ -2919,12 +2921,14 @@ export default function AdminAnalyticsPage() {
             label: string,
             request: () => Promise<T>,
             onOk: (value: T) => void,
-            onFail: () => void
+            onFail: () => void,
+            onFailCapture?: (e: unknown) => void,
           ) => {
             try {
               onOk(await request());
             } catch (e) {
               addLoadError(label, e);
+              onFailCapture?.(e);
               onFail();
             }
           };
@@ -2985,8 +2989,12 @@ export default function AdminAnalyticsPage() {
             loadSalesDataset(
               "Cancel orders",
               () => apiGet<PosCancelOrdersResp>(`/api/admin/pos/cancel-orders?${cancelOrdersQs.toString()}`),
-              (cancelOrders) => setCancelOrdersAnalytics(cancelOrders ?? null),
-              () => setCancelOrdersAnalytics(null)
+              (cancelOrders) => {
+                setCancelOrdersLoadError("");
+                setCancelOrdersAnalytics(cancelOrders ?? null);
+              },
+              () => setCancelOrdersAnalytics(null),
+              (e) => setCancelOrdersLoadError(String((e as Error)?.message || e || "Cancel orders request failed")),
             ),
             loadSalesDataset(
               "Sales latest coverage",
@@ -7009,6 +7017,12 @@ export default function AdminAnalyticsPage() {
                   Scope: <span className="text-zinc-300">{summaryBrandName || "All Brands"}</span>
                 </div>
               </div>
+
+              {cancelOrdersLoadError ? (
+                <div className={`${BADGE_WARNING} mb-3 px-3 py-2 text-xs whitespace-pre-wrap`}>
+                  Cancel orders API: {cancelOrdersLoadError}
+                </div>
+              ) : null}
 
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
                 <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
