@@ -35,12 +35,15 @@ import {
 import LogoutButton from "@/components/LogoutButton";
 import {
   canAccessAdminNav,
+  canAccessAiAnalyticsProAdmin,
   canAccessBackofficeEvaluationAdmin,
   canAccessCostAdmin,
+  canAccessDailyInventoryAdmin,
   canAccessInventoryWorkspace,
   canAccessMenuAdmin,
   canAccessPrivateReportAdmin,
   canAccessProcurementAdmin,
+  canAccessRenewalsAdmin,
   canAccessRoleManagement,
   getAuth,
   getAuthHeaders,
@@ -78,6 +81,7 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/change-pin", label: "Change PIN", icon: KeyRound, match: "exact" },
 ];
 
+// Admin routes here must match ACCESS_CHANNELS (group admin) in backend `app/access_control.py`.
 const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin", label: "Admin Dashboard", icon: LayoutDashboard, adminOnly: true, match: "exact" },
   { href: "/admin/daily-inventory", label: "Daily Inventory", icon: Warehouse, adminOnly: true, match: "exact" },
@@ -180,9 +184,9 @@ export default function NavBar() {
   function canSeeAdminItem(href: string, auth: ReturnType<typeof getAuth>) {
     if (!auth) return false;
     if (href === "/admin") return canAccessAdminNav(auth);
-    if (href === "/admin/ai-analytics-pro") return canAccessAdminNav(auth);
+    if (href === "/admin/ai-analytics-pro") return canAccessAiAnalyticsProAdmin(auth);
     if (href === "/admin/inventory") return canAccessInventoryWorkspace(auth);
-    if (href === "/admin/daily-inventory") return canAccessAdminNav(auth);
+    if (href === "/admin/daily-inventory") return canAccessDailyInventoryAdmin(auth);
     if (href === "/admin/menu") return canAccessMenuAdmin(auth);
     if (href === "/admin/private-reports") return canAccessPrivateReportAdmin(auth);
     if (href === "/admin/procurement") return canAccessProcurementAdmin(auth, auth.city);
@@ -190,7 +194,7 @@ export default function NavBar() {
     if (href === "/admin/analytics") return canAccessAdminNav(auth);
     if (href === "/admin/attendance") return canAccessAdminNav(auth);
     if (href === "/admin/absences") return canAccessAdminNav(auth);
-    if (href === "/admin/renewals") return canAccessAdminNav(auth);
+    if (href === "/admin/renewals") return canAccessRenewalsAdmin(auth);
     if (href === "/admin/staff") return canAccessAdminNav(auth);
     if (href === "/admin/staff/roles") return canAccessRoleManagement(auth);
     if (href === "/admin/draft") return canAccessAdminNav(auth);
@@ -211,7 +215,7 @@ export default function NavBar() {
     const fetchBadge = async () => {
       try {
         const auth = getAuth();
-        if (!auth || !canAccessAdminNav(auth)) {
+        if (!auth || !canAccessRenewalsAdmin(auth)) {
           if (!cancelled) {
             setRenewalBadge(0);
             setRenewalsBadgeCount(0);

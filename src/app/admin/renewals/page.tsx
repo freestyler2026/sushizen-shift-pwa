@@ -16,7 +16,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { canAccessAdminNav, getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
+import { canAccessRenewalsAdmin, getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
   BRANCHES,
@@ -479,7 +479,7 @@ export default function RenewalsAdminPage() {
     }
     void refreshAuthFromApi(current).then((resolved) => {
       const auth = resolved || current;
-      if (!canAccessAdminNav(auth)) {
+      if (!canAccessRenewalsAdmin(auth)) {
         router.replace("/week");
         return;
       }

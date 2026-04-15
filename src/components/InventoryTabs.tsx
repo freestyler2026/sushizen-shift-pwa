@@ -18,7 +18,7 @@ import {
   ScrollText,
   Warehouse,
 } from "lucide-react";
-import { canAccessCountTemplatesAdmin, canAccessInventoryLimited, getAuth } from "@/lib/auth";
+import { canAccessCountTemplatesAdmin, canAccessDailyInventoryAdmin, canAccessInventoryLimited, getAuth } from "@/lib/auth";
 
 const ITEMS = [
   { href: "/admin/inventory", label: "Overview", icon: LayoutDashboard },
@@ -41,15 +41,19 @@ export default function InventoryTabs() {
   const auth = getAuth();
   const canManageCountTemplates = canAccessCountTemplatesAdmin(auth);
   const limitedInventoryUser = canAccessInventoryLimited(auth);
+  const canDailyInv = canAccessDailyInventoryAdmin(auth);
   const items = limitedInventoryUser
     ? ITEMS.filter((item) =>
       item.href === "/admin/inventory" ||
-      item.href === "/admin/daily-inventory" ||
+      (item.href === "/admin/daily-inventory" && canDailyInv) ||
       item.href === "/admin/inventory/counts" ||
       item.href === "/admin/inventory/spot-checks" ||
       item.href === "/admin/inventory/transfer-orders" ||
       item.href === "/admin/inventory/productions")
-    : ITEMS.filter((item) => (item.href === "/admin/inventory/count-sheets" ? canManageCountTemplates : true));
+    : ITEMS.filter((item) => {
+        if (item.href === "/admin/daily-inventory" && !canDailyInv) return false;
+        return item.href === "/admin/inventory/count-sheets" ? canManageCountTemplates : true;
+      });
 
   return (
     <div className="flex flex-wrap gap-1 rounded-2xl border border-white/8 bg-white/5 p-1">

@@ -289,14 +289,18 @@ export function canAccessAdminNav(a?: Auth | null): boolean {
   return hasAnyPermission(
     [
       "channel.admin.dashboard.view",
+      "channel.admin.daily_inventory.view",
+      "channel.admin.daily_inventory.write",
       "channel.admin.inventory.view",
       "channel.admin.menu.view",
       "channel.admin.private_reports.view",
       "channel.admin.procurement.view",
       "channel.admin.cost_calculation.view",
       "channel.admin.analytics.view",
+      "channel.admin.ai_analytics_pro.view",
       "channel.admin.attendance.view",
       "channel.admin.absences.view",
+      "channel.admin.renewals.view",
       "channel.admin.staff.view",
       "channel.admin.staff.manage_roles",
       "channel.admin.draft.view",
@@ -304,6 +308,21 @@ export function canAccessAdminNav(a?: Auth | null): boolean {
     ],
     a,
   );
+}
+
+/** Daily Inventory admin route — keep in sync with ACCESS_CHANNELS in backend `app/access_control.py`. */
+export function canAccessDailyInventoryAdmin(a?: Auth | null): boolean {
+  return hasChannelAccess("admin.daily_inventory", ["view", "write"], a);
+}
+
+/** Renewals admin — matches `admin.renewals` channel in `app/access_control.py`. */
+export function canAccessRenewalsAdmin(a?: Auth | null): boolean {
+  return hasChannelAccess("admin.renewals", ["view"], a);
+}
+
+/** AI Analytics Pro — matches `admin.ai_analytics_pro` channel in `app/access_control.py`. */
+export function canAccessAiAnalyticsProAdmin(a?: Auth | null): boolean {
+  return hasChannelAccess("admin.ai_analytics_pro", ["view"], a);
 }
 
 export function canAccessPrivateReportAdmin(a?: Auth | null): boolean {

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import AdminDailyInventoryTab from "@/components/admin/AdminDailyInventoryTab";
-import { canAccessAdminNav, getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { canAccessDailyInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
   return new Promise<T>((resolve) => {
@@ -50,7 +50,7 @@ export default function DailyInventoryPage() {
           return;
         }
 
-        const hasAccess = canAccessAdminNav(resolved);
+        const hasAccess = canAccessDailyInventoryAdmin(resolved);
         if (!hasAccess) {
           setAllowed(false);
           setReady(true);
@@ -64,7 +64,7 @@ export default function DailyInventoryPage() {
         if (cancelled) return;
 
         const fallback = getAuth() || initialAuth || null;
-        const hasAccess = Boolean(fallback?.staffName && fallback?.accessToken && canAccessAdminNav(fallback));
+        const hasAccess = Boolean(fallback?.staffName && fallback?.accessToken && canAccessDailyInventoryAdmin(fallback));
 
         setAllowed(hasAccess);
         setReady(true);
