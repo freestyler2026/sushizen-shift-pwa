@@ -65,12 +65,12 @@ type OrderEntrySub = "dubai" | "manila";
 /** Spec: requests · low-ratings · ratings-entry · Manila sales tools · order-entry (rating-entry URL key = ratings-entry) */
 /** Manila daily sales + cashier eval are adjacent; tab row uses nowrap + overflow-x so the 6th tab is not lost to wrapping. */
 const ADMIN_DASH_TABS = [
-  { view: "requests" as const, label: "Requests", icon: "📋", tabQuery: null as string | null },
-  { view: "lowRatings" as const, label: "Low Ratings", icon: "⚠️", tabQuery: "low-ratings" },
-  { view: "ratingEntry" as const, label: "Ratings", icon: "⭐", tabQuery: "ratings-entry" },
+  { view: "requests" as const, label: "Requests Input", icon: "📋", tabQuery: null as string | null },
+  { view: "lowRatings" as const, label: "Low Ratings Input", icon: "⚠️", tabQuery: "low-ratings" },
+  { view: "ratingEntry" as const, label: "Ratings Input", icon: "⭐", tabQuery: "ratings-entry" },
   { view: "salesDataInput" as const, label: "Sales Data Input", icon: "✏️", tabQuery: "sales-data-input" },
   { view: "cashierEvalInput" as const, label: "Cashier Eval Input", icon: "🧾", tabQuery: "cashier-eval-input" },
-  { view: "orderEntry" as const, label: "Number of Orders", icon: "📦", tabQuery: "order-entry" },
+  { view: "orderEntry" as const, label: "Number of Orders Input", icon: "📦", tabQuery: "order-entry" },
 ] as const;
 
 function tabParamToDashView(tab: string | null): AdminDashView {
@@ -1152,7 +1152,7 @@ function AdminPageInner() {
         <AdminCashierEvalInputTab />
       ) : dashView === "orderEntry" ? (
         <div className="space-y-4">
-          <div className={`${TAB_CONTAINER} w-full max-w-full overflow-x-auto`} role="tablist" aria-label="Number of Orders region">
+          <div className={`${TAB_CONTAINER} w-full max-w-full overflow-x-auto`} role="tablist" aria-label="Number of Orders Input region">
             <div className="flex min-w-min flex-wrap items-center gap-1">
               <button
                 type="button"
