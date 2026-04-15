@@ -44,7 +44,6 @@ import {
   canAccessRoleManagement,
   getAuth,
   getAuthHeaders,
-  isAdmin,
   refreshAuthFromApi,
 } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
@@ -183,7 +182,7 @@ export default function NavBar() {
     if (href === "/admin") return canAccessAdminNav(auth);
     if (href === "/admin/ratings-entry") return canAccessAdminNav(auth);
     if (href === "/admin/inventory") return canAccessInventoryWorkspace(auth);
-    if (href === "/admin/daily-inventory") return isAdmin(auth);
+    if (href === "/admin/daily-inventory") return canAccessAdminNav(auth);
     if (href === "/admin/menu") return canAccessMenuAdmin(auth);
     if (href === "/admin/private-reports") return canAccessPrivateReportAdmin(auth);
     if (href === "/admin/procurement") return canAccessProcurementAdmin(auth, auth.city);
