@@ -85,6 +85,8 @@ import AggregatorRatingsTab from "@/components/analytics/dubai/AggregatorRatings
 import { ManilaRatingsTab } from "@/components/analytics/ManilaRatingsTab";
 import NumberOfOrdersTab from "@/components/analytics/dubai/NumberOfOrdersTab";
 import { ManilaOrderCountsTab } from "@/components/analytics/ManilaOrderCountsTab";
+import { ManilaSalesDataTab } from "@/components/analytics/ManilaSalesDataTab";
+import { ManilaCashierEvaluationTab } from "@/components/analytics/ManilaCashierEvaluationTab";
 
 // Resolve API base at runtime so local dev always talks to FastAPI directly,
 // even when the page is opened via a LAN IP or a custom local hostname.
@@ -1324,16 +1326,24 @@ const SALES_SECTION_OPTIONS = [
   { value: "aggregatorRatings", label: "Ratings", id: "sales-aggregator-ratings" },
   { value: "manilaSales", label: "Manila Sales", id: "sales-manila-sales" },
   { value: "manilaLowRatings", label: "Ratings", id: "sales-manila-low-ratings" },
+  { value: "manilaSalesData", label: "Sales Data", id: "sales-manila-daily" },
+  { value: "manilaCashierEval", label: "Cashier Evaluation", id: "sales-manila-cashier-eval" },
 ] as const;
 const DUBAI_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter(
-  (section) => section.value !== "manilaSales" && section.value !== "manilaLowRatings",
+  (section) =>
+    section.value !== "manilaSales" &&
+    section.value !== "manilaLowRatings" &&
+    section.value !== "manilaSalesData" &&
+    section.value !== "manilaCashierEval",
 );
 const MANILA_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter(
   (section) =>
     section.value === "manilaSales" ||
     section.value === "dataCheck" ||
     section.value === "orderCounts" ||
-    section.value === "manilaLowRatings",
+    section.value === "manilaLowRatings" ||
+    section.value === "manilaSalesData" ||
+    section.value === "manilaCashierEval",
 );
 
 const FINANCE_SECTION_OPTIONS = [
@@ -1958,6 +1968,8 @@ export default function AdminAnalyticsPage() {
     | "aggregatorRatings"
     | "manilaSales"
     | "manilaLowRatings"
+    | "manilaSalesData"
+    | "manilaCashierEval"
     | "all"
   >(
     "summary",
@@ -7230,6 +7242,28 @@ export default function AdminAnalyticsPage() {
                     pin={pin}
                     stepUpReady={salesStepUpReady}
                   />
+                ) : null}
+                {salesSectionView === "all" || salesSectionView === "manilaSalesData" ? (
+                  <div id="sales-manila-daily">
+                    <ManilaSalesDataTab
+                      dateFrom={summaryDateFrom}
+                      dateTo={summaryDateTo}
+                      approverName={approverName}
+                      pin={pin}
+                      stepUpReady={salesStepUpReady}
+                    />
+                  </div>
+                ) : null}
+                {salesSectionView === "all" || salesSectionView === "manilaCashierEval" ? (
+                  <div id="sales-manila-cashier-eval">
+                    <ManilaCashierEvaluationTab
+                      dateFrom={summaryDateFrom}
+                      dateTo={summaryDateTo}
+                      approverName={approverName}
+                      pin={pin}
+                      stepUpReady={salesStepUpReady}
+                    />
+                  </div>
                 ) : null}
               </>
             ) : null}
