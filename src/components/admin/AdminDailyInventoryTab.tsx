@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 
@@ -354,13 +355,46 @@ export default function AdminDailyInventoryTab() {
     );
   }
 
+  /** Sticky below LayoutShell header (~h-11 + border + h-10) so Entry/History stay tappable when scrolled. */
+  const subnavStickyClass =
+    "sticky z-30 -mx-4 mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-neutral-800/80 bg-neutral-950/95 px-4 py-2 backdrop-blur pointer-events-auto sm:-mx-0 sm:px-0 top-[5.5rem]";
+
+  const actionBar =
+    typeof document !== "undefined" && !historyTab
+      ? createPortal(
+          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-800 bg-neutral-950/95 px-4 py-3 backdrop-blur [padding-bottom:max(12px,env(safe-area-inset-bottom,0px))] pointer-events-auto">
+            <div className="mx-auto flex max-w-4xl justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => void doSave(true)}
+                disabled={saving}
+                className="rounded-lg bg-neutral-800 px-5 py-2 text-sm font-medium text-neutral-200 hover:bg-neutral-700 disabled:opacity-50"
+              >
+                {saving ? "Saving…" : "💾 Save draft"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleSubmit()}
+                disabled={submitting || saving}
+                className="rounded-lg bg-violet-600 px-6 py-2 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-50"
+              >
+                {submitting ? "Submitting…" : "✅ Submit report"}
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
     <div className="relative mx-auto max-w-4xl pb-28 text-white">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className={subnavStickyClass}>
         <h1 className="text-2xl font-bold text-neutral-100">📦 Daily Inventory Report</h1>
-        <div className="flex gap-2">
+        <div className="flex shrink-0 gap-2" role="tablist" aria-label="Report view">
           <button
             type="button"
+            role="tab"
+            aria-selected={!historyTab}
             onClick={() => setHistoryTab(false)}
             className={`rounded-lg px-4 py-1.5 text-sm font-medium ${
               !historyTab ? "bg-violet-600 text-white" : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
@@ -370,6 +404,8 @@ export default function AdminDailyInventoryTab() {
           </button>
           <button
             type="button"
+            role="tab"
+            aria-selected={historyTab}
             onClick={() => setHistoryTab(true)}
             className={`rounded-lg px-4 py-1.5 text-sm font-medium ${
               historyTab ? "bg-violet-600 text-white" : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
@@ -596,28 +632,7 @@ export default function AdminDailyInventoryTab() {
         </>
       )}
 
-      {!historyTab ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-800 bg-neutral-950/95 px-4 py-3 backdrop-blur [padding-bottom:max(12px,env(safe-area-inset-bottom,0px))]">
-          <div className="mx-auto flex max-w-4xl justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => void doSave(true)}
-              disabled={saving}
-              className="rounded-lg bg-neutral-800 px-5 py-2 text-sm font-medium text-neutral-200 hover:bg-neutral-700 disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "💾 Save draft"}
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleSubmit()}
-              disabled={submitting || saving}
-              className="rounded-lg bg-violet-600 px-6 py-2 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-50"
-            >
-              {submitting ? "Submitting…" : "✅ Submit report"}
-            </button>
-          </div>
-        </div>
-      ) : null}
+      {actionBar}
     </div>
   );
 }
