@@ -29,6 +29,7 @@ import OrderEntryTab from "@/components/admin/OrderEntryTab";
 import ManilaOfflineOrderEntryTab from "@/components/admin/ManilaOfflineOrderEntryTab";
 import AdminSalesDataInputTab from "@/components/admin/AdminSalesDataInputTab";
 import AdminCashierEvalInputTab from "@/components/admin/AdminCashierEvalInputTab";
+import AdminCancellationInputTab from "@/components/admin/AdminCancellationInputTab";
 import { RatingEntryTab } from "@/components/admin/RatingEntryTab";
 import { LowRatingsAdminPanel } from "@/components/lowratings/LowRatingsAdminPanel";
 import {
@@ -58,18 +59,26 @@ import {
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
 
 // Admin Dashboard sub-tabs: single source of truth (?tab= ↔ in-app view)
-type AdminDashView = "requests" | "lowRatings" | "orderEntry" | "ratingEntry" | "salesDataInput" | "cashierEvalInput";
+type AdminDashView =
+  | "requests"
+  | "lowRatings"
+  | "orderEntry"
+  | "ratingEntry"
+  | "salesDataInput"
+  | "cashierEvalInput"
+  | "cancellationInput";
 
 type OrderEntrySub = "dubai" | "manila";
 
 /** Spec: requests · low-ratings · ratings-entry · Manila sales tools · order-entry (rating-entry URL key = ratings-entry) */
-/** Manila daily sales + cashier eval are adjacent; tab row uses nowrap + overflow-x so the 6th tab is not lost to wrapping. */
+/** Tab row uses nowrap + overflow-x so trailing tabs stay reachable. */
 const ADMIN_DASH_TABS = [
   { view: "requests" as const, label: "Request Check", icon: "📋", tabQuery: null as string | null },
   { view: "lowRatings" as const, label: "Low Ratings Input", icon: "⚠️", tabQuery: "low-ratings" },
   { view: "ratingEntry" as const, label: "Ratings Input", icon: "⭐", tabQuery: "ratings-entry" },
   { view: "salesDataInput" as const, label: "Sales Data Input", icon: "✏️", tabQuery: "sales-data-input" },
   { view: "cashierEvalInput" as const, label: "Cashier Eval Input", icon: "🧾", tabQuery: "cashier-eval-input" },
+  { view: "cancellationInput" as const, label: "Cancellation Input", icon: "🚫", tabQuery: "cancellation-input" },
   { view: "orderEntry" as const, label: "Number of Orders Input", icon: "📦", tabQuery: "order-entry" },
 ] as const;
 
@@ -1150,6 +1159,8 @@ function AdminPageInner() {
         <AdminSalesDataInputTab />
       ) : dashView === "cashierEvalInput" ? (
         <AdminCashierEvalInputTab />
+      ) : dashView === "cancellationInput" ? (
+        <AdminCancellationInputTab />
       ) : dashView === "orderEntry" ? (
         <div className="space-y-4">
           <div className={`${TAB_CONTAINER} w-full max-w-full overflow-x-auto`} role="tablist" aria-label="Number of Orders Input region">
