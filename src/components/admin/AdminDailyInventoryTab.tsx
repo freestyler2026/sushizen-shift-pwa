@@ -10,6 +10,16 @@ const BRANCHES = ["PARANAQUE", "CUBAO", "TAFT"] as const;
 const SHIFTS = ["AM", "PM", "OVERNIGHT"] as const;
 const UNITS = ["kg", "g", "ml", "L", "Box", "Bag", "pcs", "pkt", "Tray", "Case"] as const;
 
+const STAFF_OPTIONS = [
+  "Ate Joy",
+  "Kuya Mark",
+  "Ate Ana",
+  "Kuya Ben",
+  "Ate Rose",
+  "Kuya Carlo",
+  "Other",
+] as const;
+
 interface InvItem {
   id: number;
   item_code: string;
@@ -93,11 +103,17 @@ function StatusBadge({
   return <span className="text-xs text-emerald-400">🟢 OK</span>;
 }
 
+function effectiveStaffName(staffChoice: string, customStaff: string): string {
+  if (staffChoice === "Other") return customStaff.trim();
+  return staffChoice.trim();
+}
+
 export default function AdminDailyInventoryTab() {
   const [branch, setBranch] = useState<string>(BRANCHES[0]);
   const [reportDate, setReportDate] = useState(todayYmd());
   const [shift, setShift] = useState("AM");
-  const [staffName, setStaffName] = useState("");
+  const [staffChoice, setStaffChoice] = useState<string>("");
+  const [customStaff, setCustomStaff] = useState("");
 
   const [items, setItems] = useState<InvItem[]>([]);
   const [entries, setEntries] = useState<EntryMap>({});
@@ -108,15 +124,22 @@ export default function AdminDailyInventoryTab() {
     entriesRef.current = entries;
   }, [entries]);
 
-  const headerRef = useRef<{ branch: string; reportDate: string; shift: string; staffName: string }>({
+  const headerRef = useRef<{
+    branch: string;
+    reportDate: string;
+    shift: string;
+    staffChoice: string;
+    customStaff: string;
+  }>({
     branch: BRANCHES[0],
     reportDate: todayYmd(),
     shift: "AM",
-    staffName: "",
+    staffChoice: "",
+    customStaff: "",
   });
   useEffect(() => {
-    headerRef.current = { branch, reportDate, shift, staffName };
-  }, [branch, reportDate, shift, staffName]);
+    headerRef.current = { branch, reportDate, shift, staffChoice, customStaff };
+  }, [branch, reportDate, shift, staffChoice, customStaff]);
 
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -146,7 +169,7 @@ export default function AdminDailyInventoryTab() {
         });
         setEntries(init);
       } catch {
-        if (!cancelled) setError("アイテムリストの読み込みに失敗しました");
+        if (!cancelled) setError("Failed to load item list.");
       }
     })();
     return () => {
@@ -156,9 +179,9 @@ export default function AdminDailyInventoryTab() {
 
   const doSave = useCallback(async (showMsg: boolean): Promise<number | null> => {
     const h = headerRef.current;
-    const name = h.staffName.trim();
+    const name = effectiveStaffName(h.staffChoice, h.customStaff);
     if (!name) {
-      if (showMsg) setError("スタッフ名を入力してください");
+      if (showMsg) setError("Select a staff member, or choose Other and enter a name.");
       return null;
     }
     setSaving(true);
@@ -189,13 +212,13 @@ export default function AdminDailyInventoryTab() {
       const data = JSON.parse(text) as { report_id: number };
       setCurrentReportId(data.report_id);
       if (showMsg) {
-        setSaveMsg(`✅ 保存しました（ID: ${data.report_id}）`);
+        setSaveMsg(`Saved (report ID: ${data.report_id})`);
         setTimeout(() => setSaveMsg(""), 3000);
       }
       return data.report_id;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      setError(`保存エラー: ${msg}`);
+      setError(`Save error: ${msg}`);
       return null;
     } finally {
       setSaving(false);
@@ -219,11 +242,11 @@ export default function AdminDailyInventoryTab() {
     if (!rid) {
       rid = await doSave(false);
       if (!rid) {
-        setError("先に保存してください（スタッフ名を入力）");
+        setError("Save first (select staff and enter quantities if needed).");
         return;
       }
     }
-    if (!window.confirm("報告を提出します。提出後は編集できません。よろしいですか？")) return;
+    if (!window.confirm("Submit this report? You will not be able to edit it after submit.")) return;
     setSubmitting(true);
     setError("");
     try {
@@ -237,7 +260,7 @@ export default function AdminDailyInventoryTab() {
       setSubmitted(true);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      setError(`提出エラー: ${msg}`);
+      setError(`Submit error: ${msg}`);
     } finally {
       setSubmitting(false);
     }
@@ -251,7 +274,7 @@ export default function AdminDailyInventoryTab() {
       if (!res.ok) throw new Error(text);
       setHistory(JSON.parse(text || "[]") as ReportHeader[]);
     } catch {
-      setError("履歴の取得に失敗しました");
+      setError("Failed to load history.");
     } finally {
       setHistoryLoading(false);
     }
@@ -280,7 +303,7 @@ export default function AdminDailyInventoryTab() {
     return (
       <div className="mx-auto flex max-w-4xl flex-col items-center justify-center gap-4 py-20">
         <div className="text-5xl">✅</div>
-        <h2 className="text-xl font-bold text-emerald-400">報告を提出しました！</h2>
+        <h2 className="text-xl font-bold text-emerald-400">Report submitted</h2>
         <p className="text-sm text-neutral-500">Report ID: {currentReportId}</p>
         <button
           type="button"
@@ -295,14 +318,14 @@ export default function AdminDailyInventoryTab() {
           }}
           className="mt-4 rounded-lg bg-violet-600 px-6 py-2 text-sm font-medium text-white hover:bg-violet-500"
         >
-          新しい報告を入力する
+          Start a new report
         </button>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-4xl text-white">
+    <div className="relative mx-auto max-w-4xl pb-28 text-white">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold text-neutral-100">📦 Daily Inventory Report</h1>
         <div className="flex gap-2">
@@ -313,7 +336,7 @@ export default function AdminDailyInventoryTab() {
               !historyTab ? "bg-violet-600 text-white" : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
             }`}
           >
-            入力
+            Entry
           </button>
           <button
             type="button"
@@ -322,7 +345,7 @@ export default function AdminDailyInventoryTab() {
               historyTab ? "bg-violet-600 text-white" : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
             }`}
           >
-            履歴
+            History
           </button>
         </div>
       </div>
@@ -338,20 +361,20 @@ export default function AdminDailyInventoryTab() {
 
       {historyTab ? (
         <div>
-          <h2 className="mb-3 text-lg font-semibold text-neutral-200">報告履歴（{branch}）</h2>
+          <h2 className="mb-3 text-lg font-semibold text-neutral-200">History ({branch})</h2>
           {historyLoading ? (
-            <div className="py-8 text-center text-neutral-500">読み込み中…</div>
+            <div className="py-8 text-center text-neutral-500">Loading…</div>
           ) : history.length === 0 ? (
-            <div className="py-8 text-center text-neutral-500">まだ報告がありません</div>
+            <div className="py-8 text-center text-neutral-500">No reports yet</div>
           ) : (
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border border-neutral-700 bg-neutral-900 text-neutral-400">
-                  <th className="border border-neutral-700 p-2 text-left">日付</th>
-                  <th className="border border-neutral-700 p-2 text-left">シフト</th>
-                  <th className="border border-neutral-700 p-2 text-left">スタッフ</th>
-                  <th className="border border-neutral-700 p-2 text-left">ステータス</th>
-                  <th className="border border-neutral-700 p-2 text-left">提出時刻</th>
+                  <th className="border border-neutral-700 p-2 text-left">Date</th>
+                  <th className="border border-neutral-700 p-2 text-left">Shift</th>
+                  <th className="border border-neutral-700 p-2 text-left">Staff</th>
+                  <th className="border border-neutral-700 p-2 text-left">Status</th>
+                  <th className="border border-neutral-700 p-2 text-left">Submitted</th>
                 </tr>
               </thead>
               <tbody>
@@ -370,7 +393,7 @@ export default function AdminDailyInventoryTab() {
                       </span>
                     </td>
                     <td className="border border-neutral-800 p-2 text-neutral-500">
-                      {r.submitted_at ? new Date(r.submitted_at).toLocaleString("ja-JP") : "—"}
+                      {r.submitted_at ? new Date(r.submitted_at).toLocaleString() : "—"}
                     </td>
                   </tr>
                 ))}
@@ -383,7 +406,7 @@ export default function AdminDailyInventoryTab() {
           <div className="mb-4 rounded-xl border border-neutral-800 bg-neutral-900/50 p-4">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div>
-                <label className="mb-1 block text-xs text-neutral-500">店舗 *</label>
+                <label className="mb-1 block text-xs text-neutral-500">Branch *</label>
                 <select
                   value={branch}
                   onChange={(e) => setBranch(e.target.value)}
@@ -397,7 +420,7 @@ export default function AdminDailyInventoryTab() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs text-neutral-500">日付 *</label>
+                <label className="mb-1 block text-xs text-neutral-500">Date *</label>
                 <input
                   type="date"
                   value={reportDate}
@@ -406,7 +429,7 @@ export default function AdminDailyInventoryTab() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-neutral-500">シフト *</label>
+                <label className="mb-1 block text-xs text-neutral-500">Shift *</label>
                 <select
                   value={shift}
                   onChange={(e) => setShift(e.target.value)}
@@ -420,21 +443,35 @@ export default function AdminDailyInventoryTab() {
                 </select>
               </div>
               <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs text-neutral-500">スタッフ名 *</label>
-                <input
-                  type="text"
-                  value={staffName}
-                  onChange={(e) => setStaffName(e.target.value)}
-                  placeholder="名前を入力"
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white placeholder:text-neutral-600"
-                />
+                <label className="mb-1 block text-xs text-neutral-500">Staff *</label>
+                <select
+                  value={staffChoice}
+                  onChange={(e) => setStaffChoice(e.target.value)}
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+                >
+                  <option value="">— Select —</option>
+                  {STAFF_OPTIONS.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+                {staffChoice === "Other" ? (
+                  <input
+                    type="text"
+                    value={customStaff}
+                    onChange={(e) => setCustomStaff(e.target.value)}
+                    placeholder="Enter name"
+                    className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white placeholder:text-neutral-600"
+                  />
+                ) : null}
               </div>
             </div>
           </div>
 
           {lowItems.length > 0 ? (
             <div className="mb-4 rounded-lg border border-red-500/40 bg-red-950/30 px-3 py-2 text-sm text-red-200">
-              🔴 <strong>LOW 在庫 {lowItems.length}件:</strong> {lowItems.map((i) => i.item_name).join(", ")}
+              🔴 <strong>LOW stock ({lowItems.length}):</strong> {lowItems.map((i) => i.item_name).join(", ")}
             </div>
           ) : null}
 
@@ -449,18 +486,18 @@ export default function AdminDailyInventoryTab() {
                     {sec === "KITCHEN" ? "🍱 Kitchen" : "🧊 CK (Cold Kitchen)"}
                   </h2>
                   <span className="text-xs text-neutral-500">
-                    {filled} / {total} 入力済み
+                    {filled} / {total} filled
                   </span>
                 </div>
                 <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/40">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-neutral-700 bg-neutral-900 text-neutral-400">
-                        <th className="border-b border-neutral-700 p-2 text-left">アイテム</th>
-                        <th className="border-b border-neutral-700 p-2 text-left">数量</th>
-                        <th className="border-b border-neutral-700 p-2 text-left">単位</th>
-                        <th className="border-b border-neutral-700 p-2 text-center">状態</th>
-                        <th className="border-b border-neutral-700 p-2 text-left">備考</th>
+                        <th className="border-b border-neutral-700 p-2 text-left">Item</th>
+                        <th className="border-b border-neutral-700 p-2 text-left">Qty</th>
+                        <th className="border-b border-neutral-700 p-2 text-left">Unit</th>
+                        <th className="border-b border-neutral-700 p-2 text-center">Status</th>
+                        <th className="border-b border-neutral-700 p-2 text-left">Note</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -472,8 +509,7 @@ export default function AdminDailyInventoryTab() {
                               <span className="font-medium text-neutral-100">{item.item_name}</span>
                               {item.par_level !== null ? (
                                 <span className="ml-2 text-xs text-neutral-500">
-                                  Par: {item.par_level}
-                                  {entry.unit}
+                                  Par: {item.par_level} {entry.unit}
                                 </span>
                               ) : null}
                             </td>
@@ -522,15 +558,19 @@ export default function AdminDailyInventoryTab() {
               </div>
             );
           })}
+        </>
+      )}
 
-          <div className="sticky bottom-0 flex justify-end gap-3 border-t border-neutral-800 bg-neutral-950/95 py-4 pt-3 backdrop-blur">
+      {!historyTab ? (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-800 bg-neutral-950/95 px-4 py-3 backdrop-blur [padding-bottom:max(12px,env(safe-area-inset-bottom,0px))]">
+          <div className="mx-auto flex max-w-4xl justify-end gap-3">
             <button
               type="button"
               onClick={() => void doSave(true)}
               disabled={saving}
               className="rounded-lg bg-neutral-800 px-5 py-2 text-sm font-medium text-neutral-200 hover:bg-neutral-700 disabled:opacity-50"
             >
-              {saving ? "保存中…" : "💾 下書き保存"}
+              {saving ? "Saving…" : "💾 Save draft"}
             </button>
             <button
               type="button"
@@ -538,11 +578,11 @@ export default function AdminDailyInventoryTab() {
               disabled={submitting || saving}
               className="rounded-lg bg-violet-600 px-6 py-2 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-50"
             >
-              {submitting ? "提出中…" : "✅ 報告を提出する"}
+              {submitting ? "Submitting…" : "✅ Submit report"}
             </button>
           </div>
-        </>
-      )}
+        </div>
+      ) : null}
     </div>
   );
 }
