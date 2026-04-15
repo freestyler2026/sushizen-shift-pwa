@@ -87,6 +87,7 @@ import NumberOfOrdersTab from "@/components/analytics/dubai/NumberOfOrdersTab";
 import { ManilaOrderCountsTab } from "@/components/analytics/ManilaOrderCountsTab";
 import { ManilaSalesDataTab } from "@/components/analytics/ManilaSalesDataTab";
 import { ManilaCashierEvaluationTab } from "@/components/analytics/ManilaCashierEvaluationTab";
+import { ManilaCancellationsTab } from "@/components/analytics/ManilaCancellationsTab";
 
 // Resolve API base at runtime so local dev always talks to FastAPI directly,
 // even when the page is opened via a LAN IP or a custom local hostname.
@@ -1328,13 +1329,15 @@ const SALES_SECTION_OPTIONS = [
   { value: "manilaLowRatings", label: "Ratings", id: "sales-manila-low-ratings" },
   { value: "manilaSalesData", label: "Sales Data", id: "sales-manila-daily" },
   { value: "manilaCashierEval", label: "Cashier Evaluation", id: "sales-manila-cashier-eval" },
+  { value: "manilaCancellations", label: "Cancellations", id: "sales-manila-cancellations" },
 ] as const;
 const DUBAI_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter(
   (section) =>
     section.value !== "manilaSales" &&
     section.value !== "manilaLowRatings" &&
     section.value !== "manilaSalesData" &&
-    section.value !== "manilaCashierEval",
+    section.value !== "manilaCashierEval" &&
+    section.value !== "manilaCancellations",
 );
 const MANILA_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter(
   (section) =>
@@ -1343,7 +1346,8 @@ const MANILA_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter(
     section.value === "orderCounts" ||
     section.value === "manilaLowRatings" ||
     section.value === "manilaSalesData" ||
-    section.value === "manilaCashierEval",
+    section.value === "manilaCashierEval" ||
+    section.value === "manilaCancellations",
 );
 
 const FINANCE_SECTION_OPTIONS = [
@@ -1970,6 +1974,7 @@ export default function AdminAnalyticsPage() {
     | "manilaLowRatings"
     | "manilaSalesData"
     | "manilaCashierEval"
+    | "manilaCancellations"
     | "all"
   >(
     "summary",
@@ -7263,6 +7268,11 @@ export default function AdminAnalyticsPage() {
                       pin={pin}
                       stepUpReady={salesStepUpReady}
                     />
+                  </div>
+                ) : null}
+                {salesSectionView === "all" || salesSectionView === "manilaCancellations" ? (
+                  <div id="sales-manila-cancellations">
+                    <ManilaCancellationsTab approverName={approverName} pin={pin} stepUpReady={salesStepUpReady} />
                   </div>
                 ) : null}
               </>
