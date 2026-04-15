@@ -323,7 +323,7 @@ export default function AdminDailyInventoryTab() {
   return (
     <div className="mx-auto max-w-4xl space-y-4 p-1">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-zinc-100">Daily Inventory Report</h2>
+        <h2 className="text-lg font-semibold text-zinc-100">Daily Inventory Input</h2>
         <div className="flex gap-2">
           <button
             type="button"

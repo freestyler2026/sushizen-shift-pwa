@@ -82,7 +82,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin", label: "Admin Dashboard", icon: LayoutDashboard, adminOnly: true, match: "exact" },
   { href: "/admin/ratings-entry", label: "Ratings entry", icon: Star, adminOnly: true, match: "exact" },
   { href: "/admin/inventory", label: "Inventory", icon: Package, adminOnly: true, match: "prefix" },
-  { href: "/admin/daily-inventory", label: "Daily Inventory", icon: Warehouse, adminOnly: true, match: "exact" },
+  { href: "/admin/daily-inventory", label: "Daily Inventory Input", icon: Warehouse, adminOnly: true, match: "exact" },
   { href: "/admin/menu", label: "Menu Builder", icon: UtensilsCrossed, adminOnly: true, match: "prefix" },
   { href: "/admin/private-reports", label: "Private Reports", icon: FileBarChart, adminOnly: true, match: "exact" },
   { href: "/admin/procurement", label: "Procurement", icon: Truck, adminOnly: true, match: "prefix" },

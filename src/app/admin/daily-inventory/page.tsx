@@ -40,7 +40,7 @@ export default function AdminDailyInventoryPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className={T_PAGE_TITLE}>Daily Inventory</h1>
+        <h1 className={T_PAGE_TITLE}>Daily Inventory Input</h1>
         <Link href="/admin" className={SMALL_BUTTON}>
           Admin Dashboard
         </Link>

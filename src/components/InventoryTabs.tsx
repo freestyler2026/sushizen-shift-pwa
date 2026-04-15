@@ -22,7 +22,7 @@ import { canAccessCountTemplatesAdmin, canAccessInventoryLimited, getAuth } from
 
 const ITEMS = [
   { href: "/admin/inventory", label: "Overview", icon: LayoutDashboard },
-  { href: "/admin/daily-inventory", label: "Daily Inventory", icon: Warehouse },
+  { href: "/admin/daily-inventory", label: "Daily Inventory Input", icon: Warehouse },
   { href: "/admin/inventory/items", label: "Ingredients / Products", icon: Boxes },
   { href: "/admin/inventory/recipes", label: "Sales Menu BOM", icon: BookOpen },
   { href: "/admin/inventory/count-sheets", label: "Count Templates", icon: ClipboardList },
