@@ -446,6 +446,41 @@ type PosSalesDailyTotals = {
 
 type PosSalesDailyResp = { ok: boolean; items: PosSalesDailyRow[]; totals?: PosSalesDailyTotals };
 
+/** Manila Sales Data tab — manila_daily_sales (Dine-in / GrabFood / FoodPanda). */
+type ManilaDailySalesItem = {
+  sale_date: string;
+  branch: string;
+  dine_in_orders?: number | null;
+  dine_in_amount?: number | null;
+  grabfood_orders?: number | null;
+  grabfood_amount?: number | null;
+  foodpanda_orders?: number | null;
+  foodpanda_amount?: number | null;
+  total_orders?: number | null;
+  total_amount?: number | null;
+};
+
+type ManilaDailySalesApiResp = {
+  ok: boolean;
+  items: ManilaDailySalesItem[];
+  grand_total_orders?: number;
+  grand_total_amount?: number;
+  branches?: string[];
+};
+
+/** When exactly one Manila revenue branch is implied, narrow daily-sales API (matches UI branch filter). */
+function inferManilaDailySalesBranchFromQuestion(question: string): string | null {
+  const q = question.replace(/\u3000/g, " ").trim();
+  const lower = q.toLowerCase();
+  const par = /paranaque|parañaque|para\u00f1aque/i.test(lower) || /パラニャ/.test(q);
+  const taft = /taft|タフト/i.test(lower);
+  const cubao = /cubao|quezon|クバオ/i.test(lower) || /\bqc\b/i.test(lower);
+  if ([par, taft, cubao].filter(Boolean).length !== 1) return null;
+  if (par) return "Paranaque";
+  if (taft) return "Taft";
+  return "Cubao";
+}
+
 type PosMenuRankingRow = {
   item_name: string;
   order_line_count: number;
@@ -4383,26 +4418,41 @@ export default function AdminAnalyticsPage() {
         pin: pinValue,
       });
 
-      const [branchDailyRes, staffSummaryRes, absenceSummaryRes, citySummaryRes, posDailyRes, schedulePolicyRes, posBranchRes] = await Promise.all([
-        tryFetch<BranchDailyResp>("branch_daily_hours", () => apiGet<BranchDailyResp>(`/api/admin/analytics/branch_daily_hours?${commonQs.toString()}`)),
-        tryFetch<StaffSummaryResp>("staff_work_summary", () => apiGet<StaffSummaryResp>(`/api/admin/analytics/staff_work_summary?${staffQs.toString()}`)),
-        tryFetch<AbsenceSummaryResp>("absence_summary", () => apiGet<AbsenceSummaryResp>(`/api/admin/analytics/absence_summary?${commonQs.toString()}&exclude_flexible=true`)),
-        tryFetch<CitySummaryResp>("city_summary", () =>
-          apiGet<CitySummaryResp>(
-            `/api/admin/analytics/city_summary?city=${encodeURIComponent(lowercaseCity)}&date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}&exclude_flexible=true&approver_name=${encodeURIComponent(approver)}&pin=${encodeURIComponent(pinValue)}`
-          )
-        ),
-        tryFetch<PosSalesDailyResp>("pos_sales_daily", () => apiGet<PosSalesDailyResp>(`/api/admin/pos/sales/daily?${commonQs.toString()}`)),
-        tryFetch<AttendanceSchedulePolicyResp>("schedule_policy", () =>
-          apiGet<AttendanceSchedulePolicyResp>(
-            `/api/admin/attendance/schedule-policy?city=${encodeURIComponent(lowercaseCity)}&active_only=true&approver_name=${encodeURIComponent(approver)}&pin=${encodeURIComponent(pinValue)}`
-          )
-        ),
-        // pos_branch_ranking is optional enrichment data — silently ignore errors so missingSources stays clean
-        apiGet<{ ok: boolean; items: { branch_name: string; net_revenue: number; order_count_non_cancelled: number }[] }>(
-          `/api/admin/pos/branches/orders?${commonQs.toString()}&limit=20`
-        ).catch(() => null),
-      ]);
+      const manilaDailyQs = new URLSearchParams({
+        approver_name: approver,
+        pin: pinValue,
+        date_from: dateFrom,
+        date_to: dateTo,
+      });
+      const manilaDailyBranchHint = inferManilaDailySalesBranchFromQuestion(trimmedQ);
+      if (manilaDailyBranchHint) manilaDailyQs.set("branch", manilaDailyBranchHint);
+
+      const [branchDailyRes, staffSummaryRes, absenceSummaryRes, citySummaryRes, posDailyRes, schedulePolicyRes, posBranchRes, manilaDailyRes] =
+        await Promise.all([
+          tryFetch<BranchDailyResp>("branch_daily_hours", () => apiGet<BranchDailyResp>(`/api/admin/analytics/branch_daily_hours?${commonQs.toString()}`)),
+          tryFetch<StaffSummaryResp>("staff_work_summary", () => apiGet<StaffSummaryResp>(`/api/admin/analytics/staff_work_summary?${staffQs.toString()}`)),
+          tryFetch<AbsenceSummaryResp>("absence_summary", () => apiGet<AbsenceSummaryResp>(`/api/admin/analytics/absence_summary?${commonQs.toString()}&exclude_flexible=true`)),
+          tryFetch<CitySummaryResp>("city_summary", () =>
+            apiGet<CitySummaryResp>(
+              `/api/admin/analytics/city_summary?city=${encodeURIComponent(lowercaseCity)}&date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}&exclude_flexible=true&approver_name=${encodeURIComponent(approver)}&pin=${encodeURIComponent(pinValue)}`
+            )
+          ),
+          tryFetch<PosSalesDailyResp>("pos_sales_daily", () => apiGet<PosSalesDailyResp>(`/api/admin/pos/sales/daily?${commonQs.toString()}`)),
+          tryFetch<AttendanceSchedulePolicyResp>("schedule_policy", () =>
+            apiGet<AttendanceSchedulePolicyResp>(
+              `/api/admin/attendance/schedule-policy?city=${encodeURIComponent(lowercaseCity)}&active_only=true&approver_name=${encodeURIComponent(approver)}&pin=${encodeURIComponent(pinValue)}`
+            )
+          ),
+          // pos_branch_ranking is optional enrichment data — silently ignore errors so missingSources stays clean
+          apiGet<{ ok: boolean; items: { branch_name: string; net_revenue: number; order_count_non_cancelled: number }[] }>(
+            `/api/admin/pos/branches/orders?${commonQs.toString()}&limit=20`
+          ).catch(() => null),
+          cityKey === "manila"
+            ? tryFetch<ManilaDailySalesApiResp>("manila_daily_sales", () =>
+                apiGet<ManilaDailySalesApiResp>(`/api/admin/analytics/manila/daily-sales?${manilaDailyQs.toString()}`)
+              )
+            : Promise.resolve(null),
+        ]);
 
       const branchDailyRows = branchDailyRes?.rows || [];
       const staffRows = staffSummaryRes?.rows || [];
@@ -4412,6 +4462,10 @@ export default function AdminAnalyticsPage() {
       rowCounts.staff_work_summary = staffRows.length;
       rowCounts.absence_summary = absenceRows.length;
       rowCounts.pos_sales_daily = posRows.length;
+      if (cityKey === "manila") {
+        const mct = manilaDailyRes?.items;
+        rowCounts.manila_daily_sales = Array.isArray(mct) ? mct.length : 0;
+      }
       rowCounts.city_summary = citySummaryRes ? 1 : 0;
       rowCounts.schedule_policy = Array.isArray(schedulePolicyRes?.items) ? schedulePolicyRes.items.length : 0;
 
@@ -4532,9 +4586,89 @@ export default function AdminAnalyticsPage() {
         .slice(0, 10);
 
       const posTotals = posDailyRes?.totals || null;
-      const netSales = posTotals ? Number(posTotals.net_revenue || 0) : posRows.reduce((sum, row) => sum + Number(row.net_revenue || 0), 0);
-      const orderCount = posTotals ? Number(posTotals.order_count_non_cancelled || 0) : posRows.reduce((sum, row) => sum + Number(row.order_count_non_cancelled || 0), 0);
-      const avgPerOrder = orderCount > 0 ? netSales / orderCount : null;
+      const posNetSales = posTotals ? Number(posTotals.net_revenue || 0) : posRows.reduce((sum, row) => sum + Number(row.net_revenue || 0), 0);
+      const posOrderCount = posTotals
+        ? Number(posTotals.order_count_non_cancelled || 0)
+        : posRows.reduce((sum, row) => sum + Number(row.order_count_non_cancelled || 0), 0);
+
+      const manilaDailyItems =
+        cityKey === "manila" && manilaDailyRes?.ok && Array.isArray(manilaDailyRes.items) ? manilaDailyRes.items : [];
+      const manilaChannelRollup = manilaDailyItems.reduce(
+        (acc, r) => ({
+          dine_in_orders: acc.dine_in_orders + (Number(r.dine_in_orders) || 0),
+          dine_in_amount: acc.dine_in_amount + (Number(r.dine_in_amount) || 0),
+          grabfood_orders: acc.grabfood_orders + (Number(r.grabfood_orders) || 0),
+          grabfood_amount: acc.grabfood_amount + (Number(r.grabfood_amount) || 0),
+          foodpanda_orders: acc.foodpanda_orders + (Number(r.foodpanda_orders) || 0),
+          foodpanda_amount: acc.foodpanda_amount + (Number(r.foodpanda_amount) || 0),
+          total_orders: acc.total_orders + (Number(r.total_orders) || 0),
+          total_amount: acc.total_amount + (Number(r.total_amount) || 0),
+        }),
+        {
+          dine_in_orders: 0,
+          dine_in_amount: 0,
+          grabfood_orders: 0,
+          grabfood_amount: 0,
+          foodpanda_orders: 0,
+          foodpanda_amount: 0,
+          total_orders: 0,
+          total_amount: 0,
+        }
+      );
+      const byBranchAgg = new Map<
+        string,
+        {
+          dine_in_orders: number;
+          dine_in_amount: number;
+          grabfood_orders: number;
+          grabfood_amount: number;
+          foodpanda_orders: number;
+          foodpanda_amount: number;
+          total_orders: number;
+          total_amount: number;
+        }
+      >();
+      for (const r of manilaDailyItems) {
+        const br = String(r.branch || "").trim() || "Unknown";
+        const cur = byBranchAgg.get(br) || {
+          dine_in_orders: 0,
+          dine_in_amount: 0,
+          grabfood_orders: 0,
+          grabfood_amount: 0,
+          foodpanda_orders: 0,
+          foodpanda_amount: 0,
+          total_orders: 0,
+          total_amount: 0,
+        };
+        cur.dine_in_orders += Number(r.dine_in_orders) || 0;
+        cur.dine_in_amount += Number(r.dine_in_amount) || 0;
+        cur.grabfood_orders += Number(r.grabfood_orders) || 0;
+        cur.grabfood_amount += Number(r.grabfood_amount) || 0;
+        cur.foodpanda_orders += Number(r.foodpanda_orders) || 0;
+        cur.foodpanda_amount += Number(r.foodpanda_amount) || 0;
+        cur.total_orders += Number(r.total_orders) || 0;
+        cur.total_amount += Number(r.total_amount) || 0;
+        byBranchAgg.set(br, cur);
+      }
+      const manila_daily_sales_by_branch = Array.from(byBranchAgg.entries())
+        .map(([branch, v]) => ({ branch, ...v }))
+        .sort((a, b) => b.total_amount - a.total_amount);
+
+      const grandOrders =
+        manilaDailyRes?.grand_total_orders != null && !Number.isNaN(Number(manilaDailyRes.grand_total_orders))
+          ? Number(manilaDailyRes.grand_total_orders)
+          : manilaChannelRollup.total_orders;
+      const grandAmount =
+        manilaDailyRes?.grand_total_amount != null && !Number.isNaN(Number(manilaDailyRes.grand_total_amount))
+          ? Number(manilaDailyRes.grand_total_amount)
+          : manilaChannelRollup.total_amount;
+
+      const hasManilaDailySalesContext =
+        cityKey === "manila" && manilaDailyRes != null && manilaDailyRes.ok === true;
+      const primaryNetSales = hasManilaDailySalesContext ? grandAmount : posNetSales;
+      const primaryOrderCount = hasManilaDailySalesContext ? grandOrders : posOrderCount;
+      const avgPerOrder = primaryOrderCount > 0 ? primaryNetSales / primaryOrderCount : null;
+      const hasPrimarySalesMetrics = hasManilaDailySalesContext || !!posDailyRes;
 
       // Pre-compute branch-level sales efficiency using server-side accurate join
       // (replaces client-side fuzzy matching which was unreliable).
@@ -4594,9 +4728,40 @@ export default function AdminAnalyticsPage() {
             ? `${staffRows[0].staff_name} (${Number(staffRows[0].total_hours || 0).toFixed(1)}h)`
             : null,
           branch_totals: branchTotals,
-          net_sales: posDailyRes ? Number(netSales || 0).toFixed(2) : null,
-          order_count: posDailyRes ? Number(orderCount || 0) : null,
-          avg_per_order: posDailyRes && avgPerOrder != null ? Number(avgPerOrder).toFixed(2) : null,
+          // Manila: primary = manila_daily_sales (same API as Sales Data Manila tab). Dubai: POS daily.
+          net_sales: hasPrimarySalesMetrics ? Number(primaryNetSales || 0).toFixed(2) : null,
+          order_count: hasPrimarySalesMetrics ? primaryOrderCount : null,
+          avg_per_order: hasPrimarySalesMetrics && avgPerOrder != null ? Number(avgPerOrder).toFixed(2) : null,
+          ...(cityKey === "manila"
+            ? {
+                manila_daily_sales_api: "/api/admin/analytics/manila/daily-sales",
+                manila_daily_sales_focus_branch: manilaDailyBranchHint || "all_branches",
+                manila_daily_sales_orders: hasManilaDailySalesContext ? grandOrders : null,
+                manila_daily_sales_amount_php: hasManilaDailySalesContext ? Number(grandAmount.toFixed(2)) : null,
+                manila_channel_dine_in_orders: hasManilaDailySalesContext ? manilaChannelRollup.dine_in_orders : null,
+                manila_channel_dine_in_amount_php: hasManilaDailySalesContext ? Number(manilaChannelRollup.dine_in_amount.toFixed(2)) : null,
+                manila_channel_grabfood_orders: hasManilaDailySalesContext ? manilaChannelRollup.grabfood_orders : null,
+                manila_channel_grabfood_amount_php: hasManilaDailySalesContext ? Number(manilaChannelRollup.grabfood_amount.toFixed(2)) : null,
+                manila_channel_foodpanda_orders: hasManilaDailySalesContext ? manilaChannelRollup.foodpanda_orders : null,
+                manila_channel_foodpanda_amount_php: hasManilaDailySalesContext ? Number(manilaChannelRollup.foodpanda_amount.toFixed(2)) : null,
+                manila_daily_sales_by_branch:
+                  hasManilaDailySalesContext && manila_daily_sales_by_branch.length > 0 ? manila_daily_sales_by_branch : null,
+                pos_sales_daily_manila_rollup: posDailyRes
+                  ? {
+                      net_revenue_php: Number(posNetSales).toFixed(2),
+                      order_count: posOrderCount,
+                      note: "Manila POS daily rollup (/api/admin/pos/sales/daily); not used for Dine-in/GrabFood/FoodPanda channel KPIs. Prefer manila_daily_sales_* and net_sales/order_count above when manila_daily_sales loaded.",
+                    }
+                  : null,
+                sales_kpi_basis: hasManilaDailySalesContext
+                  ? "manila_daily_sales (GET /api/admin/analytics/manila/daily-sales; same as Sales Data Manila tab)"
+                  : posDailyRes
+                    ? "pos_sales_daily (fallback; manila_daily_sales missing)"
+                    : null,
+                branch_efficiency_numerator_note:
+                  "branch_efficiency uses POS/location net revenue ÷ attendance hours; may differ from manila_daily_sales channel totals — explain separately when both appear.",
+              }
+            : {}),
           pos_revenue_branch_count: branchEfficiency.length > 0 ? branchEfficiency.length : (posBranchRes?.items ? posBranchRes.items.filter((r) => Number(r.net_revenue) > 0).length : null),
           pos_branch_ranking: posBranchRes?.items
             ? posBranchRes.items
@@ -4649,6 +4814,18 @@ export default function AdminAnalyticsPage() {
           truncated,
           row_counts: rowCounts,
           has_core_data: hasCoreData,
+          ...(cityKey === "manila"
+            ? {
+                kpi_lineage: {
+                  channel_orders_revenue_primary: "manila_daily_sales → GET /api/admin/analytics/manila/daily-sales",
+                  pos_daily_rollup_supplementary: posDailyRes
+                    ? "pos_sales_daily (Manila POS rollup; not channel KPI source)"
+                    : "pos_sales_daily not loaded",
+                  per_labor_hour_efficiency: "branch_efficiency API (POS/location net ÷ labor hours)",
+                  server_enrichment_sell_thru: "manila_sales_summary (get_manila_sales_overview) in formatted context — distinct from manila_daily_sales",
+                },
+              }
+            : {}),
         },
       };
     };
@@ -4709,6 +4886,11 @@ export default function AdminAnalyticsPage() {
         acc[r.city] = r.data_quality.row_counts || {};
         return acc;
       }, {});
+      const kpiLineageByCity = cityResults.reduce<Record<string, unknown>>((acc, r) => {
+        const kl = (r.data_quality as { kpi_lineage?: unknown }).kpi_lineage;
+        if (kl && typeof kl === "object") acc[r.city] = kl;
+        return acc;
+      }, {});
       const primaryCityContext = cityResults[0]?.metrics || {};
       const contextPayload = {
         ...primaryCityContext,
@@ -4726,6 +4908,7 @@ export default function AdminAnalyticsPage() {
           missing_sources: missingSourcesAll,
           truncated: truncatedAny,
           row_counts: rowCountsByCity,
+          ...(Object.keys(kpiLineageByCity).length > 0 ? { kpi_lineage_by_city: kpiLineageByCity } : {}),
         },
       };
       const currentAuth = getAuth();
