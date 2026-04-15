@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
@@ -330,6 +330,37 @@ export default function AdminDailyInventoryTab() {
     return !Number.isNaN(num) && item.min_level !== null && num < item.min_level;
   });
 
+  /** Dock Entry/History below real header height (avoids overlap with z-50 nav stealing taps). */
+  const toolbarDockRef = useRef<HTMLDivElement>(null);
+  const [toolbarTopPx, setToolbarTopPx] = useState(88);
+  const [toolbarHeightPx, setToolbarHeightPx] = useState(64);
+
+  useLayoutEffect(() => {
+    if (submitted) return;
+    const measureTop = () => {
+      const header = document.querySelector("header");
+      const bottom = header?.getBoundingClientRect().bottom;
+      setToolbarTopPx(typeof bottom === "number" ? Math.ceil(bottom) + 2 : 88);
+    };
+    const measureHeight = () => {
+      const el = toolbarDockRef.current;
+      if (el) setToolbarHeightPx(Math.max(48, Math.ceil(el.getBoundingClientRect().height)));
+    };
+    const run = () => {
+      measureTop();
+      requestAnimationFrame(() => {
+        measureHeight();
+      });
+    };
+    run();
+    window.addEventListener("resize", run);
+    window.addEventListener("scroll", run, true);
+    return () => {
+      window.removeEventListener("resize", run);
+      window.removeEventListener("scroll", run, true);
+    };
+  }, [submitted, historyTab]);
+
   if (submitted) {
     return (
       <div className="mx-auto flex max-w-4xl flex-col items-center justify-center gap-4 py-20">
@@ -355,20 +386,56 @@ export default function AdminDailyInventoryTab() {
     );
   }
 
-  /** Sticky below LayoutShell header (~h-11 + border + h-10) so Entry/History stay tappable when scrolled. */
-  const subnavStickyClass =
-    "sticky z-30 -mx-4 mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-neutral-800/80 bg-neutral-950/95 px-4 py-2 backdrop-blur pointer-events-auto sm:-mx-0 sm:px-0 top-[5.5rem]";
+  const toolbarPortal =
+    typeof document !== "undefined" && !submitted
+      ? createPortal(
+          <div
+            ref={toolbarDockRef}
+            className="fixed inset-x-0 z-[45] border-b border-neutral-800 bg-neutral-950/98 shadow-md [touch-action:manipulation] pointer-events-auto"
+            style={{ top: toolbarTopPx }}
+          >
+            <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-2 sm:px-6">
+              <h1 className="text-xl font-bold text-neutral-100 sm:text-2xl">📦 Daily Inventory Report</h1>
+              <div className="flex shrink-0 gap-2" role="tablist" aria-label="Report view">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={!historyTab}
+                  onClick={() => setHistoryTab(false)}
+                  className={`touch-manipulation rounded-lg px-4 py-2 text-sm font-medium sm:py-1.5 ${
+                    !historyTab ? "bg-violet-600 text-white" : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                  }`}
+                >
+                  Entry
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={historyTab}
+                  onClick={() => setHistoryTab(true)}
+                  className={`touch-manipulation rounded-lg px-4 py-2 text-sm font-medium sm:py-1.5 ${
+                    historyTab ? "bg-violet-600 text-white" : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                  }`}
+                >
+                  History
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
 
   const actionBar =
     typeof document !== "undefined" && !historyTab
       ? createPortal(
-          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-800 bg-neutral-950/95 px-4 py-3 backdrop-blur [padding-bottom:max(12px,env(safe-area-inset-bottom,0px))] pointer-events-auto">
+          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-800 bg-neutral-950/95 px-4 py-3 backdrop-blur [padding-bottom:max(12px,env(safe-area-inset-bottom,0px))] pointer-events-auto [touch-action:manipulation]">
             <div className="mx-auto flex max-w-4xl justify-end gap-3">
               <button
                 type="button"
                 onClick={() => void doSave(true)}
                 disabled={saving}
-                className="rounded-lg bg-neutral-800 px-5 py-2 text-sm font-medium text-neutral-200 hover:bg-neutral-700 disabled:opacity-50"
+                className="touch-manipulation rounded-lg bg-neutral-800 px-5 py-2 text-sm font-medium text-neutral-200 hover:bg-neutral-700 disabled:opacity-50"
               >
                 {saving ? "Saving…" : "💾 Save draft"}
               </button>
@@ -376,7 +443,7 @@ export default function AdminDailyInventoryTab() {
                 type="button"
                 onClick={() => void handleSubmit()}
                 disabled={submitting || saving}
-                className="rounded-lg bg-violet-600 px-6 py-2 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-50"
+                className="touch-manipulation rounded-lg bg-violet-600 px-6 py-2 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-50"
               >
                 {submitting ? "Submitting…" : "✅ Submit report"}
               </button>
@@ -388,33 +455,8 @@ export default function AdminDailyInventoryTab() {
 
   return (
     <div className="relative mx-auto max-w-4xl pb-28 text-white">
-      <div className={subnavStickyClass}>
-        <h1 className="text-2xl font-bold text-neutral-100">📦 Daily Inventory Report</h1>
-        <div className="flex shrink-0 gap-2" role="tablist" aria-label="Report view">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={!historyTab}
-            onClick={() => setHistoryTab(false)}
-            className={`rounded-lg px-4 py-1.5 text-sm font-medium ${
-              !historyTab ? "bg-violet-600 text-white" : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
-            }`}
-          >
-            Entry
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={historyTab}
-            onClick={() => setHistoryTab(true)}
-            className={`rounded-lg px-4 py-1.5 text-sm font-medium ${
-              historyTab ? "bg-violet-600 text-white" : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
-            }`}
-          >
-            History
-          </button>
-        </div>
-      </div>
+      <div aria-hidden className="w-full" style={{ height: toolbarHeightPx }} />
+      {toolbarPortal}
 
       {error ? (
         <div className="mb-3 rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-sm text-red-200">{error}</div>
