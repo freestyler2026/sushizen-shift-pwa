@@ -30,6 +30,7 @@ import ManilaOfflineOrderEntryTab from "@/components/admin/ManilaOfflineOrderEnt
 import AdminSalesDataInputTab from "@/components/admin/AdminSalesDataInputTab";
 import AdminCashierEvalInputTab from "@/components/admin/AdminCashierEvalInputTab";
 import AdminCancellationInputTab from "@/components/admin/AdminCancellationInputTab";
+import AdminDailyInventoryTab from "@/components/admin/AdminDailyInventoryTab";
 import AdminDubaiCancellationInputTab from "@/components/admin/AdminDubaiCancellationInputTab";
 import AIAnalyticsProTab from "@/components/admin/AIAnalyticsProTab";
 import { RatingEntryTab } from "@/components/admin/RatingEntryTab";
@@ -68,6 +69,7 @@ type AdminDashView =
   | "ratingEntry"
   | "salesDataInput"
   | "cashierEvalInput"
+  | "dailyInventory"
   | "cancellationInput"
   | "dubaiCancellationInput"
   | "aiAnalyticsPro";
@@ -82,6 +84,7 @@ const ADMIN_DASH_TABS = [
   { view: "ratingEntry" as const, label: "Ratings Input", icon: "⭐", tabQuery: "ratings-entry" },
   { view: "salesDataInput" as const, label: "Sales Data Input", icon: "✏️", tabQuery: "sales-data-input" },
   { view: "cashierEvalInput" as const, label: "Cashier Eval Input", icon: "🧾", tabQuery: "cashier-eval-input" },
+  { view: "dailyInventory" as const, label: "Daily Inventory", icon: "🧺", tabQuery: "daily-inventory" },
   { view: "cancellationInput" as const, label: "Cancellation Input", icon: "🚫", tabQuery: "cancellation-input" },
   { view: "dubaiCancellationInput" as const, label: "Dubai Cancellation", icon: "🇦🇪", tabQuery: "dubai-cancellation-input" },
   { view: "aiAnalyticsPro" as const, label: "AI Analytics Pro", icon: "🤖", tabQuery: "ai-analytics-pro" },
@@ -1165,6 +1168,8 @@ function AdminPageInner() {
         <AdminSalesDataInputTab />
       ) : dashView === "cashierEvalInput" ? (
         <AdminCashierEvalInputTab />
+      ) : dashView === "dailyInventory" ? (
+        <AdminDailyInventoryTab />
       ) : dashView === "cancellationInput" ? (
         <AdminCancellationInputTab />
       ) : dashView === "dubaiCancellationInput" ? (
