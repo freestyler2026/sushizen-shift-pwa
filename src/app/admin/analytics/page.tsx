@@ -30,6 +30,18 @@ import {
   TrendingUp,
 } from "lucide-react";
 import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
   canViewManagementPl,
   canViewSalesAnalytics,
   clearStepUpAuth,
@@ -673,6 +685,23 @@ type PosCancelOrdersResp = {
   platform_rows: PosCancelPlatformRow[];
   daily_rows: PosCancelDailyRow[];
 };
+
+/** Dubai Cancel Orders tab — chart colors (Careem / Talabat / Keeta). */
+const CANCEL_ORDERS_PLATFORM_META: Record<string, { color: string; bg: string; ring: string; dot: string }> = {
+  Careem: { color: "#10b981", bg: "bg-emerald-500/10", ring: "ring-emerald-500/30", dot: "bg-emerald-400" },
+  Talabat: { color: "#ef4444", bg: "bg-red-500/10", ring: "ring-red-500/30", dot: "bg-red-400" },
+  Keeta: { color: "#f97316", bg: "bg-orange-500/10", ring: "ring-orange-500/30", dot: "bg-orange-400" },
+};
+
+const CANCEL_ORDERS_ORDER_TYPE_COLORS = ["#ef4444", "#f97316"] as const;
+
+function cancelOrdersInferPlatformFromSource(source: string): string | null {
+  const x = source || "";
+  if (/\bCareem\b/i.test(x)) return "Careem";
+  if (/\bKeeta\b/i.test(x)) return "Keeta";
+  if (/\bTalabat\b/i.test(x)) return "Talabat";
+  return null;
+}
 
 type EvaluationSection = {
   section_key: string;
@@ -2027,6 +2056,13 @@ export default function AdminAnalyticsPage() {
   const [, setPosBranchDailyRows] = useState<PosBranchDailyRow[]>([]);
   const [cancelOrdersAnalytics, setCancelOrdersAnalytics] = useState<PosCancelOrdersResp | null>(null);
   const [cancelOrdersLoadError, setCancelOrdersLoadError] = useState("");
+  const [cancelOrdersPeriod, setCancelOrdersPeriod] = useState<"7D" | "14D" | "30D" | "ALL">("ALL");
+  const [cancelOrdersTableBrandFilter, setCancelOrdersTableBrandFilter] = useState<"ALL" | string>("ALL");
+  const [cancelOrdersTablePlatformFilter, setCancelOrdersTablePlatformFilter] = useState<"ALL" | string>("ALL");
+  const [cancelOrdersTableSortCol, setCancelOrdersTableSortCol] = useState<"date" | "brand" | "lostOrders" | "lostRevenue">(
+    "date",
+  );
+  const [cancelOrdersTableSortDir, setCancelOrdersTableSortDir] = useState<"asc" | "desc">("desc");
   const [hourlySalesAnalytics, setHourlySalesAnalytics] = useState<HourlySalesAnalyticsResp | null>(null);
   const [hourlyLoadError, setHourlyLoadError] = useState("");
   const [operationTimeAnalytics, setOperationTimeAnalytics] = useState<OperationTimeResp | null>(null);
@@ -4957,6 +4993,108 @@ export default function AdminAnalyticsPage() {
     };
   }, [cancelOrdersAnalytics]);
 
+  const cancelOrdersKpi = useMemo(
+    () => ({
+      lostOrders: cancelOrderSummary.lostOrderCount,
+      lostRevenue: cancelOrderSummary.lostRevenue,
+      daysWithData: cancelOrderSummary.dayCount,
+      cancelTypes: cancelOrderSummary.orderTypeCount,
+      platforms: cancelOrderSummary.platformCount,
+    }),
+    [cancelOrderSummary],
+  );
+
+  const cancelOrdersUiPlatforms = useMemo(() => {
+    return (cancelOrdersAnalytics?.platform_rows || []).map((p) => ({
+      platform: p.platform_name || "Unknown",
+      lostOrders: Number(p.lost_order_count || 0),
+      platformPre: Number(p.platform_pre_ack || 0),
+      platformPost: Number(p.platform_post_ack || 0),
+      merchantPre: Number(p.merchant_pre_ack || 0),
+      merchantPost: Number(p.merchant_post_ack || 0),
+    }));
+  }, [cancelOrdersAnalytics?.platform_rows]);
+
+  const cancelOrdersUiOrderTypes = useMemo(() => {
+    return (cancelOrdersAnalytics?.order_type_rows || []).map((t) => ({
+      type: t.order_type || "Unknown",
+      lostOrders: Number(t.lost_order_count || 0),
+      lostRevenue: Number(t.lost_revenue || 0),
+    }));
+  }, [cancelOrdersAnalytics?.order_type_rows]);
+
+  const cancelOrdersUiTableBaseRows = useMemo(() => {
+    return (cancelOrdersAnalytics?.daily_rows || []).map((r) => ({
+      date: String(r.work_date || "").slice(0, 10),
+      brand: String(r.brand_name || "").trim() || "—",
+      lostOrders: Number(r.lost_order_count || 0),
+      lostRevenue: Number(r.lost_revenue || 0),
+      sourceFile: String(r.source_file_name || ""),
+    }));
+  }, [cancelOrdersAnalytics?.daily_rows]);
+
+  const cancelOrdersPeriodCutoffIso = useMemo(() => {
+    if (cancelOrdersPeriod === "ALL") return "";
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const days = cancelOrdersPeriod === "7D" ? 7 : cancelOrdersPeriod === "14D" ? 14 : 30;
+    const d = new Date();
+    const t = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    t.setDate(t.getDate() - (days - 1));
+    return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`;
+  }, [cancelOrdersPeriod]);
+
+  const cancelOrdersBrandOptions = useMemo(() => {
+    return Array.from(new Set(cancelOrdersUiTableBaseRows.map((r) => r.brand))).sort();
+  }, [cancelOrdersUiTableBaseRows]);
+
+  const cancelOrdersPlatformChartData = useMemo(() => {
+    return cancelOrdersUiPlatforms.map((p) => ({
+      name: p.platform,
+      lostOrders: p.lostOrders,
+      platformPre: p.platformPre,
+      platformPost: p.platformPost,
+      merchantPre: p.merchantPre,
+      fill: CANCEL_ORDERS_PLATFORM_META[p.platform]?.color ?? "#6366f1",
+    }));
+  }, [cancelOrdersUiPlatforms]);
+
+  const cancelOrdersOrderTypePieData = useMemo(() => {
+    return cancelOrdersUiOrderTypes.map((t, i) => ({
+      name: t.type,
+      value: t.lostOrders,
+      revenue: t.lostRevenue,
+      fill: CANCEL_ORDERS_ORDER_TYPE_COLORS[i % CANCEL_ORDERS_ORDER_TYPE_COLORS.length] ?? "#8b5cf6",
+    }));
+  }, [cancelOrdersUiOrderTypes]);
+
+  const cancelOrdersFilteredTableRows = useMemo(() => {
+    let rows = [...cancelOrdersUiTableBaseRows];
+    if (cancelOrdersPeriodCutoffIso) {
+      rows = rows.filter((r) => r.date >= cancelOrdersPeriodCutoffIso);
+    }
+    if (cancelOrdersTableBrandFilter !== "ALL") {
+      rows = rows.filter((r) => r.brand === cancelOrdersTableBrandFilter);
+    }
+    if (cancelOrdersTablePlatformFilter !== "ALL") {
+      rows = rows.filter((r) => cancelOrdersInferPlatformFromSource(r.sourceFile) === cancelOrdersTablePlatformFilter);
+    }
+    const dir = cancelOrdersTableSortDir === "asc" ? 1 : -1;
+    rows.sort((a, b) => {
+      if (cancelOrdersTableSortCol === "date") return dir * a.date.localeCompare(b.date);
+      if (cancelOrdersTableSortCol === "brand") return dir * a.brand.localeCompare(b.brand);
+      if (cancelOrdersTableSortCol === "lostOrders") return dir * (a.lostOrders - b.lostOrders);
+      return dir * (a.lostRevenue - b.lostRevenue);
+    });
+    return rows;
+  }, [
+    cancelOrdersUiTableBaseRows,
+    cancelOrdersPeriodCutoffIso,
+    cancelOrdersTableBrandFilter,
+    cancelOrdersTablePlatformFilter,
+    cancelOrdersTableSortCol,
+    cancelOrdersTableSortDir,
+  ]);
+
   const hourlyTrendMaxOrders = useMemo(() => {
     return Math.max(...(hourlySalesAnalytics?.rows || []).map((row) => Number(row.order_count_non_cancelled || 0)), 1);
   }, [hourlySalesAnalytics?.rows]);
@@ -7002,160 +7140,403 @@ export default function AdminAnalyticsPage() {
 
             {salesSectionView === "all" || salesSectionView === "cancelOrders" ? (
             <div id="sales-cancel-orders" className={GLASS_CARD + " p-5"}>
-              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <div className="mb-1 flex items-center gap-2">
-                    <Table2 className="h-4 w-4 text-violet-400" />
-                    <h2 className={SECTION_TITLE}>Cancel Orders</h2>
+              <div className="space-y-6 p-0.5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h2 className="flex items-center gap-2 text-xl font-semibold text-white">
+                      <span className="text-2xl" aria-hidden>
+                        🚫
+                      </span>
+                      Cancel Orders
+                    </h2>
+                    <p className={`${T_CAPTION} mt-0.5`}>
+                      UrbanPiper lost-order CSVs (POS sync) plus Dubai aggregator cancellations (Careem / Keeta / Talabat).
+                      KPIs follow <strong className="text-zinc-300">Summary Range</strong> above; table can narrow by period.
+                    </p>
+                    <p className={`${T_CAPTION} mt-1`}>
+                      API scope — Brand: <span className="text-zinc-300">{summaryBrandName || "All Brands"}</span>
+                    </p>
                   </div>
-                  <div className={T_CAPTION}>
-                    UrbanPiper lost-order CSVs (POS sync) plus Dubai aggregator cancellation/refund records (Careem / Keeta /
-                    Talabat) for the same summary range and brand scope.
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    <span className={`${T_CAPTION} mr-1 hidden sm:inline`}>Table period</span>
+                    <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
+                      {(["7D", "14D", "30D", "ALL"] as const).map((p) => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => setCancelOrdersPeriod(p)}
+                          className={`rounded-md px-3 py-1 text-xs font-medium transition-all ${
+                            cancelOrdersPeriod === p
+                              ? "bg-red-500/80 text-white shadow"
+                              : "text-white/50 hover:text-white/80"
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-                <div className={T_CAPTION}>
-                  Scope: <span className="text-zinc-300">{summaryBrandName || "All Brands"}</span>
-                </div>
-              </div>
 
-              {cancelOrdersLoadError ? (
-                <div className={`${BADGE_WARNING} mb-3 px-3 py-2 text-xs whitespace-pre-wrap`}>
-                  Cancel orders API: {cancelOrdersLoadError}
-                </div>
-              ) : null}
+                {cancelOrdersLoadError ? (
+                  <div className={`${BADGE_WARNING} px-3 py-2 text-xs whitespace-pre-wrap`}>
+                    Cancel orders API: {cancelOrdersLoadError}
+                  </div>
+                ) : null}
 
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                  <div className="min-h-[32px] text-xs text-neutral-500">Lost Orders</div>
-                  <MetricValue className={SALES_NUMERIC_VALUE} value={cancelOrderSummary.lostOrderCount} />
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                  {[
+                    {
+                      label: "Lost Orders",
+                      value: formatCount(cancelOrdersKpi.lostOrders),
+                      icon: "🚫",
+                      accent: "text-red-400",
+                      sub: "total",
+                    },
+                    {
+                      label: "Lost Revenue",
+                      value: `AED ${formatDecimal(cancelOrdersKpi.lostRevenue)}`,
+                      icon: "💸",
+                      accent: "text-orange-400",
+                      sub: "at risk",
+                    },
+                    {
+                      label: "Days w/ Data",
+                      value: formatCount(cancelOrdersKpi.daysWithData),
+                      icon: "📅",
+                      accent: "text-sky-400",
+                      sub: "tracked",
+                    },
+                    {
+                      label: "Cancel Types",
+                      value: formatCount(cancelOrdersKpi.cancelTypes),
+                      icon: "🏷️",
+                      accent: "text-violet-400",
+                      sub: "categories",
+                    },
+                    {
+                      label: "Platforms",
+                      value: formatCount(cancelOrdersKpi.platforms),
+                      icon: "📱",
+                      accent: "text-emerald-400",
+                      sub: "active",
+                    },
+                  ].map(({ label, value, icon, accent, sub }) => (
+                    <div
+                      key={label}
+                      className="flex flex-col gap-1 rounded-xl border border-white/10 bg-white/5 p-4 transition-colors hover:bg-white/[0.08]"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs uppercase tracking-wider text-white/40">{label}</span>
+                        <span className="text-lg" aria-hidden>
+                          {icon}
+                        </span>
+                      </div>
+                      <p className={`text-2xl font-bold tabular-nums ${accent}`}>{value}</p>
+                      <p className="text-xs text-white/30">{sub}</p>
+                    </div>
+                  ))}
                 </div>
-                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                  <div className="min-h-[32px] text-xs text-neutral-500">Lost Revenue</div>
-                  <MetricValue className={SALES_NUMERIC_VALUE} value={cancelOrderSummary.lostRevenue} />
-                </div>
-                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                  <div className="min-h-[32px] text-xs text-neutral-500">Days w/ data</div>
-                  <MetricValue className={SALES_NUMERIC_VALUE} value={cancelOrderSummary.dayCount} />
-                </div>
-                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                  <div className="min-h-[32px] text-xs text-neutral-500">Cancel types</div>
-                  <MetricValue className={SALES_NUMERIC_VALUE} value={cancelOrderSummary.orderTypeCount} />
-                </div>
-                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                  <div className="min-h-[32px] text-xs text-neutral-500">Platforms</div>
-                  <MetricValue className={SALES_NUMERIC_VALUE} value={cancelOrderSummary.platformCount} />
-                </div>
-              </div>
 
-              {salesCity === "dubai" &&
-              !cancelOrderSummary.lostOrderCount &&
-              !cancelOrderSummary.lostRevenue ? (
-                <p className={`${T_CAPTION} mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-amber-100/95`}>
-                  No cancel rows for{" "}
-                  <strong className="text-zinc-100">
-                    {summaryDateFrom} → {summaryDateTo}
-                  </strong>
-                  . Widen <strong className="text-zinc-200">Summary Range</strong> to include your incident dates, or import
-                  under <strong className="text-zinc-200">Admin → Dubai Cancellation</strong>.
-                </p>
-              ) : null}
+                {salesCity === "dubai" &&
+                !cancelOrderSummary.lostOrderCount &&
+                !cancelOrderSummary.lostRevenue ? (
+                  <p
+                    className={`${T_CAPTION} rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-amber-100/95`}
+                  >
+                    No cancel rows for{" "}
+                    <strong className="text-zinc-100">
+                      {summaryDateFrom} → {summaryDateTo}
+                    </strong>
+                    . Widen <strong className="text-zinc-200">Summary Range</strong>, or import under{" "}
+                    <strong className="text-zinc-200">Admin → Dubai Cancellation</strong>.
+                  </p>
+                ) : null}
 
-              <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
-                <div className="overflow-hidden rounded-2xl border border-white/8 bg-white/5 p-3">
-                  <div className="mb-2 text-sm font-semibold text-white">Order Type Summary</div>
-                  <table className="min-w-full text-left text-sm">
-                    <thead className="bg-white/3">
-                      <tr>
-                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Type</th>
-                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Lost Orders</th>
-                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Lost Revenue</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(cancelOrdersAnalytics?.order_type_rows || []).map((row, idx) => (
-                        <tr key={`${row.order_type}-${idx}`} className={TABLE_ROW}>
-                          <td className={TABLE_CELL + " px-4"}>{row.order_type}</td>
-                          <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatCount(Number(row.lost_order_count || 0))}</td>
-                          <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatMoney(Number(row.lost_revenue || 0))}</td>
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-5 lg:col-span-3">
+                    <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white/70">Platform Breakdown</h3>
+                    {cancelOrdersPlatformChartData.length ? (
+                      <>
+                        <div className="mb-5 flex flex-wrap gap-3">
+                          {cancelOrdersPlatformChartData.map((p) => {
+                            const meta = CANCEL_ORDERS_PLATFORM_META[p.name];
+                            return (
+                              <div
+                                key={p.name}
+                                className={`min-w-[100px] flex-1 rounded-lg p-3 ring-1 ${meta?.bg ?? "bg-white/5"} ${meta?.ring ?? "ring-white/15"}`}
+                              >
+                                <div className="mb-2 flex items-center gap-1.5">
+                                  <span className={`h-2 w-2 rounded-full ${meta?.dot ?? "bg-zinc-400"}`} />
+                                  <span className="text-xs font-medium text-white/80">{p.name}</span>
+                                </div>
+                                <p className="text-2xl font-bold text-white tabular-nums">{formatCount(p.lostOrders)}</p>
+                                <p className="mt-0.5 text-xs text-white/40">lost orders</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="h-44 w-full min-w-0">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              data={cancelOrdersPlatformChartData}
+                              layout="vertical"
+                              margin={{ top: 0, right: 16, bottom: 0, left: 8 }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" horizontal={false} />
+                              <XAxis
+                                type="number"
+                                tick={{ fill: "rgba(255,255,255,0.4)", fontSize: 11 }}
+                                axisLine={false}
+                                tickLine={false}
+                              />
+                              <YAxis
+                                type="category"
+                                dataKey="name"
+                                tick={{ fill: "rgba(255,255,255,0.6)", fontSize: 12 }}
+                                axisLine={false}
+                                tickLine={false}
+                                width={72}
+                              />
+                              <Tooltip
+                                contentStyle={{
+                                  backgroundColor: "#1e293b",
+                                  border: "1px solid rgba(255,255,255,0.1)",
+                                  borderRadius: 8,
+                                  color: "#fff",
+                                  fontSize: 12,
+                                }}
+                                cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                              />
+                              <Bar dataKey="lostOrders" name="Lost orders" radius={[0, 4, 4, 0]}>
+                                {cancelOrdersPlatformChartData.map((entry) => (
+                                  <Cell key={entry.name} fill={entry.fill} />
+                                ))}
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="mt-4 overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="border-b border-white/10">
+                                {["Platform", "Platform Pre", "Platform Post", "Merchant Pre"].map((h) => (
+                                  <th key={h} className="pb-2 pr-4 text-left font-medium text-white/40">
+                                    {h}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {cancelOrdersUiPlatforms.map((p) => {
+                                const meta = CANCEL_ORDERS_PLATFORM_META[p.platform];
+                                return (
+                                  <tr key={p.platform} className="border-b border-white/5 hover:bg-white/5">
+                                    <td className="py-2 pr-4">
+                                      <span className="inline-flex items-center gap-1.5 font-medium text-white/80">
+                                        <span className={`h-2 w-2 rounded-full ${meta?.dot ?? "bg-zinc-400"}`} />
+                                        {p.platform}
+                                      </span>
+                                    </td>
+                                    <td className="py-2 pr-4 text-white/60 tabular-nums">{formatCount(p.platformPre)}</td>
+                                    <td className="py-2 pr-4 text-white/60 tabular-nums">{formatCount(p.platformPost)}</td>
+                                    <td className="py-2 pr-4 text-white/60 tabular-nums">{formatCount(p.merchantPre)}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="py-8 text-center text-sm text-white/35">No platform breakdown data</p>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-5 lg:col-span-2">
+                    <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white/70">Order Types</h3>
+                    {cancelOrdersOrderTypePieData.length ? (
+                      <>
+                        <div className="h-44 w-full min-w-0">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={cancelOrdersOrderTypePieData}
+                                dataKey="value"
+                                nameKey="name"
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={48}
+                                outerRadius={72}
+                                paddingAngle={3}
+                              >
+                                {cancelOrdersOrderTypePieData.map((entry) => (
+                                  <Cell key={entry.name} fill={entry.fill} />
+                                ))}
+                              </Pie>
+                              <Tooltip
+                                contentStyle={{
+                                  backgroundColor: "#1e293b",
+                                  border: "1px solid rgba(255,255,255,0.1)",
+                                  borderRadius: 8,
+                                  color: "#fff",
+                                  fontSize: 12,
+                                }}
+                                formatter={(val, _name, item) => {
+                                  const payload = item?.payload as { revenue?: number; name?: string } | undefined;
+                                  const rev = Number(payload?.revenue || 0);
+                                  return [`${val} orders (AED ${formatDecimal(rev)})`, String(payload?.name ?? "")];
+                                }}
+                              />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="mt-4 space-y-3">
+                          {cancelOrdersUiOrderTypes.map((t, i) => (
+                            <div
+                              key={t.type}
+                              className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 p-3"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="h-3 w-3 flex-shrink-0 rounded-full"
+                                  style={{
+                                    backgroundColor:
+                                      CANCEL_ORDERS_ORDER_TYPE_COLORS[i % CANCEL_ORDERS_ORDER_TYPE_COLORS.length] ?? "#8b5cf6",
+                                  }}
+                                />
+                                <span className="text-sm font-medium text-white/80">{t.type}</span>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm font-bold text-white tabular-nums">{formatCount(t.lostOrders)}</p>
+                                <p className="text-xs text-white/40">AED {formatDecimal(t.lostRevenue)}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-4 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-center">
+                          <p className="mb-0.5 text-xs text-red-400/80">Total Revenue at Risk</p>
+                          <p className="text-lg font-bold text-red-400 tabular-nums">
+                            AED {formatDecimal(cancelOrdersKpi.lostRevenue)}
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="py-8 text-center text-sm text-white/35">No cancel-order type data</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="overflow-hidden rounded-xl border border-white/10 bg-white/5">
+                  <div className="flex flex-col gap-3 border-b border-white/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-white/70">
+                      Daily Records
+                      <span className="ml-2 text-xs font-normal normal-case text-white/30">
+                        ({cancelOrdersFilteredTableRows.length} entries)
+                      </span>
+                    </h3>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        value={cancelOrdersTableBrandFilter}
+                        onChange={(e) => setCancelOrdersTableBrandFilter(e.target.value)}
+                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 focus:outline-none focus:ring-1 focus:ring-white/20"
+                      >
+                        <option value="ALL">All Brands</option>
+                        {cancelOrdersBrandOptions.map((b) => (
+                          <option key={b} value={b}>
+                            {b}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={cancelOrdersTablePlatformFilter}
+                        onChange={(e) => setCancelOrdersTablePlatformFilter(e.target.value)}
+                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/80 focus:outline-none focus:ring-1 focus:ring-white/20"
+                      >
+                        <option value="ALL">All Platforms</option>
+                        {Object.keys(CANCEL_ORDERS_PLATFORM_META).map((p) => (
+                          <option key={p} value={p}>
+                            {p}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <p className={`${T_CAPTION} border-b border-white/5 px-4 py-2 text-white/35`}>
+                    Platform filter matches rows whose source text names Careem, Keeta, or Talabat; aggregated rows may
+                    hide when a specific platform is selected.
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[520px] text-sm">
+                      <thead>
+                        <tr className="border-b border-white/10 bg-white/[0.03]">
+                          {(
+                            [
+                              { key: "date" as const, label: "DATE" },
+                              { key: "brand" as const, label: "BRAND" },
+                              { key: "lostOrders" as const, label: "LOST ORDERS" },
+                              { key: "lostRevenue" as const, label: "LOST REVENUE" },
+                            ] as const
+                          ).map(({ key, label }) => (
+                            <th
+                              key={key}
+                              className="cursor-pointer select-none px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-white/40 hover:text-white/70"
+                              onClick={() => {
+                                if (cancelOrdersTableSortCol === key) {
+                                  setCancelOrdersTableSortDir((d) => (d === "asc" ? "desc" : "asc"));
+                                } else {
+                                  setCancelOrdersTableSortCol(key);
+                                  setCancelOrdersTableSortDir("desc");
+                                }
+                              }}
+                            >
+                              {label}
+                              {cancelOrdersTableSortCol === key ? (
+                                <span className="ml-1 text-white/60">{cancelOrdersTableSortDir === "asc" ? "↑" : "↓"}</span>
+                              ) : null}
+                            </th>
+                          ))}
+                          <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-white/40">
+                            SOURCE
+                          </th>
                         </tr>
-                      ))}
-                      {!cancelOrdersAnalytics?.order_type_rows?.length ? (
-                        <tr>
-                          <td colSpan={3} className="px-4 py-12 text-center">
-                            No cancel-order type data
-                          </td>
-                        </tr>
-                      ) : null}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {cancelOrdersFilteredTableRows.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="px-4 py-12 text-center text-sm text-white/30">
+                              No records found
+                            </td>
+                          </tr>
+                        ) : (
+                          cancelOrdersFilteredTableRows.map((row, idx) => (
+                            <tr key={`${row.date}-${row.brand}-${idx}`} className="border-b border-white/5 hover:bg-white/5">
+                              <td className="px-4 py-3 font-mono text-xs text-white/70">{row.date}</td>
+                              <td className="px-4 py-3">
+                                <span className="inline-block rounded border border-indigo-500/20 bg-indigo-500/15 px-2 py-0.5 text-xs font-medium text-indigo-300">
+                                  {row.brand}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span
+                                  className={`font-bold tabular-nums ${row.lostOrders >= 5 ? "text-red-400" : "text-orange-400"}`}
+                                >
+                                  {formatCount(row.lostOrders)}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 font-medium tabular-nums text-white/80">
+                                AED {formatDecimal(row.lostRevenue)}
+                              </td>
+                              <td className="max-w-xs truncate px-4 py-3 text-xs text-white/30" title={row.sourceFile}>
+                                {row.sourceFile || "—"}
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-
-                <div className="overflow-hidden rounded-2xl border border-white/8 bg-white/5 p-3">
-                  <div className="mb-2 text-sm font-semibold text-white">Platform Breakdown</div>
-                  <table className="min-w-full text-left text-sm">
-                    <thead className="bg-white/3">
-                      <tr>
-                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Platform</th>
-                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Lost Orders</th>
-                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Platform pre</th>
-                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Platform post</th>
-                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Merchant pre</th>
-                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Merchant post</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(cancelOrdersAnalytics?.platform_rows || []).map((row, idx) => (
-                        <tr key={`${row.platform_name}-${idx}`} className={TABLE_ROW}>
-                          <td className={TABLE_CELL + " px-4"}>{row.platform_name || "Unknown"}</td>
-                          <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatCount(Number(row.lost_order_count || 0))}</td>
-                          <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatCount(Number(row.platform_pre_ack || 0))}</td>
-                          <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatCount(Number(row.platform_post_ack || 0))}</td>
-                          <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatCount(Number(row.merchant_pre_ack || 0))}</td>
-                          <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatCount(Number(row.merchant_post_ack || 0))}</td>
-                        </tr>
-                      ))}
-                      {!cancelOrdersAnalytics?.platform_rows?.length ? (
-                        <tr>
-                          <td colSpan={6} className="px-4 py-12 text-center">
-                            No platform breakdown data
-                          </td>
-                        </tr>
-                      ) : null}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div className="mt-4 overflow-hidden rounded-xl border border-white/8">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="bg-white/3">
-                    <tr>
-                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Date</th>
-                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Brand</th>
-                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Lost Orders</th>
-                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Lost Revenue</th>
-                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Source File</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(cancelOrdersAnalytics?.daily_rows || []).map((row, idx) => (
-                      <tr key={`${row.work_date}-${row.brand_name}-${idx}`} className={TABLE_ROW}>
-                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{row.work_date}</td>
-                        <td className={TABLE_CELL + " px-4"}>{row.brand_name}</td>
-                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatCount(Number(row.lost_order_count || 0))}</td>
-                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatMoney(Number(row.lost_revenue || 0))}</td>
-                        <td className={TABLE_CELL + " max-w-[320px] truncate px-4 text-xs text-zinc-400"}>{row.source_file_name || "—"}</td>
-                      </tr>
-                    ))}
-                    {!cancelOrdersAnalytics?.daily_rows?.length ? (
-                      <tr>
-                        <td colSpan={5} className="px-4 py-12 text-center">
-                          No cancel-order daily data
-                        </td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
               </div>
             </div>
             ) : null}
