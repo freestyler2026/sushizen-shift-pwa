@@ -1328,8 +1328,8 @@ const SALES_SECTION_OPTIONS = [
   { value: "manilaSales", label: "Manila Sales", id: "sales-manila-sales" },
   { value: "manilaLowRatings", label: "Ratings", id: "sales-manila-low-ratings" },
   { value: "manilaSalesData", label: "Sales Data", id: "sales-manila-daily" },
-  { value: "manilaCashierEval", label: "Cashier Evaluation", id: "sales-manila-cashier-eval" },
   { value: "manilaCancellations", label: "Cancellations", id: "sales-manila-cancellations" },
+  { value: "manilaCashierEval", label: "Cashier Evaluation", id: "sales-manila-cashier-eval" },
 ] as const;
 const DUBAI_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter(
   (section) =>
@@ -6350,11 +6350,16 @@ export default function AdminAnalyticsPage() {
                   Operation time: {operationTimeLoadError}
                 </div>
               ) : null}
-              <div className={TAB_CONTAINER + " mt-5"}>
+              <div
+                className={
+                  TAB_CONTAINER.replace("flex-wrap", "flex-nowrap") +
+                  " mt-5 max-w-full min-w-0 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                }
+              >
                 <button
                   type="button"
                   onClick={() => setSalesSectionView("all")}
-                  className={salesSectionView === "all" ? TAB_ACTIVE : TAB_INACTIVE}
+                  className={(salesSectionView === "all" ? TAB_ACTIVE : TAB_INACTIVE) + " shrink-0"}
                 >
                   All
                 </button>
@@ -6363,7 +6368,9 @@ export default function AdminAnalyticsPage() {
                     key={section.value}
                     type="button"
                     onClick={() => setSalesSectionView(section.value)}
-                    className={salesSectionView === section.value ? TAB_ACTIVE : TAB_INACTIVE}
+                    className={
+                      (salesSectionView === section.value ? TAB_ACTIVE : TAB_INACTIVE) + " shrink-0 whitespace-nowrap"
+                    }
                   >
                     {section.label}
                   </button>
