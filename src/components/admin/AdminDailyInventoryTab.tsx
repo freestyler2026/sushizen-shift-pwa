@@ -190,17 +190,38 @@ export default function AdminDailyInventoryTab() {
       try {
         const res = await apiFetch("/api/daily-inventory/items");
         const text = await res.text();
-        if (!res.ok) throw new Error(text || "Failed to load items");
-        const data = JSON.parse(text || "[]") as InvItem[];
+        if (!res.ok) {
+          let detail = text || `HTTP ${res.status}`;
+          try {
+            const j = JSON.parse(text) as { detail?: unknown };
+            if (j?.detail !== undefined) detail = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
+          } catch {
+            /* keep raw text */
+          }
+          throw new Error(detail);
+        }
+        let data: unknown;
+        try {
+          data = JSON.parse(text || "[]");
+        } catch {
+          throw new Error("Invalid JSON from items API");
+        }
+        if (!Array.isArray(data)) {
+          throw new Error("Items API returned non-array (check API URL and auth)");
+        }
+        const rows = data as InvItem[];
         if (cancelled) return;
-        setItems(data);
+        setItems(rows);
         const init: EntryMap = {};
-        data.forEach((item) => {
+        rows.forEach((item) => {
           init[item.item_code] = { qty: "", unit: item.default_unit, note: "" };
         });
         setEntries(init);
-      } catch {
-        if (!cancelled) setError("Failed to load item list.");
+      } catch (e) {
+        if (!cancelled) {
+          const msg = e instanceof Error ? e.message : String(e);
+          setError(`Failed to load item list: ${msg}`);
+        }
       }
     })();
     return () => {
