@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { GLASS_CARD, T_CAPTION } from "@/lib/ui-tokens";
@@ -17,7 +18,23 @@ interface Message {
   toolCalls?: ToolCallSummary[];
   model?: string;
   timestamp: string;
+  /** Preceding user question (set on assistant replies) — used when saving to snapshots. */
+  pairedQuestion?: string;
+  saved?: boolean;
+  snapshotId?: string;
 }
+
+type SavedSnapshotRow = {
+  id: string;
+  city: string;
+  date_from: string;
+  date_to: string;
+  question: string;
+  answer: string;
+  model: string;
+  saved_by: string;
+  created_at: string;
+};
 
 const TOOL_LABELS: Record<string, string> = {
   get_dubai_sales: "🇦🇪 Dubai Sales",
@@ -92,6 +109,12 @@ export default function AIAnalyticsProTab() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [thinking, setThinking] = useState("");
+  const [savedOpen, setSavedOpen] = useState(true);
+  const [savedRows, setSavedRows] = useState<SavedSnapshotRow[]>([]);
+  const [savedLoading, setSavedLoading] = useState(false);
+  const [savedError, setSavedError] = useState("");
+  const [expandedSavedId, setExpandedSavedId] = useState<string | null>(null);
+  const [savingIdx, setSavingIdx] = useState<number | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -102,6 +125,46 @@ export default function AIAnalyticsProTab() {
   useEffect(() => {
     scrollBottom();
   }, [messages, thinking, scrollBottom]);
+
+  const loadSavedAnswers = useCallback(async () => {
+    const auth = getAuth();
+    if (!auth?.accessToken) return;
+    setSavedLoading(true);
+    setSavedError("");
+    const run = () =>
+      fetch(`${getApiBase()}/api/ai/analytics/snapshots?limit=50`, {
+        cache: "no-store",
+        headers: getAuthHeaders(auth),
+      });
+    try {
+      let res = await run();
+      if (!res.ok && res.status === 401 && auth.pin) {
+        await refreshAuthFromApi(auth, { includeMfa: true });
+        res = await run();
+      }
+      if (!res.ok) {
+        const t = await res.text();
+        let detail = t;
+        try {
+          const j = JSON.parse(t) as { detail?: string };
+          if (typeof j?.detail === "string") detail = j.detail;
+        } catch {
+          /* ignore */
+        }
+        throw new Error(detail || `HTTP ${res.status}`);
+      }
+      const data = (await res.json()) as { items?: SavedSnapshotRow[] };
+      setSavedRows(Array.isArray(data.items) ? data.items : []);
+    } catch (e: unknown) {
+      setSavedError(e instanceof Error ? e.message : "読み込みに失敗しました");
+    } finally {
+      setSavedLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadSavedAnswers();
+  }, [loadSavedAnswers]);
 
   const postChat = async (body: Record<string, unknown>) => {
     const url = `${getApiBase()}/api/ai/analytics/chat-pro`;
@@ -134,6 +197,70 @@ export default function AIAnalyticsProTab() {
     return text ? (JSON.parse(text) as Record<string, unknown>) : {};
   };
 
+  const saveAnswerSnapshot = async (pairedQuestion: string, answer: string, model?: string) => {
+    const auth = getAuth();
+    if (!auth?.accessToken) throw new Error("ログインが必要です");
+    const city = String(auth.city || "dubai").toLowerCase() === "manila" ? "manila" : "dubai";
+    const id = crypto.randomUUID();
+    const run = () =>
+      fetch(`${getApiBase()}/api/ai/analytics/snapshots`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders(auth) },
+        body: JSON.stringify({
+          id,
+          city,
+          date_from: dateFrom || "",
+          date_to: dateTo || "",
+          question: pairedQuestion.trim(),
+          answer: answer.trim(),
+          model: model || "",
+          input_tokens: 0,
+          output_tokens: 0,
+        }),
+        cache: "no-store",
+      });
+    let res = await run();
+    if (!res.ok && res.status === 401 && auth.pin) {
+      await refreshAuthFromApi(auth, { includeMfa: true });
+      res = await run();
+    }
+    if (!res.ok) {
+      const t = await res.text();
+      let detail = t;
+      try {
+        const j = JSON.parse(t) as { detail?: string };
+        if (typeof j?.detail === "string") detail = j.detail;
+      } catch {
+        /* ignore */
+      }
+      throw new Error(detail || "保存に失敗しました");
+    }
+    await loadSavedAnswers();
+    return id;
+  };
+
+  const deleteSavedSnapshot = async (id: string) => {
+    const auth = getAuth();
+    if (!auth?.accessToken) return;
+    const run = () =>
+      fetch(`${getApiBase()}/api/ai/analytics/snapshots/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(auth),
+        cache: "no-store",
+      });
+    let res = await run();
+    if (!res.ok && res.status === 401 && auth.pin) {
+      await refreshAuthFromApi(auth, { includeMfa: true });
+      res = await run();
+    }
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(t || "削除に失敗しました");
+    }
+    setExpandedSavedId((cur) => (cur === id ? null : cur));
+    await loadSavedAnswers();
+  };
+
   const send = async (question: string) => {
     const trimmed = question.trim();
     if (!trimmed || loading) return;
@@ -144,6 +271,7 @@ export default function AIAnalyticsProTab() {
     setLoading(true);
     setThinking("Analysing your question…");
     const history = messages.slice(-6).map((m) => ({ role: m.role, content: m.content }));
+    const city = String(auth?.city || "dubai").toLowerCase() === "manila" ? "manila" : "dubai";
     try {
       setThinking("Querying live data…");
       const json = await postChat({
@@ -153,7 +281,7 @@ export default function AIAnalyticsProTab() {
         history,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
-        city: "dubai",
+        city,
       });
       if (json.success) {
         const summary = Array.isArray(json.tool_results_summary)
@@ -167,6 +295,7 @@ export default function AIAnalyticsProTab() {
             toolCalls: summary,
             model: typeof json.model === "string" ? json.model : undefined,
             timestamp: ts(),
+            pairedQuestion: trimmed,
           },
         ]);
       } else {
@@ -213,6 +342,79 @@ export default function AIAnalyticsProTab() {
             >
               Clear chat
             </button>
+          ) : null}
+        </div>
+
+        <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+          <button
+            type="button"
+            onClick={() => setSavedOpen((o) => !o)}
+            className="flex w-full items-center justify-between text-left text-sm font-medium text-white/90"
+          >
+            <span>保存した回答</span>
+            <span className="text-white/40">{savedOpen ? "▼" : "▶"}</span>
+          </button>
+          {savedOpen ? (
+            <div className="mt-3 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-white/35">同じ権限で AI Analytics に保存した回答もここに表示されます。</p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void loadSavedAnswers()}
+                    disabled={savedLoading}
+                    className="rounded-lg border border-white/15 bg-white/5 px-2 py-1 text-xs text-white/60 hover:text-white/90 disabled:opacity-40"
+                  >
+                    {savedLoading ? "更新中…" : "更新"}
+                  </button>
+                  <Link
+                    href="/admin/analytics/ai-history"
+                    className="rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-2 py-1 text-xs text-indigo-200 hover:bg-indigo-500/20"
+                  >
+                    一覧ページ
+                  </Link>
+                </div>
+              </div>
+              {savedError ? <p className="text-xs text-rose-400">{savedError}</p> : null}
+              {!savedLoading && savedRows.length === 0 && !savedError ? (
+                <p className="text-xs text-white/30">まだ保存がありません。下のチャットで「この回答を保存」から追加できます。</p>
+              ) : null}
+              <ul className="max-h-48 space-y-1.5 overflow-y-auto text-xs">
+                {savedRows.map((row) => (
+                  <li key={row.id} className="rounded-lg border border-white/8 bg-black/25">
+                    <div className="flex items-start justify-between gap-2 px-2 py-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedSavedId((id) => (id === row.id ? null : row.id))}
+                        className="min-w-0 flex-1 text-left text-white/75 hover:text-white"
+                      >
+                        <span className="line-clamp-2">{row.question || "(質問なし)"}</span>
+                        <span className="mt-0.5 block text-[10px] text-white/30">
+                          {row.created_at ? new Date(row.created_at).toLocaleString("ja-JP") : ""} · {row.city}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void deleteSavedSnapshot(row.id).catch((e) =>
+                            window.alert(e instanceof Error ? e.message : "削除に失敗しました"),
+                          )
+                        }
+                        className="shrink-0 rounded px-1.5 py-0.5 text-white/35 hover:bg-rose-500/20 hover:text-rose-300"
+                        title="削除"
+                      >
+                        削除
+                      </button>
+                    </div>
+                    {expandedSavedId === row.id ? (
+                      <div className="border-t border-white/8 px-2 py-2 text-white/80">
+                        <AnswerText text={row.answer || ""} />
+                      </div>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : null}
         </div>
 
@@ -293,10 +495,43 @@ export default function AIAnalyticsProTab() {
                   }`}
                 >
                   {msg.role === "user" ? <p className="text-sm">{msg.content}</p> : <AnswerText text={msg.content} />}
-                  <p className="mt-1.5 text-right text-xs text-white/20">
-                    {msg.timestamp}
-                    {msg.model ? ` · ${msg.model}` : ""}
-                  </p>
+                  <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+                    {msg.role === "assistant" && !msg.content.startsWith("⚠️") && msg.pairedQuestion ? (
+                      msg.saved ? (
+                        <span className="text-xs text-emerald-400/90">保存済み</span>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={savingIdx === idx}
+                          onClick={() => {
+                            void (async () => {
+                              setSavingIdx(idx);
+                              try {
+                                const id = await saveAnswerSnapshot(msg.pairedQuestion || "", msg.content, msg.model);
+                                setMessages((prev) =>
+                                  prev.map((m, i) =>
+                                    i === idx ? { ...m, saved: true, snapshotId: id } : m,
+                                  ),
+                                );
+                              } catch (err: unknown) {
+                                const t = err instanceof Error ? err.message : "保存に失敗しました";
+                                window.alert(t);
+                              } finally {
+                                setSavingIdx(null);
+                              }
+                            })();
+                          }}
+                          className="rounded-lg border border-emerald-500/35 bg-emerald-600/20 px-2.5 py-1 text-xs text-emerald-200 transition hover:bg-emerald-600/35 disabled:opacity-40"
+                        >
+                          {savingIdx === idx ? "保存中…" : "この回答を保存"}
+                        </button>
+                      )
+                    ) : null}
+                    <p className="w-full text-right text-xs text-white/20">
+                      {msg.timestamp}
+                      {msg.model ? ` · ${msg.model}` : ""}
+                    </p>
+                  </div>
                 </div>
               </div>
               {msg.role === "user" ? (
