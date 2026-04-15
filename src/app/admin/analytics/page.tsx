@@ -2780,8 +2780,21 @@ export default function AdminAnalyticsPage() {
     void loadAll("sales");
     // `loadAll()` is intentionally triggered by tab, scope, and credentials changes.
     // It is recreated on render, so we avoid depending on its function identity here.
+    // Include summary dates so Cancel Orders / POS blocks refetch when Summary Range or month picker changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSalesAnalyticsTab, isManilaSalesCity, hourlyStoreName, summaryBranchCode, summaryBrandName, approverName, salesStepUpReady, analyticsTab]);
+  }, [
+    isSalesAnalyticsTab,
+    isManilaSalesCity,
+    hourlyStoreName,
+    summaryBranchCode,
+    summaryBrandName,
+    summaryDateFrom,
+    summaryDateTo,
+    approverName,
+    pin,
+    salesStepUpReady,
+    analyticsTab,
+  ]);
 
   useEffect(() => {
     setPosDataCheckSelectedDates([]);
@@ -7019,6 +7032,19 @@ export default function AdminAnalyticsPage() {
                   <MetricValue className={SALES_NUMERIC_VALUE} value={cancelOrderSummary.platformCount} />
                 </div>
               </div>
+
+              {salesCity === "dubai" &&
+              !cancelOrderSummary.lostOrderCount &&
+              !cancelOrderSummary.lostRevenue ? (
+                <p className={`${T_CAPTION} mt-3 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-amber-100/95`}>
+                  No cancel rows for{" "}
+                  <strong className="text-zinc-100">
+                    {summaryDateFrom} → {summaryDateTo}
+                  </strong>
+                  . Widen <strong className="text-zinc-200">Summary Range</strong> to include your incident dates, or import
+                  under <strong className="text-zinc-200">Admin → Dubai Cancellation</strong>.
+                </p>
+              ) : null}
 
               <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
                 <div className="overflow-hidden rounded-2xl border border-white/8 bg-white/5 p-3">
