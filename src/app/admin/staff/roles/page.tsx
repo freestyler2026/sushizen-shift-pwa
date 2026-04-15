@@ -19,7 +19,14 @@ import {
   T_SECTION,
 } from "@/lib/ui-tokens";
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
+/** Same-origin /api in production so Vercel proxies to Heroku (avoids browser CORS to Heroku). */
+function clientApiOrigin(): string {
+  if (process.env.NODE_ENV !== "production") {
+    const u = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
+    return u || "http://127.0.0.1:8000";
+  }
+  return "";
+}
 
 type AccessChannel = {
   channel_key: string;
@@ -114,7 +121,7 @@ type StaffNameListResp = {
 };
 
 async function apiRequest<T>(path: string, options: RequestInit = {}, auth?: Auth | null): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${clientApiOrigin()}${path}`, {
     cache: "no-store",
     ...options,
     headers: {

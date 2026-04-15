@@ -12,7 +12,9 @@ function getApiBase() {
   return "https://sushizen-shift-app-038d846023bc.herokuapp.com";
 }
 
-async function forward(req: NextRequest, params: { slug: string[] }, method: "GET" | "POST") {
+type ForwardMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+async function forward(req: NextRequest, params: { slug: string[] }, method: ForwardMethod) {
   const apiBase = getApiBase();
   if (!apiBase) {
     return NextResponse.json({ detail: "API base URL is not configured." }, { status: 500 });
@@ -20,7 +22,7 @@ async function forward(req: NextRequest, params: { slug: string[] }, method: "GE
 
   const slug = (params.slug || []).map((part) => encodeURIComponent(part)).join("/");
   const search = req.nextUrl.search || "";
-  const body = method === "POST" ? await req.arrayBuffer() : undefined;
+  const body = method === "GET" ? undefined : await req.arrayBuffer();
   const upstream = await fetch(`${apiBase}/api/admin/${slug}${search}`, {
     method,
     headers: {
@@ -29,7 +31,7 @@ async function forward(req: NextRequest, params: { slug: string[] }, method: "GE
       ...(req.headers.get("x-step-up-token") ? { "X-Step-Up-Token": req.headers.get("x-step-up-token") as string } : {}),
       ...(req.headers.get("x-webauthn-origin") ? { "X-WebAuthn-Origin": req.headers.get("x-webauthn-origin") as string } : {}),
       ...(req.headers.get("origin") ? { Origin: req.headers.get("origin") as string } : {}),
-      ...(body
+      ...(body && body.byteLength > 0
         ? {
             "Content-Type":
               req.headers.get("content-type") || "application/octet-stream",
@@ -59,4 +61,19 @@ export async function GET(req: NextRequest, context: { params: Promise<{ slug: s
 export async function POST(req: NextRequest, context: { params: Promise<{ slug: string[] }> }) {
   const params = await context.params;
   return forward(req, params, "POST");
+}
+
+export async function PUT(req: NextRequest, context: { params: Promise<{ slug: string[] }> }) {
+  const params = await context.params;
+  return forward(req, params, "PUT");
+}
+
+export async function PATCH(req: NextRequest, context: { params: Promise<{ slug: string[] }> }) {
+  const params = await context.params;
+  return forward(req, params, "PATCH");
+}
+
+export async function DELETE(req: NextRequest, context: { params: Promise<{ slug: string[] }> }) {
+  const params = await context.params;
+  return forward(req, params, "DELETE");
 }
