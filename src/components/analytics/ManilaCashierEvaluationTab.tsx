@@ -118,7 +118,7 @@ export function ManilaCashierEvaluationTab({
         date_to: dateTo,
       });
       const res = await apiGet<ApiResp>(`/api/admin/analytics/manila/cashier-evaluations?${qs.toString()}`);
-      setData(res.items || []);
+      setData(Array.isArray(res?.items) ? res.items : []);
     } catch (e) {
       setData([]);
       setError(e instanceof Error ? e.message : "Failed to load");

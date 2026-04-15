@@ -115,7 +115,7 @@ export function ManilaSalesDataTab({
         date_to: dateTo,
       });
       const res = await apiGet<ApiResp>(`/api/admin/analytics/manila/daily-sales?${qs.toString()}`);
-      setData(res.items || []);
+      setData(Array.isArray(res?.items) ? res.items : []);
       setMeta({
         grandOrders: Number(res.grand_total_orders || 0),
         grandAmount: Number(res.grand_total_amount || 0),
@@ -197,10 +197,10 @@ export function ManilaSalesDataTab({
           </div>
         ) : !data.length ? (
           <p className={T_BODY}>
-            No rows for this range. Import{" "}
-            <code className="text-neutral-400">Manila_Daily_Data_DB_Ready.xlsx</code> (Sales_Data sheet) via{" "}
-            <code className="text-neutral-400">POST /api/admin/analytics/manila/daily-sales/import</code> or run{" "}
-            <code className="text-neutral-400">scripts/import_manila_daily_excel.py</code>.
+            No rows for this Summary Range on Heroku <code className="text-neutral-400">manila_daily_sales</code>. Try
+            a wider date range or <strong>Refresh</strong> after a DB import. Initial load:{" "}
+            <code className="text-neutral-400">scripts/import_manila_daily_excel.py</code> (Sales_Data sheet) or{" "}
+            <code className="text-neutral-400">POST .../daily-sales/import</code>.
           </p>
         ) : (
           <div className="space-y-6">
