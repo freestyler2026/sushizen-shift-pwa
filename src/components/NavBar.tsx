@@ -23,7 +23,6 @@ import {
   PenLine,
   ScrollText,
   ShoppingCart,
-  Star,
   Shield,
   Truck,
   UserCheck,
@@ -81,7 +80,6 @@ const SECONDARY_BASE: NavItem[] = [
 const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin", label: "Admin Dashboard", icon: LayoutDashboard, adminOnly: true, match: "exact" },
   { href: "/admin/daily-inventory", label: "Daily Inventory", icon: Warehouse, adminOnly: true, match: "exact" },
-  { href: "/admin/ratings-entry", label: "Ratings entry", icon: Star, adminOnly: true, match: "exact" },
   { href: "/admin/inventory", label: "Inventory", icon: Package, adminOnly: true, match: "prefix" },
   { href: "/admin/menu", label: "Menu Builder", icon: UtensilsCrossed, adminOnly: true, match: "prefix" },
   { href: "/admin/private-reports", label: "Private Reports", icon: FileBarChart, adminOnly: true, match: "exact" },
@@ -180,7 +178,6 @@ export default function NavBar() {
   function canSeeAdminItem(href: string, auth: ReturnType<typeof getAuth>) {
     if (!auth) return false;
     if (href === "/admin") return canAccessAdminNav(auth);
-    if (href === "/admin/ratings-entry") return canAccessAdminNav(auth);
     if (href === "/admin/inventory") return canAccessInventoryWorkspace(auth);
     if (href === "/admin/daily-inventory") return canAccessAdminNav(auth);
     if (href === "/admin/menu") return canAccessMenuAdmin(auth);
