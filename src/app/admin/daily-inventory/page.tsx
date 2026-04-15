@@ -1,52 +1,28 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { getAuth, isAdmin } from "@/lib/auth";
 import AdminDailyInventoryTab from "@/components/admin/AdminDailyInventoryTab";
-import InventoryTabs from "@/components/InventoryTabs";
-import { canAccessAdminNav, getAuth, refreshAuthFromApi } from "@/lib/auth";
-import { SMALL_BUTTON, T_PAGE_TITLE } from "@/lib/ui-tokens";
 
-export default function AdminDailyInventoryPage() {
+export default function DailyInventoryPage() {
   const router = useRouter();
-  const [allowed, setAllowed] = useState<boolean | null>(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      const a = getAuth();
-      if (!a?.accessToken) {
-        router.replace(`/login?next=${encodeURIComponent("/admin/daily-inventory")}`);
-        return;
-      }
-      const r = await refreshAuthFromApi(a);
-      const ok = canAccessAdminNav(r || a);
-      if (cancelled) return;
-      setAllowed(ok);
-      if (!ok) router.replace("/week");
-    })();
-    return () => {
-      cancelled = true;
-    };
+    const a = getAuth();
+    if (!isAdmin(a)) {
+      router.replace("/week");
+      return;
+    }
+    setReady(true);
   }, [router]);
 
-  if (allowed === null) {
-    return <div className="p-4 text-sm text-zinc-400">Loading…</div>;
-  }
-  if (!allowed) return null;
-
+  if (!ready) return null;
   return (
-    <div className="mx-auto max-w-5xl space-y-4 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className={T_PAGE_TITLE}>Daily Inventory Input</h1>
-        <Link href="/admin" className={SMALL_BUTTON}>
-          Admin Dashboard
-        </Link>
-      </div>
-      <InventoryTabs />
+    <main className="min-h-screen bg-neutral-950 p-4 text-white">
       <AdminDailyInventoryTab />
-    </div>
+    </main>
   );
 }
