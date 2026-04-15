@@ -28,6 +28,7 @@ import MonthPicker from "@/components/MonthPicker";
 import OrderEntryTab from "@/components/admin/OrderEntryTab";
 import ManilaOfflineOrderEntryTab from "@/components/admin/ManilaOfflineOrderEntryTab";
 import AdminSalesDataInputTab from "@/components/admin/AdminSalesDataInputTab";
+import AdminCashierEvalInputTab from "@/components/admin/AdminCashierEvalInputTab";
 import { RatingEntryTab } from "@/components/admin/RatingEntryTab";
 import { LowRatingsAdminPanel } from "@/components/lowratings/LowRatingsAdminPanel";
 import {
@@ -57,7 +58,7 @@ import {
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
 
 // Admin Dashboard sub-tabs: single source of truth (?tab= ↔ in-app view)
-type AdminDashView = "requests" | "lowRatings" | "orderEntry" | "ratingEntry" | "salesDataInput";
+type AdminDashView = "requests" | "lowRatings" | "orderEntry" | "ratingEntry" | "salesDataInput" | "cashierEvalInput";
 
 type OrderEntrySub = "dubai" | "manila";
 
@@ -69,6 +70,7 @@ const ADMIN_DASH_TABS = [
   { view: "ratingEntry" as const, label: "Ratings", icon: "⭐", tabQuery: "ratings-entry" },
   { view: "orderEntry" as const, label: "Number of Orders", icon: "📦", tabQuery: "order-entry" },
   { view: "salesDataInput" as const, label: "Sales Data Input", icon: "✏️", tabQuery: "sales-data-input" },
+  { view: "cashierEvalInput" as const, label: "Cashier Eval Input", icon: "🧾", tabQuery: "cashier-eval-input" },
 ] as const;
 
 function tabParamToDashView(tab: string | null): AdminDashView {
@@ -1146,6 +1148,8 @@ function AdminPageInner() {
         <RatingEntryTab city={city} />
       ) : dashView === "salesDataInput" ? (
         <AdminSalesDataInputTab />
+      ) : dashView === "cashierEvalInput" ? (
+        <AdminCashierEvalInputTab />
       ) : dashView === "orderEntry" ? (
         <div className="space-y-4">
           <div className={`${TAB_CONTAINER} w-full max-w-full overflow-x-auto`} role="tablist" aria-label="Number of Orders region">
