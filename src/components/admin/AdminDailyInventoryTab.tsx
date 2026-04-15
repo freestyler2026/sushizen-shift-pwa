@@ -10,15 +10,7 @@ const BRANCHES = ["PARANAQUE", "CUBAO", "TAFT"] as const;
 const SHIFTS = ["AM", "PM", "OVERNIGHT"] as const;
 const UNITS = ["kg", "g", "ml", "L", "Box", "Bag", "pcs", "pkt", "Tray", "Case"] as const;
 
-const STAFF_OPTIONS = [
-  "Ate Joy",
-  "Kuya Mark",
-  "Ate Ana",
-  "Kuya Ben",
-  "Ate Rose",
-  "Kuya Carlo",
-  "Other",
-] as const;
+const STAFF_OTHER = "Other";
 
 interface InvItem {
   id: number;
@@ -104,7 +96,7 @@ function StatusBadge({
 }
 
 function effectiveStaffName(staffChoice: string, customStaff: string): string {
-  if (staffChoice === "Other") return customStaff.trim();
+  if (staffChoice === STAFF_OTHER) return customStaff.trim();
   return staffChoice.trim();
 }
 
@@ -151,7 +143,45 @@ export default function AdminDailyInventoryTab() {
   const [history, setHistory] = useState<ReportHeader[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
+  const [staffNames, setStaffNames] = useState<string[]>([]);
+  const [staffNamesLoading, setStaffNamesLoading] = useState(true);
+  const [staffListError, setStaffListError] = useState("");
+
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setStaffNamesLoading(true);
+      setStaffListError("");
+      try {
+        const res = await apiFetch(
+          `/api/daily-inventory/staff-names?home_branch=${encodeURIComponent(branch)}`,
+        );
+        const text = await res.text();
+        if (!res.ok) throw new Error(text || "Failed to load staff names");
+        const data = JSON.parse(text || "{}") as { names?: string[] };
+        const names = Array.isArray(data.names) ? data.names.map((n) => String(n || "").trim()).filter(Boolean) : [];
+        if (cancelled) return;
+        setStaffNames(names);
+        setStaffChoice((prev) => {
+          if (prev === STAFF_OTHER) return prev;
+          if (prev && !names.includes(prev)) return "";
+          return prev;
+        });
+      } catch {
+        if (!cancelled) {
+          setStaffNames([]);
+          setStaffListError("Could not load Manila staff list. Check network or permissions.");
+        }
+      } finally {
+        if (!cancelled) setStaffNamesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [branch]);
 
   useEffect(() => {
     let cancelled = false;
@@ -447,16 +477,18 @@ export default function AdminDailyInventoryTab() {
                 <select
                   value={staffChoice}
                   onChange={(e) => setStaffChoice(e.target.value)}
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+                  disabled={staffNamesLoading}
+                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white disabled:opacity-60"
                 >
-                  <option value="">— Select —</option>
-                  {STAFF_OPTIONS.map((n) => (
+                  <option value="">{staffNamesLoading ? "Loading staff…" : "— Select —"}</option>
+                  {staffNames.map((n) => (
                     <option key={n} value={n}>
                       {n}
                     </option>
                   ))}
+                  <option value={STAFF_OTHER}>{STAFF_OTHER}</option>
                 </select>
-                {staffChoice === "Other" ? (
+                {staffChoice === STAFF_OTHER ? (
                   <input
                     type="text"
                     value={customStaff}
@@ -464,6 +496,9 @@ export default function AdminDailyInventoryTab() {
                     placeholder="Enter name"
                     className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white placeholder:text-neutral-600"
                   />
+                ) : null}
+                {staffListError ? (
+                  <p className="mt-1 text-xs text-amber-400">{staffListError}</p>
                 ) : null}
               </div>
             </div>
