@@ -6988,7 +6988,8 @@ export default function AdminAnalyticsPage() {
                     <h2 className={SECTION_TITLE}>Cancel Orders</h2>
                   </div>
                   <div className={T_CAPTION}>
-                    Daily UrbanPiper lost-order CSVs are auto-synced from the POS folder and aggregated for this period.
+                    UrbanPiper lost-order CSVs (POS sync) plus Dubai aggregator cancellation/refund records (Careem / Keeta /
+                    Talabat) for the same summary range and brand scope.
                   </div>
                 </div>
                 <div className={T_CAPTION}>
