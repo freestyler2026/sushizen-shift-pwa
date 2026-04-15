@@ -80,9 +80,9 @@ const SECONDARY_BASE: NavItem[] = [
 
 const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin", label: "Admin Dashboard", icon: LayoutDashboard, adminOnly: true, match: "exact" },
+  { href: "/admin/daily-inventory", label: "Daily Inventory Input", icon: Warehouse, adminOnly: true, match: "exact" },
   { href: "/admin/ratings-entry", label: "Ratings entry", icon: Star, adminOnly: true, match: "exact" },
   { href: "/admin/inventory", label: "Inventory", icon: Package, adminOnly: true, match: "prefix" },
-  { href: "/admin/daily-inventory", label: "Daily Inventory Input", icon: Warehouse, adminOnly: true, match: "exact" },
   { href: "/admin/menu", label: "Menu Builder", icon: UtensilsCrossed, adminOnly: true, match: "prefix" },
   { href: "/admin/private-reports", label: "Private Reports", icon: FileBarChart, adminOnly: true, match: "exact" },
   { href: "/admin/procurement", label: "Procurement", icon: Truck, adminOnly: true, match: "prefix" },
@@ -182,7 +182,7 @@ export default function NavBar() {
     if (href === "/admin") return canAccessAdminNav(auth);
     if (href === "/admin/ratings-entry") return canAccessAdminNav(auth);
     if (href === "/admin/inventory") return canAccessInventoryWorkspace(auth);
-    if (href === "/admin/daily-inventory") return canAccessInventoryWorkspace(auth);
+    if (href === "/admin/daily-inventory") return canAccessAdminNav(auth);
     if (href === "/admin/menu") return canAccessMenuAdmin(auth);
     if (href === "/admin/private-reports") return canAccessPrivateReportAdmin(auth);
     if (href === "/admin/procurement") return canAccessProcurementAdmin(auth, auth.city);

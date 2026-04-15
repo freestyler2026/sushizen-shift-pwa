@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import AdminDailyInventoryTab from "@/components/admin/AdminDailyInventoryTab";
 import InventoryTabs from "@/components/InventoryTabs";
-import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { canAccessAdminNav, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { SMALL_BUTTON, T_PAGE_TITLE } from "@/lib/ui-tokens";
 
 export default function AdminDailyInventoryPage() {
@@ -22,7 +22,7 @@ export default function AdminDailyInventoryPage() {
         return;
       }
       const r = await refreshAuthFromApi(a);
-      const ok = canAccessInventoryWorkspace(r || a);
+      const ok = canAccessAdminNav(r || a);
       if (cancelled) return;
       setAllowed(ok);
       if (!ok) router.replace("/week");
