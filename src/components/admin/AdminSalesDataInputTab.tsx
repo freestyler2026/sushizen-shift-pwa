@@ -327,11 +327,20 @@ export default function AdminSalesDataInputTab() {
     <div className={GLASS_CARD}>
       <div className="space-y-6 p-4 pb-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold text-white">Sales Data Input</h2>
-            <p className={`${T_CAPTION} mt-1`}>
-              Enter daily Dine-in / GrabFood / FoodPanda counts and PHP amounts. Data appears in Manila Sales Analytics → Sales Data after save.
-            </p>
+          <div className="flex items-start gap-3">
+            <button
+              type="button"
+              onClick={() => window.history.back()}
+              className="mt-0.5 flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              ← Back
+            </button>
+            <div>
+              <h2 className="text-lg font-semibold text-white">Sales Data Input</h2>
+              <p className={`${T_CAPTION} mt-1`}>
+                Enter daily Dine-in / GrabFood / FoodPanda counts and PHP amounts. Data appears in Manila Sales Analytics → Sales Data after save.
+              </p>
+            </div>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <div className="min-w-[160px]">

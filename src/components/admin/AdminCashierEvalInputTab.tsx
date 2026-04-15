@@ -368,9 +368,9 @@ function CashierCard({
 
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           {row.saving ? (
-            <span className="animate-pulse text-xs text-white/30">保存中…</span>
+            <span className="animate-pulse text-xs text-white/30">Saving…</span>
           ) : row.saved ? (
-            <span className="text-xs text-emerald-400">✓ 保存済</span>
+            <span className="text-xs text-emerald-400">✓ Saved</span>
           ) : (
             <button
               type="button"
@@ -503,6 +503,7 @@ export default function AdminCashierEvalInputTab() {
   const [cashiers, setCashiers] = useState<EditableCashier[]>([]);
   const [loadingDate, setLoadingDate] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [saveAllStatus, setSaveAllStatus] = useState<"idle" | "saving" | "done" | "error">("idle");
 
   useEffect(() => {
     const a = getAuth();
@@ -554,7 +555,7 @@ export default function AdminCashierEvalInputTab() {
     );
   };
 
-  const saveCashier = async (id: string) => {
+  const saveCashier = async (id: string): Promise<boolean> => {
     let captured: EditableCashier | null = null;
     setCashiers((prev) => {
       const row = prev.find((c) => c._id === id);
@@ -562,7 +563,7 @@ export default function AdminCashierEvalInputTab() {
       captured = row;
       return prev.map((c) => (c._id === id ? { ...c, saving: true, error: null } : c));
     });
-    if (!captured) return;
+    if (!captured) return false;
 
     const row = captured;
     const nm = approverName.trim();
@@ -571,7 +572,7 @@ export default function AdminCashierEvalInputTab() {
       setCashiers((prev) =>
         prev.map((c) => (c._id === id ? { ...c, saving: false, error: "Approver name and PIN required" } : c)),
       );
-      return;
+      return false;
     }
 
     try {
@@ -608,9 +609,11 @@ export default function AdminCashierEvalInputTab() {
             : c,
         ),
       );
+      return true;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Save failed";
       setCashiers((prev) => prev.map((c) => (c._id === id ? { ...c, saving: false, saved: false, error: msg } : c)));
+      return false;
     }
   };
 
@@ -643,15 +646,37 @@ export default function AdminCashierEvalInputTab() {
     }
   };
 
+  const saveAll = async () => {
+    const ids = branchCashiers.filter((c) => !c.saved && c.cashier_name.trim() !== "").map((c) => c._id);
+    if (ids.length === 0) return;
+    setSaveAllStatus("saving");
+    let fail = false;
+    for (const id of ids) {
+      const ok = await saveCashier(id);
+      if (!ok) fail = true;
+    }
+    setSaveAllStatus(fail ? "error" : "done");
+    setTimeout(() => setSaveAllStatus("idle"), 3000);
+  };
+
   return (
     <div className={GLASS_CARD}>
       <div className="space-y-5 p-4 pb-10">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold text-white">Cashier Evaluation Input</h2>
-            <p className={`${T_CAPTION} mt-1`}>
-              キャッシャー評価を入力。Manila Sales Analytics → Cashier Evaluation に反映されます。
-            </p>
+          <div className="flex items-start gap-3">
+            <button
+              type="button"
+              onClick={() => window.history.back()}
+              className="mt-0.5 flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              ← Back
+            </button>
+            <div>
+              <h2 className="text-lg font-semibold text-white">Cashier Evaluation Input</h2>
+              <p className={`${T_CAPTION} mt-1`}>
+                Enter daily cashier evaluation data. Changes reflect immediately in Manila Sales Analytics → Cashier Evaluation.
+              </p>
+            </div>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <div className="min-w-[160px]">
@@ -755,14 +780,14 @@ export default function AdminCashierEvalInputTab() {
             {branchCashiers.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-white/10 py-10 text-center">
                 <p className="mb-3 text-sm text-white/30">
-                  {selectedDate} の {selectedBranch} にキャッシャーデータがありません
+                  No cashier data for {selectedBranch} on {selectedDate}
                 </p>
                 <button
                   type="button"
                   onClick={addCashier}
                   className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500"
                 >
-                  + 最初のキャッシャーを追加
+                  + Add first cashier
                 </button>
               </div>
             ) : (
@@ -781,22 +806,46 @@ export default function AdminCashierEvalInputTab() {
                   onClick={addCashier}
                   className="w-full rounded-xl border border-dashed border-white/10 py-3 text-sm text-white/30 transition-colors hover:border-white/20 hover:text-white/60"
                 >
-                  + キャッシャーを追加
+                  + Add cashier
                 </button>
+                <div className="flex flex-wrap items-center justify-end gap-3 pt-1">
+                  {saveAllStatus === "done" ? (
+                    <span className="text-sm font-medium text-emerald-400">✓ All saved!</span>
+                  ) : null}
+                  {saveAllStatus === "error" ? (
+                    <span className="text-sm text-red-400">Some records failed. Check cards above.</span>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => void saveAll()}
+                    disabled={
+                      saveAllStatus === "saving" ||
+                      branchCashiers.every((c) => c.saved || c.cashier_name.trim() === "")
+                    }
+                    className={`rounded-xl px-6 py-2 text-sm font-medium transition-all ${
+                      saveAllStatus === "saving" ||
+                      branchCashiers.every((c) => c.saved || c.cashier_name.trim() === "")
+                        ? "cursor-not-allowed bg-indigo-600/40 text-white/40"
+                        : "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-500"
+                    }`}
+                  >
+                    {saveAllStatus === "saving" ? "Saving…" : "Save All"}
+                  </button>
+                </div>
               </>
             )}
           </div>
         ) : null}
 
         <div className="space-y-1.5 rounded-2xl border border-white/8 bg-white/[0.03] p-4 text-xs text-white/30">
-          <p className="mb-2 font-medium text-white/50">使い方</p>
-          <p>① Approver + PIN を入力（Sales Data Input と同様）</p>
-          <p>② 日付を選択 → ブランチタブを切り替え</p>
-          <p>③ 「＋ キャッシャーを追加」でカードを追加</p>
-          <p>④ ▸ をクリックして展開 → 各項目を入力</p>
-          <p>⑤ QRPH / SC-PWD の枚数・金額差分は自動計算（保存時にDBにも反映）</p>
-          <p>⑥ カード右上の Save で保存 → Manila Sales Analytics → Cashier Evaluation に反映</p>
-          <p className="pt-1 text-white/20">※ 同日・同ブランチ・同キャッシャー名は上書きされます</p>
+          <p className="mb-2 font-medium text-white/50">How to use</p>
+          <p>① Enter Approver name + PIN (same as Sales Data Input).</p>
+          <p>② Select a date → switch branch tabs.</p>
+          <p>③ Click &quot;+ Add cashier&quot; to add a cashier card.</p>
+          <p>④ Click ▸ on a card to expand, then fill in the fields.</p>
+          <p>⑤ QRPH diff and SC/PWD diff are calculated automatically (also persisted on save).</p>
+          <p>⑥ Click the Save button on each card to save (or use Save All). Data reflects immediately in Manila Sales Analytics → Cashier Evaluation.</p>
+          <p className="pt-1 text-white/20">* Records with the same date, branch, and cashier name will be overwritten.</p>
         </div>
       </div>
     </div>
