@@ -7279,7 +7279,13 @@ export default function AdminAnalyticsPage() {
                 ) : null}
                 {salesSectionView === "all" || salesSectionView === "manilaCancellations" ? (
                   <div id="sales-manila-cancellations">
-                    <ManilaCancellationsTab approverName={approverName} pin={pin} stepUpReady={salesStepUpReady} />
+                    <ManilaCancellationsTab
+                      dateFrom={summaryDateFrom}
+                      dateTo={summaryDateTo}
+                      approverName={approverName}
+                      pin={pin}
+                      stepUpReady={salesStepUpReady}
+                    />
                   </div>
                 ) : null}
               </>

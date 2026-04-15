@@ -107,13 +107,6 @@ const PLATFORM_COLORS: Record<string, string> = {
   GrabFood: "#00b14f",
   FoodPanda: "#d70f64",
 };
-const PERIOD_OPTIONS = [
-  { label: "30D", days: 30 },
-  { label: "90D", days: 90 },
-  { label: "180D", days: 180 },
-  { label: "All", days: 0 },
-] as const;
-
 function fmtPHP(n: number) {
   if (!Number.isFinite(n)) return "₱0";
   if (n >= 1_000_000) return `₱${(n / 1_000_000).toFixed(1)}M`;
@@ -131,13 +124,6 @@ function fmtDate(d: string) {
   const x = new Date(`${d}T12:00:00`);
   if (Number.isNaN(x.getTime())) return d;
   return x.toLocaleDateString("en-PH", { month: "short", day: "numeric" });
-}
-
-function cutoffDate(days: number) {
-  if (days === 0) return "";
-  const dt = new Date();
-  dt.setDate(dt.getDate() - days);
-  return dt.toISOString().slice(0, 10);
 }
 
 function KpiCard({
@@ -191,10 +177,14 @@ function ChartTooltip({
 }
 
 export function ManilaCancellationsTab({
+  dateFrom,
+  dateTo,
   approverName,
   pin,
   stepUpReady,
 }: {
+  dateFrom: string;
+  dateTo: string;
   approverName: string;
   pin: string;
   stepUpReady: boolean;
@@ -203,7 +193,6 @@ export function ManilaCancellationsTab({
   const [records, setRecords] = useState<CancellationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [periodDays, setPeriodDays] = useState<number>(180);
   const [filterBranch, setFilterBranch] = useState("All");
   const [filterPlatform, setFilterPlatform] = useState("All");
   const [filterCategory, setFilterCategory] = useState("All");
@@ -223,12 +212,14 @@ export function ManilaCancellationsTab({
     }
     setLoading(true);
     setError(null);
-    const from = cutoffDate(periodDays);
+    const df = (dateFrom || "").trim().slice(0, 10);
+    const dt = (dateTo || "").trim().slice(0, 10);
     const qsBase = new URLSearchParams({
       approver_name: approverName.trim(),
       pin: pin.trim(),
     });
-    if (from) qsBase.set("date_from", from);
+    if (df) qsBase.set("date_from", df);
+    if (dt) qsBase.set("date_to", dt);
     const qs = qsBase.toString();
     try {
       const [sumRes, recRes] = await Promise.all([
@@ -244,7 +235,7 @@ export function ManilaCancellationsTab({
     } finally {
       setLoading(false);
     }
-  }, [approverName, pin, periodDays, canLoad]);
+  }, [approverName, pin, dateFrom, dateTo, canLoad]);
 
   useEffect(() => {
     void fetchAll();
@@ -342,23 +333,12 @@ export function ManilaCancellationsTab({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold text-white">Cancellations &amp; Incidents</h2>
-            <p className={`${T_CAPTION} mt-1`}>GrabFood &amp; FoodPanda cancellations and incident / refund records.</p>
+            <p className={`${T_CAPTION} mt-1`}>
+              GrabFood &amp; FoodPanda cancellations and incident / refund records. Range follows{" "}
+              <strong className="text-white/50">Summary Range</strong> above.
+            </p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex overflow-hidden rounded-lg border border-white/10 bg-white/5">
-              {PERIOD_OPTIONS.map(({ label, days }) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => setPeriodDays(days)}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                    periodDays === days ? "bg-indigo-600 text-white" : "text-white/40 hover:bg-white/5 hover:text-white"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
             <button
               type="button"
               onClick={() => void fetchAll()}
@@ -368,6 +348,13 @@ export function ManilaCancellationsTab({
             </button>
           </div>
         </div>
+
+        {summary.total === 0 ? (
+          <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-xs text-amber-100/90">
+            No cancellation records in this date range. Widen <strong>Summary Range</strong>, or ensure historical
+            rows are loaded into the database (Excel import / admin pipeline).
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <KpiCard
