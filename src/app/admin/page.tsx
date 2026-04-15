@@ -62,15 +62,15 @@ type AdminDashView = "requests" | "lowRatings" | "orderEntry" | "ratingEntry" | 
 
 type OrderEntrySub = "dubai" | "manila";
 
-/** Spec: requests · low-ratings · order-entry · ratings-entry (rating-entry URL key = ratings-entry) */
-/** Ratings before Number of Orders so the new tab is less likely to sit off-screen (horizontal scroll). */
+/** Spec: requests · low-ratings · ratings-entry · Manila sales tools · order-entry (rating-entry URL key = ratings-entry) */
+/** Manila daily sales + cashier eval are adjacent; tab row uses nowrap + overflow-x so the 6th tab is not lost to wrapping. */
 const ADMIN_DASH_TABS = [
   { view: "requests" as const, label: "Requests", icon: "📋", tabQuery: null as string | null },
   { view: "lowRatings" as const, label: "Low Ratings", icon: "⚠️", tabQuery: "low-ratings" },
   { view: "ratingEntry" as const, label: "Ratings", icon: "⭐", tabQuery: "ratings-entry" },
-  { view: "orderEntry" as const, label: "Number of Orders", icon: "📦", tabQuery: "order-entry" },
   { view: "salesDataInput" as const, label: "Sales Data Input", icon: "✏️", tabQuery: "sales-data-input" },
   { view: "cashierEvalInput" as const, label: "Cashier Eval Input", icon: "🧾", tabQuery: "cashier-eval-input" },
+  { view: "orderEntry" as const, label: "Number of Orders", icon: "📦", tabQuery: "order-entry" },
 ] as const;
 
 function tabParamToDashView(tab: string | null): AdminDashView {
@@ -1123,7 +1123,7 @@ function AdminPageInner() {
       </div>
 
       <div className={`${TAB_CONTAINER} w-full max-w-full overflow-x-auto`} role="tablist" aria-label="Admin dashboard sections">
-        <div className="flex min-w-min flex-wrap items-center gap-1">
+        <div className="flex w-max max-w-none flex-nowrap items-center gap-1 pb-0.5">
           {ADMIN_DASH_TABS.map((tab) => (
             <button
               key={tab.view}
