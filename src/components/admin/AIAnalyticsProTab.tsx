@@ -59,7 +59,70 @@ const EXAMPLES = [
 
 function getApiBase() {
   if (process.env.NODE_ENV !== "production") return "http://127.0.0.1:8000";
-  return "";
+  const u = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
+  return u || "";
+}
+
+function isHtmlErrorPayload(t: string) {
+  const s = t.trim();
+  return s.startsWith("<!DOCTYPE") || s.startsWith("<html");
+}
+
+/** Read SSE stream from chat-pro; final line is `data: {"success":...}`. */
+async function readChatProSseBody(res: Response): Promise<Record<string, unknown>> {
+  const reader = res.body?.getReader();
+  if (!reader) {
+    const t = await res.text();
+    if (isHtmlErrorPayload(t)) {
+      throw new Error(
+        "サーバーが HTML エラーを返しました（タイムアウトや一時的な過負荷の可能性があります）。しばらくしてから再試行してください。",
+      );
+    }
+    return t ? (JSON.parse(t) as Record<string, unknown>) : {};
+  }
+  const dec = new TextDecoder();
+  let carry = "";
+  let lastSuccessPayload: Record<string, unknown> | null = null;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (value) carry += dec.decode(value, { stream: true });
+    const chunks = carry.split(/\n\n/);
+    carry = chunks.pop() || "";
+    for (const chunk of chunks) {
+      for (const line of chunk.split("\n")) {
+        if (!line.startsWith("data: ")) continue;
+        const raw = line.slice(6).trim();
+        if (!raw) continue;
+        try {
+          const j = JSON.parse(raw) as Record<string, unknown>;
+          if (typeof j.success === "boolean") lastSuccessPayload = j;
+        } catch {
+          /* ignore malformed line */
+        }
+      }
+    }
+    if (done) break;
+  }
+  if (carry.trim()) {
+    for (const line of carry.split("\n")) {
+      if (!line.startsWith("data: ")) continue;
+      const raw = line.slice(6).trim();
+      if (!raw) continue;
+      try {
+        const j = JSON.parse(raw) as Record<string, unknown>;
+        if (typeof j.success === "boolean") lastSuccessPayload = j;
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  if (lastSuccessPayload) return lastSuccessPayload;
+  if (isHtmlErrorPayload(carry)) {
+    throw new Error(
+      "サーバーが HTML エラーを返しました（タイムアウトや一時的な過負荷の可能性があります）。しばらくしてから再試行してください。",
+    );
+  }
+  throw new Error("AI の応答を解析できませんでした。管理者に連絡してください。");
 }
 
 function ts() {
@@ -167,24 +230,34 @@ export default function AIAnalyticsProTab() {
   }, [loadSavedAnswers]);
 
   const postChat = async (body: Record<string, unknown>) => {
-    const url = `${getApiBase()}/api/ai/analytics/chat-pro`;
+    const base = getApiBase();
+    const url = `${base}/api/ai/analytics/chat-pro`;
     const run = () =>
       fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        headers: {
+          Accept: "text/event-stream, application/json",
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
         body: JSON.stringify(body),
       });
     let res = await run();
-    let text = await res.text();
     if (!res.ok && res.status === 401) {
+      const text401 = await res.clone().text();
       const cur = getAuth();
-      if (cur?.pin && (text.includes("Invalid access token") || !cur.accessToken)) {
+      if (cur?.pin && (text401.includes("Invalid access token") || !cur.accessToken)) {
         await refreshAuthFromApi(cur, { includeMfa: true });
         res = await run();
-        text = await res.text();
       }
     }
     if (!res.ok) {
+      const text = await res.text();
+      if (isHtmlErrorPayload(text)) {
+        throw new Error(
+          "サーバーが HTML エラーを返しました（タイムアウトや一時的な過負荷の可能性があります）。しばらくしてから再試行してください。",
+        );
+      }
       let detail = text;
       try {
         const j = JSON.parse(text) as { detail?: unknown };
@@ -193,6 +266,16 @@ export default function AIAnalyticsProTab() {
         /* ignore */
       }
       throw new Error(detail || "Request failed");
+    }
+    const ct = res.headers.get("content-type") || "";
+    if (ct.includes("text/event-stream")) {
+      return readChatProSseBody(res);
+    }
+    const text = await res.text();
+    if (isHtmlErrorPayload(text)) {
+      throw new Error(
+        "サーバーが HTML エラーを返しました（タイムアウトや一時的な過負荷の可能性があります）。しばらくしてから再試行してください。",
+      );
     }
     return text ? (JSON.parse(text) as Record<string, unknown>) : {};
   };
@@ -299,7 +382,8 @@ export default function AIAnalyticsProTab() {
           },
         ]);
       } else {
-        throw new Error("Unexpected response");
+        const d = typeof json.detail === "string" ? json.detail : "AI がエラーを返しました";
+        throw new Error(d);
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Error";
