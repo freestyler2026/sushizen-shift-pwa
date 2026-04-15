@@ -68,7 +68,28 @@ function isHtmlErrorPayload(t: string) {
   return s.startsWith("<!DOCTYPE") || s.startsWith("<html");
 }
 
-/** Read SSE stream from chat-pro; final line is `data: {"success":...}`. */
+/** Parse SSE / NDJSON-style lines; ignores `: ping` comments and partial chunks. */
+function parseSseLinesFromText(full: string): Record<string, unknown> | null {
+  let finalData: Record<string, unknown> | null = null;
+  for (const rawLine of full.split("\n")) {
+    const line = rawLine.replace(/\r$/, "").trimEnd();
+    if (!line) continue;
+    if (line.startsWith(":")) continue;
+    const lower = line.toLowerCase();
+    if (!lower.startsWith("data:")) continue;
+    const jsonStr = line.slice(line.indexOf(":") + 1).trim();
+    if (!jsonStr || !jsonStr.startsWith("{")) continue;
+    try {
+      const j = JSON.parse(jsonStr) as Record<string, unknown>;
+      if (typeof j.success === "boolean") finalData = j;
+    } catch {
+      /* incomplete JSON chunk */
+    }
+  }
+  return finalData;
+}
+
+/** Read SSE stream from chat-pro; final `data:` line has `{ success, ... }`. */
 async function readChatProSseBody(res: Response): Promise<Record<string, unknown>> {
   const reader = res.body?.getReader();
   if (!reader) {
@@ -78,46 +99,57 @@ async function readChatProSseBody(res: Response): Promise<Record<string, unknown
         "サーバーが HTML エラーを返しました（タイムアウトや一時的な過負荷の可能性があります）。しばらくしてから再試行してください。",
       );
     }
+    const fromSse = parseSseLinesFromText(t);
+    if (fromSse) return fromSse;
     return t ? (JSON.parse(t) as Record<string, unknown>) : {};
   }
-  const dec = new TextDecoder();
-  let carry = "";
-  let lastSuccessPayload: Record<string, unknown> | null = null;
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalData: Record<string, unknown> | null = null;
+
   for (;;) {
     const { done, value } = await reader.read();
-    if (value) carry += dec.decode(value, { stream: true });
-    const chunks = carry.split(/\n\n/);
-    carry = chunks.pop() || "";
-    for (const chunk of chunks) {
-      for (const line of chunk.split("\n")) {
-        if (!line.startsWith("data: ")) continue;
-        const raw = line.slice(6).trim();
-        if (!raw) continue;
-        try {
-          const j = JSON.parse(raw) as Record<string, unknown>;
-          if (typeof j.success === "boolean") lastSuccessPayload = j;
-        } catch {
-          /* ignore malformed line */
-        }
-      }
-    }
-    if (done) break;
-  }
-  if (carry.trim()) {
-    for (const line of carry.split("\n")) {
-      if (!line.startsWith("data: ")) continue;
-      const raw = line.slice(6).trim();
-      if (!raw) continue;
+    if (value) buffer += decoder.decode(value, { stream: true });
+
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const rawLine of lines) {
+      const line = rawLine.replace(/\r$/, "").trimEnd();
+      if (!line) continue;
+      if (line.startsWith(":")) continue;
+      const lower = line.toLowerCase();
+      if (!lower.startsWith("data:")) continue;
+      const jsonStr = line.slice(line.indexOf(":") + 1).trim();
+      if (!jsonStr || !jsonStr.startsWith("{")) continue;
       try {
-        const j = JSON.parse(raw) as Record<string, unknown>;
-        if (typeof j.success === "boolean") lastSuccessPayload = j;
+        const j = JSON.parse(jsonStr) as Record<string, unknown>;
+        if (typeof j.success === "boolean") finalData = j;
       } catch {
         /* ignore */
       }
     }
+
+    if (done) break;
   }
-  if (lastSuccessPayload) return lastSuccessPayload;
-  if (isHtmlErrorPayload(carry)) {
+
+  if (buffer.trim()) {
+    const line = buffer.replace(/\r$/, "").trimEnd();
+    if (line && !line.startsWith(":") && line.toLowerCase().startsWith("data:")) {
+      const jsonStr = line.slice(line.indexOf(":") + 1).trim();
+      if (jsonStr.startsWith("{")) {
+        try {
+          const j = JSON.parse(jsonStr) as Record<string, unknown>;
+          if (typeof j.success === "boolean") finalData = j;
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }
+
+  if (finalData) return finalData;
+  if (isHtmlErrorPayload(buffer)) {
     throw new Error(
       "サーバーが HTML エラーを返しました（タイムアウトや一時的な過負荷の可能性があります）。しばらくしてから再試行してください。",
     );
@@ -267,8 +299,8 @@ export default function AIAnalyticsProTab() {
       }
       throw new Error(detail || "Request failed");
     }
-    const ct = res.headers.get("content-type") || "";
-    if (ct.includes("text/event-stream")) {
+    const ct = (res.headers.get("content-type") || "").toLowerCase();
+    if (ct.includes("text/event-stream") || ct.includes("event-stream")) {
       return readChatProSseBody(res);
     }
     const text = await res.text();
@@ -277,7 +309,14 @@ export default function AIAnalyticsProTab() {
         "サーバーが HTML エラーを返しました（タイムアウトや一時的な過負荷の可能性があります）。しばらくしてから再試行してください。",
       );
     }
-    return text ? (JSON.parse(text) as Record<string, unknown>) : {};
+    if (!text.trim()) return {};
+    try {
+      return JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      const fromSse = parseSseLinesFromText(text);
+      if (fromSse) return fromSse;
+      throw new Error("応答を解釈できませんでした（JSON でも SSE でもありません）。");
+    }
   };
 
   const saveAnswerSnapshot = async (pairedQuestion: string, answer: string, model?: string) => {
