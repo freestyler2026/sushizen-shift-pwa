@@ -13,7 +13,7 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { canAccessBackofficeEvaluationAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { fmtNum } from "@/lib/formatters";
 import {
@@ -94,6 +94,39 @@ function monthNow(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+const SUMMARY_FETCH_MS = 90_000;
+const AUTH_REFRESH_MS = 45_000;
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  ms: number = SUMMARY_FETCH_MS
+): Promise<Response> {
+  const ctrl = new AbortController();
+  const t = window.setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } finally {
+    window.clearTimeout(t);
+  }
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = window.setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms);
+    p.then(
+      (v) => {
+        window.clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        window.clearTimeout(t);
+        reject(e);
+      }
+    );
+  });
+}
+
 export default function AdminBackofficeEvaluationPage() {
   const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
   const auth = useMemo(() => getAuth(), []);
@@ -119,6 +152,9 @@ export default function AdminBackofficeEvaluationPage() {
   const [actionDueDate, setActionDueDate] = useState("");
   const [actionStatus, setActionStatus] = useState("OPEN");
   const [actionBusy, setActionBusy] = useState(false);
+  /** Bumps on each loadSummary start so stale responses do not flip loading or state. */
+  const summaryRequestGen = useRef(0);
+  const prevCityMonthRef = useRef<string | null>(null);
 
   const tokenHeaders = useCallback(async () => {
     const refreshed = await refreshAuthFromApi(auth);
@@ -147,30 +183,48 @@ export default function AdminBackofficeEvaluationPage() {
   }, [city, monthKey]);
 
   const loadSummary = useCallback(async () => {
+    if (!apiBase.trim()) {
+      setError("API base URL is not configured (NEXT_PUBLIC_API_BASE_URL).");
+      setSummary(null);
+      setRows([]);
+      setLoading(false);
+      return;
+    }
+    const gen = ++summaryRequestGen.current;
     setLoading(true);
     setError("");
     try {
-      const headers = await tokenHeaders();
+      const headers = await withTimeout(tokenHeaders(), AUTH_REFRESH_MS, "Authentication refresh");
       const q = new URLSearchParams({ city, month_key: monthKey }).toString();
-      const res = await fetch(`${apiBase}/api/admin/backoffice-evaluation/summary?${q}`, { headers, cache: "no-store" });
+      const res = await fetchWithTimeout(`${apiBase}/api/admin/backoffice-evaluation/summary?${q}`, {
+        headers,
+        cache: "no-store",
+      });
       const text = await res.text();
+      if (gen !== summaryRequestGen.current) return;
       if (!res.ok) throw new Error(text || `Failed (${res.status})`);
       const j = JSON.parse(text || "{}");
       setSummary((j?.summary || null) as SummaryPayload | null);
       applyAttendanceStatus(j?.attendance_status);
       const scoreRows = (Array.isArray(j?.rows) ? j.rows : []) as ScoreRow[];
       setRows(scoreRows);
-      if (scoreRows.length && !selectedStaff) {
-        setSelectedStaff(scoreRows[0].staff_name || "");
-      }
+      setSelectedStaff((prev) => {
+        if (scoreRows.some((r) => r.staff_name === prev)) return prev;
+        return scoreRows.length ? scoreRows[0].staff_name || "" : "";
+      });
     } catch (e: any) {
-      setError(e?.message || String(e));
+      if (gen !== summaryRequestGen.current) return;
+      const msg =
+        e?.name === "AbortError"
+          ? `Summary request timed out after ${SUMMARY_FETCH_MS / 1000}s. Check API URL and network.`
+          : e?.message || String(e);
+      setError(msg);
       setSummary(null);
       setRows([]);
     } finally {
-      setLoading(false);
+      if (gen === summaryRequestGen.current) setLoading(false);
     }
-  }, [apiBase, applyAttendanceStatus, city, monthKey, selectedStaff, tokenHeaders]);
+  }, [apiBase, applyAttendanceStatus, city, monthKey, tokenHeaders]);
 
   const loadAttendanceStatus = useCallback(async () => {
     setAttendanceError("");
@@ -213,8 +267,12 @@ export default function AdminBackofficeEvaluationPage() {
       setError("Approver Name and PIN are required.");
       return;
     }
-    if (bayzatSyncKey !== `${city}:${monthKey}`) {
-      setError("Run Bayzat Sync before scoring this month.");
+    const serverHasAttendance = (attendanceStatus?.attendance_staff_count ?? 0) > 0;
+    const bayzatDoneThisSession = bayzatSyncKey === `${city}:${monthKey}`;
+    if (!bayzatDoneThisSession && !serverHasAttendance) {
+      setError(
+        "Run Bayzat Sync first (or wait until attendance coverage loads), then Sync + Score."
+      );
       return;
     }
     setSyncBusy(true);
@@ -349,12 +407,18 @@ export default function AdminBackofficeEvaluationPage() {
     };
   }, [auth]);
 
+  const cityMonthKey = `${city}:${monthKey}`;
+
   useEffect(() => {
     if (!allowed) return;
-    setBayzatSyncKey("");
+    if (prevCityMonthRef.current !== cityMonthKey) {
+      prevCityMonthRef.current = cityMonthKey;
+      setBayzatSyncKey("");
+      setSelectedStaff("");
+    }
     loadAttendanceStatus();
     loadSummary();
-  }, [allowed, city, monthKey, loadAttendanceStatus, loadSummary]);
+  }, [allowed, cityMonthKey, loadAttendanceStatus, loadSummary]);
 
   useEffect(() => {
     if (!allowed || !selectedStaff) return;
@@ -366,6 +430,9 @@ export default function AdminBackofficeEvaluationPage() {
   }
 
   const bayzatReady = bayzatSyncKey === `${city}:${monthKey}`;
+  /** Server already has attendance rows for this month — Sync + Score can run without re-clicking Bayzat. */
+  const hasServerAttendance = (attendanceStatus?.attendance_staff_count ?? 0) > 0;
+  const canRunSyncScore = bayzatReady || hasServerAttendance;
   const hasSummaryData = Boolean(summary) || rows.length > 0;
   const scoreCriteriaEn = [
     { label: "Workload", desc: "submission / work volume", pct: 10, color: "bg-sky-400" },
@@ -491,7 +558,7 @@ export default function AdminBackofficeEvaluationPage() {
           <button
             type="button"
             onClick={syncFromSheet}
-            disabled={syncBusy || attendanceSyncBusy || !bayzatReady}
+            disabled={syncBusy || attendanceSyncBusy || !canRunSyncScore}
             className={`${PRIMARY_BUTTON} flex items-center gap-2 text-sm disabled:opacity-60`}
           >
             <Zap className="h-3.5 w-3.5" />
@@ -501,7 +568,13 @@ export default function AdminBackofficeEvaluationPage() {
         <div className="rounded-xl border border-white/8 bg-white/3 px-4 py-3 space-y-1">
           <p className={T_CAPTION}>Bayzat attendance available through: <span className="text-zinc-300">{attendanceStatus?.attendance_last_date || "-"}</span></p>
           <p className={T_CAPTION}>Attendance coverage: <span className="text-zinc-300">{fmtNum(attendanceStatus?.attendance_staff_count ?? 0)} staff</span></p>
-          <p className={T_CAPTION}>{bayzatReady ? "Bayzat Sync completed for this city/month. You can run Sync + Score now." : "Click Bayzat Sync first, then Sync + Score."}</p>
+          <p className={T_CAPTION}>
+            {canRunSyncScore
+              ? bayzatReady
+                ? "Bayzat Sync completed this session. You can run Sync + Score."
+                : "Attendance is already on the server for this month — you can run Sync + Score without Bayzat Sync. (Bayzat Sync is still available to refresh attendance.)"
+              : "Load this page until attendance coverage appears, or run Bayzat Sync, then run Sync + Score to import scores from the Google Sheet."}
+          </p>
           {attendanceError ? <div className={`${BADGE_ERROR} mt-2 px-3 py-1.5 text-sm`}>{attendanceError}</div> : null}
         </div>
       </div>
@@ -565,9 +638,19 @@ export default function AdminBackofficeEvaluationPage() {
               <p className={T_CAPTION}>Loading staff scores...</p>
             </div>
           ) : rows.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 gap-2">
+            <div className="flex flex-col items-center justify-center py-10 gap-2 px-2 text-center">
               <InboxIcon className="h-8 w-8 text-zinc-700" />
-              <p className={T_CAPTION}>No score rows.</p>
+              <p className={T_CAPTION}>No score rows yet.</p>
+              {hasServerAttendance ? (
+                <p className="text-xs text-zinc-400 max-w-md">
+                  Scores come from the evaluation Google Sheet after <strong>Sync + Score</strong>. Attendance
+                  coverage is present — run Sync + Score (PIN required) to populate this table.
+                </p>
+              ) : (
+                <p className="text-xs text-zinc-500 max-w-md">
+                  After attendance exists for this month, run <strong>Sync + Score</strong> to import benchmarked scores.
+                </p>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
