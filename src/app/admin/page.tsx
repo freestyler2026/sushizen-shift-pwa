@@ -65,7 +65,7 @@ type OrderEntrySub = "dubai" | "manila";
 /** Spec: requests · low-ratings · ratings-entry · Manila sales tools · order-entry (rating-entry URL key = ratings-entry) */
 /** Manila daily sales + cashier eval are adjacent; tab row uses nowrap + overflow-x so the 6th tab is not lost to wrapping. */
 const ADMIN_DASH_TABS = [
-  { view: "requests" as const, label: "Requests Input", icon: "📋", tabQuery: null as string | null },
+  { view: "requests" as const, label: "Request Check", icon: "📋", tabQuery: null as string | null },
   { view: "lowRatings" as const, label: "Low Ratings Input", icon: "⚠️", tabQuery: "low-ratings" },
   { view: "ratingEntry" as const, label: "Ratings Input", icon: "⭐", tabQuery: "ratings-entry" },
   { view: "salesDataInput" as const, label: "Sales Data Input", icon: "✏️", tabQuery: "sales-data-input" },
