@@ -16,11 +16,13 @@ import {
   RefreshCw,
   ScanLine,
   ScrollText,
+  Warehouse,
 } from "lucide-react";
 import { canAccessCountTemplatesAdmin, canAccessInventoryLimited, getAuth } from "@/lib/auth";
 
 const ITEMS = [
   { href: "/admin/inventory", label: "Overview", icon: LayoutDashboard },
+  { href: "/admin/daily-inventory", label: "Daily Inventory", icon: Warehouse },
   { href: "/admin/inventory/items", label: "Ingredients / Products", icon: Boxes },
   { href: "/admin/inventory/recipes", label: "Sales Menu BOM", icon: BookOpen },
   { href: "/admin/inventory/count-sheets", label: "Count Templates", icon: ClipboardList },
@@ -42,6 +44,7 @@ export default function InventoryTabs() {
   const items = limitedInventoryUser
     ? ITEMS.filter((item) =>
       item.href === "/admin/inventory" ||
+      item.href === "/admin/daily-inventory" ||
       item.href === "/admin/inventory/counts" ||
       item.href === "/admin/inventory/spot-checks" ||
       item.href === "/admin/inventory/transfer-orders" ||
