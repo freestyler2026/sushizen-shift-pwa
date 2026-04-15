@@ -32,7 +32,6 @@ import AdminCashierEvalInputTab from "@/components/admin/AdminCashierEvalInputTa
 import AdminCancellationInputTab from "@/components/admin/AdminCancellationInputTab";
 import AdminDailyInventoryTab from "@/components/admin/AdminDailyInventoryTab";
 import AdminDubaiCancellationInputTab from "@/components/admin/AdminDubaiCancellationInputTab";
-import AIAnalyticsProTab from "@/components/admin/AIAnalyticsProTab";
 import { RatingEntryTab } from "@/components/admin/RatingEntryTab";
 import { LowRatingsAdminPanel } from "@/components/lowratings/LowRatingsAdminPanel";
 import {
@@ -71,8 +70,7 @@ type AdminDashView =
   | "cashierEvalInput"
   | "dailyInventory"
   | "cancellationInput"
-  | "dubaiCancellationInput"
-  | "aiAnalyticsPro";
+  | "dubaiCancellationInput";
 
 type OrderEntrySub = "dubai" | "manila";
 
@@ -87,7 +85,6 @@ const ADMIN_DASH_TABS = [
   { view: "dailyInventory" as const, label: "Daily Inventory Input", icon: "🧺", tabQuery: "daily-inventory" },
   { view: "cancellationInput" as const, label: "Cancellation Input", icon: "🚫", tabQuery: "cancellation-input" },
   { view: "dubaiCancellationInput" as const, label: "Dubai Cancellation", icon: "🇦🇪", tabQuery: "dubai-cancellation-input" },
-  { view: "aiAnalyticsPro" as const, label: "AI Analytics Pro", icon: "🤖", tabQuery: "ai-analytics-pro" },
   { view: "orderEntry" as const, label: "Number of Orders Input", icon: "📦", tabQuery: "order-entry" },
 ] as const;
 
@@ -750,8 +747,13 @@ function AdminPageInner() {
 
   useEffect(() => {
     if (!ready || !allowed) return;
-    setDashView(tabParamToDashView(searchParams.get("tab")));
-  }, [ready, allowed, searchParams]);
+    const tab = searchParams.get("tab");
+    if (tab === "ai-analytics-pro") {
+      router.replace("/admin/ai-analytics-pro");
+      return;
+    }
+    setDashView(tabParamToDashView(tab));
+  }, [ready, allowed, searchParams, router]);
 
   useEffect(() => {
     if (!ready || !allowed) return;
@@ -1174,8 +1176,6 @@ function AdminPageInner() {
         <AdminCancellationInputTab />
       ) : dashView === "dubaiCancellationInput" ? (
         <AdminDubaiCancellationInputTab />
-      ) : dashView === "aiAnalyticsPro" ? (
-        <AIAnalyticsProTab />
       ) : dashView === "orderEntry" ? (
         <div className="space-y-4">
           <div className={`${TAB_CONTAINER} w-full max-w-full overflow-x-auto`} role="tablist" aria-label="Number of Orders Input region">

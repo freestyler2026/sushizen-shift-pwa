@@ -8,6 +8,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   ArrowLeftRight,
   BarChart3,
+  Bot,
   Calculator,
   Calendar,
   CalendarClock,
@@ -86,6 +87,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/procurement", label: "Procurement", icon: Truck, adminOnly: true, match: "prefix" },
   { href: "/admin/cost-calculation", label: "Cost Calculation", icon: Calculator, adminOnly: true, match: "prefix" },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3, adminOnly: true, match: "exact" },
+  { href: "/admin/ai-analytics-pro", label: "AI Analytics Pro", icon: Bot, adminOnly: true, match: "exact" },
   { href: "/admin/attendance", label: "Attendance", icon: UserCheck, adminOnly: true, match: "prefix" },
   { href: "/admin/absences", label: "Absences", icon: UserX, adminOnly: true, match: "exact" },
   { href: "/admin/renewals", label: "Renewals", icon: ScrollText, adminOnly: true, match: "prefix" },
@@ -178,6 +180,7 @@ export default function NavBar() {
   function canSeeAdminItem(href: string, auth: ReturnType<typeof getAuth>) {
     if (!auth) return false;
     if (href === "/admin") return canAccessAdminNav(auth);
+    if (href === "/admin/ai-analytics-pro") return canAccessAdminNav(auth);
     if (href === "/admin/inventory") return canAccessInventoryWorkspace(auth);
     if (href === "/admin/daily-inventory") return canAccessAdminNav(auth);
     if (href === "/admin/menu") return canAccessMenuAdmin(auth);
