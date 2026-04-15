@@ -88,6 +88,7 @@ import { ManilaOrderCountsTab } from "@/components/analytics/ManilaOrderCountsTa
 import { ManilaSalesDataTab } from "@/components/analytics/ManilaSalesDataTab";
 import { ManilaCashierEvaluationTab } from "@/components/analytics/ManilaCashierEvaluationTab";
 import { ManilaCancellationsTab } from "@/components/analytics/ManilaCancellationsTab";
+import { DubaiCancellationsTab } from "@/components/analytics/DubaiCancellationsTab";
 
 // Resolve API base at runtime so local dev always talks to FastAPI directly,
 // even when the page is opened via a LAN IP or a custom local hostname.
@@ -1325,6 +1326,7 @@ const SALES_SECTION_OPTIONS = [
   { value: "dataCheck", label: "Data Check", id: "sales-data-check" },
   { value: "orderCounts", label: "Number of Orders", id: "sales-order-counts" },
   { value: "aggregatorRatings", label: "Ratings", id: "sales-aggregator-ratings" },
+  { value: "dubaiCancellations", label: "Cancellations", id: "sales-dubai-cancellations" },
   { value: "manilaSales", label: "Manila Sales", id: "sales-manila-sales" },
   { value: "manilaLowRatings", label: "Ratings", id: "sales-manila-low-ratings" },
   { value: "manilaSalesData", label: "Sales Data", id: "sales-manila-daily" },
@@ -1970,6 +1972,7 @@ export default function AdminAnalyticsPage() {
     | "dataCheck"
     | "orderCounts"
     | "aggregatorRatings"
+    | "dubaiCancellations"
     | "manilaSales"
     | "manilaLowRatings"
     | "manilaSalesData"
@@ -7198,6 +7201,17 @@ export default function AdminAnalyticsPage() {
             {salesSectionView === "all" || salesSectionView === "aggregatorRatings" ? (
               <div id="sales-aggregator-ratings">
                 <AggregatorRatingsTab approverName={approverName} pin={pin} stepUpReady={salesStepUpReady} />
+              </div>
+            ) : null}
+            {salesSectionView === "all" || salesSectionView === "dubaiCancellations" ? (
+              <div id="sales-dubai-cancellations">
+                <DubaiCancellationsTab
+                  dateFrom={summaryDateFrom}
+                  dateTo={summaryDateTo}
+                  approverName={approverName}
+                  pin={pin}
+                  stepUpReady={salesStepUpReady}
+                />
               </div>
             ) : null}
               </>

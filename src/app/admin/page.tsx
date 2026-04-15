@@ -30,6 +30,7 @@ import ManilaOfflineOrderEntryTab from "@/components/admin/ManilaOfflineOrderEnt
 import AdminSalesDataInputTab from "@/components/admin/AdminSalesDataInputTab";
 import AdminCashierEvalInputTab from "@/components/admin/AdminCashierEvalInputTab";
 import AdminCancellationInputTab from "@/components/admin/AdminCancellationInputTab";
+import AdminDubaiCancellationInputTab from "@/components/admin/AdminDubaiCancellationInputTab";
 import { RatingEntryTab } from "@/components/admin/RatingEntryTab";
 import { LowRatingsAdminPanel } from "@/components/lowratings/LowRatingsAdminPanel";
 import {
@@ -66,7 +67,8 @@ type AdminDashView =
   | "ratingEntry"
   | "salesDataInput"
   | "cashierEvalInput"
-  | "cancellationInput";
+  | "cancellationInput"
+  | "dubaiCancellationInput";
 
 type OrderEntrySub = "dubai" | "manila";
 
@@ -79,6 +81,7 @@ const ADMIN_DASH_TABS = [
   { view: "salesDataInput" as const, label: "Sales Data Input", icon: "✏️", tabQuery: "sales-data-input" },
   { view: "cashierEvalInput" as const, label: "Cashier Eval Input", icon: "🧾", tabQuery: "cashier-eval-input" },
   { view: "cancellationInput" as const, label: "Cancellation Input", icon: "🚫", tabQuery: "cancellation-input" },
+  { view: "dubaiCancellationInput" as const, label: "Dubai Cancellation", icon: "🇦🇪", tabQuery: "dubai-cancellation-input" },
   { view: "orderEntry" as const, label: "Number of Orders Input", icon: "📦", tabQuery: "order-entry" },
 ] as const;
 
@@ -1161,6 +1164,8 @@ function AdminPageInner() {
         <AdminCashierEvalInputTab />
       ) : dashView === "cancellationInput" ? (
         <AdminCancellationInputTab />
+      ) : dashView === "dubaiCancellationInput" ? (
+        <AdminDubaiCancellationInputTab />
       ) : dashView === "orderEntry" ? (
         <div className="space-y-4">
           <div className={`${TAB_CONTAINER} w-full max-w-full overflow-x-auto`} role="tablist" aria-label="Number of Orders Input region">
