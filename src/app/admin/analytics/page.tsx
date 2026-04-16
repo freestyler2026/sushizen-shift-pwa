@@ -7089,12 +7089,11 @@ export default function AdminAnalyticsPage() {
 
             {(salesSectionView === "all" || salesSectionView === "summary") && salesCity === "dubai" && !summaryBrandName ? (
               <p className={T_CAPTION}>
-                <span className="text-neutral-300">Net sales and gross revenue</span> match Atlas &quot;Revenue by
-                Location&quot;: UrbanPiper daily CSVs stored as{" "}
-                <span className="text-neutral-300">pos_revenue_location_daily</span> when that table has rows for the
-                selected range; otherwise they fall back to Foodics{" "}
-                <span className="text-neutral-300">pos_sales_daily</span>. Daily chart rows use Revenue per date when
-                available, else POS.{" "}
+                <span className="text-neutral-300">Net sales and gross revenue</span> use a{" "}
+                <span className="text-neutral-300">per-day merge</span>:{" "}
+                <span className="text-neutral-300">pos_revenue_location_daily</span> (Atlas / UrbanPiper) when that date
+                has rows, otherwise Foodics <span className="text-neutral-300">pos_sales_daily</span>, so the selected
+                range stays complete when Revenue sync lags. Daily chart rows follow the same rule.{" "}
                 <span className="text-neutral-300">Order count and days w/ sales data</span> use the manual{" "}
                 <span className="text-neutral-300">dubai_order_counts</span> import for{" "}
                 <span className="text-neutral-300">Sushi Zen</span> when present (same default as Number of Orders); if
