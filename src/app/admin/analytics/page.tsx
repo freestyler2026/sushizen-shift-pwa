@@ -7081,9 +7081,12 @@ export default function AdminAnalyticsPage() {
 
             {(salesSectionView === "all" || salesSectionView === "summary") && salesCity === "dubai" && !summaryBrandName ? (
               <p className={T_CAPTION}>
-                Summary totals above are <span className="text-neutral-300">city-wide net sales and orders</span>{" "}
-                (SushiZEN + RamenZEN + All Veggie Sushi, one kitchen). Management P&amp;L labor ratio uses the same
-                combined sales denominator.
+                <span className="text-neutral-300">Net sales and gross revenue</span> use city-wide synced daily totals
+                (SushiZEN + RamenZEN + All Veggie Sushi, one kitchen).{" "}
+                <span className="text-neutral-300">Order count and days w/ sales data</span> use the manual Excel import
+                for <span className="text-neutral-300">Sushi Zen</span> when present (same default brand as Number of
+                Orders), so average net per order stays comparable to Foodics-backed revenue. Management P&amp;L labor
+                ratio uses the same combined sales denominator.
               </p>
             ) : null}
 
