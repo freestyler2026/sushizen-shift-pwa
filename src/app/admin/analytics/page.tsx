@@ -1799,6 +1799,20 @@ function formatSummaryPctChange(current: number, previous: number): string {
   return `${sign}${rounded}%`;
 }
 
+/** Store-row MoM: drop absurd % when prior period had no/low baseline (e.g. new store). */
+function formatStoreMomPct(current: number, previous: number): string {
+  if (!Number.isFinite(current) || !Number.isFinite(previous)) return "—";
+  if (previous === 0 && current === 0) return "0%";
+  if (previous === 0) return "—";
+  const pct = ((current - previous) / previous) * 100;
+  if (!Number.isFinite(pct)) return "—";
+  if (Math.abs(pct) > 400) return "—";
+  const rounded = Math.round(pct * 10) / 10;
+  if (Math.abs(rounded) < 0.05) return "0%";
+  const sign = rounded > 0 ? "+" : "";
+  return `${sign}${rounded}%`;
+}
+
 function summaryPctToneClass(pctLabel: string): string {
   if (pctLabel === "—" || pctLabel === "0%") return "text-neutral-500";
   if (pctLabel.startsWith("-")) return "text-rose-300";
@@ -4440,8 +4454,8 @@ export default function AdminAnalyticsPage() {
       const p = prior.get(row.branch_name) ?? { net: 0, orders: 0 };
       return {
         ...row,
-        netPct: formatSummaryPctChange(row.net_revenue, p.net),
-        ordersPct: formatSummaryPctChange(row.order_count, p.orders),
+        netPct: formatStoreMomPct(row.net_revenue, p.net),
+        ordersPct: formatStoreMomPct(row.order_count, p.orders),
       };
     });
   }, [summaryStoreRollup, summaryStorePriorByBranch]);
@@ -6976,6 +6990,10 @@ export default function AdminAnalyticsPage() {
                     <p className="text-xs text-amber-200/80">
                       Company-level <span className="text-zinc-300">Order Count</span> may include manual Sushi Zen imports
                       not allocated by store; per-store orders here follow POS revenue exports only.
+                    </p>
+                    <p className="text-xs text-neutral-500">
+                      <span className="text-zinc-400">Net/Orders MoM</span> shows — when the prior window had no (or negligible)
+                      activity for that store, or the swing is over 400% (misleading without a stable baseline).
                     </p>
                   </div>
                   {summaryStoreTableRows.length === 0 ? (
