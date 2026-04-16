@@ -7089,18 +7089,17 @@ export default function AdminAnalyticsPage() {
 
             {(salesSectionView === "all" || salesSectionView === "summary") && salesCity === "dubai" && !summaryBrandName ? (
               <p className={T_CAPTION}>
-                <span className="text-neutral-300">Net sales and gross revenue</span> use a{" "}
-                <span className="text-neutral-300">per-day merge</span>:{" "}
-                <span className="text-neutral-300">pos_revenue_location_daily</span> (Atlas / UrbanPiper) when that date
-                has rows, otherwise Foodics <span className="text-neutral-300">pos_sales_daily</span>, so the selected
-                range stays complete when Revenue sync lags. Daily chart rows follow the same rule.{" "}
+                <span className="text-neutral-300">Net sales and gross revenue</span> use only{" "}
+                <span className="text-neutral-300">pos_revenue_location_daily</span> (UrbanPiper{" "}
+                <span className="text-neutral-300">export_revenue_by_location</span> CSVs). Dates without a Revenue import
+                have no daily row and do not add to the period total. Foodics{" "}
+                <span className="text-neutral-300">pos_sales_daily</span> is not mixed into these figures.{" "}
                 <span className="text-neutral-300">Order count and days w/ sales data</span> use the manual{" "}
                 <span className="text-neutral-300">dubai_order_counts</span> import for{" "}
                 <span className="text-neutral-300">Sushi Zen</span> when present (same default as Number of Orders); if
-                missing, counts come from the same source as net/gross.{" "}
-                <span className="text-neutral-300">Avg Net / Order</span> divides Summary net by that order count (mixed
-                UrbanPiper net vs manual Sushi Zen orders when both are loaded). Management P&amp;L labor ratio uses the
-                same combined sales denominator.
+                missing, counts come from Revenue.{" "}
+                <span className="text-neutral-300">Avg Net / Order</span> divides Summary net by that order count. Management
+                P&amp;L labor ratio uses the same combined sales denominator.
               </p>
             ) : null}
 
