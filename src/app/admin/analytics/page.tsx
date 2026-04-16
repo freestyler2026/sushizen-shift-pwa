@@ -1763,6 +1763,48 @@ function ymdLocal(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Calendar shift (e.g. Apr 15 → Mar 15); clamps day to prior month length. */
+function shiftCalendarDateByMonths(isoDate: string, deltaMonths: number): string | null {
+  const m = String(isoDate || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return null;
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  const targetMonth = new Date(y, mo - 1 + deltaMonths, 1);
+  const lastDay = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0).getDate();
+  const day = Math.min(d, lastDay);
+  const out = new Date(targetMonth.getFullYear(), targetMonth.getMonth(), day);
+  return ymdLocal(out);
+}
+
+/** Same day-of-month span in the previous calendar month (for MoM). */
+function priorMonthSameCalendarDayRange(dateFrom: string, dateTo: string): { from: string; to: string } | null {
+  const pf = shiftCalendarDateByMonths(dateFrom, -1);
+  const pt = shiftCalendarDateByMonths(dateTo, -1);
+  if (!pf || !pt) return null;
+  if (pf > pt) return null;
+  return { from: pf, to: pt };
+}
+
+function formatSummaryPctChange(current: number, previous: number): string {
+  if (!Number.isFinite(current) || !Number.isFinite(previous)) return "—";
+  if (previous === 0 && current === 0) return "0%";
+  if (previous === 0) return "—";
+  const pct = ((current - previous) / previous) * 100;
+  const rounded = Math.round(pct * 10) / 10;
+  if (Math.abs(rounded) < 0.05) return "0%";
+  const sign = rounded > 0 ? "+" : "";
+  return `${sign}${rounded}%`;
+}
+
+function summaryPctToneClass(pctLabel: string): string {
+  if (pctLabel === "—" || pctLabel === "0%") return "text-neutral-500";
+  if (pctLabel.startsWith("-")) return "text-rose-300";
+  return "text-emerald-300";
+}
+
 /**
  * 質問文から言及されている年月を抽出する。
  * 見つからない場合は先月（直近の完結した月）を返す。
@@ -2089,7 +2131,9 @@ export default function AdminAnalyticsPage() {
   const [productMixCoverage, setProductMixCoverage] = useState<{ from?: string | null; to?: string | null; source?: string }>({});
   const [posBranchOrderRows, setPosBranchOrderRows] = useState<PosBranchOrderRow[]>([]);
   const [posBrandOrderRows, setPosBrandOrderRows] = useState<PosBrandOrderRow[]>([]);
-  const [, setPosBranchDailyRows] = useState<PosBranchDailyRow[]>([]);
+  const [posBranchDailyRows, setPosBranchDailyRows] = useState<PosBranchDailyRow[]>([]);
+  const [posSalesPriorTotals, setPosSalesPriorTotals] = useState<PosSalesDailyTotals | null>(null);
+  const [posBranchDailyPriorRows, setPosBranchDailyPriorRows] = useState<PosBranchDailyRow[]>([]);
   const [cancelOrdersAnalytics, setCancelOrdersAnalytics] = useState<PosCancelOrdersResp | null>(null);
   const [cancelOrdersLoadError, setCancelOrdersLoadError] = useState("");
   const [cancelOrdersPeriod, setCancelOrdersPeriod] = useState<"7D" | "14D" | "30D" | "ALL">("ALL");
@@ -3005,6 +3049,25 @@ export default function AdminAnalyticsPage() {
             }
           };
 
+          const salesSummaryPriorRange =
+            analyticsTab !== "manilaSales" ? priorMonthSameCalendarDayRange(summaryDateFrom, summaryDateTo) : null;
+          const posPriorQs = salesSummaryPriorRange
+            ? new URLSearchParams({
+                city: posCity,
+                date_from: salesSummaryPriorRange.from,
+                date_to: salesSummaryPriorRange.to,
+                branch_code: summaryBranchCode,
+                brand_name: summaryBrandName,
+                limit: "1000",
+                approver_name: approverName.trim(),
+                pin: pin.trim(),
+              })
+            : null;
+          if (!posPriorQs) {
+            setPosSalesPriorTotals(null);
+            setPosBranchDailyPriorRows([]);
+          }
+
           await Promise.all([
             loadSalesDataset(
               "Sales daily",
@@ -3092,6 +3155,22 @@ export default function AdminAnalyticsPage() {
                 setPosDataCheckError("Data check unavailable");
               }
             ),
+            ...(posPriorQs
+              ? [
+                  loadSalesDataset(
+                    "Sales daily (prior month)",
+                    () => apiGet<PosSalesDailyResp>(`/api/admin/pos/sales/daily?${posPriorQs.toString()}`),
+                    (posDailyPrior) => setPosSalesPriorTotals(posDailyPrior.totals ?? null),
+                    () => setPosSalesPriorTotals(null),
+                  ),
+                  loadSalesDataset(
+                    "Branch daily (prior month)",
+                    () => apiGet<PosBranchDailyResp>(`/api/admin/pos/branches/daily?${posPriorQs.toString()}`),
+                    (rowsPrior) => setPosBranchDailyPriorRows(rowsPrior.items || []),
+                    () => setPosBranchDailyPriorRows([]),
+                  ),
+                ]
+              : []),
           ]);
           if (canViewFinanceChannels && financeStepUpReady) {
             try {
@@ -3129,6 +3208,8 @@ export default function AdminAnalyticsPage() {
           setPosBranchOrderRows([]);
           setPosBrandOrderRows([]);
           setPosBranchDailyRows([]);
+          setPosSalesPriorTotals(null);
+          setPosBranchDailyPriorRows([]);
           setCancelOrdersAnalytics(null);
           setOperationTimeAnalytics(null);
           setOperationTimeLoadError("");
@@ -4314,6 +4395,79 @@ export default function AdminAnalyticsPage() {
       hasProfit: !summaryBranchCode && !summaryBrandName && !!salesPlSummary?.ok,
     };
   }, [posSalesRows, posSalesRangeTotals, salesPlSummary, summaryBranchCode, summaryBrandName]);
+
+  const salesSummaryPriorRangeMemo = useMemo(
+    () => priorMonthSameCalendarDayRange(summaryDateFrom, summaryDateTo),
+    [summaryDateFrom, summaryDateTo],
+  );
+
+  const summaryStoreRollup = useMemo(() => {
+    const m = new Map<string, { net: number; gross: number; orders: number }>();
+    for (const row of posBranchDailyRows) {
+      const k = String(row.branch_name || "").trim() || "—";
+      const cur = m.get(k) ?? { net: 0, gross: 0, orders: 0 };
+      cur.net += Number(row.net_revenue || 0);
+      cur.gross += Number(row.gross_revenue || 0);
+      cur.orders += Number(row.order_count_non_cancelled || 0);
+      m.set(k, cur);
+    }
+    return Array.from(m.entries())
+      .map(([branch_name, v]) => ({
+        branch_name,
+        net_revenue: v.net,
+        gross_revenue: v.gross,
+        order_count: v.orders,
+        avg_net_per_order: v.orders > 0 ? v.net / v.orders : 0,
+      }))
+      .sort((a, b) => b.net_revenue - a.net_revenue);
+  }, [posBranchDailyRows]);
+
+  const summaryStorePriorByBranch = useMemo(() => {
+    const m = new Map<string, { net: number; orders: number }>();
+    for (const row of posBranchDailyPriorRows) {
+      const k = String(row.branch_name || "").trim() || "—";
+      const cur = m.get(k) ?? { net: 0, orders: 0 };
+      cur.net += Number(row.net_revenue || 0);
+      cur.orders += Number(row.order_count_non_cancelled || 0);
+      m.set(k, cur);
+    }
+    return m;
+  }, [posBranchDailyPriorRows]);
+
+  const summaryStoreTableRows = useMemo(() => {
+    const prior = summaryStorePriorByBranch;
+    return summaryStoreRollup.map((row) => {
+      const p = prior.get(row.branch_name) ?? { net: 0, orders: 0 };
+      return {
+        ...row,
+        netPct: formatSummaryPctChange(row.net_revenue, p.net),
+        ordersPct: formatSummaryPctChange(row.order_count, p.orders),
+      };
+    });
+  }, [summaryStoreRollup, summaryStorePriorByBranch]);
+
+  const summaryKpiMom = useMemo(() => {
+    const cur = posSalesRangeTotals;
+    const prev = posSalesPriorTotals;
+    if (!cur || !prev) return null;
+    const cNet = Number(cur.net_revenue || 0);
+    const pNet = Number(prev.net_revenue || 0);
+    const cGross = Number(cur.gross_revenue || 0);
+    const pGross = Number(prev.gross_revenue || 0);
+    const cOrd = Number(cur.order_count_non_cancelled || 0);
+    const pOrd = Number(prev.order_count_non_cancelled || 0);
+    const cDays = Number(cur.day_count || 0);
+    const pDays = Number(prev.day_count || 0);
+    const cAvg = cOrd > 0 ? cNet / cOrd : 0;
+    const pAvg = pOrd > 0 ? pNet / pOrd : 0;
+    return {
+      net: formatSummaryPctChange(cNet, pNet),
+      gross: formatSummaryPctChange(cGross, pGross),
+      orders: formatSummaryPctChange(cOrd, pOrd),
+      avg: formatSummaryPctChange(cAvg, pAvg),
+      days: formatSummaryPctChange(cDays, pDays),
+    };
+  }, [posSalesRangeTotals, posSalesPriorTotals]);
 
   async function sendToAi(question: string) {
     const trimmedQ = String(question || "").trim();
@@ -6732,31 +6886,138 @@ export default function AdminAnalyticsPage() {
             {!isManilaSalesCity ? (
               <>
             {salesSectionView === "all" || salesSectionView === "summary" ? (
-            <div id="sales-summary" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-              {[
-                { label: "Net Sales Volume", value: posSalesSummary.revenuePrimary, color: "text-violet-300", icon: DollarSign },
-                { label: "Gross Revenue", value: posSalesSummary.hasProfit ? posSalesSummary.operatingProfitPl : posSalesSummary.totalGrossSales, color: "text-emerald-400", icon: TrendingUp },
-                { label: "Order Count", value: posSalesSummary.totalOrders, color: "text-white", icon: ShoppingBag },
-                { label: "Avg Net / Order", value: posSalesSummary.avgRevenuePerOrder, color: "text-violet-300", icon: Receipt },
-                { label: "Days w/ Sales Data", value: posSalesSummary.dayCount, color: "text-zinc-300", icon: CalendarDays },
-              ].map(({ label, value, color, icon: Icon }, i) => (
-                <motion.div
-                  key={label}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: i * 0.05 }}
-                  className={KPI_CARD}
-                >
-                  <div className="mb-2 flex items-center gap-1.5">
-                    <Icon className="h-3.5 w-3.5 text-zinc-600" />
-                    <p className={KPI_LABEL}>{label}</p>
+              <>
+                <div id="sales-summary" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                  {[
+                    {
+                      label: "Net Sales Volume",
+                      value: posSalesSummary.revenuePrimary,
+                      color: "text-violet-300",
+                      icon: DollarSign,
+                      mom: summaryKpiMom?.net ?? null,
+                    },
+                    {
+                      label: "Gross Revenue",
+                      value: posSalesSummary.hasProfit ? posSalesSummary.operatingProfitPl : posSalesSummary.totalGrossSales,
+                      color: "text-emerald-400",
+                      icon: TrendingUp,
+                      mom: posSalesSummary.hasProfit ? null : summaryKpiMom?.gross ?? null,
+                    },
+                    {
+                      label: "Order Count",
+                      value: posSalesSummary.totalOrders,
+                      color: "text-white",
+                      icon: ShoppingBag,
+                      mom: summaryKpiMom?.orders ?? null,
+                    },
+                    {
+                      label: "Avg Net / Order",
+                      value: posSalesSummary.avgRevenuePerOrder,
+                      color: "text-violet-300",
+                      icon: Receipt,
+                      mom: summaryKpiMom?.avg ?? null,
+                    },
+                    {
+                      label: "Days w/ Sales Data",
+                      value: posSalesSummary.dayCount,
+                      color: "text-zinc-300",
+                      icon: CalendarDays,
+                      mom: summaryKpiMom?.days ?? null,
+                    },
+                  ].map(({ label, value, color, icon: Icon, mom }, i) => (
+                    <motion.div
+                      key={label}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3, delay: i * 0.05 }}
+                      className={KPI_CARD}
+                    >
+                      <div className="mb-2 flex items-center gap-1.5">
+                        <Icon className="h-3.5 w-3.5 text-zinc-600" />
+                        <p className={KPI_LABEL}>{label}</p>
+                      </div>
+                      <p className={`text-2xl font-bold tabular-nums break-words ${color}`}>{fmtNum(value)}</p>
+                      {mom != null && salesSummaryPriorRangeMemo ? (
+                        <p className="mt-1.5 text-xs leading-snug">
+                          <span className={`font-semibold tabular-nums ${summaryPctToneClass(mom)}`}>{mom}</span>
+                          <span className="text-neutral-500">
+                            {" "}
+                            vs {salesSummaryPriorRangeMemo.from} → {salesSummaryPriorRangeMemo.to}
+                          </span>
+                        </p>
+                      ) : null}
+                    </motion.div>
+                  ))}
+                </div>
+
+                <div className={GLASS_CARD + " mt-4 p-5"}>
+                  <div className="mb-2 flex flex-col gap-1">
+                    <h3 className={SECTION_TITLE}>Store breakdown</h3>
+                    <p className={T_CAPTION}>
+                      Period totals from UrbanPiper revenue-by-location (
+                      <span className="text-zinc-300">pos_revenue_location_daily</span>), grouped by branch for the Summary
+                      Range and filters above.
+                      {salesSummaryPriorRangeMemo ? (
+                        <>
+                          {" "}
+                          <span className="text-zinc-300">MoM</span> compares to the same calendar days in the previous month (
+                          {salesSummaryPriorRangeMemo.from} → {salesSummaryPriorRangeMemo.to}).
+                        </>
+                      ) : null}
+                    </p>
+                    <p className="text-xs text-amber-200/80">
+                      Company-level <span className="text-zinc-300">Order Count</span> may include manual Sushi Zen imports
+                      not allocated by store; per-store orders here follow POS revenue exports only.
+                    </p>
                   </div>
-                  <p className={`text-2xl font-bold tabular-nums break-words ${color}`}>
-                    {fmtNum(value)}
-                  </p>
-                </motion.div>
-              ))}
-            </div>
+                  {summaryStoreTableRows.length === 0 ? (
+                    <p className="text-sm text-neutral-500">No branch-level rows for this period.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[560px] border-separate border-spacing-0 text-left text-sm">
+                        <thead>
+                          <tr className="border-b border-white/10">
+                            <th className={TABLE_HEADER + " px-3 py-2 text-left"}>Store</th>
+                            <th className={TABLE_HEADER + " px-3 py-2 text-right"}>Net sales</th>
+                            {salesSummaryPriorRangeMemo ? (
+                              <th className={TABLE_HEADER + " px-3 py-2 text-right"}>Net MoM</th>
+                            ) : null}
+                            <th className={TABLE_HEADER + " px-3 py-2 text-right"}>Orders</th>
+                            {salesSummaryPriorRangeMemo ? (
+                              <th className={TABLE_HEADER + " px-3 py-2 text-right"}>Orders MoM</th>
+                            ) : null}
+                            <th className={TABLE_HEADER + " px-3 py-2 text-right"}>Avg net / order</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {summaryStoreTableRows.map((row) => (
+                            <tr key={row.branch_name} className={TABLE_ROW}>
+                              <td className={TABLE_CELL}>{row.branch_name}</td>
+                              <td className={`${TABLE_CELL} text-right tabular-nums`}>{fmtNum(row.net_revenue)}</td>
+                              {salesSummaryPriorRangeMemo ? (
+                                <td
+                                  className={`${TABLE_CELL} text-right tabular-nums ${summaryPctToneClass(row.netPct)}`}
+                                >
+                                  {row.netPct}
+                                </td>
+                              ) : null}
+                              <td className={`${TABLE_CELL} text-right tabular-nums`}>{fmtNum(row.order_count)}</td>
+                              {salesSummaryPriorRangeMemo ? (
+                                <td
+                                  className={`${TABLE_CELL} text-right tabular-nums ${summaryPctToneClass(row.ordersPct)}`}
+                                >
+                                  {row.ordersPct}
+                                </td>
+                              ) : null}
+                              <td className={`${TABLE_CELL} text-right tabular-nums`}>{fmtNum(row.avg_net_per_order)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </>
             ) : null}
 
             {salesSectionView === "all" || salesSectionView === "hourly" ? (
