@@ -517,6 +517,7 @@ type PosAnalyticsLatestCoverageResp = {
   cancel_order_type_latest_work_date: string;
   cancel_breakdown_latest_work_date: string;
   hourly_latest_month_key: string;
+  hourly_latest_work_date: string;
   operation_time_latest_work_date: string;
   product_mix_latest_coverage_to: string;
 };
@@ -6575,7 +6576,12 @@ export default function AdminAnalyticsPage() {
                   <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     <div className={BADGE_INFO}>Sales daily: {posLatestCoverage.sales_daily_latest_work_date || "-"}</div>
                     <div className={BADGE_INFO}>Revenue daily: {posLatestCoverage.revenue_latest_work_date || "-"}</div>
-                    <div className={BADGE_INFO}>Hourly: {posLatestCoverage.hourly_latest_month_key || "-"}</div>
+                    <div className={BADGE_INFO}>
+                      Hourly:{" "}
+                      {posLatestCoverage.hourly_latest_work_date ||
+                        posLatestCoverage.hourly_latest_month_key ||
+                        "-"}
+                    </div>
                     <div className={BADGE_INFO}>Operation time: {posLatestCoverage.operation_time_latest_work_date || "-"}</div>
                     <div className={BADGE_INFO}>Product mix: {posLatestCoverage.product_mix_latest_coverage_to || "-"}</div>
                     <div className={BADGE_INFO}>Cancel orders: {posLatestCoverage.cancel_order_type_latest_work_date || "-"}</div>
@@ -6762,8 +6768,10 @@ export default function AdminAnalyticsPage() {
                     <h2 className={SECTION_TITLE}>Hourly Sales Analytics</h2>
                   </div>
                   <div className={T_CAPTION}>
-                    Monthly hourly workbook totals are merged for the selected period. Staffing uses overlapping shift
-                    hours for the same city/store scope.
+                    Hour-of-day totals use <span className="text-zinc-300">pos_sales_hourly_daily</span> when daily
+                    exports are synced (filename includes YYYY-MM-DD); otherwise monthly workbooks roll up to{" "}
+                    <span className="text-zinc-300">pos_sales_hourly_monthly</span>. Staffing uses overlapping shift hours
+                    for the same city/store scope.
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
