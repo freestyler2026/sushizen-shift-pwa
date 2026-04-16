@@ -6887,7 +6887,15 @@ export default function AdminAnalyticsPage() {
               <>
             {salesSectionView === "all" || salesSectionView === "summary" ? (
               <>
-                <div id="sales-summary" className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                <div id="sales-summary" className={GLASS_CARD + " p-5"}>
+                  <div className="mb-4">
+                    <h3 className={SECTION_TITLE}>Period summary</h3>
+                    <p className={T_CAPTION}>
+                      Company KPIs for the Summary Range, store-level totals from UrbanPiper revenue-by-location, and{" "}
+                      <span className="text-zinc-300">MoM</span> vs the same calendar dates last month.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                   {[
                     {
                       label: "Net Sales Volume",
@@ -6950,9 +6958,9 @@ export default function AdminAnalyticsPage() {
                   ))}
                 </div>
 
-                <div className={GLASS_CARD + " mt-4 p-5"}>
+                  <div className="mt-6 border-t border-white/10 pt-5">
                   <div className="mb-2 flex flex-col gap-1">
-                    <h3 className={SECTION_TITLE}>Store breakdown</h3>
+                    <h4 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">Store breakdown</h4>
                     <p className={T_CAPTION}>
                       Period totals from UrbanPiper revenue-by-location (
                       <span className="text-zinc-300">pos_revenue_location_daily</span>), grouped by branch for the Summary
@@ -7016,6 +7024,7 @@ export default function AdminAnalyticsPage() {
                       </table>
                     </div>
                   )}
+                  </div>
                 </div>
               </>
             ) : null}
