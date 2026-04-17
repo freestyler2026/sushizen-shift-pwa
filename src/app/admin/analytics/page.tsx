@@ -6988,8 +6988,8 @@ export default function AdminAnalyticsPage() {
                       ) : null}
                     </p>
                     <p className="text-xs text-amber-200/80">
-                      Company-level <span className="text-zinc-300">Order Count</span> may include manual Sushi Zen imports
-                      not allocated by store; per-store orders here follow POS revenue exports only.
+                      Company-level <span className="text-zinc-300">Order Count</span> and per-store orders both come from
+                      UrbanPiper revenue-by-location imports (same source as net sales).
                     </p>
                     <p className="text-xs text-neutral-500">
                       <span className="text-zinc-400">Net/Orders MoM</span> shows — when the prior window had no (or negligible)
@@ -7382,10 +7382,8 @@ export default function AdminAnalyticsPage() {
                 <span className="text-neutral-300">export_revenue_by_location</span> CSVs). Dates without a Revenue import
                 have no daily row and do not add to the period total. Foodics{" "}
                 <span className="text-neutral-300">pos_sales_daily</span> is not mixed into these figures.{" "}
-                <span className="text-neutral-300">Order count and days w/ sales data</span> use the manual{" "}
-                <span className="text-neutral-300">dubai_order_counts</span> import for{" "}
-                <span className="text-neutral-300">Sushi Zen</span> when present (same default as Number of Orders); if
-                missing, counts come from Revenue.{" "}
+                <span className="text-neutral-300">Order count and days w/ sales data</span> also come only from those Revenue
+                rows (no <span className="text-neutral-300">dubai_order_counts</span> override).{" "}
                 <span className="text-neutral-300">Avg Net / Order</span> divides Summary net by that order count. Management
                 P&amp;L labor ratio uses the same combined sales denominator.
               </p>
