@@ -5652,7 +5652,9 @@ export default function AdminAnalyticsPage() {
             ? "Procurement Analytics"
             : analyticsTab === "evaluation"
               ? "Evaluation Channel"
-              : "Management P&L Channel";
+              : analyticsTab === "overtime"
+                ? "Overtime Analytics"
+                : "Management P&L Channel";
   const analyticsTabs: Array<{
     key: "staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai" | "overtime";
     label: string;
