@@ -83,7 +83,7 @@ const ADMIN_DASH_TABS = [
   { view: "salesDataInput" as const, label: "Sales Data Input", icon: "✏️", tabQuery: "sales-data-input" },
   { view: "cashierEvalInput" as const, label: "Cashier Eval Input", icon: "🧾", tabQuery: "cashier-eval-input" },
   { view: "dailyInventory" as const, label: "Daily Inventory Input", icon: "🧺", tabQuery: "daily-inventory" },
-  { view: "cancellationInput" as const, label: "Cancellation Input", icon: "🚫", tabQuery: "cancellation-input" },
+  { view: "cancellationInput" as const, label: "Manila Cancellation", icon: "🚫", tabQuery: "cancellation-input" },
   { view: "dubaiCancellationInput" as const, label: "Dubai Cancellation", icon: "🇦🇪", tabQuery: "dubai-cancellation-input" },
   { view: "orderEntry" as const, label: "Number of Orders Input", icon: "📦", tabQuery: "order-entry" },
 ] as const;
