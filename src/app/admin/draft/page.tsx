@@ -77,6 +77,8 @@ type DraftGenerateMonthResult = {
     required_staff_hours?: number;
     overtime_hours_added?: number;
     unresolved_hours?: number;
+    demand_multiplier?: number;
+    demand_label?: string;
   }>;
   version_week_start: string;
   summary?: {
@@ -376,6 +378,148 @@ const DUBAI_DRAFT_SHEET_URL =
   "https://docs.google.com/spreadsheets/d/1IkpYJUAa8OkysEPY2cRs8svrEBHZRIBVY6jGw309uco/edit?gid=2068736399#gid=2068736399";
 const MANILA_DRAFT_SHEET_URL =
   "https://docs.google.com/spreadsheets/d/1Eoj02lU8YWnDXSVWeJNeRLpYwLf5i3CHRN87nYVpHJs/edit?gid=0#gid=0";
+
+// ---------------------------------------------------------------------------
+// Demand Events Panel component
+// ---------------------------------------------------------------------------
+type DemandEvent = {
+  id: number;
+  city: string;
+  branch_code: string;
+  event_date: string;
+  multiplier: number;
+  label: string;
+  created_by: string;
+};
+
+function DemandEventsPanel({
+  city,
+  approverName,
+  pin,
+  targetMonth,
+}: {
+  city: string;
+  approverName: string;
+  pin: string;
+  targetMonth: string;
+}) {
+  const [events, setEvents] = useState<DemandEvent[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [newDate, setNewDate] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [newMult, setNewMult] = useState("1.3");
+  const [addError, setAddError] = useState("");
+  const [open, setOpen] = useState(false);
+
+  async function loadEvents() {
+    if (!city || !approverName || !pin || !targetMonth) return;
+    setLoading(true);
+    try {
+      const qs = new URLSearchParams({ city, approver_name: approverName, pin, date_from: `${targetMonth}-01`, date_to: `${targetMonth}-31` });
+      const res = await fetch(`/api/admin/demand-events?${qs}`);
+      const j = await res.json();
+      setEvents(Array.isArray(j.events) ? j.events : []);
+    } catch { /* ignore */ }
+    setLoading(false);
+  }
+
+  async function addEvent() {
+    setAddError("");
+    if (!newDate || !newLabel) { setAddError("Date and label are required."); return; }
+    const mult = parseFloat(newMult);
+    if (isNaN(mult) || mult < 0.1 || mult > 5) { setAddError("Multiplier must be 0.1–5.0."); return; }
+    try {
+      const res = await fetch("/api/admin/demand-events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ city, branch_code: "", event_date: newDate, multiplier: mult, label: newLabel, approver_name: approverName, pin }),
+      });
+      if (!res.ok) { const j = await res.json(); setAddError(j.detail || "Failed"); return; }
+      setNewDate(""); setNewLabel(""); setNewMult("1.3");
+      loadEvents();
+    } catch (e: any) { setAddError(e.message); }
+  }
+
+  async function deleteEvent(id: number) {
+    await fetch(`/api/admin/demand-events/${id}?approver_name=${encodeURIComponent(approverName)}&pin=${encodeURIComponent(pin)}`, { method: "DELETE" });
+    setEvents((prev) => prev.filter((e) => e.id !== id));
+  }
+
+  useEffect(() => { if (open) loadEvents(); }, [open, targetMonth, city]);
+
+  const multColor = (m: number) => m >= 1.3 ? "text-amber-300" : m >= 1.1 ? "text-sky-300" : m < 1.0 ? "text-rose-300" : "text-neutral-300";
+
+  return (
+    <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5">
+      <button type="button" className="flex w-full items-center justify-between" onClick={() => setOpen((p) => !p)}>
+        <div className="flex items-center gap-2">
+          <span className="text-lg">📅</span>
+          <span className="font-semibold text-amber-200">Demand Events — {targetMonth}</span>
+          {events.length > 0 && !open && <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs text-amber-300">{events.length} events</span>}
+        </div>
+        <span className="text-xs text-neutral-500">{open ? "▲ Hide" : "▼ Manage holidays & campaigns"}</span>
+      </button>
+
+      {open ? (
+        <div className="mt-4 space-y-4">
+          <p className="text-xs text-neutral-400">
+            Register special days for <strong className="text-white">{city === "dubai" ? "Dubai" : "Manila"} — {targetMonth}</strong>.
+            These multipliers are applied to demand forecasting when generating the monthly draft.
+            UAE/Philippines public holidays are already applied automatically.
+          </p>
+
+          {/* Add new event */}
+          <div className="grid grid-cols-1 gap-2 rounded-xl border border-white/10 bg-white/5 p-3 sm:grid-cols-4">
+            <div>
+              <div className="mb-1 text-xs text-neutral-400">Date</div>
+              <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white focus:outline-none" />
+            </div>
+            <div className="sm:col-span-2">
+              <div className="mb-1 text-xs text-neutral-400">Label (e.g. Mega Sale, Ramadan)</div>
+              <input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="Event name..." className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white focus:outline-none" />
+            </div>
+            <div>
+              <div className="mb-1 text-xs text-neutral-400">Multiplier (1.0 = normal)</div>
+              <div className="flex gap-2">
+                <input value={newMult} onChange={(e) => setNewMult(e.target.value)} className="w-20 rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-sm text-white focus:outline-none" />
+                <button type="button" onClick={addEvent} className="flex-1 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-500">+ Add</button>
+              </div>
+            </div>
+            {addError ? <div className="sm:col-span-4 text-xs text-rose-400">{addError}</div> : null}
+          </div>
+
+          {/* Multiplier presets */}
+          <div className="flex flex-wrap gap-2">
+            {[["🎉 Big Event ×1.5", "1.5"], ["📈 Promotion ×1.3", "1.3"], ["🌙 Ramadan ×1.2", "1.2"], ["📉 Slow Day ×0.8", "0.8"]].map(([label, val]) => (
+              <button key={val} type="button" onClick={() => setNewMult(val)} className={`rounded-full border px-3 py-1 text-xs ${newMult === val ? "border-amber-400 bg-amber-400/20 text-amber-200" : "border-white/10 text-neutral-400 hover:border-white/30"}`}>{label}</button>
+            ))}
+          </div>
+
+          {/* Events list */}
+          {loading ? <p className="text-xs text-neutral-500">Loading…</p> : events.length === 0 ? (
+            <p className="text-xs text-neutral-500">No events registered. UAE/PH holidays are applied automatically.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {events.map((ev) => (
+                <div key={ev.id} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm">
+                  <div className="flex items-center gap-3">
+                    <span className="w-24 font-mono text-xs text-neutral-400">{ev.event_date}</span>
+                    <span className="text-white">{ev.label}</span>
+                    {ev.branch_code ? <span className="text-xs text-neutral-500">[{ev.branch_code}]</span> : null}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className={`font-semibold ${multColor(ev.multiplier)}`}>×{ev.multiplier.toFixed(2)}</span>
+                    <button type="button" onClick={() => deleteEvent(ev.id)} className="text-xs text-neutral-500 hover:text-rose-400">✕</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export default function AdminDraftPage() {
   const router = useRouter();
@@ -1228,6 +1372,9 @@ export default function AdminDraftPage() {
 
         {error ? <div className={`${BADGE_ERROR} mt-3 whitespace-pre-wrap px-4 py-2 text-sm`}>{error}</div> : null}
       </div>
+
+      {/* Demand Events Panel */}
+      <DemandEventsPanel city={city} approverName={approverName} pin={pin} targetMonth={targetMonth} />
 
       {generateResult ? (
         <div className={`${GLASS_CARD} p-6`}>

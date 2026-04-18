@@ -1,10 +1,10 @@
 // src/app/admin/staff/onboarding/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ClipboardList, Clock } from "lucide-react";
+import { ClipboardList, Clock, KeyRound, X } from "lucide-react";
 import { canAccessRoleManagement, getAuth } from "@/lib/auth";
 import { fmtNum } from "@/lib/formatters";
 import {
@@ -23,19 +23,44 @@ import {
 } from "@/lib/ui-tokens";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
+
+// In production, use relative URLs so Next.js rewrites proxy to Heroku (avoids CORS).
+// In dev, use the full local backend URL.
+function getBase() {
+  return process.env.NODE_ENV === "production" ? "" : (process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000");
+}
+
 async function apiGet<T = any>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`);
   const text = await res.text();
 
   if (!res.ok) {
+    let detail = text;
     try {
       const j = JSON.parse(text);
-      throw new Error(j?.detail || text || `GET ${path} failed`);
-    } catch {
-      throw new Error(text || `GET ${path} failed`);
-    }
+      if (j?.detail) detail = String(j.detail);
+    } catch { /* ignore */ }
+    throw new Error(detail || `GET ${path} failed`);
   }
 
+  return text ? (JSON.parse(text) as T) : ({} as T);
+}
+
+async function apiPost<T = any>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${getBase()}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  if (!res.ok) {
+    let detail = text;
+    try {
+      const j = JSON.parse(text);
+      if (j?.detail) detail = String(j.detail);
+    } catch { /* ignore */ }
+    throw new Error(detail || `POST ${path} failed`);
+  }
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
 
@@ -82,6 +107,75 @@ export default function StaffOnboardingDashboardPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // HQ Setup PIN modal
+  const [setupModal, setSetupModal] = useState<{ staffName: string } | null>(null);
+  const [setupPin, setSetupPin] = useState("");
+  const [setupPinConfirm, setSetupPinConfirm] = useState("");
+  const [setupLoading, setSetupLoading] = useState(false);
+  const [setupError, setSetupError] = useState("");
+  const [setupSuccess, setSetupSuccess] = useState("");
+  const pinRef = useRef<HTMLInputElement>(null);
+
+  function openSetupModal(staffName: string) {
+    setSetupModal({ staffName });
+    setSetupPin("");
+    setSetupPinConfirm("");
+    setSetupError("");
+    setSetupSuccess("");
+    setTimeout(() => pinRef.current?.focus(), 50);
+  }
+
+  function closeSetupModal() {
+    setSetupModal(null);
+    setSetupPin("");
+    setSetupPinConfirm("");
+    setSetupError("");
+    setSetupSuccess("");
+  }
+
+  async function submitSetupPin() {
+    if (!setupModal) return;
+    setSetupError("");
+    setSetupSuccess("");
+    if (!setupPin || setupPin !== setupPinConfirm) {
+      setSetupError("PINs do not match or are empty.");
+      return;
+    }
+    if (!/^\d{4,8}$/.test(setupPin)) {
+      setSetupError("PIN must be 4–8 numeric digits.");
+      return;
+    }
+    setSetupLoading(true);
+    try {
+      await apiPost("/api/admin/staff/setup/complete-by-hq", {
+        staff_name: setupModal.staffName,
+        new_pin: setupPin,
+        confirm_pin: setupPinConfirm,
+        approver_name: approverName.trim(),
+        pin: pin.trim(),
+      });
+      setSetupSuccess(`✓ Setup complete for ${setupModal.staffName}`);
+      // Update row locally
+      setRows((prev) =>
+        prev.map((r) =>
+          r.display_name === setupModal.staffName
+            ? { ...r, setup_completed: true, setup_required: false, setup_code_expires_at: null }
+            : r,
+        ),
+      );
+      setSummary((prev) =>
+        prev
+          ? { ...prev, pending_setup: Math.max(0, prev.pending_setup - 1), completed_setup: prev.completed_setup + 1 }
+          : prev,
+      );
+      setTimeout(closeSetupModal, 1800);
+    } catch (e: any) {
+      setSetupError(String(e?.message || "Failed to complete setup"));
+    } finally {
+      setSetupLoading(false);
+    }
+  }
+
   async function load() {
     setLoading(true);
     setError("");
@@ -116,6 +210,7 @@ export default function StaffOnboardingDashboardPage() {
   }, []);
 
   return (
+    <>
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: "easeOut" }} className="mx-auto max-w-6xl space-y-6 px-4 py-8">
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-teal-500/5">
@@ -322,6 +417,17 @@ export default function StaffOnboardingDashboardPage() {
                       >
                         Audit
                       </a>
+
+                      {!row.setup_completed && row.setup_required ? (
+                        <button
+                          type="button"
+                          onClick={() => openSetupModal(row.display_name)}
+                          className="flex items-center gap-1 rounded-lg border border-violet-500/40 bg-violet-500/10 px-2.5 py-1 text-[11px] font-medium text-violet-300 transition hover:bg-violet-500/20"
+                        >
+                          <KeyRound className="h-3 w-3" />
+                          Setup PIN
+                        </button>
+                      ) : null}
                     </div>
                   </div>
 
@@ -382,5 +488,87 @@ export default function StaffOnboardingDashboardPage() {
           </div>
         </div>
     </motion.div>
+
+    {/* HQ Setup PIN Modal */}
+
+    {setupModal ? (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+        <div className="w-full max-w-md rounded-2xl border border-violet-500/30 bg-neutral-950 p-6 shadow-2xl">
+          <div className="mb-5 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-violet-400" />
+              <h3 className="text-base font-semibold text-white">Set PIN for Staff</h3>
+            </div>
+            <button type="button" onClick={closeSetupModal} className="text-neutral-500 hover:text-white">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <p className="mb-4 text-sm text-neutral-400">
+            Setting PIN for <span className="font-semibold text-white">{setupModal.staffName}</span>.
+            The staff member will use this PIN to log in.
+          </p>
+
+          <div className="space-y-3">
+            <div>
+              <div className={T_LABEL + " mb-1.5"}>New PIN (4–8 digits)</div>
+              <input
+                ref={pinRef}
+                type="password"
+                inputMode="numeric"
+                value={setupPin}
+                onChange={(e) => setSetupPin(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                className={INPUT_CLASS}
+                placeholder="Enter PIN"
+                onKeyDown={(e) => e.key === "Enter" && submitSetupPin()}
+              />
+            </div>
+            <div>
+              <div className={T_LABEL + " mb-1.5"}>Confirm PIN</div>
+              <input
+                type="password"
+                inputMode="numeric"
+                value={setupPinConfirm}
+                onChange={(e) => setSetupPinConfirm(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                className={INPUT_CLASS}
+                placeholder="Re-enter PIN"
+                onKeyDown={(e) => e.key === "Enter" && submitSetupPin()}
+              />
+            </div>
+          </div>
+
+          {setupError ? (
+            <div className="mt-3 rounded-xl border border-rose-800/40 bg-rose-950/20 px-3 py-2 text-sm text-rose-300">
+              {setupError}
+            </div>
+          ) : null}
+
+          {setupSuccess ? (
+            <div className="mt-3 rounded-xl border border-emerald-800/40 bg-emerald-950/20 px-3 py-2 text-sm text-emerald-300">
+              {setupSuccess}
+            </div>
+          ) : null}
+
+          <div className="mt-5 flex gap-3">
+            <button
+              type="button"
+              onClick={closeSetupModal}
+              className="flex-1 rounded-xl border border-neutral-700 bg-neutral-900 py-2.5 text-sm text-neutral-300 hover:bg-neutral-800"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={submitSetupPin}
+              disabled={setupLoading || !!setupSuccess}
+              className="flex-1 rounded-xl bg-violet-600 py-2.5 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-50"
+            >
+              {setupLoading ? "Setting PIN…" : "Complete Setup"}
+            </button>
+          </div>
+        </div>
+      </div>
+    ) : null}
+    </>
   );
 }

@@ -48,16 +48,112 @@ const BRANCHES = ["Business Bay", "Arjan", "Al Barsha", "Al Hudaiba", "JLT"] as 
 const BRANDS = ["Sushi ZEN", "Ramen ZEN", "All Veggie"] as const;
 const CATEGORIES = ["Cancellation", "Refund/Complaint"] as const;
 const CANCEL_REASON_OPTIONS = [
-  "Order cancelled by user",
-  "Missing item",
-  "No rider available",
-  "Unable to find or reach customer",
-  "Outside service hours",
+  "avoidable cancellation",
+  "Bad weather",
+  "Bug in the food",
+  "Cancelled by Careem",
+  "Captain not found (Automatic CNF)",
+  "Captain unprofessional behavior.",
+  "Change of mind – customer cancelled",
+  "Customer address issues",
+  "Customer cancelled; due to order delay",
+  "Customer change of mind",
+  "Customer did not receive food items",
+  "Customer left due to vendor delay",
+  "Customer never received the order",
+  "Customer received inedible/spilled food",
   "Customer received wrong order",
-  "Food was not prepared",
-  "Late preparation",
+  "Customer refuses/is unable to pay for the order",
+  "Customer wrong number/location",
+  "Delivered without notification",
+  "Delivery cancelled from CPS",
+  "Delivery cancelled from CPS (Solutions/RH side)",
+  "Delivery Delayed",
+  "Delivery Error",
+  "Delivery person unable to continue delivery",
+  "Delivery Takes Too Long",
+  "duplicate order",
+  "Food is overcooked/burnt",
+  "Food is undercooked",
+  "Food Quality",
+  "Food Quality Issues",
+  "Food Sold Out",
+  "Foul Smell",
+  "Fraudulent order",
+  "Hair in the food",
+  "Incorrect Address",
+  "Incorrect order prepared",
+  "Instructions not followed",
+  "Item not available",
+  "Item not available at this time of day",
+  "Item temporarily unavailable",
+  "Kitchen too busy to prepare order",
+  "Meal ready but delayed courier pickup",
+  "Minimum order value not reached",
+  "Missing or unavailable items",
+  "Missing or unavailable items (Main item)",
+  "Missing or unavailable items (Side item)",
+  "My Food is not edible (SelfServe)",
+  "N/A",
+  "Navigation/map issues",
+  "No courier accepted the order",
+  "No delivery person accepting the order",
+  "No Longer Needed Due to Change of Plans",
+  "No Order received at restaurant",
+  "No order received",
+  "No rider available",
+  "Not delivered to the address/requested customer pickup",
+  "Order by Mistake/Fraud",
+  "Order cancelled by user",
+  "Order delayed because of captain",
+  "Order delayed because of partner",
+  "Order modification not possible",
+  "Others",
+  "Out of kitchen operational hours",
+  "Outlet closed",
+  "Outlet not responding",
+  "Packaging quality issues",
+  "Platform compensation for undetermined responsibility",
+  "Restaurant not open",
+  "Restaurant prepared the wrong order",
+  "Restaurant requested order cancellation",
+  "Rider met with accident",
+  "shipment creation failure (auto pending Cancellation)",
+  "Slow delivery or long wait",
+  "Slow Food Preparation",
+  "Slow Food Preparation, The meal was taken by someone else",
+  "Some items didn't match my order request, such as wrong side dishes",
   "Spilled / damaged",
-  "Other",
+  "Technical problem - reason unknown",
+  "The meal was taken by someone else",
+  "The restaurant marked meal ready in advance",
+  "Traffic Accident",
+  "Unable to contact rider",
+  "Unable to find or reach customer",
+  "Unprofessional Behaviour",
+  "Vendor Closed",
+  "Vendor Delay",
+  "Vendor too busy",
+  "Weather Conditions",
+  "Wrong item sent",
+  "Wrong order received",
+] as const;
+
+const PHOTO_STATUS_OPTIONS = [
+  "Asked Kitchen for Photo",
+  "Asked for confirmation of prep and photo",
+  "Kitchen has provided the photo",
+  "No need to look for photo",
+  "No replies from kitchen",
+  "PIC found the photo",
+] as const;
+
+const EMAIL_STATUS_OPTIONS = [
+  "Email/Ticket has been sent to Careem",
+  "No need to send an email, the food was not prepared",
+  "Pending for review",
+  "The claim is valid, no need to send e-mail",
+  "under refund dispute",
 ] as const;
 
 const PLATFORM_STYLES: Record<string, { bg: string; text: string; border: string }> = {
@@ -531,7 +627,13 @@ function RecordCard({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <Label>Photo Status</Label>
-              <TextIn value={rec.photo_status ?? ""} onChange={(v) => onUpdate("photo_status", v)} />
+              <SelectIn
+                value={rec.photo_status ?? ""}
+                onChange={(v) => onUpdate("photo_status", v)}
+                options={PHOTO_STATUS_OPTIONS}
+                placeholder="Select…"
+                extraValues={rec.photo_status ? [rec.photo_status] : []}
+              />
             </div>
             <div>
               <Label>Double Checked By — Careem</Label>
@@ -540,7 +642,13 @@ function RecordCard({
           </div>
           <div>
             <Label>Email / Ticket Status</Label>
-            <TextIn value={rec.email_status ?? ""} onChange={(v) => onUpdate("email_status", v)} placeholder="e.g. under refund dispute" />
+            <SelectIn
+              value={rec.email_status ?? ""}
+              onChange={(v) => onUpdate("email_status", v)}
+              options={EMAIL_STATUS_OPTIONS}
+              placeholder="Select…"
+              extraValues={rec.email_status ? [rec.email_status] : []}
+            />
           </div>
           <div>
             <Label>Kitchen Notes</Label>

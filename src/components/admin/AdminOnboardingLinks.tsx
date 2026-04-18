@@ -30,7 +30,7 @@ export default function AdminOnboardingLinks({ compact = false }: Props) {
         </Link>
 
         <Link
-          href="/admin/staff/setup"
+          href="/admin/staff/onboarding"
           className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-4 transition hover:bg-neutral-900"
         >
           <div className="text-sm font-semibold">Pending Staff Setup</div>

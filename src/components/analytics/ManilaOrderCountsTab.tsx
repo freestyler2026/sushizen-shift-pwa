@@ -153,15 +153,7 @@ export function ManilaOrderCountsTab({
         <div>
           <h2 className={T_SECTION}>Number of Orders (Manila)</h2>
           <p className={T_CAPTION}>
-            Channel × store transaction counts from synced sales (priority sources — same as Manila Sales by channel).
-          </p>
-          <p className="mt-2 max-w-3xl text-xs leading-relaxed text-sky-200/90">
-            <strong className="font-medium text-sky-100">Cubao / Paranaque · Offline:</strong> POS 同期は Grab / Foodpanda のみの日が多く、
-            Offline は 0 のままになります。日次の正しい件数は{" "}
-            <Link href="/admin?tab=order-entry&orderEntry=manila" className="underline decoration-sky-400/80 hover:text-white">
-              Admin → Number of Orders → Manila (Offline)
-            </Link>{" "}
-            で入力した日付が、ここで選んだ集計期間に含まれる必要があります（保存後に Refresh）。
+            Channel × store transaction counts from manila_daily_sales (same source as Sales Data tab).
           </p>
         </div>
         <button
