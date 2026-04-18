@@ -172,20 +172,22 @@ export default function IncidentDashboardPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-6 px-4 py-8">
       {/* Header */}
-      <div className="flex flex-wrap items-center gap-3">
-        <Link href="/admin/incidents" className={`${SMALL_BUTTON} flex items-center gap-1.5`}>
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Back to List
-        </Link>
-        <TrendingUp className="h-6 w-6 text-violet-400" />
-        <div>
-          <h1 className={T_PAGE_TITLE}>Incident Dashboard</h1>
-          <p className={`mt-0.5 ${T_CAPTION}`}>Incident report analytics</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Link href="/admin/incidents" className={`${SMALL_BUTTON} flex items-center gap-1.5`}>
+            <ArrowLeft className="h-3.5 w-3.5" />Back
+          </Link>
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/15 ring-1 ring-violet-500/25">
+            <TrendingUp className="h-5 w-5 text-violet-400" />
+          </div>
+          <div>
+            <h1 className={T_PAGE_TITLE}>Analytics Dashboard</h1>
+            <p className={`mt-0.5 ${T_CAPTION}`}>Incident report analytics and trends</p>
+          </div>
         </div>
-
         {/* City filter */}
-        <div className="ml-auto flex items-center gap-2">
-          <Filter className="h-4 w-4 text-zinc-400" />
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-zinc-500" />
           <select
             className={`${SELECT_CLASS} w-auto min-w-[130px]`}
             value={filterCity}
@@ -216,20 +218,32 @@ export default function IncidentDashboardPage() {
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className={KPI_CARD}>
-          <p className={KPI_LABEL}>Total</p>
+        <div className="relative overflow-hidden rounded-2xl border border-white/8 bg-white/5 p-4 transition-all hover:border-white/12">
+          <div className="flex items-center justify-between">
+            <p className={KPI_LABEL}>Total</p>
+            <AlertTriangle className="h-4 w-4 text-zinc-600" />
+          </div>
           <p className={KPI_VALUE}>{totalIncidents}</p>
         </div>
-        <div className={KPI_CARD}>
-          <p className={KPI_LABEL}>Unresolved</p>
+        <div className="relative overflow-hidden rounded-2xl border border-white/8 bg-gradient-to-br from-amber-500/6 to-transparent p-4 transition-all hover:border-white/12">
+          <div className="flex items-center justify-between">
+            <p className={KPI_LABEL}>Unresolved</p>
+            <Clock className="h-4 w-4 text-amber-500/50" />
+          </div>
           <p className={`${KPI_VALUE} text-amber-400`}>{openIncidents}</p>
         </div>
-        <div className={KPI_CARD}>
-          <p className={KPI_LABEL}>Resolved</p>
+        <div className="relative overflow-hidden rounded-2xl border border-white/8 bg-gradient-to-br from-emerald-500/6 to-transparent p-4 transition-all hover:border-white/12">
+          <div className="flex items-center justify-between">
+            <p className={KPI_LABEL}>Resolved</p>
+            <TrendingUp className="h-4 w-4 text-emerald-500/50" />
+          </div>
           <p className={`${KPI_VALUE} text-emerald-400`}>{stats.status_counts["resolved"] ?? 0}</p>
         </div>
-        <div className={KPI_CARD}>
-          <p className={KPI_LABEL}>Avg. Resolution</p>
+        <div className="relative overflow-hidden rounded-2xl border border-white/8 bg-gradient-to-br from-violet-500/6 to-transparent p-4 transition-all hover:border-white/12">
+          <div className="flex items-center justify-between">
+            <p className={KPI_LABEL}>Avg. Resolution</p>
+            <Clock className="h-4 w-4 text-violet-500/50" />
+          </div>
           <p className={`${KPI_VALUE} text-violet-300`}>
             {stats.avg_resolution_hours > 0 ? `${stats.avg_resolution_hours}h` : "—"}
           </p>

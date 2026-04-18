@@ -3,26 +3,33 @@
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
-  AlertTriangle, ArrowLeft, CheckCircle2, Clock,
-  Image as ImageIcon, Loader2, MessageSquare, Send,
+  AlertTriangle, ArrowLeft, Building2, Calendar, CheckCircle2,
+  Clock, Image as ImageIcon, Loader2, MapPin, MessageSquare,
+  Send, User,
 } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
   BADGE_ERROR, BADGE_INFO, BADGE_SUCCESS, BADGE_WARNING,
-  GLASS_CARD, PRIMARY_BUTTON, SELECT_CLASS, SMALL_BUTTON,
-  T_LABEL, T_SECTION, TEXTAREA_CLASS,
+  GLASS_CARD, PRIMARY_BUTTON, SMALL_BUTTON, T_LABEL, T_SECTION, TEXTAREA_CLASS,
 } from "@/lib/ui-tokens";
 
-const STATUS_OPTIONS = [
+const STATUS_STEPS = [
   { value: "new",          label: "New",          badge: BADGE_ERROR },
   { value: "acknowledged", label: "Acknowledged", badge: BADGE_WARNING },
   { value: "in_progress",  label: "In Progress",  badge: BADGE_INFO },
   { value: "resolved",     label: "Resolved",     badge: BADGE_SUCCESS },
 ];
 
-const SEVERITY_EMOJI: Record<string, string> = {
-  low: "🟢", medium: "🟡", high: "🟠", critical: "🔴",
+const STATUS_IDX: Record<string, number> = {
+  new: 0, acknowledged: 1, in_progress: 2, resolved: 3,
+};
+
+const SEV_CFG: Record<string, { emoji: string; label: string; text: string; bg: string; ring: string; headerBg: string }> = {
+  low:      { emoji: "🟢", label: "Low",      text: "text-emerald-400", bg: "bg-emerald-500/10",  ring: "ring-emerald-500/30",  headerBg: "from-emerald-500/8" },
+  medium:   { emoji: "🟡", label: "Medium",   text: "text-amber-400",   bg: "bg-amber-500/10",    ring: "ring-amber-500/30",    headerBg: "from-amber-500/8" },
+  high:     { emoji: "🟠", label: "High",     text: "text-orange-400",  bg: "bg-orange-500/10",   ring: "ring-orange-500/30",   headerBg: "from-orange-500/8" },
+  critical: { emoji: "🔴", label: "Critical", text: "text-red-400",     bg: "bg-red-500/10",      ring: "ring-red-500/30",      headerBg: "from-red-500/8" },
 };
 
 type Attachment = {
@@ -50,26 +57,19 @@ function fmtDt(iso: string): string {
   } catch { return iso; }
 }
 
-function StatusBadge({ status }: { status: string }) {
-  const opt = STATUS_OPTIONS.find((s) => s.value === status);
-  if (!opt) return <span className={BADGE_INFO}>{status}</span>;
-  return <span className={opt.badge}>{opt.label}</span>;
-}
-
 export default function AdminIncidentDetailPage() {
-  const params = useParams();
-  const router = useRouter();
+  const params   = useParams();
+  const router   = useRouter();
   const reportId = String(params?.id || "");
 
   const [item, setItem]       = useState<IncidentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState("");
 
-  const [replyText, setReplyText]       = useState("");
-  const [replying, setReplying]         = useState(false);
-  const [replyError, setReplyError]     = useState("");
-  const [replySuccess, setReplySuccess] = useState("");
-
+  const [replyText, setReplyText]           = useState("");
+  const [replying, setReplying]             = useState(false);
+  const [replyError, setReplyError]         = useState("");
+  const [replySuccess, setReplySuccess]     = useState("");
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [statusError, setStatusError]       = useState("");
 
@@ -103,7 +103,7 @@ export default function AdminIncidentDetailPage() {
       if (!res.ok) throw new Error(await res.text());
       setItem((prev) => prev ? { ...prev, status: newStatus } : prev);
     } catch (e: unknown) {
-      setStatusError(e instanceof Error ? e.message : "Failed to update status");
+      setStatusError(e instanceof Error ? e.message : "Failed to update");
     } finally { setStatusUpdating(false); }
   };
 
@@ -142,56 +142,114 @@ export default function AdminIncidentDetailPage() {
     );
   }
 
+  const sev            = SEV_CFG[item.severity] ?? SEV_CFG.medium;
+  const currentStepIdx = STATUS_IDX[item.status] ?? 0;
+
   return (
-    <div className="mx-auto max-w-3xl space-y-6 px-4 py-8">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <button className={`${SMALL_BUTTON} flex items-center gap-1.5`} onClick={() => router.back()}>
-          <ArrowLeft className="h-3.5 w-3.5" />Back
-        </button>
-        <AlertTriangle className="h-5 w-5 text-amber-400" />
-        <h1 className="text-xl font-semibold text-white">{item.category}</h1>
-        <StatusBadge status={item.status} />
-      </div>
+    <div className="mx-auto max-w-3xl space-y-5 px-4 py-8">
 
-      {/* Meta */}
-      <div className={`${GLASS_CARD} grid gap-4 p-5 sm:grid-cols-2`}>
-        {[
-          { label: "Severity", value: `${SEVERITY_EMOJI[item.severity] ?? "🟡"} ${item.severity.toUpperCase()}` },
-          { label: "Branch",   value: item.branch },
-          { label: "City",     value: item.city === "dubai" ? "🇦🇪 Dubai" : "🇵🇭 Manila" },
-          { label: "Reporter", value: item.reporter_name },
-          ...(item.incident_datetime ? [{ label: "Incident Date & Time", value: fmtDt(item.incident_datetime) }] : []),
-          { label: "Reported At", value: fmtDt(item.created_at) },
-        ].map(({ label, value }) => (
-          <div key={label}>
-            <p className={T_LABEL}>{label}</p>
-            <p className="mt-1 text-sm text-white">{value}</p>
+      {/* ── Back ──────────────────────────────────────────────────── */}
+      <button className={`${SMALL_BUTTON} flex items-center gap-1.5`} onClick={() => router.back()}>
+        <ArrowLeft className="h-3.5 w-3.5" />Back to List
+      </button>
+
+      {/* ── Hero card ─────────────────────────────────────────────── */}
+      <div className={`${GLASS_CARD} overflow-hidden`}>
+        {/* Severity-tinted header */}
+        <div className={`bg-gradient-to-br ${sev.headerBg} to-transparent border-b border-white/8 p-5`}>
+          <div className="flex items-start gap-3">
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xl ${sev.bg} ring-1 ${sev.ring}`}>
+              {sev.emoji}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-xl font-semibold text-white">{item.category}</h1>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <span className={`text-sm font-medium ${sev.text}`}>{sev.label} severity</span>
+                <span className="text-zinc-600">·</span>
+                <span className="flex items-center gap-1 text-xs text-zinc-500">
+                  <Clock className="h-3 w-3" />{fmtDt(item.created_at)}
+                </span>
+              </div>
+            </div>
           </div>
-        ))}
+        </div>
+
+        {/* Status progress stepper */}
+        <div className="border-b border-white/8 px-5 py-4">
+          <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.15em] text-zinc-500">Progress</p>
+          <div className="flex items-center">
+            {STATUS_STEPS.map((step, idx) => {
+              const done    = idx < currentStepIdx;
+              const current = idx === currentStepIdx;
+              return (
+                <div key={step.value} className="flex flex-1 items-center">
+                  <div className="flex flex-col items-center">
+                    <div className={[
+                      "flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all",
+                      done    ? "bg-emerald-500 text-white" :
+                      current ? "bg-violet-500 text-white ring-4 ring-violet-500/20" :
+                                "bg-zinc-800 text-zinc-600",
+                    ].join(" ")}>
+                      {done ? <CheckCircle2 className="h-4 w-4" /> : <span>{idx + 1}</span>}
+                    </div>
+                    <p className={[
+                      "mt-1.5 hidden text-center text-[10px] font-medium sm:block",
+                      current ? "text-violet-300" : done ? "text-emerald-400" : "text-zinc-600",
+                    ].join(" ")}>
+                      {step.label}
+                    </p>
+                  </div>
+                  {idx < STATUS_STEPS.length - 1 && (
+                    <div className={`mx-1 h-0.5 flex-1 transition-all ${idx < currentStepIdx ? "bg-emerald-500/40" : "bg-zinc-800"}`} />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Meta grid */}
+        <div className="grid gap-3 p-5 sm:grid-cols-2">
+          {[
+            { Icon: Building2, label: "Branch",  value: item.branch },
+            { Icon: MapPin,    label: "City",     value: item.city === "dubai" ? "🇦🇪 Dubai" : "🇵🇭 Manila" },
+            { Icon: User,      label: "Reporter", value: item.reporter_name },
+            ...(item.incident_datetime
+              ? [{ Icon: Calendar, label: "Incident Date & Time", value: fmtDt(item.incident_datetime) }]
+              : []),
+          ].map(({ Icon, label, value }) => (
+            <div key={label} className="flex items-start gap-2.5 rounded-xl border border-white/6 bg-white/3 px-3.5 py-2.5">
+              <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-500" />
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-500">{label}</p>
+                <p className="mt-0.5 text-sm text-white">{value}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Description */}
+      {/* ── Description ───────────────────────────────────────────── */}
       <div className={`${GLASS_CARD} p-5`}>
-        <p className={T_LABEL}>Description</p>
-        <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-zinc-200">{item.description}</p>
+        <p className={`${T_LABEL} mb-2`}>Description</p>
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">{item.description}</p>
       </div>
 
-      {/* Attachments */}
-      {item.attachments?.length > 0 && (
+      {/* ── Attachments ───────────────────────────────────────────── */}
+      {(item.attachments?.length ?? 0) > 0 && (
         <div className={`${GLASS_CARD} p-5`}>
-          <p className={T_LABEL}>Attachments</p>
-          <div className="mt-3 flex flex-wrap gap-3">
+          <p className={`${T_LABEL} mb-3`}>Attachments</p>
+          <div className="flex flex-wrap gap-3">
             {item.attachments.map((att) => {
               const isImage = (att.mime_type || "").startsWith("image/");
               return isImage && att.web_view_link ? (
                 <a key={att.id} href={att.web_view_link} target="_blank" rel="noopener noreferrer"
-                  className="group relative overflow-hidden rounded-xl border border-white/10 transition-all hover:border-violet-500/40">
+                  className="group relative overflow-hidden rounded-xl border border-white/10 transition-all hover:border-violet-500/40 hover:shadow-lg hover:shadow-violet-500/10">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={att.web_view_link.replace("/view", "/preview")} alt={att.file_name}
-                    className="h-36 w-52 object-cover transition-transform duration-200 group-hover:scale-105"
+                    className="h-36 w-52 object-cover transition-transform duration-300 group-hover:scale-105"
                     onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                  <div className="absolute inset-x-0 bottom-0 bg-black/60 px-2 py-1 text-[10px] text-zinc-300 truncate">
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-2 py-2 text-[10px] text-zinc-300 truncate">
                     {att.file_name}
                     {att.uploader_name && <span className="ml-1 text-zinc-500">by {att.uploader_name}</span>}
                   </div>
@@ -208,58 +266,79 @@ export default function AdminIncidentDetailPage() {
         </div>
       )}
 
-      {/* Status change */}
+      {/* ── Status update ─────────────────────────────────────────── */}
       <div className={`${GLASS_CARD} p-5`}>
-        <p className={T_SECTION}>Update Status</p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {STATUS_OPTIONS.map((opt) => (
-            <button key={opt.value}
-              disabled={item.status === opt.value || statusUpdating}
-              className={[
-                item.status === opt.value ? `${opt.badge} cursor-default` : `${SMALL_BUTTON} opacity-70 hover:opacity-100`,
-                "transition-all duration-150",
-              ].join(" ")}
-              onClick={() => handleStatusChange(opt.value)}>
-              {statusUpdating && item.status !== opt.value
-                ? <Loader2 className="mr-1 inline h-3 w-3 animate-spin" /> : null}
-              {opt.label}
-            </button>
-          ))}
+        <p className={`${T_SECTION} mb-3`}>Update Status</p>
+        <div className="flex flex-wrap gap-2">
+          {STATUS_STEPS.map((opt) => {
+            const isCurrent = item.status === opt.value;
+            return (
+              <button key={opt.value}
+                disabled={isCurrent || statusUpdating}
+                className={[
+                  "rounded-xl border px-4 py-2 text-sm font-medium transition-all duration-150",
+                  isCurrent
+                    ? `${opt.badge} cursor-default`
+                    : "border-white/10 bg-white/5 text-zinc-400 hover:border-violet-400/30 hover:bg-violet-500/10 hover:text-violet-200 disabled:opacity-50",
+                ].join(" ")}
+                onClick={() => handleStatusChange(opt.value)}>
+                {statusUpdating && !isCurrent && <Loader2 className="mr-1.5 inline h-3.5 w-3.5 animate-spin" />}
+                {opt.label}
+              </button>
+            );
+          })}
         </div>
-        {statusError && <p className="mt-2 text-xs text-red-400">{statusError}</p>}
+        {statusError && <p className="mt-2.5 text-xs text-red-400">{statusError}</p>}
       </div>
 
-      {/* Replies */}
-      <div className={`${GLASS_CARD} p-5 space-y-4`}>
-        <p className={T_SECTION}>
-          <MessageSquare className="mr-2 inline h-5 w-5 text-violet-400" />
-          HQ Comments &amp; Replies
-        </p>
+      {/* ── Replies ───────────────────────────────────────────────── */}
+      <div className={`${GLASS_CARD} overflow-hidden`}>
+        <div className="border-b border-white/8 px-5 py-4">
+          <p className={T_SECTION}>
+            <MessageSquare className="mr-2 inline h-5 w-5 text-violet-400" />
+            HQ Comments &amp; Replies
+          </p>
+        </div>
 
-        {item.replies?.length === 0 && (
-          <p className="text-sm text-zinc-500">No replies yet.</p>
-        )}
-
-        {item.replies?.map((reply) => (
-          <div key={reply.id} className="rounded-xl border border-violet-500/20 bg-violet-500/8 px-4 py-3">
-            <div className="mb-1.5 flex items-center gap-2 text-xs text-zinc-400">
-              <span className="font-semibold text-violet-300">{reply.author_name}</span>
-              <span className="rounded-full border border-violet-500/20 bg-violet-500/15 px-1.5 py-0.5 text-[10px] text-violet-300">
-                {reply.author_role}
-              </span>
-              <span className="flex items-center gap-1 ml-auto">
-                <Clock className="h-3 w-3" />{fmtDt(reply.created_at)}
-              </span>
+        <div className="divide-y divide-white/5">
+          {(item.replies?.length ?? 0) === 0 ? (
+            <div className="flex flex-col items-center py-10">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-800">
+                <MessageSquare className="h-5 w-5 text-zinc-600" />
+              </div>
+              <p className="mt-2.5 text-sm text-zinc-500">No replies yet</p>
+              <p className="mt-0.5 text-xs text-zinc-600">Use the form below to send the first reply</p>
             </div>
-            <p className="text-sm text-zinc-200">{reply.message}</p>
-          </div>
-        ))}
+          ) : (
+            item.replies.map((reply) => (
+              <div key={reply.id} className="px-5 py-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-500/20 text-xs font-bold text-violet-300 ring-1 ring-violet-500/25">
+                    {reply.author_name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-white">{reply.author_name}</span>
+                      <span className="rounded-full border border-violet-500/20 bg-violet-500/15 px-2 py-0.5 text-[10px] font-medium text-violet-400">
+                        {reply.author_role}
+                      </span>
+                      <span className="ml-auto flex items-center gap-1 text-[11px] text-zinc-600">
+                        <Clock className="h-3 w-3" />{fmtDt(reply.created_at)}
+                      </span>
+                    </div>
+                    <p className="mt-1.5 text-sm leading-relaxed text-zinc-300">{reply.message}</p>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
 
-        {/* Reply form */}
-        <div className="space-y-3 border-t border-white/8 pt-4">
+        {/* Reply composer */}
+        <div className="space-y-3 border-t border-white/8 bg-white/3 px-5 py-4">
           <p className={T_LABEL}>Send a Reply</p>
           <textarea className={`${TEXTAREA_CLASS} min-h-[80px]`}
-            placeholder="Enter a comment for the staff member…"
+            placeholder="Write a comment or update for the staff member…"
             value={replyText} onChange={(e) => setReplyText(e.target.value)} />
           {replySuccess && (
             <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
@@ -270,8 +349,10 @@ export default function AdminIncidentDetailPage() {
           <div className="flex justify-end">
             <button className={PRIMARY_BUTTON} onClick={handleReply}
               disabled={replying || !replyText.trim()}>
-              {replying ? <Loader2 className="mr-2 inline h-4 w-4 animate-spin" /> : <Send className="mr-2 inline h-4 w-4" />}
-              Send
+              {replying
+                ? <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
+                : <Send className="mr-2 inline h-4 w-4" />}
+              Send Reply
             </button>
           </div>
         </div>
