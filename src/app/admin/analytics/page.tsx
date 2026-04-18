@@ -103,6 +103,8 @@ import { ManilaCashierEvaluationTab } from "@/components/analytics/ManilaCashier
 import { ManilaCancellationsTab } from "@/components/analytics/ManilaCancellationsTab";
 import { DubaiCancellationsTab } from "@/components/analytics/DubaiCancellationsTab";
 import OvertimeTab from "./OvertimeTab";
+import LateTab from "./LateTab";
+import AbsenceTab from "./AbsenceTab";
 
 // Resolve API base at runtime so local dev always talks to FastAPI directly,
 // even when the page is opened via a LAN IP or a custom local hostname.
@@ -2476,7 +2478,7 @@ export default function AdminAnalyticsPage() {
   const [comparisonLimit, setComparisonLimit] = useState("5000");
 
   const [viewMode, setViewMode] = useState<AnalyticsViewMode>("perfect_attendance");
-  const [analyticsTab, setAnalyticsTab] = useState<"staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai" | "overtime">("staff");
+  const [analyticsTab, setAnalyticsTab] = useState<"staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai" | "overtime" | "late" | "absence">("staff");
   const [staffSearch, setStaffSearch] = useState("");
 
   const roleUpper = String(auth?.role || "STAFF").toUpperCase();
@@ -2524,11 +2526,11 @@ export default function AdminAnalyticsPage() {
   const activeSecurityRequirement =
     analyticsTab === "finance"
       ? "MFA (Passkey, TOTP, Backup code, or PIN step-up)"
-      : isSalesAnalyticsTab || analyticsTab === "evaluation" || analyticsTab === "staff" || analyticsTab === "ai"
+      : isSalesAnalyticsTab || analyticsTab === "evaluation" || analyticsTab === "staff" || analyticsTab === "ai" || analyticsTab === "overtime" || analyticsTab === "late" || analyticsTab === "absence"
         ? "MFA (Passkey, TOTP, Backup code, or PIN step-up)"
         : "Login";
   const activeSecuritySatisfied =
-    analyticsTab === "finance" ? financeStepUpReady : isSalesAnalyticsTab || analyticsTab === "evaluation" || analyticsTab === "staff" || analyticsTab === "ai" ? salesStepUpReady : true;
+    analyticsTab === "finance" ? financeStepUpReady : isSalesAnalyticsTab || analyticsTab === "evaluation" || analyticsTab === "staff" || analyticsTab === "ai" || analyticsTab === "overtime" || analyticsTab === "late" || analyticsTab === "absence" ? salesStepUpReady : true;
 
   const [staffSortBy, setStaffSortBy] = useState<"hours" | "days" | "segments" | "name">("hours");
   const [branchSortBy, setBranchSortBy] = useState<"totalHours" | "avgHoursPerDay" | "maxStaff" | "branch">("totalHours");
@@ -5654,9 +5656,13 @@ export default function AdminAnalyticsPage() {
               ? "Evaluation Channel"
               : analyticsTab === "overtime"
                 ? "Overtime Analytics"
-                : "Management P&L Channel";
+                : analyticsTab === "late"
+                  ? "Late Analytics"
+                  : analyticsTab === "absence"
+                    ? "Absence Analytics"
+                    : "Management P&L Channel";
   const analyticsTabs: Array<{
-    key: "staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai" | "overtime";
+    key: "staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai" | "overtime" | "late" | "absence";
     label: string;
     visible: boolean;
   }> = [
@@ -5667,6 +5673,8 @@ export default function AdminAnalyticsPage() {
     { key: "finance", label: "Management P&L", visible: canViewManagementPlChannel },
     { key: "procurement", label: "Procurement Analytics", visible: canViewFinanceChannels },
     { key: "overtime", label: "Overtime", visible: canViewStaffChannel },
+    { key: "late", label: "Late", visible: canViewStaffChannel },
+    { key: "absence", label: "Absence", visible: canViewStaffChannel },
     { key: "ai", label: "AI Analyst", visible: false },
   ];
   const passkeyCount = Number(auth?.mfa?.passkeyCount || 0);
@@ -9781,7 +9789,7 @@ export default function AdminAnalyticsPage() {
             </div>
           </div>
           )
-          ) : analyticsTab === "overtime" ? null : analyticsTab === "ai" ? null : (
+          ) : analyticsTab === "overtime" ? null : analyticsTab === "late" ? null : analyticsTab === "absence" ? null : analyticsTab === "ai" ? null : (
           <div className={`mt-8 p-6 ${GLASS_CARD} ${BODY_TEXT}`}>
             This channel is not available for your current role/city.
           </div>
@@ -9790,6 +9798,30 @@ export default function AdminAnalyticsPage() {
           {analyticsTab === "overtime" && canViewStaffChannel && (
           <div className="mt-8">
             <OvertimeTab
+              city={city}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              approverName={approverName}
+              pin={pin}
+            />
+          </div>
+          )}
+
+          {analyticsTab === "late" && canViewStaffChannel && (
+          <div className="mt-8">
+            <LateTab
+              city={city}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              approverName={approverName}
+              pin={pin}
+            />
+          </div>
+          )}
+
+          {analyticsTab === "absence" && canViewStaffChannel && (
+          <div className="mt-8">
+            <AbsenceTab
               city={city}
               dateFrom={dateFrom}
               dateTo={dateTo}
