@@ -380,6 +380,298 @@ const MANILA_DRAFT_SHEET_URL =
   "https://docs.google.com/spreadsheets/d/1Eoj02lU8YWnDXSVWeJNeRLpYwLf5i3CHRN87nYVpHJs/edit?gid=0#gid=0";
 
 // ---------------------------------------------------------------------------
+// Operating Hours Panel
+// ---------------------------------------------------------------------------
+type OpHoursRecord = {
+  id: number;
+  city: string;
+  date_from: string;
+  date_to: string;
+  open_hour: number;
+  close_hour: number;
+  label: string;
+};
+
+function OperatingHoursPanel({
+  city,
+  approverName,
+  pin,
+  targetMonth,
+}: {
+  city: string;
+  approverName: string;
+  pin: string;
+  targetMonth: string;
+}) {
+  const [records, setRecords] = useState<OpHoursRecord[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [openHour, setOpenHour] = useState("10");
+  const [closeHour, setCloseHour] = useState("23");
+  const [label, setLabel] = useState("");
+  const [addError, setAddError] = useState("");
+
+  async function loadRecords() {
+    if (!city || !approverName || !pin) return;
+    setLoading(true);
+    try {
+      const yr = targetMonth ? targetMonth.slice(0, 4) : new Date().getFullYear().toString();
+      const qs = new URLSearchParams({ city, approver_name: approverName, pin, date_from: `${yr}-01-01`, date_to: `${yr}-12-31` });
+      const res = await fetch(`/api/admin/operating-hours?${qs}`);
+      const j = await res.json();
+      setRecords(Array.isArray(j.records) ? j.records : []);
+    } catch { /* ignore */ }
+    setLoading(false);
+  }
+
+  async function addRecord() {
+    setAddError("");
+    if (!dateFrom || !dateTo) { setAddError("Start date and end date are required."); return; }
+    const oh = parseInt(openHour), ch = parseInt(closeHour);
+    if (isNaN(oh) || isNaN(ch) || oh >= ch) { setAddError("Open hour must be less than close hour."); return; }
+    try {
+      const res = await fetch("/api/admin/operating-hours", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ city, date_from: dateFrom, date_to: dateTo, open_hour: oh, close_hour: ch, label, approver_name: approverName, pin }),
+      });
+      if (!res.ok) { const j = await res.json(); setAddError(j.detail || "Failed"); return; }
+      setDateFrom(""); setDateTo(""); setLabel("");
+      loadRecords();
+    } catch (e: any) { setAddError(e.message); }
+  }
+
+  async function deleteRecord(id: number) {
+    await fetch(`/api/admin/operating-hours/${id}?approver_name=${encodeURIComponent(approverName)}&pin=${encodeURIComponent(pin)}`, { method: "DELETE" });
+    setRecords((prev) => prev.filter((r) => r.id !== id));
+  }
+
+  useEffect(() => { if (open) loadRecords(); }, [open, targetMonth, city]);
+
+  const fmt = (h: number) => `${String(h).padStart(2, "0")}:00`;
+
+  return (
+    <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 p-5">
+      <button type="button" className="flex w-full items-center justify-between" onClick={() => setOpen((p) => !p)}>
+        <span className="flex items-center gap-2 font-semibold text-sky-300">
+          <span className="text-lg">🕐</span> Operating Hours Override
+          {records.length > 0 && <span className="ml-2 rounded-full bg-sky-500/20 px-2 py-0.5 text-xs text-sky-200">{records.length} period{records.length > 1 ? "s" : ""}</span>}
+        </span>
+        <span className="text-neutral-400 text-sm">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="mt-4 space-y-4">
+          <p className="text-xs text-neutral-400">Set restricted operating hours for a date range (e.g. war/emergency period). Shifts outside these hours will be set to 0 staff.</p>
+          {/* Add form */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div>
+              <label className="block text-xs text-neutral-400 mb-1">From</label>
+              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={INPUT_CLASS + " text-sm"} />
+            </div>
+            <div>
+              <label className="block text-xs text-neutral-400 mb-1">To</label>
+              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={INPUT_CLASS + " text-sm"} />
+            </div>
+            <div>
+              <label className="block text-xs text-neutral-400 mb-1">Label</label>
+              <input type="text" placeholder="e.g. War period, Ramadan" value={label} onChange={(e) => setLabel(e.target.value)} className={INPUT_CLASS + " text-sm"} />
+            </div>
+            <div>
+              <label className="block text-xs text-neutral-400 mb-1">Open hour (0–23)</label>
+              <input type="number" min={0} max={23} value={openHour} onChange={(e) => setOpenHour(e.target.value)} className={INPUT_CLASS + " text-sm"} />
+            </div>
+            <div>
+              <label className="block text-xs text-neutral-400 mb-1">Close hour (1–24)</label>
+              <input type="number" min={1} max={24} value={closeHour} onChange={(e) => setCloseHour(e.target.value)} className={INPUT_CLASS + " text-sm"} />
+            </div>
+            <div className="flex items-end">
+              <button type="button" onClick={addRecord} className={PRIMARY_BUTTON + " w-full text-sm"}>Add</button>
+            </div>
+          </div>
+          {addError && <p className="text-xs text-rose-400">{addError}</p>}
+          {/* Quick presets */}
+          <div className="flex flex-wrap gap-2">
+            {[["11:00–21:00", "11", "21"], ["12:00–22:00", "12", "22"], ["10:00–20:00", "10", "20"]].map(([lbl, o, c]) => (
+              <button key={lbl} type="button" onClick={() => { setOpenHour(o); setCloseHour(c); }} className="rounded-lg border border-sky-500/30 px-3 py-1 text-xs text-sky-300 hover:bg-sky-500/10">{lbl}</button>
+            ))}
+          </div>
+          {/* List */}
+          {loading ? <p className="text-xs text-neutral-500">Loading…</p> : records.length === 0 ? (
+            <p className="text-xs text-neutral-500">No operating hour overrides set. Default: full 24h.</p>
+          ) : (
+            <div className="space-y-2">
+              {records.map((r) => (
+                <div key={r.id} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2 text-sm">
+                  <div>
+                    <span className="font-mono text-sky-200">{r.date_from} → {r.date_to}</span>
+                    <span className="mx-2 text-neutral-400">|</span>
+                    <span className="text-white">{fmt(r.open_hour)}–{fmt(r.close_hour)}</span>
+                    {r.label && <span className="ml-2 text-xs text-neutral-400">{r.label}</span>}
+                  </div>
+                  <button type="button" onClick={() => deleteRecord(r.id)} className="ml-2 text-xs text-rose-400 hover:text-rose-300">✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Staffing Rules Panel
+// ---------------------------------------------------------------------------
+type StaffingRule = {
+  id: number;
+  city: string;
+  condition_type: string;
+  adjustment: number;
+  exclude_hours: string;
+  label: string;
+};
+
+function StaffingRulesPanel({
+  city,
+  approverName,
+  pin,
+}: {
+  city: string;
+  approverName: string;
+  pin: string;
+}) {
+  const [rules, setRules] = useState<StaffingRule[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [condition, setCondition] = useState("holiday");
+  const [adjustment, setAdjustment] = useState("-1");
+  const [peakExempt, setPeakExempt] = useState(true);
+  const [peakStart, setPeakStart] = useState("18");
+  const [peakEnd, setPeakEnd] = useState("22");
+  const [label, setLabel] = useState("");
+  const [addError, setAddError] = useState("");
+
+  async function loadRules() {
+    if (!city || !approverName || !pin) return;
+    setLoading(true);
+    try {
+      const qs = new URLSearchParams({ city, approver_name: approverName, pin });
+      const res = await fetch(`/api/admin/staffing-rules?${qs}`);
+      const j = await res.json();
+      setRules(Array.isArray(j.rules) ? j.rules : []);
+    } catch { /* ignore */ }
+    setLoading(false);
+  }
+
+  async function addRule() {
+    setAddError("");
+    const adj = parseInt(adjustment);
+    if (isNaN(adj) || adj === 0) { setAddError("Adjustment must be a non-zero integer."); return; }
+    let excludeHours = "";
+    if (peakExempt) {
+      const ps = parseInt(peakStart), pe = parseInt(peakEnd);
+      if (!isNaN(ps) && !isNaN(pe) && ps < pe) {
+        excludeHours = Array.from({ length: pe - ps }, (_, i) => String(ps + i)).join(",");
+      }
+    }
+    try {
+      const res = await fetch("/api/admin/staffing-rules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ city, condition_type: condition, adjustment: adj, exclude_hours: excludeHours, label, approver_name: approverName, pin }),
+      });
+      if (!res.ok) { const j = await res.json(); setAddError(j.detail || "Failed"); return; }
+      setLabel("");
+      loadRules();
+    } catch (e: any) { setAddError(e.message); }
+  }
+
+  async function deleteRule(id: number) {
+    await fetch(`/api/admin/staffing-rules/${id}?approver_name=${encodeURIComponent(approverName)}&pin=${encodeURIComponent(pin)}`, { method: "DELETE" });
+    setRules((prev) => prev.filter((r) => r.id !== id));
+  }
+
+  useEffect(() => { if (open) loadRules(); }, [open, city]);
+
+  const conditionLabel = (c: string) => c === "holiday" ? "🎌 Holiday" : c === "weekend" ? "📅 Weekend" : "📆 Every Day";
+  const adjColor = (a: number) => a < 0 ? "text-rose-300" : "text-emerald-300";
+
+  return (
+    <div className="rounded-2xl border border-violet-500/20 bg-violet-500/5 p-5">
+      <button type="button" className="flex w-full items-center justify-between" onClick={() => setOpen((p) => !p)}>
+        <span className="flex items-center gap-2 font-semibold text-violet-300">
+          <span className="text-lg">⚙️</span> Staffing Adjustment Rules
+          {rules.length > 0 && <span className="ml-2 rounded-full bg-violet-500/20 px-2 py-0.5 text-xs text-violet-200">{rules.length} rule{rules.length > 1 ? "s" : ""}</span>}
+        </span>
+        <span className="text-neutral-400 text-sm">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="mt-4 space-y-4">
+          <p className="text-xs text-neutral-400">Add rules to auto-adjust staff count during specific day types. Peak hours can be exempted to maintain service quality.</p>
+          {/* Add form */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div>
+              <label className="block text-xs text-neutral-400 mb-1">Condition</label>
+              <select value={condition} onChange={(e) => setCondition(e.target.value)} className={SELECT_CLASS + " text-sm"}>
+                <option value="holiday">Holiday</option>
+                <option value="weekend">Weekend</option>
+                <option value="all_days">Every Day</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-neutral-400 mb-1">Staff adjustment</label>
+              <input type="number" placeholder="-1 or +1" value={adjustment} onChange={(e) => setAdjustment(e.target.value)} className={INPUT_CLASS + " text-sm"} />
+            </div>
+            <div>
+              <label className="block text-xs text-neutral-400 mb-1">Label</label>
+              <input type="text" placeholder="e.g. Holiday double pay" value={label} onChange={(e) => setLabel(e.target.value)} className={INPUT_CLASS + " text-sm"} />
+            </div>
+          </div>
+          {/* Peak exempt */}
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm text-neutral-300 cursor-pointer">
+              <input type="checkbox" checked={peakExempt} onChange={(e) => setPeakExempt(e.target.checked)} className="rounded" />
+              Exempt peak hours from this rule
+            </label>
+            {peakExempt && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-neutral-400">Peak:</span>
+                <input type="number" min={0} max={23} value={peakStart} onChange={(e) => setPeakStart(e.target.value)} className={INPUT_CLASS + " w-16 text-sm"} />
+                <span className="text-neutral-400">–</span>
+                <input type="number" min={1} max={24} value={peakEnd} onChange={(e) => setPeakEnd(e.target.value)} className={INPUT_CLASS + " w-16 text-sm"} />
+                <span className="text-xs text-neutral-500">(rule skipped for these hours)</span>
+              </div>
+            )}
+          </div>
+          <button type="button" onClick={addRule} className={PRIMARY_BUTTON + " text-sm"}>Add Rule</button>
+          {addError && <p className="text-xs text-rose-400">{addError}</p>}
+          {/* List */}
+          {loading ? <p className="text-xs text-neutral-500">Loading…</p> : rules.length === 0 ? (
+            <p className="text-xs text-neutral-500">No staffing rules set.</p>
+          ) : (
+            <div className="space-y-2">
+              {rules.map((r) => (
+                <div key={r.id} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2 text-sm">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-neutral-200">{conditionLabel(r.condition_type)}</span>
+                    <span className={`font-mono font-bold ${adjColor(r.adjustment)}`}>{r.adjustment > 0 ? "+" : ""}{r.adjustment} staff</span>
+                    {r.exclude_hours && <span className="text-xs text-neutral-400">exempt: {r.exclude_hours.replace(/,/g, ", ")}h</span>}
+                    {r.label && <span className="text-xs text-neutral-500 italic">{r.label}</span>}
+                  </div>
+                  <button type="button" onClick={() => deleteRule(r.id)} className="ml-2 text-xs text-rose-400 hover:text-rose-300">✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Demand Events Panel component
 // ---------------------------------------------------------------------------
 type DemandEvent = {
@@ -1373,8 +1665,12 @@ export default function AdminDraftPage() {
         {error ? <div className={`${BADGE_ERROR} mt-3 whitespace-pre-wrap px-4 py-2 text-sm`}>{error}</div> : null}
       </div>
 
-      {/* Demand Events Panel */}
-      <DemandEventsPanel city={city} approverName={approverName} pin={pin} targetMonth={targetMonth} />
+      {/* Operating Hours + Staffing Rules + Demand Events Panels */}
+      <div className="space-y-3">
+        <OperatingHoursPanel city={city} approverName={approverName} pin={pin} targetMonth={targetMonth} />
+        <StaffingRulesPanel city={city} approverName={approverName} pin={pin} />
+        <DemandEventsPanel city={city} approverName={approverName} pin={pin} targetMonth={targetMonth} />
+      </div>
 
       {generateResult ? (
         <div className={`${GLASS_CARD} p-6`}>
