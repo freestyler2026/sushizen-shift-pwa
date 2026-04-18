@@ -926,7 +926,7 @@ function StaffRolesPageInner() {
                 ) : (
                   <div className="flex items-center gap-2">
                     <h2 className={T_SECTION}>{rolePermissions?.role?.label || "Select a role"}</h2>
-                    {rolePermissions?.role && !rolePermissions.role.is_system ? (
+                    {rolePermissions?.role && rolePermissions.role.role_key !== "HQ" ? (
                       <button
                         type="button"
                         onClick={() => setRenamingLabel(rolePermissions.role.label || "")}
@@ -940,7 +940,7 @@ function StaffRolesPageInner() {
                 )}
                 <p className={T_CAPTION}>{rolePermissions?.role?.description || "Channel permissions are grouped below."}</p>
               </div>
-              {rolePermissions?.role && !rolePermissions.role.is_system && renamingLabel === null ? (
+              {rolePermissions?.role && rolePermissions.role.role_key !== "HQ" && renamingLabel === null ? (
                 <button type="button" onClick={() => handleDeleteRole(rolePermissions.role.role_key)} className={`${SECONDARY_BUTTON} text-rose-300`}>
                   <Trash2 className="mr-1 h-4 w-4" /> Delete Role
                 </button>
