@@ -498,7 +498,7 @@ function ForecastSettingsPanel({
               {/* Forecast Weights */}
               <div>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-neutral-400">Historical Forecast Weights</p>
-                <p className="mb-3 text-xs text-neutral-500">How much weight to give each year's same-month data. Must sum to 100%.</p>
+                <p className="mb-3 text-xs text-neutral-500">How much weight to give each year&apos;s same-month data. Must sum to 100%.</p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                   {([
                     ["weight_year_0", "Most recent year"],
