@@ -425,14 +425,17 @@ function StaffRolesPageInner() {
     setBusy(true);
     setError("");
     try {
-      await apiRequest(
+      const result = await apiRequest<{ ok: boolean; role: AccessRole }>(
         `/api/admin/access/roles/${encodeURIComponent(selectedRoleKey)}`,
         { method: "PATCH", body: JSON.stringify({ label: newLabel }) },
         auth,
       );
       setRenamingLabel(null);
-      await loadBootstrap(auth, selectedChannelKey, selectedRoleKey);
-      await loadRolePermissions(selectedRoleKey, auth);
+      // Immediately update the roles list in state so the left panel reflects the new label
+      if (result?.role) {
+        setRoles((prev) => prev.map((r) => r.role_key === selectedRoleKey ? { ...r, label: result.role.label } : r));
+        setRolePermissions((prev) => prev ? { ...prev, role: result.role } : prev);
+      }
     } catch (err: any) {
       setError(String(err?.message || err || "Failed to rename role"));
     } finally {
