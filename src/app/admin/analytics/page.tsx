@@ -95,6 +95,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { FlashValue } from "@/components/ui/FlashValue";
 import AggregatorRatingsTab from "@/components/analytics/dubai/AggregatorRatingsTab";
 import { ManilaRatingsTab } from "@/components/analytics/ManilaRatingsTab";
+import { ManilaOverallRatingsTab } from "@/components/analytics/ManilaOverallRatingsTab";
 import NumberOfOrdersTab from "@/components/analytics/dubai/NumberOfOrdersTab";
 import { ManilaOrderCountsTab } from "@/components/analytics/ManilaOrderCountsTab";
 import { ManilaSalesDataTab } from "@/components/analytics/ManilaSalesDataTab";
@@ -1393,7 +1394,8 @@ const SALES_SECTION_OPTIONS = [
   { value: "aggregatorRatings", label: "Ratings", id: "sales-aggregator-ratings" },
   { value: "dubaiCancellations", label: "Cancellations", id: "sales-dubai-cancellations" },
   { value: "manilaSales", label: "Manila Sales", id: "sales-manila-sales" },
-  { value: "manilaLowRatings", label: "Ratings", id: "sales-manila-low-ratings" },
+  { value: "manilaLowRatings", label: "Low Rating", id: "sales-manila-low-ratings" },
+  { value: "manilaOverallRatings", label: "Overall Rating", id: "sales-manila-overall-ratings" },
   { value: "manilaSalesData", label: "Sales Data", id: "sales-manila-daily" },
   { value: "manilaCancellations", label: "Cancellations", id: "sales-manila-cancellations" },
   { value: "manilaCashierEval", label: "Cashier Evaluation", id: "sales-manila-cashier-eval" },
@@ -1412,6 +1414,7 @@ const MANILA_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter(
     section.value === "dataCheck" ||
     section.value === "orderCounts" ||
     section.value === "manilaLowRatings" ||
+    section.value === "manilaOverallRatings" ||
     section.value === "manilaSalesData" ||
     section.value === "manilaCashierEval" ||
     section.value === "manilaCancellations",
@@ -2096,6 +2099,7 @@ export default function AdminAnalyticsPage() {
     | "dubaiCancellations"
     | "manilaSales"
     | "manilaLowRatings"
+    | "manilaOverallRatings"
     | "manilaSalesData"
     | "manilaCashierEval"
     | "manilaCancellations"
@@ -5659,7 +5663,7 @@ export default function AdminAnalyticsPage() {
     { key: "evaluation", label: "Evaluation", visible: canViewEvaluationChannel && canViewFinanceChannels },
     { key: "finance", label: "Management P&L", visible: canViewManagementPlChannel },
     { key: "procurement", label: "Procurement Analytics", visible: canViewFinanceChannels },
-    { key: "ai", label: "AI Analyst", visible: hasVisibleAnalyticsChannel },
+    { key: "ai", label: "AI Analyst", visible: false },
   ];
   const passkeyCount = Number(auth?.mfa?.passkeyCount || 0);
   const totpStatus = auth?.mfa?.totpEnabled ? "Enabled" : "Not set";
@@ -6773,8 +6777,8 @@ export default function AdminAnalyticsPage() {
                   <DateRangePicker
                     value={{ from: summaryDateFrom, to: summaryDateTo }}
                     onChange={(range) => {
-                      handleSummaryDateFromChange(range.from);
-                      handleSummaryDateToChange(range.to);
+                      setSummaryDateFrom(range.from);
+                      setSummaryDateTo(range.to);
                     }}
                   />
                 </div>
@@ -6920,10 +6924,10 @@ export default function AdminAnalyticsPage() {
                     },
                     {
                       label: "Gross Revenue",
-                      value: posSalesSummary.hasProfit ? posSalesSummary.operatingProfitPl : posSalesSummary.totalGrossSales,
+                      value: posSalesSummary.totalGrossSales,
                       color: "text-emerald-400",
                       icon: TrendingUp,
-                      mom: posSalesSummary.hasProfit ? null : summaryKpiMom?.gross ?? null,
+                      mom: summaryKpiMom?.gross ?? null,
                     },
                     {
                       label: "Order Count",
@@ -6954,8 +6958,8 @@ export default function AdminAnalyticsPage() {
                       transition={{ duration: 0.3, delay: i * 0.05 }}
                       className={KPI_CARD}
                     >
-                      <div className="mb-2 flex items-center gap-1.5">
-                        <Icon className="h-3.5 w-3.5 text-zinc-600" />
+                      <div className="mb-2 flex min-h-[2.5rem] items-start gap-1.5">
+                        <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-600" />
                         <p className={KPI_LABEL}>{label}</p>
                       </div>
                       <p className={`text-2xl font-bold tabular-nums break-words ${color}`}>{fmtNum(value)}</p>
@@ -8176,6 +8180,17 @@ export default function AdminAnalyticsPage() {
                     stepUpReady={salesStepUpReady}
                   />
                 ) : null}
+                {salesSectionView === "all" || salesSectionView === "manilaOverallRatings" ? (
+                  <div id="sales-manila-overall-ratings">
+                    <ManilaOverallRatingsTab
+                      dateFrom={summaryDateFrom}
+                      dateTo={summaryDateTo}
+                      approverName={approverName}
+                      pin={pin}
+                      stepUpReady={salesStepUpReady}
+                    />
+                  </div>
+                ) : null}
                 {salesSectionView === "all" || salesSectionView === "manilaSalesData" ? (
                   <div id="sales-manila-daily">
                     <ManilaSalesDataTab
@@ -8234,8 +8249,8 @@ export default function AdminAnalyticsPage() {
                     <DateRangePicker
                       value={{ from: summaryDateFrom, to: summaryDateTo }}
                       onChange={(range) => {
-                        handleSummaryDateFromChange(range.from);
-                        handleSummaryDateToChange(range.to);
+                        setSummaryDateFrom(range.from);
+                        setSummaryDateTo(range.to);
                       }}
                       className="mt-1"
                     />
@@ -9130,8 +9145,8 @@ export default function AdminAnalyticsPage() {
                     <DateRangePicker
                       value={{ from: summaryDateFrom, to: summaryDateTo }}
                       onChange={(range) => {
-                        handleSummaryDateFromChange(range.from);
-                        handleSummaryDateToChange(range.to);
+                        setSummaryDateFrom(range.from);
+                        setSummaryDateTo(range.to);
                       }}
                       className="mt-1"
                     />
@@ -9827,8 +9842,8 @@ export default function AdminAnalyticsPage() {
                 <DateRangePicker
                   value={{ from: summaryDateFrom, to: summaryDateTo }}
                   onChange={(range) => {
-                    handleSummaryDateFromChange(range.from);
-                    handleSummaryDateToChange(range.to);
+                    setSummaryDateFrom(range.from);
+                    setSummaryDateTo(range.to);
                   }}
                 />
               </div>
