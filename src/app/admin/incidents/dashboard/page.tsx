@@ -50,10 +50,10 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const STATUS_JP: Record<string, string> = {
-  new: "新規",
-  acknowledged: "確認中",
-  in_progress: "対応中",
-  resolved: "解決済",
+  new: "New",
+  acknowledged: "Acknowledged",
+  in_progress: "In Progress",
+  resolved: "Resolved",
 };
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -175,12 +175,12 @@ export default function IncidentDashboardPage() {
       <div className="flex flex-wrap items-center gap-3">
         <Link href="/admin/incidents" className={`${SMALL_BUTTON} flex items-center gap-1.5`}>
           <ArrowLeft className="h-3.5 w-3.5" />
-          一覧へ
+          Back to List
         </Link>
         <TrendingUp className="h-6 w-6 text-violet-400" />
         <div>
           <h1 className={T_PAGE_TITLE}>Incident Dashboard</h1>
-          <p className={`mt-0.5 ${T_CAPTION}`}>インシデントレポート分析</p>
+          <p className={`mt-0.5 ${T_CAPTION}`}>Incident report analytics</p>
         </div>
 
         {/* City filter */}
@@ -191,7 +191,7 @@ export default function IncidentDashboardPage() {
             value={filterCity}
             onChange={(e) => setFilterCity(e.target.value)}
           >
-            <option value="">全都市</option>
+            <option value="">All Cities</option>
             <option value="dubai">Dubai 🇦🇪</option>
             <option value="manila">Manila 🇵🇭</option>
           </select>
@@ -217,19 +217,19 @@ export default function IncidentDashboardPage() {
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className={KPI_CARD}>
-          <p className={KPI_LABEL}>合計</p>
+          <p className={KPI_LABEL}>Total</p>
           <p className={KPI_VALUE}>{totalIncidents}</p>
         </div>
         <div className={KPI_CARD}>
-          <p className={KPI_LABEL}>未解決</p>
+          <p className={KPI_LABEL}>Unresolved</p>
           <p className={`${KPI_VALUE} text-amber-400`}>{openIncidents}</p>
         </div>
         <div className={KPI_CARD}>
-          <p className={KPI_LABEL}>解決済</p>
+          <p className={KPI_LABEL}>Resolved</p>
           <p className={`${KPI_VALUE} text-emerald-400`}>{stats.status_counts["resolved"] ?? 0}</p>
         </div>
         <div className={KPI_CARD}>
-          <p className={KPI_LABEL}>平均解決時間</p>
+          <p className={KPI_LABEL}>Avg. Resolution</p>
           <p className={`${KPI_VALUE} text-violet-300`}>
             {stats.avg_resolution_hours > 0 ? `${stats.avg_resolution_hours}h` : "—"}
           </p>
@@ -239,9 +239,9 @@ export default function IncidentDashboardPage() {
       {/* Row 1: Status pie + Severity pie */}
       <div className="grid gap-4 md:grid-cols-2">
         <div className={`${GLASS_CARD} p-5`}>
-          <p className={T_SECTION}>ステータス別</p>
+          <p className={T_SECTION}>By Status</p>
           {statusPieData.length === 0 ? (
-            <p className="mt-6 text-center text-sm text-zinc-500">データなし</p>
+            <p className="mt-6 text-center text-sm text-zinc-500">No data</p>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
@@ -270,9 +270,9 @@ export default function IncidentDashboardPage() {
         </div>
 
         <div className={`${GLASS_CARD} p-5`}>
-          <p className={T_SECTION}>重要度別</p>
+          <p className={T_SECTION}>By Severity</p>
           {severityPieData.length === 0 ? (
-            <p className="mt-6 text-center text-sm text-zinc-500">データなし</p>
+            <p className="mt-6 text-center text-sm text-zinc-500">No data</p>
           ) : (
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
@@ -303,9 +303,9 @@ export default function IncidentDashboardPage() {
 
       {/* Row 2: Daily trend */}
       <div className={`${GLASS_CARD} p-5`}>
-        <p className={T_SECTION}>日別発生件数（過去30日）</p>
+        <p className={T_SECTION}>Daily Incidents (Last 30 Days)</p>
         {trendData.length === 0 ? (
-          <p className="mt-6 text-center text-sm text-zinc-500">データなし</p>
+          <p className="mt-6 text-center text-sm text-zinc-500">No data</p>
         ) : (
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -327,7 +327,7 @@ export default function IncidentDashboardPage() {
               <Line
                 type="monotone"
                 dataKey="count"
-                name="件数"
+                name="Count"
                 stroke="#8b5cf6"
                 strokeWidth={2}
                 dot={{ r: 3, fill: "#8b5cf6" }}
@@ -341,9 +341,9 @@ export default function IncidentDashboardPage() {
       {/* Row 3: Category bar + Open by branch bar */}
       <div className="grid gap-4 md:grid-cols-2">
         <div className={`${GLASS_CARD} p-5`}>
-          <p className={T_SECTION}>カテゴリ別件数</p>
+          <p className={T_SECTION}>Incidents by Category</p>
           {stats.category_counts.length === 0 ? (
-            <p className="mt-6 text-center text-sm text-zinc-500">データなし</p>
+            <p className="mt-6 text-center text-sm text-zinc-500">No data</p>
           ) : (
             <ResponsiveContainer width="100%" height={260}>
               <BarChart
@@ -368,16 +368,16 @@ export default function IncidentDashboardPage() {
                   axisLine={false}
                 />
                 <Tooltip content={<CustomTooltipBase />} />
-                <Bar dataKey="count" name="件数" fill={CATEGORY_COLOR} radius={[0, 4, 4, 0]} />
+                <Bar dataKey="count" name="Count" fill={CATEGORY_COLOR} radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
         </div>
 
         <div className={`${GLASS_CARD} p-5`}>
-          <p className={T_SECTION}>店舗別未解決件数</p>
+          <p className={T_SECTION}>Open Incidents by Branch</p>
           {stats.open_by_branch.length === 0 ? (
-            <p className="mt-6 text-center text-sm text-zinc-500">未解決インシデントなし</p>
+            <p className="mt-6 text-center text-sm text-zinc-500">No open incidents</p>
           ) : (
             <ResponsiveContainer width="100%" height={260}>
               <BarChart
@@ -402,7 +402,7 @@ export default function IncidentDashboardPage() {
                   axisLine={false}
                 />
                 <Tooltip content={<CustomTooltipBase />} />
-                <Bar dataKey="count" name="未解決" fill={BRANCH_COLOR} radius={[0, 4, 4, 0]} />
+                <Bar dataKey="count" name="Unresolved" fill={BRANCH_COLOR} radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           )}
