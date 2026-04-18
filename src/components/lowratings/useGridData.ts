@@ -94,6 +94,8 @@ export function useGridData(
   dateFrom: string,
   dateTo: string,
   canLoad: boolean,
+  filterBranch?: string,
+  filterAggregator?: string,
 ) {
   const [rows, setRows] = useState<GridRowState[]>([]);
   const [loading, setLoading] = useState(false);
@@ -112,8 +114,10 @@ export function useGridData(
     });
     if (dateFrom.trim()) p.set("date_from", dateFrom.trim());
     if (dateTo.trim()) p.set("date_to", dateTo.trim());
+    if (filterBranch?.trim()) p.set("branch", filterBranch.trim());
+    if (filterAggregator?.trim()) p.set("aggregator", filterAggregator.trim().toLowerCase());
     return p.toString();
-  }, [approverName, pin, dateFrom, dateTo]);
+  }, [approverName, pin, dateFrom, dateTo, filterBranch, filterAggregator]);
 
   const refetch = useCallback(async () => {
     if (!canLoad) return;
