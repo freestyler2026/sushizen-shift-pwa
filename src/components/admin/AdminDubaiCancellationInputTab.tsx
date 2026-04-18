@@ -45,7 +45,7 @@ interface EditableRecord extends CancelRecord {
 
 const PLATFORMS = ["Careem", "Keeta", "Talabat"] as const;
 const BRANCHES = ["Business Bay", "Arjan", "Al Barsha", "Al Hudaiba", "JLT"] as const;
-const BRANDS = ["Sushi ZEN", "Ramen ZEN"] as const;
+const BRANDS = ["Sushi ZEN", "Ramen ZEN", "All Veggie"] as const;
 const CATEGORIES = ["Cancellation", "Refund/Complaint"] as const;
 const CANCEL_REASON_OPTIONS = [
   "Order cancelled by user",
