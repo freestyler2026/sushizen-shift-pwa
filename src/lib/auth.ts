@@ -398,6 +398,16 @@ export function canAccessRoleManagement(a?: Auth | null): boolean {
   return String(x?.role || "").toUpperCase() === "HQ";
 }
 
+/** Incident Report admin — matches `admin.incident_reports` channel in `app/access_control.py`. */
+export function canAccessIncidentReportAdmin(a?: Auth | null): boolean {
+  return hasAnyPermission(["channel.admin.incident_reports.view", "incident_report.read", "incident_report.reply"], a);
+}
+
+/** Incident Report staff channel — matches `incident_report` channel in `app/access_control.py`. */
+export function canAccessIncidentReport(a?: Auth | null): boolean {
+  return hasAnyPermission(["channel.incident_report.view", "incident_report.submit.self", "incident_report.inbox.read"], a);
+}
+
 export function stepUpSatisfies(required: StepUpLevel, a?: Auth | null): boolean {
   const x = a ?? getAuth();
   const current = x?.stepUpLevel || "aal1";

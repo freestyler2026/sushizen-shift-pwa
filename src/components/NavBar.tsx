@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
+  AlertTriangle,
   ArrowLeftRight,
   BarChart3,
   Bot,
@@ -39,6 +40,8 @@ import {
   canAccessBackofficeEvaluationAdmin,
   canAccessCostAdmin,
   canAccessDailyInventoryAdmin,
+  canAccessIncidentReport,
+  canAccessIncidentReportAdmin,
   canAccessInventoryWorkspace,
   canAccessMenuAdmin,
   canAccessPrivateReportAdmin,
@@ -76,6 +79,7 @@ const PRIMARY: NavItem[] = [
 const SECONDARY_BASE: NavItem[] = [
   { href: "/calendar", label: "Calendar", icon: Calendar, match: "exact" },
   { href: "/inbox", label: "Inbox", icon: InboxIcon, match: "exact" },
+  { href: "/incidents", label: "Incident Report", icon: AlertTriangle, match: "prefix" },
   { href: "/store/procurement", label: "Store Procurement", icon: ShoppingCart, match: "prefix" },
   { href: "/swap-approve", label: "Swap Approve", icon: ArrowLeftRight, match: "exact" },
   { href: "/change-pin", label: "Change PIN", icon: KeyRound, match: "exact" },
@@ -99,6 +103,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/staff/roles", label: "Role Management", icon: Shield, adminOnly: true, match: "prefix" },
   { href: "/admin/draft", label: "Draft", icon: PenLine, adminOnly: true, match: "prefix" },
   { href: "/admin/backoffice-evaluation", label: "Backoffice Eval", icon: ClipboardCheck, adminOnly: true, match: "exact" },
+  { href: "/admin/incidents", label: "Incident Reports", icon: AlertTriangle, adminOnly: true, match: "prefix" },
 ];
 
 function isActive(pathname: string, item: NavItem) {
@@ -180,6 +185,8 @@ export default function NavBar() {
   const [procurementBadgeCount, setProcurementBadgeCount] = useState(0);
   const [procurementBadgeCritical, setProcurementBadgeCritical] = useState(false);
   const [renewalBadge, setRenewalBadge] = useState(0);
+  const [incidentBadge, setIncidentBadge] = useState(0);
+  const [adminIncidentBadge, setAdminIncidentBadge] = useState(0);
 
   function canSeeAdminItem(href: string, auth: ReturnType<typeof getAuth>) {
     if (!auth) return false;
@@ -199,6 +206,7 @@ export default function NavBar() {
     if (href === "/admin/staff/roles") return canAccessRoleManagement(auth);
     if (href === "/admin/draft") return canAccessAdminNav(auth);
     if (href === "/admin/backoffice-evaluation") return canAccessBackofficeEvaluationAdmin(auth);
+    if (href === "/admin/incidents") return canAccessIncidentReportAdmin(auth);
     return false;
   }
 
@@ -246,6 +254,57 @@ export default function NavBar() {
       window.removeEventListener(RENEWALS_BADGE_EVENT, onBadgeEvent as EventListener);
       window.removeEventListener("storage", onStorage);
     };
+  }, []);
+
+  // Incident badge polling (staff side: unread reply notifications)
+  useEffect(() => {
+    let cancelled = false;
+    const fetchIncidentBadge = async () => {
+      try {
+        const auth = getAuth();
+        if (!auth || !canAccessIncidentReport(auth)) {
+          if (!cancelled) setIncidentBadge(0);
+          return;
+        }
+        const res = await fetch(`${API_BASE}/api/incidents/badge`, {
+          method: "GET",
+          cache: "no-store",
+          headers: getAuthHeaders(auth),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setIncidentBadge(Number(data?.badge_count ?? 0));
+      } catch {}
+    };
+    void fetchIncidentBadge();
+    const id = window.setInterval(fetchIncidentBadge, 60_000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, []);
+
+  // Admin incident badge polling (unprocessed count)
+  useEffect(() => {
+    let cancelled = false;
+    const fetchAdminIncidentBadge = async () => {
+      try {
+        const auth = getAuth();
+        if (!auth || !canAccessIncidentReportAdmin(auth)) {
+          if (!cancelled) setAdminIncidentBadge(0);
+          return;
+        }
+        const cityParam = String(auth.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
+        const res = await fetch(`${API_BASE}/api/admin/incidents/badge?city=${encodeURIComponent(cityParam)}`, {
+          method: "GET",
+          cache: "no-store",
+          headers: getAuthHeaders(auth),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setAdminIncidentBadge(Number(data?.badge_count ?? 0));
+      } catch {}
+    };
+    void fetchAdminIncidentBadge();
+    const id = window.setInterval(fetchAdminIncidentBadge, 60_000);
+    return () => { cancelled = true; window.clearInterval(id); };
   }, []);
 
   useEffect(() => {
@@ -307,7 +366,13 @@ export default function NavBar() {
     };
   }, []);
 
-  const staffItems = useMemo(() => [...PRIMARY, ...SECONDARY_BASE], []);
+  const staffItems = useMemo(() => {
+    return [...PRIMARY, ...SECONDARY_BASE].map((item) =>
+      item.href === "/incidents"
+        ? { ...item, badgeCount: incidentBadge, badgeWarning: incidentBadge > 0 }
+        : item,
+    );
+  }, [incidentBadge]);
 
   const adminItems = useMemo(() => {
     return ADMIN_ITEMS
@@ -321,9 +386,11 @@ export default function NavBar() {
           ? { ...item, badgeCount: procurementBadgeCount, badgeCritical: procurementBadgeCritical, badgeSuccess: true }
           : item.href === "/admin/renewals"
             ? { ...item, badgeCount: renewalBadge, badgeWarning: true }
+          : item.href === "/admin/incidents"
+            ? { ...item, badgeCount: adminIncidentBadge, badgeWarning: adminIncidentBadge > 0 }
           : item,
       );
-  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge]);
+  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge]);
 
   const navItems = useMemo(() => [...staffItems, ...adminItems], [staffItems, adminItems]);
   const userInitials = useMemo(() => {
