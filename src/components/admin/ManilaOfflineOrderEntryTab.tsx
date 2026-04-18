@@ -8,6 +8,7 @@ import { GLASS_CARD, INPUT_CLASS, T_CAPTION, T_LABEL } from "@/lib/ui-tokens";
 const STORES = [
   { store_name: "QC", label: "Cubao (QC)" },
   { store_name: "Paranaque", label: "Paranaque" },
+  { store_name: "Taft", label: "Taft" },
 ] as const;
 
 type StoreKey = (typeof STORES)[number]["store_name"];
@@ -101,6 +102,7 @@ export default function ManilaOfflineOrderEntryTab() {
   const [rows, setRows] = useState<Record<StoreKey, RowVals>>({
     QC: emptyRow(),
     Paranaque: emptyRow(),
+    Taft: emptyRow(),
   });
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -142,10 +144,11 @@ export default function ManilaOfflineOrderEntryTab() {
         const next: Record<StoreKey, RowVals> = {
           QC: emptyRow(),
           Paranaque: emptyRow(),
+          Taft: emptyRow(),
         };
         for (const r of json.rows || []) {
           const sn = r.store_name as StoreKey;
-          if (sn !== "QC" && sn !== "Paranaque") continue;
+          if (sn !== "QC" && sn !== "Paranaque" && sn !== "Taft") continue;
           next[sn] = {
             order_count: String(r.order_count ?? ""),
             total_sales: r.total_sales != null && r.total_sales !== undefined ? String(r.total_sales) : "",
@@ -154,7 +157,7 @@ export default function ManilaOfflineOrderEntryTab() {
         }
         setRows(next);
       } catch (e: unknown) {
-        setRows({ QC: emptyRow(), Paranaque: emptyRow() });
+        setRows({ QC: emptyRow(), Paranaque: emptyRow(), Taft: emptyRow() });
         setLoadError(e instanceof Error ? e.message : String(e));
       } finally {
         setLoading(false);
@@ -224,8 +227,7 @@ export default function ManilaOfflineOrderEntryTab() {
             <span>📦</span> Number of Orders — Manila (Offline)
           </h2>
           <p className="mt-0.5 text-xs text-gray-500">
-            Cubao (QC) and Paranaque offline counts (Taft uses StoreHub sync). Feeds Manila Sales Analytics → Number of
-            Orders.
+            Cubao (QC), Paranaque, and Taft offline counts. Feeds Manila Sales Analytics → Number of Orders.
           </p>
         </div>
 
