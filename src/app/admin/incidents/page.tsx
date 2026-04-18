@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Clock,
   Filter,
+  Lock,
   Loader2,
   MessageSquare,
   RefreshCw,
@@ -62,6 +63,7 @@ type IncidentRow = {
   incident_datetime: string; status: string; created_at: string;
   replies?: { id: string }[];
   attachments?: { id: string }[];
+  has_notes?: boolean;
 };
 
 function fmtDt(iso: string): string {
@@ -81,6 +83,7 @@ export default function AdminIncidentsPage() {
   const [filterCity, setFilterCity]         = useState(city);
   const [filterStatus, setFilterStatus]     = useState("");
   const [filterCategory, setFilterCategory] = useState("");
+  const [filterNotes, setFilterNotes]       = useState("");
   const [items, setItems]     = useState<IncidentRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
@@ -93,6 +96,7 @@ export default function AdminIncidentsPage() {
       const params = new URLSearchParams();
       if (filterCity)   params.set("city", filterCity);
       if (filterStatus) params.set("status", filterStatus);
+      if (filterNotes)  params.set("has_notes", filterNotes);
       params.set("limit", "200");
       const res = await fetch(`${API_BASE}/api/admin/incidents?${params}`, {
         cache: "no-store", headers: getAuthHeaders(a),
@@ -105,7 +109,7 @@ export default function AdminIncidentsPage() {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally { setLoading(false); }
-  }, [filterCity, filterStatus, filterCategory]);
+  }, [filterCity, filterStatus, filterCategory, filterNotes]);
 
   useEffect(() => { void fetchList(); }, [fetchList]);
 
@@ -184,6 +188,16 @@ export default function AdminIncidentsPage() {
               {INCIDENT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
+          <div className="flex items-center gap-2">
+            <Lock className="h-3.5 w-3.5 text-amber-500/70" />
+            <label className={T_LABEL}>Notes</label>
+            <select className={`${SELECT_CLASS} w-auto min-w-[130px]`} value={filterNotes}
+              onChange={(e) => setFilterNotes(e.target.value)}>
+              <option value="">All</option>
+              <option value="true">Has HQ Notes</option>
+              <option value="false">No Notes</option>
+            </select>
+          </div>
           <button className={`${SMALL_BUTTON} ml-auto flex items-center gap-1.5`}
             onClick={() => fetchList()} disabled={loading}>
             {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
@@ -217,7 +231,7 @@ export default function AdminIncidentsPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/8 bg-white/3">
-                  {["", "Category", "Branch", "Reporter", "Reported", "Status", "Replies", ""].map((h, i) => (
+                  {["", "Category", "Branch", "Reporter", "Reported", "Status", "Replies", "Notes", ""].map((h, i) => (
                     <th key={i} className={`${TABLE_HEADER} px-4 py-3 text-left`}>{h}</th>
                   ))}
                 </tr>
@@ -248,6 +262,13 @@ export default function AdminIncidentsPage() {
                       {(item.replies?.length ?? 0) > 0 ? (
                         <span className="flex items-center gap-1 text-xs text-violet-300">
                           <MessageSquare className="h-3.5 w-3.5" />{item.replies!.length}
+                        </span>
+                      ) : <span className="text-xs text-zinc-700">—</span>}
+                    </td>
+                    <td className={`${TABLE_CELL} px-4`}>
+                      {item.has_notes ? (
+                        <span title="Has HQ internal notes" className="flex items-center gap-1 text-xs text-amber-400">
+                          <Lock className="h-3.5 w-3.5" />
                         </span>
                       ) : <span className="text-xs text-zinc-700">—</span>}
                     </td>

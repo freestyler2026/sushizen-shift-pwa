@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle, ArrowLeft, Building2, Calendar, CheckCircle2,
-  Clock, Image as ImageIcon, Loader2, MapPin, MessageSquare,
+  Clock, Image as ImageIcon, Lock, Loader2, MapPin, MessageSquare,
   Send, User,
 } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
@@ -40,11 +40,16 @@ type Reply = {
   id: string; author_name: string; author_role: string;
   message: string; created_at: string;
 };
+type InternalNote = {
+  id: number; report_id: string; author_name: string;
+  note: string; created_at: string;
+};
 type IncidentDetail = {
   id: string; city: string; branch: string; reporter_name: string;
   category: string; severity: string; description: string;
   incident_datetime: string; status: string; created_at: string;
   updated_at: string; replies: Reply[]; attachments: Attachment[];
+  internal_notes: InternalNote[];
 };
 
 function fmtDt(iso: string): string {
@@ -72,6 +77,11 @@ export default function AdminIncidentDetailPage() {
   const [replySuccess, setReplySuccess]     = useState("");
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [statusError, setStatusError]       = useState("");
+
+  const [noteText, setNoteText]           = useState("");
+  const [savingNote, setSavingNote]       = useState(false);
+  const [noteError, setNoteError]         = useState("");
+  const [noteSuccess, setNoteSuccess]     = useState("");
 
   const fetchDetail = useCallback(async () => {
     const a = getAuth();
@@ -105,6 +115,24 @@ export default function AdminIncidentDetailPage() {
     } catch (e: unknown) {
       setStatusError(e instanceof Error ? e.message : "Failed to update");
     } finally { setStatusUpdating(false); }
+  };
+
+  const handleSaveNote = async () => {
+    const a = getAuth();
+    if (!a || !noteText.trim()) return;
+    setSavingNote(true); setNoteError(""); setNoteSuccess("");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/incidents/${reportId}/notes`, {
+        method: "POST", headers: getAuthHeaders(a),
+        body: JSON.stringify({ note: noteText.trim() }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setNoteText("");
+      setNoteSuccess("Note saved.");
+      void fetchDetail();
+    } catch (e: unknown) {
+      setNoteError(e instanceof Error ? e.message : "Failed to save");
+    } finally { setSavingNote(false); }
   };
 
   const handleReply = async () => {
@@ -289,6 +317,82 @@ export default function AdminIncidentDetailPage() {
           })}
         </div>
         {statusError && <p className="mt-2.5 text-xs text-red-400">{statusError}</p>}
+      </div>
+
+      {/* ── HQ Internal Notes ─────────────────────────────────────── */}
+      <div className={`${GLASS_CARD} overflow-hidden`}>
+        {/* Header — clearly marked HQ-only */}
+        <div className="flex items-center gap-2.5 border-b border-amber-500/15 bg-amber-500/5 px-5 py-4">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/15 ring-1 ring-amber-500/25">
+            <Lock className="h-3.5 w-3.5 text-amber-400" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-white">HQ Internal Notes</p>
+            <p className="text-[10px] text-amber-500/70">Only visible to HQ staff — not shown to branch reporters</p>
+          </div>
+          {(item.internal_notes?.length ?? 0) > 0 && (
+            <span className="ml-auto rounded-full bg-amber-500/20 px-2.5 py-0.5 text-xs font-medium text-amber-300">
+              {item.internal_notes.length} {item.internal_notes.length === 1 ? "note" : "notes"}
+            </span>
+          )}
+        </div>
+
+        {/* Note thread */}
+        <div className="divide-y divide-white/5">
+          {(item.internal_notes?.length ?? 0) === 0 ? (
+            <div className="flex flex-col items-center py-8">
+              <Lock className="h-7 w-7 text-zinc-700" />
+              <p className="mt-2 text-sm text-zinc-500">No internal notes yet</p>
+              <p className="mt-0.5 text-xs text-zinc-600">Add a note below to record HQ observations</p>
+            </div>
+          ) : (
+            item.internal_notes.map((n) => (
+              <div key={n.id} className="px-5 py-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-xs font-bold text-amber-300 ring-1 ring-amber-500/25">
+                    {n.author_name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-white">{n.author_name}</span>
+                      <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-400">HQ</span>
+                      <span className="ml-auto flex items-center gap-1 text-[11px] text-zinc-600">
+                        <Clock className="h-3 w-3" />{fmtDt(n.created_at)}
+                      </span>
+                    </div>
+                    <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-zinc-300">{n.note}</p>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Note composer */}
+        <div className="space-y-3 border-t border-amber-500/15 bg-amber-500/3 px-5 py-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-amber-500/70">Add Internal Note</p>
+          <textarea
+            className="w-full rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-white placeholder:text-zinc-500 outline-none transition-all duration-200 focus:border-amber-500/40 focus:ring-2 focus:ring-amber-500/15 resize-none min-h-[80px]"
+            placeholder="Record observations, root cause analysis, action items, lessons learned…"
+            value={noteText} onChange={(e) => setNoteText(e.target.value)}
+          />
+          {noteSuccess && (
+            <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-300">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />{noteSuccess}
+            </div>
+          )}
+          {noteError && <p className="text-xs text-red-400">{noteError}</p>}
+          <div className="flex justify-end">
+            <button
+              onClick={handleSaveNote}
+              disabled={savingNote || !noteText.trim()}
+              className="inline-flex items-center rounded-xl border border-amber-500/30 bg-amber-500/15 px-4 py-2 text-sm font-medium text-amber-300 transition-all hover:bg-amber-500/25 disabled:opacity-50"
+            >
+              {savingNote ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lock className="mr-2 h-4 w-4" />}
+              Save Note
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* ── Replies ───────────────────────────────────────────────── */}
