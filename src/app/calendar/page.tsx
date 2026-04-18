@@ -101,6 +101,16 @@ function isAbsenceRow(row: ShiftRow) {
   );
 }
 
+function dedupeShiftRows(rows: ShiftRow[]): ShiftRow[] {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    const key = `${row.start_hour}|${row.end_hour}|${row.role || ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 function groupRowsByBranch(rows: ShiftRow[]): ShiftGroup[] {
   const byBranch = new Map<string, Map<string, ShiftRow[]>>();
   for (const row of rows) {
@@ -121,7 +131,7 @@ function groupRowsByBranch(rows: ShiftRow[]): ShiftGroup[] {
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([name, staffRows]) => ({
           name,
-          rows: staffRows.slice().sort((a, b) => (a.start_hour || 0) - (b.start_hour || 0)),
+          rows: dedupeShiftRows(staffRows).sort((a, b) => (a.start_hour || 0) - (b.start_hour || 0)),
         })),
     }));
 }
