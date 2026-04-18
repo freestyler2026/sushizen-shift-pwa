@@ -4,7 +4,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { AlertTriangle, Layers3, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
+import { AlertTriangle, Check, Layers3, Pencil, ShieldCheck, Trash2, UserPlus, Users, X } from "lucide-react";
 import { canAccessRoleManagement, getAuth, getAuthHeaders, refreshAuthFromApi, type Auth } from "@/lib/auth";
 import {
   BADGE_INFO,
@@ -165,6 +165,7 @@ function StaffRolesPageInner() {
 
   const [newRoleKey, setNewRoleKey] = useState("");
   const [newRoleLabel, setNewRoleLabel] = useState("");
+  const [renamingLabel, setRenamingLabel] = useState<string | null>(null); // null = not editing
 
   const [newChannelKey, setNewChannelKey] = useState("");
   const [newChannelLabel, setNewChannelLabel] = useState("");
@@ -412,6 +413,28 @@ function StaffRolesPageInner() {
       await loadBootstrap(auth, selectedChannelKey);
     } catch (err: any) {
       setError(String(err?.message || err || "Failed to delete role"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRenameRole() {
+    if (!auth || !selectedRoleKey || renamingLabel === null) return;
+    const newLabel = renamingLabel.trim();
+    if (!newLabel) return;
+    setBusy(true);
+    setError("");
+    try {
+      await apiRequest(
+        `/api/admin/access/roles/${encodeURIComponent(selectedRoleKey)}`,
+        { method: "PATCH", body: JSON.stringify({ label: newLabel }) },
+        auth,
+      );
+      setRenamingLabel(null);
+      await loadBootstrap(auth, selectedChannelKey, selectedRoleKey);
+      await loadRolePermissions(selectedRoleKey, auth);
+    } catch (err: any) {
+      setError(String(err?.message || err || "Failed to rename role"));
     } finally {
       setBusy(false);
     }
@@ -868,11 +891,56 @@ function StaffRolesPageInner() {
 
           <div className={`${GLASS_CARD} p-5`}>
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h2 className={T_SECTION}>{rolePermissions?.role?.label || "Select a role"}</h2>
+              <div className="flex-1 min-w-0">
+                {rolePermissions?.role && renamingLabel !== null ? (
+                  /* ── Rename inline edit ── */
+                  <div className="flex items-center gap-2">
+                    <input
+                      autoFocus
+                      value={renamingLabel}
+                      onChange={(e) => setRenamingLabel(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void handleRenameRole();
+                        if (e.key === "Escape") setRenamingLabel(null);
+                      }}
+                      className={`${INPUT_CLASS} max-w-xs text-base font-semibold`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleRenameRole()}
+                      disabled={busy || !renamingLabel.trim()}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/20 text-violet-300 hover:bg-violet-500/30 disabled:opacity-40"
+                      title="Save"
+                    >
+                      <Check className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setRenamingLabel(null)}
+                      className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 text-neutral-400 hover:bg-white/10"
+                      title="Cancel"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <h2 className={T_SECTION}>{rolePermissions?.role?.label || "Select a role"}</h2>
+                    {rolePermissions?.role && !rolePermissions.role.is_system ? (
+                      <button
+                        type="button"
+                        onClick={() => setRenamingLabel(rolePermissions.role.label || "")}
+                        className="flex h-7 w-7 items-center justify-center rounded-lg text-neutral-500 hover:bg-white/10 hover:text-neutral-200 transition"
+                        title="Rename role"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    ) : null}
+                  </div>
+                )}
                 <p className={T_CAPTION}>{rolePermissions?.role?.description || "Channel permissions are grouped below."}</p>
               </div>
-              {rolePermissions?.role && !rolePermissions.role.is_system ? (
+              {rolePermissions?.role && !rolePermissions.role.is_system && renamingLabel === null ? (
                 <button type="button" onClick={() => handleDeleteRole(rolePermissions.role.role_key)} className={`${SECONDARY_BUTTON} text-rose-300`}>
                   <Trash2 className="mr-1 h-4 w-4" /> Delete Role
                 </button>
