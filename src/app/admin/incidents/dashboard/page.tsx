@@ -108,8 +108,10 @@ const CustomTooltipBase = ({ active, payload, label }: any) => {
 export default function IncidentDashboardPage() {
   const auth = getAuth();
   const defaultCity = String(auth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
+  const cityLock = String(auth?.cityLock || "").toLowerCase();
+  const isCityLocked = cityLock === "dubai" || cityLock === "manila";
 
-  const [filterCity, setFilterCity] = useState(defaultCity);
+  const [filterCity, setFilterCity] = useState(isCityLocked ? cityLock : defaultCity);
   const [stats, setStats] = useState<StatsData>(EMPTY_STATS);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -188,15 +190,21 @@ export default function IncidentDashboardPage() {
         {/* City filter */}
         <div className="flex items-center gap-2">
           <Filter className="h-4 w-4 text-zinc-500" />
-          <select
-            className={`${SELECT_CLASS} w-auto min-w-[130px]`}
-            value={filterCity}
-            onChange={(e) => setFilterCity(e.target.value)}
-          >
-            <option value="">All Cities</option>
-            <option value="dubai">Dubai 🇦🇪</option>
-            <option value="manila">Manila 🇵🇭</option>
-          </select>
+          {isCityLocked ? (
+            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs text-amber-300">
+              {cityLock === "dubai" ? "Dubai 🇦🇪" : "Manila 🇵🇭"} only
+            </span>
+          ) : (
+            <select
+              className={`${SELECT_CLASS} w-auto min-w-[130px]`}
+              value={filterCity}
+              onChange={(e) => setFilterCity(e.target.value)}
+            >
+              <option value="">All Cities</option>
+              <option value="dubai">Dubai 🇦🇪</option>
+              <option value="manila">Manila 🇵🇭</option>
+            </select>
+          )}
           <button
             className={`${SMALL_BUTTON} flex items-center gap-1`}
             onClick={() => fetchStats()}

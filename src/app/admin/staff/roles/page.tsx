@@ -79,6 +79,7 @@ type ChannelRoleMatrixRole = {
   is_active?: boolean;
   assigned: boolean;
   locked?: boolean;
+  city_lock?: string; // '' = all cities, 'dubai' = Dubai only, 'manila' = Manila only
 };
 
 type ChannelRoleMatrixResp = {
@@ -157,7 +158,8 @@ function StaffRolesPageInner() {
   const [rolePermissions, setRolePermissions] = useState<RolePermissionsResp | null>(null);
   const [checkedPermissions, setCheckedPermissions] = useState<Record<string, boolean>>({});
   const [channelMatrix, setChannelMatrix] = useState<ChannelRoleMatrixResp | null>(null);
-  const [channelRoleDrafts, setChannelRoleDrafts] = useState<Record<string, boolean>>({});
+  // '' = no access, 'all' = all cities, 'dubai' = Dubai only, 'manila' = Manila only
+  const [channelRoleDrafts, setChannelRoleDrafts] = useState<Record<string, string>>({});
   const [channelMatrixBusy, setChannelMatrixBusy] = useState(false);
   const [channelMatrixDirty, setChannelMatrixDirty] = useState(false);
 
@@ -180,9 +182,17 @@ function StaffRolesPageInner() {
   const canManage = canAccessRoleManagement(auth);
 
   function applyChannelRoleDrafts(data: ChannelRoleMatrixResp | null) {
-    const nextDrafts: Record<string, boolean> = {};
+    const nextDrafts: Record<string, string> = {};
     (data?.roles || []).forEach((role) => {
-      nextDrafts[role.role_key] = Boolean(role.assigned);
+      if (!role.assigned) {
+        nextDrafts[role.role_key] = "";
+      } else if (role.city_lock === "dubai") {
+        nextDrafts[role.role_key] = "dubai";
+      } else if (role.city_lock === "manila") {
+        nextDrafts[role.role_key] = "manila";
+      } else {
+        nextDrafts[role.role_key] = "all";
+      }
     });
     setChannelRoleDrafts(nextDrafts);
     setChannelMatrixDirty(false);
@@ -460,14 +470,18 @@ function StaffRolesPageInner() {
     setChannelMatrixBusy(true);
     setError("");
     try {
-      const role_keys = Object.entries(channelRoleDrafts)
-        .filter(([, assigned]) => assigned)
-        .map(([roleKey]) => roleKey);
+      // Build role_entries: only include roles that have access ('all', 'dubai', 'manila')
+      const role_entries = Object.entries(channelRoleDrafts)
+        .filter(([, access]) => access && access !== "")
+        .map(([roleKey, access]) => ({
+          role_key: roleKey,
+          city_lock: access === "all" ? "" : access, // 'all' → '' (global), 'dubai'/'manila' as-is
+        }));
       const data = await apiRequest<ChannelRoleMatrixResp>(
         `/api/admin/access/channels/${encodeURIComponent(selectedChannelKey)}/role-matrix`,
         {
           method: "PUT",
-          body: JSON.stringify({ role_keys }),
+          body: JSON.stringify({ role_entries }),
         },
         auth,
       );
@@ -735,12 +749,19 @@ function StaffRolesPageInner() {
                   </div>
                   <div className="mt-4 space-y-3">
                     {channelMatrix.roles.map((role) => {
-                      const checked = Boolean(channelRoleDrafts[role.role_key]);
+                      const access = channelRoleDrafts[role.role_key] ?? "";
+                      const hasAccess = access !== "";
                       const disabled = Boolean(role.locked || role.is_active === false);
+                      const ACCESS_OPTIONS = [
+                        { value: "", label: "No Access" },
+                        { value: "all", label: "All Cities" },
+                        { value: "dubai", label: "Dubai 🇦🇪" },
+                        { value: "manila", label: "Manila 🇵🇭" },
+                      ];
                       return (
-                        <label
+                        <div
                           key={role.role_key}
-                          className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 ${checked ? "border-violet-500/30 bg-violet-500/10" : "border-white/10 bg-neutral-950/30"}`}
+                          className={`flex items-center justify-between gap-3 rounded-2xl border px-4 py-3 ${hasAccess ? "border-violet-500/30 bg-violet-500/10" : "border-white/10 bg-neutral-950/30"}`}
                         >
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
@@ -748,21 +769,28 @@ function StaffRolesPageInner() {
                               {role.is_system ? <span className={BADGE_INFO}>System</span> : null}
                               {role.locked ? <span className={BADGE_INFO}>Locked</span> : null}
                               {role.is_active === false ? <span className={BADGE_INFO}>Inactive</span> : null}
+                              {hasAccess && access !== "all" ? (
+                                <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-300">
+                                  {access === "dubai" ? "Dubai only" : "Manila only"}
+                                </span>
+                              ) : null}
                             </div>
                             <div className="text-xs text-neutral-500">{role.role_key}</div>
                           </div>
-                          <input
-                            type="checkbox"
-                            checked={checked}
+                          <select
+                            value={access}
                             disabled={disabled}
                             onChange={(e) => {
-                              const nextChecked = e.target.checked;
-                              setChannelRoleDrafts((prev) => ({ ...prev, [role.role_key]: nextChecked }));
+                              setChannelRoleDrafts((prev) => ({ ...prev, [role.role_key]: e.target.value }));
                               setChannelMatrixDirty(true);
                             }}
-                            className="h-4 w-4"
-                          />
-                        </label>
+                            className={`${SELECT_CLASS} w-auto min-w-[120px] text-xs ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                          >
+                            {ACCESS_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                        </div>
                       );
                     })}
                   </div>

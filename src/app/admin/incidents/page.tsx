@@ -79,8 +79,10 @@ function fmtDt(iso: string): string {
 export default function AdminIncidentsPage() {
   const auth = getAuth();
   const city = String(auth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
+  const cityLock = String(auth?.cityLock || "").toLowerCase();
+  const isCityLocked = cityLock === "dubai" || cityLock === "manila";
 
-  const [filterCity, setFilterCity]         = useState(city);
+  const [filterCity, setFilterCity]         = useState(isCityLocked ? cityLock : city);
   const [filterStatus, setFilterStatus]     = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [filterNotes, setFilterNotes]       = useState("");
@@ -164,15 +166,24 @@ export default function AdminIncidentsPage() {
       <div className={`${GLASS_CARD} p-4`}>
         <div className="flex flex-wrap items-center gap-3">
           <Filter className="h-4 w-4 shrink-0 text-zinc-500" />
-          <div className="flex items-center gap-2">
-            <label className={T_LABEL}>City</label>
-            <select className={`${SELECT_CLASS} w-auto min-w-[120px]`} value={filterCity}
-              onChange={(e) => setFilterCity(e.target.value)}>
-              <option value="">All Cities</option>
-              <option value="dubai">Dubai 🇦🇪</option>
-              <option value="manila">Manila 🇵🇭</option>
-            </select>
-          </div>
+          {isCityLocked ? (
+            <div className="flex items-center gap-2">
+              <label className={T_LABEL}>City</label>
+              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs text-amber-300">
+                {cityLock === "dubai" ? "Dubai 🇦🇪" : "Manila 🇵🇭"} only
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <label className={T_LABEL}>City</label>
+              <select className={`${SELECT_CLASS} w-auto min-w-[120px]`} value={filterCity}
+                onChange={(e) => setFilterCity(e.target.value)}>
+                <option value="">All Cities</option>
+                <option value="dubai">Dubai 🇦🇪</option>
+                <option value="manila">Manila 🇵🇭</option>
+              </select>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <label className={T_LABEL}>Status</label>
             <select className={`${SELECT_CLASS} w-auto min-w-[150px]`} value={filterStatus}

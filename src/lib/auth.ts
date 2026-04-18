@@ -17,6 +17,7 @@ export type MfaStatus = {
 export type Auth = {
   staffName: string;
   city: City;
+  cityLock?: string; // '' = all cities, 'dubai' = Dubai-only, 'manila' = Manila-only
   role?: StaffRole;
   pin?: string;
   accessToken?: string;
@@ -93,9 +94,11 @@ export function getAuth(): Auth | null {
   const staffName = String(obj.staffName || obj.staff_name || "").trim();
   if (!staffName) return null;
 
+  const cityLockRaw = String(obj.cityLock ?? obj.city_lock ?? "").toLowerCase();
   return {
     staffName,
     city: normalizeCity(obj.city),
+    cityLock: cityLockRaw === "dubai" || cityLockRaw === "manila" ? cityLockRaw : "",
     role: normalizeRole(obj.role) || "STAFF",
     pin: obj.pin ? String(obj.pin) : undefined,
     accessToken: obj.accessToken ? String(obj.accessToken) : undefined,
@@ -115,6 +118,7 @@ export function setAuth(a: Auth) {
     JSON.stringify({
       staffName: a.staffName,
       city: a.city,
+      cityLock: a.cityLock ?? "",
       role: a.role || "STAFF",
       pin: a.pin || "",
       accessToken: a.accessToken || "",
@@ -153,9 +157,11 @@ export async function refreshAuthFromApi(
     if (!verifyRes.ok) return null;
 
     const verified = await verifyRes.json();
+    const verifiedCityLockRaw = String(verified?.city_lock ?? "").toLowerCase();
     const migrated: Auth = {
       staffName: String(verified?.staff_name || current.staffName).trim(),
       city: normalizeCity(verified?.city || current.city),
+      cityLock: verifiedCityLockRaw === "dubai" || verifiedCityLockRaw === "manila" ? verifiedCityLockRaw : "",
       role: normalizeRole(verified?.role) || current.role || "STAFF",
       pin: current.pin,
       accessToken: String(verified?.access_token || "").trim() || current.accessToken,
@@ -196,9 +202,11 @@ export async function refreshAuthFromApi(
     }
 
     const data = await res.json();
+    const sessionCityLockRaw = String(data?.city_lock ?? "").toLowerCase();
     const next: Auth = {
       staffName: String(data?.staff_name || current.staffName).trim(),
       city: normalizeCity(data?.city || current.city),
+      cityLock: sessionCityLockRaw === "dubai" || sessionCityLockRaw === "manila" ? sessionCityLockRaw : (current.cityLock ?? ""),
       role: normalizeRole(data?.role) || current.role || "STAFF",
       pin: current.pin,
       accessToken: current.accessToken,
