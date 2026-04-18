@@ -380,6 +380,174 @@ const MANILA_DRAFT_SHEET_URL =
   "https://docs.google.com/spreadsheets/d/1Eoj02lU8YWnDXSVWeJNeRLpYwLf5i3CHRN87nYVpHJs/edit?gid=0#gid=0";
 
 // ---------------------------------------------------------------------------
+// Forecast Settings Panel
+// ---------------------------------------------------------------------------
+type ForecastSettings = {
+  holiday_multiplier: number;
+  holiday_eve_multiplier: number;
+  weekend_multiplier: number;
+  weight_year_0: number;
+  weight_year_1: number;
+  weight_year_2: number;
+};
+
+const FORECAST_DEFAULTS_DUBAI: ForecastSettings  = { holiday_multiplier: 1.35, holiday_eve_multiplier: 1.20, weekend_multiplier: 1.25, weight_year_0: 0.60, weight_year_1: 0.30, weight_year_2: 0.10 };
+const FORECAST_DEFAULTS_MANILA: ForecastSettings = { holiday_multiplier: 1.35, holiday_eve_multiplier: 1.20, weekend_multiplier: 1.20, weight_year_0: 0.60, weight_year_1: 0.30, weight_year_2: 0.10 };
+
+function ForecastSettingsPanel({
+  city,
+  approverName,
+  pin,
+}: {
+  city: string;
+  approverName: string;
+  pin: string;
+}) {
+  const defaults = city === "dubai" ? FORECAST_DEFAULTS_DUBAI : FORECAST_DEFAULTS_MANILA;
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState("");
+  const [vals, setVals] = useState<ForecastSettings>(defaults);
+
+  async function loadSettings() {
+    if (!city || !approverName || !pin) return;
+    setLoading(true);
+    try {
+      const qs = new URLSearchParams({ city, approver_name: approverName, pin });
+      const res = await fetch(`/api/admin/forecast-settings?${qs}`);
+      const j = await res.json();
+      if (j.settings) setVals({ ...defaults, ...j.settings });
+    } catch { /* ignore */ }
+    setLoading(false);
+  }
+
+  async function saveSettings() {
+    setSaving(true); setSaveMsg("");
+    const keys = Object.keys(vals) as (keyof ForecastSettings)[];
+    const w0 = vals.weight_year_0, w1 = vals.weight_year_1, w2 = vals.weight_year_2;
+    const wSum = +(w0 + w1 + w2).toFixed(4);
+    if (wSum < 0.99 || wSum > 1.01) { setSaveMsg(`⚠️ Weights must sum to 1.0 (currently ${wSum})`); setSaving(false); return; }
+    try {
+      for (const key of keys) {
+        const res = await fetch("/api/admin/forecast-settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ city, key, value: vals[key], approver_name: approverName, pin }),
+        });
+        if (!res.ok) { const j = await res.json(); setSaveMsg(`❌ ${j.detail || "Failed"}`); setSaving(false); return; }
+      }
+      setSaveMsg("✅ Saved");
+    } catch (e: any) { setSaveMsg(`❌ ${e.message}`); }
+    setSaving(false);
+  }
+
+  function set(key: keyof ForecastSettings, raw: string) {
+    const v = parseFloat(raw);
+    if (!isNaN(v)) setVals((p) => ({ ...p, [key]: v }));
+  }
+
+  useEffect(() => { if (open) loadSettings(); }, [open, city]);
+
+  const isModified = (key: keyof ForecastSettings) => vals[key] !== defaults[key];
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
+  const mult = (v: number) => `×${v.toFixed(2)}`;
+
+  return (
+    <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5">
+      <button type="button" className="flex w-full items-center justify-between" onClick={() => setOpen((p) => !p)}>
+        <span className="flex items-center gap-2 font-semibold text-emerald-300">
+          <span className="text-lg">📊</span> Forecast Settings
+        </span>
+        <span className="text-neutral-400 text-sm">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div className="mt-4 space-y-5">
+          {loading ? <p className="text-xs text-neutral-500">Loading…</p> : (
+            <>
+              {/* Demand Multipliers */}
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-neutral-400">Demand Multipliers</p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {([
+                    ["holiday_multiplier",     "🎌 Holiday"],
+                    ["holiday_eve_multiplier", "🌙 Eve of Holiday"],
+                    ["weekend_multiplier",     city === "dubai" ? "🌴 Weekend (Fri–Sat)" : "🌴 Weekend (Sat–Sun)"],
+                  ] as [keyof ForecastSettings, string][]).map(([key, lbl]) => (
+                    <div key={key}>
+                      <label className="block text-xs text-neutral-400 mb-1">
+                        {lbl}
+                        {isModified(key) && <span className="ml-1 text-amber-400">●</span>}
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number" step="0.05" min="0.5" max="5"
+                          value={vals[key]}
+                          onChange={(e) => set(key, e.target.value)}
+                          className={INPUT_CLASS + " text-sm w-24"}
+                        />
+                        <span className="text-xs text-neutral-500">{mult(vals[key])}</span>
+                        {isModified(key) && (
+                          <button type="button" onClick={() => setVals((p) => ({ ...p, [key]: defaults[key] }))} className="text-xs text-neutral-500 hover:text-neutral-300">↩</button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Forecast Weights */}
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-neutral-400">Historical Forecast Weights</p>
+                <p className="mb-3 text-xs text-neutral-500">How much weight to give each year's same-month data. Must sum to 100%.</p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {([
+                    ["weight_year_0", "Most recent year"],
+                    ["weight_year_1", "2 years ago"],
+                    ["weight_year_2", "3 years ago"],
+                  ] as [keyof ForecastSettings, string][]).map(([key, lbl]) => (
+                    <div key={key}>
+                      <label className="block text-xs text-neutral-400 mb-1">
+                        {lbl}
+                        {isModified(key) && <span className="ml-1 text-amber-400">●</span>}
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number" step="0.05" min="0" max="1"
+                          value={vals[key]}
+                          onChange={(e) => set(key, e.target.value)}
+                          className={INPUT_CLASS + " text-sm w-24"}
+                        />
+                        <span className="text-xs text-neutral-500">{pct(vals[key])}</span>
+                        {isModified(key) && (
+                          <button type="button" onClick={() => setVals((p) => ({ ...p, [key]: defaults[key] }))} className="text-xs text-neutral-500 hover:text-neutral-300">↩</button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Weight sum indicator */}
+                {(() => {
+                  const s = +(vals.weight_year_0 + vals.weight_year_1 + vals.weight_year_2).toFixed(4);
+                  const ok = s >= 0.99 && s <= 1.01;
+                  return <p className={`mt-2 text-xs ${ok ? "text-neutral-500" : "text-rose-400 font-semibold"}`}>Sum: {pct(s)} {ok ? "✓" : "— must equal 100%"}</p>;
+                })()}
+              </div>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={saveSettings} disabled={saving} className={PRIMARY_BUTTON + " text-sm"}>
+                  {saving ? "Saving…" : "Save Settings"}
+                </button>
+                <button type="button" onClick={() => setVals(defaults)} className="text-xs text-neutral-400 hover:text-neutral-200">Reset to defaults</button>
+                {saveMsg && <span className="text-xs text-neutral-300">{saveMsg}</span>}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Operating Hours Panel
 // ---------------------------------------------------------------------------
 type OpHoursRecord = {
@@ -1665,8 +1833,9 @@ export default function AdminDraftPage() {
         {error ? <div className={`${BADGE_ERROR} mt-3 whitespace-pre-wrap px-4 py-2 text-sm`}>{error}</div> : null}
       </div>
 
-      {/* Operating Hours + Staffing Rules + Demand Events Panels */}
+      {/* Config Panels */}
       <div className="space-y-3">
+        <ForecastSettingsPanel city={city} approverName={approverName} pin={pin} />
         <OperatingHoursPanel city={city} approverName={approverName} pin={pin} targetMonth={targetMonth} />
         <StaffingRulesPanel city={city} approverName={approverName} pin={pin} />
         <DemandEventsPanel city={city} approverName={approverName} pin={pin} targetMonth={targetMonth} />
