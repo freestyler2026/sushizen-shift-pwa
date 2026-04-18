@@ -89,15 +89,24 @@ const DATE_PRESETS = [
 
 const AGG_COLOR: Record<string, string> = {
   grab: "#22c55e",
+  grabfood: "#22c55e",
   foodpanda: "#ec4899",
   default: "#94a3b8",
 };
 
 const AGG_LINE_COLOR: Record<string, string> = {
   grab: "#22c55e",
+  grabfood: "#22c55e",
   foodpanda: "#ec4899",
   default: "#94a3b8",
 };
+
+function aggDisplayName(agg: string): string {
+  const lower = agg.toLowerCase();
+  if (lower === "grabfood" || lower === "grab") return "GrabFood";
+  if (lower === "foodpanda") return "FoodPanda";
+  return agg.charAt(0).toUpperCase() + agg.slice(1);
+}
 
 function ratingColor(score: number | null | undefined): string {
   if (score == null || !Number.isFinite(score)) return "text-gray-600";
@@ -323,7 +332,7 @@ export function ManilaOverallRatingsTab({
                   <th className="pb-2 pr-6 text-left text-xs font-medium text-neutral-500">Brand</th>
                   {data.aggregators.map((agg) => (
                     <th key={agg} className="px-4 pb-2 text-center text-xs font-medium text-neutral-500">
-                      {capitalize(agg)}
+                      {aggDisplayName(agg)}
                     </th>
                   ))}
                   <th className="px-4 pb-2 text-center text-xs font-medium text-neutral-400">Overall</th>
@@ -392,7 +401,7 @@ export function ManilaOverallRatingsTab({
                     key={agg}
                     type="monotone"
                     dataKey={agg}
-                    name={capitalize(agg)}
+                    name={aggDisplayName(agg)}
                     stroke={AGG_LINE_COLOR[agg.toLowerCase()] ?? AGG_LINE_COLOR.default}
                     strokeWidth={2}
                     dot={false}
@@ -432,7 +441,7 @@ export function ManilaOverallRatingsTab({
                     <td className="py-2 pr-4 font-medium text-white">{row.brand}</td>
                     <td className="py-2 pr-4">
                       <span style={{ color: AGG_COLOR[row.aggregator?.toLowerCase()] ?? AGG_COLOR.default }}>
-                        {capitalize(row.aggregator || "")}
+                        {aggDisplayName(row.aggregator || "")}
                       </span>
                     </td>
                     <td className="py-2 pr-4 text-neutral-300">{row.branch || "—"}</td>

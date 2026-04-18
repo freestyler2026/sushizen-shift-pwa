@@ -562,6 +562,7 @@ function AdminPageInner() {
   const initialAuth = useMemo(() => getAuth(), []);
   const [dashView, setDashView] = useState<AdminDashView>("requests");
   const [orderEntrySub, setOrderEntrySub] = useState<OrderEntrySub>("dubai");
+  const [ratingEntrySub, setRatingEntrySub] = useState<"dubai" | "manila">("dubai");
   const [sessionAuth, setSessionAuth] = useState<Auth | null>(initialAuth);
   const auth = sessionAuth || initialAuth;
   const [ready, setReady] = useState(false);
@@ -1165,7 +1166,31 @@ function AdminPageInner() {
       {dashView === "lowRatings" ? (
         <LowRatingsAdminPanel />
       ) : dashView === "ratingEntry" ? (
-        <RatingEntryTab city={city} />
+        <div className="space-y-4">
+          <div className={`${TAB_CONTAINER} w-full max-w-full overflow-x-auto`} role="tablist" aria-label="Ratings Input city">
+            <div className="flex min-w-min flex-wrap items-center gap-1">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={ratingEntrySub === "dubai"}
+                className={`shrink-0 whitespace-nowrap ${ratingEntrySub === "dubai" ? TAB_ACTIVE : TAB_INACTIVE}`}
+                onClick={() => setRatingEntrySub("dubai")}
+              >
+                Dubai
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={ratingEntrySub === "manila"}
+                className={`shrink-0 whitespace-nowrap ${ratingEntrySub === "manila" ? TAB_ACTIVE : TAB_INACTIVE}`}
+                onClick={() => setRatingEntrySub("manila")}
+              >
+                Manila
+              </button>
+            </div>
+          </div>
+          <RatingEntryTab city={ratingEntrySub} />
+        </div>
       ) : dashView === "salesDataInput" ? (
         <AdminSalesDataInputTab />
       ) : dashView === "cashierEvalInput" ? (
