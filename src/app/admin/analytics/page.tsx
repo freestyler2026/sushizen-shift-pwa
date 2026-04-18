@@ -102,6 +102,7 @@ import { ManilaSalesDataTab } from "@/components/analytics/ManilaSalesDataTab";
 import { ManilaCashierEvaluationTab } from "@/components/analytics/ManilaCashierEvaluationTab";
 import { ManilaCancellationsTab } from "@/components/analytics/ManilaCancellationsTab";
 import { DubaiCancellationsTab } from "@/components/analytics/DubaiCancellationsTab";
+import OvertimeTab from "./OvertimeTab";
 
 // Resolve API base at runtime so local dev always talks to FastAPI directly,
 // even when the page is opened via a LAN IP or a custom local hostname.
@@ -2475,7 +2476,7 @@ export default function AdminAnalyticsPage() {
   const [comparisonLimit, setComparisonLimit] = useState("5000");
 
   const [viewMode, setViewMode] = useState<AnalyticsViewMode>("perfect_attendance");
-  const [analyticsTab, setAnalyticsTab] = useState<"staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai">("staff");
+  const [analyticsTab, setAnalyticsTab] = useState<"staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai" | "overtime">("staff");
   const [staffSearch, setStaffSearch] = useState("");
 
   const roleUpper = String(auth?.role || "STAFF").toUpperCase();
@@ -5653,7 +5654,7 @@ export default function AdminAnalyticsPage() {
               ? "Evaluation Channel"
               : "Management P&L Channel";
   const analyticsTabs: Array<{
-    key: "staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai";
+    key: "staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai" | "overtime";
     label: string;
     visible: boolean;
   }> = [
@@ -5663,6 +5664,7 @@ export default function AdminAnalyticsPage() {
     { key: "evaluation", label: "Evaluation", visible: canViewEvaluationChannel && canViewFinanceChannels },
     { key: "finance", label: "Management P&L", visible: canViewManagementPlChannel },
     { key: "procurement", label: "Procurement Analytics", visible: canViewFinanceChannels },
+    { key: "overtime", label: "Overtime", visible: canViewStaffChannel },
     { key: "ai", label: "AI Analyst", visible: false },
   ];
   const passkeyCount = Number(auth?.mfa?.passkeyCount || 0);
@@ -9777,9 +9779,21 @@ export default function AdminAnalyticsPage() {
             </div>
           </div>
           )
-          ) : analyticsTab === "ai" ? null : (
+          ) : analyticsTab === "overtime" ? null : analyticsTab === "ai" ? null : (
           <div className={`mt-8 p-6 ${GLASS_CARD} ${BODY_TEXT}`}>
             This channel is not available for your current role/city.
+          </div>
+          )}
+
+          {analyticsTab === "overtime" && canViewStaffChannel && (
+          <div className="mt-8">
+            <OvertimeTab
+              city={city}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              approverName={approverName}
+              pin={pin}
+            />
           </div>
           )}
 
