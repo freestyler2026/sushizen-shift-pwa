@@ -262,6 +262,7 @@ export default function AdminStaffPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<Msg>(null);
 
+  const [newStaffCity, setNewStaffCity] = useState<City>("dubai");
   const [newStaffName, setNewStaffName] = useState("");
   const [newStaffHomeBranch, setNewStaffHomeBranch] = useState("");
   const [newStaffRole, setNewStaffRole] = useState<"STAFF" | "MANAGER">("STAFF");
@@ -301,6 +302,7 @@ export default function AdminStaffPage() {
     }
     setAuthed(a);
     setCity(a.city || "dubai");
+    setNewStaffCity(a.city || "dubai");
     setApproverName(a.staffName || "");
     setPin(a.pin || "");
   }, [router]);
@@ -328,6 +330,11 @@ export default function AdminStaffPage() {
       setListStaffOptions([]);
     }
   }, [approverName, pin]);
+
+  useEffect(() => {
+    // Reset the staff name filter when city changes to avoid stale cross-city selections
+    setListSelectedDisplayName("");
+  }, [city]);
 
   useEffect(() => {
     if (approverName.trim()) {
@@ -455,7 +462,7 @@ export default function AdminStaffPage() {
       if (!branch) throw new Error("Home branch is required.");
 
       const r = await apiPost<CreateStaffResp>("/api/store/staff/create", {
-        city,
+        city: newStaffCity,
         display_name: display,
         home_branch: branch,
         role: newStaffRole,
@@ -896,8 +903,8 @@ export default function AdminStaffPage() {
             </label>
             <select
               className={SELECT_CLASS}
-              value={city}
-              onChange={(e) => setCity(e.target.value as City)}
+              value={newStaffCity}
+              onChange={(e) => setNewStaffCity(e.target.value as City)}
             >
               <option value="dubai">Dubai</option>
               <option value="manila">Manila</option>
