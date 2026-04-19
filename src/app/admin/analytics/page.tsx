@@ -2079,14 +2079,16 @@ export default function AdminAnalyticsPage() {
   const [authState, setAuthState] = useState(() => stripStepUpForFreshVisit(getAuth()));
   const auth = authState;
   const defaultAnalyticsRange = currentCalendarMonthRangeThroughTodayIso();
+  /** Sales Summary / Management P&L: imported monthly P&L lags; default to last closed calendar month. */
+  const defaultSummaryRange = previousCalendarMonthRangeIso();
 
   const [city, setCity] = useState<string>((auth?.city || "dubai").toLowerCase());
   const [dateFrom, setDateFrom] = useState(defaultAnalyticsRange.from);
   const [dateTo, setDateTo] = useState(defaultAnalyticsRange.to);
-  const [summaryDateFrom, setSummaryDateFrom] = useState(defaultAnalyticsRange.from);
-  const [summaryDateTo, setSummaryDateTo] = useState(defaultAnalyticsRange.to);
+  const [summaryDateFrom, setSummaryDateFrom] = useState(defaultSummaryRange.from);
+  const [summaryDateTo, setSummaryDateTo] = useState(defaultSummaryRange.to);
   const [complianceMonthKey, setComplianceMonthKey] = useState(defaultAnalyticsRange.from.slice(0, 7));
-  const [summaryMonthKey, setSummaryMonthKey] = useState(defaultAnalyticsRange.from.slice(0, 7));
+  const [summaryMonthKey, setSummaryMonthKey] = useState(defaultSummaryRange.from.slice(0, 7));
   const [payrollStaffName, setPayrollStaffName] = useState("");
   const [branchCode, setBranchCode] = useState("");
   const [summaryBranchCode, setSummaryBranchCode] = useState("");
@@ -2895,7 +2897,7 @@ export default function AdminAnalyticsPage() {
     const baseTo = new Date(r.to || todayIso());
     setDateTo(baseTo.toISOString().slice(0, 10));
     setDateFrom(addDaysIso(baseTo, -29));
-    const dr = currentCalendarMonthRangeThroughTodayIso();
+    const dr = previousCalendarMonthRangeIso();
     setSummaryDateFrom(dr.from);
     setSummaryDateTo(dr.to);
     setPayrollStaffName("");
@@ -2914,7 +2916,18 @@ export default function AdminAnalyticsPage() {
     // `loadAll()` is intentionally triggered by tab, scope, and credentials changes.
     // It is recreated on render, so we avoid depending on its function identity here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [analyticsTab, plStoreName, approverName, financeStepUpReady]);
+  }, [
+    analyticsTab,
+    plStoreName,
+    approverName,
+    financeStepUpReady,
+    summaryDateFrom,
+    summaryDateTo,
+    summaryBranchCode,
+    summaryBrandName,
+    city,
+    pin,
+  ]);
 
   useEffect(() => {
     if (!isSalesAnalyticsTab) return;
