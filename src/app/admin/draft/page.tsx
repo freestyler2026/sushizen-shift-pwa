@@ -1782,24 +1782,24 @@ export default function AdminDraftPage() {
           onClick={() => setDraftTab("schedule")}
           className={draftTab === "schedule" ? TAB_ACTIVE : TAB_INACTIVE}
         >
-          シフトビュー
+          Schedule View
         </button>
         <button
           type="button"
           onClick={() => setDraftTab("manage")}
           className={draftTab === "manage" ? TAB_ACTIVE : TAB_INACTIVE}
         >
-          ドラフト管理
+          Draft Management
         </button>
       </div>
 
-      {/* ── シフトビュー tab ── */}
+      {/* ── Schedule View tab ── */}
       {draftTab === "schedule" && (
         <div className="mt-4">
           {!versions.length ? (
             <div className={`${GLASS_CARD} p-8 text-center`}>
-              <div className="text-sm text-neutral-400 mb-2">シフトデータがまだありません</div>
-              <div className={T_CAPTION}>「ドラフト管理」タブでドラフトを生成するとここに表示されます。</div>
+              <div className="text-sm text-neutral-400 mb-2">No shift data yet</div>
+              <div className={T_CAPTION}>Generate a draft in the Draft Management tab to display shifts here.</div>
             </div>
           ) : (
             <>

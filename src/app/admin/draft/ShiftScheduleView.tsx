@@ -290,14 +290,14 @@ function ShiftRow({
               onClick={() => onSave(editStart, editEnd, editStaff, editRole)}
               className="flex h-6 items-center gap-1 rounded bg-emerald-600/80 px-2 text-[11px] font-semibold text-white hover:bg-emerald-600 disabled:opacity-50"
             >
-              <Check className="h-3 w-3" /> 保存
+              <Check className="h-3 w-3" /> Save
             </button>
             <button
               type="button"
               onClick={onCancelEdit}
               className="flex h-6 items-center gap-1 rounded bg-white/8 px-2 text-[11px] text-zinc-400 hover:bg-white/12"
             >
-              <X className="h-3 w-3" /> 取消
+              <X className="h-3 w-3" /> Cancel
             </button>
           </div>
         </td>
@@ -391,7 +391,7 @@ function AddRowForm({
   return (
     <tr className="border-t border-dashed border-white/10 bg-sky-500/5">
       <td className="sticky left-0 z-10 bg-[#141428] px-3 py-2" colSpan={2}>
-        <span className="text-[10px] font-semibold text-sky-400">追加</span>
+        <span className="text-[10px] font-semibold text-sky-400">Add</span>
       </td>
       <td colSpan={HOURS.length + 2} className="px-2 py-2">
         <div className="flex flex-wrap items-center gap-2">
@@ -402,13 +402,13 @@ function AddRowForm({
               className="h-7 rounded border border-white/15 bg-[#1e1e32] px-1.5 text-xs text-white"
             >
               {staffOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-              <option value="__custom__">（手入力）</option>
+              <option value="__custom__">(Enter manually)</option>
             </select>
           ) : (
             <input
               value={staff}
               onChange={(e) => setStaff(e.target.value)}
-              placeholder="スタッフ名"
+              placeholder="Staff name"
               className="h-7 w-36 rounded border border-white/15 bg-[#1e1e32] px-1.5 text-xs text-white"
             />
           )}
@@ -416,7 +416,7 @@ function AddRowForm({
             <input
               value=""
               onChange={(e) => setStaff(e.target.value)}
-              placeholder="スタッフ名を入力"
+              placeholder="Type staff name"
               autoFocus
               className="h-7 w-36 rounded border border-sky-500/40 bg-[#1e1e32] px-1.5 text-xs text-white"
             />
@@ -424,7 +424,7 @@ function AddRowForm({
           <input
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            placeholder="役割"
+            placeholder="Role"
             className="h-7 w-16 rounded border border-white/15 bg-[#1e1e32] px-1.5 text-xs text-white"
           />
           <select
@@ -453,7 +453,7 @@ function AddRowForm({
             onClick={() => onAdd(staff.trim(), role.trim(), start, end)}
             className="flex h-7 items-center gap-1 rounded bg-sky-600/80 px-2.5 text-xs font-semibold text-white hover:bg-sky-600 disabled:opacity-40"
           >
-            <Check className="h-3.5 w-3.5" /> 追加
+            <Check className="h-3.5 w-3.5" /> Add
           </button>
           <button type="button" onClick={onClose} className="text-xs text-zinc-500 hover:text-zinc-300">✕</button>
         </div>
@@ -524,7 +524,7 @@ function DaySection({
           <span className={`text-sm font-bold ${DOW_COLORS[dow] || "text-white"}`}>{label}</span>
           <span className="flex items-center gap-1 text-[11px] text-zinc-500">
             <Users className="h-3 w-3" />
-            {rows.length} シフト
+            {rows.length} shift{rows.length !== 1 ? "s" : ""}
           </span>
         </div>
         <button
@@ -532,7 +532,7 @@ function DaySection({
           onClick={() => { setShowAdd((v) => !v); setEditingId(null); }}
           className="flex items-center gap-1 rounded-lg border border-sky-500/25 bg-sky-500/10 px-2 py-1 text-[11px] font-semibold text-sky-400 hover:bg-sky-500/20 transition-colors"
         >
-          <Plus className="h-3 w-3" /> シフト追加
+          <Plus className="h-3 w-3" /> Add Shift
         </button>
       </div>
 
@@ -551,10 +551,10 @@ function DaySection({
           <thead>
             <tr>
               <th className="sticky left-0 z-10 border-b border-white/8 bg-[#141428] px-3 py-1.5 text-left text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
-                スタッフ
+                Staff
               </th>
               <th className="border-b border-white/8 bg-[#141428] px-1 py-1.5 text-center text-[10px] font-semibold uppercase tracking-wide text-zinc-600">
-                役割
+                Role
               </th>
               {HOURS.map((h) => (
                 <th
@@ -565,7 +565,7 @@ function DaySection({
                 </th>
               ))}
               <th className="border-b border-white/8 bg-[#141428] px-2 py-1.5 text-left text-[10px] font-semibold text-zinc-500">
-                時間
+                Hours
               </th>
               <th className="border-b border-white/8 bg-[#141428]" />
             </tr>
@@ -575,7 +575,7 @@ function DaySection({
             {rows.length === 0 ? (
               <tr>
                 <td colSpan={HOURS.length + 4} className="px-4 py-4 text-center text-xs text-zinc-600">
-                  この日のシフトはまだありません
+                  No shifts for this day yet
                 </td>
               </tr>
             ) : (
@@ -609,7 +609,7 @@ function DaySection({
           <tfoot>
             <tr className="border-t border-white/8 bg-white/[0.015]">
               <td className="sticky left-0 z-10 bg-[#141428] px-3 py-1.5 text-[10px] font-semibold text-zinc-500">
-                人数
+                Count
               </td>
               <td /> {/* role col */}
               {HOURS.map((h) => {
@@ -730,7 +730,7 @@ export default function ShiftScheduleView({
             <ChevronLeft className="h-4 w-4" />
           </button>
           <span className="min-w-[140px] text-center text-sm font-semibold text-white">
-            {weekLabel || "週を選択"}
+            {weekLabel || "Select week"}
           </span>
           <button
             type="button"
@@ -765,7 +765,7 @@ export default function ShiftScheduleView({
 
         {/* Summary */}
         <div className="text-xs text-zinc-500">
-          {totalShifts} シフト / {currentWeekDates.length} 日
+          {totalShifts} shift{totalShifts !== 1 ? "s" : ""} / {currentWeekDates.length} day{currentWeekDates.length !== 1 ? "s" : ""}
         </div>
       </div>
 
@@ -792,7 +792,7 @@ export default function ShiftScheduleView({
 
       {/* Instruction hint */}
       <div className="rounded-xl border border-white/8 bg-white/[0.02] p-3 text-center text-[11px] text-zinc-600">
-        💡 シフトバーをクリックすると時刻を編集できます。編集後は「保存」を押すと即時反映されます。
+        💡 Click a shift bar to edit its time. Press &ldquo;Save&rdquo; to apply changes immediately.
       </div>
     </div>
   );
