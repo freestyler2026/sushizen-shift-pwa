@@ -133,17 +133,20 @@ function badgeClassForType(t: string) {
   return BADGE_INFO;
 }
 
+// Fixed: extract error message before throwing so the catch block doesn't catch the throw itself
 async function apiGet<T = any>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
   const text = await res.text();
 
   if (!res.ok) {
+    let errMsg = `Error ${res.status}`;
     try {
       const j = JSON.parse(text);
-      throw new Error(j?.detail || j?.message || `GET failed: ${res.status}`);
+      errMsg = j?.detail || j?.message || errMsg;
     } catch {
-      throw new Error(text || `GET failed: ${res.status}`);
+      if (text) errMsg = text;
     }
+    throw new Error(errMsg);
   }
 
   return text ? (JSON.parse(text) as T) : ({} as T);
@@ -159,97 +162,113 @@ async function apiPost<T = any>(path: string, body: any): Promise<T> {
   const text = await res.text();
 
   if (!res.ok) {
+    let errMsg = `Error ${res.status}`;
     try {
       const j = JSON.parse(text);
-      throw new Error(j?.detail || j?.message || `POST failed: ${res.status}`);
+      errMsg = j?.detail || j?.message || errMsg;
     } catch {
-      throw new Error(text || `POST failed: ${res.status}`);
+      if (text) errMsg = text;
     }
+    throw new Error(errMsg);
   }
 
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
 
-// ── Snapshot card for one city ─────────────────────────────────────────────
+// ── Absence Report city section ────────────────────────────────────────────
 
-function SnapshotCityCard({
+function ReportCitySection({
   city,
   rows,
-  loading,
 }: {
   city: "dubai" | "manila";
   rows: AbsenceRow[];
-  loading: boolean;
 }) {
   const isDubai = city === "dubai";
   const flag = isDubai ? "🇦🇪" : "🇵🇭";
   const label = isDubai ? "Dubai" : "Manila";
   const accent = isDubai ? "text-amber-400" : "text-sky-400";
-  const borderClass = isDubai ? "border-amber-500/20" : "border-sky-500/20";
-  const badgeBg = isDubai ? "bg-amber-500/10 text-amber-300 border-amber-500/20" : "bg-sky-500/10 text-sky-300 border-sky-500/20";
   const dotColor = isDubai ? "bg-amber-400" : "bg-sky-400";
+  const headerBg = isDubai ? "bg-amber-500/8" : "bg-sky-500/8";
 
   const absentCount = rows.filter(r => norm(r.absence_type).toUpperCase() === "ABSENT").length;
   const leaveCount = rows.length - absentCount;
 
-  return (
-    <div className={`rounded-2xl border bg-neutral-900/40 p-4 ${borderClass}`}>
-      {/* Header */}
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">{flag}</span>
+  if (rows.length === 0) {
+    return (
+      <div className={`rounded-xl border ${isDubai ? "border-amber-500/15" : "border-sky-500/15"} bg-neutral-900/30 p-4`}>
+        <div className="flex items-center gap-2 mb-2">
+          <span>{flag}</span>
           <span className={`text-sm font-semibold ${accent}`}>{label}</span>
+          <span className={`ml-auto rounded-full border px-2 py-0.5 text-xs ${BADGE_SUCCESS}`}>
+            All present
+          </span>
         </div>
-        <div className="flex gap-2">
-          {rows.length > 0 && (
-            <>
-              {absentCount > 0 && (
-                <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${BADGE_ERROR}`}>
-                  {absentCount} Absent
-                </span>
-              )}
-              {leaveCount > 0 && (
-                <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${badgeBg}`}>
-                  {leaveCount} Leave
-                </span>
-              )}
-            </>
+        <p className="text-xs text-neutral-500 text-center py-2">No absences in this period</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`rounded-xl border ${isDubai ? "border-amber-500/15" : "border-sky-500/15"} overflow-hidden`}>
+      {/* City header */}
+      <div className={`flex items-center gap-2 px-4 py-2.5 ${headerBg}`}>
+        <span>{flag}</span>
+        <span className={`text-sm font-semibold ${accent}`}>{label}</span>
+        <div className="ml-auto flex gap-2">
+          {absentCount > 0 && (
+            <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${BADGE_ERROR}`}>
+              {absentCount} Absent
+            </span>
           )}
-          {rows.length === 0 && !loading && (
-            <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${BADGE_SUCCESS}`}>
-              All present
+          {leaveCount > 0 && (
+            <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${BADGE_INFO}`}>
+              {leaveCount} Leave
             </span>
           )}
         </div>
       </div>
 
-      {/* Body */}
-      {loading ? (
-        <div className="flex items-center justify-center py-6 text-xs text-neutral-500">
-          <RefreshCw className="mr-2 h-3 w-3 animate-spin" />
-          Loading…
-        </div>
-      ) : rows.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-6 gap-1">
-          <CheckCircle2 className="h-6 w-6 text-emerald-500/60" />
-          <p className="text-xs text-neutral-500">No absences recorded yesterday</p>
-        </div>
-      ) : (
-        <ul className="space-y-1.5">
-          {rows.map((r, i) => (
-            <li key={i} className="flex items-center gap-2 rounded-lg bg-white/3 px-3 py-2">
-              <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${dotColor}`} />
-              <span className="flex-1 truncate text-sm text-neutral-200">{r.staff_name}</span>
-              {r.branch_hint && (
-                <span className="flex-shrink-0 text-xs text-neutral-500">{r.branch_hint}</span>
-              )}
-              <span className={`flex-shrink-0 rounded px-1.5 py-0.5 text-xs ${badgeClassForType(r.absence_type)}`}>
-                {toTitleAbsenceType(r.absence_type)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+      {/* Table */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-white/5">
+              <th className={`${TABLE_HEADER} px-4 text-left w-24`}>Date</th>
+              <th className={`${TABLE_HEADER} px-4 text-left`}>Staff</th>
+              <th className={`${TABLE_HEADER} px-4 text-left`}>Branch</th>
+              <th className={`${TABLE_HEADER} px-4 text-left`}>Type</th>
+              <th className={`${TABLE_HEADER} px-4 text-left`}>Note / Shift</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i} className={TABLE_ROW}>
+                <td className={`${TABLE_CELL} px-4 tabular-nums text-xs text-neutral-400`}>
+                  {r.work_date || "-"}
+                </td>
+                <td className={`${TABLE_CELL} px-4 font-medium`}>
+                  <div className="flex items-center gap-2">
+                    <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${dotColor}`} />
+                    {r.staff_name || "-"}
+                  </div>
+                </td>
+                <td className={`${TABLE_CELL} px-4 text-neutral-400`}>
+                  {r.branch_hint || <span className="text-neutral-600">—</span>}
+                </td>
+                <td className={`${TABLE_CELL} px-4`}>
+                  <span className={`rounded px-1.5 py-0.5 text-xs ${badgeClassForType(r.absence_type)}`}>
+                    {toTitleAbsenceType(r.absence_type)}
+                  </span>
+                </td>
+                <td className={`${TABLE_CELL} px-4 text-xs text-neutral-400 max-w-[180px] truncate`}>
+                  {r.note || <span className="text-neutral-600">—</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -278,25 +297,38 @@ export default function AdminAbsencesPage() {
   const [bulkNote, setBulkNote] = useState<string>("");
   const [bulkBranchHint, setBulkBranchHint] = useState<string>("");
 
+  // Absence Report state (both cities, configurable date range)
+  const [reportDateFrom, setReportDateFrom] = useState<string>(yesterdayIso());
+  const [reportDateTo, setReportDateTo] = useState<string>(todayIso());
+  const [reportDubai, setReportDubai] = useState<AbsenceRow[] | null>(null);
+  const [reportManila, setReportManila] = useState<AbsenceRow[] | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+
+  // History state
   const [filterStaffName, setFilterStaffName] = useState<string>("");
   const [filterBranch, setFilterBranch] = useState<string>("");
   const [dateFrom, setDateFrom] = useState<string>(addDaysIso(todayIso(), -14));
   const [dateTo, setDateTo] = useState<string>(addDaysIso(todayIso(), 14));
-  const [rows, setRows] = useState<AbsenceRow[]>([]);
-
-  // Yesterday snapshot state
-  const [snapshotDubai, setSnapshotDubai] = useState<AbsenceRow[]>([]);
-  const [snapshotManila, setSnapshotManila] = useState<AbsenceRow[]>([]);
-  const [snapshotLoading, setSnapshotLoading] = useState(false);
+  const [rows, setRows] = useState<AbsenceRow[] | null>(null); // null = never loaded
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [pendingDeleteRow, setPendingDeleteRow] = useState<AbsenceRow | null>(null);
 
-  const handleWorkDateChange = (raw: string) => {
+  const handleReportDateFromChange = (raw: string) => {
     const next = normalizeCalendarDateInput(raw);
     if (!next) return;
-    setWorkDate(next);
+    setReportDateFrom(next);
+    if (reportDateTo && next > reportDateTo) setReportDateTo(next);
+  };
+
+  const handleReportDateToChange = (raw: string) => {
+    const next = normalizeCalendarDateInput(raw);
+    if (!next) return;
+    setReportDateTo(next);
+    if (reportDateFrom && next < reportDateFrom) setReportDateFrom(next);
   };
 
   const handleBulkDateFromChange = (raw: string) => {
@@ -330,8 +362,8 @@ export default function AdminAbsencesPage() {
   const branchOptions = useMemo(() => BRANCHES[city] || [], [city]);
   const canAuth = useMemo(() => !!norm(approverName) && !!norm(pin), [approverName, pin]);
 
-  // Filtered rows for history (branch filter applied client-side)
   const filteredRows = useMemo(() => {
+    if (!rows) return null;
     if (!filterBranch) return rows;
     return rows.filter(r => norm(r.branch_hint).toLowerCase() === filterBranch.toLowerCase());
   }, [rows, filterBranch]);
@@ -353,20 +385,19 @@ export default function AdminAbsencesPage() {
     }
   }, [approverName, pin]);
 
-  const loadSnapshot = useCallback(async () => {
+  const loadReport = useCallback(async () => {
     const nm = norm(approverName);
     const p = norm(pin);
     if (!nm || !p) return;
 
-    setSnapshotLoading(true);
-    const yesterday = yesterdayIso();
-    const today = todayIso();
+    setReportLoading(true);
+    setReportError(null);
 
     const makeQs = (c: string) => {
       const qs = new URLSearchParams();
       qs.set("city", c);
-      qs.set("date_from", yesterday);
-      qs.set("date_to", today);
+      qs.set("date_from", reportDateFrom);
+      qs.set("date_to", addDaysIso(reportDateTo, 1));
       qs.set("approver_name", nm);
       qs.set("pin", p);
       qs.set("limit", "500");
@@ -378,17 +409,19 @@ export default function AdminAbsencesPage() {
         apiGet<AbsenceListResp>(`/api/admin/absences?${makeQs("dubai")}`),
         apiGet<AbsenceListResp>(`/api/admin/absences?${makeQs("manila")}`),
       ]);
-      setSnapshotDubai(Array.isArray(rd?.rows) ? rd.rows : []);
-      setSnapshotManila(Array.isArray(rm?.rows) ? rm.rows : []);
-    } catch {
-      // silently fail — snapshot is supplementary
+      setReportDubai(Array.isArray(rd?.rows) ? rd.rows : []);
+      setReportManila(Array.isArray(rm?.rows) ? rm.rows : []);
+    } catch (e: any) {
+      setReportError(e?.message || String(e));
+      setReportDubai(null);
+      setReportManila(null);
     } finally {
-      setSnapshotLoading(false);
+      setReportLoading(false);
     }
-  }, [approverName, pin]);
+  }, [approverName, pin, reportDateFrom, reportDateTo]);
 
-  const load = async () => {
-    setLoading(true);
+  const loadHistory = async () => {
+    setHistoryLoading(true);
     setMsg(null);
 
     try {
@@ -414,7 +447,7 @@ export default function AdminAbsencesPage() {
       setRows([]);
       setMsg({ kind: "err", text: e?.message || String(e) });
     } finally {
-      setLoading(false);
+      setHistoryLoading(false);
     }
   };
 
@@ -430,18 +463,13 @@ export default function AdminAbsencesPage() {
     setFilterBranch("");
     setBranchHint("");
     setBulkBranchHint("");
+    setRows(null);
   }, [city]);
 
+  // Auto-load report when auth becomes ready
   useEffect(() => {
     if (!canAuth) return;
-    load();
-    loadSnapshot();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [city]);
-
-  useEffect(() => {
-    if (!canAuth) return;
-    loadSnapshot();
+    loadReport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canAuth]);
 
@@ -472,7 +500,7 @@ export default function AdminAbsencesPage() {
       });
 
       setMsg({ kind: "ok", text: `Saved ${sn} / ${wd} / ${absenceType}.` });
-      await load();
+      await loadReport();
     } catch (e: any) {
       setMsg({ kind: "err", text: e?.message || String(e) });
     } finally {
@@ -521,7 +549,7 @@ export default function AdminAbsencesPage() {
       }
 
       setMsg({ kind: "ok", text: `Bulk saved ${count} rows.` });
-      await load();
+      await loadReport();
     } catch (e: any) {
       setMsg({ kind: "err", text: e?.message || String(e) });
     } finally {
@@ -553,7 +581,8 @@ export default function AdminAbsencesPage() {
         kind: "ok",
         text: `Deleted ${r.staff_name} / ${r.work_date} / ${r.absence_type}.`,
       });
-      await load();
+      await loadReport();
+      if (rows !== null) await loadHistory();
     } catch (e: any) {
       setMsg({ kind: "err", text: e?.message || String(e) });
     } finally {
@@ -562,10 +591,11 @@ export default function AdminAbsencesPage() {
   };
 
   function downloadCsv() {
+    const target = filteredRows ?? [];
     const headers = ["staff", "date", "type", "branch", "note", "source", "created_at"];
     const lines = [
       headers.join(","),
-      ...filteredRows.map((r) =>
+      ...target.map((r) =>
         [
           norm(r.staff_name),
           norm(r.work_date),
@@ -588,6 +618,8 @@ export default function AdminAbsencesPage() {
     URL.revokeObjectURL(url);
   }
 
+  const reportTotal = (reportDubai?.length ?? 0) + (reportManila?.length ?? 0);
+
   return (
     <main className="min-h-screen bg-neutral-950 text-white">
       <motion.div
@@ -596,6 +628,7 @@ export default function AdminAbsencesPage() {
         transition={{ duration: 0.4, ease: "easeOut" }}
         className="mx-auto max-w-5xl space-y-5 px-4 py-8"
       >
+        {/* Nav */}
         <div className="mb-2 flex items-center gap-2">
           <Link href="/admin">
             <button className={`${SECONDARY_BUTTON} flex items-center gap-2 text-sm`}>
@@ -617,53 +650,123 @@ export default function AdminAbsencesPage() {
           </Link>
         </div>
 
+        {/* Title */}
         <div className="mb-6 flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-rose-500/20 bg-gradient-to-br from-rose-500/20 to-pink-500/10">
             <CalendarOff className="h-5 w-5 text-rose-400" />
           </div>
           <div>
             <h1 className={T_PAGE_TITLE}>Absence / Leave Management</h1>
-            <p className={T_CAPTION}>Register absences and leave, process bulk entries, review history, and delete manual records.</p>
+            <p className={T_CAPTION}>View absence reports, register absences and leave, process bulk entries, and review history.</p>
           </div>
         </div>
 
-        {/* ── Yesterday's Snapshot ─────────────────────────────────────── */}
+        {/* ── Absence Report (both cities, configurable date range) ───────── */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.02 }}
           className={GLASS_CARD + " p-5"}
         >
-          <div className="mb-4 flex items-center justify-between">
+          <div className="mb-4 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
               <CalendarDays className="h-4 w-4 text-rose-400" />
-              <h2 className={T_SECTION}>Yesterday&apos;s Absence Snapshot</h2>
-              <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-xs text-neutral-400">
-                {yesterdayIso()}
-              </span>
+              <h2 className={T_SECTION}>Absence Report</h2>
+            </div>
+            <p className={T_CAPTION}>Dubai 🇦🇪 + Manila 🇵🇭 — name, branch, type, note/shift</p>
+          </div>
+
+          {/* Controls */}
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Date Range</label>
+              <div className="flex items-center gap-2">
+                <DateRangePicker
+                  value={{ from: reportDateFrom, to: reportDateTo }}
+                  onChange={(range) => {
+                    handleReportDateFromChange(range.from);
+                    handleReportDateToChange(range.to);
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReportDateFrom(yesterdayIso());
+                    setReportDateTo(yesterdayIso());
+                  }}
+                  className={SMALL_BUTTON + " whitespace-nowrap"}
+                >
+                  Yesterday
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReportDateFrom(todayIso());
+                    setReportDateTo(todayIso());
+                  }}
+                  className={SMALL_BUTTON + " whitespace-nowrap"}
+                >
+                  Today
+                </button>
+              </div>
             </div>
             <button
-              onClick={loadSnapshot}
-              disabled={snapshotLoading || !canAuth}
-              className={`${SECONDARY_BUTTON} flex items-center gap-1.5 text-xs disabled:opacity-40`}
+              onClick={loadReport}
+              disabled={reportLoading || !canAuth}
+              className={`${PRIMARY_BUTTON} flex items-center gap-2 disabled:opacity-50`}
             >
-              <RefreshCw className={`h-3 w-3 ${snapshotLoading ? "animate-spin" : ""}`} />
-              Refresh
+              <RefreshCw className={`h-3.5 w-3.5 ${reportLoading ? "animate-spin" : ""}`} />
+              {reportLoading ? "Loading…" : "Load Report"}
             </button>
           </div>
 
-          {!canAuth ? (
-            <p className="text-center text-sm text-neutral-500 py-4">
-              Enter Approver Name and PIN below to load the snapshot.
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <SnapshotCityCard city="dubai" rows={snapshotDubai} loading={snapshotLoading} />
-              <SnapshotCityCard city="manila" rows={snapshotManila} loading={snapshotLoading} />
+          {/* Auth prompt */}
+          {!canAuth && (
+            <div className="rounded-lg bg-neutral-800/40 px-4 py-3 text-center text-sm text-neutral-400">
+              Enter Approver Name and PIN in the Scope section below, then load.
+            </div>
+          )}
+
+          {/* Error */}
+          {reportError && (
+            <div className={`${BADGE_ERROR} w-full justify-start rounded-xl px-4 py-3 text-sm mb-2`}>
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              {reportError}
+            </div>
+          )}
+
+          {/* Results */}
+          {!reportError && reportDubai !== null && reportManila !== null && (
+            reportTotal === 0 ? (
+              <div className="flex flex-col items-center py-8 gap-2">
+                <CheckCircle2 className="h-8 w-8 text-emerald-500/50" />
+                <p className="text-sm text-neutral-400">No absences recorded for this period</p>
+                <p className={T_CAPTION}>{reportDateFrom === reportDateTo ? reportDateFrom : `${reportDateFrom} → ${reportDateTo}`}</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-neutral-500">
+                    {reportDateFrom === reportDateTo ? reportDateFrom : `${reportDateFrom} → ${reportDateTo}`}
+                  </span>
+                  <span className={`ml-auto rounded-full border px-2 py-0.5 text-xs font-medium ${BADGE_ERROR}`}>
+                    {reportTotal} total
+                  </span>
+                </div>
+                <ReportCitySection city="dubai" rows={reportDubai} />
+                <ReportCitySection city="manila" rows={reportManila} />
+              </div>
+            )
+          )}
+
+          {reportDubai === null && !reportLoading && !reportError && canAuth && (
+            <div className="rounded-lg bg-neutral-800/30 px-4 py-4 text-center text-sm text-neutral-500">
+              Click <strong className="text-neutral-300">Load Report</strong> to fetch absence data for both cities.
             </div>
           )}
         </motion.div>
 
+        {/* Feedback banner */}
         <AnimatePresence>
           {msg ? (
             <motion.div
@@ -706,12 +809,10 @@ export default function AdminAbsencesPage() {
                 <option value="manila">Manila</option>
               </select>
             </div>
-
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Approver Name</label>
               <input className={INPUT_CLASS} readOnly value={approverName || "-"} />
             </div>
-
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>PIN</label>
               <input
@@ -723,10 +824,9 @@ export default function AdminAbsencesPage() {
               />
             </div>
           </div>
-
           <div className="flex items-center gap-1.5 text-xs text-zinc-500">
             <Info className="h-3.5 w-3.5 flex-shrink-0" />
-            Using the current logged-in admin credentials stored on this device.
+            Using the current logged-in admin credentials stored on this device. City scope applies to upsert / delete operations.
           </div>
         </motion.div>
 
@@ -744,82 +844,54 @@ export default function AdminAbsencesPage() {
           <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Staff Name</label>
-              <select
-                value={staffName}
-                onChange={(e) => setStaffName(e.target.value)}
-                className={SELECT_CLASS}
-              >
+              <select value={staffName} onChange={(e) => setStaffName(e.target.value)} className={SELECT_CLASS}>
                 <option value="">Select staff</option>
                 {staffOptions.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
+                  <option key={name} value={name}>{name}</option>
                 ))}
               </select>
             </div>
-
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Work Date</label>
-              <input
-                type="date"
-                value={workDate}
-                onChange={(e) => handleWorkDateChange(e.target.value)}
-                className={INPUT_CLASS}
-              />
+              <input type="date" value={workDate} onChange={(e) => handleBulkDateFromChange(e.target.value)} className={INPUT_CLASS} />
             </div>
-
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Absence Type</label>
-              <select
-                value={absenceType}
-                onChange={(e) => setAbsenceType(e.target.value as AbsenceType)}
-                className={SELECT_CLASS}
-              >
+              <select value={absenceType} onChange={(e) => setAbsenceType(e.target.value as AbsenceType)} className={SELECT_CLASS}>
                 {ABSENCE_TYPES.map((x) => (
-                  <option key={x.value} value={x.value}>
-                    {x.label}
-                  </option>
+                  <option key={x.value} value={x.value}>{x.label}</option>
                 ))}
               </select>
             </div>
-
             <div>
-              <label className={`${T_LABEL} mb-1.5 block`}>Branch Hint</label>
-              <select
-                value={branchHint}
-                onChange={(e) => setBranchHint(e.target.value)}
-                className={SELECT_CLASS}
-              >
+              <label className={`${T_LABEL} mb-1.5 block`}>Branch</label>
+              <select value={branchHint} onChange={(e) => setBranchHint(e.target.value)} className={SELECT_CLASS}>
                 <option value="">Select branch</option>
                 {branchOptions.map((branch) => (
-                  <option key={branch.code} value={branch.code}>
-                    {branch.name}
-                  </option>
+                  <option key={branch.code} value={branch.code}>{branch.name}</option>
                 ))}
               </select>
             </div>
           </div>
-
           <div className="mb-4">
-            <label className={`${T_LABEL} mb-1.5 block`}>Note</label>
+            <label className={`${T_LABEL} mb-1.5 block`}>Note / Shift info</label>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              rows={3}
+              rows={2}
               className={TEXTAREA_CLASS}
-              placeholder="Optional note"
+              placeholder="e.g. AM shift, 09:00-18:00, coverage needed"
             />
           </div>
-
           <div className="flex items-center justify-between border-t border-white/5 pt-4">
-            <p className={T_CAPTION}>Fields marked will override existing records for that date.</p>
+            <p className={T_CAPTION}>Overrides existing record for the same date.</p>
             <button
               onClick={upsertSingle}
               disabled={loading || !canAuth}
               className={`${PRIMARY_BUTTON} flex items-center gap-2 disabled:opacity-50`}
             >
               <Save className="h-4 w-4" />
-              Save Single Absence
+              Save
             </button>
           </div>
         </motion.div>
@@ -835,27 +907,21 @@ export default function AdminAbsencesPage() {
             <Users className="h-4 w-4 text-violet-400" />
             <h2 className={T_SECTION}>Bulk Entry</h2>
           </div>
-
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div>
-              <label className={`${T_LABEL} mb-1.5 block`}>Staff Names</label>
+              <label className={`${T_LABEL} mb-1.5 block`}>Staff Names (one per line)</label>
               <textarea
                 className={TEXTAREA_CLASS}
                 rows={6}
-                placeholder={"One name per line\ne.g.\nJohn Smith\nJane Doe"}
+                placeholder={"John Smith\nJane Doe"}
                 value={bulkSelectedNames.join("\n")}
                 onChange={(e) =>
                   setBulkSelectedNames(
-                    e.target.value
-                      .split("\n")
-                      .map((name) => name.trim())
-                      .filter(Boolean)
+                    e.target.value.split("\n").map((n) => n.trim()).filter(Boolean)
                   )
                 }
               />
-              <p className={T_CAPTION + " mt-2"}>Use one staff name per line. Names are matched against the city-scoped staff list.</p>
             </div>
-
             <div className="space-y-3">
               <div>
                 <label className={`${T_LABEL} mb-1.5 block`}>Date Range</label>
@@ -869,65 +935,39 @@ export default function AdminAbsencesPage() {
                   />
                   <button
                     type="button"
-                    onClick={() => {
-                      handleBulkDateFromChange(todayIso());
-                      handleBulkDateToChange(todayIso());
-                    }}
+                    onClick={() => { handleBulkDateFromChange(todayIso()); handleBulkDateToChange(todayIso()); }}
                     className={SMALL_BUTTON + " whitespace-nowrap"}
                   >
-                    Range
+                    Today
                   </button>
                 </div>
               </div>
               <div>
-                <label className={`${T_LABEL} mb-1.5 block`}>Branch Hint</label>
-                <select
-                  value={bulkBranchHint}
-                  onChange={(e) => setBulkBranchHint(e.target.value)}
-                  className={SELECT_CLASS}
-                >
+                <label className={`${T_LABEL} mb-1.5 block`}>Branch</label>
+                <select value={bulkBranchHint} onChange={(e) => setBulkBranchHint(e.target.value)} className={SELECT_CLASS}>
                   <option value="">All / Optional</option>
                   {branchOptions.map((branch) => (
-                    <option key={branch.code} value={branch.code}>
-                      {branch.name}
-                    </option>
+                    <option key={branch.code} value={branch.code}>{branch.name}</option>
                   ))}
                 </select>
               </div>
               <div>
                 <label className={`${T_LABEL} mb-1.5 block`}>Absence Type</label>
-                <select
-                  value={bulkAbsenceType}
-                  onChange={(e) => setBulkAbsenceType(e.target.value as AbsenceType)}
-                  className={SELECT_CLASS}
-                >
+                <select value={bulkAbsenceType} onChange={(e) => setBulkAbsenceType(e.target.value as AbsenceType)} className={SELECT_CLASS}>
                   {ABSENCE_TYPES.map((x) => (
-                    <option key={x.value} value={x.value}>
-                      {x.label}
-                    </option>
+                    <option key={x.value} value={x.value}>{x.label}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className={`${T_LABEL} mb-1.5 block`}>Note</label>
-                <textarea
-                  value={bulkNote}
-                  onChange={(e) => setBulkNote(e.target.value)}
-                  rows={2}
-                  className={TEXTAREA_CLASS}
-                  placeholder="Optional bulk note"
-                />
+                <label className={`${T_LABEL} mb-1.5 block`}>Note / Shift info</label>
+                <textarea value={bulkNote} onChange={(e) => setBulkNote(e.target.value)} rows={2} className={TEXTAREA_CLASS} placeholder="Optional" />
               </div>
             </div>
           </div>
-
           <div className="mt-2 flex items-center justify-between border-t border-white/5 pt-4">
-            <p className={T_CAPTION}>Bulk applies the same type to all listed staff for the selected range.</p>
-            <button
-              onClick={upsertBulk}
-              disabled={loading || !canAuth}
-              className={`${PRIMARY_BUTTON} flex items-center gap-2 disabled:opacity-50`}
-            >
+            <p className={T_CAPTION}>Same type applied to all staff for the selected range.</p>
+            <button onClick={upsertBulk} disabled={loading || !canAuth} className={`${PRIMARY_BUTTON} flex items-center gap-2 disabled:opacity-50`}>
               <Upload className="h-4 w-4" />
               Process Bulk
             </button>
@@ -938,58 +978,35 @@ export default function AdminAbsencesPage() {
         <div className={`${GLASS_CARD} p-5`}>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className={T_SECTION}>History Filters</h2>
+              <h2 className={T_SECTION}>History (single city)</h2>
               <p className={T_CAPTION}>
-                {filterBranch
-                  ? `${fmtNum(filteredRows.length)} / ${fmtNum(rows.length)} records (branch filtered)`
-                  : `${fmtNum(rows.length)} records`}
+                {filteredRows === null
+                  ? "Select filters and click Load History"
+                  : filterBranch
+                  ? `${fmtNum(filteredRows.length)} / ${fmtNum(rows?.length ?? 0)} records (branch filtered)`
+                  : `${fmtNum(rows?.length ?? 0)} records`}
               </p>
             </div>
-            <button
-              onClick={load}
-              disabled={loading || !canAuth}
-              className={`${SECONDARY_BUTTON} text-sm disabled:opacity-50`}
-            >
-              Refresh
-            </button>
           </div>
-
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {/* Staff filter */}
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Staff</label>
-              <select
-                value={filterStaffName}
-                onChange={(e) => setFilterStaffName(e.target.value)}
-                className={SELECT_CLASS}
-              >
+              <select value={filterStaffName} onChange={(e) => setFilterStaffName(e.target.value)} className={SELECT_CLASS}>
                 <option value="">All staff</option>
                 {staffOptions.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
+                  <option key={name} value={name}>{name}</option>
                 ))}
               </select>
             </div>
-
-            {/* Branch filter */}
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Branch</label>
-              <select
-                value={filterBranch}
-                onChange={(e) => setFilterBranch(e.target.value)}
-                className={SELECT_CLASS}
-              >
+              <select value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} className={SELECT_CLASS}>
                 <option value="">All branches</option>
                 {branchOptions.map((branch) => (
-                  <option key={branch.code} value={branch.code}>
-                    {branch.name}
-                  </option>
+                  <option key={branch.code} value={branch.code}>{branch.name}</option>
                 ))}
               </select>
             </div>
-
-            {/* Date range */}
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Date Range</label>
               <DateRangePicker
@@ -1000,15 +1017,9 @@ export default function AdminAbsencesPage() {
                 }}
               />
             </div>
-
-            {/* Load button */}
             <div className="flex items-end">
-              <button
-                onClick={load}
-                disabled={loading || !canAuth}
-                className={`${PRIMARY_BUTTON} w-full disabled:opacity-50`}
-              >
-                Load History
+              <button onClick={loadHistory} disabled={historyLoading || !canAuth} className={`${PRIMARY_BUTTON} w-full disabled:opacity-50`}>
+                {historyLoading ? "Loading…" : "Load History"}
               </button>
             </div>
           </div>
@@ -1033,7 +1044,7 @@ export default function AdminAbsencesPage() {
             </div>
             <button
               onClick={downloadCsv}
-              disabled={!filteredRows.length}
+              disabled={!filteredRows?.length}
               className={`${SECONDARY_BUTTON} flex items-center gap-2 text-sm disabled:opacity-50`}
             >
               <Download className="h-3.5 w-3.5" />
@@ -1048,35 +1059,44 @@ export default function AdminAbsencesPage() {
                   <th className={`${TABLE_HEADER} px-4 text-left`}>Date</th>
                   <th className={`${TABLE_HEADER} px-4 text-left`}>Type</th>
                   <th className={`${TABLE_HEADER} px-4 text-left`}>Branch</th>
-                  <th className={`${TABLE_HEADER} px-4 text-left`}>Note</th>
+                  <th className={`${TABLE_HEADER} px-4 text-left`}>Note / Shift</th>
                   <th className={`${TABLE_HEADER} px-4 text-left`}></th>
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+                {historyLoading ? (
                   <tr>
                     <td colSpan={6} className={`${TABLE_CELL} px-4 py-12 text-center text-zinc-500`}>
-                      Loading...
+                      Loading…
                     </td>
                   </tr>
-                ) : filteredRows.length === 0 ? (
+                ) : rows === null ? (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <CalendarDays className="h-8 w-8 text-zinc-700" />
+                        <p className={T_CAPTION}>Select filters above and click Load History.</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (filteredRows ?? []).length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-12 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <CalendarOff className="h-8 w-8 text-zinc-700" />
-                        <p className={T_CAPTION}>No absence records found.</p>
+                        <p className={T_CAPTION}>No records found for this filter.</p>
                       </div>
                     </td>
                   </tr>
                 ) : (
-                  filteredRows.map((r, idx) => {
+                  (filteredRows ?? []).map((r, idx) => {
                     const manual = norm(r.source_sheet_name).toUpperCase() === "MANUAL";
                     const isPendingDelete =
                       pendingDeleteRow &&
                       norm(pendingDeleteRow.staff_name) === norm(r.staff_name) &&
                       norm(pendingDeleteRow.work_date) === norm(r.work_date) &&
                       norm(pendingDeleteRow.absence_type) === norm(r.absence_type) &&
-                      idx === filteredRows.findIndex(
+                      idx === (filteredRows ?? []).findIndex(
                         (x) =>
                           norm(x.staff_name) === norm(r.staff_name) &&
                           norm(x.work_date) === norm(r.work_date) &&
@@ -1088,7 +1108,7 @@ export default function AdminAbsencesPage() {
                           key={`${r.work_date}-${r.staff_name}-${r.absence_type}-${idx}`}
                           initial={{ opacity: 0, x: -6 }}
                           animate={{ opacity: 1, x: 0 }}
-                          transition={{ duration: 0.2, delay: idx * 0.025 }}
+                          transition={{ duration: 0.2, delay: idx * 0.02 }}
                           className={TABLE_ROW}
                         >
                           <td className={`${TABLE_CELL} px-4 font-medium`}>{r.staff_name || "-"}</td>
@@ -1099,7 +1119,7 @@ export default function AdminAbsencesPage() {
                             </span>
                           </td>
                           <td className={`${TABLE_CELL} px-4 text-zinc-400`}>{r.branch_hint || "-"}</td>
-                          <td className={`${TABLE_CELL} px-4 max-w-[160px] truncate text-xs text-zinc-500`}>
+                          <td className={`${TABLE_CELL} px-4 max-w-[180px] truncate text-xs text-zinc-400`}>
                             {r.note || "-"}
                           </td>
                           <td className={`${TABLE_CELL} px-4`}>
