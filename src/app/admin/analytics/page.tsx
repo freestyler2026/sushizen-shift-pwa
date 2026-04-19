@@ -1220,7 +1220,7 @@ type BreakEvenSummary = {
 type BreakEvenStoreRow = BreakEvenSummary & {
   store_name: string;
   branch_code?: string;
-  basis_mode: "rolling_30d" | "previous_month_fallback";
+  basis_mode: "rolling_30d" | "previous_month_fallback" | "imported_pl_month";
 };
 
 type BreakEvenMissingPosStoreDetail = {
@@ -1235,7 +1235,8 @@ type BreakEvenResp = {
   scope: "company" | "store";
   store_name?: string;
   basis?: {
-    mode: "rolling_30d" | "previous_month_fallback";
+    mode: "rolling_30d" | "previous_month_fallback" | "imported_pl_month";
+    month_key?: string;
     date_from: string;
     date_to: string;
     as_of_date: string;
@@ -1453,23 +1454,25 @@ function formatScore(value: number | null | undefined, digits = 1) {
   return formatDecimal(Number(value), digits);
 }
 
-function formatBreakEvenBasis(mode?: "rolling_30d" | "previous_month_fallback") {
-  return mode === "previous_month_fallback" ? "Previous month fallback" : "Rolling 30 days";
+function formatBreakEvenBasis(mode?: "rolling_30d" | "previous_month_fallback" | "imported_pl_month") {
+  if (mode === "previous_month_fallback") return "Previous month fallback";
+  if (mode === "imported_pl_month") return "Imported P&L month";
+  return "Rolling 30 days";
 }
 
 function formatBreakEvenFallbackReason(reason?: string) {
   if (!reason) return "";
-  if (reason === "missing_pos_days") return "Rolling 30d data was incomplete because one or more POS days were missing.";
-  if (reason === "missing_pl_month_import") return "Rolling 30d data was incomplete because monthly P&L import data was missing.";
-  if (reason === "missing_store_scope_in_pl") return "Rolling 30d data was incomplete because one or more store columns were missing in P&L.";
-  if (reason === "missing_multiple_sources") return "Rolling 30d data was incomplete because multiple source datasets were missing.";
+  if (reason === "missing_pos_days") return "Data was incomplete because one or more POS days were missing.";
+  if (reason === "missing_pl_month_import") return "The synced monthly P&L import for this period is not available yet.";
+  if (reason === "missing_store_scope_in_pl") return "One or more store columns are missing in the P&L import.";
+  if (reason === "missing_multiple_sources") return "Multiple required P&L fields are missing for this view.";
   return reason;
 }
 
 function formatBreakEvenReasonLabel(reason?: string) {
   if (!reason) return "";
   if (reason === "missing_pos_days") return "POS daily data is missing for one or more dates.";
-  if (reason === "missing_pl_month_import") return "Monthly P&L import data is missing for one or more months.";
+  if (reason === "missing_pl_month_import") return "Monthly P&L import data is missing for this month.";
   if (reason === "missing_store_scope_in_pl") return "One or more store columns are missing in the P&L import.";
   return reason;
 }
@@ -9312,11 +9315,16 @@ export default function AdminAnalyticsPage() {
                   <div className="text-[11px] text-neutral-500">
                     Basis: {formatBreakEvenBasis(breakEven.basis.mode)}
                     {breakEven.basis.mode === "previous_month_fallback" ? " (auto fallback)" : ""}
+                    {breakEven.basis.month_key ? (
+                      <span className="text-neutral-500"> · Month {breakEven.basis.month_key}</span>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
               <div className="mt-1 text-xs text-neutral-500">
-                Uses rolling 30 days when all required data is available; otherwise falls back to the previous full month.
+                {breakEven?.basis?.mode === "imported_pl_month"
+                  ? "Reflects one full calendar month from the synced Management P&L (the most recent closed month available in the import)."
+                  : "Uses rolling 30 days when all required data is available; otherwise falls back to the previous full month."}
               </div>
               {breakEven?.basis ? (
                 <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-neutral-400 md:grid-cols-3">
@@ -9324,10 +9332,21 @@ export default function AdminAnalyticsPage() {
                     Range: <span className="text-neutral-200">{breakEven.basis.date_from} to {breakEven.basis.date_to}</span>
                   </div>
                   <div>
-                    POS coverage:{" "}
-                    <span className="text-neutral-200">
-                      {formatCount(Number(breakEven.completeness?.pos_days_present || 0))}/{formatCount(Number(breakEven.completeness?.pos_days_expected || 0))} days
-                    </span>
+                    {breakEven.basis.mode === "imported_pl_month" ? (
+                      <>
+                        Days in period:{" "}
+                        <span className="text-neutral-200">
+                          {formatCount(Number(breakEven.completeness?.pos_days_expected || 0))} calendar days
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        POS coverage:{" "}
+                        <span className="text-neutral-200">
+                          {formatCount(Number(breakEven.completeness?.pos_days_present || 0))}/{formatCount(Number(breakEven.completeness?.pos_days_expected || 0))} days
+                        </span>
+                      </>
+                    )}
                   </div>
                   <div>
                     P&amp;L months:{" "}
@@ -9342,7 +9361,7 @@ export default function AdminAnalyticsPage() {
                   {formatBreakEvenFallbackReason(breakEven.basis.fallback_reason)}
                   {(breakEven.completeness?.rolling_reasons || []).length ? (
                     <div className="mt-2 space-y-1 text-[11px] text-amber-100/90">
-                      <div className="font-semibold text-amber-50">Rolling 30d was missing:</div>
+                      <div className="font-semibold text-amber-50">Prior window was missing:</div>
                       {(breakEven.completeness?.rolling_reasons || []).map((reason) => (
                         <div key={`rolling-${reason}`}>- {formatBreakEvenReasonLabel(reason)}</div>
                       ))}
@@ -9364,7 +9383,11 @@ export default function AdminAnalyticsPage() {
               {(breakEven?.completeness?.selected_reasons || []).length ? (
                 <div className="mt-2 rounded-xl border border-rose-900/40 bg-rose-950/20 px-3 py-2 text-xs text-rose-100">
                   <div className="font-semibold text-rose-50">
-                    {breakEven.basis?.mode === "previous_month_fallback" ? "Fallback month is still missing:" : "Current window is still missing:"}
+                    {breakEven.basis?.mode === "imported_pl_month"
+                      ? "Imported P&L month is incomplete:"
+                      : breakEven.basis?.mode === "previous_month_fallback"
+                      ? "Fallback month is still missing:"
+                      : "Current window is still missing:"}
                   </div>
                   <div className="mt-2 space-y-1 text-[11px] text-rose-100/90">
                     {(breakEven.completeness?.selected_reasons || []).map((reason) => (
@@ -9373,14 +9396,16 @@ export default function AdminAnalyticsPage() {
                     {(breakEven.completeness?.missing_pl_months || []).length ? (
                       <div>Missing P&amp;L months: {formatBreakEvenMissingDates(breakEven.completeness?.missing_pl_months)}</div>
                     ) : null}
-                    {(breakEven.completeness?.missing_pos_dates || []).length ? (
+                    {breakEven.basis?.mode !== "imported_pl_month" && (breakEven.completeness?.missing_pos_dates || []).length ? (
                       <div>Missing POS dates: {formatBreakEvenMissingDates(breakEven.completeness?.missing_pos_dates)}</div>
                     ) : null}
-                    {(breakEven.completeness?.missing_pos_store_details || []).slice(0, 8).map((item) => (
-                      <div key={`selected-store-${item.store_name}`}>
-                        {item.store_name}: {formatBreakEvenMissingDates(item.missing_dates)}
-                      </div>
-                    ))}
+                    {breakEven.basis?.mode !== "imported_pl_month"
+                      ? (breakEven.completeness?.missing_pos_store_details || []).slice(0, 8).map((item) => (
+                          <div key={`selected-store-${item.store_name}`}>
+                            {item.store_name}: {formatBreakEvenMissingDates(item.missing_dates)}
+                          </div>
+                        ))
+                      : null}
                   </div>
                 </div>
               ) : null}
