@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   AlertTriangle,
-  Clock,
   TrendingDown,
   Download,
   Building2,
@@ -18,7 +17,6 @@ import {
   KPI_LABEL,
   KPI_VALUE,
   TABLE_HEADER,
-  TABLE_ROW,
   TABLE_CELL,
   PRIMARY_BUTTON,
   SECONDARY_BUTTON,
@@ -364,9 +362,9 @@ export default function LeanShiftTab({ city, dateFrom: initDateFrom, dateTo: ini
           <div className={`${GLASS_CARD} flex items-start gap-2 p-3`}>
             <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-sky-400" />
             <p className="text-[11px] text-zinc-400">
-              <span className="font-semibold text-sky-300">How to read this table:</span> "Lean Start" is
+              <span className="font-semibold text-sky-300">How to read this table:</span> &ldquo;Lean Start&rdquo; is
               when staff <em>should</em> clock in if checkout time stays the same and total work is exactly
-              9 hours. "Reducible OT / Shift" shows the minutes saved per shift by shifting the start time
+              9 hours. &ldquo;Reducible OT / Shift&rdquo; shows the minutes saved per shift by shifting the start time
               forward to the lean start time. Zero means no built-in OT for that day/branch.
             </p>
           </div>
