@@ -698,8 +698,8 @@ export default function AdminAbsencesPage() {
                 <DateRangePicker
                   value={{ from: reportDateFrom, to: reportDateTo }}
                   onChange={(range) => {
-                    handleReportDateFromChange(range.from);
-                    handleReportDateToChange(range.to);
+                    setReportDateFrom(range.from);
+                    setReportDateTo(range.to || range.from);
                   }}
                 />
                 <button
@@ -765,9 +765,12 @@ export default function AdminAbsencesPage() {
             )
           )}
 
-          {reportDubai === null && !reportLoading && !reportError && canAuth && (
+          {reportDubai === null && !reportLoading && canAuth && (
             <div className="rounded-lg bg-neutral-800/30 px-4 py-4 text-center text-sm text-neutral-500">
-              Click <strong className="text-neutral-300">Load Report</strong> to fetch absence data for both cities.
+              {reportError
+                ? <span className="text-red-400">{reportError}</span>
+                : <>Click <strong className="text-neutral-300">Load Report</strong> to fetch absence data for both cities.</>
+              }
             </div>
           )}
         </motion.div>
@@ -935,8 +938,8 @@ export default function AdminAbsencesPage() {
                   <DateRangePicker
                     value={{ from: bulkDateFrom, to: bulkDateTo }}
                     onChange={(range) => {
-                      handleBulkDateFromChange(range.from);
-                      handleBulkDateToChange(range.to);
+                      setBulkDateFrom(range.from);
+                      setBulkDateTo(range.to || range.from);
                     }}
                   />
                   <button
@@ -1018,8 +1021,8 @@ export default function AdminAbsencesPage() {
               <DateRangePicker
                 value={{ from: dateFrom, to: dateTo }}
                 onChange={(range) => {
-                  handleHistoryDateFromChange(range.from);
-                  handleHistoryDateToChange(range.to);
+                  setDateFrom(range.from);
+                  setDateTo(range.to || range.from);
                 }}
               />
             </div>
