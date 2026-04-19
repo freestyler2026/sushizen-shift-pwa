@@ -661,25 +661,30 @@ export default function AdminStaffPage() {
     }
   };
 
+  const DUBAI_BRANCHES = ["BB", "Business Bay", "JLT", "ARJ", "Arjan", "AM", "Al Mina", "AB", "Al Barsha", "CK", "Delivery"];
+  const MANILA_BRANCHES = ["CK", "CUBAO", "PAR"];
+
   const branches = useMemo(() => {
     const set = new Set<string>();
+    // Add city-specific hardcoded branches first
+    (city === "manila" ? MANILA_BRANCHES : DUBAI_BRANCHES).forEach((x) => set.add(x));
+    // Add any branches already in the loaded rows (covers custom/future branches)
     rows.forEach((r) => {
       const hb = norm(r.home_branch);
       if (hb) set.add(hb);
     });
-
-    [
-      "Business Bay",
-      "JLT",
-      "Arjan",
-      "Al Mina",
-      "Al Barsha",
-      "CK",
-      "Delivery",
-    ].forEach((x) => set.add(x));
-
     return Array.from(set).sort((a, b) => a.localeCompare(b));
-  }, [rows]);
+  }, [rows, city]);
+
+  const newStaffBranches = useMemo(() => {
+    const base = newStaffCity === "manila" ? MANILA_BRANCHES : DUBAI_BRANCHES;
+    const set = new Set<string>(base);
+    rows.filter((r) => norm(r.city) === newStaffCity).forEach((r) => {
+      const hb = norm(r.home_branch);
+      if (hb) set.add(hb);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [rows, newStaffCity]);
 
   const filteredRows = useMemo(() => {
     const statusNeedle = norm(statusFilter).toUpperCase();
@@ -921,18 +926,16 @@ export default function AdminStaffPage() {
           </div>
           <div>
             <label className={T_LABEL + " mb-1.5 block"}>Home Branch</label>
-            <input
-              list="branch_list"
-              className={INPUT_CLASS}
+            <select
+              className={SELECT_CLASS}
               value={newStaffHomeBranch}
               onChange={(e) => setNewStaffHomeBranch(e.target.value)}
-              placeholder="Business Bay / JLT / ..."
-            />
-            <datalist id="branch_list">
-              {branches.map((b) => (
-                <option key={b} value={b} />
+            >
+              <option value="">— select branch —</option>
+              {newStaffBranches.map((b) => (
+                <option key={b} value={b}>{b}</option>
               ))}
-            </datalist>
+            </select>
           </div>
           <div>
             <label className={T_LABEL + " mb-1.5 block"}>Role</label>
@@ -1019,13 +1022,16 @@ export default function AdminStaffPage() {
           </div>
           <div>
             <label className={T_LABEL + " mb-1.5 block"}>Home Branch</label>
-            <input
-              list="branch_list"
-              className={INPUT_CLASS}
+            <select
+              className={SELECT_CLASS}
               value={homeBranchFilter}
               onChange={(e) => setHomeBranchFilter(e.target.value)}
-              placeholder="(optional)"
-            />
+            >
+              <option value="">(All branches)</option>
+              {branches.map((b) => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
           </div>
           <div className="sm:col-span-2">
             <label className={T_LABEL + " mb-1.5 block"}>Staff</label>
@@ -1128,12 +1134,16 @@ export default function AdminStaffPage() {
                         <div className="text-xs text-zinc-500">
                           max/wk:{Number(r.max_days_per_week ?? 6)} | max/cons:{Number(r.max_consecutive_days ?? 6)}
                         </div>
-                        <input
-                          className={INPUT_CLASS + " py-1.5 text-xs max-w-[140px]"}
-                          placeholder="branch code"
+                        <select
+                          className={SELECT_CLASS + " py-1 text-xs max-w-[140px]"}
                           value={branchDrafts[dn] ?? hb}
                           onChange={(e) => setBranchDrafts((prev) => ({ ...prev, [dn]: e.target.value }))}
-                        />
+                        >
+                          <option value="">— select —</option>
+                          {branches.map((b) => (
+                            <option key={b} value={b}>{b}</option>
+                          ))}
+                        </select>
                       </div>
                     </td>
                     <td className={TABLE_CELL + " px-4 align-top"}>
