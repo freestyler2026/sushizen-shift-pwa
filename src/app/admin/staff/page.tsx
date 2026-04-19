@@ -269,6 +269,10 @@ export default function AdminStaffPage() {
   const [roleDrafts, setRoleDrafts] = useState<Record<string, StaffRole>>({});
   const [roleSavingName, setRoleSavingName] = useState("");
   const [roleSavedName, setRoleSavedName] = useState("");
+  const [branchDrafts, setBranchDrafts] = useState<Record<string, string>>({});
+  const [nameDrafts, setNameDrafts] = useState<Record<string, string>>({});
+  const [infoSavingName, setInfoSavingName] = useState("");
+  const [infoSavedName, setInfoSavedName] = useState("");
   const [pushKeyDrafts, setPushKeyDrafts] = useState<Record<string, string>>({});
   const [pushKeySavingName, setPushKeySavingName] = useState("");
   const [pushKeySavedName, setPushKeySavedName] = useState("");
@@ -499,6 +503,69 @@ export default function AdminStaffPage() {
       setMsg({ kind: "err", text: friendlyErrorText(raw) });
     } finally {
       setRoleSavingName("");
+      setLoading(false);
+    }
+  };
+
+  const saveAll = async (displayName: string) => {
+    setMsg(null);
+    try {
+      const nm = norm(approverName);
+      const p = legacyPinOrEmpty(pin);
+      if (!nm) throw new Error("Approver name is required.");
+      if (!p) throw new Error("PIN is required.");
+      const dn = norm(displayName);
+      if (!dn) throw new Error("display_name is required.");
+      const row = rows.find((x) => norm(x.display_name) === dn);
+      if (!row) throw new Error("staff row not found.");
+
+      const newName = norm(nameDrafts[dn] ?? dn);
+      const newBranch = (branchDrafts[dn] ?? norm(row.home_branch)).trim();
+      const nextRole = roleDrafts[dn] || asRole(row.role);
+      const curBranch = norm(row.home_branch);
+
+      const changes: string[] = [];
+      if (newName !== dn) changes.push(`name: ${dn} → ${newName}`);
+      if (newBranch !== curBranch) changes.push(`branch: ${curBranch || "(none)"} → ${newBranch || "(none)"}`);
+      if (nextRole !== asRole(row.role)) changes.push(`role: ${asRole(row.role)} → ${nextRole}`);
+
+      if (changes.length === 0) {
+        setMsg({ kind: "ok", text: "No changes detected." });
+        return;
+      }
+      if (!window.confirm(`Save changes for ${dn}?\n${changes.join("\n")}`)) return;
+
+      setLoading(true);
+      setInfoSavingName(displayName);
+
+      // Always save name + branch via update_info
+      await apiPost<{ ok: boolean }>("/api/admin/staff/update_info", {
+        city: norm(row.city || city),
+        old_name: dn,
+        new_name: newName,
+        new_branch: newBranch,
+        approver_name: nm,
+        pin: p,
+      });
+
+      // Save role only if it changed (uses the existing HQ-gated endpoint)
+      if (nextRole !== asRole(row.role)) {
+        await apiPost<ChangeRoleResp>("/api/admin/staff/change_role", {
+          target_staff_name: newName,
+          new_role: nextRole,
+          approver_name: nm,
+          pin: p,
+        });
+      }
+
+      setMsg({ kind: "ok", text: `Saved: ${changes.join(" | ")}` });
+      setInfoSavedName(dn);
+      await load();
+    } catch (e: any) {
+      const raw = String(e?.message || e || "");
+      setMsg({ kind: "err", text: friendlyErrorText(raw) });
+    } finally {
+      setInfoSavingName("");
       setLoading(false);
     }
   };
@@ -1012,6 +1079,12 @@ export default function AdminStaffPage() {
                         </div>
                         <div className="space-y-1">
                           <span className="font-medium text-white">{dn}</span>
+                          <input
+                            className={INPUT_CLASS + " py-1 text-xs max-w-[220px]"}
+                            placeholder="rename staff..."
+                            value={nameDrafts[dn] ?? dn}
+                            onChange={(e) => setNameDrafts((prev) => ({ ...prev, [dn]: e.target.value }))}
+                          />
                           <div className="flex flex-wrap gap-2 text-xs text-zinc-400">
                             {r.notes ? <span>{norm(r.notes)}</span> : null}
                             <span className={setupBadgeClass(setupRequired, setupCompleted)}>
@@ -1048,6 +1121,12 @@ export default function AdminStaffPage() {
                         <div className="text-xs text-zinc-500">
                           max/wk:{Number(r.max_days_per_week ?? 6)} | max/cons:{Number(r.max_consecutive_days ?? 6)}
                         </div>
+                        <input
+                          className={INPUT_CLASS + " py-1.5 text-xs max-w-[140px]"}
+                          placeholder="branch code"
+                          value={branchDrafts[dn] ?? hb}
+                          onChange={(e) => setBranchDrafts((prev) => ({ ...prev, [dn]: e.target.value }))}
+                        />
                       </div>
                     </td>
                     <td className={TABLE_CELL + " px-4 align-top"}>
@@ -1070,14 +1149,14 @@ export default function AdminStaffPage() {
                       <div className="space-y-2">
                         <span className={statusBadgeClass(st)}>{st}</span>
                         {pushKeySavedName === dn ? <div className="text-xs text-emerald-300">Push key saved</div> : null}
-                        {roleSavedName === dn ? <div className="text-xs text-emerald-300">Role saved</div> : null}
+                        {infoSavedName === dn ? <div className="text-xs text-emerald-300">Saved ✓</div> : null}
                       </div>
                     </td>
                     <td className={TABLE_CELL + " px-4 align-top"}>
                       <div className="flex flex-wrap gap-1.5">
-                        <button type="button" onClick={() => void changeRole(dn)} className={SMALL_BUTTON + " flex items-center gap-1"} disabled={loading}>
+                        <button type="button" onClick={() => void saveAll(dn)} className={SMALL_BUTTON + " flex items-center gap-1"} disabled={loading}>
                           <Pencil className="h-3 w-3" />
-                          {roleSavingName === dn ? "Saving..." : "Edit"}
+                          {infoSavingName === dn ? "Saving..." : "Edit"}
                         </button>
                         {canOpenRoleManagement ? (
                           <Link href={`/admin/staff/roles?staff_name=${encodeURIComponent(dn)}`} className={SMALL_BUTTON + " flex items-center gap-1"}>
