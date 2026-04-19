@@ -328,10 +328,6 @@ export default function AdminAbsencesPage() {
   };
 
   const branchOptions = useMemo(() => BRANCHES[city] || [], [city]);
-  const allBranchOptions = useMemo(() => [
-    ...((BRANCHES["dubai"] || []).map(b => ({ ...b, city: "dubai" as const }))),
-    ...((BRANCHES["manila"] || []).map(b => ({ ...b, city: "manila" as const }))),
-  ], []);
   const canAuth = useMemo(() => !!norm(approverName) && !!norm(pin), [approverName, pin]);
 
   // Filtered rows for history (branch filter applied client-side)
@@ -641,7 +637,7 @@ export default function AdminAbsencesPage() {
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <CalendarDays className="h-4 w-4 text-rose-400" />
-              <h2 className={T_SECTION}>Yesterday's Absence Snapshot</h2>
+              <h2 className={T_SECTION}>Yesterday&apos;s Absence Snapshot</h2>
               <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-xs text-neutral-400">
                 {yesterdayIso()}
               </span>
