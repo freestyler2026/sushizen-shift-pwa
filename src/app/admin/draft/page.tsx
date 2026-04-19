@@ -1016,7 +1016,6 @@ export default function AdminDraftPage() {
   const [newStartHour, setNewStartHour] = useState("9");
   const [newEndHour, setNewEndHour] = useState("18");
   const [editingRow, setEditingRow] = useState<DraftRow | null>(null);
-  const [viewMode, setViewMode] = useState<"table" | "schedule">("schedule");
   const [draftTab, setDraftTab] = useState<"schedule" | "manage">("schedule");
 
   const [applyMonth, setApplyMonth] = useState(targetMonth);
@@ -2351,40 +2350,6 @@ export default function AdminDraftPage() {
             ))}
           </div>
 
-          {/* View mode toggle */}
-          <div className="mt-4 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setViewMode("schedule")}
-              className={viewMode === "schedule" ? TAB_ACTIVE : TAB_INACTIVE}
-            >
-              スケジュールビュー
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("table")}
-              className={viewMode === "table" ? TAB_ACTIVE : TAB_INACTIVE}
-            >
-              表形式
-            </button>
-          </div>
-
-          {viewMode === "schedule" ? (
-            <div className="mt-4">
-              <ShiftScheduleView
-                rows={rows}
-                month={targetMonth}
-                versionId={version?.version_id || ""}
-                loading={loading}
-                onUpdateRow={handleUpdateRow}
-                onDeleteRow={handleDeleteRow}
-                onAddRow={handleAddRow}
-              />
-            </div>
-          ) : null}
-
-          {viewMode === "table" ? (
-            <>
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-5">
             <div>
               <div className={`${T_LABEL} mb-1.5`}>Date</div>
@@ -2508,8 +2473,6 @@ export default function AdminDraftPage() {
               </div>
             ))}
           </div>
-            </>
-          ) : null}
         </div>
       ) : null}
 
