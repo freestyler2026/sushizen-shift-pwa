@@ -3437,6 +3437,8 @@ export default function AdminAnalyticsPage() {
             try {
               const breakEvenQs = new URLSearchParams({
                 city,
+                date_from: summaryDateFrom,
+                date_to: summaryDateTo,
                 approver_name: approverName.trim(),
                 pin: pin.trim(),
               });
