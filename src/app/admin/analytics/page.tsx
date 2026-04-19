@@ -3918,7 +3918,7 @@ export default function AdminAnalyticsPage() {
     setPayrollSyncing(true);
     setPayrollSyncMessage("");
     try {
-      const res = await apiPost<{ ok?: boolean; duplicate?: boolean; message?: string; items?: unknown[] }>(
+      const res = await apiPost<{ ok?: boolean; duplicate?: boolean; message?: string; items?: unknown[]; resolved_folder_url?: string }>(
         "/api/admin/payroll/drive/sync",
         {
         approver_name: approverName.trim(),
@@ -3927,12 +3927,13 @@ export default function AdminAnalyticsPage() {
         }
       );
       const msg = String(res?.message || "").trim();
+      const folderNote = res?.resolved_folder_url ? ` (フォルダ: ${res.resolved_folder_url})` : "";
       if (msg) {
-        setPayrollSyncMessage(msg);
+        setPayrollSyncMessage(msg + folderNote);
       } else if (res?.duplicate) {
-        setPayrollSyncMessage("Payroll files were already imported. Reloaded data.");
+        setPayrollSyncMessage("Payroll files were already imported. Reloaded data." + folderNote);
       } else {
-        setPayrollSyncMessage("Payroll folder sync completed. Reloaded data.");
+        setPayrollSyncMessage("Payroll folder sync completed. Reloaded data." + folderNote);
       }
       await loadAll();
     } catch (e: any) {
@@ -9294,13 +9295,15 @@ export default function AdminAnalyticsPage() {
             </div>
 
             {financeSectionView === "all" || financeSectionView === "summary" ? (
-            <div id="finance-summary" className="grid grid-cols-2 gap-3 lg:grid-cols-6">
+            <div id="finance-summary">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Revenue (P&amp;L imported)</div>
                 <MetricValue
                   className={NUMERIC_BLOCK_VALUE}
                   value={plHeadline ? plHeadline.revenue : isStoreScopedView ? "—" : Number(financeRatio?.sales_total ?? 0)}
                 />
+                {plHeadline && plHeadline.revenue > 0 && <div className="mt-1 text-[10px] text-neutral-500">100% of revenue</div>}
               </div>
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Opex (P&amp;L rollup)</div>
@@ -9308,21 +9311,25 @@ export default function AdminAnalyticsPage() {
                   className={NUMERIC_BLOCK_VALUE}
                   value={plHeadline ? plHeadline.opex : isStoreScopedView ? "—" : financeBreakdown ? financeBreakdown.totalModeledCost : "—"}
                 />
+                {plHeadline && plHeadline.revenue > 0 && <div className="mt-1 text-[10px] text-neutral-500">{formatPct((plHeadline.opex / plHeadline.revenue) * 100)} of revenue</div>}
               </div>
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Operating profit (P&amp;L)</div>
                 <MetricValue
-                  className={NUMERIC_BLOCK_VALUE}
+                  className={plHeadline ? (plHeadline.profit >= 0 ? `${NUMERIC_BLOCK_VALUE} text-emerald-400` : `${NUMERIC_BLOCK_VALUE} text-rose-400`) : NUMERIC_BLOCK_VALUE}
                   value={plHeadline ? plHeadline.profit : isStoreScopedView ? "—" : Number(financeRatio?.estimated_profit_using_targets ?? 0)}
                 />
+                {plHeadline && plHeadline.revenue > 0 && <div className="mt-1 text-[10px] text-neutral-500">{formatPct((plHeadline.profit / plHeadline.revenue) * 100)} margin</div>}
               </div>
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">FLR cost total</div>
                 <MetricValue className={NUMERIC_BLOCK_VALUE} value={plHeadline ? plHeadline.flrCost : "—"} />
+                {plHeadline && plHeadline.revenue > 0 && <div className="mt-1 text-[10px] text-neutral-500">{formatPct((plHeadline.flrCost / plHeadline.revenue) * 100)} of revenue</div>}
               </div>
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Other expenses total</div>
                 <MetricValue className={NUMERIC_BLOCK_VALUE} value={plHeadline ? plHeadline.otherExpenses : "—"} />
+                {plHeadline && plHeadline.revenue > 0 && <div className="mt-1 text-[10px] text-neutral-500">{formatPct((plHeadline.otherExpenses / plHeadline.revenue) * 100)} of revenue</div>}
               </div>
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Labor ratio (P&amp;L labor ÷ revenue)</div>
@@ -9334,6 +9341,45 @@ export default function AdminAnalyticsPage() {
                     : formatPct(Number(financeRatio?.labor_ratio || 0) * 100)}
                 </div>
               </div>
+              </div>
+              {plHeadline && plHeadline.revenue > 0 && (() => {
+                const rev = plHeadline.revenue;
+                const food = Number(plVsTarget?.rollup?.food ?? 0);
+                const labor = Number(plVsTarget?.rollup?.labor_pl ?? 0);
+                const rent = Number(plVsTarget?.rollup?.rent ?? 0);
+                const other = Number(plVsTarget?.rollup?.other ?? 0);
+                const profit = plHeadline.profit;
+                const segments = [
+                  { label: "Food", value: food, color: "bg-amber-600" },
+                  { label: "Labor", value: labor, color: "bg-blue-600" },
+                  { label: "Rent", value: rent, color: "bg-violet-600" },
+                  { label: "Other", value: other, color: "bg-neutral-600" },
+                  { label: profit >= 0 ? "Profit" : "Loss", value: Math.abs(profit), color: profit >= 0 ? "bg-emerald-600" : "bg-rose-700" },
+                ].filter(s => s.value > 0);
+                return (
+                  <div className="mt-3">
+                    <div className="mb-1 text-[10px] text-neutral-500">Revenue breakdown</div>
+                    <div className="flex h-7 w-full overflow-hidden rounded-xl">
+                      {segments.map(seg => {
+                        const pct = (seg.value / rev) * 100;
+                        return (
+                          <div key={seg.label} className={`${seg.color} flex items-center justify-center overflow-hidden text-[10px] font-medium text-white`} style={{ width: `${pct}%` }} title={`${seg.label}: ${formatMoney(seg.value)} (${pct.toFixed(1)}%)`}>
+                            {pct > 8 ? `${pct.toFixed(0)}%` : ""}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-neutral-400">
+                      {segments.map(seg => (
+                        <span key={seg.label} className="flex items-center gap-1">
+                          <span className={`inline-block h-2 w-2 rounded-sm ${seg.color}`} />
+                          {seg.label} {((seg.value/rev)*100).toFixed(1)}%
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
             ) : null}
 
@@ -9489,6 +9535,35 @@ export default function AdminAnalyticsPage() {
                       <div className={NUMERIC_SMALL_BLOCK_VALUE}>{formatCount(Number(breakEven.summary.orders || 0))}</div>
                     </div>
                   </div>
+                  {/* Safety margin gauge */}
+                  {breakEven?.summary?.margin_of_safety_pct != null && (() => {
+                    const pct = Number(breakEven.summary.margin_of_safety_pct) * 100;
+                    const isAbove = pct >= 0;
+                    const fillPct = Math.min(Math.abs(pct), 100);
+                    return (
+                      <div className="mt-4 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                        <div className="mb-2 flex items-center justify-between">
+                          <div className="text-xs font-medium text-neutral-300">Safety margin gauge</div>
+                          <div className={`text-sm font-bold ${isAbove ? "text-emerald-400" : "text-rose-400"}`}>
+                            {isAbove ? "+" : ""}{formatPct(pct)}
+                          </div>
+                        </div>
+                        <div className="relative h-4 w-full overflow-hidden rounded-full bg-neutral-800">
+                          <div
+                            className={`h-full rounded-full transition-all ${isAbove ? "bg-emerald-600" : "bg-rose-600"}`}
+                            style={{ width: `${fillPct}%` }}
+                          />
+                          <div className="absolute inset-0 flex items-center px-2">
+                            <div className="w-full border-l-2 border-white/40" style={{ marginLeft: "0%" }} />
+                          </div>
+                        </div>
+                        <div className="mt-1 flex justify-between text-[10px] text-neutral-500">
+                          <span>0 (break-even)</span>
+                          <span>{isAbove ? "Above break-even ✓" : "Below break-even ✗"}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {breakEven.scope === "company" && (breakEven.stores || []).length ? (
                     <div className="mt-4 overflow-x-auto rounded-2xl border border-neutral-800 bg-neutral-950/30">
                       <table className="min-w-full text-left text-sm">
@@ -9529,6 +9604,30 @@ export default function AdminAnalyticsPage() {
                       </table>
                     </div>
                   ) : null}
+                  {breakEven.scope === "company" && (breakEven.stores || []).length > 1 && (() => {
+                    const chartData = (breakEven.stores || []).map(s => ({
+                      name: s.store_name,
+                      margin: s.margin_of_safety_pct != null ? Number(s.margin_of_safety_pct) * 100 : 0,
+                    }));
+                    return (
+                      <div className="mt-3 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                        <div className="mb-2 text-xs font-medium text-neutral-300">Store safety margins (%)</div>
+                        <ResponsiveContainer width="100%" height={120}>
+                          <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 40, left: 60, bottom: 0 }}>
+                            <XAxis type="number" domain={["auto","auto"]} tick={{ fontSize: 10, fill: "#737373" }} tickFormatter={(v) => `${v.toFixed(0)}%`} />
+                            <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: "#a3a3a3" }} width={55} />
+                            <CartesianGrid strokeDasharray="3 3" stroke="#262626" />
+                            <Tooltip formatter={(v: number) => [`${v.toFixed(1)}%`, "Safety margin"]} contentStyle={{ background: "#0a0a0a", border: "1px solid #262626", borderRadius: 8 }} />
+                            <Bar dataKey="margin" radius={[0, 4, 4, 0]}>
+                              {chartData.map((entry, i) => (
+                                <Cell key={i} fill={entry.margin >= 0 ? "#059669" : "#e11d48"} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    );
+                  })()}
                 </>
               ) : (
                 <div className="mt-4 rounded-xl border border-neutral-800 bg-neutral-950/40 px-3 py-3 text-sm text-neutral-300">
@@ -9590,6 +9689,36 @@ export default function AdminAnalyticsPage() {
                     </span>
                   </div>
                 </div>
+                {plVsTarget?.ok && (() => {
+                  const rev = Number(plVsTarget.analysis_sales ?? plVsTarget.revenue_pl ?? 0);
+                  if (rev <= 0) return null;
+                  const bkts = plVsTarget.buckets;
+                  const chartData = [
+                    { name: "Food", actual: bkts.food ? Number(bkts.food.actual_pct_of_net_sales_pos) : 0, target: bkts.food ? Number(bkts.food.target_pct)*100 : 0 },
+                    { name: "Labor", actual: laborDisplay ? laborDisplay.actualPct : 0, target: laborDisplay ? laborDisplay.targetPct : 0 },
+                    { name: "Rent", actual: bkts.rent ? Number(bkts.rent.actual_pct_of_net_sales_pos) : 0, target: bkts.rent ? Number(bkts.rent.target_pct)*100 : 0 },
+                    { name: "Other", actual: bkts.other ? Number(bkts.other.actual_pct_of_net_sales_pos) : 0, target: bkts.other ? Number(bkts.other.target_pct)*100 : 0 },
+                  ];
+                  return (
+                    <div className="mb-3 rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
+                      <div className="mb-1 text-[10px] text-neutral-500">Cost buckets: Actual vs Target (% of revenue)</div>
+                      <ResponsiveContainer width="100%" height={110}>
+                        <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
+                          <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#a3a3a3" }} />
+                          <YAxis tick={{ fontSize: 10, fill: "#737373" }} tickFormatter={(v) => `${v.toFixed(0)}%`} />
+                          <Tooltip formatter={(v: number) => `${v.toFixed(1)}%`} contentStyle={{ background: "#0a0a0a", border: "1px solid #262626", borderRadius: 8 }} />
+                          <Bar dataKey="target" name="Target" fill="#525252" radius={[2,2,0,0]} barSize={14} />
+                          <Bar dataKey="actual" name="Actual" radius={[2,2,0,0]} barSize={14}>
+                            {chartData.map((entry, i) => (
+                              <Cell key={i} fill={entry.actual <= entry.target ? "#059669" : "#e11d48"} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  );
+                })()}
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full min-w-[720px] border-collapse text-left text-xs">
                     <thead>
@@ -9600,7 +9729,8 @@ export default function AdminAnalyticsPage() {
                         <th className="py-2 pr-2">Actual (import)</th>
                         <th className="py-2 pr-2">Actual % / analysis sales</th>
                         <th className="py-2 pr-2">Δ vs target $</th>
-                        <th className="py-2">Δ vs target pp</th>
+                        <th className="py-2 pr-2">Δ vs target pp</th>
+                        <th className="py-2">Progress vs target</th>
                       </tr>
                     </thead>
                     <tbody className="text-neutral-200">
@@ -9614,7 +9744,17 @@ export default function AdminAnalyticsPage() {
                             <td className="py-2 pr-2 font-mono">{formatMoney(b.actual_amount)}</td>
                             <td className="py-2 pr-2">{formatPct(b.actual_pct_of_net_sales_pos)}</td>
                             <td className="py-2 pr-2 font-mono">{formatMoney(b.variance_amount)}</td>
-                            <td className="py-2">{b.variance_pct_points.toFixed(2)}</td>
+                            <td className="py-2 pr-2">{b.variance_pct_points.toFixed(2)}</td>
+                            <td className="py-2 pl-2">
+                              <div className="relative h-3 w-32 overflow-hidden rounded-full bg-neutral-800">
+                                <div
+                                  className={`h-full rounded-full ${b.actual_pct_of_net_sales_pos <= b.target_pct * 100 ? "bg-emerald-600" : "bg-rose-600"}`}
+                                  style={{ width: `${Math.min((b.actual_pct_of_net_sales_pos / Math.max(b.target_pct * 100, 0.01)) * 100, 150)}%`, maxWidth: "100%" }}
+                                  title={`Actual: ${formatPct(b.actual_pct_of_net_sales_pos)} vs Target: ${formatPct(b.target_pct * 100)}`}
+                                />
+                                <div className="absolute left-[66.6%] top-0 h-full w-px bg-white/20" />
+                              </div>
+                            </td>
                           </tr>
                         );
                       })}
@@ -9651,10 +9791,22 @@ export default function AdminAnalyticsPage() {
                         <td className="py-2 pr-2 font-mono">
                           {formatMoney(laborDisplay?.varianceAmount ?? 0)}
                         </td>
-                        <td className="py-2 text-[10px] text-neutral-400">
+                        <td className="py-2 pr-2 text-[10px] text-neutral-400">
                           {laborDisplay?.usePlOnly
                             ? "Store scope uses P&L labor lines"
                             : `PL vs payroll Δ ${formatMoney(laborDisplay?.variancePlVsPayroll ?? 0)}`}
+                        </td>
+                        <td className="py-2 pl-2">
+                          {laborDisplay && laborDisplay.targetPct > 0 && (
+                            <div className="relative h-3 w-32 overflow-hidden rounded-full bg-neutral-800">
+                              <div
+                                className={`h-full rounded-full ${(laborDisplay.actualPct) <= laborDisplay.targetPct ? "bg-emerald-600" : "bg-rose-600"}`}
+                                style={{ width: `${Math.min((laborDisplay.actualPct / Math.max(laborDisplay.targetPct, 0.01)) * 100, 150)}%`, maxWidth: "100%" }}
+                                title={`Actual: ${formatPct(laborDisplay.actualPct)} vs Target: ${formatPct(laborDisplay.targetPct)}`}
+                              />
+                              <div className="absolute left-[66.6%] top-0 h-full w-px bg-white/20" />
+                            </div>
+                          )}
                         </td>
                       </tr>
                     </tbody>
@@ -9781,6 +9933,59 @@ export default function AdminAnalyticsPage() {
                     </div>
                   </div>
                 </div>
+
+                {payrollSummary.grossPay > 0 && (() => {
+                  const pieData = [
+                    { name: "Basic", value: payrollSummary.basicSalary, fill: "#3b82f6" },
+                    { name: "Housing", value: payrollSummary.accommodation, fill: "#8b5cf6" },
+                    { name: "Food", value: payrollSummary.foodAllowance, fill: "#f59e0b" },
+                    { name: "Transport", value: payrollSummary.transportation, fill: "#10b981" },
+                    { name: "Other", value: payrollSummary.otherAllowance, fill: "#6b7280" },
+                  ].filter(d => d.value > 0);
+                  // Department breakdown
+                  const deptMap: Record<string, number> = {};
+                  payrollRowsFiltered.forEach(r => {
+                    const d = r.department || "Other";
+                    deptMap[d] = (deptMap[d] || 0) + Number(r.total_net_pay || 0);
+                  });
+                  const deptData = Object.entries(deptMap).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value).slice(0, 8);
+                  return (
+                    <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                        <div className="mb-2 text-xs font-medium text-neutral-300">Salary composition (gross)</div>
+                        <div className="flex items-center gap-4">
+                          <PieChart width={120} height={120}>
+                            <Pie data={pieData} cx={55} cy={55} innerRadius={30} outerRadius={55} paddingAngle={2} dataKey="value">
+                              {pieData.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                            </Pie>
+                            <Tooltip formatter={(v: number) => formatMoney(v)} contentStyle={{ background: "#0a0a0a", border: "1px solid #262626", borderRadius: 8 }} />
+                          </PieChart>
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px]">
+                            {pieData.map(d => (
+                              <div key={d.name} className="flex items-center gap-1 text-neutral-400">
+                                <span className="inline-block h-2 w-2 rounded-sm" style={{ background: d.fill }} />
+                                {d.name}: {formatMoney(d.value)}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      {deptData.length > 0 && (
+                        <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                          <div className="mb-2 text-xs font-medium text-neutral-300">Net pay by department</div>
+                          <ResponsiveContainer width="100%" height={120}>
+                            <BarChart data={deptData} layout="vertical" margin={{ top: 0, right: 40, left: 70, bottom: 0 }}>
+                              <XAxis type="number" tick={{ fontSize: 9, fill: "#737373" }} tickFormatter={(v) => formatMoney(v)} />
+                              <YAxis type="category" dataKey="name" tick={{ fontSize: 9, fill: "#a3a3a3" }} width={65} />
+                              <Tooltip formatter={(v: number) => formatMoney(v)} contentStyle={{ background: "#0a0a0a", border: "1px solid #262626", borderRadius: 8 }} />
+                              <Bar dataKey="value" fill="#0ea5e9" radius={[0, 4, 4, 0]} name="Net Pay" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div className="mt-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
                   <div className="mb-2 text-sm font-semibold">Payroll Staff Details</div>
