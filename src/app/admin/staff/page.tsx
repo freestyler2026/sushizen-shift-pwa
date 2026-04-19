@@ -822,7 +822,20 @@ export default function AdminStaffPage() {
         </div>
         <p className={T_BODY + " mb-4"}>Create only. Existing staff updates are managed from the role/status list below.</p>
 
-        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-4">
+          <div>
+            <label className={T_LABEL + " mb-1.5 block"}>
+              City <span className="text-red-400">*</span>
+            </label>
+            <select
+              className={SELECT_CLASS}
+              value={city}
+              onChange={(e) => setCity(e.target.value as City)}
+            >
+              <option value="dubai">Dubai</option>
+              <option value="manila">Manila</option>
+            </select>
+          </div>
           <div className="sm:col-span-1">
             <label className={T_LABEL + " mb-1.5 block"}>New Staff Full Name</label>
             <input
