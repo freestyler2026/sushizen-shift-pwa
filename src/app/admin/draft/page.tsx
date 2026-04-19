@@ -1017,6 +1017,7 @@ export default function AdminDraftPage() {
   const [newEndHour, setNewEndHour] = useState("18");
   const [editingRow, setEditingRow] = useState<DraftRow | null>(null);
   const [viewMode, setViewMode] = useState<"table" | "schedule">("schedule");
+  const [draftTab, setDraftTab] = useState<"schedule" | "manage">("schedule");
 
   const [applyMonth, setApplyMonth] = useState(targetMonth);
   const [applyPrepared, setApplyPrepared] = useState<BatchApplyPrepareResult | null>(null);
@@ -1768,12 +1769,70 @@ export default function AdminDraftPage() {
           <p className={T_CAPTION}>Generate next month draft for all stores in the selected city, edit by branch, then publish week by week.</p>
         </div>
       </div>
-      <div className="mb-6 flex items-center gap-2">
+      <div className="mb-4 flex items-center justify-between gap-3">
         <span className={BADGE_INFO}>
           <ShieldCheck className="h-3 w-3" />
           Verified role: {myRole || "HQ"}
         </span>
       </div>
+
+      {/* Top-level tab bar */}
+      <div className={TAB_CONTAINER}>
+        <button
+          type="button"
+          onClick={() => setDraftTab("schedule")}
+          className={draftTab === "schedule" ? TAB_ACTIVE : TAB_INACTIVE}
+        >
+          シフトビュー
+        </button>
+        <button
+          type="button"
+          onClick={() => setDraftTab("manage")}
+          className={draftTab === "manage" ? TAB_ACTIVE : TAB_INACTIVE}
+        >
+          ドラフト管理
+        </button>
+      </div>
+
+      {/* ── シフトビュー tab ── */}
+      {draftTab === "schedule" && (
+        <div className="mt-4">
+          {!versions.length ? (
+            <div className={`${GLASS_CARD} p-8 text-center`}>
+              <div className="text-sm text-neutral-400 mb-2">シフトデータがまだありません</div>
+              <div className={T_CAPTION}>「ドラフト管理」タブでドラフトを生成するとここに表示されます。</div>
+            </div>
+          ) : (
+            <>
+              <div className={`${TAB_CONTAINER} mb-4`}>
+                {versions.map((item) => (
+                  <button
+                    key={item.branch_code}
+                    type="button"
+                    onClick={() => setActiveBranchCode(item.branch_code)}
+                    className={activeBranchCode === item.branch_code ? TAB_ACTIVE : TAB_INACTIVE}
+                  >
+                    {item.branch_name}
+                  </button>
+                ))}
+              </div>
+              <ShiftScheduleView
+                rows={rows}
+                month={targetMonth}
+                versionId={version?.version_id || ""}
+                loading={loading}
+                onUpdateRow={handleUpdateRow}
+                onDeleteRow={handleDeleteRow}
+                onAddRow={handleAddRow}
+              />
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── ドラフト管理 tab ── */}
+      {draftTab === "manage" && (
+        <>
 
       <div className={`${GLASS_CARD} p-6`}>
         <div className="mb-5 flex items-center gap-2">
@@ -2495,6 +2554,8 @@ export default function AdminDraftPage() {
           </div>
         </div>
       ) : null}
+        </>
+      )}
     </motion.div>
   );
 }
