@@ -110,6 +110,12 @@ function norm(s: unknown) {
   return String(s ?? "").trim();
 }
 
+// 予定された正規の休みは除外（欠勤のみ表示）
+const PLANNED_LEAVE_TYPES = new Set(["DAY_OFF", "VACATION_LEAVE", "MATERNITY_LEAVE", "BEREAVEMENT_LEAVE"]);
+function isUnplannedAbsence(type: string): boolean {
+  return !PLANNED_LEAVE_TYPES.has(norm(type).toUpperCase());
+}
+
 function toTitleAbsenceType(t: string) {
   const x = norm(t).toUpperCase();
   const found = ABSENCE_TYPES.find((a) => a.value === x);
@@ -423,8 +429,8 @@ export default function AdminAbsencesPage() {
         apiGet<AbsenceListResp>(`/api/admin/absences?${makeQs("dubai")}`),
         apiGet<AbsenceListResp>(`/api/admin/absences?${makeQs("manila")}`),
       ]);
-      setReportDubai(Array.isArray(rd?.rows) ? rd.rows : []);
-      setReportManila(Array.isArray(rm?.rows) ? rm.rows : []);
+      setReportDubai(Array.isArray(rd?.rows) ? rd.rows.filter(r => isUnplannedAbsence(r.absence_type)) : []);
+      setReportManila(Array.isArray(rm?.rows) ? rm.rows.filter(r => isUnplannedAbsence(r.absence_type)) : []);
     } catch (e: any) {
       setReportError(e?.message || String(e));
       setReportDubai(null);
