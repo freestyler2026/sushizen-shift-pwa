@@ -20,6 +20,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { canAccessAdminNav, getAuth } from "@/lib/auth";
+import ShiftScheduleView from "./ShiftScheduleView";
 import { BRANCHES, labelOf, type BranchCode, type City } from "@/lib/branches";
 import { fmtNum } from "@/lib/formatters";
 import {
@@ -1015,6 +1016,7 @@ export default function AdminDraftPage() {
   const [newStartHour, setNewStartHour] = useState("9");
   const [newEndHour, setNewEndHour] = useState("18");
   const [editingRow, setEditingRow] = useState<DraftRow | null>(null);
+  const [viewMode, setViewMode] = useState<"table" | "schedule">("schedule");
 
   const [applyMonth, setApplyMonth] = useState(targetMonth);
   const [applyPrepared, setApplyPrepared] = useState<BatchApplyPrepareResult | null>(null);
@@ -1379,6 +1381,67 @@ export default function AdminDraftPage() {
       }
     } catch (e: any) {
       setError(String(e?.message || e || "Failed to delete row"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleUpdateRow(
+    id: string,
+    fields: { work_date: string; staff_name: string; role: string; start_hour: number; end_hour: number }
+  ) {
+    if (!version?.version_id) return;
+    setLoading(true);
+    setError("");
+    try {
+      await apiPost(`/api/draft/rows/update`, { row_id: id, ...fields });
+      const rr = await apiGet<{ ok: boolean; version_id: string; rows: DraftRow[] }>(
+        `/api/draft/rows${qs({ version_id: version.version_id })}`
+      );
+      setRows(sortRows(rr.rows || []));
+    } catch (e: any) {
+      setError(String(e?.message || e || "Failed to update row"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDeleteRow(id: string) {
+    if (!version?.version_id) return;
+    setLoading(true);
+    setError("");
+    try {
+      await apiPost(`/api/draft/rows/delete_by_id`, { row_id: id });
+      const rr = await apiGet<{ ok: boolean; version_id: string; rows: DraftRow[] }>(
+        `/api/draft/rows${qs({ version_id: version.version_id })}`
+      );
+      setRows(sortRows(rr.rows || []));
+    } catch (e: any) {
+      setError(String(e?.message || e || "Failed to delete row"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleAddRow(date: string, staffName: string, role: string, start: number, end: number) {
+    if (!version?.version_id) return;
+    setLoading(true);
+    setError("");
+    try {
+      await apiPost(`/api/draft/rows/upsert`, {
+        version_id: version.version_id,
+        work_date: date,
+        staff_name: staffName,
+        role,
+        start_hour: start,
+        end_hour: end,
+      });
+      const rr = await apiGet<{ ok: boolean; version_id: string; rows: DraftRow[] }>(
+        `/api/draft/rows${qs({ version_id: version.version_id })}`
+      );
+      setRows(sortRows(rr.rows || []));
+    } catch (e: any) {
+      setError(String(e?.message || e || "Failed to add row"));
     } finally {
       setLoading(false);
     }
@@ -2229,6 +2292,40 @@ export default function AdminDraftPage() {
             ))}
           </div>
 
+          {/* View mode toggle */}
+          <div className="mt-4 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setViewMode("schedule")}
+              className={viewMode === "schedule" ? TAB_ACTIVE : TAB_INACTIVE}
+            >
+              スケジュールビュー
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("table")}
+              className={viewMode === "table" ? TAB_ACTIVE : TAB_INACTIVE}
+            >
+              表形式
+            </button>
+          </div>
+
+          {viewMode === "schedule" ? (
+            <div className="mt-4">
+              <ShiftScheduleView
+                rows={rows}
+                month={targetMonth}
+                versionId={version?.version_id || ""}
+                loading={loading}
+                onUpdateRow={handleUpdateRow}
+                onDeleteRow={handleDeleteRow}
+                onAddRow={handleAddRow}
+              />
+            </div>
+          ) : null}
+
+          {viewMode === "table" ? (
+            <>
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-5">
             <div>
               <div className={`${T_LABEL} mb-1.5`}>Date</div>
@@ -2352,6 +2449,8 @@ export default function AdminDraftPage() {
               </div>
             ))}
           </div>
+            </>
+          ) : null}
         </div>
       ) : null}
 
