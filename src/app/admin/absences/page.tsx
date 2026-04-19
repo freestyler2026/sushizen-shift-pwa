@@ -110,7 +110,7 @@ function norm(s: unknown) {
   return String(s ?? "").trim();
 }
 
-// 予定された正規の休みは除外（欠勤のみ表示）
+// 正規休暇を除外し、欠勤（ABSENT / MEDICAL_LEAVE / INJURY / HOSPITAL）のみ表示
 const PLANNED_LEAVE_TYPES = new Set(["DAY_OFF", "VACATION_LEAVE", "MATERNITY_LEAVE", "BEREAVEMENT_LEAVE"]);
 function isUnplannedAbsence(type: string): boolean {
   return !PLANNED_LEAVE_TYPES.has(norm(type).toUpperCase());
