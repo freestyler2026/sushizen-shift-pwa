@@ -2079,16 +2079,15 @@ export default function AdminAnalyticsPage() {
   const [authState, setAuthState] = useState(() => stripStepUpForFreshVisit(getAuth()));
   const auth = authState;
   const defaultAnalyticsRange = currentCalendarMonthRangeThroughTodayIso();
-  /** Sales Summary / Management P&L: imported monthly P&L lags; default to last closed calendar month. */
-  const defaultSummaryRange = previousCalendarMonthRangeIso();
 
   const [city, setCity] = useState<string>((auth?.city || "dubai").toLowerCase());
   const [dateFrom, setDateFrom] = useState(defaultAnalyticsRange.from);
   const [dateTo, setDateTo] = useState(defaultAnalyticsRange.to);
-  const [summaryDateFrom, setSummaryDateFrom] = useState(defaultSummaryRange.from);
-  const [summaryDateTo, setSummaryDateTo] = useState(defaultSummaryRange.to);
+  /** Sales Summary / Management P&L: imported monthly P&L lags; default to last closed calendar month. */
+  const [summaryDateFrom, setSummaryDateFrom] = useState(() => previousCalendarMonthRangeIso().from);
+  const [summaryDateTo, setSummaryDateTo] = useState(() => previousCalendarMonthRangeIso().to);
   const [complianceMonthKey, setComplianceMonthKey] = useState(defaultAnalyticsRange.from.slice(0, 7));
-  const [summaryMonthKey, setSummaryMonthKey] = useState(defaultSummaryRange.from.slice(0, 7));
+  const [summaryMonthKey, setSummaryMonthKey] = useState(() => previousCalendarMonthRangeIso().from.slice(0, 7));
   const [payrollStaffName, setPayrollStaffName] = useState("");
   const [branchCode, setBranchCode] = useState("");
   const [summaryBranchCode, setSummaryBranchCode] = useState("");
@@ -2908,6 +2907,18 @@ export default function AdminAnalyticsPage() {
     setHourlyStoreName("");
     resetComparisonState();
   }, [city]);
+
+  // Management P&L is month-lagged: never keep "this month (1st → today)" while on this tab.
+  useEffect(() => {
+    if (analyticsTab !== "finance") return;
+    if (!financeStepUpReady) return;
+    const cur = currentCalendarMonthRangeThroughTodayIso();
+    if (summaryDateFrom === cur.from && summaryDateTo === cur.to) {
+      const pm = previousCalendarMonthRangeIso();
+      setSummaryDateFrom(pm.from);
+      setSummaryDateTo(pm.to);
+    }
+  }, [analyticsTab, financeStepUpReady, summaryDateFrom, summaryDateTo]);
 
   useEffect(() => {
     if (analyticsTab !== "finance") return;

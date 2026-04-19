@@ -13,6 +13,7 @@ type PresetId =
   | "yesterday"
   | "this_week"
   | "this_month"
+  | "last_month"
   | "this_year"
   | "last_7_days"
   | "last_15_days"
@@ -51,6 +52,15 @@ const PRESETS: Preset[] = [
     id: "this_month",
     label: "This month",
     getRange: (today) => ({ from: toIso(startOfMonth(today)), to: toIso(today) }),
+  },
+  {
+    id: "last_month",
+    label: "Last month",
+    getRange: (today) => {
+      const lastDayPrev = new Date(today.getFullYear(), today.getMonth(), 0);
+      const firstDayPrev = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      return { from: toIso(firstDayPrev), to: toIso(lastDayPrev) };
+    },
   },
   {
     id: "this_year",
