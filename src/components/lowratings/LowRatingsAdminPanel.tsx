@@ -279,7 +279,7 @@ export function LowRatingsAdminPanel() {
     return [...set].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
   }, [approverOptions, approverName]);
 
-  const { rows, loading, error, total, ratingCounts, refetch, addRow, deleteRow, updateCell } =
+  const { rows, loading, error, total, ratingCounts, refetch, addRow, deleteRow, updateCell, commitDraft } =
     useGridData(city, approverName, pin, dateFrom, dateTo, canLoad, filterBranch, filterAggregator);
 
   const picSelectOptions = useMemo(() => {
@@ -465,6 +465,7 @@ export function LowRatingsAdminPanel() {
         updateCell={updateCell}
         deleteRow={deleteRow}
         addRow={addRow}
+        commitDraft={commitDraft}
         picOptions={picSelectOptions}
       />
     </div>

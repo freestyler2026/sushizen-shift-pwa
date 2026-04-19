@@ -5,6 +5,8 @@ export type GridRowState = {
   id?: number;
   _saving?: boolean;
   _error?: boolean;
+  /** True for rows that have never been persisted yet. updateCell skips auto-save for drafts. */
+  _isDraft?: boolean;
   order_date: string;
   aggregator: string;
   branch: string;
@@ -20,7 +22,7 @@ export type GridRowState = {
 };
 
 /** Editable data columns only (no grid meta fields). */
-export type DataColumnKey = Exclude<keyof GridRowState, "_localId" | "id" | "_saving" | "_error">;
+export type DataColumnKey = Exclude<keyof GridRowState, "_localId" | "id" | "_saving" | "_error" | "_isDraft">;
 
 export type ColDef = {
   key: DataColumnKey;
@@ -72,6 +74,7 @@ export function newEmptyRow(city: LowRatingCity, localId: string): GridRowState 
   const today = new Date().toISOString().slice(0, 10);
   return {
     _localId: localId,
+    _isDraft: true,
     order_date: today,
     aggregator: city === "manila" ? "foodpanda" : "careem",
     branch: city === "manila" ? "Taft" : "Business Bay",

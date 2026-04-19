@@ -205,7 +205,8 @@ export function useGridData(
       setRows((prev) => {
         const next = prev.map((r) => (r._localId === localId ? applyCellEdit(r, key, value) : r));
         const merged = next.find((r) => r._localId === localId);
-        if (merged) {
+        // Draft rows (never saved) skip auto-persist — user must click "Save" explicitly
+        if (merged && !merged._isDraft) {
           const snapshot = { ...merged };
           queueMicrotask(() => void persistRow(localId, snapshot));
         }
@@ -215,10 +216,23 @@ export function useGridData(
     [persistRow],
   );
 
+  /** Save a draft row to the API and clear its draft flag. */
+  const commitDraft = useCallback(
+    async (localId: string) => {
+      const row = rowsRef.current.find((r) => r._localId === localId);
+      if (!row) return;
+      // Clear draft flag first so the row looks committed in the UI immediately
+      setRows((prev) => prev.map((r) => (r._localId === localId ? { ...r, _isDraft: false } : r)));
+      await persistRow(localId, { ...row, _isDraft: false });
+    },
+    [persistRow],
+  );
+
   const addRow = useCallback(() => {
     const localId =
       typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `new-${Date.now()}`;
-    setRows((prev) => [...prev, newEmptyRow(city, localId)]);
+    // Prepend so the new row is visible at the top (headers always in view)
+    setRows((prev) => [newEmptyRow(city, localId), ...prev]);
     queueMicrotask(() => {
       document.querySelector<HTMLButtonElement>(`[data-lr-focus="${localId}-order_date"]`)?.click();
     });
@@ -261,5 +275,6 @@ export function useGridData(
     addRow,
     deleteRow,
     updateCell,
+    commitDraft,
   };
 }

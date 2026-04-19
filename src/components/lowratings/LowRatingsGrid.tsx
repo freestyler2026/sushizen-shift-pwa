@@ -148,6 +148,7 @@ export function LowRatingsGrid({
   updateCell,
   deleteRow,
   addRow,
+  commitDraft,
   picOptions = [],
 }: {
   city: LowRatingCity;
@@ -156,6 +157,7 @@ export function LowRatingsGrid({
   updateCell: (localId: string, key: keyof GridRowState, value: unknown) => void;
   deleteRow: (localId: string) => void | Promise<void>;
   addRow: () => void;
+  commitDraft: (localId: string) => Promise<void>;
   /** Staff names for PIC / approver column (select). */
   picOptions?: string[];
 }) {
@@ -260,7 +262,7 @@ export function LowRatingsGrid({
               ))}
               <th
                 className="border border-[#333] px-2 py-2 text-center text-[10px] font-semibold uppercase text-zinc-500"
-                style={{ width: 52 }}
+                style={{ width: 64 }}
               >
                 {" "}
               </th>
@@ -271,6 +273,7 @@ export function LowRatingsGrid({
               <tr
                 key={row._localId}
                 className={
+                  (row._isDraft ? "bg-violet-950/40 " : "") +
                   (row._error ? "bg-[#3b0f0f]/80 " : "") +
                   (row._saving ? "opacity-60 " : "") +
                   "hover:bg-white/5"
@@ -338,14 +341,27 @@ export function LowRatingsGrid({
                   );
                 })}
                 <td className="border border-[#333] p-1 text-center">
-                  <button
-                    type="button"
-                    title="Delete row"
-                    className="rounded p-1.5 text-red-400 hover:bg-white/10"
-                    onClick={() => void deleteRow(row._localId)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  <div className="flex flex-col items-center gap-1">
+                    {row._isDraft ? (
+                      <button
+                        type="button"
+                        title="Save new row"
+                        disabled={row._saving}
+                        className="rounded px-2 py-1 text-[10px] font-semibold text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-40"
+                        onClick={() => void commitDraft(row._localId)}
+                      >
+                        {row._saving ? "…" : "Save"}
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      title="Delete row"
+                      className="rounded p-1.5 text-red-400 hover:bg-white/10"
+                      onClick={() => void deleteRow(row._localId)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
