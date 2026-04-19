@@ -3443,6 +3443,10 @@ export default function AdminAnalyticsPage() {
                 pin: pin.trim(),
               });
               if (plStoreName.trim()) breakEvenQs.set("store_name", plStoreName.trim());
+              if (city === "dubai") {
+                if (summaryBranchCode.trim()) breakEvenQs.set("sales_branch_code", summaryBranchCode.trim());
+                if (summaryBrandName.trim()) breakEvenQs.set("sales_brand_name", summaryBrandName.trim());
+              }
               const breakEvenRes = await apiGet<BreakEvenResp>(`/api/admin/finance/break-even?${breakEvenQs.toString()}`);
               setBreakEven(breakEvenRes || null);
             } catch (e) {
