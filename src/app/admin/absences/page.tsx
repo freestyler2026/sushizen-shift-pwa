@@ -133,9 +133,23 @@ function badgeClassForType(t: string) {
   return BADGE_INFO;
 }
 
-// Fixed: extract error message before throwing so the catch block doesn't catch the throw itself
+function buildHeaders(extra: Record<string, string> = {}): HeadersInit {
+  const h: Record<string, string> = { "Content-Type": "application/json", ...extra };
+  if (typeof window !== "undefined") {
+    try {
+      const raw = window.localStorage.getItem("sushizen_shift_auth");
+      const obj = raw ? JSON.parse(raw) : null;
+      if (obj?.accessToken) h["Authorization"] = `Bearer ${obj.accessToken}`;
+    } catch { /* ignore */ }
+  }
+  return h;
+}
+
 async function apiGet<T = any>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}${path}`, {
+    cache: "no-store",
+    headers: buildHeaders(),
+  });
   const text = await res.text();
 
   if (!res.ok) {
@@ -155,7 +169,7 @@ async function apiGet<T = any>(path: string): Promise<T> {
 async function apiPost<T = any>(path: string, body: any): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: buildHeaders(),
     body: JSON.stringify(body),
   });
 
@@ -727,16 +741,8 @@ export default function AdminAbsencesPage() {
             </div>
           )}
 
-          {/* Error */}
-          {reportError && (
-            <div className={`${BADGE_ERROR} w-full justify-start rounded-xl px-4 py-3 text-sm mb-2`}>
-              <AlertCircle className="h-4 w-4 flex-shrink-0" />
-              {reportError}
-            </div>
-          )}
-
           {/* Results */}
-          {!reportError && reportDubai !== null && reportManila !== null && (
+          {reportDubai !== null && reportManila !== null && (
             reportTotal === 0 ? (
               <div className="flex flex-col items-center py-8 gap-2">
                 <CheckCircle2 className="h-8 w-8 text-emerald-500/50" />
