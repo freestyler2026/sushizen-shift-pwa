@@ -1489,6 +1489,21 @@ function formatBreakEvenDays(value?: number | null) {
   return `${formatDecimal(Number(value), 1)} days`;
 }
 
+// ── Aggregator colour palette ────────────────────────────────────────────────
+const AGGREGATOR_COLORS: Record<string, { bg: string; text: string; bar: string }> = {
+  keeta:     { bg: "bg-blue-500/15",   text: "text-blue-300",   bar: "bg-blue-500" },
+  careem:    { bg: "bg-emerald-500/15",text: "text-emerald-300",bar: "bg-emerald-500" },
+  noon:      { bg: "bg-amber-500/15",  text: "text-amber-300",  bar: "bg-amber-500" },
+  talabat:   { bg: "bg-orange-500/15", text: "text-orange-300", bar: "bg-orange-500" },
+  smiles:    { bg: "bg-purple-500/15", text: "text-purple-300", bar: "bg-purple-500" },
+  eateasy:   { bg: "bg-pink-500/15",   text: "text-pink-300",   bar: "bg-pink-500" },
+  deliveroo: { bg: "bg-teal-500/15",   text: "text-teal-300",   bar: "bg-teal-500" },
+  unknown:   { bg: "bg-neutral-700/30",text: "text-neutral-400",bar: "bg-neutral-500" },
+};
+function aggColor(name: string) {
+  return AGGREGATOR_COLORS[(name || "").toLowerCase()] ?? AGGREGATOR_COLORS.unknown;
+}
+
 function AggregatorBreakdown({ items, dense = false }: { items?: PosAggregatorMetric[]; dense?: boolean }) {
   const rows = (items || []).filter(
     (row) => String(row.aggregator_name || "").trim() || Number(row.order_count_non_cancelled || 0) || Number(row.net_revenue || 0),
@@ -1496,19 +1511,29 @@ function AggregatorBreakdown({ items, dense = false }: { items?: PosAggregatorMe
   if (!rows.length) {
     return <div className="text-[11px] text-neutral-500">No aggregator breakdown</div>;
   }
+  const totalOrders = rows.reduce((s, r) => s + Number(r.order_count_non_cancelled || 0), 0);
   return (
-    <div className={dense ? "space-y-1" : "space-y-2"}>
-      {rows.map((row) => (
-        <div
-          key={`${row.aggregator_name}-${row.order_count_non_cancelled}-${row.net_revenue}`}
-          className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border border-neutral-800/80 bg-neutral-950/50 px-2 py-1.5"
-        >
-          <div className="text-xs text-neutral-300">{row.aggregator_name || "Unknown"}</div>
-          <div className="text-[11px] text-neutral-500 tabular-nums">
-            {formatCount(Number(row.order_count_non_cancelled || 0))} orders · Net {formatMoney(Number(row.net_revenue || 0))}
+    <div className={dense ? "space-y-1.5" : "space-y-2"}>
+      {rows.map((row) => {
+        const cnt = Number(row.order_count_non_cancelled || 0);
+        const pct = totalOrders > 0 ? (cnt / totalOrders) * 100 : 0;
+        const col = aggColor(row.aggregator_name || "");
+        return (
+          <div key={`${row.aggregator_name}-${cnt}-${row.net_revenue}`}>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-medium ${col.bg} ${col.text}`}>
+                {row.aggregator_name || "Unknown"}
+              </span>
+              <span className="text-[11px] tabular-nums text-neutral-400">
+                {formatCount(cnt)} <span className="text-neutral-600">·</span> {formatMoney(Number(row.net_revenue || 0))}
+              </span>
+            </div>
+            <div className="h-1 w-full overflow-hidden rounded-full bg-white/5">
+              <div className={`h-full rounded-full ${col.bar}`} style={{ width: `${pct.toFixed(1)}%` }} />
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -7449,29 +7474,105 @@ export default function AdminAnalyticsPage() {
 
             {salesSectionView === "all" || salesSectionView === "brands" ? (
               <>
-            {salesCity === "dubai" && brandOrderRanking.length ? (
+            {salesCity === "dubai" && brandOrderRanking.length ? (() => {
+              const totalOrders = brandOrderRanking.reduce((s, r) => s + r.orders, 0);
+              const totalNet    = brandOrderRanking.reduce((s, r) => s + r.netSales, 0);
+              const BRAND_ACCENTS: Record<string, { ring: string; glow: string; dot: string }> = {
+                "SushiZEN":       { ring: "border-violet-500/30", glow: "bg-violet-500/6",  dot: "bg-violet-400" },
+                "RamenZEN":       { ring: "border-amber-500/30",  glow: "bg-amber-500/6",   dot: "bg-amber-400" },
+                "All Veggie Sushi":{ ring: "border-emerald-500/30",glow:"bg-emerald-500/6", dot: "bg-emerald-400" },
+              };
+              return (
               <div id="sales-brands" className={GLASS_CARD + " p-5"}>
-                <div className="mb-3 flex items-center gap-2">
+                <div className="mb-4 flex items-center gap-2">
                   <Table2 className="h-4 w-4 text-violet-400" />
-                  <h2 className={SECTION_TITLE}>Dubai — orders &amp; net sales by brand and aggregator</h2>
+                  <h2 className={SECTION_TITLE}>Brand &amp; Aggregator Breakdown</h2>
+                  <span className="ml-auto text-[11px] text-neutral-500">
+                    Total {formatCount(totalOrders)} orders · Net {formatMoney(totalNet)}
+                  </span>
                 </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  {brandOrderRanking.map((row) => (
-                    <div key={row.brand} className={KPI_CARD}>
-                      <div className="text-xs font-medium text-zinc-400">{row.brand}</div>
-                      <div className="mt-2 text-2xl font-bold text-white tabular-nums">{formatCount(row.orders)}</div>
-                      <div className="text-[11px] text-zinc-500">orders (non-cancelled)</div>
-                      <div className="mt-2 text-sm text-zinc-200">Net {formatMoney(row.netSales)}</div>
-                      <div className="text-[11px] text-zinc-500">Gross {formatMoney(row.grossSales)}</div>
-                      <div className="mt-3">
-                        <div className="mb-2 text-[11px] uppercase tracking-wide text-zinc-500">Aggregator mix</div>
-                        <AggregatorBreakdown items={row.aggregators} dense />
+
+                {/* Brand share bar */}
+                <div className="mb-5">
+                  <div className="mb-1.5 flex h-3 w-full overflow-hidden rounded-full">
+                    {brandOrderRanking.map((row) => {
+                      const pct = totalOrders > 0 ? (row.orders / totalOrders) * 100 : 0;
+                      const accent = BRAND_ACCENTS[row.brand] ?? { dot: "bg-neutral-500" };
+                      return (
+                        <div key={row.brand} title={`${row.brand}: ${pct.toFixed(1)}%`}
+                          className={`h-full transition-all ${accent.dot}`}
+                          style={{ width: `${pct.toFixed(2)}%` }} />
+                      );
+                    })}
+                  </div>
+                  <div className="flex gap-4">
+                    {brandOrderRanking.map((row) => {
+                      const pct = totalOrders > 0 ? (row.orders / totalOrders) * 100 : 0;
+                      const accent = BRAND_ACCENTS[row.brand] ?? { dot: "bg-neutral-500" };
+                      return (
+                        <div key={row.brand} className="flex items-center gap-1.5">
+                          <span className={`h-2 w-2 rounded-full flex-shrink-0 ${accent.dot}`} />
+                          <span className="text-[11px] text-neutral-400">{row.brand}</span>
+                          <span className="text-[11px] font-semibold text-neutral-200">{pct.toFixed(1)}%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Brand cards */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  {brandOrderRanking.map((row) => {
+                    const pct = totalOrders > 0 ? (row.orders / totalOrders) * 100 : 0;
+                    const netPct = totalNet > 0 ? (row.netSales / totalNet) * 100 : 0;
+                    const accent = BRAND_ACCENTS[row.brand] ?? { ring: "border-neutral-700/50", glow: "", dot: "bg-neutral-500" };
+                    return (
+                      <div key={row.brand} className={`rounded-2xl border p-4 ${accent.ring} ${accent.glow}`}>
+                        {/* Header */}
+                        <div className="mb-3 flex items-center gap-2">
+                          <span className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${accent.dot}`} />
+                          <span className="text-sm font-semibold text-white">{row.brand}</span>
+                        </div>
+
+                        {/* Orders KPI */}
+                        <div className="mb-1">
+                          <div className="flex items-end justify-between gap-2">
+                            <span className="text-3xl font-bold tabular-nums text-white">{formatCount(row.orders)}</span>
+                            <span className="mb-1 text-xs font-semibold text-neutral-300">{pct.toFixed(1)}%</span>
+                          </div>
+                          <div className="text-[11px] text-neutral-500">orders (non-cancelled)</div>
+                          <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-white/5">
+                            <div className={`h-full rounded-full ${accent.dot}`} style={{ width: `${pct.toFixed(2)}%` }} />
+                          </div>
+                        </div>
+
+                        {/* Revenue */}
+                        <div className="mt-3 rounded-xl border border-white/5 bg-white/3 px-3 py-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] text-neutral-500">Net sales</span>
+                            <span className="text-xs font-semibold tabular-nums text-neutral-200">{formatMoney(row.netSales)}</span>
+                          </div>
+                          <div className="mt-0.5 h-0.5 w-full overflow-hidden rounded-full bg-white/5">
+                            <div className={`h-full rounded-full ${accent.dot} opacity-60`} style={{ width: `${netPct.toFixed(2)}%` }} />
+                          </div>
+                          <div className="mt-1 flex items-center justify-between">
+                            <span className="text-[11px] text-neutral-600">Gross</span>
+                            <span className="text-[11px] tabular-nums text-neutral-500">{formatMoney(row.grossSales)}</span>
+                          </div>
+                        </div>
+
+                        {/* Aggregator breakdown */}
+                        <div className="mt-3">
+                          <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-neutral-600">Aggregator mix</div>
+                          <AggregatorBreakdown items={row.aggregators} dense />
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
-            ) : null}
+              );
+            })() : null}
 
             <div className={GLASS_CARD + " overflow-hidden"}>
               <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
