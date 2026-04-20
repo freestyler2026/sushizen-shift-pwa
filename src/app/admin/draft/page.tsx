@@ -599,7 +599,8 @@ function OperatingHoursPanel({
     setAddError("");
     if (!dateFrom || !dateTo) { setAddError("Start date and end date are required."); return; }
     const oh = parseInt(openHour), ch = parseInt(closeHour);
-    if (isNaN(oh) || isNaN(ch) || oh >= ch) { setAddError("Open hour must be less than close hour."); return; }
+    if (isNaN(oh) || isNaN(ch) || oh < 0 || oh > 23 || ch < 1 || ch > 30) { setAddError("Open: 0–23. Close: 1–30 (25=1am next day, 26=2am next day…)"); return; }
+    if (ch <= oh && ch <= 24) { setAddError("Same-day close must be after open. For next-day (e.g. 2am) enter 26."); return; }
     try {
       const res = await fetch("/api/admin/operating-hours", {
         method: "POST",
@@ -619,7 +620,7 @@ function OperatingHoursPanel({
 
   useEffect(() => { if (open) loadRecords(); }, [open, targetMonth, city]);
 
-  const fmt = (h: number) => `${String(h).padStart(2, "0")}:00`;
+  const fmt = (h: number) => h >= 25 ? `${String(h - 24).padStart(2, "0")}:00+1` : `${String(h).padStart(2, "0")}:00`;
 
   return (
     <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 p-5">
@@ -652,8 +653,8 @@ function OperatingHoursPanel({
               <input type="number" min={0} max={23} value={openHour} onChange={(e) => setOpenHour(e.target.value)} className={INPUT_CLASS + " text-sm"} />
             </div>
             <div>
-              <label className="block text-xs text-neutral-400 mb-1">Close hour (1–24)</label>
-              <input type="number" min={1} max={24} value={closeHour} onChange={(e) => setCloseHour(e.target.value)} className={INPUT_CLASS + " text-sm"} />
+              <label className="block text-xs text-neutral-400 mb-1">Close hour (1–30, 25+=next day)</label>
+              <input type="number" min={1} max={30} value={closeHour} onChange={(e) => setCloseHour(e.target.value)} className={INPUT_CLASS + " text-sm"} />
             </div>
             <div className="flex items-end">
               <button type="button" onClick={addRecord} className={PRIMARY_BUTTON + " w-full text-sm"}>Add</button>
@@ -662,7 +663,7 @@ function OperatingHoursPanel({
           {addError && <p className="text-xs text-rose-400">{addError}</p>}
           {/* Quick presets */}
           <div className="flex flex-wrap gap-2">
-            {[["11:00–21:00", "11", "21"], ["12:00–22:00", "12", "22"], ["10:00–20:00", "10", "20"]].map(([lbl, o, c]) => (
+            {[["11:00–21:00", "11", "21"], ["12:00–22:00", "12", "22"], ["10:00–20:00", "10", "20"], ["11:00–02:00+1", "11", "26"], ["11:00–05:00+1", "11", "29"]].map(([lbl, o, c]) => (
               <button key={lbl} type="button" onClick={() => { setOpenHour(o); setCloseHour(c); }} className="rounded-lg border border-sky-500/30 px-3 py-1 text-xs text-sky-300 hover:bg-sky-500/10">{lbl}</button>
             ))}
           </div>
