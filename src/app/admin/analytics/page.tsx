@@ -7323,131 +7323,174 @@ export default function AdminAnalyticsPage() {
             </div>
             ) : null}
 
-            {salesSectionView === "all" || salesSectionView === "operationTime" ? (
-            <div id="sales-operation-time" className={GLASS_CARD + " p-5"}>
-              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <div className="mb-1 flex items-center gap-2">
+            {salesSectionView === "all" || salesSectionView === "operationTime" ? (() => {
+              const OP_TARGET = 18; // minutes
+              // color helper: for time, LOWER = BETTER
+              function opTimeColor(min: number | null | undefined): string {
+                if (min == null) return "text-neutral-400";
+                if (min <= 17) return "text-emerald-400";
+                if (min <= 18) return "text-blue-400";
+                if (min <= 20) return "text-amber-400";
+                return "text-rose-400";
+              }
+              function opTimeBg(min: number | null | undefined): string {
+                if (min == null) return "bg-neutral-500";
+                if (min <= 17) return "bg-emerald-500";
+                if (min <= 18) return "bg-blue-500";
+                if (min <= 20) return "bg-amber-500";
+                return "bg-rose-500";
+              }
+              // For Δ: negative = got FASTER = good (green); positive = got SLOWER = bad (red)
+              function deltaTone(pct: number | null | undefined) {
+                if (pct == null) return { cls: "text-neutral-500 bg-neutral-700/20", arrow: "" };
+                if (pct < -1) return { cls: "text-emerald-300 bg-emerald-500/15", arrow: "↓" };
+                if (pct > 1)  return { cls: "text-rose-300 bg-rose-500/15",     arrow: "↑" };
+                return { cls: "text-neutral-400 bg-neutral-700/20", arrow: "→" };
+              }
+              const items = operationTimeAnalytics?.items || [];
+              const maxMin = Math.max(OP_TARGET + 4, ...items.map(r => Number(r.overall_completion_minutes || 0)));
+              const avgMin = operationTimeSummary.avgOverallMinutes;
+              const avgColor = opTimeColor(Number(avgMin));
+              const avgBg = opTimeBg(Number(avgMin));
+              return (
+              <div id="sales-operation-time" className={GLASS_CARD + " p-5"}>
+                {/* Header */}
+                <div className="mb-5 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
                     <Table2 className="h-4 w-4 text-violet-400" />
                     <h2 className={SECTION_TITLE}>Operation Time</h2>
-                  </div>
-                  <div className={T_CAPTION}>
-                    Daily UrbanPiper screenshots are OCR-parsed with a fixed template. This section is currently city-wide only.
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className={T_CAPTION}>
-                    Scope: <span className="text-zinc-300">Company total</span>
+                    <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-neutral-500">Target ≤ {OP_TARGET} min</span>
                   </div>
                   <button
                     type="button"
-                    onClick={() =>
-                      downloadCsv(
-                        `${exportBaseName}_operation_time.csv`,
-                        (operationTimeAnalytics?.items || []).map((row) => ({
-                          date: row.work_date,
-                          completion: row.overall_completion_minutes,
-                          completion_delta_pct: row.overall_change_pct,
-                          acknowledging_seconds: row.acknowledging_seconds,
-                          preparing_minutes: row.preparing_minutes,
-                          dispatching_minutes: row.dispatching_minutes,
-                          delivering_minutes: row.delivering_minutes,
-                        })),
-                      )
-                    }
+                    onClick={() => downloadCsv(`${exportBaseName}_operation_time.csv`,
+                      items.map((row) => ({ date: row.work_date, completion: row.overall_completion_minutes, completion_delta_pct: row.overall_change_pct, acknowledging_seconds: row.acknowledging_seconds, preparing_minutes: row.preparing_minutes, dispatching_minutes: row.dispatching_minutes, delivering_minutes: row.delivering_minutes })))}
                     className={SECONDARY_BUTTON + " flex items-center gap-2 text-sm"}
                   >
                     <Download className="h-3.5 w-3.5" />
-                    Export CSV
+                    CSV
                   </button>
                 </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                  <div className="min-h-[32px] text-xs text-neutral-500">Imported days</div>
-                  <MetricValue className={SALES_NUMERIC_VALUE} value={operationTimeSummary.dayCount} />
-                </div>
-                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                  <div className="min-h-[32px] text-xs text-neutral-500">Avg completion</div>
-                  <MetricValue className={SALES_NUMERIC_VALUE} value={operationTimeSummary.avgOverallMinutes} unit="min" />
-                </div>
-                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                  <div className="min-h-[32px] text-xs text-neutral-500">Latest completion</div>
-                  <MetricValue className={SALES_NUMERIC_VALUE} value={operationTimeSummary.latest?.overall_completion_minutes} unit="min" />
-                  <div className="text-xs text-neutral-500">
-                    {operationTimeSummary.latest?.work_date || "No data"}
+                {/* KPI row */}
+                <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                  {/* Avg completion — hero */}
+                  <div className="col-span-2 rounded-2xl border border-white/10 bg-white/3 p-4 sm:col-span-2">
+                    <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Avg Completion</div>
+                    <div className={`text-4xl font-bold tabular-nums ${avgColor}`}>
+                      {avgMin != null ? `${formatDecimal(Number(avgMin), 1)}` : "—"}
+                      <span className="ml-1 text-lg font-normal text-neutral-500">min</span>
+                    </div>
+                    {/* Target gauge */}
+                    <div className="mt-3">
+                      <div className="mb-1 flex justify-between text-[10px] text-neutral-600">
+                        <span>0</span><span className="text-neutral-500">target {OP_TARGET}</span><span>{maxMin}</span>
+                      </div>
+                      <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/5">
+                        {/* target marker */}
+                        <div className="absolute top-0 h-full w-0.5 bg-white/20" style={{ left: `${(OP_TARGET / maxMin) * 100}%` }} />
+                        {avgMin != null && (
+                          <div className={`h-full rounded-full ${avgBg}`} style={{ width: `${Math.min((Number(avgMin) / maxMin) * 100, 100)}%` }} />
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-2 text-[11px] text-neutral-600">{operationTimeSummary.dayCount} days imported</div>
                   </div>
-                </div>
-                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                  <div className="min-h-[32px] text-xs text-neutral-500">Latest delta</div>
-                  <div className={SALES_NUMERIC_VALUE} title={operationTimeSummary.latest?.overall_change_pct == null ? "—" : formatPct(Number(operationTimeSummary.latest.overall_change_pct), 1)}>
-                    {operationTimeSummary.latest?.overall_change_pct == null
-                      ? "—"
-                      : formatPct(Number(operationTimeSummary.latest.overall_change_pct), 1)}
-                  </div>
-                </div>
-                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                  <div className="min-h-[32px] text-xs text-neutral-500">Avg preparing</div>
-                  <MetricValue className={SALES_NUMERIC_VALUE} value={operationTimeSummary.avgPreparingMinutes} unit="min" />
-                </div>
-                <div className="min-w-0 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                  <div className="min-h-[32px] text-xs text-neutral-500">Avg delivering</div>
-                  <MetricValue className={SALES_NUMERIC_VALUE} value={operationTimeSummary.avgDeliveringMinutes} unit="min" />
-                </div>
-              </div>
 
-              <div className="mt-4 overflow-hidden rounded-xl border border-white/8">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="bg-white/3">
-                    <tr>
-                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Date</th>
-                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Completion</th>
-                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Completion Δ</th>
-                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Acknowledging</th>
-                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Preparing</th>
-                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Dispatching</th>
-                      <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Delivering</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(operationTimeAnalytics?.items || []).map((row) => (
-                      <tr key={row.work_date} className={TABLE_ROW}>
-                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{row.work_date}</td>
-                        <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatMinutes(row.overall_completion_minutes)}</td>
-                        <td className={TABLE_CELL + " px-4 tabular-nums"}>
-                          {row.overall_change_pct == null ? "—" : formatPct(Number(row.overall_change_pct), 1)}
-                        </td>
-                        <td className={TABLE_CELL + " px-4 tabular-nums"}>
-                          {formatSeconds(row.acknowledging_seconds)}
-                          {row.acknowledging_change_pct == null ? "" : ` (${formatPct(Number(row.acknowledging_change_pct), 1)})`}
-                        </td>
-                        <td className={TABLE_CELL + " px-4 tabular-nums"}>
-                          {formatMinutes(row.preparing_minutes)}
-                          {row.preparing_change_pct == null ? "" : ` (${formatPct(Number(row.preparing_change_pct), 1)})`}
-                        </td>
-                        <td className={TABLE_CELL + " px-4 tabular-nums"}>
-                          {formatMinutes(row.dispatching_minutes)}
-                          {row.dispatching_change_pct == null ? "" : ` (${formatPct(Number(row.dispatching_change_pct), 1)})`}
-                        </td>
-                        <td className={TABLE_CELL + " px-4 tabular-nums"}>
-                          {formatMinutes(row.delivering_minutes)}
-                          {row.delivering_change_pct == null ? "" : ` (${formatPct(Number(row.delivering_change_pct), 1)})`}
-                        </td>
-                      </tr>
-                    ))}
-                    {!operationTimeAnalytics?.items?.length ? (
-                      <tr>
-                        <td colSpan={7} className="px-4 py-12 text-center">
-                          No operation time screenshots imported yet
-                        </td>
-                      </tr>
-                    ) : null}
-                  </tbody>
-                </table>
+                  {/* Compact cards */}
+                  {[
+                    { label: "Avg Preparing",   val: operationTimeSummary.avgPreparingMinutes,   unit: "min" },
+                    { label: "Avg Delivering",  val: operationTimeSummary.avgDeliveringMinutes,  unit: "min" },
+                    { label: "Latest Completion", val: operationTimeSummary.latest?.overall_completion_minutes, unit: "min", sub: operationTimeSummary.latest?.work_date },
+                    { label: "Latest Δ", val: null, raw: operationTimeSummary.latest?.overall_change_pct == null ? "—" : formatPct(Number(operationTimeSummary.latest.overall_change_pct), 1) },
+                  ].map(({ label, val, unit, sub, raw }) => (
+                    <div key={label} className="rounded-2xl border border-white/8 bg-white/2 p-4">
+                      <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-neutral-500">{label}</div>
+                      <div className={`text-2xl font-bold tabular-nums ${val != null ? opTimeColor(Number(val)) : "text-neutral-300"}`}>
+                        {raw ?? (val != null ? `${formatDecimal(Number(val), 1)}` : "—")}
+                        {!raw && val != null && <span className="ml-0.5 text-sm font-normal text-neutral-500">{unit}</span>}
+                      </div>
+                      {sub && <div className="mt-1 text-[10px] text-neutral-600">{sub}</div>}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Daily rows — visual */}
+                {!items.length ? (
+                  <div className="rounded-xl border border-white/5 py-10 text-center text-sm text-neutral-500">
+                    No operation time screenshots imported yet
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {/* Column headers */}
+                    <div className="grid grid-cols-[90px_1fr_70px_70px_70px_70px] gap-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-neutral-600">
+                      <span>Date</span>
+                      <span>Completion</span>
+                      <span className="text-right">Δ</span>
+                      <span className="text-right">Prep</span>
+                      <span className="text-right">Dispatch</span>
+                      <span className="text-right">Deliver</span>
+                    </div>
+                    {items.map((row) => {
+                      const min = Number(row.overall_completion_minutes ?? 0);
+                      const barW = maxMin > 0 ? Math.min((min / maxMin) * 100, 100) : 0;
+                      const targetW = maxMin > 0 ? Math.min((OP_TARGET / maxMin) * 100, 100) : 0;
+                      const delta = deltaTone(row.overall_change_pct == null ? null : Number(row.overall_change_pct));
+                      return (
+                        <div key={row.work_date} className="grid grid-cols-[90px_1fr_70px_70px_70px_70px] items-center gap-2 rounded-xl border border-white/5 bg-white/2 px-3 py-2.5 transition-colors hover:bg-white/4">
+                          <span className="text-xs tabular-nums text-neutral-400">{(row.work_date || "").slice(5)}</span>
+
+                          {/* Bar + value */}
+                          <div className="flex items-center gap-2">
+                            <span className={`w-12 text-sm font-bold tabular-nums ${opTimeColor(min)}`}>
+                              {row.overall_completion_minutes != null ? `${formatDecimal(min, 1)}` : "—"}
+                              <span className="text-[10px] font-normal text-neutral-500"> min</span>
+                            </span>
+                            <div className="relative flex-1 h-2 overflow-hidden rounded-full bg-white/5">
+                              <div className="absolute top-0 h-full w-px bg-white/20" style={{ left: `${targetW}%` }} />
+                              <div className={`h-full rounded-full ${opTimeBg(min)}`} style={{ width: `${barW}%` }} />
+                            </div>
+                          </div>
+
+                          {/* Δ badge */}
+                          <div className="text-right">
+                            {row.overall_change_pct == null ? (
+                              <span className="text-[11px] text-neutral-600">—</span>
+                            ) : (
+                              <span className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-semibold ${delta.cls}`}>
+                                {delta.arrow}{formatPct(Number(row.overall_change_pct), 1)}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Prep */}
+                          <div className="text-right">
+                            <span className={`text-xs tabular-nums ${opTimeColor(row.preparing_minutes)}`}>
+                              {row.preparing_minutes != null ? `${formatDecimal(Number(row.preparing_minutes), 1)}m` : "—"}
+                            </span>
+                          </div>
+
+                          {/* Dispatch */}
+                          <div className="text-right">
+                            <span className="text-xs tabular-nums text-neutral-400">
+                              {row.dispatching_minutes != null ? `${formatDecimal(Number(row.dispatching_minutes), 1)}m` : "—"}
+                            </span>
+                          </div>
+
+                          {/* Deliver */}
+                          <div className="text-right">
+                            <span className="text-xs tabular-nums text-neutral-400">
+                              {row.delivering_minutes != null ? `${formatDecimal(Number(row.delivering_minutes), 1)}m` : "—"}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-            ) : null}
+              );
+            })() : null}
 
             {(salesSectionView === "all" || salesSectionView === "summary") && salesCity === "dubai" && !summaryBrandName ? (
               <p className={T_CAPTION}>
