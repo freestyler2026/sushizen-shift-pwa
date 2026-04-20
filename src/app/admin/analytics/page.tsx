@@ -8439,7 +8439,7 @@ export default function AdminAnalyticsPage() {
                 ) : null}
                 {salesSectionView === "all" || salesSectionView === "manilaAggregatorRatings" ? (
                   <div id="sales-manila-aggregator-ratings">
-                    <ManilaAggregatorRatingsTab approverName={approverName} pin={pin} />
+                    <ManilaAggregatorRatingsTab approverName={approverName} pin={pin} stepUpReady={salesStepUpReady} />
                   </div>
                 ) : null}
                 {salesSectionView === "all" || salesSectionView === "manilaOverallRatings" ? (
