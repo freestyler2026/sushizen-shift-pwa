@@ -63,7 +63,13 @@ function ScoreStar({ score }: { score: number | null }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function ManilaAggregatorRatingsTab() {
+export default function ManilaAggregatorRatingsTab({
+  approverName = "",
+  pin = "",
+}: {
+  approverName?: string;
+  pin?: string;
+}) {
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [rows, setRows] = useState<RatingRow[]>([]);
@@ -83,20 +89,19 @@ export default function ManilaAggregatorRatingsTab() {
       const data = await res.json();
       const dates: string[] = data.dates ?? [];
       setAvailableDates(dates);
-      if (dates.length > 0 && !selectedDate) {
-        setSelectedDate(dates[0]); // latest first
+      if (dates.length > 0) {
+        setSelectedDate(dates[0]); // always default to latest
       }
     } catch (e) {
       setError(String(e));
     } finally {
       setLoadingDates(false);
     }
-  }, [selectedDate]);
+  }, []);
 
   useEffect(() => {
     fetchDates();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchDates]);
 
   // ── Load rows for selected date ───────────────────────────────────────────
   const fetchRows = useCallback(async (date: string) => {
@@ -104,8 +109,11 @@ export default function ManilaAggregatorRatingsTab() {
     setLoading(true);
     setError(null);
     try {
+      const qs = new URLSearchParams({ record_date: date });
+      if (approverName) qs.set("approver_name", approverName);
+      if (pin) qs.set("pin", pin);
       const res = await fetch(
-        `/api/admin/analytics/manila/aggregator-ratings/by-date?record_date=${date}`
+        `/api/admin/analytics/manila/aggregator-ratings/by-date?${qs.toString()}`
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -115,7 +123,7 @@ export default function ManilaAggregatorRatingsTab() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [approverName, pin]);
 
   useEffect(() => {
     if (selectedDate) fetchRows(selectedDate);
