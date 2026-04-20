@@ -3051,7 +3051,7 @@ export default function AdminAnalyticsPage() {
         date_to: summaryDateTo,
         branch_code: summaryBranchCode,
         brand_name: summaryBrandName,
-        limit: "50",
+        limit: "500",
         approver_name: approverName.trim(),
         pin: pin.trim(),
       });
@@ -7656,7 +7656,7 @@ export default function AdminAnalyticsPage() {
 
             {salesSectionView === "all" || salesSectionView === "productMix" ? (() => {
               // Group rows by Product A
-              const pmRows = productMixRankingRows.slice(0, 50);
+              const pmRows = productMixRankingRows;
               const groupMap = new Map<string, { majorOrders: number; companions: typeof pmRows }>();
               pmRows.forEach((row) => {
                 const key = String(row.product_a_name || "").trim();
