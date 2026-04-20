@@ -95,6 +95,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { FlashValue } from "@/components/ui/FlashValue";
 import AggregatorRatingsTab from "@/components/analytics/dubai/AggregatorRatingsTab";
 import { ManilaRatingsTab } from "@/components/analytics/ManilaRatingsTab";
+import ManilaAggregatorRatingsTab from "@/components/analytics/ManilaAggregatorRatingsTab";
 import { ManilaGrabOfflineTab } from "@/components/analytics/ManilaGrabOfflineTab";
 import { ManilaOverallRatingsTab } from "@/components/analytics/ManilaOverallRatingsTab";
 import NumberOfOrdersTab from "@/components/analytics/dubai/NumberOfOrdersTab";
@@ -1403,6 +1404,7 @@ const SALES_SECTION_OPTIONS = [
   { value: "dataCheck", label: "Data Check", id: "sales-data-check" },
   { value: "manilaSales", label: "Manila Sales", id: "sales-manila-sales" },
   { value: "manilaLowRatings", label: "Low Rating", id: "sales-manila-low-ratings" },
+  { value: "manilaAggregatorRatings", label: "Ratings", id: "sales-manila-aggregator-ratings" },
   { value: "manilaSalesData", label: "Sales Data", id: "sales-manila-daily" },
   { value: "manilaCancellations", label: "Cancellations", id: "sales-manila-cancellations" },
   { value: "manilaCashierEval", label: "Cashier Evaluation", id: "sales-manila-cashier-eval" },
@@ -1412,9 +1414,11 @@ const DUBAI_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter(
   (section) =>
     section.value !== "manilaSales" &&
     section.value !== "manilaLowRatings" &&
+    section.value !== "manilaAggregatorRatings" &&
     section.value !== "manilaSalesData" &&
     section.value !== "manilaCashierEval" &&
-    section.value !== "manilaCancellations",
+    section.value !== "manilaCancellations" &&
+    section.value !== "manilaGrabOffline",
 );
 const MANILA_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter(
   (section) =>
@@ -1422,6 +1426,7 @@ const MANILA_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter(
     section.value === "dataCheck" ||
     section.value === "orderCounts" ||
     section.value === "manilaLowRatings" ||
+    section.value === "manilaAggregatorRatings" ||
     section.value === "manilaSalesData" ||
     section.value === "manilaCashierEval" ||
     section.value === "manilaCancellations" ||
@@ -2135,6 +2140,7 @@ export default function AdminAnalyticsPage() {
     | "dubaiCancellations"
     | "manilaSales"
     | "manilaLowRatings"
+    | "manilaAggregatorRatings"
     | "manilaOverallRatings"
     | "manilaSalesData"
     | "manilaCashierEval"
@@ -8430,6 +8436,11 @@ export default function AdminAnalyticsPage() {
                     pin={pin}
                     stepUpReady={salesStepUpReady}
                   />
+                ) : null}
+                {salesSectionView === "all" || salesSectionView === "manilaAggregatorRatings" ? (
+                  <div id="sales-manila-aggregator-ratings">
+                    <ManilaAggregatorRatingsTab />
+                  </div>
                 ) : null}
                 {salesSectionView === "all" || salesSectionView === "manilaOverallRatings" ? (
                   <div id="sales-manila-overall-ratings">
