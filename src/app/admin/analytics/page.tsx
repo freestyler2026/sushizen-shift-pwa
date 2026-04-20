@@ -7654,70 +7654,117 @@ export default function AdminAnalyticsPage() {
               </>
             ) : null}
 
-            {salesSectionView === "all" || salesSectionView === "productMix" ? (
-            <div id="sales-product-mix" className={GLASS_CARD + " p-5"}>
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <div>
-                  <div className="mb-1 flex items-center gap-2">
-                    <Table2 className="h-4 w-4 text-violet-400" />
-                    <h2 className={SECTION_TITLE}>Product Mix Ranking</h2>
+            {salesSectionView === "all" || salesSectionView === "productMix" ? (() => {
+              // Group rows by Product A
+              const pmRows = productMixRankingRows.slice(0, 50);
+              const groupMap = new Map<string, { majorOrders: number; companions: typeof pmRows }>();
+              pmRows.forEach((row) => {
+                const key = String(row.product_a_name || "").trim();
+                if (!groupMap.has(key)) groupMap.set(key, { majorOrders: Number(row.major_orders || 0), companions: [] });
+                groupMap.get(key)!.companions.push(row);
+              });
+              const groups = Array.from(groupMap.entries());
+              const maxRatio = Math.max(...pmRows.map((r) => Number(r.ratio || 0)));
+
+              function ratioBarColor(ratio: number): string {
+                const pct = ratio * 100;
+                if (pct >= 12) return "bg-violet-500";
+                if (pct >= 8)  return "bg-blue-500";
+                if (pct >= 4)  return "bg-emerald-500";
+                return "bg-neutral-500";
+              }
+              function ratioBadgeColor(ratio: number): string {
+                const pct = ratio * 100;
+                if (pct >= 12) return "bg-violet-500/20 text-violet-300";
+                if (pct >= 8)  return "bg-blue-500/20 text-blue-300";
+                if (pct >= 4)  return "bg-emerald-500/20 text-emerald-300";
+                return "bg-neutral-700/30 text-neutral-400";
+              }
+
+              return (
+              <div id="sales-product-mix" className={GLASS_CARD + " p-5"}>
+                {/* Header */}
+                <div className="mb-5 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Table2 className="h-4 w-4 text-violet-400" />
+                      <h2 className={SECTION_TITLE}>Product Mix Ranking</h2>
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-neutral-500">
+                      {productMixCoverage.from && productMixCoverage.to
+                        ? `Coverage: ${productMixCoverage.from} → ${productMixCoverage.to}`
+                        : "No Product Mix import found yet."}
+                      {summaryBranchCode && ` · ${(BRANCH_OPTIONS[salesCity] || []).find((opt) => opt.value === summaryBranchCode)?.label || summaryBranchCode}`}
+                    </p>
                   </div>
-                  <div className={T_CAPTION}>
-                    {productMixCoverage.from && productMixCoverage.to
-                      ? `Imported coverage: ${productMixCoverage.from} -> ${productMixCoverage.to}`
-                      : "No Product Mix import found yet."}
+                  <div className="flex items-center gap-3 text-[11px] text-neutral-600">
+                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-violet-500" />≥12%</span>
+                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-blue-500" />≥8%</span>
+                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-emerald-500" />≥4%</span>
+                    <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-sm bg-neutral-500" />&lt;4%</span>
                   </div>
                 </div>
-                <div className={T_CAPTION}>
-                  Scope:{" "}
-                  <span className="text-zinc-300">
-                    {summaryBranchCode
-                      ? (BRANCH_OPTIONS[salesCity] || []).find((opt) => opt.value === summaryBranchCode)?.label || summaryBranchCode
-                      : "Company total"}
-                  </span>
-                </div>
+
+                {summaryBrandName && summaryBrandName !== "SushiZEN" ? (
+                  <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-6 text-center text-sm text-zinc-500">
+                    Product Mix is currently available for SushiZEN only.
+                  </div>
+                ) : !pmRows.length ? (
+                  <div className="rounded-xl border border-white/8 py-12 text-center text-sm text-neutral-500">No Product Mix ranking data</div>
+                ) : (
+                  <div className="space-y-4">
+                    {groups.map(([productA, { majorOrders, companions }], gIdx) => (
+                      <div key={productA} className="rounded-2xl border border-white/8 bg-white/2 overflow-hidden">
+                        {/* Product A header */}
+                        <div className="flex items-center gap-3 border-b border-white/5 bg-white/3 px-4 py-3">
+                          <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-violet-500/20 text-[11px] font-bold text-violet-300">
+                            {gIdx + 1}
+                          </span>
+                          <span className="flex-1 text-sm font-semibold text-white">{productA}</span>
+                          <span className="text-[11px] text-neutral-400 tabular-nums">{formatCount(majorOrders)} orders</span>
+                        </div>
+
+                        {/* Companion products */}
+                        <div className="divide-y divide-white/4">
+                          {companions.map((row, cIdx) => {
+                            const ratio = Number(row.ratio || 0);
+                            const barW = maxRatio > 0 ? (ratio / maxRatio) * 100 : 0;
+                            const ratioPct = ratio * 100;
+                            return (
+                              <div key={`${row.product_b_name}-${cIdx}`} className="flex items-center gap-3 px-4 py-2.5">
+                                {/* Rank within group */}
+                                <span className="w-4 flex-shrink-0 text-[10px] text-neutral-600">#{cIdx + 1}</span>
+
+                                {/* Product B name */}
+                                <span className="w-40 flex-shrink-0 truncate text-xs text-neutral-300" title={String(row.product_b_name || "")}>
+                                  {row.product_b_name || "—"}
+                                </span>
+
+                                {/* Bar */}
+                                <div className="flex flex-1 items-center gap-2">
+                                  <div className="flex-1 h-2 overflow-hidden rounded-full bg-white/5">
+                                    <div className={`h-full rounded-full ${ratioBarColor(ratio)}`} style={{ width: `${barW.toFixed(1)}%` }} />
+                                  </div>
+                                  <span className={`w-16 rounded px-1.5 py-0.5 text-center text-[11px] font-semibold tabular-nums ${ratioBadgeColor(ratio)}`}>
+                                    {formatDecimal(ratioPct, 2)}%
+                                  </span>
+                                </div>
+
+                                {/* Mix orders */}
+                                <span className="w-20 text-right text-[11px] tabular-nums text-neutral-500">
+                                  {formatCount(Number(row.mix_orders || 0))} / {formatCount(majorOrders)}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              {summaryBrandName && summaryBrandName !== "SushiZEN" ? (
-                <div className="rounded-xl border border-white/8 bg-white/5 px-3 py-6 text-center text-sm text-zinc-500">
-                  Product Mix is currently available for SushiZEN only.
-                </div>
-              ) : (
-                <div className="overflow-hidden rounded-xl border border-white/8">
-                  <table className="min-w-full text-left text-sm">
-                    <thead className="bg-white/3">
-                      <tr>
-                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Rank</th>
-                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Product A</th>
-                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Product B</th>
-                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Major Orders</th>
-                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Mix Orders</th>
-                        <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Ratio</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {productMixRankingRows.slice(0, 50).map((row, idx) => (
-                        <tr key={`${row.product_a_name}-${row.product_b_name}-${idx}`} className={TABLE_ROW}>
-                          <td className={TABLE_CELL + " px-4"}>{idx + 1}</td>
-                          <td className={TABLE_CELL + " px-4"}>{row.product_a_name}</td>
-                          <td className={TABLE_CELL + " px-4"}>{row.product_b_name}</td>
-                          <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatCount(row.major_orders)}</td>
-                          <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatCount(row.mix_orders)}</td>
-                          <td className={TABLE_CELL + " px-4 tabular-nums"}>{formatDecimal(Number(row.ratio || 0) * 100, 2)}%</td>
-                        </tr>
-                      ))}
-                      {!productMixRankingRows.length ? (
-                        <tr>
-                          <td colSpan={6} className="px-4 py-12 text-center">
-                            <EmptyState message="No Product Mix ranking data" />
-                          </td>
-                        </tr>
-                      ) : null}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-            ) : null}
+              );
+            })() : null}
 
             {salesSectionView === "all" || salesSectionView === "menu" ? (
             <div id="sales-menu" className={GLASS_CARD + " overflow-hidden"}>
