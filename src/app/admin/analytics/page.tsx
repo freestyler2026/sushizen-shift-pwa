@@ -1392,7 +1392,7 @@ const SALES_SECTION_OPTIONS = [
   { value: "operationTime", label: "Op Time", id: "sales-operation-time" },
   { value: "manilaOverallRatings", label: "Overall Rating", id: "sales-manila-overall-ratings" },
   { value: "dubaiCancellations", label: "Cancellations", id: "sales-dubai-cancellations" },
-  { value: "aggregatorRatings", label: "Low Ratings", id: "sales-aggregator-ratings" },
+  { value: "aggregatorRatings", label: "Ratings", id: "sales-aggregator-ratings" },
   { value: "brands", label: "Brands", id: "sales-brands" },
   { value: "menu", label: "Menu", id: "sales-menu" },
   { value: "stores", label: "Stores", id: "sales-stores" },
@@ -8343,6 +8343,18 @@ export default function AdminAnalyticsPage() {
             {salesSectionView === "all" || salesSectionView === "orderCounts" ? (
               <div id="sales-order-counts">
                 <NumberOfOrdersTab approverName={approverName} pin={pin} stepUpReady={salesStepUpReady} />
+              </div>
+            ) : null}
+            {salesSectionView === "all" || salesSectionView === "manilaOverallRatings" ? (
+              <div id="sales-manila-overall-ratings">
+                <ManilaOverallRatingsTab
+                  dateFrom={summaryDateFrom}
+                  dateTo={summaryDateTo}
+                  approverName={approverName}
+                  pin={pin}
+                  stepUpReady={salesStepUpReady}
+                  city="dubai"
+                />
               </div>
             ) : null}
             {salesSectionView === "all" || salesSectionView === "aggregatorRatings" ? (

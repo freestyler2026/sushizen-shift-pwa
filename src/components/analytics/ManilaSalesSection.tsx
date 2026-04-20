@@ -844,39 +844,7 @@ export function ManilaSalesSection({
         </div>
       ) : null}
 
-      <div id={MANILA_DATASET_OVERVIEW_ID} className="scroll-mt-24">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4">
-          {datasetCards.map((card) => {
-            const item = overview?.dataset_availability?.[card.key];
-            const statusLabel =
-              item?.supported_in_scope === false ? "Not available from this source" : item?.has_data ? "Available" : "Not imported yet";
-            const statusClass =
-              item?.supported_in_scope === false
-                ? BADGE_WARNING
-                : item?.has_data
-                  ? BADGE_SUCCESS
-                  : BADGE_ERROR;
-            const sectionId = MANILA_SECTION_ID_BY_CARD_KEY[card.key];
-            return (
-              <button
-                key={card.key}
-                type="button"
-                onClick={() => sectionId && scrollToManilaElementId(sectionId)}
-                aria-label={`Scroll to ${card.label} section`}
-                className="w-full rounded-2xl border border-white/10 bg-gradient-to-br from-white/8 to-white/3 p-4 text-left shadow-lg shadow-black/30 backdrop-blur-sm transition hover:border-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50"
-              >
-                <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-zinc-500">{card.label}</div>
-                <div className={`mt-2 ${statusClass}`}>
-                  {item?.has_data && item?.supported_in_scope !== false ? <CheckCircle2 className="h-3 w-3" /> : <CircleDot className="h-3 w-3" />}
-                  <span>{statusLabel}</span>
-                </div>
-                <div className="mt-2 text-xs text-zinc-500">Imported files: {formatCount(Number(item?.import_count || 0))}</div>
-                {item?.note ? <div className="mt-2 text-xs text-zinc-500">{item.note}</div> : null}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <div id={MANILA_DATASET_OVERVIEW_ID} className="scroll-mt-24" />
 
       {!loading && canLoad && !hasAnyDataset ? (
         <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-1 shadow-xl shadow-black/20 backdrop-blur-sm">
