@@ -3371,11 +3371,18 @@ export default function AdminAnalyticsPage() {
           }
         };
 
-        await Promise.all([
-          run("Staff analytics (branch daily hours)", () => apiGet<BranchDailyResp>(`/api/admin/analytics/branch_daily_hours?${common.toString()}`), (daily) => setBranchDailyRows(daily.rows || []), () => setBranchDailyRows([])),
-          run("Staff analytics (branch weekday hours)", () => apiGet<BranchWeekdayResp>(`/api/admin/analytics/branch_weekday_avg_hours?${common.toString()}`), (weekday) => setBranchWeekdayRows(weekday.rows || []), () => setBranchWeekdayRows([])),
-          run("Staff analytics (work summary)", () => apiGet<StaffSummaryResp>(`/api/admin/analytics/staff_work_summary?${staffQs.toString()}`), (staff) => setStaffSummaryRows(staff.rows || []), () => setStaffSummaryRows([])),
-          run("Staff analytics (absence summary)", () => apiGet<AbsenceSummaryResp>(`/api/admin/analytics/absence_summary?${absenceQs.toString()}`), (absence) => setAbsenceSummaryRows(absence.rows || []), () => setAbsenceSummaryRows([])),
+        // Limit concurrent DB requests to 3 to avoid exhausting the connection pool
+        const runLimited = async (tasks: Array<() => Promise<void>>, concurrency = 3) => {
+          const queue = [...tasks];
+          const worker = async () => { while (queue.length > 0) { const t = queue.shift(); if (t) await t(); } };
+          await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, worker));
+        };
+
+        await runLimited([
+          () => run("Staff analytics (branch daily hours)", () => apiGet<BranchDailyResp>(`/api/admin/analytics/branch_daily_hours?${common.toString()}`), (daily) => setBranchDailyRows(daily.rows || []), () => setBranchDailyRows([])),
+          () => run("Staff analytics (branch weekday hours)", () => apiGet<BranchWeekdayResp>(`/api/admin/analytics/branch_weekday_avg_hours?${common.toString()}`), (weekday) => setBranchWeekdayRows(weekday.rows || []), () => setBranchWeekdayRows([])),
+          () => run("Staff analytics (work summary)", () => apiGet<StaffSummaryResp>(`/api/admin/analytics/staff_work_summary?${staffQs.toString()}`), (staff) => setStaffSummaryRows(staff.rows || []), () => setStaffSummaryRows([])),
+          () => run("Staff analytics (absence summary)", () => apiGet<AbsenceSummaryResp>(`/api/admin/analytics/absence_summary?${absenceQs.toString()}`), (absence) => setAbsenceSummaryRows(absence.rows || []), () => setAbsenceSummaryRows([])),
           run(
             "Staff analytics (Dubai city summary)",
             () =>
@@ -3386,7 +3393,7 @@ export default function AdminAnalyticsPage() {
             (dubaiCity) => setDubaiSummary(dubaiCity),
             () => setDubaiSummary(null)
           ),
-          run(
+          () => run(
             "Staff analytics (Manila city summary)",
             () =>
               apiGet<CitySummaryResp>(
@@ -3396,13 +3403,13 @@ export default function AdminAnalyticsPage() {
             (manilaCity) => setManilaSummary(manilaCity),
             () => setManilaSummary(null)
           ),
-          run(
+          () => run(
             "Staff analytics (attendance comparison)",
             () => apiGet<ComparisonResp>(`/api/admin/attendance/comparison?${salesComparisonQs.toString()}`),
             (salesComparison) => setSalesComparisonRows(Array.isArray(salesComparison?.items) ? salesComparison.items : []),
             () => setSalesComparisonRows([])
           ),
-          run(
+          () => run(
             "Staff analytics (latest Bayzat coverage)",
             () => apiGet<AttendanceLatestCoverageResp>(`/api/admin/attendance/latest-coverage?${attendanceCoverageQs.toString()}`),
             (coverage) => {
@@ -3414,7 +3421,7 @@ export default function AdminAnalyticsPage() {
               setAttendanceLatestCoverageError("Latest Bayzat import coverage unavailable");
             }
           ),
-          (async () => {
+          async () => {
             try {
               const statusResp = await apiGet<AttendanceAutoSyncStatusResp>(`/api/admin/attendance/auto-sync/status?${attendanceAutoSyncQs.toString()}`);
               setAttendanceAutoSyncStatus(statusResp);
@@ -3423,7 +3430,7 @@ export default function AdminAnalyticsPage() {
               setAttendanceAutoSyncStatus(null);
               setAttendanceAutoSyncStatusError("Auto sync status unavailable");
             }
-          })(),
+          },
         ]);
       })();
 
