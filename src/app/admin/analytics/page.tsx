@@ -1420,18 +1420,17 @@ const DUBAI_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter(
     section.value !== "manilaCancellations" &&
     section.value !== "manilaGrabOffline",
 );
-const MANILA_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter(
-  (section) =>
-    section.value === "manilaSales" ||
-    section.value === "dataCheck" ||
-    section.value === "orderCounts" ||
-    section.value === "manilaLowRatings" ||
-    section.value === "manilaAggregatorRatings" ||
-    section.value === "manilaSalesData" ||
-    section.value === "manilaCashierEval" ||
-    section.value === "manilaCancellations" ||
-    section.value === "manilaGrabOffline",
-);
+const MANILA_SALES_SECTION_OPTIONS = [
+  "orderCounts",
+  "manilaSalesData",
+  "manilaSales",
+  "manilaAggregatorRatings",
+  "manilaLowRatings",
+  "manilaGrabOffline",
+  "manilaCancellations",
+  "manilaCashierEval",
+  "dataCheck",
+].map((v) => SALES_SECTION_OPTIONS.find((s) => s.value === v)!);
 
 const FINANCE_SECTION_OPTIONS = [
   { value: "summary", label: "Summary", id: "finance-summary" },
