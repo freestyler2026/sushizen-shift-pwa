@@ -95,6 +95,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { FlashValue } from "@/components/ui/FlashValue";
 import AggregatorRatingsTab from "@/components/analytics/dubai/AggregatorRatingsTab";
 import { ManilaRatingsTab } from "@/components/analytics/ManilaRatingsTab";
+import { ManilaGrabOfflineTab } from "@/components/analytics/ManilaGrabOfflineTab";
 import { ManilaOverallRatingsTab } from "@/components/analytics/ManilaOverallRatingsTab";
 import NumberOfOrdersTab from "@/components/analytics/dubai/NumberOfOrdersTab";
 import { ManilaOrderCountsTab } from "@/components/analytics/ManilaOrderCountsTab";
@@ -1405,6 +1406,7 @@ const SALES_SECTION_OPTIONS = [
   { value: "manilaSalesData", label: "Sales Data", id: "sales-manila-daily" },
   { value: "manilaCancellations", label: "Cancellations", id: "sales-manila-cancellations" },
   { value: "manilaCashierEval", label: "Cashier Evaluation", id: "sales-manila-cashier-eval" },
+  { value: "manilaGrabOffline", label: "Grab Offline", id: "sales-manila-grab-offline" },
 ] as const;
 const DUBAI_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter(
   (section) =>
@@ -1420,10 +1422,10 @@ const MANILA_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter(
     section.value === "dataCheck" ||
     section.value === "orderCounts" ||
     section.value === "manilaLowRatings" ||
-    section.value === "manilaOverallRatings" ||
     section.value === "manilaSalesData" ||
     section.value === "manilaCashierEval" ||
-    section.value === "manilaCancellations",
+    section.value === "manilaCancellations" ||
+    section.value === "manilaGrabOffline",
 );
 
 const FINANCE_SECTION_OPTIONS = [
@@ -2137,6 +2139,7 @@ export default function AdminAnalyticsPage() {
     | "manilaSalesData"
     | "manilaCashierEval"
     | "manilaCancellations"
+    | "manilaGrabOffline"
     | "all"
   >(
     "summary",
@@ -8471,6 +8474,15 @@ export default function AdminAnalyticsPage() {
                       stepUpReady={salesStepUpReady}
                     />
                   </div>
+                ) : null}
+                {salesSectionView === "all" || salesSectionView === "manilaGrabOffline" ? (
+                  <ManilaGrabOfflineTab
+                    dateFrom={summaryDateFrom}
+                    dateTo={summaryDateTo}
+                    approverName={approverName}
+                    pin={pin}
+                    stepUpReady={salesStepUpReady}
+                  />
                 ) : null}
               </>
             ) : null}
