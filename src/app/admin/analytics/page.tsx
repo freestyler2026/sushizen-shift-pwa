@@ -6985,146 +6985,137 @@ export default function AdminAnalyticsPage() {
             {salesSectionView === "all" || salesSectionView === "summary" ? (
               <>
                 <div id="sales-summary" className={GLASS_CARD + " p-5"}>
-                  <div className="mb-4">
-                    <h3 className={SECTION_TITLE}>Period summary</h3>
-                    <p className={T_CAPTION}>
-                      Company KPIs for the Summary Range, store-level totals from UrbanPiper revenue-by-location, and{" "}
-                      <span className="text-zinc-300">MoM</span> vs the same calendar dates last month.
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                  {[
-                    {
-                      label: "Net Sales Volume",
-                      value: posSalesSummary.revenuePrimary,
-                      color: "text-violet-300",
-                      icon: DollarSign,
-                      mom: summaryKpiMom?.net ?? null,
-                    },
-                    {
-                      label: "Gross Revenue",
-                      value: posSalesSummary.totalGrossSales,
-                      color: "text-emerald-400",
-                      icon: TrendingUp,
-                      mom: summaryKpiMom?.gross ?? null,
-                    },
-                    {
-                      label: "Order Count",
-                      value: posSalesSummary.totalOrders,
-                      color: "text-white",
-                      icon: ShoppingBag,
-                      mom: summaryKpiMom?.orders ?? null,
-                    },
-                    {
-                      label: "Avg Net / Order",
-                      value: posSalesSummary.avgRevenuePerOrder,
-                      color: "text-violet-300",
-                      icon: Receipt,
-                      mom: summaryKpiMom?.avg ?? null,
-                    },
-                    {
-                      label: "Days w/ Sales Data",
-                      value: posSalesSummary.dayCount,
-                      color: "text-zinc-300",
-                      icon: CalendarDays,
-                      mom: summaryKpiMom?.days ?? null,
-                    },
-                  ].map(({ label, value, color, icon: Icon, mom }, i) => (
-                    <motion.div
-                      key={label}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: i * 0.05 }}
-                      className={KPI_CARD}
-                    >
-                      <div className="mb-2 flex min-h-[2.5rem] items-start gap-1.5">
-                        <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-zinc-600" />
-                        <p className={KPI_LABEL}>{label}</p>
-                      </div>
-                      <p className={`text-2xl font-bold tabular-nums break-words ${color}`}>{fmtNum(value)}</p>
-                      {mom != null && salesSummaryPriorRangeMemo ? (
-                        <p className="mt-1.5 text-xs leading-snug">
-                          <span className={`font-semibold tabular-nums ${summaryPctToneClass(mom)}`}>{mom}</span>
-                          <span className="text-neutral-500">
-                            {" "}
-                            vs {salesSummaryPriorRangeMemo.from} → {salesSummaryPriorRangeMemo.to}
-                          </span>
+                  {/* Header */}
+                  <div className="mb-5 flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className={SECTION_TITLE}>Period Summary</h3>
+                      {salesSummaryPriorRangeMemo && (
+                        <p className="mt-0.5 text-[11px] text-neutral-500">
+                          MoM vs {salesSummaryPriorRangeMemo.from} → {salesSummaryPriorRangeMemo.to}
                         </p>
-                      ) : null}
-                    </motion.div>
-                  ))}
-                </div>
-
-                  <div className="mt-6 border-t border-white/10 pt-5">
-                  <div className="mb-2 flex flex-col gap-1">
-                    <h4 className="text-sm font-semibold uppercase tracking-wide text-zinc-400">Store breakdown</h4>
-                    <p className={T_CAPTION}>
-                      Period totals from UrbanPiper revenue-by-location (
-                      <span className="text-zinc-300">pos_revenue_location_daily</span>), grouped by branch for the Summary
-                      Range and filters above.
-                      {salesSummaryPriorRangeMemo ? (
-                        <>
-                          {" "}
-                          <span className="text-zinc-300">MoM</span> compares to the same calendar days in the previous month (
-                          {salesSummaryPriorRangeMemo.from} → {salesSummaryPriorRangeMemo.to}).
-                        </>
-                      ) : null}
-                    </p>
-                    <p className="text-xs text-amber-200/80">
-                      Company-level <span className="text-zinc-300">Order Count</span> and per-store orders both come from
-                      UrbanPiper revenue-by-location imports (same source as net sales).
-                    </p>
-                    <p className="text-xs text-neutral-500">
-                      <span className="text-zinc-400">Net/Orders MoM</span> shows — when the prior window had no (or negligible)
-                      activity for that store, or the swing is over 400% (misleading without a stable baseline).
-                    </p>
-                  </div>
-                  {summaryStoreTableRows.length === 0 ? (
-                    <p className="text-sm text-neutral-500">No branch-level rows for this period.</p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[560px] border-separate border-spacing-0 text-left text-sm">
-                        <thead>
-                          <tr className="border-b border-white/10">
-                            <th className={TABLE_HEADER + " px-3 py-2 text-left"}>Store</th>
-                            <th className={TABLE_HEADER + " px-3 py-2 text-right"}>Net sales</th>
-                            {salesSummaryPriorRangeMemo ? (
-                              <th className={TABLE_HEADER + " px-3 py-2 text-right"}>Net MoM</th>
-                            ) : null}
-                            <th className={TABLE_HEADER + " px-3 py-2 text-right"}>Orders</th>
-                            {salesSummaryPriorRangeMemo ? (
-                              <th className={TABLE_HEADER + " px-3 py-2 text-right"}>Orders MoM</th>
-                            ) : null}
-                            <th className={TABLE_HEADER + " px-3 py-2 text-right"}>Avg net / order</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {summaryStoreTableRows.map((row) => (
-                            <tr key={row.branch_name} className={TABLE_ROW}>
-                              <td className={TABLE_CELL}>{row.branch_name}</td>
-                              <td className={`${TABLE_CELL} text-right tabular-nums`}>{fmtNum(row.net_revenue)}</td>
-                              {salesSummaryPriorRangeMemo ? (
-                                <td
-                                  className={`${TABLE_CELL} text-right tabular-nums ${summaryPctToneClass(row.netPct)}`}
-                                >
-                                  {row.netPct}
-                                </td>
-                              ) : null}
-                              <td className={`${TABLE_CELL} text-right tabular-nums`}>{fmtNum(row.order_count)}</td>
-                              {salesSummaryPriorRangeMemo ? (
-                                <td
-                                  className={`${TABLE_CELL} text-right tabular-nums ${summaryPctToneClass(row.ordersPct)}`}
-                                >
-                                  {row.ordersPct}
-                                </td>
-                              ) : null}
-                              <td className={`${TABLE_CELL} text-right tabular-nums`}>{fmtNum(row.avg_net_per_order)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      )}
                     </div>
-                  )}
+                  </div>
+
+                  {/* KPI grid — Net Sales prominent, rest compact */}
+                  <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+                    {/* Net Sales — hero card */}
+                    {(() => {
+                      const mom = summaryKpiMom?.net ?? null;
+                      const isPos = mom && !mom.startsWith("-") && mom !== "—" && mom !== "0%";
+                      const isNeg = mom && mom.startsWith("-");
+                      return (
+                        <motion.div
+                          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
+                          className="col-span-2 rounded-2xl border border-violet-500/20 bg-violet-500/5 p-4 sm:col-span-2"
+                        >
+                          <div className="mb-1 flex items-center gap-1.5">
+                            <DollarSign className="h-3.5 w-3.5 text-violet-400" />
+                            <span className="text-[11px] font-semibold uppercase tracking-widest text-violet-400">Net Sales</span>
+                          </div>
+                          <p className="text-4xl font-bold tabular-nums text-white">{fmtNum(posSalesSummary.revenuePrimary)}</p>
+                          {mom && salesSummaryPriorRangeMemo && (
+                            <div className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${isPos ? "bg-emerald-500/15 text-emerald-300" : isNeg ? "bg-rose-500/15 text-rose-300" : "bg-neutral-700/30 text-neutral-400"}`}>
+                              {isPos ? "↑" : isNeg ? "↓" : ""} {mom} MoM
+                            </div>
+                          )}
+                        </motion.div>
+                      );
+                    })()}
+
+                    {/* Compact KPI cards */}
+                    {[
+                      { label: "Gross Revenue", value: posSalesSummary.totalGrossSales, icon: TrendingUp, mom: summaryKpiMom?.gross ?? null, accent: "text-emerald-400" },
+                      { label: "Order Count",   value: posSalesSummary.totalOrders,     icon: ShoppingBag, mom: summaryKpiMom?.orders ?? null, accent: "text-white" },
+                      { label: "Avg Net / Order", value: posSalesSummary.avgRevenuePerOrder, icon: Receipt, mom: summaryKpiMom?.avg ?? null, accent: "text-violet-300" },
+                      { label: "Days w/ Data",  value: posSalesSummary.dayCount,        icon: CalendarDays, mom: summaryKpiMom?.days ?? null, accent: "text-neutral-300" },
+                    ].map(({ label, value, icon: Icon, mom, accent }, i) => {
+                      const isPos = mom && !mom.startsWith("-") && mom !== "—" && mom !== "0%";
+                      const isNeg = mom && mom.startsWith("-");
+                      return (
+                        <motion.div
+                          key={label}
+                          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: (i + 1) * 0.05 }}
+                          className="rounded-2xl border border-white/8 bg-white/3 p-4"
+                        >
+                          <div className="mb-2 flex items-center gap-1.5">
+                            <Icon className="h-3 w-3 text-neutral-600" />
+                            <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">{label}</span>
+                          </div>
+                          <p className={`text-xl font-bold tabular-nums ${accent}`}>{fmtNum(value)}</p>
+                          {mom && salesSummaryPriorRangeMemo && (
+                            <span className={`mt-1.5 inline-flex items-center gap-0.5 text-[11px] font-semibold ${isPos ? "text-emerald-400" : isNeg ? "text-rose-400" : "text-neutral-500"}`}>
+                              {isPos ? "↑" : isNeg ? "↓" : ""} {mom}
+                            </span>
+                          )}
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Store breakdown — visual bars */}
+                  <div className="border-t border-white/8 pt-5">
+                    <div className="mb-4 flex items-center justify-between">
+                      <h4 className="text-xs font-semibold uppercase tracking-widest text-neutral-400">Store Breakdown</h4>
+                      {salesSummaryPriorRangeMemo && (
+                        <span className="text-[10px] text-neutral-600">MoM vs prev period</span>
+                      )}
+                    </div>
+
+                    {summaryStoreTableRows.length === 0 ? (
+                      <p className="text-sm text-neutral-500">No branch-level rows for this period.</p>
+                    ) : (() => {
+                      const maxNet = Math.max(...summaryStoreTableRows.map((r) => Number(r.net_revenue || 0)));
+                      return (
+                        <div className="space-y-2">
+                          {summaryStoreTableRows.map((row, idx) => {
+                            const net = Number(row.net_revenue || 0);
+                            const barPct = maxNet > 0 ? (net / maxNet) * 100 : 0;
+                            const netMomPos = row.netPct && !row.netPct.startsWith("-") && row.netPct !== "—" && row.netPct !== "0%";
+                            const netMomNeg = row.netPct && row.netPct.startsWith("-");
+                            const ordMomPos = row.ordersPct && !row.ordersPct.startsWith("-") && row.ordersPct !== "—" && row.ordersPct !== "0%";
+                            const ordMomNeg = row.ordersPct && row.ordersPct.startsWith("-");
+                            return (
+                              <div key={row.branch_name} className="group rounded-xl border border-white/5 bg-white/2 px-4 py-3 transition-colors hover:bg-white/4">
+                                <div className="mb-2 flex items-center justify-between gap-3">
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-4 flex-shrink-0 text-[11px] font-semibold tabular-nums text-neutral-600">#{idx + 1}</span>
+                                    <span className="text-sm font-medium text-neutral-200">{row.branch_name}</span>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    {/* Avg net/order */}
+                                    <span className="hidden text-[11px] tabular-nums text-neutral-500 sm:inline">
+                                      ⌀ {fmtNum(row.avg_net_per_order)}
+                                    </span>
+                                    {/* Orders */}
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs tabular-nums text-neutral-400">{fmtNum(row.order_count)} orders</span>
+                                      {salesSummaryPriorRangeMemo && row.ordersPct && row.ordersPct !== "—" && (
+                                        <span className={`text-[10px] font-semibold ${ordMomPos ? "text-emerald-400" : ordMomNeg ? "text-rose-400" : "text-neutral-500"}`}>
+                                          {ordMomPos ? "↑" : ordMomNeg ? "↓" : ""}{row.ordersPct}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {/* Net MoM badge */}
+                                    {salesSummaryPriorRangeMemo && row.netPct && row.netPct !== "—" && (
+                                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${netMomPos ? "bg-emerald-500/15 text-emerald-300" : netMomNeg ? "bg-rose-500/15 text-rose-300" : "bg-neutral-700/20 text-neutral-500"}`}>
+                                        {netMomPos ? "↑" : netMomNeg ? "↓" : ""}{row.netPct}
+                                      </span>
+                                    )}
+                                    {/* Net sales */}
+                                    <span className="w-24 text-right text-sm font-semibold tabular-nums text-white">{fmtNum(net)}</span>
+                                  </div>
+                                </div>
+                                {/* Bar */}
+                                <div className="h-1 w-full overflow-hidden rounded-full bg-white/5">
+                                  <div className="h-full rounded-full bg-violet-500/60 transition-all" style={{ width: `${barPct.toFixed(1)}%` }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </>
