@@ -2098,7 +2098,7 @@ function calculateComplianceRate(row: ComparisonItem) {
 export default function AdminAnalyticsPage() {
   const stripStepUpForFreshVisit = (value: ReturnType<typeof getAuth>) => {
     if (!value) return value;
-    if (stepUpSatisfies("aal2", value)) return value;
+    // Always strip step-up on fresh page load — require Verify Passkey every session.
     return {
       ...value,
       stepUpToken: "",
@@ -2161,8 +2161,8 @@ export default function AdminAnalyticsPage() {
   const [securityBusy, setSecurityBusy] = useState(false);
   const [securityError, setSecurityError] = useState("");
   const [securityMessage, setSecurityMessage] = useState("");
-  const [stepUpVerifiedThisVisit, setStepUpVerifiedThisVisit] = useState(() => stepUpSatisfies("aal2", getAuth()));
-  const stepUpVerifiedRef = useRef(stepUpSatisfies("aal2", getAuth()));
+  const [stepUpVerifiedThisVisit, setStepUpVerifiedThisVisit] = useState(false);
+  const stepUpVerifiedRef = useRef(false);
   const [totpCode, setTotpCode] = useState("");
   const [backupCode, setBackupCode] = useState("");
   const [totpEnrollment, setTotpEnrollment] = useState<null | { enrollmentToken: string; secret: string; otpauthUri: string }>(null);
