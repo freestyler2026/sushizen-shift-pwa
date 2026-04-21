@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import NavBar from "@/components/NavBar";
+import AutoReload from "@/components/AutoReload";
 
 const HIDE_NAV_PATHS = new Set(["/", "/login", "/signup", "/setup-pin"]);
 
@@ -19,6 +20,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
 
   return (
     <>
+      <AutoReload />
       <header className="sticky top-0 z-50 overflow-x-hidden border-b border-white/10 bg-[#0d1117] py-0 backdrop-blur-xl">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <NavBar />
