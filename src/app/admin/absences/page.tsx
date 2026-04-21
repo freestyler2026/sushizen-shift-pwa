@@ -9,6 +9,7 @@ import {
   BarChart2,
   CalendarDays,
   CalendarOff,
+  Check,
   CheckCircle2,
   ClipboardList,
   Download,
@@ -21,6 +22,7 @@ import {
   UserCheck,
   UserMinus,
   Users,
+  X,
 } from "lucide-react";
 import { getAuth } from "@/lib/auth";
 import { BRANCHES, type City } from "@/lib/branches";
@@ -311,6 +313,7 @@ export default function AdminAbsencesPage() {
   const [branchHint, setBranchHint] = useState<string>("");
 
   const [bulkSelectedNames, setBulkSelectedNames] = useState<string[]>([]);
+  const [bulkNameSearch, setBulkNameSearch] = useState<string>("");
   const [bulkDateFrom, setBulkDateFrom] = useState<string>(todayIso());
   const [bulkDateTo, setBulkDateTo] = useState<string>(todayIso());
   const [bulkAbsenceType, setBulkAbsenceType] = useState<AbsenceType>("DAY_OFF");
@@ -380,6 +383,12 @@ export default function AdminAbsencesPage() {
   };
 
   const branchOptions = useMemo(() => BRANCHES[city] || [], [city]);
+
+  const filteredBulkOptions = useMemo(() => {
+    const q = bulkNameSearch.trim().toLowerCase();
+    if (!q) return staffOptions;
+    return staffOptions.filter((n) => n.toLowerCase().includes(q));
+  }, [staffOptions, bulkNameSearch]);
   const canAuth = useMemo(() => !!norm(approverName) && !!norm(pin), [approverName, pin]);
 
   const filteredRows = useMemo(() => {
@@ -479,6 +488,7 @@ export default function AdminAbsencesPage() {
   useEffect(() => {
     setStaffName("");
     setBulkSelectedNames([]);
+    setBulkNameSearch("");
     setFilterStaffName("");
     setFilterBranch("");
     setBranchHint("");
@@ -936,18 +946,90 @@ export default function AdminAbsencesPage() {
           </div>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div>
-              <label className={`${T_LABEL} mb-1.5 block`}>Staff Names (one per line)</label>
-              <textarea
-                className={TEXTAREA_CLASS}
-                rows={6}
-                placeholder={"John Smith\nJane Doe"}
-                value={bulkSelectedNames.join("\n")}
-                onChange={(e) =>
-                  // Keep raw lines including spaces while typing;
-                  // trimming happens at submit time in upsertBulk().
-                  setBulkSelectedNames(e.target.value.split("\n"))
-                }
+              <label className={`${T_LABEL} mb-1.5 block`}>
+                Staff Names
+                {bulkSelectedNames.length > 0 && (
+                  <span className="ml-2 text-violet-400">{bulkSelectedNames.length} selected</span>
+                )}
+              </label>
+
+              {/* Selected chips */}
+              {bulkSelectedNames.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-1.5">
+                  {bulkSelectedNames.map((name) => (
+                    <span
+                      key={name}
+                      className="inline-flex items-center gap-1 rounded-full border border-violet-500/30 bg-violet-500/15 px-2.5 py-0.5 text-xs text-violet-200"
+                    >
+                      {name}
+                      <button
+                        type="button"
+                        onClick={() => setBulkSelectedNames((prev) => prev.filter((n) => n !== name))}
+                        className="ml-0.5 text-violet-400 hover:text-white"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setBulkSelectedNames([])}
+                    className="text-xs text-neutral-500 hover:text-neutral-300"
+                  >
+                    Clear all
+                  </button>
+                </div>
+              )}
+
+              {/* Search box */}
+              <input
+                type="text"
+                value={bulkNameSearch}
+                onChange={(e) => setBulkNameSearch(e.target.value)}
+                placeholder={staffOptions.length ? "Search staff…" : "Loading staff list…"}
+                disabled={!staffOptions.length}
+                className={INPUT_CLASS + " mb-1.5"}
               />
+
+              {/* Scrollable checklist */}
+              <div className="max-h-52 overflow-y-auto rounded-xl border border-neutral-800 bg-neutral-950">
+                {staffOptions.length === 0 ? (
+                  <p className="px-3 py-3 text-xs text-neutral-500">Loading…</p>
+                ) : filteredBulkOptions.length === 0 ? (
+                  <p className="px-3 py-3 text-xs text-neutral-500">No matches</p>
+                ) : (
+                  filteredBulkOptions.map((name) => {
+                    const selected = bulkSelectedNames.includes(name);
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() =>
+                          setBulkSelectedNames((prev) =>
+                            selected ? prev.filter((n) => n !== name) : [...prev, name]
+                          )
+                        }
+                        className={[
+                          "flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors hover:bg-white/5",
+                          selected ? "bg-violet-500/10 text-violet-200" : "text-neutral-300",
+                        ].join(" ")}
+                      >
+                        <div
+                          className={[
+                            "flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-colors",
+                            selected
+                              ? "border-violet-400 bg-violet-500/30"
+                              : "border-neutral-600",
+                          ].join(" ")}
+                        >
+                          {selected && <Check className="h-2.5 w-2.5 text-violet-300" />}
+                        </div>
+                        {name}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
             <div className="space-y-3">
               <div>
