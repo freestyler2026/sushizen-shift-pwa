@@ -381,6 +381,36 @@ export function canAccessInventoryAdminNav(a?: Auth | null): boolean {
   return hasAnyPermission(["channel.admin.inventory.view", "channel.admin.inventory.write"], a);
 }
 
+/** Admin dashboard nav — requires explicit dashboard permission */
+export function canAccessAdminDashboard(a?: Auth | null): boolean {
+  return hasAnyPermission(["channel.admin.dashboard.view"], a);
+}
+
+/** Analytics admin nav — requires explicit analytics permission */
+export function canAccessAnalyticsAdmin(a?: Auth | null): boolean {
+  return hasAnyPermission(["channel.admin.analytics.view"], a);
+}
+
+/** Attendance admin nav — requires explicit attendance permission */
+export function canAccessAttendanceAdmin(a?: Auth | null): boolean {
+  return hasAnyPermission(["channel.admin.attendance.view"], a);
+}
+
+/** Absences admin nav — requires explicit absences permission */
+export function canAccessAbsencesAdmin(a?: Auth | null): boolean {
+  return hasAnyPermission(["channel.admin.absences.view"], a);
+}
+
+/** Staff admin nav — requires explicit staff permission */
+export function canAccessStaffAdmin(a?: Auth | null): boolean {
+  return hasAnyPermission(["channel.admin.staff.view", "channel.admin.staff.manage_roles"], a);
+}
+
+/** Draft admin nav — requires explicit draft permission */
+export function canAccessDraftAdmin(a?: Auth | null): boolean {
+  return hasAnyPermission(["channel.admin.draft.view"], a);
+}
+
 export function canAccessMenuAdmin(a?: Auth | null): boolean {
   return hasAnyPermission(["channel.admin.menu.view", "channel.admin.menu.write", "menu.read", "menu.write"], a);
 }

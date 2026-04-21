@@ -36,20 +36,25 @@ import {
 } from "lucide-react";
 import LogoutButton from "@/components/LogoutButton";
 import {
+  canAccessAbsencesAdmin,
+  canAccessAdminDashboard,
   canAccessAdminNav,
   canAccessAiAnalyticsProAdmin,
+  canAccessAnalyticsAdmin,
+  canAccessAttendanceAdmin,
   canAccessBackofficeEvaluationAdmin,
   canAccessCostAdmin,
   canAccessDailyInventoryAdmin,
+  canAccessDraftAdmin,
   canAccessIncidentReport,
   canAccessIncidentReportAdmin,
   canAccessInventoryAdminNav,
-  canAccessInventoryWorkspace,
   canAccessMenuAdmin,
   canAccessPrivateReportAdmin,
   canAccessProcurementAdmin,
   canAccessRenewalsAdmin,
   canAccessRoleManagement,
+  canAccessStaffAdmin,
   clearAuth,
   getAuth,
   getAuthHeaders,
@@ -196,7 +201,7 @@ export default function NavBar() {
     if (!auth) return false;
     const role = String(auth.role || "").toUpperCase();
     if (role === "HQ" || role === "ADMIN") return true;
-    if (href === "/admin") return canAccessAdminNav(auth);
+    if (href === "/admin") return canAccessAdminDashboard(auth);
     if (href === "/admin/ai-analytics-pro") return canAccessAiAnalyticsProAdmin(auth);
     if (href === "/admin/inventory") return canAccessInventoryAdminNav(auth);
     if (href === "/admin/daily-inventory") return canAccessDailyInventoryAdmin(auth);
@@ -204,13 +209,13 @@ export default function NavBar() {
     if (href === "/admin/private-reports") return canAccessPrivateReportAdmin(auth);
     if (href === "/admin/procurement") return canAccessProcurementAdmin(auth, auth.city);
     if (href === "/admin/cost-calculation") return canAccessCostAdmin(auth);
-    if (href === "/admin/analytics") return canAccessAdminNav(auth);
-    if (href === "/admin/attendance") return canAccessAdminNav(auth);
-    if (href === "/admin/absences") return canAccessAdminNav(auth);
+    if (href === "/admin/analytics") return canAccessAnalyticsAdmin(auth);
+    if (href === "/admin/attendance") return canAccessAttendanceAdmin(auth);
+    if (href === "/admin/absences") return canAccessAbsencesAdmin(auth);
     if (href === "/admin/renewals") return canAccessRenewalsAdmin(auth);
-    if (href === "/admin/staff") return canAccessAdminNav(auth);
+    if (href === "/admin/staff") return canAccessStaffAdmin(auth);
     if (href === "/admin/staff/roles") return canAccessRoleManagement(auth);
-    if (href === "/admin/draft") return canAccessAdminNav(auth);
+    if (href === "/admin/draft") return canAccessDraftAdmin(auth);
     if (href === "/admin/backoffice-evaluation") return canAccessBackofficeEvaluationAdmin(auth);
     if (href === "/admin/incidents") return canAccessIncidentReportAdmin(auth);
     return false;
