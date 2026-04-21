@@ -417,8 +417,8 @@ export default function NavBar() {
   }, [displayName]);
 
   return (
-    <div>
-      <div className="flex h-11 items-center justify-between px-0">
+    <div className="overflow-x-hidden">
+      <div className="flex h-11 items-center justify-between">
         <Link href="/my-shift" className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5">
             <div className="rounded bg-violet-600 px-1.5 py-0.5 text-xs font-bold text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
