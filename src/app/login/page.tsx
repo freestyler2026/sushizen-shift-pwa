@@ -239,7 +239,7 @@ function LoginInner() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Field label="City">
               <select
-                className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
                 value={city}
                 onChange={(e) => {
                   setCity(e.target.value as City);
@@ -256,7 +256,7 @@ function LoginInner() {
             <Field label="Your name" hint={nameLoading ? "Loading names..." : "Type to search and select"}>
               <div className="relative">
                 <input
-                  className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                  className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white placeholder:text-neutral-500"
                   value={staffName}
                   onChange={(e) => {
                     setStaffName(e.target.value);
@@ -296,7 +296,7 @@ function LoginInner() {
             <Field label="PIN" hint="4+ digits">
               <input
                 ref={pinInputRef}
-                className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white placeholder:text-neutral-500"
                 value={pin}
                 onChange={(e) => {
                   setPin(e.target.value);
