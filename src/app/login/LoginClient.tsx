@@ -114,7 +114,7 @@ export default function LoginClient() {
         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Field label="City">
             <select
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
               value={city}
               onChange={(e) => setCity(e.target.value as City)}
             >
@@ -125,7 +125,7 @@ export default function LoginClient() {
 
           <Field label="Your name" hint="Exact spelling as in shift sheet">
             <input
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white placeholder:text-neutral-500"
               value={staffName}
               onChange={(e) => setStaffName(e.target.value)}
               placeholder="e.g., Muskan Tamang"
@@ -135,7 +135,7 @@ export default function LoginClient() {
 
           <Field label="PIN" hint="4+ digits">
             <input
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white placeholder:text-neutral-500"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
               placeholder="••••"

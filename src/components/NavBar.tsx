@@ -414,17 +414,23 @@ export default function NavBar() {
             <div className="rounded bg-violet-600 px-1.5 py-0.5 text-xs font-bold text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
               ZEN
             </div>
-            <p className="truncate text-[13px] font-semibold text-white sm:text-sm">Sushi ZEN Workforce OS</p>
+            <p className="text-[13px] font-semibold text-white sm:text-sm">
+              <span className="sm:hidden">ZEN Workforce OS</span>
+              <span className="hidden sm:inline">Sushi ZEN Workforce OS</span>
+            </p>
           </div>
         </Link>
 
-        <div className="ml-3 flex min-w-0 items-center gap-2">
+        <div className="ml-3 flex shrink-0 items-center gap-2">
           <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-700 text-xs font-medium text-white">
             {userInitials}
           </div>
-          <span className="max-w-[96px] truncate text-xs text-neutral-400 sm:max-w-[180px]">
+          <span className="hidden max-w-[96px] truncate text-xs text-neutral-400 sm:block sm:max-w-[180px]">
             {displayName || "Staff portal"}
           </span>
+          <div className="border-l border-white/10 pl-2 md:hidden">
+            <LogoutButton className="inline-flex rounded px-2 py-1 text-xs text-neutral-400 transition hover:bg-white/10 hover:text-white" />
+          </div>
         </div>
       </div>
 
@@ -447,9 +453,6 @@ export default function NavBar() {
                 badgePink={item.badgePink}
               />
             ))}
-            <div className="ml-1 border-l border-white/10 pl-2 md:hidden">
-              <LogoutButton className="inline-flex rounded px-2 py-1 text-xs text-neutral-400 transition hover:bg-white/10 hover:text-white" />
-            </div>
           </div>
         </div>
         <div className="hidden items-center border-l border-white/10 pl-3 md:flex">
