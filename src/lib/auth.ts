@@ -376,6 +376,11 @@ export function canAccessInventoryWorkspace(a?: Auth | null): boolean {
   return hasAnyPermission(["channel.admin.inventory.view", "channel.admin.inventory.write", "inventory.read", "inventory.write"], a);
 }
 
+/** Nav guard: only channel.admin.inventory permissions — excludes legacy inventory.read/write that all STAFF have */
+export function canAccessInventoryAdminNav(a?: Auth | null): boolean {
+  return hasAnyPermission(["channel.admin.inventory.view", "channel.admin.inventory.write"], a);
+}
+
 export function canAccessMenuAdmin(a?: Auth | null): boolean {
   return hasAnyPermission(["channel.admin.menu.view", "channel.admin.menu.write", "menu.read", "menu.write"], a);
 }

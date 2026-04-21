@@ -43,6 +43,7 @@ import {
   canAccessDailyInventoryAdmin,
   canAccessIncidentReport,
   canAccessIncidentReportAdmin,
+  canAccessInventoryAdminNav,
   canAccessInventoryWorkspace,
   canAccessMenuAdmin,
   canAccessPrivateReportAdmin,
@@ -197,7 +198,7 @@ export default function NavBar() {
     if (role === "HQ" || role === "ADMIN") return true;
     if (href === "/admin") return canAccessAdminNav(auth);
     if (href === "/admin/ai-analytics-pro") return canAccessAiAnalyticsProAdmin(auth);
-    if (href === "/admin/inventory") return canAccessInventoryWorkspace(auth);
+    if (href === "/admin/inventory") return canAccessInventoryAdminNav(auth);
     if (href === "/admin/daily-inventory") return canAccessDailyInventoryAdmin(auth);
     if (href === "/admin/menu") return canAccessMenuAdmin(auth);
     if (href === "/admin/private-reports") return canAccessPrivateReportAdmin(auth);
