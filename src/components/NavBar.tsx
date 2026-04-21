@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
@@ -21,6 +21,7 @@ import {
   Inbox as InboxIcon,
   KeyRound,
   LayoutDashboard,
+  LogOut,
   Package,
   PenLine,
   ScrollText,
@@ -48,6 +49,7 @@ import {
   canAccessProcurementAdmin,
   canAccessRenewalsAdmin,
   canAccessRoleManagement,
+  clearAuth,
   getAuth,
   getAuthHeaders,
   refreshAuthFromApi,
@@ -180,6 +182,7 @@ function NavBtn({
 
 export default function NavBar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [resolvedAuth, setResolvedAuth] = useState<ReturnType<typeof getAuth>>(null);
   const [displayName, setDisplayName] = useState("");
   const [procurementBadgeCount, setProcurementBadgeCount] = useState(0);
@@ -395,6 +398,13 @@ export default function NavBar() {
   }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge]);
 
   const navItems = useMemo(() => [...staffItems, ...adminItems], [staffItems, adminItems]);
+
+  const doLogout = () => {
+    clearAuth();
+    try { localStorage.removeItem("sushizen_shift_role_v1"); } catch {}
+    document.cookie = "sushizen_authed=; path=/; max-age=0";
+    router.replace("/login");
+  };
   const userInitials = useMemo(() => {
     const trimmed = String(displayName || "").trim();
     if (!trimmed) return "SZ";
@@ -415,7 +425,7 @@ export default function NavBar() {
               ZEN
             </div>
             <p className="text-[13px] font-semibold text-white sm:text-sm">
-              <span className="sm:hidden">ZEN Workforce OS</span>
+              <span className="sm:hidden">ZEN Workforce</span>
               <span className="hidden sm:inline">Sushi ZEN Workforce OS</span>
             </p>
           </div>
@@ -428,9 +438,13 @@ export default function NavBar() {
           <span className="hidden max-w-[96px] truncate text-xs text-neutral-400 sm:block sm:max-w-[180px]">
             {displayName || "Staff portal"}
           </span>
-          <div className="border-l border-white/10 pl-2 md:hidden">
-            <LogoutButton className="inline-flex rounded px-2 py-1 text-xs text-neutral-400 transition hover:bg-white/10 hover:text-white" />
-          </div>
+          <button
+            onClick={doLogout}
+            className="ml-1 rounded-lg border border-white/10 p-1.5 text-neutral-400 transition hover:bg-white/10 hover:text-white md:hidden"
+            aria-label="Logout"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
