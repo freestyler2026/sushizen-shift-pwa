@@ -2,9 +2,13 @@
 
 import { motion } from "framer-motion";
 import {
+  AlertTriangle,
   ArrowDownToLine,
+  Bot,
   CalendarCog,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   ClipboardList,
   ExternalLink,
   InboxIcon,
@@ -13,11 +17,12 @@ import {
   RefreshCw,
   Send,
   ShieldCheck,
+  Sparkles,
   Wand2,
   XCircle,
   Zap,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { canAccessAdminNav, getAuth } from "@/lib/auth";
 import ShiftScheduleView from "./ShiftScheduleView";
@@ -92,7 +97,22 @@ type DraftGenerateMonthResult = {
     total_planned_staff_hours?: number;
     total_unresolved_hours?: number;
     demand_coverage_ratio?: number;
+    avg_branch_reliability?: number;
+    reliability_buffer_hours?: number;
+    fulltime_enforcement_days_added?: number;
+    fulltime_enforcement_days_removed?: number;
+    ramadan_shifts_adjusted?: number;
+    opening_crew_target?: number;
+    opening_crew_shifts_added?: number;
   };
+};
+
+type ReliabilityRow = {
+  staff_name: string;
+  reliability_score: number;
+  absence_days: number;
+  late_days: number;
+  shift_days: number;
 };
 
 type BatchDraftVersion = {
@@ -103,6 +123,7 @@ type BatchDraftVersion = {
   rows_inserted: number;
   days_generated: number;
   summary?: DraftGenerateMonthResult["summary"];
+  reliability_summary?: ReliabilityRow[];
 };
 
 type BatchGenerateResult = {
@@ -115,6 +136,34 @@ type BatchGenerateResult = {
   total_unresolved_hours: number;
   versions: BatchDraftVersion[];
   failed_branches: Array<{ branch_code: string; detail: string }>;
+};
+
+type RecommendedAction =
+  | {
+      id: string;
+      type: "staffing_rule";
+      label: string;
+      rationale: string;
+      condition_type: "all_days" | "holiday" | "weekend";
+      adjustment: number;
+      exclude_hours: string;
+    }
+  | {
+      id: string;
+      type: "forecast_setting";
+      label: string;
+      rationale: string;
+      setting_key: string;
+      setting_value: number;
+    };
+
+type AiAnalysisResult = {
+  overall_rating: "GOOD" | "FAIR" | "AT_RISK";
+  overall_comment: string;
+  key_risks: string[];
+  recommendations: string[];
+  branch_notes: Record<string, string>;
+  recommended_actions?: RecommendedAction[];
 };
 
 type ApplyPrepareResult = {
@@ -1035,6 +1084,16 @@ export default function AdminDraftPage() {
   const [sheetTabs, setSheetTabs] = useState<string[]>([]);
   const [sheetTabsBusy, setSheetTabsBusy] = useState(false);
 
+  // AI analysis
+  const [aiAnalysis, setAiAnalysis] = useState<AiAnalysisResult | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const [openReliabilityBranch, setOpenReliabilityBranch] = useState<string | null>(null);
+  const aiRef = useRef<HTMLDivElement | null>(null);
+  const [selectedActions, setSelectedActions] = useState<Set<string>>(new Set());
+  const [applyingActions, setApplyingActions] = useState(false);
+  const [applyActionsError, setApplyActionsError] = useState("");
+
   const canOperate = myRole === "HQ" || myRole === "ADMIN";
   const targetMonthDates = useMemo(() => monthDates(targetMonth), [targetMonth]);
   const applyWeekStarts = useMemo(() => weekStartsForMonth(applyMonth), [applyMonth]);
@@ -1689,6 +1748,98 @@ export default function AdminDraftPage() {
     }
   }
 
+  async function runAiAnalysis() {
+    if (!generateResult || aiBusy) return;
+    setAiBusy(true);
+    setAiError("");
+    setAiAnalysis(null);
+    try {
+      const branchResults = generateResult.versions.map((v) => ({
+        branch_code: v.branch_code,
+        branch_name: v.branch_name,
+        summary: v.summary || {},
+        reliability_summary: v.reliability_summary || [],
+      }));
+      const res = await apiPost<{ ok: boolean; analysis: AiAnalysisResult }>(
+        `/api/draft/ai_analyze`,
+        {
+          city,
+          target_month: generateResult.target_month,
+          approver_name: approverName,
+          pin,
+          branch_results: branchResults,
+        }
+      );
+      if (res.ok && res.analysis) {
+        setAiAnalysis(res.analysis);
+        // Pre-select all recommended actions by default
+        const actionIds = new Set((res.analysis.recommended_actions || []).map((a) => a.id));
+        setSelectedActions(actionIds);
+        setTimeout(() => aiRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+      }
+    } catch (e: any) {
+      setAiError(String(e?.message || e || "AI analysis failed"));
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  async function applyAndRegenerate() {
+    if (!aiAnalysis || !prepared || applyingActions) return;
+    const actions = (aiAnalysis.recommended_actions || []).filter((a) => selectedActions.has(a.id));
+    if (!actions.length) return;
+    setApplyingActions(true);
+    setApplyActionsError("");
+    try {
+      for (const action of actions) {
+        if (action.type === "staffing_rule") {
+          const res = await fetch("/api/admin/staffing-rules", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              city,
+              condition_type: action.condition_type,
+              adjustment: action.adjustment,
+              exclude_hours: action.exclude_hours || "",
+              label: `[AI] ${action.label}`,
+              approver_name: approverName,
+              pin,
+            }),
+          });
+          if (!res.ok) {
+            const j = await res.json().catch(() => ({}));
+            throw new Error(`Staffing rule failed: ${j.detail || res.statusText}`);
+          }
+        } else if (action.type === "forecast_setting") {
+          const res = await fetch("/api/admin/forecast-settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              city,
+              key: action.setting_key,
+              value: action.setting_value,
+              approver_name: approverName,
+              pin,
+            }),
+          });
+          if (!res.ok) {
+            const j = await res.json().catch(() => ({}));
+            throw new Error(`Settings update failed: ${j.detail || res.statusText}`);
+          }
+        }
+      }
+      // Clear AI analysis so the new generation starts fresh
+      setAiAnalysis(null);
+      setSelectedActions(new Set());
+      // Trigger regeneration
+      await confirmGenerate();
+    } catch (e: any) {
+      setApplyActionsError(String(e?.message || e || "Failed to apply actions"));
+    } finally {
+      setApplyingActions(false);
+    }
+  }
+
   async function proposeFromSheet() {
     if (!canOperate) return;
     if (!approverName.trim() || !pin.trim()) {
@@ -1984,11 +2135,11 @@ export default function AdminDraftPage() {
             </div>
             <div>
               <p className={T_LABEL}>Overtime Hours</p>
-              <p className="mt-1 text-sm text-zinc-200">{fmtNum(generateResult.total_overtime_hours)}</p>
+              <p className={`mt-1 text-sm ${generateResult.total_overtime_hours > 0 ? "text-amber-400 font-semibold" : "text-zinc-200"}`}>{fmtNum(generateResult.total_overtime_hours)}</p>
             </div>
             <div>
               <p className={T_LABEL}>Unresolved Hours</p>
-              <p className="mt-1 text-sm text-zinc-200">{fmtNum(generateResult.total_unresolved_hours)}</p>
+              <p className={`mt-1 text-sm ${generateResult.total_unresolved_hours > 0 ? "text-red-400 font-semibold" : "text-zinc-200"}`}>{fmtNum(generateResult.total_unresolved_hours)}</p>
             </div>
           </div>
           {generateResult.failed_branches.length ? (
@@ -1997,26 +2148,240 @@ export default function AdminDraftPage() {
             </div>
           ) : null}
           <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-            {generateResult.versions.map((item) => (
-              <div key={item.branch_code} className={`${GLASS_CARD} p-4`}>
-                <div className="text-sm font-semibold text-neutral-100">{item.branch_name}</div>
-                <div className="mt-2 space-y-1 text-xs text-neutral-400">
-                  <div>version_id: <span className="text-neutral-200">{item.version_id}</span></div>
-                  <div>rows_inserted: <span className="text-neutral-200">{fmtNum(item.rows_inserted)}</span></div>
-                  <div>days_generated: <span className="text-neutral-200">{fmtNum(item.days_generated)}</span></div>
-                  {typeof item.summary?.demand_coverage_ratio === "number" ? (
-                    <div>demand_coverage: <span className="text-neutral-200">{(item.summary.demand_coverage_ratio * 100).toFixed(1)}%</span></div>
-                  ) : null}
-                  {typeof item.summary?.total_overtime_hours === "number" ? (
-                    <div>overtime_hours: <span className="text-neutral-200">{fmtNum(item.summary.total_overtime_hours)}</span></div>
-                  ) : null}
-                  {typeof item.summary?.total_unresolved_hours === "number" ? (
-                    <div>unresolved_hours: <span className="text-neutral-200">{fmtNum(item.summary.total_unresolved_hours)}</span></div>
-                  ) : null}
+            {generateResult.versions.map((item) => {
+              const coverage = typeof item.summary?.demand_coverage_ratio === "number" ? item.summary.demand_coverage_ratio : null;
+              const avgRel = typeof item.summary?.avg_branch_reliability === "number" ? item.summary.avg_branch_reliability : null;
+              const ot = item.summary?.total_overtime_hours ?? 0;
+              const unres = item.summary?.total_unresolved_hours ?? 0;
+              const relRows = item.reliability_summary || [];
+              const atRisk = relRows.filter((r) => r.reliability_score < 0.82);
+              const isOpen = openReliabilityBranch === item.branch_code;
+              const coverageColor = coverage === null ? "text-zinc-400" : coverage >= 0.9 ? "text-emerald-400" : coverage >= 0.75 ? "text-amber-400" : "text-red-400";
+              const relColor = avgRel === null ? "text-zinc-400" : avgRel >= 0.9 ? "text-emerald-400" : avgRel >= 0.82 ? "text-amber-400" : "text-red-400";
+              return (
+                <div key={item.branch_code} className={`${GLASS_CARD} p-4`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-sm font-semibold text-neutral-100">{item.branch_name}</div>
+                    <div className="flex gap-2 flex-wrap justify-end">
+                      {coverage !== null && (
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${coverage >= 0.9 ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400" : coverage >= 0.75 ? "bg-amber-500/15 border-amber-500/30 text-amber-400" : "bg-red-500/15 border-red-500/30 text-red-400"}`}>
+                          Coverage {(coverage * 100).toFixed(0)}%
+                        </span>
+                      )}
+                      {avgRel !== null && (
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${avgRel >= 0.9 ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400" : avgRel >= 0.82 ? "bg-amber-500/15 border-amber-500/30 text-amber-400" : "bg-red-500/15 border-red-500/30 text-red-400"}`}>
+                          Reliability {(avgRel * 100).toFixed(0)}%
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {coverage !== null && (
+                    <div className="mb-3">
+                      <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                        <div className={`h-full rounded-full transition-all ${coverage >= 0.9 ? "bg-emerald-500" : coverage >= 0.75 ? "bg-amber-500" : "bg-red-500"}`} style={{ width: `${Math.min(100, coverage * 100)}%` }} />
+                      </div>
+                    </div>
+                  )}
+                  <div className="space-y-1 text-xs text-neutral-400">
+                    <div>rows: <span className="text-neutral-200">{fmtNum(item.rows_inserted)}</span> &nbsp;·&nbsp; days: <span className="text-neutral-200">{fmtNum(item.days_generated)}</span></div>
+                    {ot > 0 && <div className="text-amber-400">⚠ Overtime: {fmtNum(ot)}h</div>}
+                    {unres > 0 && <div className="text-red-400">⚠ Unresolved: {fmtNum(unres)}h</div>}
+                    {item.summary?.reliability_buffer_hours != null && item.summary.reliability_buffer_hours > 0 && (
+                      <div className="text-sky-400">↑ Reliability buffer: +{item.summary.reliability_buffer_hours}h</div>
+                    )}
+                    {((item.summary?.fulltime_enforcement_days_added ?? 0) > 0 || (item.summary?.fulltime_enforcement_days_removed ?? 0) > 0) && (
+                      <div className="text-violet-400 flex items-center gap-1">
+                        <ShieldCheck className="h-3 w-3" />
+                        6-day rule:
+                        {(item.summary?.fulltime_enforcement_days_added ?? 0) > 0 && (
+                          <span className="text-emerald-400 ml-1">+{item.summary!.fulltime_enforcement_days_added} added</span>
+                        )}
+                        {(item.summary?.fulltime_enforcement_days_removed ?? 0) > 0 && (
+                          <span className="text-amber-400 ml-1">−{item.summary!.fulltime_enforcement_days_removed} removed</span>
+                        )}
+                      </div>
+                    )}
+                    {(item.summary?.ramadan_shifts_adjusted ?? 0) > 0 && (
+                      <div className="text-orange-400 flex items-center gap-1">
+                        🌙 Ramadan 6h cap: {item.summary!.ramadan_shifts_adjusted} shifts adjusted
+                      </div>
+                    )}
+                    {((item.summary?.opening_crew_shifts_added ?? 0) > 0 || (item.summary?.opening_crew_target ?? 0) > 0) && (
+                      <div className="text-teal-400 flex items-center gap-1">
+                        🍱 Opening crew: {item.summary?.opening_crew_shifts_added ?? 0} opener shifts added (target {item.summary?.opening_crew_target ?? 1}/day)
+                      </div>
+                    )}
+                  </div>
+                  {relRows.length > 0 && (
+                    <div className="mt-3 border-t border-white/8 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => setOpenReliabilityBranch(isOpen ? null : item.branch_code)}
+                        className="flex w-full items-center justify-between text-xs font-semibold text-zinc-400 hover:text-zinc-200 transition-colors"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <AlertTriangle className="h-3 w-3 text-amber-400" />
+                          Staff Reliability Flags
+                          {atRisk.length > 0 && <span className="ml-1 rounded-full bg-red-500/20 px-1.5 py-0.5 text-red-400 text-[10px]">{atRisk.length} at risk</span>}
+                        </span>
+                        {isOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                      </button>
+                      {isOpen && (
+                        <div className="mt-2 space-y-1.5">
+                          {relRows.map((r) => {
+                            const sc = r.reliability_score;
+                            const scColor = sc >= 0.9 ? "text-emerald-400" : sc >= 0.82 ? "text-amber-400" : "text-red-400";
+                            const label = sc >= 0.9 ? "Good" : sc >= 0.82 ? "Caution" : "At Risk";
+                            return (
+                              <div key={r.staff_name} className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2">
+                                <div>
+                                  <div className="text-xs font-medium text-zinc-200">{r.staff_name}</div>
+                                  <div className="text-[10px] text-zinc-500 mt-0.5">{r.absence_days}d absent · {r.late_days}d late · {r.shift_days}s shifts</div>
+                                </div>
+                                <div className="text-right">
+                                  <div className={`text-xs font-bold ${scColor}`}>{(sc * 100).toFixed(0)}%</div>
+                                  <div className={`text-[10px] ${scColor}`}>{label}</div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
+
+          {/* AI Analysis Button */}
+          <div className="mt-5 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={runAiAnalysis}
+              disabled={aiBusy}
+              className={`${PRIMARY_BUTTON} flex items-center gap-2 text-sm disabled:opacity-60`}
+            >
+              {aiBusy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {aiBusy ? "Analyzing…" : "AI Schedule Analysis"}
+            </button>
+            {aiError && <span className="text-xs text-red-400">{aiError}</span>}
+          </div>
+
+          {/* AI Analysis Result */}
+          {aiAnalysis && (
+            <div ref={aiRef} className="mt-4 rounded-2xl border border-violet-500/20 bg-violet-500/5 p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Bot className="h-4 w-4 text-violet-400" />
+                <span className={T_SECTION}>AI Schedule Analysis</span>
+                <span className={`ml-2 text-xs font-bold px-2 py-0.5 rounded-full ${
+                  aiAnalysis.overall_rating === "GOOD" ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30" :
+                  aiAnalysis.overall_rating === "FAIR" ? "bg-amber-500/15 text-amber-400 border border-amber-500/30" :
+                  "bg-red-500/15 text-red-400 border border-red-500/30"
+                }`}>
+                  {aiAnalysis.overall_rating === "GOOD" ? "🟢" : aiAnalysis.overall_rating === "FAIR" ? "🟡" : "🔴"} {aiAnalysis.overall_rating}
+                </span>
+              </div>
+              <p className="text-sm text-zinc-300 mb-4">{aiAnalysis.overall_comment}</p>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                {aiAnalysis.key_risks.length > 0 && (
+                  <div>
+                    <p className={`${T_LABEL} mb-2`}>⚠ Key Risks</p>
+                    <ul className="space-y-1.5">
+                      {aiAnalysis.key_risks.map((r, i) => (
+                        <li key={i} className="text-xs text-zinc-400 flex gap-2"><span className="text-red-400 mt-0.5">•</span>{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {aiAnalysis.recommendations.length > 0 && (
+                  <div>
+                    <p className={`${T_LABEL} mb-2`}>✓ Recommendations</p>
+                    <ul className="space-y-1.5">
+                      {aiAnalysis.recommendations.map((r, i) => (
+                        <li key={i} className="text-xs text-zinc-400 flex gap-2"><span className="text-emerald-400 mt-0.5">•</span>{r}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+              {Object.keys(aiAnalysis.branch_notes).length > 0 && (
+                <div className="mt-4 border-t border-white/8 pt-4">
+                  <p className={`${T_LABEL} mb-2`}>Branch Notes</p>
+                  <div className="space-y-1.5">
+                    {Object.entries(aiAnalysis.branch_notes).map(([branch, note]) => (
+                      <div key={branch} className="text-xs text-zinc-400"><span className="text-zinc-200 font-medium">{branch}:</span> {note}</div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* ── Recommended Actions ── */}
+              {(aiAnalysis.recommended_actions || []).length > 0 && (
+                <div className="mt-5 border-t border-violet-400/20 pt-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Zap className="h-4 w-4 text-amber-400" />
+                    <span className={T_SECTION}>Recommended Actions</span>
+                    <span className="text-xs text-zinc-500 ml-1">— select and apply to regenerate with these settings</span>
+                  </div>
+                  <div className="space-y-2">
+                    {(aiAnalysis.recommended_actions || []).map((action) => {
+                      const checked = selectedActions.has(action.id);
+                      const isRule = action.type === "staffing_rule";
+                      const isSetting = action.type === "forecast_setting";
+                      const typeLabel = isRule
+                        ? `+${(action as any).adjustment > 0 ? "+" : ""}${(action as any).adjustment} staff · ${(action as any).condition_type}`
+                        : `${(action as any).setting_key} → ${(action as any).setting_value}`;
+                      const typeColor = isRule ? "text-sky-400 bg-sky-500/10 border-sky-500/20" : "text-amber-400 bg-amber-500/10 border-amber-500/20";
+                      return (
+                        <label
+                          key={action.id}
+                          className={`flex items-start gap-3 rounded-xl border p-3 cursor-pointer transition-colors ${checked ? "border-violet-500/40 bg-violet-500/10" : "border-white/8 bg-white/3 hover:bg-white/5"}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setSelectedActions((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(action.id)) next.delete(action.id);
+                                else next.add(action.id);
+                                return next;
+                              })
+                            }
+                            className="mt-0.5 h-4 w-4 rounded accent-violet-500 shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-medium text-zinc-100">{action.label}</span>
+                              <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${typeColor}`}>{typeLabel}</span>
+                            </div>
+                            <p className="text-xs text-zinc-400 mt-0.5">{action.rationale}</p>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-4 flex items-center gap-3 flex-wrap">
+                    <button
+                      type="button"
+                      disabled={selectedActions.size === 0 || applyingActions}
+                      onClick={applyAndRegenerate}
+                      className={`${PRIMARY_BUTTON} flex items-center gap-2 text-sm disabled:opacity-50`}
+                    >
+                      {applyingActions
+                        ? <><RefreshCw className="h-4 w-4 animate-spin" /> Applying & Regenerating…</>
+                        : <><Wand2 className="h-4 w-4" /> Apply Selected & Regenerate</>
+                      }
+                    </button>
+                    <span className="text-xs text-zinc-500">
+                      {selectedActions.size} of {(aiAnalysis.recommended_actions || []).length} selected
+                    </span>
+                    {applyActionsError && <span className="text-xs text-red-400">{applyActionsError}</span>}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       ) : null}
 

@@ -519,7 +519,11 @@ export default function AdminAbsencesPage() {
         pin: p,
       });
 
-      setMsg({ kind: "ok", text: `Saved ${sn} / ${wd} / ${absenceType}.` });
+      // Clear form after successful save so the user can see it was recorded
+      setStaffName("");
+      setNote("");
+      setBranchHint("");
+      setMsg({ kind: "ok", text: `✓ Saved: ${sn} / ${wd} / ${absenceType}` });
       await loadReport();
     } catch (e: any) {
       setMsg({ kind: "err", text: e?.message || String(e) });
@@ -868,7 +872,15 @@ export default function AdminAbsencesPage() {
             </div>
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Work Date</label>
-              <input type="date" value={workDate} onChange={(e) => handleBulkDateFromChange(e.target.value)} className={INPUT_CLASS} />
+              <input
+                type="date"
+                value={workDate}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  if (next) setWorkDate(next);
+                }}
+                className={INPUT_CLASS}
+              />
             </div>
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Absence Type</label>
@@ -931,9 +943,9 @@ export default function AdminAbsencesPage() {
                 placeholder={"John Smith\nJane Doe"}
                 value={bulkSelectedNames.join("\n")}
                 onChange={(e) =>
-                  setBulkSelectedNames(
-                    e.target.value.split("\n").map((n) => n.trim()).filter(Boolean)
-                  )
+                  // Keep raw lines including spaces while typing;
+                  // trimming happens at submit time in upsertBulk().
+                  setBulkSelectedNames(e.target.value.split("\n"))
                 }
               />
             </div>
@@ -950,7 +962,14 @@ export default function AdminAbsencesPage() {
                   />
                   <button
                     type="button"
-                    onClick={() => { handleBulkDateFromChange(todayIso()); handleBulkDateToChange(todayIso()); }}
+                    onClick={() => { setBulkDateFrom(yesterdayIso()); setBulkDateTo(yesterdayIso()); }}
+                    className={SMALL_BUTTON + " whitespace-nowrap"}
+                  >
+                    Yesterday
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setBulkDateFrom(todayIso()); setBulkDateTo(todayIso()); }}
                     className={SMALL_BUTTON + " whitespace-nowrap"}
                   >
                     Today
