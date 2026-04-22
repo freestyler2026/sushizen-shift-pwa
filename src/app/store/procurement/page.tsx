@@ -12,7 +12,6 @@ import {
   RefreshCw,
   ChevronRight,
   MapPin,
-  Store,
   Building2,
   ClipboardList,
   CheckCircle2,
@@ -69,37 +68,10 @@ type TimelineAction = {
   href: string;
 };
 
-type CatalogItem = {
-  source_row_id: string;
-  item_name: string;
-  category: string;
-  unit: string;
-  suggested_unit_price: number;
-};
-
-type CatalogCategory = {
-  category: string;
-  items: CatalogItem[];
-};
-
-type SupplierCatalog = {
-  supplier: string;
-  item_count: number;
-  categories: CatalogCategory[];
-};
-
-type CatalogResponse = {
-  suppliers?: SupplierCatalog[];
-  categories?: string[];
-};
-
-const DUBAI_CURATED_STORES = ["ALL", "Al Barsha", "Al Mina", "B Bay", "JLT", "M City"];
-const DUBAI_CURATED_CATEGORIES = ["Kitchen Ingredients", "Warehouse", "Central Kitchen"];
 
 export default function StoreProcurementHomePage() {
   const PAGE_BG = "min-h-screen text-white";
   const BLUSH_GLASS = `${GLASS_CARD} bg-violet-950/30`;
-  const BLUSH_HIGHLIGHT = "rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/18 to-purple-500/10";
   const BLUSH_PRIMARY =
     "rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 px-5 py-2.5 font-semibold text-white transition-all duration-200 shadow-lg shadow-violet-500/25 hover:scale-[1.02] hover:from-violet-400 hover:to-purple-400 hover:shadow-violet-500/40 active:scale-[0.98] disabled:opacity-60";
   const BLUSH_SECONDARY =
@@ -133,14 +105,6 @@ export default function StoreProcurementHomePage() {
   const [lastCreatedClaimAt, setLastCreatedClaimAt] = useState("");
   const [showAllRecentActivities, setShowAllRecentActivities] = useState(false);
   const [expandedActionsByItem, setExpandedActionsByItem] = useState<Record<string, boolean>>({});
-  const [catalogStores, setCatalogStores] = useState<string[]>([]);
-  const [catalogCategories, setCatalogCategories] = useState<string[]>([]);
-  const [selectedCatalogCategory, setSelectedCatalogCategory] = useState("Kitchen Ingredients");
-  const [selectedStore, setSelectedStore] = useState("");
-  const [catalogSuppliers, setCatalogSuppliers] = useState<SupplierCatalog[]>([]);
-  const [selectedSupplier, setSelectedSupplier] = useState("");
-  const [selectedCatalogItemId, setSelectedCatalogItemId] = useState("");
-  const [catalogLoading, setCatalogLoading] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [canOpenAdminCase, setCanOpenAdminCase] = useState(false);
@@ -172,99 +136,6 @@ export default function StoreProcurementHomePage() {
     }
   }, [city, pin, requestedBy]);
 
-  const loadCatalogStores = useCallback(async (cityOverride?: string) => {
-    try {
-      const activeCity = String(cityOverride || city || "manila").trim().toLowerCase() || "manila";
-      if (activeCity === "dubai") {
-        setCatalogStores(DUBAI_CURATED_STORES);
-        setCatalogCategories(DUBAI_CURATED_CATEGORIES);
-        const preferredStore = "ALL";
-        if (!DUBAI_CURATED_STORES.includes(selectedStore)) {
-          setSelectedStore(preferredStore);
-        }
-        if (!DUBAI_CURATED_CATEGORIES.includes(selectedCatalogCategory)) {
-          setSelectedCatalogCategory(DUBAI_CURATED_CATEGORIES[0]);
-        }
-        return;
-      }
-      const qs = new URLSearchParams({
-        city: activeCity,
-        limit: "300",
-      });
-      const data = await procurementJson<{ stores?: string[] }>(
-        `/api/admin/procurement/requests/catalog-stores?${qs.toString()}`,
-        { method: "GET" },
-        requestedBy,
-        pin,
-      );
-      const stores = Array.isArray(data?.stores) ? data.stores : [];
-      setCatalogStores(stores);
-      setCatalogCategories([]);
-      const preferredStore = stores.find((store) => String(store || "").trim().toUpperCase() === "ALL") || stores[0] || "";
-      if (!stores.includes(selectedStore)) {
-        setSelectedStore(preferredStore);
-      }
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    }
-  }, [city, pin, requestedBy, selectedCatalogCategory, selectedStore]);
-
-  const loadItemCatalog = useCallback(async (storeOverride?: string) => {
-    const activeStore = String(storeOverride || selectedStore || "").trim();
-    if (!activeStore) {
-      setCatalogSuppliers([]);
-      setSelectedSupplier("");
-      setSelectedCatalogItemId("");
-      return;
-    }
-    setCatalogLoading(true);
-    try {
-      let data: CatalogResponse;
-      if (city === "dubai") {
-        const qs = new URLSearchParams({
-          city,
-          category: selectedCatalogCategory,
-          store: activeStore,
-          limit: "5000",
-        });
-        data = await procurementJson<CatalogResponse>(
-          `/api/admin/procurement/requests/curated-catalog?${qs.toString()}`,
-          { method: "GET" },
-          requestedBy,
-          pin,
-        );
-      } else {
-        const qs = new URLSearchParams({
-          city,
-          store: activeStore,
-          limit: "2000",
-        });
-        data = await procurementJson<CatalogResponse>(
-          `/api/admin/procurement/requests/item-catalog?${qs.toString()}`,
-          { method: "GET" },
-          requestedBy,
-          pin,
-        );
-      }
-      const suppliers = Array.isArray(data?.suppliers) ? data.suppliers : [];
-      const categories = Array.isArray(data?.categories) ? data.categories.filter(Boolean) : [];
-      if (city === "dubai") {
-        setCatalogCategories(categories.length ? categories : DUBAI_CURATED_CATEGORIES);
-      }
-      setCatalogSuppliers(suppliers);
-      const nextSupplier = suppliers[0]?.supplier || "";
-      setSelectedSupplier(nextSupplier);
-      const firstItem = suppliers[0]?.categories?.[0]?.items?.[0];
-      setSelectedCatalogItemId(firstItem?.source_row_id || "");
-    } catch (e: any) {
-      setError(e?.message || String(e));
-      setCatalogSuppliers([]);
-      setSelectedSupplier("");
-      setSelectedCatalogItemId("");
-    } finally {
-      setCatalogLoading(false);
-    }
-  }, [city, pin, requestedBy, selectedCatalogCategory, selectedStore]);
 
   useEffect(() => {
     if (initRef.current) return;
@@ -285,21 +156,11 @@ export default function StoreProcurementHomePage() {
       if ((refreshed?.staffName || "").trim() && !requestedBy.trim()) {
         setRequestedBy(String(refreshed?.staffName || "").trim());
       }
-      await loadCatalogStores(initialCity);
       await loadMyRequests(initialCity);
     }
     void init();
-  }, [auth, city, loadCatalogStores, loadMyRequests, requestedBy, router]);
+  }, [auth, city, loadMyRequests, requestedBy, router]);
 
-  useEffect(() => {
-    if (!selectedStore.trim()) {
-      setCatalogSuppliers([]);
-      setSelectedSupplier("");
-      setSelectedCatalogItemId("");
-      return;
-    }
-    void loadItemCatalog();
-  }, [loadItemCatalog, selectedCatalogCategory, selectedStore]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -476,24 +337,6 @@ export default function StoreProcurementHomePage() {
     () => (showAllRecentActivities ? recentActivities : recentActivities.slice(0, 3)),
     [recentActivities, showAllRecentActivities],
   );
-  const selectedSupplierCatalog = useMemo(
-    () => catalogSuppliers.find((row) => row.supplier === selectedSupplier) || null,
-    [catalogSuppliers, selectedSupplier],
-  );
-  const supplierItems = useMemo(
-    () =>
-      (selectedSupplierCatalog?.categories || []).flatMap((cat) =>
-        (cat.items || []).map((item) => ({
-          ...item,
-          category_name: cat.category,
-        })),
-      ),
-    [selectedSupplierCatalog],
-  );
-  const selectedCatalogItem = useMemo(
-    () => supplierItems.find((row) => row.source_row_id === selectedCatalogItemId) || null,
-    [selectedCatalogItemId, supplierItems],
-  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -661,112 +504,20 @@ export default function StoreProcurementHomePage() {
         </div>
       ) : null}
 
-      <div className={`${BLUSH_GLASS} p-5`}>
-        <div className="mb-4 flex items-center gap-2">
-          <ShoppingCart className="h-4 w-4 text-amber-400" />
-          <h2 className={T_SECTION}>Request Starter</h2>
-          <span className={`${T_CAPTION} ml-1`}>Pick store and item, then open Request Builder</span>
+      <div className={`${BLUSH_GLASS} p-5 flex items-center justify-between`}>
+        <div>
+          <h2 className={T_SECTION}>New Request</h2>
+          <p className={T_CAPTION}>Create a new procurement request</p>
         </div>
-
-        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-          <div>
-            <label className={`${T_LABEL} mb-1.5 flex items-center gap-1.5`}>
-              <Store className="h-3 w-3" />
-              Store
-            </label>
-            <select
-              value={selectedStore}
-              onChange={(e) => setSelectedStore(String(e.target.value || ""))}
-              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-            >
-              <option value="">Select store</option>
-              {catalogStores.map((store) => (
-                <option key={store} value={store}>
-                  {store}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={`${T_LABEL} mb-1.5 block`}>Category</label>
-            <select
-              value={selectedCatalogCategory}
-              onChange={(e) => setSelectedCatalogCategory(String(e.target.value || "Kitchen Ingredients"))}
-              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-              disabled={city !== "dubai"}
-            >
-              {(city === "dubai" ? catalogCategories : catalogCategories.length ? catalogCategories : ["All"]).map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={`${T_LABEL} mb-1.5 block`}>Supplier</label>
-            <select
-              value={selectedSupplier}
-              onChange={(e) => {
-                const next = String(e.target.value || "");
-                setSelectedSupplier(next);
-                const firstItem =
-                  (catalogSuppliers.find((row) => row.supplier === next)?.categories || [])[0]?.items?.[0];
-                setSelectedCatalogItemId(firstItem?.source_row_id || "");
-              }}
-              disabled={!selectedStore || catalogLoading}
-              className={`${SELECT_CLASS} disabled:opacity-60 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-            >
-              <option value="">{catalogLoading ? "Loading suppliers..." : "Select supplier"}</option>
-              {catalogSuppliers.map((supplier) => (
-                <option key={supplier.supplier} value={supplier.supplier}>
-                  {supplier.supplier} ({supplier.item_count})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={`${T_LABEL} mb-1.5 block`}>Item</label>
-            <select
-              value={selectedCatalogItemId}
-              onChange={(e) => setSelectedCatalogItemId(String(e.target.value || ""))}
-              disabled={!selectedSupplier || catalogLoading}
-              className={`${SELECT_CLASS} disabled:opacity-60 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-            >
-              <option value="">{catalogLoading ? "Loading items..." : "Select ingredient"}</option>
-              {supplierItems.map((item) => (
-                <option key={item.source_row_id || `${item.item_name}-${item.category_name}`} value={item.source_row_id}>
-                  {item.item_name} | {item.category_name} | {Number(item.suggested_unit_price || 0).toFixed(2)} {currencyCode}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {selectedCatalogItem ? (
-          <div className={`${BLUSH_HIGHLIGHT} mb-4 flex items-center justify-between px-4 py-2.5`}>
-            <p className="text-sm font-medium text-violet-200">
-              {selectedCatalogItem.item_name} ({selectedCatalogItem.category_name}) / {selectedCatalogItem.unit || "-"} / {Number(selectedCatalogItem.suggested_unit_price || 0).toFixed(2)} {currencyCode}
-            </p>
-          </div>
-        ) : null}
-        <div className="flex justify-end">
-          <Link
-            href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}${selectedStore ? `&store=${encodeURIComponent(selectedStore)}` : ""}${city === "dubai" ? `&catalog_category=${encodeURIComponent(selectedCatalogCategory)}` : ""}`}
-            className={BLUSH_PRIMARY}
-          >
-            <span className="flex items-center gap-2">
-              Open Request Builder
-              <ChevronRight className="h-4 w-4" />
-            </span>
-          </Link>
-        </div>
-        {!catalogStores.length ? (
-          <div className="mt-3 text-xs text-amber-300">
-            {city === "dubai"
-              ? `No curated catalog found for ${cityLabel}.`
-              : `No item list found for ${cityLabel}. Please sync the ${cityLabel} workbook in Admin Procurement Imports first.`}
-          </div>
-        ) : null}
+        <Link
+          href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}`}
+          className={BLUSH_PRIMARY}
+        >
+          <span className="flex items-center gap-2">
+            New Request
+            <ChevronRight className="h-4 w-4" />
+          </span>
+        </Link>
       </div>
 
       <div className={`${BLUSH_GLASS} p-4`}>
@@ -789,13 +540,6 @@ export default function StoreProcurementHomePage() {
               onChange={(e) => {
                 const nextCity = String(e.target.value || "manila").toLowerCase();
                 setCity(nextCity);
-                setSelectedStore(nextCity === "dubai" ? "ALL" : "");
-                setCatalogCategories(nextCity === "dubai" ? DUBAI_CURATED_CATEGORIES : []);
-                setSelectedCatalogCategory("Kitchen Ingredients");
-                setCatalogSuppliers([]);
-                setSelectedSupplier("");
-                setSelectedCatalogItemId("");
-                void loadCatalogStores(nextCity);
                 void loadMyRequests(nextCity);
               }}
               className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
