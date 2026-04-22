@@ -728,11 +728,10 @@ export default function StoreProcurementRequestPage() {
                     <tr>
                       <th className="px-3 py-2 text-left">Item</th>
                       <th className="px-3 py-2 text-left">Category</th>
-                      <th className="px-3 py-2 text-left">Spec</th>
-                      <th className="px-3 py-2 text-right">Qty</th>
-                      <th className="px-3 py-2 text-left">Unit</th>
-                      <th className="px-3 py-2 text-right">Unit Price ({currencyCode})</th>
-                      <th className="px-3 py-2 text-right">Line Total ({currencyCode})</th>
+                      <th className="w-20 px-2 py-2 text-right">Qty</th>
+                      <th className="w-20 px-2 py-2 text-left">Unit</th>
+                      <th className="w-28 px-2 py-2 text-right">Unit Price ({currencyCode})</th>
+                      <th className="w-24 px-2 py-2 text-right">Total ({currencyCode})</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -740,35 +739,39 @@ export default function StoreProcurementRequestPage() {
                       <tr key={item.row_key || `${section.supplier}-${item.item_name}`} className="border-t border-white/8 bg-black/15">
                         <td className="px-3 py-2 text-neutral-100">{item.item_name}</td>
                         <td className="px-3 py-2 text-neutral-300">{item.category || "-"}</td>
-                        <td className="px-3 py-2 text-neutral-400">{item.spec || "-"}</td>
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-2">
                           <input
                             type="number"
                             min="0"
                             step="1"
-                            value={item.qty}
+                            inputMode="numeric"
+                            placeholder="0"
+                            value={item.qty || ""}
+                            onFocus={(e) => e.target.select()}
                             onChange={(e) => updateItem(String(item.row_key || ""), { qty: Number(e.target.value || 0) })}
-                            className="w-24 rounded-lg border border-white/8 bg-black/20 px-2 py-1.5 text-right text-xs text-white focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
+                            className="w-20 rounded-lg border border-white/8 bg-black/20 px-2 py-1.5 text-right text-xs text-white focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
                           />
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-2">
                           <input
                             value={item.unit}
                             onChange={(e) => updateItem(String(item.row_key || ""), { unit: e.target.value })}
-                            className="w-24 rounded-lg border border-white/8 bg-black/20 px-2 py-1.5 text-xs text-white focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
+                            className="w-20 rounded-lg border border-white/8 bg-black/20 px-2 py-1.5 text-xs text-white focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
                           />
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="px-2 py-2">
                           <input
                             type="number"
                             min="0"
                             step="0.01"
-                            value={item.unit_price}
+                            inputMode="decimal"
+                            value={item.unit_price || ""}
+                            onFocus={(e) => e.target.select()}
                             onChange={(e) => updateItem(String(item.row_key || ""), { unit_price: Number(e.target.value || 0) })}
                             className="w-28 rounded-lg border border-white/8 bg-black/20 px-2 py-1.5 text-right text-xs text-white focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
                           />
                         </td>
-                        <td className="px-3 py-2 text-right text-neutral-300">
+                        <td className="px-2 py-2 text-right text-neutral-300">
                           {(Number(item.qty || 0) * Number(item.unit_price || 0)).toFixed(2)}
                         </td>
                       </tr>
