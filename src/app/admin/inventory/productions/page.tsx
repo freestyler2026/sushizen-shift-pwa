@@ -68,6 +68,29 @@ type ProductionRow = {
   created_at: string;
   updated_at: string;
   closed_by?: string;
+  linked_request_id?: string;
+};
+
+type CkPendingRequestItem = {
+  id: string;
+  item_name: string;
+  qty: number;
+  unit: string;
+  unit_price: number;
+  vendor_name: string;
+};
+
+type CkPendingRequest = {
+  id: string;
+  request_no: string;
+  requested_by: string;
+  store_code: string;
+  request_date: string;
+  needed_by_date: string;
+  status: string;
+  currency: string;
+  total_amount: number;
+  items: CkPendingRequestItem[];
 };
 
 type ProductionItem = {
@@ -163,6 +186,9 @@ export default function InventoryProductionsPage() {
   const [recipeRows, setRecipeRows] = useState<ProductionRecipeRow[]>([]);
   const [recipeLoading, setRecipeLoading] = useState(false);
   const [recipeSaving, setRecipeSaving] = useState(false);
+  const [pendingCkRequests, setPendingCkRequests] = useState<CkPendingRequest[]>([]);
+  const [pendingCkLoading, setPendingCkLoading] = useState(false);
+  const [linkedRequestId, setLinkedRequestId] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -193,12 +219,31 @@ export default function InventoryProductionsPage() {
     setRecipeRows([]);
   }, [city]);
 
+  async function loadPendingCkRequests(nextCity: City) {
+    setPendingCkLoading(true);
+    try {
+      const res = await inventoryGet<{ rows: CkPendingRequest[] }>(
+        `/api/admin/inventory/productions/ck-pending?city=${encodeURIComponent(nextCity)}`,
+      );
+      setPendingCkRequests(res.rows || []);
+    } catch {
+      // non-fatal
+    } finally {
+      setPendingCkLoading(false);
+    }
+  }
+
   async function loadHistory(nextCity: City, nextBranch: string, nextMonth: string) {
     const historyRes = await inventoryGet<{ rows: ProductionRow[] }>(
       `/api/admin/inventory/productions?city=${encodeURIComponent(nextCity)}&branch_code=${encodeURIComponent(nextBranch)}&month=${encodeURIComponent(nextMonth)}&limit=500`,
     );
     setHistoryRows(historyRes.rows || []);
   }
+
+  useEffect(() => {
+    if (!ready || !allowed) return;
+    void loadPendingCkRequests(city);
+  }, [allowed, city, ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!ready || !allowed) return;
@@ -370,6 +415,48 @@ export default function InventoryProductionsPage() {
     [selectedProduction],
   );
 
+  function startFromRequest(req: CkPendingRequest) {
+    const unmatched: string[] = [];
+    const newDrafts: DraftOutputItem[] = [];
+    for (const item of req.items) {
+      const match = productOptions.find(
+        (p) => p.name.trim().toLowerCase() === item.item_name.trim().toLowerCase(),
+      );
+      if (!match) {
+        unmatched.push(item.item_name);
+        continue;
+      }
+      const unit = normalizeProductionOutputUnit(item.unit || match.storage_unit);
+      const key = draftOutputKey(match.id, unit);
+      const existing = newDrafts.find((d) => d.key === key);
+      if (existing) {
+        existing.quantity = Number((existing.quantity + Number(item.qty || 0)).toFixed(3));
+      } else {
+        newDrafts.push({
+          key,
+          item_id: match.id,
+          item_name: match.name,
+          sku: match.sku,
+          quantity: Number(Number(item.qty || 0).toFixed(3)),
+          unit,
+          unit_cost: Number(item.unit_price || match.cost || 0),
+          storage_unit: match.storage_unit || "",
+        });
+      }
+    }
+    if (newDrafts.length === 0 && unmatched.length > 0) {
+      setError(`No matching products found for: ${unmatched.join(", ")}`);
+      return;
+    }
+    setError("");
+    if (unmatched.length > 0) {
+      setError(`Skipped (not in product list): ${unmatched.join(", ")}`);
+    }
+    setDraftOutputs(newDrafts);
+    setLinkedRequestId(req.id);
+    setSuccess(`Loaded ${newDrafts.length} item(s) from request ${req.request_no} (${req.store_code}).`);
+  }
+
   function addDraftOutput() {
     if (!selectedProduct) return;
     const parsedQty = parseDraftNumber(selectedQty);
@@ -520,6 +607,7 @@ export default function InventoryProductionsPage() {
         business_date: businessDate,
         creator_name: creatorName.trim(),
         notes,
+        linked_request_id: linkedRequestId || undefined,
       });
       const productionId = String(created?.row?.id || "");
       await inventoryPost(`/api/admin/inventory/productions/${encodeURIComponent(productionId)}/items`, {
@@ -551,9 +639,11 @@ export default function InventoryProductionsPage() {
         ],
       });
       await loadHistory(city, branchCode, historyMonth);
+      await loadPendingCkRequests(city);
       setDraftOutputs([]);
       setPreviewRows([]);
       setNotes("");
+      setLinkedRequestId("");
       setSuccess("Production draft created. Close it from detail when ready.");
       setSelectedProductionId(productionId);
     } catch (e: any) {
@@ -571,6 +661,7 @@ export default function InventoryProductionsPage() {
     try {
       await inventoryPost(`/api/admin/inventory/productions/${encodeURIComponent(selectedProductionId)}/close`, { city });
       await loadHistory(city, branchCode, historyMonth);
+      await loadPendingCkRequests(city);
       const res = await inventoryGet<{ row: ProductionDetail }>(
         `/api/admin/inventory/productions/${encodeURIComponent(selectedProductionId)}?city=${encodeURIComponent(city)}`,
       );
@@ -700,6 +791,86 @@ export default function InventoryProductionsPage() {
       </section>
 
       <InventoryRegistrationHelp />
+
+      {/* Pending CK Manufacturing Requests */}
+      <section className="rounded-2xl border border-amber-900/40 bg-amber-950/10 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-amber-200">Pending Manufacturing Requests</div>
+            <div className="mt-0.5 text-xs text-neutral-400">Approved CK orders from stores. Click "Start Production" to pre-fill the product list below.</div>
+          </div>
+          <div className="flex items-center gap-2">
+            {linkedRequestId ? (
+              <span className="rounded-full bg-amber-900/40 px-3 py-1 text-xs text-amber-300">
+                Request Linked
+              </span>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => void loadPendingCkRequests(city)}
+              disabled={pendingCkLoading}
+              className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-300 disabled:opacity-50"
+            >
+              {pendingCkLoading ? "Loading..." : "Refresh"}
+            </button>
+          </div>
+        </div>
+
+        {pendingCkLoading && pendingCkRequests.length === 0 ? (
+          <div className="mt-3 text-sm text-neutral-500">Loading...</div>
+        ) : pendingCkRequests.length === 0 ? (
+          <div className="mt-3 text-sm text-neutral-500">No pending manufacturing requests.</div>
+        ) : (
+          <div className="mt-3 space-y-3">
+            {pendingCkRequests.map((req) => (
+              <div
+                key={req.id}
+                className={[
+                  "rounded-xl border p-4 transition",
+                  linkedRequestId === req.id
+                    ? "border-amber-700/60 bg-amber-950/30"
+                    : "border-neutral-800 bg-neutral-950/30",
+                ].join(" ")}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-neutral-100">{req.request_no}</span>
+                      <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-xs text-neutral-300">{req.store_code}</span>
+                      <span className={[
+                        "rounded-full px-2 py-0.5 text-xs",
+                        req.status === "IN_PRODUCTION" ? "bg-blue-900/40 text-blue-300" : "bg-green-900/40 text-green-300",
+                      ].join(" ")}>
+                        {req.status === "IN_PRODUCTION" ? "In Production" : "Approved"}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-xs text-neutral-500">
+                      Requested: {String(req.request_date || "").slice(0, 10)}
+                      {req.needed_by_date ? ` · Due: ${String(req.needed_by_date).slice(0, 10)}` : ""}
+                      {" · "}{req.requested_by}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {req.items.map((item) => (
+                        <span key={item.id} className="rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-200">
+                          {item.item_name} {Number(item.qty || 0).toFixed(3)} {item.unit}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={linkedRequestId === req.id}
+                    onClick={() => startFromRequest(req)}
+                    className="shrink-0 rounded-lg border border-amber-700 bg-amber-900/30 px-4 py-2 text-sm text-amber-200 hover:bg-amber-900/50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {linkedRequestId === req.id ? "Selected" : "Start Production"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1098,6 +1269,13 @@ export default function InventoryProductionsPage() {
                   <div className="text-xs text-neutral-500">Notes</div>
                   <div className="whitespace-pre-wrap text-neutral-300">{selectedProduction.notes || "-"}</div>
                 </div>
+
+                {selectedProduction.linked_request_id ? (
+                  <div className="rounded-xl border border-amber-800/40 bg-amber-950/20 px-3 py-2">
+                    <div className="text-xs text-amber-400">Manufacturing Request Linked</div>
+                    <div className="mt-0.5 text-xs text-neutral-400">Request ID: {String(selectedProduction.linked_request_id).slice(0, 8)}…</div>
+                  </div>
+                ) : null}
 
                 <div>
                   <div className="mb-2 text-xs text-neutral-500">Output Products</div>

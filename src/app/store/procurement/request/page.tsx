@@ -700,13 +700,15 @@ export default function StoreProcurementRequestPage() {
       <div className={`${GLASS_PANEL} p-4`}>
         <div className="mb-2 text-sm font-medium">Items</div>
         <div className="text-xs text-neutral-400">
-          Supplierごとに全アイテムを表示しています。`Qty` が 0 の行は下書き・申請に含まれません。
+          All items are shown per supplier. Rows with Qty 0 are excluded from the draft and submission.
         </div>
         <div className="mt-3 space-y-4">
           {catalogBusy ? <div className="text-xs text-neutral-400">Loading catalog...</div> : null}
           {!catalogBusy && !supplierSections.length ? (
             <div className="rounded-xl border border-dashed border-white/10 bg-black/15 px-3 py-6 text-center text-xs text-neutral-500">
-              Select a store to load the supplier item list.
+              {storeCode
+                ? `No items found for "${selectedCatalogCategory}". Items must be registered in the inventory system first.`
+                : "Select a store to load the supplier item list."}
             </div>
           ) : null}
           {supplierSections.map((section) => (

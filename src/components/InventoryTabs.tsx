@@ -17,6 +17,7 @@ import {
   ScanLine,
   ScrollText,
   Warehouse,
+  Layers,
 } from "lucide-react";
 import { canAccessCountTemplatesAdmin, canAccessDailyInventoryAdmin, canAccessInventoryLimited, getAuth } from "@/lib/auth";
 
@@ -30,6 +31,7 @@ const ITEMS = [
   { href: "/admin/inventory/spot-checks", label: "Quick Spot Check", icon: ScanLine },
   { href: "/admin/inventory/transfer-orders", label: "Transfer Orders", icon: ArrowRightLeft },
   { href: "/admin/inventory/productions", label: "CK Production", icon: ChefHat },
+  { href: "/admin/inventory/ck-inventory", label: "CK Inventory", icon: Layers },
   { href: "/admin/inventory/quantity-adjustments", label: "Quantity Adjustments", icon: PackageMinus },
   { href: "/admin/inventory/cost-adjustments", label: "Cost Adjustments", icon: CircleDollarSign },
   { href: "/admin/inventory/pos-sync", label: "POS Sync", icon: RefreshCw },
@@ -49,7 +51,8 @@ export default function InventoryTabs() {
       item.href === "/admin/inventory/counts" ||
       item.href === "/admin/inventory/spot-checks" ||
       item.href === "/admin/inventory/transfer-orders" ||
-      item.href === "/admin/inventory/productions")
+      item.href === "/admin/inventory/productions" ||
+      item.href === "/admin/inventory/ck-inventory")
     : ITEMS.filter((item) => {
         if (item.href === "/admin/daily-inventory" && !canDailyInv) return false;
         return item.href === "/admin/inventory/count-sheets" ? canManageCountTemplates : true;
