@@ -11,6 +11,8 @@ export type IngredientItemOption = {
   ingredient_unit: string;
   cost: number;
   item_type?: string;
+  /** "cost" when the item comes from the Cost Calculation ingredient_master */
+  source?: string;
 };
 
 type IngredientItemSearchProps = {
@@ -28,13 +30,17 @@ function optionLabel(option: IngredientItemOption | null) {
 }
 
 function itemTypeLabel(itemType: string | undefined) {
-  return String(itemType || "").toUpperCase() === "PRODUCT" ? "CK Product" : "Ingredient";
+  const t = String(itemType || "").toUpperCase();
+  if (t === "PRODUCT") return "CK Product";
+  if (t === "COST_INGREDIENT") return "Cost Ingredient";
+  return "Ingredient";
 }
 
 function itemTypeBadgeClass(itemType: string | undefined) {
-  return String(itemType || "").toUpperCase() === "PRODUCT"
-    ? "border-violet-800/80 bg-violet-950/40 text-violet-200"
-    : "border-emerald-800/80 bg-emerald-950/30 text-emerald-200";
+  const t = String(itemType || "").toUpperCase();
+  if (t === "PRODUCT") return "border-violet-800/80 bg-violet-950/40 text-violet-200";
+  if (t === "COST_INGREDIENT") return "border-amber-800/80 bg-amber-950/30 text-amber-200";
+  return "border-emerald-800/80 bg-emerald-950/30 text-emerald-200";
 }
 
 function matchesSelectionQuery(option: IngredientItemOption, query: string) {
@@ -98,7 +104,7 @@ export default function IngredientItemSearch({
       } catch {
         if (!cancelled) {
           setOptions(selectedOption ? [selectedOption] : []);
-          setError("候補を取得できませんでした。");
+          setError("Failed to load ingredient options.");
         }
       } finally {
         if (!cancelled) setLoading(false);

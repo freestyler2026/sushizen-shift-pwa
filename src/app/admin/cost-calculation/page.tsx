@@ -2039,7 +2039,7 @@ export default function CostCalculationPage() {
     const ingredientId = String(selectedIngredientDetail.id || "").trim();
     if (!ingredientId) return;
     const ingredientName = selectedIngredientDetail.name || "this ingredient";
-    const confirmed = window.confirm(`Delete "${ingredientName}" from Cost Calculation?`);
+    const confirmed = window.confirm(`Permanently delete "${ingredientName}"? This cannot be undone.`);
     if (!confirmed) return;
     if (ingredientId.startsWith("new-")) {
       removeLocalIngredientRow(ingredientId);
@@ -4963,7 +4963,7 @@ export default function CostCalculationPage() {
                               )}
                             />
                             {column.key === "ingredient" && visibleIngredientSuggestions.length ? (
-                              <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded border border-white/10 bg-[#111521] shadow-xl">
+                              <div className="absolute left-0 top-full z-50 mt-1 max-h-48 min-w-[320px] overflow-y-auto rounded border border-white/10 bg-[#111521] shadow-xl">
                                 {visibleIngredientSuggestions.map((option) => (
                                   <button
                                     key={option.id}
