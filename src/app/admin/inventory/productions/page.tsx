@@ -243,7 +243,7 @@ export default function InventoryProductionsPage() {
   useEffect(() => {
     if (!ready || !allowed) return;
     void loadPendingCkRequests(city);
-  }, [allowed, city, ready]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allowed, city, ready]);
 
   useEffect(() => {
     if (!ready || !allowed) return;
@@ -797,7 +797,7 @@ export default function InventoryProductionsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-amber-200">Pending Manufacturing Requests</div>
-            <div className="mt-0.5 text-xs text-neutral-400">Approved CK orders from stores. Click "Start Production" to pre-fill the product list below.</div>
+            <div className="mt-0.5 text-xs text-neutral-400">Approved CK orders from stores. Click &quot;Start Production&quot; to pre-fill the product list below.</div>
           </div>
           <div className="flex items-center gap-2">
             {linkedRequestId ? (
