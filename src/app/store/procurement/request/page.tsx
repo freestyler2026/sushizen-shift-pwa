@@ -169,6 +169,16 @@ export default function StoreProcurementRequestPage() {
     [items],
   );
 
+  // Group validItems by supplier for PO preview
+  const validItemsBySupplier = useMemo(() => {
+    const map = new Map<string, ReqItem[]>();
+    for (const item of validItems) {
+      const s = item.vendor_name || "Unknown";
+      map.set(s, [...(map.get(s) || []), item]);
+    }
+    return Array.from(map.entries()).map(([supplier, rows]) => ({ supplier, rows }));
+  }, [validItems]);
+
   const validItemsTotal = useMemo(
     () => validItems.reduce((sum, item) => sum + Number(item.qty || 0) * Number(item.unit_price || 0), 0),
     [validItems],
@@ -622,6 +632,18 @@ export default function StoreProcurementRequestPage() {
         </label>
       </div>
 
+      {/* print-only styles */}
+      <style>{`
+        @media print {
+          body * { visibility: hidden; }
+          #po-print-area, #po-print-area * { visibility: visible; }
+          #po-print-area { position: fixed; top: 0; left: 0; width: 100%; padding: 24px; background: white; color: black; }
+          .no-print { display: none !important; }
+        }
+      `}</style>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 lg:items-start">
+      <div className="space-y-4 lg:col-span-2">
       <div className={`${GLASS_PANEL} p-4`}>
         <div className="text-sm font-medium">{city === "dubai" ? "Supplier Item List (curated catalog)" : "Supplier Item List (from Excel imports)"}</div>
         <div className="mt-1 text-xs text-neutral-400">
@@ -798,6 +820,79 @@ export default function StoreProcurementRequestPage() {
           </button>
         </div>
       </div>
+      </div>{/* end left column */}
+
+      {/* ── PO Preview Panel (right) ── */}
+      <div className="lg:col-span-1">
+        <div className={`sticky top-4 ${GLASS_PANEL} p-4`} id="po-print-area">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-semibold text-violet-200">発注書 / Purchase Order</div>
+            {validItems.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="no-print rounded-lg border border-violet-400/20 bg-violet-900/30 px-3 py-1 text-xs text-violet-200 hover:bg-violet-900/50"
+              >
+                🖨 Print
+              </button>
+            ) : null}
+          </div>
+
+          {validItems.length === 0 ? (
+            <div className="mt-4 text-center text-xs text-neutral-500">
+              Qty を入力すると<br />発注書プレビューが表示されます
+            </div>
+          ) : (
+            <div className="mt-3 space-y-3 text-xs">
+              {/* Header info */}
+              <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-xl border border-white/8 bg-black/20 px-3 py-2">
+                <span className="text-neutral-400">発注先</span>
+                <span className="text-white">{validItemsBySupplier.map(s => s.supplier).join(", ") || "-"}</span>
+                <span className="text-neutral-400">発注者</span>
+                <span className="text-white">{requestedBy || "-"}</span>
+                <span className="text-neutral-400">店舗</span>
+                <span className="text-white">{storeCode || "-"}</span>
+                <span className="text-neutral-400">日付</span>
+                <span className="text-white">{requestDate}</span>
+                <span className="text-neutral-400">都市</span>
+                <span className="text-white">{cityLabel}</span>
+              </div>
+
+              {/* Items by supplier */}
+              <div className="space-y-2">
+                {validItemsBySupplier.map(({ supplier, rows }) => (
+                  <div key={supplier} className="rounded-xl border border-violet-500/20 bg-violet-950/20">
+                    <div className="border-b border-white/8 px-3 py-1.5 text-[11px] font-semibold text-violet-300">
+                      {supplier}
+                    </div>
+                    <div className="divide-y divide-white/5">
+                      {rows.map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between gap-2 px-3 py-1.5">
+                          <span className="flex-1 text-neutral-200">{item.item_name}</span>
+                          <span className="shrink-0 font-mono text-violet-200">
+                            {Number(item.qty)} {item.unit}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Total */}
+              <div className="flex items-center justify-between rounded-xl border border-violet-500/30 bg-violet-950/30 px-3 py-2 font-semibold">
+                <span className="text-neutral-300">合計 ({currencyCode})</span>
+                <span className="text-white">{validItemsTotal.toFixed(2)}</span>
+              </div>
+
+              <div className="text-center text-[10px] text-neutral-500">
+                送信後、発注履歴から確認できます
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      </div>{/* end lg:grid */}
 
       {showSubmitReview ? (
         <div className={`${SUB_PANEL} p-4`}>
