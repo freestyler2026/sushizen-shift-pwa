@@ -1522,44 +1522,37 @@ export default function CostCalculationPage() {
 
   const getMasterComponentSuggestions = useCallback((component: MasterComponentDetail) => {
     const query = String(component.name || "").trim().toLowerCase();
+    if (!query) return [];
+
+    // Name-first matching: items whose name contains the query come before
+    // category-only matches so results feel intuitive when typing a name.
+    function scoreAndFilter<T extends { name: string; category: string; unit: string }>(
+      list: T[],
+      limit: number,
+    ): T[] {
+      const nameMatches = list.filter((o) => String(o.name || "").toLowerCase().includes(query));
+      const catMatches = list.filter(
+        (o) =>
+          !String(o.name || "").toLowerCase().includes(query) &&
+          String(o.category || "").toLowerCase().includes(query),
+      );
+      return [...nameMatches, ...catMatches].slice(0, limit);
+    }
+
     if (component.component_type === "ingredient") {
-      const ingredientMatches = allIngredientOptions
-        .filter((option) => {
-          if (!query) return false;
-          return [option.name, option.category, option.unit].some((value) => String(value || "").toLowerCase().includes(query));
-        })
-        .slice(0, 12)
-        .map((option) => ({
-          component_type: "ingredient" as const,
-          id: String(option.id || ""),
-          name: String(option.name || ""),
-          category: String(option.category || ""),
-          unit: String(option.unit || ""),
-          unit_cost: Number(option.unit_price || 0),
-        }));
-      if (masterEditor?.item_type !== "processed") {
-        const masterMatches = processedComponentOptions
-          .filter((option) => {
-            if (!query) return false;
-            return [option.name, option.category, option.unit].some((value) => String(value || "").toLowerCase().includes(query));
-          })
-          .slice(0, Math.max(0, 12 - ingredientMatches.length));
-        return [...ingredientMatches, ...masterMatches];
-      }
-      const processedMatches = processedComponentOptions
-        .filter((option) => {
-          if (!query) return false;
-          return [option.name, option.category, option.unit].some((value) => String(value || "").toLowerCase().includes(query));
-        })
-        .slice(0, Math.max(0, 12 - ingredientMatches.length));
+      const ingredientPool = allIngredientOptions.map((option) => ({
+        component_type: "ingredient" as const,
+        id: String(option.id || ""),
+        name: String(option.name || ""),
+        category: String(option.category || ""),
+        unit: String(option.unit || ""),
+        unit_cost: Number(option.unit_price || 0),
+      }));
+      const ingredientMatches = scoreAndFilter(ingredientPool, 12);
+      const processedMatches = scoreAndFilter(processedComponentOptions, Math.max(0, 12 - ingredientMatches.length));
       return [...ingredientMatches, ...processedMatches];
     }
-    return processedComponentOptions
-      .filter((option) => {
-        if (!query) return false;
-        return [option.name, option.category, option.unit].some((value) => String(value || "").toLowerCase().includes(query));
-      })
-      .slice(0, 12);
+    return scoreAndFilter(processedComponentOptions, 12);
   }, [allIngredientOptions, masterEditor?.item_type, processedComponentOptions]);
 
   const selectMasterComponentOption = useCallback((componentId: string, option: ComponentOption) => {
