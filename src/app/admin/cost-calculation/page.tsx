@@ -3701,7 +3701,7 @@ export default function CostCalculationPage() {
                                   className="w-full rounded border border-white/15 bg-white/5 px-2 py-2 text-sm text-white outline-none focus:border-violet-500/50"
                                 />
                                 {activeMasterComponentLookupId === component.id && component.name.trim().length > 0 ? (
-                                  <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-64 overflow-y-auto rounded-lg border border-white/10 bg-[#111827] shadow-2xl shadow-black/40">
+                                  <div className="absolute left-0 top-full z-50 mt-1 max-h-64 min-w-[420px] overflow-y-auto rounded-lg border border-white/10 bg-[#111827] shadow-2xl shadow-black/40">
                                     {componentOptionsLoading && component.component_type === "processed_item" ? (
                                       <div className="px-3 py-2 text-xs text-zinc-500">Loading...</div>
                                     ) : suggestions.length > 0 ? (
@@ -3718,7 +3718,7 @@ export default function CostCalculationPage() {
                                           }}
                                           className="flex w-full items-center justify-between gap-3 border-b border-white/5 px-3 py-2 text-left text-sm text-zinc-200 transition last:border-b-0 hover:bg-white/[0.06]"
                                         >
-                                          <span className="min-w-0 truncate">{option.name}</span>
+                                          <span className="flex-1">{option.name}</span>
                                           <span className="shrink-0 text-xs text-zinc-500">{option.category} · {option.unit || "—"}</span>
                                         </button>
                                       ))
