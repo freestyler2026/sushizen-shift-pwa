@@ -2,9 +2,9 @@
 
 import { useEffect, useRef } from "react";
 
-const POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+const POLL_INTERVAL_MS = 60 * 1000; // 1 minute
 
-async function fetchVersion(): Promise<string | null> {
+async function fetchFrontendVersion(): Promise<string | null> {
   try {
     const res = await fetch("/api/version", { cache: "no-store" });
     if (!res.ok) return null;
@@ -15,24 +15,41 @@ async function fetchVersion(): Promise<string | null> {
   }
 }
 
+async function fetchBackendVersion(): Promise<string | null> {
+  try {
+    const res = await fetch("/api/admin/backend-version", { cache: "no-store" });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.v ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export default function AutoReload() {
-  const baseline = useRef<string | null>(null);
+  const frontendBaseline = useRef<string | null>(null);
+  const backendBaseline = useRef<string | null>(null);
 
   useEffect(() => {
-    // Capture the version this page was built with
-    fetchVersion().then((v) => {
-      baseline.current = v;
-    });
+    // Capture baseline versions on mount
+    fetchFrontendVersion().then((v) => { frontendBaseline.current = v; });
+    fetchBackendVersion().then((v) => { backendBaseline.current = v; });
 
     function check() {
-      fetchVersion().then((v) => {
-        if (v && baseline.current && v !== baseline.current) {
+      // Check frontend (Vercel) version
+      fetchFrontendVersion().then((v) => {
+        if (v && frontendBaseline.current && v !== frontendBaseline.current) {
+          window.location.reload();
+        }
+      });
+      // Check backend (Heroku) version — reload if dyno was redeployed
+      fetchBackendVersion().then((v) => {
+        if (v && backendBaseline.current && v !== backendBaseline.current) {
           window.location.reload();
         }
       });
     }
 
-    // Poll on an interval
     const timer = setInterval(check, POLL_INTERVAL_MS);
 
     // Also check immediately when the tab becomes visible again
