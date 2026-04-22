@@ -828,7 +828,7 @@ export default function StoreProcurementRequestPage() {
       <div className="lg:col-span-1">
         <div className={`sticky top-4 ${GLASS_PANEL} p-4`} id="po-print-area">
           <div className="flex items-center justify-between">
-            <div className="text-sm font-semibold text-violet-200">発注書 / Purchase Order</div>
+            <div className="text-sm font-semibold text-violet-200">Purchase Order</div>
             {validItems.length > 0 ? (
               <button
                 type="button"
@@ -842,21 +842,21 @@ export default function StoreProcurementRequestPage() {
 
           {validItems.length === 0 ? (
             <div className="mt-4 text-center text-xs text-neutral-500">
-              Qty を入力すると<br />発注書プレビューが表示されます
+              Enter a Qty to preview<br />the purchase order
             </div>
           ) : (
             <div className="mt-3 space-y-3 text-xs">
               {/* Header info */}
               <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-xl border border-white/8 bg-black/20 px-3 py-2">
-                <span className="text-neutral-400">発注先</span>
+                <span className="text-neutral-400">Supplier</span>
                 <span className="text-white">{validItemsBySupplier.map(s => s.supplier).join(", ") || "-"}</span>
-                <span className="text-neutral-400">発注者</span>
+                <span className="text-neutral-400">Requested By</span>
                 <span className="text-white">{requestedBy || "-"}</span>
-                <span className="text-neutral-400">店舗</span>
+                <span className="text-neutral-400">Store</span>
                 <span className="text-white">{storeCode || "-"}</span>
-                <span className="text-neutral-400">日付</span>
+                <span className="text-neutral-400">Date</span>
                 <span className="text-white">{requestDate}</span>
-                <span className="text-neutral-400">都市</span>
+                <span className="text-neutral-400">City</span>
                 <span className="text-white">{cityLabel}</span>
               </div>
 
@@ -883,12 +883,12 @@ export default function StoreProcurementRequestPage() {
 
               {/* Total */}
               <div className="flex items-center justify-between rounded-xl border border-violet-500/30 bg-violet-950/30 px-3 py-2 font-semibold">
-                <span className="text-neutral-300">合計 ({currencyCode})</span>
+                <span className="text-neutral-300">Total ({currencyCode})</span>
                 <span className="text-white">{validItemsTotal.toFixed(2)}</span>
               </div>
 
               <div className="text-center text-[10px] text-neutral-500">
-                送信後、発注履歴から確認できます
+                After submission, you can view the order in your request history.
               </div>
             </div>
           )}
