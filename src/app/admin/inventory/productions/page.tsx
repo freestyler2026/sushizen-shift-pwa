@@ -69,6 +69,8 @@ type ProductionRow = {
   updated_at: string;
   closed_by?: string;
   linked_request_id?: string;
+  purpose?: string;
+  destination_branch_code?: string;
 };
 
 type CkPendingRequestItem = {
@@ -189,6 +191,8 @@ export default function InventoryProductionsPage() {
   const [pendingCkRequests, setPendingCkRequests] = useState<CkPendingRequest[]>([]);
   const [pendingCkLoading, setPendingCkLoading] = useState(false);
   const [linkedRequestId, setLinkedRequestId] = useState("");
+  const [productionPurpose, setProductionPurpose] = useState<"STOCK" | "STORE_ORDER">("STOCK");
+  const [destinationBranchCode, setDestinationBranchCode] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -454,6 +458,8 @@ export default function InventoryProductionsPage() {
     }
     setDraftOutputs(newDrafts);
     setLinkedRequestId(req.id);
+    setProductionPurpose("STORE_ORDER");
+    setDestinationBranchCode(req.store_code || "");
     setSuccess(`Loaded ${newDrafts.length} item(s) from request ${req.request_no} (${req.store_code}).`);
   }
 
@@ -608,6 +614,8 @@ export default function InventoryProductionsPage() {
         creator_name: creatorName.trim(),
         notes,
         linked_request_id: linkedRequestId || undefined,
+        purpose: productionPurpose,
+        destination_branch_code: productionPurpose === "STORE_ORDER" ? destinationBranchCode : "",
       });
       const productionId = String(created?.row?.id || "");
       await inventoryPost(`/api/admin/inventory/productions/${encodeURIComponent(productionId)}/items`, {
@@ -644,6 +652,8 @@ export default function InventoryProductionsPage() {
       setPreviewRows([]);
       setNotes("");
       setLinkedRequestId("");
+      setProductionPurpose("STOCK");
+      setDestinationBranchCode("");
       setSuccess("Production draft created. Close it from detail when ready.");
       setSelectedProductionId(productionId);
     } catch (e: any) {
@@ -693,6 +703,68 @@ export default function InventoryProductionsPage() {
       setActionLoading(false);
     }
   }
+
+  function printDeliveryNote(production: ProductionDetail) {
+    const destLabel = production.destination_branch_code
+      ? labelOf(city, production.destination_branch_code)
+      : "-";
+    const outputItems = (production.items || []).filter((item) => item.entry_type === "OUTPUT");
+    const totalCost = outputItems.reduce((sum, item) => sum + Number(item.total_cost || 0), 0);
+    const rows = outputItems
+      .map(
+        (item) =>
+          `<tr>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${item.item_name}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:center;">${item.sku || "-"}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;">${Number3(item.quantity)} ${item.unit || ""}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;">${Number(item.unit_cost || 0).toFixed(2)}</td>
+            <td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;text-align:right;">${Number(item.total_cost || 0).toFixed(2)}</td>
+          </tr>`,
+      )
+      .join("");
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>納品書 ${production.production_no}</title>
+    <style>
+      body{font-family:'Helvetica Neue',Arial,sans-serif;color:#111;margin:0;padding:32px;}
+      h1{font-size:22px;margin:0 0 4px;}
+      .sub{font-size:13px;color:#666;margin-bottom:24px;}
+      .meta{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;margin-bottom:24px;font-size:13px;}
+      .meta-label{color:#888;font-size:11px;text-transform:uppercase;letter-spacing:.05em;}
+      table{width:100%;border-collapse:collapse;font-size:13px;}
+      thead th{background:#f3f4f6;padding:8px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;}
+      thead th:nth-child(3),thead th:nth-child(4),thead th:nth-child(5){text-align:right;}
+      tfoot td{padding:10px 12px;font-weight:600;}
+      .total-row{border-top:2px solid #111;}
+      @media print{body{padding:16px;} button{display:none;}}
+    </style></head><body>
+    <h1>納品書 / Delivery Note</h1>
+    <div class="sub">${production.production_no}</div>
+    <div class="meta">
+      <div><div class="meta-label">納品日 / Date</div><div>${String(production.business_date || "").slice(0, 10)}</div></div>
+      <div><div class="meta-label">納品先 / Destination</div><div>${destLabel}</div></div>
+      <div><div class="meta-label">担当者 / Person</div><div>${production.creator_name || "-"}</div></div>
+      <div><div class="meta-label">ステータス / Status</div><div>${production.status || "-"}</div></div>
+      ${production.notes ? `<div style="grid-column:span 2"><div class="meta-label">備考 / Notes</div><div>${production.notes}</div></div>` : ""}
+    </div>
+    <table>
+      <thead><tr>
+        <th>商品名 / Product</th><th>SKU</th><th>数量 / Qty</th><th>単価 / Unit Cost</th><th>金額 / Amount</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr class="total-row">
+        <td colspan="4" style="text-align:right;">合計 / Total</td>
+        <td style="text-align:right;">${totalCost.toFixed(2)}</td>
+      </tr></tfoot>
+    </table>
+    <script>window.onload=()=>window.print();</script>
+    </body></html>`;
+    const win = window.open("", "_blank");
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    }
+  }
+
+  function Number3(v: number) { return Number(v || 0).toFixed(3); }
 
   if (!ready) return <div className="text-sm text-neutral-500">Loading productions...</div>;
   if (!allowed) return <div className="text-sm text-neutral-500">You do not have permission to open inventory.</div>;
@@ -765,6 +837,53 @@ export default function InventoryProductionsPage() {
             placeholder="Notes / production note"
             className="min-h-24 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
           />
+        </div>
+
+        {/* Production Purpose */}
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <div className="text-xs text-neutral-400">Production Purpose:</div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => { setProductionPurpose("STOCK"); setDestinationBranchCode(""); }}
+              className={[
+                "rounded-lg border px-4 py-1.5 text-xs transition",
+                productionPurpose === "STOCK"
+                  ? "border-sky-700 bg-sky-900/40 text-sky-200"
+                  : "border-neutral-700 bg-neutral-900 text-neutral-400 hover:text-neutral-200",
+              ].join(" ")}
+            >
+              📦 在庫用 (Stock)
+            </button>
+            <button
+              type="button"
+              onClick={() => setProductionPurpose("STORE_ORDER")}
+              className={[
+                "rounded-lg border px-4 py-1.5 text-xs transition",
+                productionPurpose === "STORE_ORDER"
+                  ? "border-amber-700 bg-amber-900/40 text-amber-200"
+                  : "border-neutral-700 bg-neutral-900 text-neutral-400 hover:text-neutral-200",
+              ].join(" ")}
+            >
+              🏪 店舗注文 (Store Order)
+            </button>
+          </div>
+          {productionPurpose === "STORE_ORDER" && (
+            <select
+              className="rounded-xl border border-amber-800/60 bg-amber-950/20 px-3 py-1.5 text-sm text-amber-100"
+              value={destinationBranchCode}
+              onChange={(e) => setDestinationBranchCode(e.target.value)}
+            >
+              <option value="">Select destination store...</option>
+              {BRANCHES[city]
+                .filter((b) => b.code !== "CK" && b.code !== "DRIVER")
+                .map((b) => (
+                  <option key={b.code} value={b.code}>
+                    {b.name}
+                  </option>
+                ))}
+            </select>
+          )}
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
@@ -1174,7 +1293,7 @@ export default function InventoryProductionsPage() {
                 <tr>
                   <th className="px-3 py-2">Production</th>
                   <th className="px-3 py-2">Date</th>
-                  <th className="px-3 py-2">Branch</th>
+                  <th className="px-3 py-2">Purpose</th>
                   <th className="px-3 py-2">Person</th>
                   <th className="px-3 py-2">Status</th>
                 </tr>
@@ -1195,7 +1314,15 @@ export default function InventoryProductionsPage() {
                       </button>
                     </td>
                     <td className="px-3 py-2">{String(row.business_date || "").slice(0, 10)}</td>
-                    <td className="px-3 py-2">{labelOf(city, row.branch_code)}</td>
+                    <td className="px-3 py-2">
+                      {row.purpose === "STORE_ORDER" ? (
+                        <span className="text-amber-300">
+                          🏪 {row.destination_branch_code ? labelOf(city, row.destination_branch_code) : "Store"}
+                        </span>
+                      ) : (
+                        <span className="text-sky-400">📦 Stock</span>
+                      )}
+                    </td>
                     <td className="px-3 py-2">{row.creator_name || "-"}</td>
                     <td className="px-3 py-2">{row.status || "-"}</td>
                   </tr>
@@ -1215,6 +1342,15 @@ export default function InventoryProductionsPage() {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="text-sm font-semibold text-neutral-100">Selected Production</div>
               <div className="flex flex-wrap gap-2">
+                {selectedProduction?.purpose === "STORE_ORDER" && selectedProduction.status === "CLOSED" ? (
+                  <button
+                    type="button"
+                    onClick={() => selectedProduction && printDeliveryNote(selectedProduction)}
+                    className="rounded-lg border border-violet-700 bg-violet-950/30 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-900/30"
+                  >
+                    🖨 納品書 Print
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={duplicateSelectedProduction}
@@ -1263,6 +1399,18 @@ export default function InventoryProductionsPage() {
                     <div className="text-xs text-neutral-500">Status</div>
                     <div>{selectedProduction.status || "-"}</div>
                   </div>
+                  <div>
+                    <div className="text-xs text-neutral-500">Purpose</div>
+                    <div className={selectedProduction.purpose === "STORE_ORDER" ? "text-amber-300" : "text-sky-300"}>
+                      {selectedProduction.purpose === "STORE_ORDER" ? "🏪 Store Order" : "📦 Stock"}
+                    </div>
+                  </div>
+                  {selectedProduction.purpose === "STORE_ORDER" && (
+                    <div>
+                      <div className="text-xs text-neutral-500">Destination Store</div>
+                      <div>{selectedProduction.destination_branch_code ? labelOf(city, selectedProduction.destination_branch_code) : "-"}</div>
+                    </div>
+                  )}
                 </div>
 
                 <div>
