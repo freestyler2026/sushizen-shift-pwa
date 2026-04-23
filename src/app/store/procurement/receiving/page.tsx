@@ -119,6 +119,7 @@ export default function StoreProcurementReceivingPage() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+  const [formError, setFormError] = useState("");
 
   const cityLabel = city === "dubai" ? "Dubai" : "Manila";
   const currencyCode = city === "dubai" ? "AED" : "PHP";
@@ -230,9 +231,10 @@ export default function StoreProcurementReceivingPage() {
   // ── Create receiving ──────────────────────────────────────────────────────
 
   const createReceiving = async () => {
-    if (!requestId.trim()) { setError("Please select a request first."); return; }
+    if (!requestId.trim()) { setFormError("Please select a request first."); return; }
     setBusy("create");
     setError("");
+    setFormError("");
     setInfo("");
     try {
       // Aggregate vendor name from items
@@ -276,11 +278,14 @@ export default function StoreProcurementReceivingPage() {
           window.localStorage.setItem(LAST_CREATED_KEY, JSON.stringify({ id: createdId, receiving_no: createdNo, request_id: createdRequestId, at: createdAt }));
         } catch {}
       }
+      setFormError("");
       setInfo(createdNo ? `Receiving created: ${createdNo}` : "Receiving created.");
       setNotes("");
       await loadReceivings(requestId);
     } catch (e: any) {
-      setError(e?.message || String(e));
+      const msg = (e?.message || String(e));
+      setFormError(msg);
+      setError(msg);
     } finally {
       setBusy("");
     }
@@ -641,6 +646,25 @@ export default function StoreProcurementReceivingPage() {
                     className={`w-full resize-none ${FIELD}`}
                   />
                 </div>
+
+                {/* Status warning for non-approved requests */}
+                {selectedRequest && !["APPROVED", "SUBMITTED"].includes(selectedRequest.status) ? (
+                  <div className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3 py-2.5 text-xs text-amber-200">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                    <div>
+                      <span className="font-semibold">Request status: {selectedRequest.status}</span>
+                      <span className="ml-1">— This request may not have an approval case yet. Receiving typically requires an approved request.</span>
+                    </div>
+                  </div>
+                ) : null}
+
+                {/* Inline form error */}
+                {formError ? (
+                  <div className="flex items-center gap-2 rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2.5 text-sm text-red-300">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    {formError}
+                  </div>
+                ) : null}
 
                 {/* Submit button */}
                 <button
