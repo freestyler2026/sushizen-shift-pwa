@@ -742,27 +742,50 @@ export default function AdminProcurementPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 mb-6">
-        {[
-          { id: "requests", label: "Requests", value: rows.length },
-          { id: "approvalInbox", label: "Approval Inbox", value: queueRows.length },
-          { id: "openExceptions", label: "Open Exceptions", value: exceptions.filter((x) => x.status === "OPEN").length },
-          { id: "kpiStaff", label: "Staff Count", value: Number(kpiSummary?.staff_count || 0) },
-        ].map((card, index) => (
-          <motion.div key={card.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: index * 0.05 }}>
-            <div className={KPI_CARD}>
-              <p className={KPI_LABEL}>{card.label}</p>
-              <p className={KPI_VALUE}>{fmtNum(card.value)}</p>
-            </div>
-          </motion.div>
-        ))}
-      </div>
+      {(() => {
+        const pendingCount = rows.filter((r) => ["SUBMITTED", "IN_REVIEW", "DRAFT"].includes(String(r.status || "").toUpperCase())).length;
+        const kpiCards = [
+          { id: "requests", label: "Requests", value: rows.length, pending: pendingCount },
+          { id: "approvalInbox", label: "Approval Inbox", value: queueRows.length, pending: 0 },
+          { id: "openExceptions", label: "Open Exceptions", value: exceptions.filter((x) => x.status === "OPEN").length, pending: 0 },
+          { id: "kpiStaff", label: "Staff Count", value: Number(kpiSummary?.staff_count || 0), pending: 0 },
+        ];
+        return (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 mb-6">
+            {kpiCards.map((card, index) => (
+              <motion.div key={card.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: index * 0.05 }}>
+                <div className={KPI_CARD}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className={KPI_LABEL}>{card.label}</p>
+                    {card.pending > 0 && (
+                      <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-2 py-0.5 text-[11px] font-bold text-amber-300">
+                        {card.pending} pending
+                      </span>
+                    )}
+                  </div>
+                  <p className={KPI_VALUE}>{fmtNum(card.value)}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        );
+      })()}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className={`${GLASS_CARD} overflow-hidden`}>
           <div className="flex items-center justify-between p-4">
             <h2 className={T_SECTION}>Requests</h2>
-            <span className={BADGE_INFO}>{rows.length}</span>
+            <div className="flex items-center gap-2">
+              {(() => {
+                const pending = rows.filter((r) => ["SUBMITTED", "IN_REVIEW", "DRAFT"].includes(String(r.status || "").toUpperCase())).length;
+                return pending > 0 ? (
+                  <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-2.5 py-0.5 text-xs font-bold text-amber-300">
+                    {pending} unprocessed
+                  </span>
+                ) : null;
+              })()}
+              <span className={BADGE_INFO}>{rows.length} total</span>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
