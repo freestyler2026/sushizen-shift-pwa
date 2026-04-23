@@ -590,27 +590,71 @@ ${pages}
   async function completeProductionFromChecklist() {
     if (!activeOrderRequest) return;
     const completed = activeOrderRequest;
-    // Pre-fill draftOutputs from matched productOptions
-    const newDrafts: DraftOutputItem[] = [];
-    for (const item of completed.items) {
+    // Build output items from matched productOptions (+ unmatched as name-only records)
+    const outputItems: DraftOutputItem[] = completed.items.map((item) => {
       const match = productOptions.find(
         (p) => p.name.trim().toLowerCase() === item.item_name.trim().toLowerCase(),
       );
-      if (!match) continue;
-      const unit = normalizeProductionOutputUnit(item.unit || match.storage_unit);
-      const key = draftOutputKey(match.id, unit);
-      newDrafts.push({
-        key, item_id: match.id, item_name: match.name, sku: match.sku,
+      const unit = normalizeProductionOutputUnit(item.unit || (match?.storage_unit ?? "pcs"));
+      const key = match ? draftOutputKey(match.id, unit) : `unmatched_${item.id}`;
+      return {
+        key,
+        item_id: match?.id ?? "",
+        item_name: item.item_name,
+        sku: match?.sku ?? "",
         quantity: Number(Number(item.qty || 0).toFixed(3)),
-        unit, unit_cost: Number(item.unit_price || match.cost || 0),
-        storage_unit: match.storage_unit || "",
-      });
+        unit,
+        unit_cost: Number(item.unit_price || match?.cost || 0),
+        storage_unit: match?.storage_unit ?? unit,
+      };
+    });
+
+    // Auto-save to history directly via API (no BOM deduction for unmatched items)
+    if (creatorName.trim() && branchCode && outputItems.length > 0) {
+      setSaving(true);
+      try {
+        const created = await inventoryPost<{ row: ProductionRow }>("/api/admin/inventory/productions", {
+          city,
+          branch_code: branchCode,
+          business_date: businessDate,
+          creator_name: creatorName.trim(),
+          notes: `Store order: ${completed.request_no} (${completed.store_code})`,
+          linked_request_id: completed.id,
+          purpose: "STORE_ORDER",
+          destination_branch_code: completed.store_code || "",
+        });
+        const productionId = String(created?.row?.id || "");
+        if (productionId) {
+          await inventoryPost(`/api/admin/inventory/productions/${encodeURIComponent(productionId)}/items`, {
+            city,
+            items: outputItems
+              .filter((it) => it.item_id)
+              .map((item, index) => ({
+                item_id: item.item_id,
+                item_name: item.item_name,
+                sku: item.sku,
+                quantity: item.quantity,
+                unit: item.unit,
+                unit_cost: item.unit_cost,
+                total_cost: item.quantity * item.unit_cost,
+                entry_type: "OUTPUT",
+                sort_order: index,
+              })),
+          });
+        }
+        await loadHistory(city, branchCode, historyMonth);
+      } catch {
+        // Non-blocking — still proceed with UI updates
+      } finally {
+        setSaving(false);
+      }
     }
-    if (newDrafts.length > 0) setDraftOutputs(newDrafts);
+
+    setDraftOutputs(outputItems.filter((it) => it.item_id));
     setActiveOrderRequest(null);
     setChecklistDone({});
     setCompletedOrderForPrint(completed);
-    setSuccess("");
+    setSuccess(`Production saved to history: ${completed.request_no}`);
   }
 
   function printCkDeliveryNote(req: CkPendingRequest) {
@@ -959,10 +1003,8 @@ ${pages}
       setError("Please add at least one product.");
       return;
     }
-    if (previewRows.length === 0) {
-      setError("Production BOM is not registered yet. Please register the product recipe first.");
-      return;
-    }
+    // BOM is optional — allow saving OUTPUT-only records (no ingredient deduction)
+    const hasBom = previewRows.length > 0;
     setSaving(true);
     setError("");
     setSuccess("");
@@ -992,7 +1034,7 @@ ${pages}
             entry_type: "OUTPUT",
             sort_order: index,
           })),
-          ...previewRows.map((item, index) => ({
+          ...(hasBom ? previewRows.map((item, index) => ({
             item_id: item.item_id,
             item_name: item.item_name,
             sku: item.sku,
@@ -1003,7 +1045,7 @@ ${pages}
             total_cost: item.total_cost,
             entry_type: "INPUT",
             sort_order: draftOutputs.length + index,
-          })),
+          })) : []),
         ],
       });
       await loadHistory(city, branchCode, historyMonth);
@@ -1866,11 +1908,14 @@ ${pages}
           <button
             type="button"
             onClick={createProduction}
-            disabled={saving || draftOutputs.length === 0 || previewRows.length === 0}
+            disabled={saving || draftOutputs.length === 0}
             className="rounded-xl border border-emerald-800 bg-emerald-950/30 px-4 py-2 text-sm text-emerald-200 hover:bg-emerald-900/30 disabled:opacity-60"
           >
-            {saving ? "Creating..." : "Create Production Draft"}
+            {saving ? "Saving..." : `Save to History (${draftOutputs.length} items${previewRows.length > 0 ? " + BOM" : ""})`}
           </button>
+          {draftOutputs.length > 0 && previewRows.length === 0 ? (
+            <div className="text-xs text-amber-300">No BOM registered — production record will be saved without ingredient deduction.</div>
+          ) : null}
         </div>
       </section>
 
@@ -1890,7 +1935,7 @@ ${pages}
                 <tr>
                   <th className="px-3 py-2">Production</th>
                   <th className="px-3 py-2">Date</th>
-                  <th className="px-3 py-2">Purpose</th>
+                  <th className="px-3 py-2">Purpose / Notes</th>
                   <th className="px-3 py-2">Person</th>
                   <th className="px-3 py-2">Status</th>
                 </tr>
@@ -1912,13 +1957,18 @@ ${pages}
                     </td>
                     <td className="px-3 py-2">{String(row.business_date || "").slice(0, 10)}</td>
                     <td className="px-3 py-2">
-                      {row.purpose === "STORE_ORDER" ? (
-                        <span className="text-amber-300">
-                          🏪 {row.destination_branch_code ? labelOf(city, row.destination_branch_code) : "Store"}
-                        </span>
-                      ) : (
-                        <span className="text-sky-400">📦 Stock</span>
-                      )}
+                      <div>
+                        {row.purpose === "STORE_ORDER" ? (
+                          <span className="text-amber-300">
+                            🏪 {row.destination_branch_code ? labelOf(city, row.destination_branch_code) : "Store"}
+                          </span>
+                        ) : (
+                          <span className="text-sky-400">📦 Stock</span>
+                        )}
+                      </div>
+                      {row.notes ? (
+                        <div className="mt-0.5 max-w-[180px] truncate text-xs text-neutral-500">{row.notes}</div>
+                      ) : null}
                     </td>
                     <td className="px-3 py-2">{row.creator_name || "-"}</td>
                     <td className="px-3 py-2">{row.status || "-"}</td>
