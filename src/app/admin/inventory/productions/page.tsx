@@ -194,7 +194,7 @@ export default function InventoryProductionsPage() {
   const [pendingCkLoading, setPendingCkLoading] = useState(false);
   const [linkedRequestId, setLinkedRequestId] = useState("");
   const [productionPurpose, setProductionPurpose] = useState<"STOCK" | "STORE_ORDER">("STOCK");
-  const [activeTab, setActiveTab] = useState<"STOCK" | "PENDING">("STOCK");
+  const [activeTab, setActiveTab] = useState<"STOCK" | "PENDING" | "BUILD">("STOCK");
   const [destinationBranchCode, setDestinationBranchCode] = useState("");
   // Stock quick-entry: productId → qty string
   const [stockQtys, setStockQtys] = useState<Record<string, string>>({});
@@ -1247,13 +1247,13 @@ ${pages}
           ))}
         </datalist>
 
-        {/* Tab selector */}
+        {/* Tab selector — 3 tabs */}
         <div className="mt-4 flex gap-1 rounded-xl border border-neutral-800 bg-neutral-950/60 p-1">
           <button
             type="button"
             onClick={() => { setActiveTab("STOCK"); setProductionPurpose("STOCK"); setDestinationBranchCode(""); }}
             className={[
-              "flex-1 rounded-lg px-4 py-2 text-sm font-medium transition",
+              "flex-1 rounded-lg px-3 py-2 text-sm font-medium transition",
               activeTab === "STOCK"
                 ? "bg-sky-700/60 text-sky-100 shadow"
                 : "text-neutral-400 hover:text-neutral-200",
@@ -1265,7 +1265,7 @@ ${pages}
             type="button"
             onClick={() => { setActiveTab("PENDING"); setProductionPurpose("STORE_ORDER"); }}
             className={[
-              "flex-1 rounded-lg px-4 py-2 text-sm font-medium transition",
+              "flex-1 rounded-lg px-3 py-2 text-sm font-medium transition",
               activeTab === "PENDING"
                 ? "bg-amber-700/60 text-amber-100 shadow"
                 : "text-neutral-400 hover:text-neutral-200",
@@ -1275,6 +1275,23 @@ ${pages}
             {pendingCkRequests.length > 0 && (
               <span className="ml-2 rounded-full bg-amber-500/30 px-2 py-0.5 text-xs font-bold text-amber-200">
                 {pendingCkRequests.length}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("BUILD")}
+            className={[
+              "flex-1 rounded-lg px-3 py-2 text-sm font-medium transition",
+              activeTab === "BUILD"
+                ? "bg-violet-700/60 text-violet-100 shadow"
+                : "text-neutral-400 hover:text-neutral-200",
+            ].join(" ")}
+          >
+            ⚙️ Build
+            {draftOutputs.length > 0 && (
+              <span className="ml-2 rounded-full bg-violet-500/30 px-2 py-0.5 text-xs font-bold text-violet-200">
+                {draftOutputs.length}
               </span>
             )}
           </button>
@@ -1656,7 +1673,8 @@ ${pages}
         )}
       </section>
 
-      <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
+      {/* ── BUILD tab: Add Products + BOM + Ingredient Preview ───────────── */}
+      {activeTab === "BUILD" && (<><section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="text-sm font-semibold text-neutral-100">Add Products</div>
           <div className="text-xs text-neutral-500">{productOptions.length} registered production products</div>
@@ -1943,7 +1961,7 @@ ${pages}
             <div className="text-xs text-amber-300">No BOM registered — production record will be saved without ingredient deduction.</div>
           ) : null}
         </div>
-      </section>
+      </section></>)}
 
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
