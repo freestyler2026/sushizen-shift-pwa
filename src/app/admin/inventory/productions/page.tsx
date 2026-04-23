@@ -666,6 +666,13 @@ ${pages}
         await inventoryPost(`/api/admin/inventory/productions/${encodeURIComponent(productionId)}/items`, {
           city, items: matchedItems,
         });
+        // Record CK inventory deductions (non-blocking)
+        void inventoryPost("/api/admin/inventory/ck-stock/deduct", {
+          city,
+          adj_date: businessDate,
+          production_id: productionId,
+          items: matchedItems.map((it) => ({ item_name: it.item_name, unit: it.unit, adj_qty: it.quantity })),
+        }).catch(() => {/* CK inventory deduction is best-effort */});
       }
       setCompletedOrderForPrint(null);
       setLinkedRequestId("");
@@ -1074,6 +1081,15 @@ ${pages}
           })) : []),
         ],
       });
+      // Record CK inventory deductions from BOM (INPUT items = ingredients consumed)
+      if (hasBom && previewRows.length > 0) {
+        void inventoryPost("/api/admin/inventory/ck-stock/deduct", {
+          city,
+          adj_date: businessDate,
+          production_id: productionId,
+          items: previewRows.map((it) => ({ item_name: it.item_name, unit: it.storage_unit, adj_qty: it.quantity })),
+        }).catch(() => {/* best-effort */});
+      }
       await loadHistory(city, branchCode, historyMonth);
       await loadPendingCkRequests(city);
       setDraftOutputs([]);
@@ -1082,7 +1098,7 @@ ${pages}
       setLinkedRequestId("");
       setProductionPurpose("STOCK");
       setDestinationBranchCode("");
-      setSuccess("Production draft created. Close it from detail when ready.");
+      setSuccess("Production saved. Ingredients deducted from CK inventory.");
       setSelectedProductionId(productionId);
     } catch (e: any) {
       setError(e?.message || String(e));

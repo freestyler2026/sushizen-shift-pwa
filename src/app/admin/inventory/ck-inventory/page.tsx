@@ -296,7 +296,7 @@ export default function CkInventoryPage() {
       {/* Page header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-neutral-100">CK 棚卸し — Stocktaking</h1>
+          <h1 className="text-lg font-semibold text-neutral-100">CK Stocktaking</h1>
           <p className="mt-0.5 text-sm text-neutral-400">
             Physical stock counts for CK ingredients and processed goods.
           </p>
@@ -318,7 +318,7 @@ export default function CkInventoryPage() {
         {(
           [
             { id: "stock", label: "Current Stock" },
-            { id: "count", label: "New Count (棚卸し)" },
+            { id: "count", label: "New Count" },
             { id: "history", label: "History" },
           ] as const
         ).map((t) => (
@@ -597,7 +597,7 @@ export default function CkInventoryPage() {
                 onClick={handleSaveCount}
                 className="rounded-xl bg-violet-700 px-6 py-2.5 text-sm font-semibold text-white shadow hover:bg-violet-600 disabled:opacity-50"
               >
-                {saving ? "Saving..." : "Save Count (棚卸し保存)"}
+                {saving ? "Saving..." : "Save Count"}
               </button>
             </div>
           </div>
