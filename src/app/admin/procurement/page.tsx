@@ -36,7 +36,7 @@ type ReqItem = {
   item_name: string;
   category: string;
   qty: number;
-  unit: string;
+  unit?: string;
   unit_price: number;
   vendor_name: string;
 };
