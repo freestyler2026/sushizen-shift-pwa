@@ -1133,7 +1133,9 @@ ${pages}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-base font-semibold text-amber-200">Pending Manufacturing Requests</div>
-            <div className="mt-0.5 text-xs text-neutral-400">Approved CK orders from stores. Click &quot;Start Production&quot; to pre-fill the product list below.</div>
+            <div className="mt-0.5 text-xs text-neutral-400">
+              Store orders approved for CK production. <span className="text-green-400 font-medium">Approved</span> = waiting to be made. Press <span className="text-amber-300 font-medium">Start Production</span> to begin.
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {linkedRequestId ? (
@@ -1167,11 +1169,12 @@ ${pages}
             {/* Header */}
             <div className="flex items-center justify-between gap-3 bg-amber-900/30 px-5 py-4">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-lg font-bold text-white">{activeOrderRequest.store_code}</span>
-                  <span className="rounded-full bg-blue-900/50 px-2.5 py-0.5 text-xs font-semibold text-blue-200">In Production</span>
+                  <span className="rounded-full bg-blue-900/50 px-2.5 py-0.5 text-xs font-semibold text-blue-200">⚙ Now Making</span>
                 </div>
                 <div className="mt-0.5 text-sm text-amber-200/70">{activeOrderRequest.request_no} · {activeOrderRequest.requested_by}</div>
+                <div className="mt-1 text-xs text-neutral-500">Tap each item when it&apos;s ready. Press Complete when all done.</div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <div className="text-sm text-amber-200">
@@ -1273,7 +1276,7 @@ ${pages}
           <div className="mt-3 text-sm text-neutral-500">No pending manufacturing requests.</div>
         ) : (
           <div className="mt-4 space-y-4">
-            {pendingCkRequests.map((req) => (
+            {pendingCkRequests.filter((req) => req.id !== activeOrderRequest?.id).map((req) => (
               <div
                 key={req.id}
                 className={[
