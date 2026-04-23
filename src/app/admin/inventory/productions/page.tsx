@@ -193,6 +193,7 @@ export default function InventoryProductionsPage() {
   const [linkedRequestId, setLinkedRequestId] = useState("");
   const [productionPurpose, setProductionPurpose] = useState<"STOCK" | "STORE_ORDER">("STOCK");
   const [destinationBranchCode, setDestinationBranchCode] = useState("");
+  const [printTarget, setPrintTarget] = useState<CkPendingRequest | CkPendingRequest[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -399,17 +400,18 @@ export default function InventoryProductionsPage() {
     setRecipeUnit(normalizeProductionOutputUnit(selectedRecipeIngredient.storage_unit));
   }, [selectedRecipeIngredient]);
 
+  useEffect(() => {
+    if (!printTarget) return;
+    const timer = setTimeout(() => {
+      window.print();
+      setPrintTarget(null);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [printTarget]);
+
   const selectedQtyStep = getInventoryQuantityStep(selectedUnit);
   const recipeQtyStep = getInventoryQuantityStep(recipeUnit);
 
-  const outputTotalCost = useMemo(
-    () => draftOutputs.reduce((sum, item) => sum + item.quantity * item.unit_cost, 0),
-    [draftOutputs],
-  );
-  const consumptionTotalCost = useMemo(
-    () => previewRows.reduce((sum, item) => sum + Number(item.total_cost || item.quantity * item.unit_cost), 0),
-    [previewRows],
-  );
   const selectedOutputItems = useMemo(
     () => (selectedProduction?.items || []).filter((item) => item.entry_type === "OUTPUT"),
     [selectedProduction],
@@ -784,7 +786,7 @@ export default function InventoryProductionsPage() {
           <div className="text-xs text-neutral-500">{city.toUpperCase()} production workflow</div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-5">
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
           <select
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             value={city}
@@ -792,17 +794,6 @@ export default function InventoryProductionsPage() {
           >
             <option value="dubai">Dubai</option>
             <option value="manila">Manila</option>
-          </select>
-          <select
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-            value={branchCode}
-            onChange={(e) => setBranchCode(e.target.value)}
-          >
-            {BRANCHES[city].map((branch) => (
-              <option key={branch.code} value={branch.code}>
-                {branch.name}
-              </option>
-            ))}
           </select>
           <input
             type="date"
@@ -829,15 +820,6 @@ export default function InventoryProductionsPage() {
             <option key={name} value={name} />
           ))}
         </datalist>
-
-        <div className="mt-3">
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Notes / production note"
-            className="min-h-24 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-          />
-        </div>
 
         {/* Production Purpose */}
         <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -886,36 +868,96 @@ export default function InventoryProductionsPage() {
           )}
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
-            <div className="text-xs uppercase tracking-wide text-neutral-500">Products in Draft</div>
-            <div className="mt-1 text-lg font-semibold text-neutral-100">{draftOutputs.length}</div>
-          </div>
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
-            <div className="text-xs uppercase tracking-wide text-neutral-500">Ingredient Lines</div>
-            <div className="mt-1 text-lg font-semibold text-neutral-100">{previewRows.length}</div>
-          </div>
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
-            <div className="text-xs uppercase tracking-wide text-neutral-500">Output Cost</div>
-            <div className="mt-1 text-lg font-semibold text-neutral-100">{outputTotalCost.toFixed(2)}</div>
-          </div>
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-4">
-            <div className="text-xs uppercase tracking-wide text-neutral-500">Consumption Cost</div>
-            <div className="mt-1 text-lg font-semibold text-neutral-100">{consumptionTotalCost.toFixed(2)}</div>
-          </div>
-        </div>
-
         {error ? <div className="mt-3 text-sm text-rose-300">{error}</div> : null}
         {success ? <div className="mt-3 text-sm text-emerald-300">{success}</div> : null}
       </section>
 
       <InventoryRegistrationHelp />
 
+      {/* Print styles */}
+      <style>{`
+        @media print {
+          .no-print { display: none !important; }
+          .print-only { display: block !important; }
+        }
+      `}</style>
+
+      {/* Print-only content */}
+      <div className="hidden print:block print-only">
+        {printTarget ? (
+          Array.isArray(printTarget) ? printTarget.map((req) => (
+            <div key={req.id} style={{ pageBreakAfter: "always", padding: "32px", fontFamily: "Arial, sans-serif", color: "#111" }}>
+              <div style={{ fontSize: "20px", fontWeight: "700", marginBottom: "4px" }}>Central Kitchen &mdash; Production Order</div>
+              <div style={{ fontSize: "13px", color: "#666", marginBottom: "24px" }}>{req.request_no}</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", marginBottom: "16px" }}>
+                <tbody>
+                  <tr><td style={{ padding: "4px 8px", color: "#888", width: "140px" }}>Store</td><td style={{ padding: "4px 8px", fontWeight: "600" }}>{req.store_code}</td></tr>
+                  <tr><td style={{ padding: "4px 8px", color: "#888" }}>Request Date</td><td style={{ padding: "4px 8px" }}>{String(req.request_date || "").slice(0, 10)}</td></tr>
+                  {req.needed_by_date ? <tr><td style={{ padding: "4px 8px", color: "#888" }}>Needed By</td><td style={{ padding: "4px 8px" }}>{String(req.needed_by_date).slice(0, 10)}</td></tr> : null}
+                  <tr><td style={{ padding: "4px 8px", color: "#888" }}>Requested By</td><td style={{ padding: "4px 8px" }}>{req.requested_by}</td></tr>
+                </tbody>
+              </table>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                <thead>
+                  <tr style={{ background: "#f3f4f6" }}>
+                    <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>Item</th>
+                    <th style={{ padding: "8px 12px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>Qty</th>
+                    <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>Unit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {req.items.map((item) => (
+                    <tr key={item.id}>
+                      <td style={{ padding: "8px 12px", borderBottom: "1px solid #e5e7eb" }}>{item.item_name}</td>
+                      <td style={{ padding: "8px 12px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{Number(item.qty || 0).toFixed(3)}</td>
+                      <td style={{ padding: "8px 12px", borderBottom: "1px solid #e5e7eb" }}>{item.unit}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ marginTop: "48px", borderTop: "1px solid #ccc", paddingTop: "12px", fontSize: "12px", color: "#888" }}>Staff Signature: ___________________________</div>
+            </div>
+          )) : (
+            <div style={{ padding: "32px", fontFamily: "Arial, sans-serif", color: "#111" }}>
+              <div style={{ fontSize: "20px", fontWeight: "700", marginBottom: "4px" }}>Central Kitchen &mdash; Production Order</div>
+              <div style={{ fontSize: "13px", color: "#666", marginBottom: "24px" }}>{printTarget.request_no}</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", marginBottom: "16px" }}>
+                <tbody>
+                  <tr><td style={{ padding: "4px 8px", color: "#888", width: "140px" }}>Store</td><td style={{ padding: "4px 8px", fontWeight: "600" }}>{printTarget.store_code}</td></tr>
+                  <tr><td style={{ padding: "4px 8px", color: "#888" }}>Request Date</td><td style={{ padding: "4px 8px" }}>{String(printTarget.request_date || "").slice(0, 10)}</td></tr>
+                  {printTarget.needed_by_date ? <tr><td style={{ padding: "4px 8px", color: "#888" }}>Needed By</td><td style={{ padding: "4px 8px" }}>{String(printTarget.needed_by_date).slice(0, 10)}</td></tr> : null}
+                  <tr><td style={{ padding: "4px 8px", color: "#888" }}>Requested By</td><td style={{ padding: "4px 8px" }}>{printTarget.requested_by}</td></tr>
+                </tbody>
+              </table>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                <thead>
+                  <tr style={{ background: "#f3f4f6" }}>
+                    <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>Item</th>
+                    <th style={{ padding: "8px 12px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>Qty</th>
+                    <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>Unit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {printTarget.items.map((item) => (
+                    <tr key={item.id}>
+                      <td style={{ padding: "8px 12px", borderBottom: "1px solid #e5e7eb" }}>{item.item_name}</td>
+                      <td style={{ padding: "8px 12px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{Number(item.qty || 0).toFixed(3)}</td>
+                      <td style={{ padding: "8px 12px", borderBottom: "1px solid #e5e7eb" }}>{item.unit}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ marginTop: "48px", borderTop: "1px solid #ccc", paddingTop: "12px", fontSize: "12px", color: "#888" }}>Staff Signature: ___________________________</div>
+            </div>
+          )
+        ) : null}
+      </div>
+
       {/* Pending CK Manufacturing Requests */}
-      <section className="rounded-2xl border border-amber-900/40 bg-amber-950/10 p-5">
+      <section className="no-print rounded-2xl border border-amber-900/40 bg-amber-950/10 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold text-amber-200">Pending Manufacturing Requests</div>
+            <div className="text-base font-semibold text-amber-200">Pending Manufacturing Requests</div>
             <div className="mt-0.5 text-xs text-neutral-400">Approved CK orders from stores. Click &quot;Start Production&quot; to pre-fill the product list below.</div>
           </div>
           <div className="flex items-center gap-2">
@@ -923,6 +965,15 @@ export default function InventoryProductionsPage() {
               <span className="rounded-full bg-amber-900/40 px-3 py-1 text-xs text-amber-300">
                 Request Linked
               </span>
+            ) : null}
+            {pendingCkRequests.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setPrintTarget(pendingCkRequests)}
+                className="rounded-lg border border-violet-700 bg-violet-950/30 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-900/30"
+              >
+                Print All
+              </button>
             ) : null}
             <button
               type="button"
@@ -940,50 +991,77 @@ export default function InventoryProductionsPage() {
         ) : pendingCkRequests.length === 0 ? (
           <div className="mt-3 text-sm text-neutral-500">No pending manufacturing requests.</div>
         ) : (
-          <div className="mt-3 space-y-3">
+          <div className="mt-4 space-y-4">
             {pendingCkRequests.map((req) => (
               <div
                 key={req.id}
                 className={[
-                  "rounded-xl border p-4 transition",
+                  "rounded-2xl border p-5 transition",
                   linkedRequestId === req.id
-                    ? "border-amber-700/60 bg-amber-950/30"
-                    : "border-neutral-800 bg-neutral-950/30",
+                    ? "border-amber-600/60 bg-amber-950/40"
+                    : "border-amber-900/30 bg-neutral-950/40",
                 ].join(" ")}
               >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-semibold text-neutral-100">{req.request_no}</span>
-                      <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-xs text-neutral-300">{req.store_code}</span>
+                {/* Card header */}
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-xl font-bold text-neutral-100">{req.store_code}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="text-sm text-neutral-400">{req.request_no}</span>
                       <span className={[
-                        "rounded-full px-2 py-0.5 text-xs",
+                        "rounded-full px-2.5 py-0.5 text-xs font-medium",
                         req.status === "IN_PRODUCTION" ? "bg-blue-900/40 text-blue-300" : "bg-green-900/40 text-green-300",
                       ].join(" ")}>
                         {req.status === "IN_PRODUCTION" ? "In Production" : "Approved"}
                       </span>
                     </div>
-                    <div className="mt-1 text-xs text-neutral-500">
-                      Requested: {String(req.request_date || "").slice(0, 10)}
-                      {req.needed_by_date ? ` · Due: ${String(req.needed_by_date).slice(0, 10)}` : ""}
-                      {" · "}{req.requested_by}
-                    </div>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {req.items.map((item) => (
-                        <span key={item.id} className="rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-200">
-                          {item.item_name} {Number(item.qty || 0).toFixed(3)} {item.unit}
-                        </span>
-                      ))}
+                    <div className="mt-1.5 text-xs text-neutral-500">
+                      Requested: <span className="text-neutral-300">{String(req.request_date || "").slice(0, 10)}</span>
+                      {req.needed_by_date ? (
+                        <> &nbsp;&middot;&nbsp; Due: <span className="font-medium text-amber-300">{String(req.needed_by_date).slice(0, 10)}</span></>
+                      ) : null}
+                      &nbsp;&middot;&nbsp; {req.requested_by}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    disabled={linkedRequestId === req.id}
-                    onClick={() => startFromRequest(req)}
-                    className="shrink-0 rounded-lg border border-amber-700 bg-amber-900/30 px-4 py-2 text-sm text-amber-200 hover:bg-amber-900/50 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {linkedRequestId === req.id ? "Selected" : "Start Production"}
-                  </button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPrintTarget(req)}
+                      className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-neutral-300 hover:bg-neutral-800"
+                    >
+                      Print
+                    </button>
+                    <button
+                      type="button"
+                      disabled={linkedRequestId === req.id}
+                      onClick={() => startFromRequest(req)}
+                      className="rounded-lg border border-amber-600 bg-amber-900/40 px-5 py-2.5 text-sm font-semibold text-amber-100 hover:bg-amber-800/50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {linkedRequestId === req.id ? "Selected" : "Start Production"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Items table */}
+                <div className="mt-4 overflow-x-auto rounded-xl border border-neutral-800 bg-neutral-900/30">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-neutral-800">
+                        <th className="px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">Item</th>
+                        <th className="px-4 py-2.5 text-right text-xs font-medium uppercase tracking-wide text-neutral-500">Qty</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wide text-neutral-500">Unit</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {req.items.map((item) => (
+                        <tr key={item.id} className="border-b border-neutral-800/60 last:border-0">
+                          <td className="px-4 py-3 text-neutral-200">{item.item_name}</td>
+                          <td className="px-4 py-3 text-right font-medium text-neutral-100">{Number(item.qty || 0).toFixed(3)}</td>
+                          <td className="px-4 py-3 text-neutral-400">{item.unit}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             ))}
