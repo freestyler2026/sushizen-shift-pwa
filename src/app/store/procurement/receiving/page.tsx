@@ -228,6 +228,40 @@ export default function StoreProcurementReceivingPage() {
     return { qtyExpected, qtyReceived, checkedCount, totalCount };
   }, [itemChecks, requestDetail]);
 
+  // ── Submit request (DRAFT → SUBMITTED, creates approval case) ────────────
+
+  const submitRequest = async () => {
+    if (!requestId.trim()) return;
+    setBusy("submit");
+    setFormError("");
+    setError("");
+    try {
+      await procurementJson(
+        "/api/admin/procurement/requests/submit",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            request_id: requestId.trim(),
+            approver_name: requestedBy.trim(),
+            pin: pin.trim(),
+          }),
+        },
+        requestedBy,
+        pin,
+      );
+      setInfo("Request submitted. You can now record a delivery.");
+      // Reload requests list to reflect new status
+      await loadMyRequests();
+    } catch (e: any) {
+      const msg = e?.message || String(e);
+      setFormError(msg);
+      setError(msg);
+    } finally {
+      setBusy("");
+    }
+  };
+
   // ── Create receiving ──────────────────────────────────────────────────────
 
   const createReceiving = async () => {
@@ -647,13 +681,35 @@ export default function StoreProcurementReceivingPage() {
                   />
                 </div>
 
-                {/* Status warning for non-approved requests */}
-                {selectedRequest && !["APPROVED", "SUBMITTED"].includes(selectedRequest.status) ? (
+                {/* DRAFT → needs submit before receiving */}
+                {selectedRequest && selectedRequest.status === "DRAFT" ? (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/8 p-4">
+                    <div className="flex items-start gap-2 text-sm text-amber-200">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                      <div>
+                        <div className="font-semibold">Request is still DRAFT</div>
+                        <div className="mt-0.5 text-xs text-amber-300/80">Submit this request first to create an approval record, then you can record the delivery.</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void submitRequest()}
+                      disabled={busy === "submit"}
+                      className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-2.5 text-sm font-bold text-white transition-all hover:from-amber-400 hover:to-orange-400 disabled:opacity-60"
+                    >
+                      {busy === "submit" ? (
+                        <><RefreshCw className="h-4 w-4 animate-spin" /> Submitting…</>
+                      ) : (
+                        <><ChevronRight className="h-4 w-4" /> Submit Request First</>
+                      )}
+                    </button>
+                  </div>
+                ) : selectedRequest && !["APPROVED", "SUBMITTED", "PARTIALLY_RECEIVED", "RECEIVED"].includes(selectedRequest.status) ? (
                   <div className="flex items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/8 px-3 py-2.5 text-xs text-amber-200">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
                     <div>
-                      <span className="font-semibold">Request status: {selectedRequest.status}</span>
-                      <span className="ml-1">— This request may not have an approval case yet. Receiving typically requires an approved request.</span>
+                      <span className="font-semibold">Status: {selectedRequest.status}</span>
+                      <span className="ml-1">— Receiving may not be available for this request status.</span>
                     </div>
                   </div>
                 ) : null}
