@@ -194,7 +194,6 @@ export default function InventoryProductionsPage() {
   const [productionPurpose, setProductionPurpose] = useState<"STOCK" | "STORE_ORDER">("STOCK");
   const [activeTab, setActiveTab] = useState<"STOCK" | "STORE_ORDER" | "PENDING">("STOCK");
   const [destinationBranchCode, setDestinationBranchCode] = useState("");
-  const [printTarget, setPrintTarget] = useState<CkPendingRequest | CkPendingRequest[] | null>(null);
   // Stock quick-entry: productId → qty string
   const [stockQtys, setStockQtys] = useState<Record<string, string>>({});
   const [stockSearch, setStockSearch] = useState("");
@@ -404,14 +403,155 @@ export default function InventoryProductionsPage() {
     setRecipeUnit(normalizeProductionOutputUnit(selectedRecipeIngredient.storage_unit));
   }, [selectedRecipeIngredient]);
 
-  useEffect(() => {
-    if (!printTarget) return;
-    const timer = setTimeout(() => {
-      window.print();
-      setPrintTarget(null);
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [printTarget]);
+  // Print a single or multiple requests in a new window (professional layout)
+  function printRequests(requests: CkPendingRequest | CkPendingRequest[]) {
+    const list = Array.isArray(requests) ? requests : [requests];
+    const printDate = new Date().toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+
+    const pages = list.map((req) => {
+      const rows = req.items.map((item) => `
+        <tr>
+          <td class="check"><span class="checkbox"></span></td>
+          <td class="item-name">${item.item_name}</td>
+          <td class="qty">${Number(item.qty || 0).toFixed(3)}</td>
+          <td class="unit">${item.unit}</td>
+          <td class="done"></td>
+        </tr>`).join("");
+
+      return `
+        <div class="page">
+          <div class="header">
+            <div class="brand">SUSHI ZEN</div>
+            <div class="header-right">
+              <div class="doc-title">PRODUCTION ORDER</div>
+              <div class="doc-no">${req.request_no}</div>
+            </div>
+          </div>
+          <div class="accent-bar"></div>
+
+          <div class="meta-grid">
+            <div class="meta-item">
+              <div class="meta-label">Store</div>
+              <div class="meta-value store-name">${req.store_code}</div>
+            </div>
+            <div class="meta-item">
+              <div class="meta-label">Request Date</div>
+              <div class="meta-value">${String(req.request_date || "").slice(0, 10)}</div>
+            </div>
+            ${req.needed_by_date ? `
+            <div class="meta-item urgent">
+              <div class="meta-label">⚠ Needed By</div>
+              <div class="meta-value needed-by">${String(req.needed_by_date).slice(0, 10)}</div>
+            </div>` : ""}
+            <div class="meta-item">
+              <div class="meta-label">Requested By</div>
+              <div class="meta-value">${req.requested_by}</div>
+            </div>
+          </div>
+
+          <table class="items-table">
+            <thead>
+              <tr>
+                <th class="col-check"></th>
+                <th class="col-name">Item</th>
+                <th class="col-qty">Qty</th>
+                <th class="col-unit">Unit</th>
+                <th class="col-done">Done ✓</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+
+          <div class="footer">
+            <div class="signature-block">
+              <div class="sig-label">Prepared by</div>
+              <div class="sig-line"></div>
+            </div>
+            <div class="signature-block">
+              <div class="sig-label">Checked by</div>
+              <div class="sig-line"></div>
+            </div>
+            <div class="footer-meta">
+              <div>Printed: ${printDate}</div>
+              <div>Sushi ZEN Workforce OS</div>
+            </div>
+          </div>
+        </div>`;
+    }).join("");
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>CK Production Order</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Helvetica Neue", Arial, sans-serif; background: #fff; color: #111; font-size: 13px; }
+  .page { padding: 32px 36px 28px; page-break-after: always; min-height: 100vh; display: flex; flex-direction: column; }
+  .page:last-child { page-break-after: avoid; }
+
+  /* Header */
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .brand { font-size: 22px; font-weight: 900; letter-spacing: 3px; color: #0f172a; }
+  .header-right { text-align: right; }
+  .doc-title { font-size: 18px; font-weight: 700; color: #0f172a; letter-spacing: 1px; }
+  .doc-no { font-size: 11px; color: #64748b; margin-top: 2px; }
+
+  /* Accent bar */
+  .accent-bar { height: 4px; background: linear-gradient(90deg, #0f766e, #0369a1); border-radius: 2px; margin-bottom: 20px; }
+
+  /* Meta grid */
+  .meta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-bottom: 24px; }
+  .meta-item { padding: 10px 14px; border-right: 1px solid #e2e8f0; background: #f8fafc; }
+  .meta-item:last-child { border-right: none; }
+  .meta-item.urgent { background: #fff7ed; }
+  .meta-label { font-size: 10px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .meta-value { font-size: 13px; font-weight: 600; color: #1e293b; }
+  .meta-value.store-name { font-size: 16px; font-weight: 800; color: #0f172a; }
+  .meta-value.needed-by { color: #c2410c; font-weight: 700; }
+
+  /* Items table */
+  .items-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; flex: 1; }
+  .items-table thead tr { background: #0f172a; color: #fff; }
+  .items-table th { padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; }
+  .items-table th.col-qty, .items-table th.col-done { text-align: center; }
+  .items-table tbody tr:nth-child(even) { background: #f8fafc; }
+  .items-table tbody tr:hover { background: #f1f5f9; }
+  .items-table td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+  .col-check { width: 36px; }
+  .col-name { min-width: 240px; }
+  .col-qty { width: 90px; text-align: right; font-weight: 700; font-size: 14px; }
+  .col-unit { width: 70px; color: #64748b; }
+  .col-done { width: 80px; text-align: center; }
+  .checkbox { display: inline-block; width: 16px; height: 16px; border: 1.5px solid #94a3b8; border-radius: 3px; }
+  .done { display: inline-block; width: 40px; height: 18px; border-bottom: 1.5px solid #94a3b8; }
+
+  /* Footer */
+  .footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: auto; padding-top: 20px; border-top: 1px solid #e2e8f0; }
+  .signature-block { flex: 1; margin-right: 32px; }
+  .sig-label { font-size: 10px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 20px; }
+  .sig-line { border-bottom: 1.5px solid #cbd5e1; width: 180px; }
+  .footer-meta { text-align: right; font-size: 10px; color: #94a3b8; line-height: 1.6; }
+
+  @media print {
+    @page { margin: 0; size: A4; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page { padding: 24px 28px 20px; }
+  }
+</style>
+</head>
+<body>
+${pages}
+<script>window.onload = function() { window.print(); };</script>
+</body>
+</html>`;
+
+    const win = window.open("", "_blank", "width=900,height=700");
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    }
+  }
 
   const selectedQtyStep = getInventoryQuantityStep(selectedUnit);
   const recipeQtyStep = getInventoryQuantityStep(recipeUnit);
@@ -1001,85 +1141,6 @@ export default function InventoryProductionsPage() {
         </section>
       )}
 
-      {/* Print styles */}
-      <style>{`
-        @media print {
-          .no-print { display: none !important; }
-          .print-only { display: block !important; }
-        }
-      `}</style>
-
-      {/* Print-only content */}
-      <div className="hidden print:block print-only">
-        {printTarget ? (
-          Array.isArray(printTarget) ? printTarget.map((req) => (
-            <div key={req.id} style={{ pageBreakAfter: "always", padding: "32px", fontFamily: "Arial, sans-serif", color: "#111" }}>
-              <div style={{ fontSize: "20px", fontWeight: "700", marginBottom: "4px" }}>Central Kitchen &mdash; Production Order</div>
-              <div style={{ fontSize: "13px", color: "#666", marginBottom: "24px" }}>{req.request_no}</div>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", marginBottom: "16px" }}>
-                <tbody>
-                  <tr><td style={{ padding: "4px 8px", color: "#888", width: "140px" }}>Store</td><td style={{ padding: "4px 8px", fontWeight: "600" }}>{req.store_code}</td></tr>
-                  <tr><td style={{ padding: "4px 8px", color: "#888" }}>Request Date</td><td style={{ padding: "4px 8px" }}>{String(req.request_date || "").slice(0, 10)}</td></tr>
-                  {req.needed_by_date ? <tr><td style={{ padding: "4px 8px", color: "#888" }}>Needed By</td><td style={{ padding: "4px 8px" }}>{String(req.needed_by_date).slice(0, 10)}</td></tr> : null}
-                  <tr><td style={{ padding: "4px 8px", color: "#888" }}>Requested By</td><td style={{ padding: "4px 8px" }}>{req.requested_by}</td></tr>
-                </tbody>
-              </table>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                <thead>
-                  <tr style={{ background: "#f3f4f6" }}>
-                    <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>Item</th>
-                    <th style={{ padding: "8px 12px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>Qty</th>
-                    <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>Unit</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {req.items.map((item) => (
-                    <tr key={item.id}>
-                      <td style={{ padding: "8px 12px", borderBottom: "1px solid #e5e7eb" }}>{item.item_name}</td>
-                      <td style={{ padding: "8px 12px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{Number(item.qty || 0).toFixed(3)}</td>
-                      <td style={{ padding: "8px 12px", borderBottom: "1px solid #e5e7eb" }}>{item.unit}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div style={{ marginTop: "48px", borderTop: "1px solid #ccc", paddingTop: "12px", fontSize: "12px", color: "#888" }}>Staff Signature: ___________________________</div>
-            </div>
-          )) : (
-            <div style={{ padding: "32px", fontFamily: "Arial, sans-serif", color: "#111" }}>
-              <div style={{ fontSize: "20px", fontWeight: "700", marginBottom: "4px" }}>Central Kitchen &mdash; Production Order</div>
-              <div style={{ fontSize: "13px", color: "#666", marginBottom: "24px" }}>{printTarget.request_no}</div>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", marginBottom: "16px" }}>
-                <tbody>
-                  <tr><td style={{ padding: "4px 8px", color: "#888", width: "140px" }}>Store</td><td style={{ padding: "4px 8px", fontWeight: "600" }}>{printTarget.store_code}</td></tr>
-                  <tr><td style={{ padding: "4px 8px", color: "#888" }}>Request Date</td><td style={{ padding: "4px 8px" }}>{String(printTarget.request_date || "").slice(0, 10)}</td></tr>
-                  {printTarget.needed_by_date ? <tr><td style={{ padding: "4px 8px", color: "#888" }}>Needed By</td><td style={{ padding: "4px 8px" }}>{String(printTarget.needed_by_date).slice(0, 10)}</td></tr> : null}
-                  <tr><td style={{ padding: "4px 8px", color: "#888" }}>Requested By</td><td style={{ padding: "4px 8px" }}>{printTarget.requested_by}</td></tr>
-                </tbody>
-              </table>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                <thead>
-                  <tr style={{ background: "#f3f4f6" }}>
-                    <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>Item</th>
-                    <th style={{ padding: "8px 12px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>Qty</th>
-                    <th style={{ padding: "8px 12px", textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>Unit</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {printTarget.items.map((item) => (
-                    <tr key={item.id}>
-                      <td style={{ padding: "8px 12px", borderBottom: "1px solid #e5e7eb" }}>{item.item_name}</td>
-                      <td style={{ padding: "8px 12px", textAlign: "right", borderBottom: "1px solid #e5e7eb" }}>{Number(item.qty || 0).toFixed(3)}</td>
-                      <td style={{ padding: "8px 12px", borderBottom: "1px solid #e5e7eb" }}>{item.unit}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div style={{ marginTop: "48px", borderTop: "1px solid #ccc", paddingTop: "12px", fontSize: "12px", color: "#888" }}>Staff Signature: ___________________________</div>
-            </div>
-          )
-        ) : null}
-      </div>
-
       {/* Pending CK Manufacturing Requests — shown only on Pending Orders tab */}
       <section className={`no-print rounded-2xl border border-amber-900/40 bg-amber-950/10 p-5${activeTab !== "PENDING" ? " hidden" : ""}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1096,7 +1157,7 @@ export default function InventoryProductionsPage() {
             {pendingCkRequests.length > 0 ? (
               <button
                 type="button"
-                onClick={() => setPrintTarget(pendingCkRequests)}
+                onClick={() => printRequests(pendingCkRequests)}
                 className="rounded-lg border border-violet-700 bg-violet-950/30 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-900/30"
               >
                 Print All
@@ -1153,7 +1214,7 @@ export default function InventoryProductionsPage() {
                   <div className="flex shrink-0 items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setPrintTarget(req)}
+                      onClick={() => printRequests(req)}
                       className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-neutral-300 hover:bg-neutral-800"
                     >
                       Print
