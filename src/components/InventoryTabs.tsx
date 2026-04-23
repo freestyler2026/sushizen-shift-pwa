@@ -7,6 +7,7 @@ import {
   ArrowRightLeft,
   BookOpen,
   Boxes,
+  Building2,
   ChefHat,
   CircleDollarSign,
   ClipboardList,
@@ -28,6 +29,7 @@ const PRIMARY_ITEMS = [
   { href: "/admin/inventory/transfer-orders", label: "Transfer Orders",       icon: ArrowRightLeft },
   { href: "/admin/inventory/productions",     label: "CK Production",         icon: ChefHat },
   { href: "/admin/inventory/ck-inventory",    label: "CK Inventory",          icon: Layers },
+  { href: "/admin/inventory/wh-inventory",    label: "WH Inventory",          icon: Building2 },
 ] satisfies Array<{ href: string; label: string; icon: LucideIcon }>;
 
 // ── SECONDARY tabs — admin / advanced ────────────────────────────────────────
