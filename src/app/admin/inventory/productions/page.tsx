@@ -587,7 +587,7 @@ ${pages}
     setChecklistDone((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
   }
 
-  function completeProductionFromChecklist() {
+  async function completeProductionFromChecklist() {
     if (!activeOrderRequest) return;
     const completed = activeOrderRequest;
     // Build draft items from matched productOptions
@@ -610,7 +610,8 @@ ${pages}
     setActiveOrderRequest(null);
     setChecklistDone({});
     setCompletedOrderForPrint(completed);
-    setSuccess("");
+    // Auto-save to history immediately
+    await saveCompletedOrderToHistory(completed);
   }
 
   async function saveCompletedOrderToHistory(req: CkPendingRequest) {
@@ -1416,15 +1417,6 @@ ${pages}
                 </div>
               </div>
               <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
-                {/* Save to history first, then print */}
-                <button
-                  type="button"
-                  onClick={() => void saveCompletedOrderToHistory(completedOrderForPrint)}
-                  disabled={saving}
-                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 px-4 py-2.5 text-sm font-bold text-white shadow transition hover:from-violet-400 hover:to-purple-400 disabled:opacity-60"
-                >
-                  {saving ? "Saving…" : "💾 Save to History"}
-                </button>
                 <button
                   type="button"
                   onClick={() => printCkDeliveryNote(completedOrderForPrint)}
