@@ -658,29 +658,66 @@ export default function StoreProcurementRequestPage() {
               : `No store catalog found for ${cityLabel}. Please sync the city workbook in Procurement Imports first.`}
           </div>
         ) : null}
-        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
-          {city === "dubai" ? (
-            <select
-              value={selectedCatalogCategory}
-              onChange={(e) => setSelectedCatalogCategory(String(e.target.value || "Kitchen Ingredients"))}
-              className={FIELD_CLASS}
-            >
-              {catalogCategories.map((category) => (
-                <option key={category} value={category}>
-                  {category}
-                </option>
-              ))}
-            </select>
-          ) : null}
-          <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-sm text-neutral-300">
-            {catalogBusy ? "Loading supplier list..." : `Suppliers: ${catalogSuppliers.length}`}
+        {/* Category selector — prominent buttons for staff */}
+        {city === "dubai" && catalogCategories.length > 0 ? (
+          <div className="mt-3">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Order From</div>
+            <div className="flex flex-wrap gap-2">
+              {catalogCategories.map((category) => {
+                const active = selectedCatalogCategory === category;
+                const colors: Record<string, { on: string; off: string; dot: string }> = {
+                  "Kitchen Ingredients": {
+                    on:  "bg-sky-500/25 text-sky-100 border-sky-500/50 shadow-sky-500/15",
+                    off: "bg-sky-950/30 text-sky-400 border-sky-800/40 hover:bg-sky-900/40 hover:text-sky-200",
+                    dot: "bg-sky-400",
+                  },
+                  "Warehouse": {
+                    on:  "bg-amber-500/25 text-amber-100 border-amber-500/50 shadow-amber-500/15",
+                    off: "bg-amber-950/30 text-amber-400 border-amber-800/40 hover:bg-amber-900/40 hover:text-amber-200",
+                    dot: "bg-amber-400",
+                  },
+                  "Central Kitchen": {
+                    on:  "bg-emerald-500/25 text-emerald-100 border-emerald-500/50 shadow-emerald-500/15",
+                    off: "bg-emerald-950/30 text-emerald-400 border-emerald-800/40 hover:bg-emerald-900/40 hover:text-emerald-200",
+                    dot: "bg-emerald-400",
+                  },
+                };
+                const c = colors[category] || {
+                  on:  "bg-violet-500/25 text-violet-100 border-violet-500/50 shadow-violet-500/15",
+                  off: "bg-violet-950/30 text-violet-400 border-violet-800/40 hover:bg-violet-900/40 hover:text-violet-200",
+                  dot: "bg-violet-400",
+                };
+                return (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => setSelectedCatalogCategory(category)}
+                    className={[
+                      "inline-flex items-center gap-2 rounded-xl border px-5 py-3 text-sm font-bold transition-all duration-200 shadow-sm",
+                      active ? c.on + " shadow-md" : c.off,
+                    ].join(" ")}
+                  >
+                    <span className={["h-2.5 w-2.5 rounded-full shrink-0", c.dot].join(" ")} />
+                    {category}
+                    {active && <span className="ml-1 text-[10px] font-semibold opacity-70">▼ selected</span>}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-sm text-neutral-300">
-            {catalogBusy ? "Loading item rows..." : `Rows: ${items.length}`}
-          </div>
-          <div className="rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-sm text-neutral-300">
-            Selected rows: {validItems.length}
-          </div>
+        ) : null}
+        <div className="mt-3 flex flex-wrap gap-3 text-sm text-neutral-400">
+          <span className="rounded-lg border border-white/8 bg-black/20 px-3 py-1.5">
+            {catalogBusy ? "Loading..." : `${catalogSuppliers.length} suppliers`}
+          </span>
+          <span className="rounded-lg border border-white/8 bg-black/20 px-3 py-1.5">
+            {catalogBusy ? "Loading..." : `${items.length} rows`}
+          </span>
+          {validItems.length > 0 && (
+            <span className="rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 font-semibold text-violet-300">
+              {validItems.length} selected
+            </span>
+          )}
         </div>
         {supplierSections.length ? (
           <div className="mt-3 flex flex-wrap gap-2">
