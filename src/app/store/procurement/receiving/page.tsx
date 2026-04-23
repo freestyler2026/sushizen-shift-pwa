@@ -78,9 +78,6 @@ const BTN_CONFIRM = "flex items-center gap-2 rounded-xl bg-gradient-to-r from-em
 function formatDate(v: string) {
   return v ? String(v).slice(0, 10) : "-";
 }
-function formatDateTime(v: string) {
-  return v ? String(v).slice(0, 16).replace("T", " ") : "-";
-}
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
@@ -798,7 +795,7 @@ export default function StoreProcurementReceivingPage() {
           <div className={`${GLASS} py-6 text-center`}>
             <Package className="mx-auto h-8 w-8 text-zinc-600" />
             <p className="mt-2 text-sm text-zinc-500">No receiving records yet for this request.</p>
-            <p className="mt-1 text-xs text-zinc-600">Check the items above and tap "Record Delivery".</p>
+            <p className="mt-1 text-xs text-zinc-600">Check the items above and tap &quot;Record Delivery&quot;.</p>
           </div>
         ) : null}
 
