@@ -19,6 +19,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { BRANCHES } from "@/lib/branches";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
 import { formatRelativeAge, getRecentBadgeMaxAgeMs, isOlderThan, parseIsoTimeMs, useRelativeAgeNow } from "@/lib/timeAgo";
 import {
@@ -90,6 +91,10 @@ export default function StoreProcurementHomePage() {
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
   const [city, setCity] = useState((auth?.city || "manila").toLowerCase());
+  const [storeCode, setStoreCode] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("store_proc_branch") || "";
+    return "";
+  });
   const [rows, setRows] = useState<RequestRow[]>([]);
   const [lastCreatedRequestId, setLastCreatedRequestId] = useState("");
   const [lastCreatedRequestNo, setLastCreatedRequestNo] = useState("");
@@ -386,8 +391,48 @@ export default function StoreProcurementHomePage() {
         </div>
         <span className={BADGE_INFO}>
           <MapPin className="h-3 w-3" />
-          Current city: {cityLabel}
+          {cityLabel}
         </span>
+      </div>
+
+      {/* Branch selector */}
+      <div className={`${BLUSH_GLASS} p-4`}>
+        <div className="mb-2 flex items-center gap-2">
+          <Building2 className="h-4 w-4 text-violet-400" />
+          <span className="text-sm font-semibold text-white">Select Your Branch</span>
+          {storeCode ? (
+            <span className="rounded-full bg-violet-500/20 px-2.5 py-0.5 text-xs font-semibold text-violet-300">
+              ✓ {BRANCHES[city as "dubai" | "manila"]?.find((b) => b.code === storeCode)?.name || storeCode}
+            </span>
+          ) : (
+            <span className="text-xs text-amber-400">⚠ Please select your branch</span>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {(BRANCHES[city as "dubai" | "manila"] || [])
+            .filter((b) => b.code !== "CK" && b.code !== "DRIVER")
+            .map((branch) => {
+              const active = storeCode === branch.code;
+              return (
+                <button
+                  key={branch.code}
+                  type="button"
+                  onClick={() => {
+                    setStoreCode(branch.code);
+                    if (typeof window !== "undefined") localStorage.setItem("store_proc_branch", branch.code);
+                  }}
+                  className={[
+                    "rounded-xl border px-4 py-2 text-sm font-semibold transition-all duration-200",
+                    active
+                      ? "bg-violet-500/25 text-violet-100 border-violet-500/50 shadow-sm"
+                      : "bg-violet-950/30 text-violet-400 border-violet-800/40 hover:bg-violet-900/40 hover:text-violet-200",
+                  ].join(" ")}
+                >
+                  {branch.name}
+                </button>
+              );
+            })}
+        </div>
       </div>
 
       {error ? <div className="text-sm text-red-300">{error}</div> : null}
@@ -510,11 +555,12 @@ export default function StoreProcurementHomePage() {
           <p className={T_CAPTION}>Create a new procurement request</p>
         </div>
         <Link
-          href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}`}
-          className={BLUSH_PRIMARY}
+          href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}${storeCode ? `&store_code=${encodeURIComponent(storeCode)}` : ""}`}
+          className={[BLUSH_PRIMARY, !storeCode ? "opacity-60 cursor-not-allowed pointer-events-none" : ""].join(" ")}
+          aria-disabled={!storeCode}
         >
           <span className="flex items-center gap-2">
-            New Request
+            {storeCode ? "New Request" : "Select Branch First"}
             <ChevronRight className="h-4 w-4" />
           </span>
         </Link>
