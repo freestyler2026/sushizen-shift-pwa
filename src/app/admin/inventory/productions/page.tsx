@@ -192,6 +192,7 @@ export default function InventoryProductionsPage() {
   const [pendingCkLoading, setPendingCkLoading] = useState(false);
   const [linkedRequestId, setLinkedRequestId] = useState("");
   const [productionPurpose, setProductionPurpose] = useState<"STOCK" | "STORE_ORDER">("STOCK");
+  const [activeTab, setActiveTab] = useState<"STOCK" | "STORE_ORDER" | "PENDING">("STOCK");
   const [destinationBranchCode, setDestinationBranchCode] = useState("");
   const [printTarget, setPrintTarget] = useState<CkPendingRequest | CkPendingRequest[] | null>(null);
   // Stock quick-entry: productId → qty string
@@ -479,7 +480,7 @@ export default function InventoryProductionsPage() {
       const key = draftOutputKey(id, unit);
       toAdd.push({ key, item_id: id, item_name: product.name, sku: product.sku, quantity: qty, unit, unit_cost: product.cost, storage_unit: product.storage_unit });
     }
-    if (toAdd.length === 0) { setError("数量を入力してください。"); return; }
+    if (toAdd.length === 0) { setError("Please enter a quantity for at least one item."); return; }
     setDraftOutputs((prev) => {
       const merged = [...prev];
       for (const item of toAdd) {
@@ -490,7 +491,7 @@ export default function InventoryProductionsPage() {
       return merged;
     });
     setStockQtys({});
-    setSuccess(`${toAdd.length}件を製造ドラフトに追加しました。`);
+    setSuccess(`${toAdd.length} item${toAdd.length !== 1 ? "s" : ""} added to production draft.`);
   }
 
   function addDraftOutput() {
@@ -849,36 +850,35 @@ export default function InventoryProductionsPage() {
           ))}
         </datalist>
 
-        {/* Production Purpose */}
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <div className="text-xs text-neutral-400">Production Purpose:</div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => { setProductionPurpose("STOCK"); setDestinationBranchCode(""); }}
-              className={[
-                "rounded-lg border px-4 py-1.5 text-xs transition",
-                productionPurpose === "STOCK"
-                  ? "border-sky-700 bg-sky-900/40 text-sky-200"
-                  : "border-neutral-700 bg-neutral-900 text-neutral-400 hover:text-neutral-200",
-              ].join(" ")}
-            >
-              📦 在庫用 (Stock)
-            </button>
-            <button
-              type="button"
-              onClick={() => setProductionPurpose("STORE_ORDER")}
-              className={[
-                "rounded-lg border px-4 py-1.5 text-xs transition",
-                productionPurpose === "STORE_ORDER"
-                  ? "border-amber-700 bg-amber-900/40 text-amber-200"
-                  : "border-neutral-700 bg-neutral-900 text-neutral-400 hover:text-neutral-200",
-              ].join(" ")}
-            >
-              🏪 店舗注文 (Store Order)
-            </button>
-          </div>
-          {productionPurpose === "STORE_ORDER" && (
+        {/* Tab selector */}
+        <div className="mt-4 flex gap-1 rounded-xl border border-neutral-800 bg-neutral-950/60 p-1">
+          <button
+            type="button"
+            onClick={() => { setActiveTab("STOCK"); setProductionPurpose("STOCK"); setDestinationBranchCode(""); }}
+            className={[
+              "flex-1 rounded-lg px-4 py-2 text-sm font-medium transition",
+              activeTab === "STOCK"
+                ? "bg-sky-700/60 text-sky-100 shadow"
+                : "text-neutral-400 hover:text-neutral-200",
+            ].join(" ")}
+          >
+            📦 Stock
+          </button>
+          <button
+            type="button"
+            onClick={() => { setActiveTab("PENDING"); setProductionPurpose("STORE_ORDER"); }}
+            className={[
+              "flex-1 rounded-lg px-4 py-2 text-sm font-medium transition",
+              activeTab === "PENDING"
+                ? "bg-amber-700/60 text-amber-100 shadow"
+                : "text-neutral-400 hover:text-neutral-200",
+            ].join(" ")}
+          >
+            🏪 Pending Orders
+          </button>
+        </div>
+        {activeTab === "PENDING" && (
+          <div className="mt-3">
             <select
               className="rounded-xl border border-amber-800/60 bg-amber-950/20 px-3 py-1.5 text-sm text-amber-100"
               value={destinationBranchCode}
@@ -893,8 +893,8 @@ export default function InventoryProductionsPage() {
                   </option>
                 ))}
             </select>
-          )}
-        </div>
+          </div>
+        )}
 
         {error ? <div className="mt-3 text-sm text-rose-300">{error}</div> : null}
         {success ? <div className="mt-3 text-sm text-emerald-300">{success}</div> : null}
@@ -903,16 +903,16 @@ export default function InventoryProductionsPage() {
       <InventoryRegistrationHelp />
 
       {/* ── Stock Quick Entry ─────────────────────────────────────────────── */}
-      {productionPurpose === "STOCK" && (
+      {activeTab === "STOCK" && (
         <section className="no-print rounded-2xl border border-sky-900/40 bg-sky-950/10 p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-semibold text-sky-200">📦 今日の製造数量 (Stock)</div>
-              <div className="mt-0.5 text-xs text-neutral-400">製造した品目の数量を入力し、「ドラフトに追加」を押してください。</div>
+              <div className="text-sm font-semibold text-sky-200">📦 Today&apos;s Production — Stock</div>
+              <div className="mt-0.5 text-xs text-neutral-400">Enter quantities for each item produced, then press &quot;Add to Draft&quot;.</div>
             </div>
             <input
               type="search"
-              placeholder="品目を検索..."
+              placeholder="Search items..."
               value={stockSearch}
               onChange={(e) => setStockSearch(e.target.value)}
               className="rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-200 placeholder:text-neutral-500 focus:border-sky-500/50 focus:outline-none focus:ring-2 focus:ring-sky-500/20 w-48"
@@ -920,15 +920,15 @@ export default function InventoryProductionsPage() {
           </div>
 
           {productOptions.length === 0 ? (
-            <div className="py-4 text-sm text-neutral-500">製造品が登録されていません。</div>
+            <div className="py-4 text-sm text-neutral-500">No production items registered.</div>
           ) : (
             <>
               <div className="overflow-hidden rounded-xl border border-neutral-800">
                 {/* Header */}
                 <div className="grid grid-cols-[1fr_140px_80px] border-b border-neutral-800 bg-black/20 px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
-                  <div>品目名</div>
-                  <div className="text-right">製造数量</div>
-                  <div className="pl-3">単位</div>
+                  <div>Item</div>
+                  <div className="text-right">Qty Produced</div>
+                  <div className="pl-3">Unit</div>
                 </div>
                 {/* Product rows */}
                 {productOptions
@@ -980,9 +980,9 @@ export default function InventoryProductionsPage() {
                   <div className="mt-4 flex items-center justify-between">
                     <div className="text-sm text-neutral-400">
                       {nonZeroCount > 0 ? (
-                        <span className="font-medium text-sky-300">{nonZeroCount}品目</span>
+                        <span className="font-medium text-sky-300">{nonZeroCount} item{nonZeroCount !== 1 ? "s" : ""} ready</span>
                       ) : (
-                        <span className="text-neutral-500">数量を入力してください</span>
+                        <span className="text-neutral-500">Enter quantities above</span>
                       )}
                     </div>
                     <button
@@ -991,7 +991,7 @@ export default function InventoryProductionsPage() {
                       disabled={nonZeroCount === 0}
                       className="rounded-xl bg-gradient-to-r from-sky-600 to-blue-600 px-5 py-2 text-sm font-semibold text-white shadow transition hover:from-sky-500 hover:to-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      ドラフトに追加 ({nonZeroCount}品目)
+                      Add to Draft ({nonZeroCount} item{nonZeroCount !== 1 ? "s" : ""})
                     </button>
                   </div>
                 );
@@ -1080,8 +1080,8 @@ export default function InventoryProductionsPage() {
         ) : null}
       </div>
 
-      {/* Pending CK Manufacturing Requests */}
-      <section className="no-print rounded-2xl border border-amber-900/40 bg-amber-950/10 p-5">
+      {/* Pending CK Manufacturing Requests — shown only on Pending Orders tab */}
+      <section className={`no-print rounded-2xl border border-amber-900/40 bg-amber-950/10 p-5${activeTab !== "PENDING" ? " hidden" : ""}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-base font-semibold text-amber-200">Pending Manufacturing Requests</div>
