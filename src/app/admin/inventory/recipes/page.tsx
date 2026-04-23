@@ -68,7 +68,7 @@ export default function InventoryRecipesPage() {
 
   const groupedCount = useMemo(() => new Set(rows.map((row) => row.menu_item_name)).size, [rows]);
   const [syncBusy, setSyncBusy] = useState(false);
-  const [syncResult, setSyncResult] = useState<{ synced_menu_item_count?: number; inserted_recipe_rows?: number; deleted_recipe_rows?: number } | null>(null);
+  const [syncResult, setSyncResult] = useState<{ synced_menu_item_count?: number; inserted_recipe_row_count?: number; deleted_recipe_row_count?: number; active_inv_menu_recipe_row_count_after?: number } | null>(null);
   const [syncError, setSyncError] = useState("");
 
   async function previewSync() {
@@ -136,8 +136,8 @@ export default function InventoryRecipesPage() {
         ) : syncResult ? (
           <div className="mt-3 rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-300">
             ✅ Sync complete — <span className="font-bold">{syncResult.synced_menu_item_count ?? "?"}</span> menu items,{" "}
-            <span className="font-bold">{syncResult.inserted_recipe_rows ?? "?"}</span> recipe lines inserted
-            {syncResult.deleted_recipe_rows ? `, ${syncResult.deleted_recipe_rows} old lines removed` : ""}.
+            <span className="font-bold">{syncResult.inserted_recipe_row_count ?? syncResult.active_inv_menu_recipe_row_count_after ?? "?"}</span> recipe lines
+            {syncResult.deleted_recipe_row_count ? ` (${syncResult.deleted_recipe_row_count} old lines removed)` : ""}.
           </div>
         ) : null}
 
