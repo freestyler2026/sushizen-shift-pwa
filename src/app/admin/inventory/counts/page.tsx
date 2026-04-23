@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
-import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { defaultBranch, groupBySupplier, lineFromItem, monthNow, number3, todayIso, withVariance, type InventoryCountLine, type InventoryItemLookup } from "@/lib/inventoryCountUtils";
@@ -68,7 +67,6 @@ export default function InventoryCountsPage() {
   const [selectedItemId, setSelectedItemId] = useState("");
   const [itemOptions, setItemOptions] = useState<InventoryItemLookup[]>([]);
   const [countSheetOptions, setCountSheetOptions] = useState<CountSheetRow[]>([]);
-  const [currentTemplateMatchCount, setCurrentTemplateMatchCount] = useState(0);
   const [draftLines, setDraftLines] = useState<InventoryCountLine[]>([]);
   const [draftQtyInputs, setDraftQtyInputs] = useState<Record<string, string>>({});
   const [historyRows, setHistoryRows] = useState<CountRow[]>([]);
@@ -142,7 +140,6 @@ export default function InventoryCountsPage() {
         for (const row of balancesRes.rows || []) balanceMap[String(row.item_id || "")] = Number(row.on_hand_qty || 0);
         setBalancesMap(balanceMap);
         const matchCount = Number(currentRes?.match_count || 0);
-        setCurrentTemplateMatchCount(matchCount);
         if (matchCount === 1 && currentRes?.row) {
           setSelectedCountSheetId(String(currentRes.row.id || ""));
           applySheetToDraft(currentRes.row, balanceMap);
@@ -244,20 +241,7 @@ export default function InventoryCountsPage() {
     });
   }
 
-  async function loadSheetIntoDraft() {
-    if (!selectedCountSheetId) {
-      setError("Please select a count template.");
-      return;
-    }
-    setError("");
-    const res = await inventoryGet<{ row: CountSheetDetail }>(
-      `/api/admin/inventory/count-sheets/${encodeURIComponent(selectedCountSheetId)}?city=${encodeURIComponent(city)}`,
-    );
-    const sheet = res.row || null;
-    if (!sheet) return;
-    applySheetToDraft(sheet);
-    setSuccess("Loaded count template into draft.");
-  }
+
 
   function addManualItem() {
     if (!selectedItem) return;
@@ -370,7 +354,6 @@ export default function InventoryCountsPage() {
   return (
     <div className="space-y-6">
       <InventoryTabs />
-      <InventoryRegistrationHelp />
 
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -402,26 +385,6 @@ export default function InventoryCountsPage() {
           <input value={approverName} onChange={(e) => setApproverName(e.target.value)} placeholder="Approver" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
         </div>
 
-        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_160px]">
-          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={selectedCountSheetId} onChange={(e) => setSelectedCountSheetId(e.target.value)}>
-            <option value="">Load Count Sheet</option>
-            {countSheetOptions.map((sheet) => (
-              <option key={sheet.id} value={sheet.id}>
-                {sheet.name} {sheet.source_sheet_name ? `(${sheet.source_sheet_name})` : ""}
-              </option>
-            ))}
-          </select>
-          <button type="button" onClick={() => void loadSheetIntoDraft()} disabled={!selectedCountSheetId} className="rounded-xl border border-sky-800 bg-sky-950/30 px-4 py-2 text-sm text-sky-200 hover:bg-sky-900/30 disabled:opacity-60">
-            Load Sheet
-          </button>
-        </div>
-        <div className="mt-2 text-xs text-neutral-500">
-          {currentTemplateMatchCount === 1
-            ? "Current active count template is loaded automatically for this branch and cycle."
-            : currentTemplateMatchCount > 1
-              ? "Multiple active count templates match this branch and cycle. Selecting one loads it into the draft."
-              : "No active count template matches this branch and cycle yet."}
-        </div>
 
         <div className="mt-3">
           <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes" className="min-h-24 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
