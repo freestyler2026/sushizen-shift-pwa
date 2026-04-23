@@ -61,6 +61,7 @@ export default function InventoryItemsPage() {
   const [syncResult, setSyncResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
   const [syncSelected, setSyncSelected] = useState<Set<string>>(new Set());
   const [syncExpanded, setSyncExpanded] = useState(false);
+  const [syncError, setSyncError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -243,14 +244,17 @@ export default function InventoryItemsPage() {
   }
 
   async function loadSyncPreview() {
-    setSyncBusy(true); setSyncResult(null); setSyncPreview(null); setError("");
+    setSyncBusy(true); setSyncResult(null); setSyncPreview(null); setSyncError("");
     try {
       const data = await inventoryGet<any>(`/api/admin/inventory/items/cost-calc-preview?city=${encodeURIComponent(city)}`);
       setSyncPreview(data);
       setSyncSelected(new Set((data.rows as CostCalcRow[]).map((r) => `${r.source}:${r.source_id}`)));
       setSyncExpanded(true);
-    } catch (e: any) { setError(e?.message || String(e)); }
-    finally { setSyncBusy(false); }
+    } catch (e: any) {
+      setSyncError(e?.message || String(e));
+    } finally {
+      setSyncBusy(false);
+    }
   }
 
   async function runImport(all: boolean) {
@@ -265,7 +269,7 @@ export default function InventoryItemsPage() {
       // Reload items list
       const updated = await inventoryGet<{ rows: InventoryItemRow[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=${encodeURIComponent(tab)}&q=${encodeURIComponent(q)}&limit=200`);
       setItems(Array.isArray(updated?.rows) ? updated.rows : []);
-    } catch (e: any) { setError(e?.message || String(e)); }
+    } catch (e: any) { setSyncError(e?.message || String(e)); }
     finally { setSyncBusy(false); }
   }
 
@@ -485,12 +489,32 @@ export default function InventoryItemsPage() {
               type="button"
               onClick={() => void loadSyncPreview()}
               disabled={syncBusy}
-              className="rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:from-violet-500 hover:to-purple-500 disabled:opacity-60"
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:from-violet-500 hover:to-purple-500 disabled:opacity-60"
             >
+              {syncBusy && (
+                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3V4a8 8 0 00-8 8z" />
+                </svg>
+              )}
               {syncBusy ? "Checking..." : "Check Missing Items"}
             </button>
           </div>
         </div>
+
+        {/* Error banner */}
+        {syncError ? (
+          <div className="mt-3 rounded-xl border border-red-900/40 bg-red-950/20 px-4 py-3 text-sm text-red-300">
+            ❌ {syncError}
+          </div>
+        ) : null}
+
+        {/* Zero missing */}
+        {syncPreview && syncPreview.missing_count === 0 ? (
+          <div className="mt-3 rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-300">
+            ✅ All Cost Calculation items are already registered in Ingredients / Products. No imports needed.
+          </div>
+        ) : null}
 
         {/* Result banner */}
         {syncResult ? (
