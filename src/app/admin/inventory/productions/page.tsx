@@ -197,6 +197,8 @@ export default function InventoryProductionsPage() {
   // Stock quick-entry: productId → qty string
   const [stockQtys, setStockQtys] = useState<Record<string, string>>({});
   const [stockSearch, setStockSearch] = useState("");
+  // Completed order ready for delivery note printing
+  const [completedOrderForPrint, setCompletedOrderForPrint] = useState<CkPendingRequest | null>(null);
   // Active production checklist (Pending Orders tab)
   const [activeOrderRequest, setActiveOrderRequest] = useState<CkPendingRequest | null>(null);
   const [checklistDone, setChecklistDone] = useState<Record<string, boolean>>({});
@@ -585,9 +587,10 @@ ${pages}
 
   async function completeProductionFromChecklist() {
     if (!activeOrderRequest) return;
-    // Also pre-fill draftOutputs from matched productOptions
+    const completed = activeOrderRequest;
+    // Pre-fill draftOutputs from matched productOptions
     const newDrafts: DraftOutputItem[] = [];
-    for (const item of activeOrderRequest.items) {
+    for (const item of completed.items) {
       const match = productOptions.find(
         (p) => p.name.trim().toLowerCase() === item.item_name.trim().toLowerCase(),
       );
@@ -601,12 +604,190 @@ ${pages}
         storage_unit: match.storage_unit || "",
       });
     }
-    if (newDrafts.length > 0) {
-      setDraftOutputs(newDrafts);
-    }
+    if (newDrafts.length > 0) setDraftOutputs(newDrafts);
     setActiveOrderRequest(null);
     setChecklistDone({});
-    setSuccess(`Production for ${activeOrderRequest.request_no} marked complete. Review and Save Production below.`);
+    setCompletedOrderForPrint(completed);
+    setSuccess("");
+  }
+
+  function printDeliveryNote(req: CkPendingRequest) {
+    const cityLabel = city === "dubai" ? "Dubai" : "Manila";
+    const ckName = `${cityLabel} Central Kitchen`;
+    const now = new Date();
+    const printDate = now.toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    const deliveryNo = `DN-${req.request_no}`;
+
+    const rows = req.items.map((item, i) => `
+      <tr class="${i % 2 === 0 ? "even" : ""}">
+        <td class="num">${i + 1}</td>
+        <td class="name">${item.item_name}</td>
+        <td class="qty">${Number(item.qty || 0).toFixed(3)}</td>
+        <td class="unit">${item.unit}</td>
+        <td class="note"></td>
+      </tr>`).join("");
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Delivery Note — ${req.request_no}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Helvetica Neue", Arial, sans-serif; background: #fff; color: #111; font-size: 13px; padding: 36px 40px; }
+
+  /* Top header */
+  .top-bar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+  .brand { font-size: 26px; font-weight: 900; letter-spacing: 3px; color: #0f172a; }
+  .doc-block { text-align: right; }
+  .doc-type { font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: 1px; text-transform: uppercase; }
+  .doc-no { font-size: 12px; color: #64748b; margin-top: 3px; font-family: monospace; }
+
+  /* Gradient bar */
+  .bar { height: 4px; background: linear-gradient(90deg, #0f172a, #0e7490, #0f766e); border-radius: 2px; margin-bottom: 24px; }
+
+  /* From / To grid */
+  .address-grid { display: grid; grid-template-columns: 1fr 40px 1fr; gap: 0; margin-bottom: 24px; }
+  .address-box { border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; background: #f8fafc; }
+  .address-box.to-box { background: #f0fdf4; border-color: #bbf7d0; }
+  .address-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+  .address-name { font-size: 17px; font-weight: 800; color: #0f172a; }
+  .address-sub { font-size: 11px; color: #64748b; margin-top: 3px; }
+  .arrow-cell { display: flex; align-items: center; justify-content: center; font-size: 22px; color: #94a3b8; }
+
+  /* Meta row */
+  .meta-row { display: flex; gap: 0; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-bottom: 24px; }
+  .meta-item { flex: 1; padding: 10px 14px; border-right: 1px solid #e2e8f0; background: #f8fafc; }
+  .meta-item:last-child { border-right: none; }
+  .meta-label { font-size: 10px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .meta-value { font-size: 13px; font-weight: 600; color: #1e293b; }
+
+  /* Items table */
+  table { width: 100%; border-collapse: collapse; margin-bottom: 28px; }
+  thead tr { background: #0f172a; color: #fff; }
+  th { padding: 10px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; }
+  th.right { text-align: right; }
+  tbody tr.even { background: #f8fafc; }
+  td { padding: 11px 12px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+  td.num { width: 36px; color: #94a3b8; font-size: 11px; }
+  td.name { font-size: 14px; font-weight: 500; }
+  td.qty { width: 100px; text-align: right; font-size: 15px; font-weight: 700; }
+  td.unit { width: 60px; color: #64748b; }
+  td.note { width: 140px; border-bottom: 1px solid #cbd5e1; }
+
+  /* Totals */
+  .total-row { display: flex; justify-content: flex-end; margin-bottom: 28px; }
+  .total-box { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 20px; background: #f1f5f9; text-align: right; }
+  .total-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+  .total-value { font-size: 20px; font-weight: 800; color: #0f172a; margin-top: 2px; }
+
+  /* Sign-off */
+  .signoff { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px; margin-bottom: 20px; }
+  .sign-block { }
+  .sign-label { font-size: 10px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 32px; }
+  .sign-line { border-bottom: 1.5px solid #cbd5e1; margin-bottom: 6px; }
+  .sign-sub { font-size: 10px; color: #94a3b8; }
+
+  /* Footer */
+  .footer { border-top: 1px solid #e2e8f0; padding-top: 12px; display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; }
+
+  @media print {
+    @page { margin: 0; size: A4; }
+    body { padding: 24px 28px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+  <div class="top-bar">
+    <div class="brand">SUSHI ZEN</div>
+    <div class="doc-block">
+      <div class="doc-type">Delivery Note</div>
+      <div class="doc-no">${deliveryNo}</div>
+    </div>
+  </div>
+  <div class="bar"></div>
+
+  <div class="address-grid">
+    <div class="address-box">
+      <div class="address-label">From (Supplier)</div>
+      <div class="address-name">${ckName}</div>
+      <div class="address-sub">${cityLabel} · Central Kitchen</div>
+    </div>
+    <div class="arrow-cell">→</div>
+    <div class="address-box to-box">
+      <div class="address-label">To (Destination)</div>
+      <div class="address-name">${req.store_code}</div>
+      <div class="address-sub">Requested by: ${req.requested_by}</div>
+    </div>
+  </div>
+
+  <div class="meta-row">
+    <div class="meta-item">
+      <div class="meta-label">Delivery Date</div>
+      <div class="meta-value">${printDate}</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Request No.</div>
+      <div class="meta-value">${req.request_no}</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Order Date</div>
+      <div class="meta-value">${String(req.request_date || "").slice(0, 10)}</div>
+    </div>
+    ${req.needed_by_date ? `<div class="meta-item" style="background:#fff7ed;border-color:#fed7aa;">
+      <div class="meta-label" style="color:#c2410c;">⚠ Needed By</div>
+      <div class="meta-value" style="color:#c2410c;">${String(req.needed_by_date).slice(0, 10)}</div>
+    </div>` : ""}
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Item Description</th>
+        <th class="right">Qty</th>
+        <th>Unit</th>
+        <th>Note / Condition</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>
+
+  <div class="total-row">
+    <div class="total-box">
+      <div class="total-label">Total Items</div>
+      <div class="total-value">${req.items.length} line${req.items.length !== 1 ? "s" : ""}</div>
+    </div>
+  </div>
+
+  <div class="signoff">
+    <div class="sign-block">
+      <div class="sign-label">Prepared by (CK)</div>
+      <div class="sign-line"></div>
+      <div class="sign-sub">Name &amp; Signature</div>
+    </div>
+    <div class="sign-block">
+      <div class="sign-label">Checked by (CK)</div>
+      <div class="sign-line"></div>
+      <div class="sign-sub">Name &amp; Signature</div>
+    </div>
+    <div class="sign-block">
+      <div class="sign-label">Received by (Store)</div>
+      <div class="sign-line"></div>
+      <div class="sign-sub">Name &amp; Signature</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div>Printed: ${printDate} · Sushi ZEN Workforce OS</div>
+    <div>${deliveryNo}</div>
+  </div>
+<script>window.onload = function() { window.print(); };</script>
+</body>
+</html>`;
+
+    const win = window.open("", "_blank", "width=900,height=700");
+    if (win) { win.document.write(html); win.document.close(); }
   }
 
   function bulkAddFromStock() {
@@ -1162,6 +1343,41 @@ ${pages}
             </button>
           </div>
         </div>
+
+        {/* ── Delivery Note Banner (after completion) ── */}
+        {completedOrderForPrint && !activeOrderRequest ? (
+          <div className="mt-4 rounded-2xl border-2 border-emerald-500/40 bg-emerald-950/15 p-5">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">✅</span>
+                  <div>
+                    <div className="text-base font-bold text-emerald-200">Production Complete!</div>
+                    <div className="text-sm text-emerald-300/70 mt-0.5">
+                      {completedOrderForPrint.store_code} · {completedOrderForPrint.request_no} · {completedOrderForPrint.items.length} items
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => printDeliveryNote(completedOrderForPrint)}
+                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/25 hover:from-emerald-400 hover:to-teal-400 transition-all"
+                >
+                  🖨 Print Delivery Note
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCompletedOrderForPrint(null)}
+                  className="rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm text-neutral-400 hover:text-neutral-200 transition"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {/* ── Active Production Checklist ── */}
         {activeOrderRequest ? (
