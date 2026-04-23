@@ -624,9 +624,9 @@ ${pages}
         branch_code: branchCode,
         business_date: businessDate,
         creator_name: creatorName.trim(),
-        notes: `${req.request_no} → ${req.store_code}`,
+        notes: `${req.request_no} - ${req.store_code}`,
         purpose: "STORE_ORDER",
-        destination_branch_code: destinationBranchCode || req.store_code || "",
+        destination_branch_code: destinationBranchCode || "",
       });
       const productionId = String(created?.row?.id || "");
       // Save matched items if any
