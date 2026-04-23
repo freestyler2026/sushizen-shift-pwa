@@ -192,11 +192,14 @@ export default function InventoryProductionsPage() {
   const [pendingCkLoading, setPendingCkLoading] = useState(false);
   const [linkedRequestId, setLinkedRequestId] = useState("");
   const [productionPurpose, setProductionPurpose] = useState<"STOCK" | "STORE_ORDER">("STOCK");
-  const [activeTab, setActiveTab] = useState<"STOCK" | "STORE_ORDER" | "PENDING">("STOCK");
+  const [activeTab, setActiveTab] = useState<"STOCK" | "PENDING">("STOCK");
   const [destinationBranchCode, setDestinationBranchCode] = useState("");
   // Stock quick-entry: productId → qty string
   const [stockQtys, setStockQtys] = useState<Record<string, string>>({});
   const [stockSearch, setStockSearch] = useState("");
+  // Active production checklist (Pending Orders tab)
+  const [activeOrderRequest, setActiveOrderRequest] = useState<CkPendingRequest | null>(null);
+  const [checklistDone, setChecklistDone] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -566,47 +569,44 @@ ${pages}
   );
 
   function startFromRequest(req: CkPendingRequest) {
-    const unmatched: string[] = [];
-    const newDrafts: DraftOutputItem[] = [];
-    for (const item of req.items) {
-      const match = productOptions.find(
-        (p) => p.name.trim().toLowerCase() === item.item_name.trim().toLowerCase(),
-      );
-      if (!match) {
-        unmatched.push(item.item_name);
-        continue;
-      }
-      const unit = normalizeProductionOutputUnit(item.unit || match.storage_unit);
-      const key = draftOutputKey(match.id, unit);
-      const existing = newDrafts.find((d) => d.key === key);
-      if (existing) {
-        existing.quantity = Number((existing.quantity + Number(item.qty || 0)).toFixed(3));
-      } else {
-        newDrafts.push({
-          key,
-          item_id: match.id,
-          item_name: match.name,
-          sku: match.sku,
-          quantity: Number(Number(item.qty || 0).toFixed(3)),
-          unit,
-          unit_cost: Number(item.unit_price || match.cost || 0),
-          storage_unit: match.storage_unit || "",
-        });
-      }
-    }
-    if (newDrafts.length === 0 && unmatched.length > 0) {
-      setError(`No matching products found for: ${unmatched.join(", ")}`);
-      return;
-    }
-    setError("");
-    if (unmatched.length > 0) {
-      setError(`Skipped (not in product list): ${unmatched.join(", ")}`);
-    }
-    setDraftOutputs(newDrafts);
+    // Enter checklist mode — show all items regardless of productOptions match
+    setActiveOrderRequest(req);
+    setChecklistDone({});
     setLinkedRequestId(req.id);
     setProductionPurpose("STORE_ORDER");
     setDestinationBranchCode(req.store_code || "");
-    setSuccess(`Loaded ${newDrafts.length} item(s) from request ${req.request_no} (${req.store_code}).`);
+    setError("");
+    setSuccess("");
+  }
+
+  function toggleChecklistItem(itemId: string) {
+    setChecklistDone((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
+  }
+
+  async function completeProductionFromChecklist() {
+    if (!activeOrderRequest) return;
+    // Also pre-fill draftOutputs from matched productOptions
+    const newDrafts: DraftOutputItem[] = [];
+    for (const item of activeOrderRequest.items) {
+      const match = productOptions.find(
+        (p) => p.name.trim().toLowerCase() === item.item_name.trim().toLowerCase(),
+      );
+      if (!match) continue;
+      const unit = normalizeProductionOutputUnit(item.unit || match.storage_unit);
+      const key = draftOutputKey(match.id, unit);
+      newDrafts.push({
+        key, item_id: match.id, item_name: match.name, sku: match.sku,
+        quantity: Number(Number(item.qty || 0).toFixed(3)),
+        unit, unit_cost: Number(item.unit_price || match.cost || 0),
+        storage_unit: match.storage_unit || "",
+      });
+    }
+    if (newDrafts.length > 0) {
+      setDraftOutputs(newDrafts);
+    }
+    setActiveOrderRequest(null);
+    setChecklistDone({});
+    setSuccess(`Production for ${activeOrderRequest.request_no} marked complete. Review and Save Production below.`);
   }
 
   function bulkAddFromStock() {
@@ -1015,26 +1015,13 @@ ${pages}
             ].join(" ")}
           >
             🏪 Pending Orders
+            {pendingCkRequests.length > 0 && (
+              <span className="ml-2 rounded-full bg-amber-500/30 px-2 py-0.5 text-xs font-bold text-amber-200">
+                {pendingCkRequests.length}
+              </span>
+            )}
           </button>
         </div>
-        {activeTab === "PENDING" && (
-          <div className="mt-3">
-            <select
-              className="rounded-xl border border-amber-800/60 bg-amber-950/20 px-3 py-1.5 text-sm text-amber-100"
-              value={destinationBranchCode}
-              onChange={(e) => setDestinationBranchCode(e.target.value)}
-            >
-              <option value="">Select destination store...</option>
-              {BRANCHES[city]
-                .filter((b) => b.code !== "CK" && b.code !== "DRIVER")
-                .map((b) => (
-                  <option key={b.code} value={b.code}>
-                    {b.name}
-                  </option>
-                ))}
-            </select>
-          </div>
-        )}
 
         {error ? <div className="mt-3 text-sm text-rose-300">{error}</div> : null}
         {success ? <div className="mt-3 text-sm text-emerald-300">{success}</div> : null}
@@ -1173,6 +1160,112 @@ ${pages}
             </button>
           </div>
         </div>
+
+        {/* ── Active Production Checklist ── */}
+        {activeOrderRequest ? (
+          <div className="mt-4 rounded-2xl border-2 border-amber-500/40 bg-amber-950/20 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between gap-3 bg-amber-900/30 px-5 py-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg font-bold text-white">{activeOrderRequest.store_code}</span>
+                  <span className="rounded-full bg-blue-900/50 px-2.5 py-0.5 text-xs font-semibold text-blue-200">In Production</span>
+                </div>
+                <div className="mt-0.5 text-sm text-amber-200/70">{activeOrderRequest.request_no} · {activeOrderRequest.requested_by}</div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="text-sm text-amber-200">
+                  <span className="font-bold text-white">{Object.values(checklistDone).filter(Boolean).length}</span>
+                  <span className="text-amber-300/70"> / {activeOrderRequest.items.length} done</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setActiveOrderRequest(null); setChecklistDone({}); setLinkedRequestId(""); setError(""); }}
+                  className="rounded-lg border border-neutral-600 bg-neutral-800 px-3 py-1.5 text-xs text-neutral-300 hover:bg-neutral-700"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+
+            {/* Progress bar */}
+            {(() => {
+              const total = activeOrderRequest.items.length;
+              const done = Object.values(checklistDone).filter(Boolean).length;
+              const pct = total > 0 ? (done / total) * 100 : 0;
+              return (
+                <div className="h-1.5 bg-neutral-800">
+                  <div className="h-full bg-gradient-to-r from-amber-500 to-emerald-500 transition-all duration-500" style={{ width: `${pct}%` }} />
+                </div>
+              );
+            })()}
+
+            {/* Item checklist */}
+            <div className="divide-y divide-white/5">
+              {activeOrderRequest.items.map((item) => {
+                const done = !!checklistDone[item.id];
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => toggleChecklistItem(item.id)}
+                    className={[
+                      "w-full flex items-center gap-4 px-5 py-4 text-left transition-colors",
+                      done ? "bg-emerald-900/20" : "hover:bg-white/5",
+                    ].join(" ")}
+                  >
+                    {/* Big checkbox */}
+                    <div className={[
+                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 transition-all",
+                      done
+                        ? "border-emerald-400 bg-emerald-500/30 text-emerald-300"
+                        : "border-neutral-600 text-transparent",
+                    ].join(" ")}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" className="h-5 w-5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    {/* Item info */}
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-base font-semibold ${done ? "line-through text-neutral-500" : "text-white"}`}>
+                        {item.item_name}
+                      </div>
+                    </div>
+                    {/* Qty badge */}
+                    <div className={`text-right shrink-0 ${done ? "text-neutral-500" : "text-white"}`}>
+                      <span className="text-xl font-bold">{Number(item.qty || 0).toFixed(0)}</span>
+                      <span className="ml-1 text-sm text-neutral-400">{item.unit}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Complete button */}
+            {(() => {
+              const total = activeOrderRequest.items.length;
+              const done = Object.values(checklistDone).filter(Boolean).length;
+              const allDone = done === total && total > 0;
+              return (
+                <div className="px-5 py-4 border-t border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => void completeProductionFromChecklist()}
+                    disabled={!allDone}
+                    className={[
+                      "w-full rounded-xl py-3 text-base font-bold transition-all",
+                      allDone
+                        ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/25 hover:from-emerald-400 hover:to-teal-400"
+                        : "border border-neutral-700 bg-neutral-900 text-neutral-500 cursor-not-allowed",
+                    ].join(" ")}
+                  >
+                    {allDone ? "✓ All Done — Complete Production" : `Check all items (${done}/${total} done)`}
+                  </button>
+                </div>
+              );
+            })()}
+          </div>
+        ) : null}
 
         {pendingCkLoading && pendingCkRequests.length === 0 ? (
           <div className="mt-3 text-sm text-neutral-500">Loading...</div>
