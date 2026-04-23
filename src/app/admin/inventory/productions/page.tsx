@@ -194,6 +194,9 @@ export default function InventoryProductionsPage() {
   const [productionPurpose, setProductionPurpose] = useState<"STOCK" | "STORE_ORDER">("STOCK");
   const [destinationBranchCode, setDestinationBranchCode] = useState("");
   const [printTarget, setPrintTarget] = useState<CkPendingRequest | CkPendingRequest[] | null>(null);
+  // Stock quick-entry: productId → qty string
+  const [stockQtys, setStockQtys] = useState<Record<string, string>>({});
+  const [stockSearch, setStockSearch] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -463,6 +466,31 @@ export default function InventoryProductionsPage() {
     setProductionPurpose("STORE_ORDER");
     setDestinationBranchCode(req.store_code || "");
     setSuccess(`Loaded ${newDrafts.length} item(s) from request ${req.request_no} (${req.store_code}).`);
+  }
+
+  function bulkAddFromStock() {
+    const toAdd: DraftOutputItem[] = [];
+    for (const [id, qtyStr] of Object.entries(stockQtys)) {
+      const qty = parseFloat(qtyStr);
+      if (!qty || qty <= 0) continue;
+      const product = productOptions.find((p) => p.id === id);
+      if (!product) continue;
+      const unit = normalizeProductionOutputUnit(product.storage_unit || "pcs");
+      const key = draftOutputKey(id, unit);
+      toAdd.push({ key, item_id: id, item_name: product.name, sku: product.sku, quantity: qty, unit, unit_cost: product.cost, storage_unit: product.storage_unit });
+    }
+    if (toAdd.length === 0) { setError("数量を入力してください。"); return; }
+    setDraftOutputs((prev) => {
+      const merged = [...prev];
+      for (const item of toAdd) {
+        const idx = merged.findIndex((x) => x.key === item.key);
+        if (idx >= 0) merged[idx] = { ...merged[idx], quantity: item.quantity };
+        else merged.push(item);
+      }
+      return merged;
+    });
+    setStockQtys({});
+    setSuccess(`${toAdd.length}件を製造ドラフトに追加しました。`);
   }
 
   function addDraftOutput() {
@@ -873,6 +901,105 @@ export default function InventoryProductionsPage() {
       </section>
 
       <InventoryRegistrationHelp />
+
+      {/* ── Stock Quick Entry ─────────────────────────────────────────────── */}
+      {productionPurpose === "STOCK" && (
+        <section className="no-print rounded-2xl border border-sky-900/40 bg-sky-950/10 p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold text-sky-200">📦 今日の製造数量 (Stock)</div>
+              <div className="mt-0.5 text-xs text-neutral-400">製造した品目の数量を入力し、「ドラフトに追加」を押してください。</div>
+            </div>
+            <input
+              type="search"
+              placeholder="品目を検索..."
+              value={stockSearch}
+              onChange={(e) => setStockSearch(e.target.value)}
+              className="rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-200 placeholder:text-neutral-500 focus:border-sky-500/50 focus:outline-none focus:ring-2 focus:ring-sky-500/20 w-48"
+            />
+          </div>
+
+          {productOptions.length === 0 ? (
+            <div className="py-4 text-sm text-neutral-500">製造品が登録されていません。</div>
+          ) : (
+            <>
+              <div className="overflow-hidden rounded-xl border border-neutral-800">
+                {/* Header */}
+                <div className="grid grid-cols-[1fr_140px_80px] border-b border-neutral-800 bg-black/20 px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
+                  <div>品目名</div>
+                  <div className="text-right">製造数量</div>
+                  <div className="pl-3">単位</div>
+                </div>
+                {/* Product rows */}
+                {productOptions
+                  .filter((p) =>
+                    !stockSearch.trim() ||
+                    p.name.toLowerCase().includes(stockSearch.toLowerCase()) ||
+                    (p.sku || "").toLowerCase().includes(stockSearch.toLowerCase())
+                  )
+                  .map((product) => {
+                    const qty = stockQtys[product.id] || "";
+                    const hasQty = parseFloat(qty) > 0;
+                    return (
+                      <div
+                        key={product.id}
+                        className={[
+                          "grid grid-cols-[1fr_140px_80px] items-center border-b border-neutral-800/60 px-4 py-2.5 last:border-0 transition-colors",
+                          hasQty ? "bg-sky-900/10" : "",
+                        ].join(" ")}
+                      >
+                        <div>
+                          <div className={`text-sm font-medium ${hasQty ? "text-sky-200" : "text-neutral-300"}`}>{product.name}</div>
+                          {product.sku ? <div className="text-[11px] text-neutral-500">{product.sku}</div> : null}
+                        </div>
+                        <div className="pr-2 text-right">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.001"
+                            inputMode="decimal"
+                            placeholder="0"
+                            value={qty}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) =>
+                              setStockQtys((prev) => ({ ...prev, [product.id]: e.target.value }))
+                            }
+                            className="w-28 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-right text-sm text-white focus:border-sky-500/50 focus:ring-2 focus:ring-sky-500/20 focus:outline-none"
+                          />
+                        </div>
+                        <div className="pl-2 text-sm text-neutral-400">{product.storage_unit || "pcs"}</div>
+                      </div>
+                    );
+                  })}
+              </div>
+
+              {/* Summary + Add button */}
+              {(() => {
+                const nonZeroCount = Object.values(stockQtys).filter((v) => parseFloat(v) > 0).length;
+                return (
+                  <div className="mt-4 flex items-center justify-between">
+                    <div className="text-sm text-neutral-400">
+                      {nonZeroCount > 0 ? (
+                        <span className="font-medium text-sky-300">{nonZeroCount}品目</span>
+                      ) : (
+                        <span className="text-neutral-500">数量を入力してください</span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={bulkAddFromStock}
+                      disabled={nonZeroCount === 0}
+                      className="rounded-xl bg-gradient-to-r from-sky-600 to-blue-600 px-5 py-2 text-sm font-semibold text-white shadow transition hover:from-sky-500 hover:to-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      ドラフトに追加 ({nonZeroCount}品目)
+                    </button>
+                  </div>
+                );
+              })()}
+            </>
+          )}
+        </section>
+      )}
 
       {/* Print styles */}
       <style>{`
