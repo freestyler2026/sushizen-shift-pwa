@@ -199,6 +199,8 @@ export default function InventoryProductionsPage() {
   const [stockSearch, setStockSearch] = useState("");
   // Completed order ready for delivery note printing
   const [completedOrderForPrint, setCompletedOrderForPrint] = useState<CkPendingRequest | null>(null);
+  // IDs of orders completed this session (hidden from pending list)
+  const [completedOrderIds, setCompletedOrderIds] = useState<Set<string>>(new Set());
   // Active production checklist (Pending Orders tab)
   const [activeOrderRequest, setActiveOrderRequest] = useState<CkPendingRequest | null>(null);
   const [checklistDone, setChecklistDone] = useState<Record<string, boolean>>({});
@@ -612,6 +614,12 @@ ${pages}
   }
 
   function printCkDeliveryNote(req: CkPendingRequest) {
+    // Mark this order as completed — remove from pending list
+    setCompletedOrderIds((prev) => new Set([...prev, req.id]));
+    setPendingCkRequests((prev) => prev.filter((r) => r.id !== req.id));
+    setCompletedOrderForPrint(null);
+    setLinkedRequestId("");
+
     const cityLabel = city === "dubai" ? "Dubai" : "Manila";
     const ckName = `${cityLabel} Central Kitchen`;
     const now = new Date();
@@ -1369,7 +1377,14 @@ ${pages}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setCompletedOrderForPrint(null)}
+                  onClick={() => {
+                    if (completedOrderForPrint) {
+                      setCompletedOrderIds((prev) => new Set([...prev, completedOrderForPrint.id]));
+                      setPendingCkRequests((prev) => prev.filter((r) => r.id !== completedOrderForPrint.id));
+                      setLinkedRequestId("");
+                    }
+                    setCompletedOrderForPrint(null);
+                  }}
                   className="rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm text-neutral-400 hover:text-neutral-200 transition"
                 >
                   Dismiss
@@ -1492,7 +1507,11 @@ ${pages}
           <div className="mt-3 text-sm text-neutral-500">No pending manufacturing requests.</div>
         ) : (
           <div className="mt-4 space-y-4">
-            {pendingCkRequests.filter((req) => req.id !== activeOrderRequest?.id).map((req) => (
+            {pendingCkRequests
+              .filter((req) => req.id !== activeOrderRequest?.id)
+              .filter((req) => req.id !== completedOrderForPrint?.id)
+              .filter((req) => !completedOrderIds.has(req.id))
+              .map((req) => (
               <div
                 key={req.id}
                 className={[
