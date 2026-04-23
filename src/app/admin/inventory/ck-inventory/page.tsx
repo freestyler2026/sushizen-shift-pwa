@@ -40,18 +40,8 @@ type HistoryRow = {
   total_abs_gap: number;
 };
 
-type GapDetailRow = {
-  item_source: string;
-  item_id: number;
-  item_name: string;
-  category: string;
-  unit: string;
-  count_qty: number;
-  theoretical_qty: number;
-  gap_qty: number;
-};
 
-type Tab = "stock" | "count" | "history";
+type Tab = "stock" | "count";
 
 type CountDraft = Record<string, string>; // key: `${item_source}:${id}` -> qty string
 
@@ -127,12 +117,6 @@ export default function CkInventoryPage() {
   const [saveSuccess, setSaveSuccess] = useState("");
 
   // Tab 3 — History
-  const [historyRows, setHistoryRows] = useState<HistoryRow[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState("");
-  const [selectedHistory, setSelectedHistory] = useState<{ count_date: string; rows: GapDetailRow[] } | null>(null);
-  const [gapDetailLoading, setGapDetailLoading] = useState(false);
-  const [gapDetailError, setGapDetailError] = useState("");
 
   // ---------------------------------------------------------------------------
   // Derived: theoretical lookup for count tab
@@ -229,20 +213,6 @@ export default function CkInventoryPage() {
     }
   }, []);
 
-  const loadGapDetail = useCallback(async (c: City, countDateStr: string) => {
-    setGapDetailLoading(true);
-    setGapDetailError("");
-    try {
-      const res = await inventoryGet<{ rows: GapDetailRow[] }>(
-        `/api/admin/inventory/ck-stock/gap-detail?city=${encodeURIComponent(c)}&count_date=${encodeURIComponent(countDateStr)}`,
-      );
-      setSelectedHistory({ count_date: countDateStr, rows: res.rows || [] });
-    } catch (e: unknown) {
-      setGapDetailError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setGapDetailLoading(false);
-    }
-  }, []);
 
   // Load when ready + city changes
   useEffect(() => {
@@ -257,7 +227,6 @@ export default function CkInventoryPage() {
       void loadMaster(city);
       void loadStockView(city);
     }
-    if (tab === "history") void loadHistory(city);
   }, [ready, allowed, tab, city, masterItems.length, loadMaster, loadStockView, loadHistory]);
 
   // Reload master on city change if on count tab
@@ -269,10 +238,6 @@ export default function CkInventoryPage() {
       setStockView([]);
       void loadMaster(city);
       void loadStockView(city);
-    }
-    if (tab === "history") {
-      setSelectedHistory(null);
-      void loadHistory(city);
     }
     if (tab === "stock") void loadStock(city);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -407,7 +372,7 @@ export default function CkInventoryPage() {
           [
             { id: "stock", label: "Current Stock" },
             { id: "count", label: "New Count" },
-            { id: "history", label: "History" },
+          
           ] as const
         ).map((t) => (
           <button
@@ -707,167 +672,6 @@ export default function CkInventoryPage() {
       {/* ------------------------------------------------------------------ */}
       {/* Tab 3: History                                                      */}
       {/* ------------------------------------------------------------------ */}
-      {tab === "history" && (
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="text-sm font-semibold text-neutral-200">Count Sessions</div>
-            <button
-              type="button"
-              disabled={historyLoading}
-              onClick={() => {
-                setSelectedHistory(null);
-                void loadHistory(city);
-              }}
-              className="rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-2 text-sm text-neutral-300 disabled:opacity-50"
-            >
-              {historyLoading ? "Loading..." : "Refresh"}
-            </button>
-          </div>
-
-          {historyError && (
-            <div className="rounded-xl border border-rose-800/50 bg-rose-900/20 px-4 py-3 text-sm text-rose-300">
-              {historyError}
-            </div>
-          )}
-
-          <div className="overflow-x-auto rounded-2xl border border-neutral-800">
-            <table className="min-w-full text-left text-sm">
-              <thead className="border-b border-neutral-800 bg-neutral-900/60 text-xs uppercase tracking-wide text-neutral-500">
-                <tr>
-                  <th className="px-4 py-2.5">Date</th>
-                  <th className="px-4 py-2.5">Recorded By</th>
-                  <th className="px-4 py-2.5 text-right">Items</th>
-                  <th className="px-4 py-2.5 text-right">Shortages</th>
-                  <th className="px-4 py-2.5 text-right">Surpluses</th>
-                  <th className="px-4 py-2.5 text-right">Total Gap</th>
-                </tr>
-              </thead>
-              <tbody>
-                {historyRows.map((row, i) => {
-                  const dateStr = String(row.count_date).slice(0, 10);
-                  const isSelected = selectedHistory?.count_date === dateStr;
-                  return (
-                    <tr
-                      key={`${dateStr}-${i}`}
-                      onClick={() => {
-                        if (isSelected) {
-                          setSelectedHistory(null);
-                        } else {
-                          void loadGapDetail(city, dateStr);
-                        }
-                      }}
-                      className={[
-                        "cursor-pointer border-t border-neutral-800 text-neutral-200 transition",
-                        isSelected ? "bg-violet-950/20" : "hover:bg-neutral-900/30",
-                      ].join(" ")}
-                    >
-                      <td className="px-4 py-3 font-mono text-sm">{dateStr}</td>
-                      <td className="px-4 py-3 text-neutral-300">{row.created_by || "—"}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-neutral-100">{row.item_count}</td>
-                      <td className="px-4 py-3 text-right">
-                        {row.shortage_count > 0 ? (
-                          <span className="font-semibold text-rose-400">{row.shortage_count}</span>
-                        ) : (
-                          <span className="text-neutral-600">0</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {row.surplus_count > 0 ? (
-                          <span className="font-semibold text-emerald-400">{row.surplus_count}</span>
-                        ) : (
-                          <span className="text-neutral-600">0</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-xs text-neutral-300">
-                        {Number(row.total_abs_gap ?? 0).toFixed(3)}
-                      </td>
-                    </tr>
-                  );
-                })}
-                {!historyLoading && historyRows.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-neutral-500">
-                      No count sessions recorded yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Gap detail panel */}
-          {gapDetailError && (
-            <div className="rounded-xl border border-rose-800/50 bg-rose-900/20 px-4 py-3 text-sm text-rose-300">
-              {gapDetailError}
-            </div>
-          )}
-
-          {gapDetailLoading && (
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/30 px-4 py-6 text-center text-sm text-neutral-500">
-              Loading gap detail...
-            </div>
-          )}
-
-          {selectedHistory && !gapDetailLoading && (
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20">
-              <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
-                <div className="text-sm font-semibold text-neutral-200">
-                  Gap Detail — {selectedHistory.count_date}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedHistory(null)}
-                  className="rounded-lg border border-neutral-700 px-3 py-1 text-xs text-neutral-400 hover:text-neutral-200"
-                >
-                  Close
-                </button>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="border-b border-neutral-800 bg-neutral-900/60 text-xs uppercase tracking-wide text-neutral-500">
-                    <tr>
-                      <th className="px-4 py-2.5">Item</th>
-                      <th className="px-4 py-2.5">Category</th>
-                      <th className="px-4 py-2.5">Unit</th>
-                      <th className="px-4 py-2.5 text-right">Counted</th>
-                      <th className="px-4 py-2.5 text-right">Theoretical</th>
-                      <th className="px-4 py-2.5 text-right">Gap</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedHistory.rows.map((r, i) => (
-                      <tr
-                        key={`${r.item_source}-${r.item_id}-${i}`}
-                        className="border-t border-neutral-800 text-neutral-200 transition hover:bg-neutral-900/30"
-                      >
-                        <td className="px-4 py-2 font-medium">{r.item_name}</td>
-                        <td className="px-4 py-2 text-xs text-neutral-400">{r.category || "—"}</td>
-                        <td className="px-4 py-2 text-xs text-neutral-400">{r.unit || "—"}</td>
-                        <td className="px-4 py-2 text-right font-mono text-xs text-neutral-300">
-                          {fmt3(r.count_qty)}
-                        </td>
-                        <td className="px-4 py-2 text-right font-mono text-xs text-neutral-500">
-                          {fmt3(r.theoretical_qty)}
-                        </td>
-                        <td className={["px-4 py-2 text-right font-mono text-xs font-semibold", gapColorClass(r.gap_qty, r.theoretical_qty)].join(" ")}>
-                          {gapLabel(r.gap_qty, r.theoretical_qty)}
-                        </td>
-                      </tr>
-                    ))}
-                    {selectedHistory.rows.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-6 text-center text-neutral-500">
-                          No items found for this count session.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </section>
-      )}
     </div>
   );
 }

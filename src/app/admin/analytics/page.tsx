@@ -110,6 +110,7 @@ import LateTab from "./LateTab";
 import AbsenceTab from "./AbsenceTab";
 import AdherenceTab from "./AdherenceTab";
 import LeanShiftTab from "./LeanShiftTab";
+import InventoryGapTab from "./InventoryGapTab";
 
 // Resolve API base at runtime so local dev always talks to FastAPI directly,
 // even when the page is opened via a LAN IP or a custom local hostname.
@@ -2522,7 +2523,7 @@ export default function AdminAnalyticsPage() {
   const [comparisonLimit, setComparisonLimit] = useState("5000");
 
   const [viewMode, setViewMode] = useState<AnalyticsViewMode>("perfect_attendance");
-  const [analyticsTab, setAnalyticsTab] = useState<"staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai" | "overtime" | "late" | "absence" | "adherence" | "lean_shift">("staff");
+  const [analyticsTab, setAnalyticsTab] = useState<"staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai" | "overtime" | "late" | "absence" | "adherence" | "lean_shift" | "inventory_gap">("staff");
   const [staffSearch, setStaffSearch] = useState("");
 
   const roleUpper = String(auth?.role || "STAFF").toUpperCase();
@@ -5747,7 +5748,7 @@ export default function AdminAnalyticsPage() {
                         ? "Lean Shift Calculator"
                         : "Management P&L Channel";
   const analyticsTabs: Array<{
-    key: "staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai" | "overtime" | "late" | "absence" | "adherence" | "lean_shift";
+    key: "staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai" | "overtime" | "late" | "absence" | "adherence" | "lean_shift" | "inventory_gap";
     label: string;
     visible: boolean;
   }> = [
@@ -5757,6 +5758,7 @@ export default function AdminAnalyticsPage() {
     { key: "evaluation", label: "Evaluation", visible: canViewEvaluationChannel && canViewFinanceChannels },
     { key: "finance", label: "Management P&L", visible: canViewManagementPlChannel },
     { key: "procurement", label: "Procurement Analytics", visible: canViewFinanceChannels },
+    { key: "inventory_gap", label: "Inventory Gap", visible: isHQOrAdmin },
     { key: "overtime", label: "Overtime", visible: canViewStaffChannel },
     { key: "late", label: "Late", visible: canViewStaffChannel },
     { key: "absence", label: "Absence", visible: canViewStaffChannel },
@@ -10357,6 +10359,12 @@ export default function AdminAnalyticsPage() {
               approverName={approverName}
               pin={pin}
             />
+          </div>
+          )}
+
+          {analyticsTab === "inventory_gap" && isHQOrAdmin && (
+          <div className="mt-8">
+            <InventoryGapTab city={city as import("@/lib/branches").City} />
           </div>
           )}
 
