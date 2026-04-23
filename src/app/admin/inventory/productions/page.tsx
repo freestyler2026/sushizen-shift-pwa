@@ -611,7 +611,7 @@ ${pages}
     setSuccess("");
   }
 
-  function printDeliveryNote(req: CkPendingRequest) {
+  function printCkDeliveryNote(req: CkPendingRequest) {
     const cityLabel = city === "dubai" ? "Dubai" : "Manila";
     const ckName = `${cityLabel} Central Kitchen`;
     const now = new Date();
@@ -1362,7 +1362,7 @@ ${pages}
               <div className="flex items-center gap-3 shrink-0">
                 <button
                   type="button"
-                  onClick={() => printDeliveryNote(completedOrderForPrint)}
+                  onClick={() => printCkDeliveryNote(completedOrderForPrint)}
                   className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/25 hover:from-emerald-400 hover:to-teal-400 transition-all"
                 >
                   🖨 Print Delivery Note
