@@ -175,11 +175,11 @@ export default function StoreProcurementReceivingPage() {
       );
       const detail = data?.request ?? null;
       setRequestDetail(detail);
-      // Initialize item check state — all checked, qty = ordered qty
+      // Initialize item check state — all UNCHECKED, qty = ordered qty
       if (detail?.items) {
         const init: Record<string, ItemCheck> = {};
         for (const it of detail.items) {
-          init[it.id] = { checked: true, qty_received: it.qty };
+          init[it.id] = { checked: false, qty_received: it.qty };
         }
         setItemChecks(init);
       }
@@ -624,19 +624,25 @@ export default function StoreProcurementReceivingPage() {
                 {/* Check all / summary bar */}
                 <div className="mb-4 flex items-center justify-between rounded-xl border border-white/8 bg-black/15 px-3 py-2">
                   <div className="text-xs text-zinc-400">
-                    <span className="font-medium text-white">{computedTotals.checkedCount}</span>
-                    <span className="text-zinc-500"> / {computedTotals.totalCount} items</span>
-                    <span className="mx-2 text-zinc-600">·</span>
-                    <span className="font-medium text-white">{computedTotals.qtyReceived.toFixed(1)}</span>
-                    <span className="text-zinc-500"> received</span>
-                    {computedTotals.qtyExpected !== computedTotals.qtyReceived ? (
-                      <span className="ml-2 text-amber-400">
-                        ({(computedTotals.qtyReceived - computedTotals.qtyExpected > 0 ? "+" : "")}{(computedTotals.qtyReceived - computedTotals.qtyExpected).toFixed(1)} vs ordered)
-                      </span>
-                    ) : null}
+                    {computedTotals.checkedCount === 0 ? (
+                      <span className="text-zinc-500">Tap ○ next to each item as it arrives</span>
+                    ) : (
+                      <>
+                        <span className="font-medium text-emerald-300">{computedTotals.checkedCount}</span>
+                        <span className="text-zinc-500"> / {computedTotals.totalCount} items received</span>
+                        <span className="mx-2 text-zinc-600">·</span>
+                        <span className="font-medium text-white">{computedTotals.qtyReceived.toFixed(1)}</span>
+                        <span className="text-zinc-500"> units</span>
+                        {computedTotals.checkedCount > 0 && computedTotals.qtyExpected !== computedTotals.qtyReceived ? (
+                          <span className="ml-2 text-amber-400">
+                            ({(computedTotals.qtyReceived - computedTotals.qtyExpected > 0 ? "+" : "")}{(computedTotals.qtyReceived - computedTotals.qtyExpected).toFixed(1)} vs ordered)
+                          </span>
+                        ) : null}
+                      </>
+                    )}
                   </div>
                   <button type="button" onClick={checkAll} className="text-xs text-violet-400 hover:text-violet-300 transition">
-                    Check all
+                    All received
                   </button>
                 </div>
 
@@ -741,7 +747,7 @@ export default function StoreProcurementReceivingPage() {
                   )}
                 </button>
                 {computedTotals.checkedCount === 0 ? (
-                  <p className="mt-2 text-center text-xs text-amber-400">Check at least one item to record a delivery.</p>
+                  <p className="mt-2 text-center text-xs text-zinc-500">Tap the ○ circle next to each item you received, then press Record Delivery.</p>
                 ) : null}
               </>
             ) : requestDetail && !requestDetail.items?.length ? (
