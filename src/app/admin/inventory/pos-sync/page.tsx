@@ -24,7 +24,7 @@ type SyncResult = {
   message: string;
 };
 
-const DEFAULT_FOLDER_ID = "18jvl9QbJmgnDER_AA_LaPT5OQ1nQq1Kw";
+const DEFAULT_FOLDER_ID = "1wO_rDwjG0FkoXV-R7T1nKT7e378V2T1F";
 
 export default function InventoryPosSyncPage() {
   const auth = useMemo(() => getAuth(), []);
