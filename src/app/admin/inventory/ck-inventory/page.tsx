@@ -31,14 +31,6 @@ type StockViewRow = {
   adj_qty_total: number;
 };
 
-type HistoryRow = {
-  count_date: string;
-  created_by: string;
-  item_count: number;
-  shortage_count: number;
-  surplus_count: number;
-  total_abs_gap: number;
-};
 
 
 type Tab = "stock" | "count";
@@ -198,20 +190,6 @@ export default function CkInventoryPage() {
     }
   }, []);
 
-  const loadHistory = useCallback(async (c: City) => {
-    setHistoryLoading(true);
-    setHistoryError("");
-    try {
-      const res = await inventoryGet<{ rows: HistoryRow[] }>(
-        `/api/admin/inventory/ck-stock/history?city=${encodeURIComponent(c)}`,
-      );
-      setHistoryRows(res.rows || []);
-    } catch (e: unknown) {
-      setHistoryError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, []);
 
 
   // Load when ready + city changes
@@ -227,7 +205,7 @@ export default function CkInventoryPage() {
       void loadMaster(city);
       void loadStockView(city);
     }
-  }, [ready, allowed, tab, city, masterItems.length, loadMaster, loadStockView, loadHistory]);
+  }, [ready, allowed, tab, city, masterItems.length, loadMaster, loadStockView]);
 
   // Reload master on city change if on count tab
   useEffect(() => {
