@@ -616,6 +616,19 @@ ${pages}
 
   async function saveCompletedOrderToHistory(req: CkPendingRequest) {
     if (!creatorName.trim()) { setError("Please enter your name before saving."); return; }
+    // Prevent duplicate: check if this request_no is already in historyRows
+    const alreadySaved = historyRows.some(
+      (r) => r.notes && r.notes.includes(req.request_no)
+    );
+    if (alreadySaved) {
+      // Already saved — just clean up UI
+      setCompletedOrderForPrint(null);
+      setLinkedRequestId("");
+      setCompletedOrderIds((prev) => new Set([...prev, req.id]));
+      setPendingCkRequests((prev) => prev.filter((r) => r.id !== req.id));
+      setSuccess(`Already in history: ${req.request_no}`);
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -627,6 +640,7 @@ ${pages}
         notes: `${req.request_no} - ${req.store_code}`,
         purpose: "STORE_ORDER",
         destination_branch_code: destinationBranchCode || "",
+        linked_request_id: req.id,   // ← update proc_requests status to IN_PRODUCTION
       });
       const productionId = String(created?.row?.id || "");
       // Save matched items if any
@@ -655,6 +669,9 @@ ${pages}
       }
       setCompletedOrderForPrint(null);
       setLinkedRequestId("");
+      // Remove from pending list and badge
+      setCompletedOrderIds((prev) => new Set([...prev, req.id]));
+      setPendingCkRequests((prev) => prev.filter((r) => r.id !== req.id));
       await loadHistory(city, branchCode, historyMonth);
       setSuccess(`Saved to history: ${req.request_no} (${matchedItems.length} items recorded)`);
     } catch (e: any) {
