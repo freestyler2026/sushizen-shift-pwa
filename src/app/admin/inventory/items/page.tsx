@@ -54,6 +54,13 @@ export default function InventoryItemsPage() {
   const [createType, setCreateType] = useState("ITEM");
   const [createSuccess, setCreateSuccess] = useState("");
   const [createCategoryBusy, setCreateCategoryBusy] = useState(false);
+  // Cost Calc sync
+  type CostCalcRow = { source: string; source_id: number; name: string; category: string; unit: string; cost: number; item_type: string };
+  const [syncPreview, setSyncPreview] = useState<{ missing_count: number; ingredient_master_missing: number; menu_item_master_missing: number; rows: CostCalcRow[] } | null>(null);
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null);
+  const [syncSelected, setSyncSelected] = useState<Set<string>>(new Set());
+  const [syncExpanded, setSyncExpanded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -233,6 +240,33 @@ export default function InventoryItemsPage() {
     } finally {
       setCreateCategoryBusy(false);
     }
+  }
+
+  async function loadSyncPreview() {
+    setSyncBusy(true); setSyncResult(null); setSyncPreview(null); setError("");
+    try {
+      const data = await inventoryGet<any>(`/api/admin/inventory/items/cost-calc-preview?city=${encodeURIComponent(city)}`);
+      setSyncPreview(data);
+      setSyncSelected(new Set((data.rows as CostCalcRow[]).map((r) => `${r.source}:${r.source_id}`)));
+      setSyncExpanded(true);
+    } catch (e: any) { setError(e?.message || String(e)); }
+    finally { setSyncBusy(false); }
+  }
+
+  async function runImport(all: boolean) {
+    if (!syncPreview) return;
+    setSyncBusy(true); setSyncResult(null); setError("");
+    try {
+      const rows = all ? syncPreview.rows : syncPreview.rows.filter((r) => syncSelected.has(`${r.source}:${r.source_id}`));
+      const selected_ids = all ? undefined : rows.map((r) => ({ source: r.source, source_id: r.source_id }));
+      const res = await inventoryPost<any>("/api/admin/inventory/items/cost-calc-import", { city, selected_ids });
+      setSyncResult(res);
+      setSyncPreview(null); setSyncSelected(new Set());
+      // Reload items list
+      const updated = await inventoryGet<{ rows: InventoryItemRow[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=${encodeURIComponent(tab)}&q=${encodeURIComponent(q)}&limit=200`);
+      setItems(Array.isArray(updated?.rows) ? updated.rows : []);
+    } catch (e: any) { setError(e?.message || String(e)); }
+    finally { setSyncBusy(false); }
   }
 
   if (!ready) return <div className="text-sm text-neutral-500">Loading inventory items...</div>;
@@ -430,6 +464,129 @@ export default function InventoryItemsPage() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      {/* ── Sync from Cost Calculation ──────────────────────────────────── */}
+      <section className="rounded-2xl border border-violet-900/40 bg-violet-950/10 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-violet-200">Sync from Cost Calculation</div>
+            <div className="mt-0.5 text-xs text-neutral-400">
+              Find items in 食材マスタ / 加工品マスタ / 商品マスタ not yet registered here. Auto-assign SKUs on import.
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {syncPreview && (
+              <button type="button" onClick={() => setSyncExpanded((v) => !v)} className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-300 hover:bg-neutral-800">
+                {syncExpanded ? "Collapse" : "Expand"} preview
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => void loadSyncPreview()}
+              disabled={syncBusy}
+              className="rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-2 text-sm font-semibold text-white transition hover:from-violet-500 hover:to-purple-500 disabled:opacity-60"
+            >
+              {syncBusy ? "Checking..." : "Check Missing Items"}
+            </button>
+          </div>
+        </div>
+
+        {/* Result banner */}
+        {syncResult ? (
+          <div className="mt-3 rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-300">
+            ✅ Imported <span className="font-bold">{syncResult.imported}</span> items.
+            {syncResult.skipped > 0 && <span className="ml-2 text-amber-300">⚠ {syncResult.skipped} skipped.</span>}
+            {syncResult.errors?.length > 0 && (
+              <div className="mt-2 space-y-0.5 text-xs text-rose-300">
+                {syncResult.errors.slice(0, 5).map((e, i) => <div key={i}>{e}</div>)}
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {/* Preview panel */}
+        {syncPreview && syncExpanded ? (
+          <div className="mt-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="text-sm text-neutral-300">
+                <span className="font-bold text-violet-300">{syncPreview.missing_count}</span> missing items —{" "}
+                <span className="text-neutral-400">{syncPreview.ingredient_master_missing} ingredients, {syncPreview.menu_item_master_missing} processed/products</span>
+              </div>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setSyncSelected(new Set(syncPreview.rows.map((r) => `${r.source}:${r.source_id}`)))} className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-300 hover:bg-neutral-800">Select All</button>
+                <button type="button" onClick={() => setSyncSelected(new Set())} className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-300 hover:bg-neutral-800">Deselect All</button>
+                <button
+                  type="button"
+                  disabled={syncBusy || syncSelected.size === 0}
+                  onClick={() => void runImport(false)}
+                  className="rounded-xl border border-violet-600 bg-violet-900/40 px-4 py-1.5 text-sm font-semibold text-violet-100 hover:bg-violet-800/50 disabled:opacity-50"
+                >
+                  {syncBusy ? "Importing..." : `Import Selected (${syncSelected.size})`}
+                </button>
+                <button
+                  type="button"
+                  disabled={syncBusy}
+                  onClick={() => void runImport(true)}
+                  className="rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-1.5 text-sm font-semibold text-white hover:from-violet-500 hover:to-purple-500 disabled:opacity-50"
+                >
+                  {syncBusy ? "Importing..." : `Import All (${syncPreview.missing_count})`}
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-neutral-800">
+              <table className="min-w-full text-left text-sm">
+                <thead className="text-xs uppercase tracking-wide text-neutral-500 bg-black/20">
+                  <tr>
+                    <th className="px-3 py-2 w-8">
+                      <input type="checkbox" checked={syncSelected.size === syncPreview.rows.length} onChange={(e) => setSyncSelected(e.target.checked ? new Set(syncPreview.rows.map((r) => `${r.source}:${r.source_id}`)) : new Set())} className="rounded" />
+                    </th>
+                    <th className="px-3 py-2">Item Name</th>
+                    <th className="px-3 py-2">Source</th>
+                    <th className="px-3 py-2">Category</th>
+                    <th className="px-3 py-2">Unit</th>
+                    <th className="px-3 py-2">Type</th>
+                    <th className="px-3 py-2 text-right">Cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {syncPreview.rows.map((row) => {
+                    const key = `${row.source}:${row.source_id}`;
+                    const checked = syncSelected.has(key);
+                    return (
+                      <tr key={key} className={["border-t border-neutral-800 text-neutral-200 transition-colors", checked ? "bg-violet-950/15" : ""].join(" ")}>
+                        <td className="px-3 py-2">
+                          <input type="checkbox" checked={checked} onChange={(e) => {
+                            setSyncSelected((prev) => {
+                              const next = new Set(prev);
+                              if (e.target.checked) { next.add(key); } else { next.delete(key); }
+                              return next;
+                            });
+                          }} className="rounded" />
+                        </td>
+                        <td className="px-3 py-2 font-medium">{row.name}</td>
+                        <td className="px-3 py-2 text-xs text-neutral-400">{row.source === "ingredient_master" ? "Ingredient" : "Processed/Product"}</td>
+                        <td className="px-3 py-2 text-neutral-400">{row.category || "-"}</td>
+                        <td className="px-3 py-2">{row.unit || "-"}</td>
+                        <td className="px-3 py-2">
+                          <span className={["rounded px-1.5 py-0.5 text-xs", row.item_type === "PRODUCT" ? "bg-purple-900/40 text-purple-300" : "bg-sky-900/40 text-sky-300"].join(" ")}>
+                            {row.item_type}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-right">{Number(row.cost || 0).toFixed(2)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : syncPreview && !syncExpanded ? (
+          <div className="mt-3 text-sm text-violet-300">
+            {syncPreview.missing_count} items to import — expand to review and import.
+          </div>
+        ) : null}
       </section>
     </div>
   );
