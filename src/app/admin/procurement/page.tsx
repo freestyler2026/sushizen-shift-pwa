@@ -157,6 +157,7 @@ export default function AdminProcurementPage() {
   const initRef = useRef(false);
   const [allowed, setAllowed] = useState(false);
   const [error, setError] = useState("");
+  const [approvalSuccess, setApprovalSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitBusy, setSubmitBusy] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
@@ -455,9 +456,24 @@ export default function AdminProcurementPage() {
       });
       const text = await res.text();
       if (!res.ok) throw new Error(text || `Approval action failed (${res.status})`);
+      let resultStatus = "";
+      try { resultStatus = JSON.parse(text)?.request?.status || ""; } catch {}
       setApprovalNote("");
+      setError("");
+      setApprovalSuccess(
+        resultStatus === "APPROVED"
+          ? `✓ Approved — request is now APPROVED`
+          : resultStatus === "REJECTED"
+          ? `✗ Rejected — request is now REJECTED`
+          : resultStatus === "RETURNED"
+          ? `↩ Returned — request sent back to requester`
+          : resultStatus
+          ? `Action recorded — status: ${resultStatus}`
+          : "Action recorded successfully",
+      );
       await loadAll();
     } catch (e: any) {
+      setApprovalSuccess("");
       setError(e?.message || String(e));
     } finally {
       setActionBusy(false);
@@ -821,6 +837,11 @@ export default function AdminProcurementPage() {
               Clear Note
             </button>
           </div>
+          {approvalSuccess ? (
+            <div className="mt-3 rounded-xl border border-emerald-700/40 bg-emerald-900/20 px-3 py-2 text-sm font-medium text-emerald-300">
+              {approvalSuccess}
+            </div>
+          ) : null}
           <div className="mt-4 flex flex-wrap gap-2">
             <span className={BADGE_INFO}>Queue count: {queueRows.length}</span>
             <span className={exceptions.filter((x) => x.status === "OPEN").length > 0 ? BADGE_WARNING : BADGE_SUCCESS}>
