@@ -122,9 +122,63 @@ export default function StoreProcurementRequestPage() {
   const [selectedCatalogCategory, setSelectedCatalogCategory] = useState("Kitchen Ingredients");
   const [catalogSuppliers, setCatalogSuppliers] = useState<SupplierCatalog[]>([]);
   const [catalogBusy, setCatalogBusy] = useState(false);
+  const addCatalogItemFn = async () => {
+    if (!addItemName.trim()) { setAddCatalogError("Item name is required."); return; }
+    if (!addSupplier.trim()) { setAddCatalogError("Supplier is required."); return; }
+    if (!pin.trim()) { setAddCatalogError("PIN is required."); return; }
+    setAddCatalogBusy(true); setAddCatalogError(""); setAddCatalogSuccess("");
+    try {
+      await procurementJson(
+        "/api/admin/procurement/catalog/curated/upsert",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            approver_name: requestedBy.trim(),
+            pin: pin.trim(),
+            rows: [{
+              city: city || "dubai",
+              catalog_category: addCategory,
+              store_scope: "ALL",
+              supplier_name: addSupplier.trim(),
+              sku: "",
+              item_name: addItemName.trim(),
+              unit: addUnit.trim(),
+              unit_price: Number(addUnitPrice || 0),
+              currency_code: city === "dubai" ? "AED" : "PHP",
+              sort_order: 0,
+              active: true,
+            }],
+          }),
+        },
+        requestedBy,
+        pin,
+      );
+      setAddCatalogSuccess(`"${addItemName.trim()}" added to ${addCategory} catalog.`);
+      setAddItemName(""); setAddSupplier(""); setAddUnit(""); setAddUnitPrice("0");
+      // Reload catalog
+      void loadItemCatalog();
+    } catch (e: unknown) {
+      setAddCatalogError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAddCatalogBusy(false);
+    }
+  };
+
   const initRef = useRef(false);
   const cityLabel = city === "dubai" ? "Dubai" : "Manila";
   const currencyCode = city === "dubai" ? "AED" : "PHP";
+
+  // ── Add to Catalog state ──────────────────────────────────────────────────
+  const [showAddCatalog, setShowAddCatalog] = useState(false);
+  const [addCatalogBusy, setAddCatalogBusy] = useState(false);
+  const [addCatalogError, setAddCatalogError] = useState("");
+  const [addCatalogSuccess, setAddCatalogSuccess] = useState("");
+  const [addItemName, setAddItemName] = useState("");
+  const [addSupplier, setAddSupplier] = useState("");
+  const [addUnit, setAddUnit] = useState("");
+  const [addUnitPrice, setAddUnitPrice] = useState("0");
+  const [addCategory, setAddCategory] = useState("Kitchen Ingredients");
 
   const loadMyRequests = useCallback(async (cityOverride?: string) => {
     setError("");
@@ -1058,6 +1112,109 @@ export default function StoreProcurementRequestPage() {
           {!rows.length ? <div className="text-sm text-neutral-500">No requests yet.</div> : null}
         </div>
       </div>
+      </div>
+
+      {/* ── Add Item to Catalog ───────────────────────────────────────────── */}
+      <div className={`no-print ${GLASS_PANEL} p-5`}>
+        <button
+          type="button"
+          onClick={() => { setShowAddCatalog((v) => !v); setAddCatalogError(""); setAddCatalogSuccess(""); }}
+          className="flex w-full items-center justify-between text-sm font-semibold text-violet-200"
+        >
+          <span>➕ Add Item to Catalog</span>
+          <span className="text-xs text-neutral-500">{showAddCatalog ? "▲ collapse" : "▼ expand"}</span>
+        </button>
+        <p className="mt-1 text-xs text-neutral-500">
+          Register a new item to the curated catalog so it can be ordered in future requests. Requires admin PIN.
+        </p>
+
+        {showAddCatalog ? (
+          <div className="mt-4 space-y-3">
+            {/* Category selector */}
+            <div>
+              <div className="mb-1.5 text-xs font-medium text-neutral-400">Catalog Category</div>
+              <div className="flex flex-wrap gap-2">
+                {(city === "dubai" ? ["Kitchen Ingredients", "Warehouse", "Central Kitchen"] : ["All"]).map((cat) => {
+                  const colorMap: Record<string, string> = {
+                    "Kitchen Ingredients": addCategory === cat ? "bg-sky-500/25 text-sky-100 border-sky-500/50" : "bg-sky-950/30 text-sky-400 border-sky-800/40",
+                    "Warehouse": addCategory === cat ? "bg-amber-500/25 text-amber-100 border-amber-500/50" : "bg-amber-950/30 text-amber-400 border-amber-800/40",
+                    "Central Kitchen": addCategory === cat ? "bg-emerald-500/25 text-emerald-100 border-emerald-500/50" : "bg-emerald-950/30 text-emerald-400 border-emerald-800/40",
+                    "All": addCategory === cat ? "bg-violet-500/25 text-violet-100 border-violet-500/50" : "bg-violet-950/30 text-violet-400 border-violet-800/40",
+                  };
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setAddCategory(cat)}
+                      className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-all ${colorMap[cat] || colorMap["All"]}`}
+                    >
+                      {cat}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Form fields */}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-neutral-400">Item Name *</label>
+                <input
+                  value={addItemName}
+                  onChange={(e) => setAddItemName(e.target.value)}
+                  placeholder="e.g. Salmon Fillet 1kg"
+                  className={`w-full ${FIELD_CLASS}`}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-neutral-400">Supplier *</label>
+                <input
+                  value={addSupplier}
+                  onChange={(e) => setAddSupplier(e.target.value)}
+                  placeholder="e.g. Ocean Fisheries"
+                  className={`w-full ${FIELD_CLASS}`}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-neutral-400">Unit</label>
+                <input
+                  value={addUnit}
+                  onChange={(e) => setAddUnit(e.target.value)}
+                  placeholder="e.g. kg, pcs, box"
+                  className={`w-full ${FIELD_CLASS}`}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-neutral-400">Unit Price ({currencyCode})</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={addUnitPrice}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => setAddUnitPrice(e.target.value)}
+                  className={`w-full ${FIELD_CLASS}`}
+                />
+              </div>
+            </div>
+
+            {addCatalogError ? (
+              <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-sm text-red-300">❌ {addCatalogError}</div>
+            ) : addCatalogSuccess ? (
+              <div className="rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-3 py-2 text-sm text-emerald-300">✅ {addCatalogSuccess}</div>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={() => void addCatalogItemFn()}
+              disabled={addCatalogBusy || !addItemName.trim() || !addSupplier.trim()}
+              className={PRIMARY_BUTTON}
+            >
+              {addCatalogBusy ? "Adding..." : `Add to ${addCategory} Catalog`}
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   );
