@@ -156,6 +156,8 @@ function number3(value: number) {
 export default function InventoryProductionsPage() {
   const auth = useMemo(() => getAuth(), []);
   const recipeProductSelectRef = useRef<HTMLSelectElement | null>(null);
+  // Track saved request IDs to prevent duplicates (persists across renders)
+  const savedRequestIds = useRef<Set<string>>(new Set());
   const [ready, setReady] = useState(false);
   const [allowed, setAllowed] = useState(false);
   const [city, setCity] = useState<City>((auth?.city || "manila") as City);
@@ -616,19 +618,17 @@ ${pages}
 
   async function saveCompletedOrderToHistory(req: CkPendingRequest) {
     if (!creatorName.trim()) { setError("Please enter your name before saving."); return; }
-    // Prevent duplicate: check if this request_no is already in historyRows
-    const alreadySaved = historyRows.some(
-      (r) => r.notes && r.notes.includes(req.request_no)
-    );
-    if (alreadySaved) {
-      // Already saved — just clean up UI
+    // Prevent duplicate saves using a ref (reliable across async calls)
+    if (savedRequestIds.current.has(req.id)) {
       setCompletedOrderForPrint(null);
       setLinkedRequestId("");
       setCompletedOrderIds((prev) => new Set([...prev, req.id]));
       setPendingCkRequests((prev) => prev.filter((r) => r.id !== req.id));
-      setSuccess(`Already in history: ${req.request_no}`);
+      setSuccess(`Already saved: ${req.request_no}`);
       return;
     }
+    // Mark as saving immediately to prevent race conditions
+    savedRequestIds.current.add(req.id);
     setSaving(true);
     setError("");
     try {
@@ -675,6 +675,8 @@ ${pages}
       await loadHistory(city, branchCode, historyMonth);
       setSuccess(`Saved to history: ${req.request_no} (${matchedItems.length} items recorded)`);
     } catch (e: any) {
+      // On failure, remove from ref so user can retry
+      savedRequestIds.current.delete(req.id);
       setError(`Failed to save history: ${e?.message || String(e)}`);
     } finally {
       setSaving(false);
