@@ -162,14 +162,21 @@ export default function ProcurementQuotesPage() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError("");
+    // Load masters and requests independently so a masters failure doesn't block requests
+    const [mastersResult, requestsResult] = await Promise.allSettled([loadMasters(), loadRequests()]);
+    if (mastersResult.status === "rejected") {
+      // Non-blocking: show warning but don't block the page
+      console.warn("Failed to load vendor/benchmark data:", mastersResult.reason);
+    }
+    if (requestsResult.status === "rejected") {
+      setError((requestsResult.reason as Error)?.message || String(requestsResult.reason));
+    }
     try {
-      await Promise.all([loadMasters(), loadRequests()]);
       if (requestId.trim()) await loadDetail(requestId.trim());
     } catch (e: any) {
       setError(e?.message || String(e));
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   }, [loadDetail, loadMasters, loadRequests, requestId]);
 
   useEffect(() => {
