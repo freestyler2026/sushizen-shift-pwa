@@ -587,74 +587,80 @@ ${pages}
     setChecklistDone((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
   }
 
-  async function completeProductionFromChecklist() {
+  function completeProductionFromChecklist() {
     if (!activeOrderRequest) return;
     const completed = activeOrderRequest;
-    // Build output items from matched productOptions (+ unmatched as name-only records)
-    const outputItems: DraftOutputItem[] = completed.items.map((item) => {
+    // Build draft items from matched productOptions
+    const newDrafts: DraftOutputItem[] = [];
+    for (const item of completed.items) {
       const match = productOptions.find(
         (p) => p.name.trim().toLowerCase() === item.item_name.trim().toLowerCase(),
       );
-      const unit = normalizeProductionOutputUnit(item.unit || (match?.storage_unit ?? "pcs"));
-      const key = match ? draftOutputKey(match.id, unit) : `unmatched_${item.id}`;
-      return {
-        key,
-        item_id: match?.id ?? "",
-        item_name: item.item_name,
-        sku: match?.sku ?? "",
+      if (!match) continue;
+      const unit = normalizeProductionOutputUnit(item.unit || match.storage_unit);
+      const key = draftOutputKey(match.id, unit);
+      newDrafts.push({
+        key, item_id: match.id, item_name: match.name, sku: match.sku,
         quantity: Number(Number(item.qty || 0).toFixed(3)),
-        unit,
-        unit_cost: Number(item.unit_price || match?.cost || 0),
-        storage_unit: match?.storage_unit ?? unit,
-      };
-    });
-
-    // Auto-save to history directly via API (no BOM deduction for unmatched items)
-    if (creatorName.trim() && branchCode && outputItems.length > 0) {
-      setSaving(true);
-      try {
-        const created = await inventoryPost<{ row: ProductionRow }>("/api/admin/inventory/productions", {
-          city,
-          branch_code: branchCode,
-          business_date: businessDate,
-          creator_name: creatorName.trim(),
-          notes: `Store order: ${completed.request_no} (${completed.store_code})`,
-          linked_request_id: completed.id,
-          purpose: "STORE_ORDER",
-          destination_branch_code: completed.store_code || "",
-        });
-        const productionId = String(created?.row?.id || "");
-        if (productionId) {
-          await inventoryPost(`/api/admin/inventory/productions/${encodeURIComponent(productionId)}/items`, {
-            city,
-            items: outputItems
-              .filter((it) => it.item_id)
-              .map((item, index) => ({
-                item_id: item.item_id,
-                item_name: item.item_name,
-                sku: item.sku,
-                quantity: item.quantity,
-                unit: item.unit,
-                unit_cost: item.unit_cost,
-                total_cost: item.quantity * item.unit_cost,
-                entry_type: "OUTPUT",
-                sort_order: index,
-              })),
-          });
-        }
-        await loadHistory(city, branchCode, historyMonth);
-      } catch {
-        // Non-blocking — still proceed with UI updates
-      } finally {
-        setSaving(false);
-      }
+        unit, unit_cost: Number(item.unit_price || match.cost || 0),
+        storage_unit: match.storage_unit || "",
+      });
     }
-
-    setDraftOutputs(outputItems.filter((it) => it.item_id));
+    if (newDrafts.length > 0) setDraftOutputs(newDrafts);
     setActiveOrderRequest(null);
     setChecklistDone({});
     setCompletedOrderForPrint(completed);
-    setSuccess(`Production saved to history: ${completed.request_no}`);
+    setSuccess("");
+  }
+
+  async function saveCompletedOrderToHistory(req: CkPendingRequest) {
+    if (!creatorName.trim()) { setError("Please enter your name before saving."); return; }
+    setSaving(true);
+    setError("");
+    try {
+      const created = await inventoryPost<{ row: ProductionRow }>("/api/admin/inventory/productions", {
+        city,
+        branch_code: branchCode,
+        business_date: businessDate,
+        creator_name: creatorName.trim(),
+        notes: `${req.request_no} → ${req.store_code}`,
+        purpose: "STORE_ORDER",
+        destination_branch_code: destinationBranchCode || req.store_code || "",
+      });
+      const productionId = String(created?.row?.id || "");
+      // Save matched items if any
+      const matchedItems = req.items.flatMap((item, index) => {
+        const match = productOptions.find(
+          (p) => p.name.trim().toLowerCase() === item.item_name.trim().toLowerCase(),
+        );
+        if (!match) return [];
+        const unit = normalizeProductionOutputUnit(item.unit || match.storage_unit);
+        return [{
+          item_id: match.id,
+          item_name: match.name,
+          sku: match.sku,
+          quantity: Number(Number(item.qty || 0).toFixed(3)),
+          unit,
+          unit_cost: Number(item.unit_price || match.cost || 0),
+          total_cost: Number(item.qty || 0) * Number(item.unit_price || match.cost || 0),
+          entry_type: "OUTPUT",
+          sort_order: index,
+        }];
+      });
+      if (productionId && matchedItems.length > 0) {
+        await inventoryPost(`/api/admin/inventory/productions/${encodeURIComponent(productionId)}/items`, {
+          city, items: matchedItems,
+        });
+      }
+      setCompletedOrderForPrint(null);
+      setLinkedRequestId("");
+      await loadHistory(city, branchCode, historyMonth);
+      setSuccess(`Saved to history: ${req.request_no} (${matchedItems.length} items recorded)`);
+    } catch (e: any) {
+      setError(`Failed to save history: ${e?.message || String(e)}`);
+    } finally {
+      setSaving(false);
+    }
   }
 
   function printCkDeliveryNote(req: CkPendingRequest) {
@@ -1409,11 +1415,20 @@ ${pages}
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
+                {/* Save to history first, then print */}
+                <button
+                  type="button"
+                  onClick={() => void saveCompletedOrderToHistory(completedOrderForPrint)}
+                  disabled={saving}
+                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 px-4 py-2.5 text-sm font-bold text-white shadow transition hover:from-violet-400 hover:to-purple-400 disabled:opacity-60"
+                >
+                  {saving ? "Saving…" : "💾 Save to History"}
+                </button>
                 <button
                   type="button"
                   onClick={() => printCkDeliveryNote(completedOrderForPrint)}
-                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-500/25 hover:from-emerald-400 hover:to-teal-400 transition-all"
+                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-500/25 hover:from-emerald-400 hover:to-teal-400 transition-all"
                 >
                   🖨 Print Delivery Note
                 </button>
@@ -1427,7 +1442,7 @@ ${pages}
                     }
                     setCompletedOrderForPrint(null);
                   }}
-                  className="rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-3 text-sm text-neutral-400 hover:text-neutral-200 transition"
+                  className="rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-2.5 text-sm text-neutral-400 hover:text-neutral-200 transition"
                 >
                   Dismiss
                 </button>
