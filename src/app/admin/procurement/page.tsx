@@ -1,9 +1,8 @@
 "use client";
 
 import { motion } from "framer-motion";
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckSquare, FileSpreadsheet, RefreshCw, ShoppingCart } from "lucide-react";
+import { CheckSquare, ShoppingCart } from "lucide-react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi, setAuth } from "@/lib/auth";
 import DatePicker from "@/components/DatePicker";
 import MonthPicker from "@/components/MonthPicker";
@@ -90,16 +89,6 @@ type ChecklistItemState = ChecklistTemplateItem & {
   updatedAt?: string;
 };
 
-type ImportSyncResult = {
-  record_count: number;
-  inserted_count: number;
-  sheet_count: number;
-  sheet_names: string[];
-  month_keys: string[];
-  store_counts: Record<string, number>;
-  order_type_counts: Record<string, number>;
-  date_range?: { from?: string; to?: string };
-};
 
 const DAILY_CHECKLIST_TEMPLATE: ChecklistTemplateItem[] = [
   { code: "stock_count", label: "Today stock was checked before ordering", required: true, guide: "Verify actual stock and avoid duplicate purchase." },
@@ -182,11 +171,7 @@ export default function AdminProcurementPage() {
   const [kpiSummary, setKpiSummary] = useState<any>(null);
   const [checklistItems, setChecklistItems] = useState<ChecklistItemState[]>(() => buildChecklistState([], String(auth?.city || "manila"), todayIso()));
   const [checklistBusy, setChecklistBusy] = useState(false);
-  const [syncBusy, setSyncBusy] = useState(false);
-  const [syncFile, setSyncFile] = useState<File | null>(null);
   const [skipZeroQuantity, setSkipZeroQuantity] = useState(true);
-  const [syncResult, setSyncResult] = useState<ImportSyncResult | null>(null);
-  const cityLabel = city === "dubai" ? "Dubai" : "Manila";
   const currencyCode = city === "dubai" ? "AED" : "PHP";
 
   const checklistStats = useMemo(() => {
@@ -392,50 +377,6 @@ export default function AdminProcurementPage() {
     }
   };
 
-  const syncWorkbook = async () => {
-    if (!syncFile) {
-      setError("Please select an Excel workbook first.");
-      return;
-    }
-    if (!requestedBy.trim() || !pin.trim()) {
-      setError("Requester name and PIN are required.");
-      return;
-    }
-    setSyncBusy(true);
-    setError("");
-    try {
-      const headers = await tokenHeaders();
-      const formData = new FormData();
-      formData.set("file", syncFile);
-      formData.set("approver_name", requestedBy.trim());
-      formData.set("pin", pin.trim());
-      formData.set("city", city);
-      formData.set("skip_zero_quantity", String(skipZeroQuantity));
-      const res = await fetch(`${apiBase}/api/admin/procurement/import/orders-excel`, {
-        method: "POST",
-        headers,
-        body: formData,
-      });
-      const text = await res.text();
-      if (!res.ok) throw new Error(text || `Sync failed (${res.status})`);
-      const json = JSON.parse(text || "{}");
-      setSyncResult({
-        record_count: Number(json?.record_count || 0),
-        inserted_count: Number(json?.inserted_count || 0),
-        sheet_count: Number(json?.sheet_count || 0),
-        sheet_names: Array.isArray(json?.sheet_names) ? json.sheet_names : [],
-        month_keys: Array.isArray(json?.month_keys) ? json.month_keys : [],
-        store_counts: json?.store_counts && typeof json.store_counts === "object" ? json.store_counts : {},
-        order_type_counts: json?.order_type_counts && typeof json.order_type_counts === "object" ? json.order_type_counts : {},
-        date_range: json?.date_range || {},
-      });
-      await loadAll();
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    } finally {
-      setSyncBusy(false);
-    }
-  };
 
   const runApproval = async () => {
     if (!selectedRequestId || !pin.trim() || !requestedBy.trim()) {
@@ -583,77 +524,6 @@ export default function AdminProcurementPage() {
         </div>
       </div>
 
-      <div className={`${GLASS_CARD} mb-4 p-5`}>
-        <div className="mb-4 flex items-center gap-2">
-          <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
-          <h2 className={T_SECTION}>Excel Sync</h2>
-        </div>
-        <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <p className={T_CAPTION}>
-            Sync the familiar order workbook, keep imported history, and raise PR from the synced rows. Manual PR entry remains available below as the OS path.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/admin/procurement/imports" className={SMALL_BUTTON}>
-              Open Imports
-            </Link>
-            <Link href="/admin/procurement/ingredients" className={SMALL_BUTTON}>
-              食材マスタ
-            </Link>
-          </div>
-        </div>
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
-          <div>
-            <span className={`${T_LABEL} mb-1.5 block`}>Workbook City</span>
-            <div className={`${INPUT_CLASS} flex items-center`}>{cityLabel}</div>
-          </div>
-          <div className="lg:col-span-2">
-            <span className={`${T_LABEL} mb-1.5 block`}>Workbook File</span>
-            <input type="file" accept=".xlsx,.xls" onChange={(e) => setSyncFile(e.target.files?.[0] || null)} className={INPUT_CLASS} />
-          </div>
-          <div className="flex items-end">
-            <button type="button" onClick={() => void syncWorkbook()} disabled={syncBusy} className={PRIMARY_BUTTON}>
-              <RefreshCw className="mr-1.5 h-4 w-4" />
-              {syncBusy ? "Syncing..." : "Sync Workbook"}
-            </button>
-          </div>
-        </div>
-        {syncResult ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            <span className={BADGE_SUCCESS}>Imported {fmtNum(syncResult.inserted_count)} rows</span>
-            <span className={BADGE_INFO}>Sheets {fmtNum(syncResult.sheet_count)}</span>
-            <span className={BADGE_INFO}>Months {syncResult.month_keys.join(", ") || "-"}</span>
-          </div>
-        ) : null}
-        {syncResult ? (
-          <div className="mt-4 grid grid-cols-1 gap-3 text-xs md:grid-cols-4">
-            {[
-              { id: "records", label: "Records", value: fmtNum(syncResult.record_count) },
-              { id: "sheets", label: "Sheets", value: fmtNum(syncResult.sheet_count) },
-              { id: "months", label: "Months", value: syncResult.month_keys.join(", ") || "-" },
-              { id: "dateRange", label: "Date Range", value: `${syncResult.date_range?.from || "-"} to ${syncResult.date_range?.to || "-"}` },
-            ].map((card, index) => (
-              <motion.div key={card.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: index * 0.05 }}>
-                <div className={KPI_CARD}>
-                  <p className={KPI_LABEL}>{card.label}</p>
-                  <p className="mt-1 text-sm text-white">{card.value}</p>
-                </div>
-              </motion.div>
-            ))}
-            <div className="md:col-span-2">
-              <div className={KPI_CARD}>
-                <p className={KPI_LABEL}>Stores</p>
-                <p className="mt-1 text-sm text-white">{Object.entries(syncResult.store_counts).map(([key, value]) => `${key}:${value}`).join(" / ") || "-"}</p>
-              </div>
-            </div>
-            <div className="md:col-span-2">
-              <div className={KPI_CARD}>
-                <p className={KPI_LABEL}>Types</p>
-                <p className="mt-1 text-sm text-white">{Object.entries(syncResult.order_type_counts).map(([key, value]) => `${key}:${value}`).join(" / ") || "-"}</p>
-              </div>
-            </div>
-          </div>
-        ) : null}
-      </div>
 
       <div className={`${GLASS_CARD} mb-4 p-5`}>
         <div className="mb-4 flex items-center justify-between">
