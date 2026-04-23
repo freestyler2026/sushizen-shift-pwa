@@ -483,7 +483,6 @@ export default function AdminProcurementPage() {
               setQueueRows([]);
               setExceptions([]);
               setKpiSummary(null);
-              setSyncResult(null);
               setChecklistItems(buildChecklistState([], nextCity, requestDate));
             }}
             className={SELECT_CLASS}
