@@ -172,6 +172,8 @@ export default function AdminProcurementPage() {
   const [queueRows, setQueueRows] = useState<ReqRow[]>([]);
   const [exceptions, setExceptions] = useState<ExceptionRow[]>([]);
   const [selectedRequestId, setSelectedRequestId] = useState("");
+  const [selectedRequestDetail, setSelectedRequestDetail] = useState<{ request_no?: string; store_code?: string; status?: string; total_amount?: number; items?: ReqItem[] } | null>(null);
+  const [selectedRequestLoading, setSelectedRequestLoading] = useState(false);
   const [approvalAction, setApprovalAction] = useState<"APPROVE" | "REJECT" | "RETURN">("APPROVE");
   const [approvalNote, setApprovalNote] = useState("");
   const [pin, setPin] = useState(auth?.pin || "");
@@ -820,7 +822,20 @@ export default function AdminProcurementPage() {
                       <td className={TABLE_CELL}>
                         <button
                           type="button"
-                          onClick={() => setSelectedRequestId(r.id)}
+                          onClick={async () => {
+                            setSelectedRequestId(r.id);
+                            setSelectedRequestDetail(null);
+                            setSelectedRequestLoading(true);
+                            try {
+                              const headers = await tokenHeaders();
+                              const res = await fetch(`${apiBase}/api/admin/procurement/requests/${encodeURIComponent(r.id)}`, { method: "GET", headers, cache: "no-store" });
+                              if (res.ok) {
+                                const d = await res.json();
+                                setSelectedRequestDetail({ request_no: d?.request?.request_no, store_code: d?.request?.store_code, status: d?.request?.status, total_amount: d?.request?.total_amount, items: d?.request?.items || [] });
+                              }
+                            } catch { /* non-fatal */ }
+                            finally { setSelectedRequestLoading(false); }
+                          }}
                           className={selectedRequestId === r.id ? `${SMALL_BUTTON} border-amber-500/40 text-amber-300` : SMALL_BUTTON}
                         >
                           Select
@@ -870,8 +885,51 @@ export default function AdminProcurementPage() {
             <span className={exceptions.filter((x) => x.status === "OPEN").length > 0 ? BADGE_WARNING : BADGE_SUCCESS}>
               Open exceptions: {exceptions.filter((x) => x.status === "OPEN").length}
             </span>
-            {selectedRequestId ? <span className={BADGE_INFO}>Selected: {selectedRequestId}</span> : null}
           </div>
+
+          {/* Selected Request Detail */}
+          {selectedRequestLoading ? (
+            <div className="mt-4 text-sm text-neutral-500">Loading request detail...</div>
+          ) : selectedRequestDetail ? (
+            <div className="mt-4 rounded-xl border border-amber-700/30 bg-amber-950/15 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-semibold text-amber-200">{selectedRequestDetail.request_no || "–"}</div>
+                  <div className="mt-0.5 text-xs text-neutral-400">
+                    {selectedRequestDetail.store_code || "-"} · {selectedRequestDetail.status} · {Number(selectedRequestDetail.total_amount || 0).toFixed(2)} {currencyCode}
+                  </div>
+                </div>
+              </div>
+              {(selectedRequestDetail.items?.length ?? 0) > 0 ? (
+                <div className="overflow-x-auto rounded-lg border border-white/8">
+                  <table className="min-w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-white/8 bg-black/20 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
+                        <th className="px-3 py-2 text-left">Item</th>
+                        <th className="px-3 py-2 text-left">Category</th>
+                        <th className="px-3 py-2 text-right">Qty</th>
+                        <th className="px-3 py-2 text-left">Unit</th>
+                        <th className="px-3 py-2 text-right">Unit Price</th>
+                        <th className="px-3 py-2 text-left">Vendor</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedRequestDetail.items!.map((item, i) => (
+                        <tr key={i} className="border-b border-white/5 last:border-0">
+                          <td className="px-3 py-2 text-neutral-200">{item.item_name}</td>
+                          <td className="px-3 py-2 text-neutral-400">{item.category || "-"}</td>
+                          <td className="px-3 py-2 text-right font-medium text-white">{Number(item.qty || 0)}</td>
+                          <td className="px-3 py-2 text-neutral-400">{item.unit || "-"}</td>
+                          <td className="px-3 py-2 text-right text-neutral-300">{Number(item.unit_price || 0).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-neutral-400">{item.vendor_name || "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : <div className="text-xs text-neutral-500">No items found.</div>}
+            </div>
+          ) : null}
         </div>
       </div>
 
