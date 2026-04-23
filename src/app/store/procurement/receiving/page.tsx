@@ -120,6 +120,7 @@ export default function StoreProcurementReceivingPage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [formError, setFormError] = useState("");
+  const [showNewForm, setShowNewForm] = useState(false);
 
   const cityLabel = city === "dubai" ? "Dubai" : "Manila";
   const currencyCode = city === "dubai" ? "AED" : "PHP";
@@ -343,7 +344,7 @@ export default function StoreProcurementReceivingPage() {
         pin,
       );
       setInfo(`Confirmed: ${String(res?.row?.receiving_no || receivingId)}`);
-      await loadReceivings();
+      await Promise.all([loadReceivings(), loadMyRequests()]);
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -386,6 +387,8 @@ export default function StoreProcurementReceivingPage() {
   }, []);
 
   useEffect(() => {
+    setShowNewForm(false);
+    setFormError("");
     if (requestId) {
       void loadRequestDetail(requestId);
       void loadReceivings(requestId);
@@ -546,7 +549,36 @@ export default function StoreProcurementReceivingPage() {
               ) : null}
             </div>
 
-            {detailBusy ? (
+            {/* Already confirmed — show success state (unless user wants to add another) */}
+            {!showNewForm && rows.length > 0 && rows.every((r) => r.status === "CONFIRMED") ? (
+              <div className="flex flex-col items-center gap-3 py-8 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-emerald-500/40 bg-emerald-500/15">
+                  <CheckCheck className="h-7 w-7 text-emerald-400" />
+                </div>
+                <div>
+                  <div className="text-base font-semibold text-emerald-300">Delivery Confirmed</div>
+                  <div className="mt-1 text-xs text-zinc-500">All receiving records are confirmed. See details below.</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowNewForm(true)}
+                  className="mt-1 text-xs text-violet-400 underline hover:text-violet-300"
+                >
+                  + Record another delivery for this request
+                </button>
+              </div>
+            ) : !showNewForm && rows.length > 0 && rows.some((r) => r.status === "DRAFT") ? (
+              /* Has unconfirmed receiving — prompt to confirm below */
+              <div className="flex flex-col items-center gap-3 py-8 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-amber-500/40 bg-amber-500/15">
+                  <Clock className="h-7 w-7 text-amber-400" />
+                </div>
+                <div>
+                  <div className="text-base font-semibold text-amber-200">Delivery Recorded — Awaiting Confirmation</div>
+                  <div className="mt-1 text-xs text-zinc-500">Tap the <span className="font-bold text-emerald-300">Confirm</span> button below to finalize the delivery.</div>
+                </div>
+              </div>
+            ) : detailBusy ? (
               <div className="py-6 text-center text-sm text-zinc-500">Loading items…</div>
             ) : requestDetail?.items?.length ? (
               <>
