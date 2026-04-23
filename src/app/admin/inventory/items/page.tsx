@@ -246,7 +246,7 @@ export default function InventoryItemsPage() {
   async function loadSyncPreview() {
     setSyncBusy(true); setSyncResult(null); setSyncPreview(null); setSyncError("");
     try {
-      const data = await inventoryGet<any>(`/api/admin/inventory/items/cost-calc-preview?city=${encodeURIComponent(city)}`);
+      const data = await inventoryGet<any>(`/api/admin/inventory/cost-calc/preview?city=${encodeURIComponent(city)}`);
       setSyncPreview(data);
       setSyncSelected(new Set((data.rows as CostCalcRow[]).map((r) => `${r.source}:${r.source_id}`)));
       setSyncExpanded(true);
@@ -263,7 +263,7 @@ export default function InventoryItemsPage() {
     try {
       const rows = all ? syncPreview.rows : syncPreview.rows.filter((r) => syncSelected.has(`${r.source}:${r.source_id}`));
       const selected_ids = all ? undefined : rows.map((r) => ({ source: r.source, source_id: r.source_id }));
-      const res = await inventoryPost<any>("/api/admin/inventory/items/cost-calc-import", { city, selected_ids });
+      const res = await inventoryPost<any>("/api/admin/inventory/cost-calc/import", { city, selected_ids });
       setSyncResult(res);
       setSyncPreview(null); setSyncSelected(new Set());
       // Reload items list
