@@ -580,18 +580,18 @@ export default function InventoryCountSheetsPage() {
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={city} onChange={(e) => setCity(e.target.value as City)}>
+          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" value={city} onChange={(e) => setCity(e.target.value as City)}>
             <option value="dubai">Dubai</option>
             <option value="manila">Manila</option>
           </select>
-          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={branchCode} onChange={(e) => setBranchCode(e.target.value)}>
+          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" value={branchCode} onChange={(e) => setBranchCode(e.target.value)}>
             {BRANCHES[city].map((branch) => (
               <option key={branch.code} value={branch.code}>
                 {branch.name}
               </option>
             ))}
           </select>
-          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={cycle} onChange={(e) => setCycle(e.target.value)}>
+          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" value={cycle} onChange={(e) => setCycle(e.target.value)}>
             {cycleOptions().map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -639,8 +639,8 @@ export default function InventoryCountSheetsPage() {
         ) : null}
 
         <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_120px_180px_140px]">
-          <input value={itemSearch} onChange={(e) => setItemSearch(e.target.value)} placeholder="Search by supplier / item / SKU" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)}>
+          <input value={itemSearch} onChange={(e) => setItemSearch(e.target.value)} placeholder="Search by supplier / item / SKU" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" />
+          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)}>
             <option value="">{filteredSelectableItems.length ? "Add inventory item" : "No matched items"}</option>
             {filteredSelectableItems.map((item) => (
               <option key={item.id} value={item.id}>
@@ -648,7 +648,7 @@ export default function InventoryCountSheetsPage() {
               </option>
             ))}
           </select>
-          <input type="text" inputMode="decimal" value={selectedAddQty} onChange={(e) => setSelectedAddQty(e.target.value)} placeholder="Qty" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-right" />
+          <input type="text" inputMode="decimal" value={selectedAddQty} onChange={(e) => setSelectedAddQty(e.target.value)} placeholder="Qty" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-right text-neutral-100" />
           <button type="button" onClick={addManualItem} disabled={!selectedItem} className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900 disabled:opacity-60">
             Add Item
           </button>
@@ -658,15 +658,15 @@ export default function InventoryCountSheetsPage() {
         </div>
 
         <div className="mt-3 grid grid-cols-1 gap-2 lg:grid-cols-[minmax(0,1.3fr)_140px_120px_120px_100px_160px]">
-          <input value={newItemName} onChange={(e) => setNewItemName(e.target.value)} placeholder="New item name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <input value={newItemSku} onChange={(e) => setNewItemSku(e.target.value)} placeholder="SKU (optional)" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <input value={newItemUnit} onChange={(e) => setNewItemUnit(e.target.value)} placeholder="Unit" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+          <input value={newItemName} onChange={(e) => setNewItemName(e.target.value)} placeholder="New item name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" />
+          <input value={newItemSku} onChange={(e) => setNewItemSku(e.target.value)} placeholder="SKU (optional)" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" />
+          <input value={newItemUnit} onChange={(e) => setNewItemUnit(e.target.value)} placeholder="Unit" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" />
           <input type="text" inputMode="decimal" value={newItemCost} onChange={(e) => setNewItemCost(e.target.value)} onKeyDown={(e) => {
             if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
             e.preventDefault();
             setNewItemCost((current) => stepDraftNumber(current, getInventoryCostStep(), e.key === "ArrowUp" ? 1 : -1));
-          }} placeholder="Cost" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <input value={newItemCategory} onChange={(e) => setNewItemCategory(e.target.value)} placeholder="Category" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+          }} placeholder="Cost" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" />
+          <input value={newItemCategory} onChange={(e) => setNewItemCategory(e.target.value)} placeholder="Category" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" />
           <button type="button" onClick={() => void createQuickItem()} disabled={registerBusy} className="rounded-xl border border-sky-800 bg-sky-950/30 px-4 py-2 text-sm text-sky-200 hover:bg-sky-900/30 disabled:opacity-60">
             {registerBusy ? "Registering..." : "Register Item"}
           </button>
@@ -763,19 +763,19 @@ export default function InventoryCountSheetsPage() {
                     {group.rows.map(({ index, line }) => (
                       <tr key={`${line.sku}-${index}-${line.item_name}`} className="border-t border-neutral-800 bg-neutral-950/30">
                         <td className="px-3 py-2">
-                          <input ref={(el) => { cellRefs.current[`${index}:sku`] = el; }} value={line.sku} onChange={(e) => updateDraftLine(index, { sku: e.target.value })} onKeyDown={(e) => handleEnter(e, index, "sku")} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
+                          <input ref={(el) => { cellRefs.current[`${index}:sku`] = el; }} value={line.sku} onChange={(e) => updateDraftLine(index, { sku: e.target.value })} onKeyDown={(e) => handleEnter(e, index, "sku")} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100" />
                         </td>
                         <td className="px-3 py-2">
-                          <input ref={(el) => { cellRefs.current[`${index}:supplier_name`] = el; }} value={line.supplier_name} onChange={(e) => updateDraftLine(index, { supplier_name: e.target.value })} onKeyDown={(e) => handleEnter(e, index, "supplier_name")} className="w-32 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
+                          <input ref={(el) => { cellRefs.current[`${index}:supplier_name`] = el; }} value={line.supplier_name} onChange={(e) => updateDraftLine(index, { supplier_name: e.target.value })} onKeyDown={(e) => handleEnter(e, index, "supplier_name")} className="w-32 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100" />
                         </td>
                         <td className="px-3 py-2">
-                          <input ref={(el) => { cellRefs.current[`${index}:item_name`] = el; }} value={line.item_name} onChange={(e) => updateDraftLine(index, { item_name: e.target.value })} onKeyDown={(e) => handleEnter(e, index, "item_name")} className="w-40 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
+                          <input ref={(el) => { cellRefs.current[`${index}:item_name`] = el; }} value={line.item_name} onChange={(e) => updateDraftLine(index, { item_name: e.target.value })} onKeyDown={(e) => handleEnter(e, index, "item_name")} className="w-40 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100" />
                         </td>
                         <td className="px-3 py-2">
-                          <input ref={(el) => { cellRefs.current[`${index}:invoice_name`] = el; }} value={line.invoice_name} onChange={(e) => updateDraftLine(index, { invoice_name: e.target.value })} onKeyDown={(e) => handleEnter(e, index, "invoice_name")} className="w-40 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
+                          <input ref={(el) => { cellRefs.current[`${index}:invoice_name`] = el; }} value={line.invoice_name} onChange={(e) => updateDraftLine(index, { invoice_name: e.target.value })} onKeyDown={(e) => handleEnter(e, index, "invoice_name")} className="w-40 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100" />
                         </td>
                         <td className="px-3 py-2">
-                          <input ref={(el) => { cellRefs.current[`${index}:storage_unit`] = el; }} value={line.storage_unit} onChange={(e) => updateDraftLine(index, { storage_unit: e.target.value })} onKeyDown={(e) => handleEnter(e, index, "storage_unit")} className="w-20 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
+                          <input ref={(el) => { cellRefs.current[`${index}:storage_unit`] = el; }} value={line.storage_unit} onChange={(e) => updateDraftLine(index, { storage_unit: e.target.value })} onKeyDown={(e) => handleEnter(e, index, "storage_unit")} className="w-20 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100" />
                         </td>
                         <td className="px-3 py-2">
                           <input ref={(el) => { cellRefs.current[`${index}:unit_price`] = el; }} type="text" inputMode="decimal" value={numericCellValue(index, "unit_price", line.unit_price)} onChange={(e) => setDraftCellInputs((prev) => ({ ...prev, [keyOf(index, "unit_price")]: e.target.value }))} onBlur={() => commitNumericCell(index, "unit_price")} onKeyDown={(e) => {
@@ -785,7 +785,7 @@ export default function InventoryCountSheetsPage() {
                               return;
                             }
                             handleEnter(e, index, "unit_price");
-                          }} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-right text-xs" />
+                          }} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-right text-xs text-neutral-100" />
                         </td>
                         <td className="px-3 py-2">
                           <input ref={(el) => { cellRefs.current[`${index}:counted_qty`] = el; }} type="text" inputMode="decimal" value={numericCellValue(index, "counted_qty", line.counted_qty)} onChange={(e) => setDraftCellInputs((prev) => ({ ...prev, [keyOf(index, "counted_qty")]: e.target.value }))} onBlur={() => commitNumericCell(index, "counted_qty")} onKeyDown={(e) => {
@@ -798,7 +798,7 @@ export default function InventoryCountSheetsPage() {
                           }} className="w-24 rounded-lg border border-emerald-800 bg-emerald-950/20 px-2 py-1.5 text-right text-xs text-emerald-100" />
                         </td>
                         <td className="px-3 py-2">
-                          <input ref={(el) => { cellRefs.current[`${index}:memo`] = el; }} value={line.memo} onChange={(e) => updateDraftLine(index, { memo: e.target.value })} onKeyDown={(e) => handleEnter(e, index, "memo")} className="w-32 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
+                          <input ref={(el) => { cellRefs.current[`${index}:memo`] = el; }} value={line.memo} onChange={(e) => updateDraftLine(index, { memo: e.target.value })} onKeyDown={(e) => handleEnter(e, index, "memo")} className="w-32 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100" />
                         </td>
                         <td className="px-3 py-2 text-right">
                           <button type="button" onClick={() => removeDraftLine(index)} className="rounded-lg border border-rose-800/70 bg-rose-950/20 px-2 py-1 text-xs text-rose-200">
@@ -827,7 +827,7 @@ export default function InventoryCountSheetsPage() {
             <div className="text-sm font-semibold text-neutral-100">History</div>
             <div className="mt-1 text-xs text-neutral-500">Review saved count template history and details.</div>
           </div>
-          <input type="month" lang="en" value={historyMonth} onChange={(e) => setHistoryMonth(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+          <input type="month" lang="en" value={historyMonth} onChange={(e) => setHistoryMonth(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" />
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)]">
