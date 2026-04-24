@@ -14,7 +14,6 @@ import {
   T_CAPTION,
   T_LABEL,
   T_PAGE_TITLE,
-  T_SECTION,
 } from "@/lib/ui-tokens";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -521,7 +520,7 @@ export default function ManualShiftPage() {
       {staffList.length === 0 && (
         <div className={`${GLASS_CARD} flex flex-col items-center justify-center py-16 text-center`}>
           <div className="mb-3 text-4xl">📅</div>
-          <p className="text-sm font-medium text-neutral-300">Select city, branch and week, then click "Load Staff & Shifts"</p>
+          <p className="text-sm font-medium text-neutral-300">Select city, branch and week, then click &ldquo;Load Staff &amp; Shifts&rdquo;</p>
           <p className="mt-1 text-xs text-neutral-500">Existing published shifts for the selected week will be pre-loaded into the grid.</p>
         </div>
       )}
