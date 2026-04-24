@@ -37,7 +37,7 @@ type TemplateItem = {
 type TemplateSection = {
   id: string;
   label: string;
-  labelJa: string;
+  labelJa?: string;
   items: TemplateItem[];
 };
 
@@ -131,18 +131,6 @@ const TEMPLATE_SECTIONS: TemplateSection[] = [
       { key: "salmon_hosomaki",   label: "Salmon Hosomaki",       unit: "pcs", section: "rolls", item_type: "menu_item", item_category: "握り・刺身" },
       { key: "cucumber_hosomaki", label: "Cucumber Hosomaki",     unit: "pcs", section: "rolls", item_type: "menu_item", item_category: "握り・刺身" },
       { key: "tuna_hosomaki",     label: "Tuna Hosomaki",         unit: "pcs", section: "rolls", item_type: "menu_item", item_category: "握り・刺身" },
-    ],
-  },
-  {
-    id: "boxes",
-    label: "Box Sets",
-    labelJa: "ボックスセット",
-    items: [
-      { key: "aura_12",       label: "Aura Box 12pcs",      unit: "box", section: "boxes", item_type: "menu_item", item_category: "Sushi Box Menu原価" },
-      { key: "aura_16",       label: "Aura Box 16pcs",      unit: "box", section: "boxes", item_type: "menu_item", item_category: "Sushi Box Menu原価" },
-      { key: "aura_24",       label: "Aura Box 24pcs",      unit: "box", section: "boxes", item_type: "menu_item", item_category: "Sushi Box Menu原価" },
-      { key: "best_seller",   label: "Best Seller Box",     unit: "box", section: "boxes", item_type: "menu_item", item_category: "Sushi Box" },
-      { key: "salmon_lover_12", label: "Salmon Lover 12pcs",unit: "box", section: "boxes", item_type: "menu_item", item_category: "Sushi Box" },
     ],
   },
 ];
@@ -283,7 +271,7 @@ function ItemSearch({ city, onSelect }: { city: City; onSelect: (item: SearchIte
           if (debRef.current) clearTimeout(debRef.current);
           debRef.current = setTimeout(() => search(e.target.value), 250);
         }}
-        placeholder="アイテム名を入力して追加..."
+        placeholder="Search item name to add..."
         autoComplete="off"
       />
       {loading && <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">searching...</div>}
@@ -461,7 +449,6 @@ function TemplateSectionBlock({
       >
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-white">{section.label}</span>
-          <span className="text-xs text-zinc-500">{section.labelJa}</span>
         </div>
         <span className="text-zinc-500 text-sm">{collapsed ? "▼" : "▲"}</span>
       </button>
@@ -624,7 +611,7 @@ export default function BackupReportPage() {
           <div>
             <h1 className={T_PAGE_TITLE}>Backup Report</h1>
             <p className="mt-1 text-sm text-zinc-500">
-              CKからの仕込み出荷・在庫バックアップ報告
+              Kitchen prep & backup stock report
             </p>
           </div>
           <Link href="/admin" className={SECONDARY_BUTTON}>&larr; Admin</Link>
@@ -675,7 +662,7 @@ export default function BackupReportPage() {
           <div className="flex items-center justify-between mb-4">
             <h2 className={T_CARD_TITLE}>Fixed Items</h2>
             <span className={`${T_CAPTION} text-zinc-500`}>
-              数量を入力（空欄 = 報告なし、0 = ゼロ確認）
+              Leave blank to skip · enter 0 to confirm zero
             </span>
           </div>
           <div className="space-y-3">
@@ -694,7 +681,7 @@ export default function BackupReportPage() {
         <div className={`${GLASS_CARD} p-6`}>
           <div className="flex items-center justify-between mb-4">
             <h2 className={T_CARD_TITLE}>Extra Items</h2>
-            <span className={`${BADGE_WARNING}`}>自由追記</span>
+            <span className={`${BADGE_WARNING}`}>Free Entry</span>
           </div>
           <div className="mb-4">
             <label className={`${T_LABEL} block mb-1.5`}>Add Item</label>
@@ -746,7 +733,7 @@ export default function BackupReportPage() {
 
           <div className="mt-3">
             <button type="button" onClick={() => setFreeLines((prev) => [...prev, emptyFreeLine()])}
-              className={SMALL_BUTTON}>+ 空白行を追加</button>
+              className={SMALL_BUTTON}>+ Add blank line</button>
           </div>
         </div>
 
