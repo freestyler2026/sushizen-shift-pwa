@@ -488,7 +488,8 @@ export default function AdminStaffPage() {
       const nm = norm(approverName);
       const p = legacyPinOrEmpty(pin);
       if (!nm) throw new Error("Approver name is required.");
-      if (!p) throw new Error("PIN is required for role change.");
+      // PIN only required for legacy auth — session/token auth users may omit it
+      if (!p && !getAuth()?.accessToken) throw new Error("PIN is required for role change.");
       const dn = norm(displayName);
       if (!dn) throw new Error("display_name is required.");
       const nextRole = roleDrafts[dn] || asRole(rows.find((x) => norm(x.display_name) === dn)?.role);
@@ -520,7 +521,8 @@ export default function AdminStaffPage() {
       const nm = norm(approverName);
       const p = legacyPinOrEmpty(pin);
       if (!nm) throw new Error("Approver name is required.");
-      if (!p) throw new Error("PIN is required.");
+      // PIN only required for legacy auth — session/token auth users may omit it
+      if (!p && !getAuth()?.accessToken) throw new Error("PIN is required.");
       const dn = norm(displayName);
       if (!dn) throw new Error("display_name is required.");
       const row = rows.find((x) => norm(x.display_name) === dn);
@@ -585,7 +587,7 @@ export default function AdminStaffPage() {
       const nm = norm(approverName);
       const p = legacyPinOrEmpty(pin);
       if (!nm) throw new Error("Approver name is required.");
-      if (!p) throw new Error("PIN is required for workforce push key save.");
+      if (!p && !getAuth()?.accessToken) throw new Error("PIN is required for workforce push key save.");
       const dn = norm(displayName);
       if (!dn) throw new Error("display_name is required.");
       const row = rows.find((x) => norm(x.display_name) === dn);
@@ -622,7 +624,7 @@ export default function AdminStaffPage() {
       const nm = norm(approverName);
       const p = legacyPinOrEmpty(pin);
       if (!nm) throw new Error("Approver name is required.");
-      if (!p) throw new Error("PIN is required for status change.");
+      if (!p && !getAuth()?.accessToken) throw new Error("PIN is required for status change.");
 
       const dn = norm(display_name);
       if (!dn) throw new Error("display_name missing.");
