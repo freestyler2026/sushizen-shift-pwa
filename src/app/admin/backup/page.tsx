@@ -671,7 +671,7 @@ export default function BackupReportPage() {
               <h1 className={T_PAGE_TITLE}>Backup Report</h1>
               <p className="mt-0.5 text-sm text-zinc-500">Kitchen prep & backup stock report</p>
             </div>
-            <Link href="/admin" className={`${SECONDARY_BUTTON} shrink-0`}>&larr; Admin</Link>
+            <Link href="/my-shift" className={`${SECONDARY_BUTTON} shrink-0`}>&larr; My Shift</Link>
           </div>
 
           {/* Report Details */}
