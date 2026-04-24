@@ -72,7 +72,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     const j = text ? JSON.parse(text) : {};
     throw new Error(j?.detail || j?.message || text || `HTTP ${res.status}`);
   }
-  return text ? JSON.parse(text) : {};
+  return (text ? JSON.parse(text) : {}) as T;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -312,7 +312,7 @@ export default function ManualShiftPage() {
             <select
               className={SELECT_CLASS}
               value={branchCode}
-              onChange={(e) => setBranchCode(e.target.value)}
+              onChange={(e) => setBranchCode(e.target.value as BranchCode)}
             >
               {branches.map((b) => (
                 <option key={b.code} value={b.code}>{b.name}</option>
