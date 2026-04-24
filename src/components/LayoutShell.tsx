@@ -27,9 +27,10 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-4 sm:px-6 sm:py-6">{children}</main>
+      {/* pb-20 reserves space for the fixed mobile bottom nav; md:pb-0 removes it on desktop */}
+      <main className="mx-auto max-w-6xl px-4 py-4 pb-20 sm:px-6 sm:py-6 md:pb-6">{children}</main>
 
-      <footer className="mx-auto max-w-6xl px-4 pb-8 text-xs text-neutral-500 sm:px-6">
+      <footer className="mx-auto hidden max-w-6xl px-4 pb-8 text-xs text-neutral-500 sm:px-6 md:block">
         Vercel PWA (frontend) • Heroku API (backend)
       </footer>
     </>

@@ -310,17 +310,15 @@ function LoginInner() {
             </Field>
           </div>
 
-          <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:items-center">
-            <button
-              type="submit"
-              disabled={loading}
-              className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm font-medium hover:bg-neutral-900 disabled:opacity-50 sm:w-auto"
-            >
-              {loading ? "Checking..." : "Save & Continue"}
-            </button>
+          {error ? <div className="mt-3 text-sm text-red-400">{error}</div> : null}
 
-            {error ? <div className="w-full text-sm text-red-300 sm:w-auto">{error}</div> : null}
-          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="mt-4 min-h-11 w-full rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow hover:bg-violet-500 active:bg-violet-700 disabled:opacity-50 transition-colors"
+          >
+            {loading ? "Checking..." : "Login"}
+          </button>
         </form>
 
         <div className="mt-4 text-xs text-neutral-500">

@@ -226,22 +226,12 @@ function Timeline2Rows({ rows }: { rows: ShiftRow[] }) {
     .join(", ");
 
   return (
-    <div className="mt-2 space-y-1">
-      <div className="flex items-center justify-between text-[10px] text-neutral-600">
-        {ticks.map((t) => (
-          <div
-            key={t}
-            className={`w-0 flex-1 text-center ${[12, 20, 30].includes(t) ? "hidden sm:block" : ""}`}
-          >
-            {hourText(t)}
-          </div>
-        ))}
-      </div>
-
-      <div className="relative h-8 overflow-hidden rounded-lg border border-neutral-800 bg-neutral-950/30">
+    <div className="mt-1 flex items-center gap-2">
+      {/* Compact bar — no tick labels, reduced height */}
+      <div className="relative h-5 flex-1 overflow-hidden rounded border border-neutral-800 bg-neutral-950/30">
         <div className="absolute inset-0 flex">
           {Array.from({ length: TL_TOTAL }).map((_, i) => (
-            <div key={i} className="flex-1 border-r border-neutral-900/60 last:border-r-0" />
+            <div key={i} className="flex-1 border-r border-neutral-900/40 last:border-r-0" />
           ))}
         </div>
 
@@ -271,15 +261,15 @@ function Timeline2Rows({ rows }: { rows: ShiftRow[] }) {
           return (
             <div
               key={`${r.staff_name}-${idx}-${st}-${en}`}
-              className={`absolute top-1 h-6 rounded-md border ${barCls}`}
+              className={`absolute top-0.5 h-4 rounded border ${barCls}`}
               style={{ left: `${left}%`, width: `${width}%` }}
               title={`${(r.role || "").toString()} ${full}`}
             />
           );
         })}
       </div>
-
-      <div className="text-[10px] text-neutral-200/90">{label || <span className="text-neutral-500">—</span>}</div>
+      {/* Time range label inline with bar */}
+      <span className="shrink-0 text-[10px] text-neutral-300">{label || <span className="text-neutral-600">—</span>}</span>
     </div>
   );
 }
@@ -471,34 +461,27 @@ export default function WeekPage() {
     return (
       <div
         key={staff}
-        className={`relative overflow-hidden rounded-xl border ${
+        className={`relative overflow-hidden rounded-lg border ${
           isMe ? "border-amber-700/50 bg-amber-950/10" : "border-neutral-800 bg-neutral-900/20"
         }`}
       >
-        {isMe ? <div className="absolute left-0 top-0 h-full w-1 rounded-l-xl bg-amber-500" /> : null}
-        <div className={`p-3 ${isMe ? "pl-4" : ""}`}>
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-1.5">
-              <span className="truncate text-sm font-semibold text-white">{name}</span>
-              {isMe ? <span className="shrink-0 text-[10px] font-medium text-amber-300">YOU</span> : null}
-              {containsJP(staff) ? <span className="shrink-0 text-[10px] text-red-300">JP</span> : null}
+        {isMe ? <div className="absolute left-0 top-0 h-full w-0.5 bg-amber-500" /> : null}
+        <div className={`px-3 py-1.5 ${isMe ? "pl-4" : ""}`}>
+          {/* Name + role + badge all on one line */}
+          <div className="flex items-center gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-1">
+              <span className="truncate text-xs font-semibold text-white">{name}</span>
+              {isMe ? <span className="shrink-0 text-[9px] font-medium text-amber-300">YOU</span> : null}
+              {containsJP(staff) ? <span className="shrink-0 text-[9px] text-red-300">JP</span> : null}
+              <span className="truncate text-[10px] text-neutral-500 ml-1">{roleText}</span>
             </div>
-            <span className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[10px] ${badge.cls}`}>
+            <span className={`shrink-0 rounded border px-1 py-0 text-[9px] leading-4 ${badge.cls}`}>
               {badge.label}
             </span>
           </div>
 
-          <div className="mt-0.5 flex items-center justify-between gap-2">
-            <span className="truncate text-xs text-neutral-500">{roleText}</span>
-            <span className="shrink-0 text-[10px] text-neutral-600">
-              {absence ? "ABSENCE" : `${rows.length} shift`}
-            </span>
-          </div>
-
           {absence ? (
-            <div className="mt-2 rounded-lg bg-neutral-950/40 px-2 py-1.5 text-xs text-neutral-400">
-              {absNote || absType}
-            </div>
+            <div className="mt-0.5 text-[10px] text-neutral-400">{absNote || absType}</div>
           ) : (
             <Timeline2Rows rows={rows} />
           )}
@@ -729,10 +712,10 @@ export default function WeekPage() {
         {!data ? (
           <div className="text-sm text-neutral-500">No data.</div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-2">
             {filteredGrouped.map((day) => (
-              <div key={day.date} className={`${BLUSH_GLASS} p-2.5 sm:p-3`}>
-                <div className="mb-3 flex items-center justify-between gap-3">
+              <div key={day.date} className={`${BLUSH_GLASS} p-2 sm:p-2.5`}>
+                <div className="mb-2 flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2">
                     <div className="h-4 w-1 rounded-full bg-violet-500" />
                     <span className="truncate text-sm font-bold text-white">{day.date}</span>
@@ -740,7 +723,7 @@ export default function WeekPage() {
                   <span className={`${BADGE_WARNING} shrink-0`}>{day.branches.length} branches</span>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-1.5">
                   {day.branches.map((b) => {
                     const staffEntries = Array.from(b.staffMap.entries()).sort((a, z) =>
                       a[0].localeCompare(z[0])
@@ -749,18 +732,18 @@ export default function WeekPage() {
                     return (
                       <div
                         key={`${day.date}-${b.branch_code || "UNASSIGNED"}`}
-                        className={`${BLUSH_HIGHLIGHT} p-2.5 sm:p-3`}
+                        className={`${BLUSH_HIGHLIGHT} p-2`}
                       >
-                        <div className="mb-2 flex items-center gap-2">
-                          <span className="text-xs font-bold uppercase tracking-wider text-neutral-300">
+                        <div className="mb-1.5 flex items-center gap-2">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-300">
                             {b.branch_code || "UNASSIGNED"}
                           </span>
-                          <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-[10px] text-neutral-500">
+                          <span className="rounded-full bg-neutral-800 px-1.5 py-0 text-[10px] text-neutral-500">
                             {staffEntries.length}
                           </span>
                         </div>
 
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                           {staffEntries.map(([staff, rows]) => renderStaffRow(staff, rows))}
                         </div>
                       </div>
