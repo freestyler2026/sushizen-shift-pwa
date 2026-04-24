@@ -12,6 +12,7 @@ import {
   Building2,
   CalendarPlus,
   CheckCheck,
+  Trash2,
   Clock,
   Download,
   Package,
@@ -1138,6 +1139,9 @@ function AdminPageInner() {
           </Link>
           <Link href="/admin/manual-shift" className={SMALL_BUTTON}>
             <CalendarPlus className="mr-1 h-3.5 w-3.5" /> Manual Shift
+          </Link>
+          <Link href="/admin/disposal" className={SMALL_BUTTON}>
+            <Trash2 className="mr-1 h-3.5 w-3.5" /> Disposal Report
           </Link>
           {canOpenInventory ? (
             <Link href="/admin/inventory" className={`${SMALL_BUTTON} border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10`}>

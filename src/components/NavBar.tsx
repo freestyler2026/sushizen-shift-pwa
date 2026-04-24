@@ -30,6 +30,7 @@ import {
   ScrollText,
   ShoppingCart,
   Shield,
+  Trash2,
   Truck,
   UserCheck,
   UserX,
@@ -115,6 +116,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/staff/roles", label: "Role Management", icon: Shield, adminOnly: true, match: "prefix" },
   { href: "/admin/draft", label: "Draft", icon: PenLine, adminOnly: true, match: "prefix" },
   { href: "/admin/manual-shift", label: "Manual Shift", icon: CalendarPlus, adminOnly: true, match: "prefix" },
+  { href: "/admin/disposal", label: "Disposal Report", icon: Trash2, adminOnly: true, match: "prefix" },
   { href: "/admin/backoffice-evaluation", label: "Backoffice Eval", icon: ClipboardCheck, adminOnly: true, match: "exact" },
   { href: "/admin/incidents", label: "Incident Reports", icon: AlertTriangle, adminOnly: true, match: "prefix" },
 ];
@@ -226,6 +228,8 @@ export default function NavBar() {
     if (href === "/admin/draft") return canAccessDraftAdmin(auth);
     if (href === "/admin/backoffice-evaluation") return canAccessBackofficeEvaluationAdmin(auth);
     if (href === "/admin/incidents") return canAccessIncidentReportAdmin(auth);
+    if (href === "/admin/disposal") return canAccessAdminNav(auth);
+    if (href === "/admin/manual-shift") return canAccessAdminNav(auth);
     return false;
   }
 
