@@ -477,7 +477,7 @@ export default function DisposalPage() {
 
   return (
     <>
-      <main className="min-h-screen bg-gradient-to-br from-slate-950 via-violet-950/20 to-slate-950 px-3 pt-4 pb-28 sm:px-6 sm:pb-32">
+      <main className="min-h-screen bg-gradient-to-br from-slate-950 via-violet-950/20 to-slate-950 px-3 pt-4 pb-44 sm:px-6 md:pb-32">
         <div className="mx-auto max-w-5xl space-y-4">
 
           {/* Page header */}
@@ -571,7 +571,7 @@ export default function DisposalPage() {
       </main>
 
       {/* Sticky submit bar */}
-      <div className="fixed bottom-0 inset-x-0 z-40 bg-slate-950/95 backdrop-blur border-t border-white/8 px-4 py-3 sm:px-6">
+      <div className="fixed bottom-14 md:bottom-0 inset-x-0 z-[60] bg-slate-950/95 backdrop-blur border-t border-white/8 px-4 py-3 sm:px-6">
         <div className="mx-auto max-w-5xl flex items-center gap-3">
           <button onClick={handleSubmit} disabled={submitting}
             className={`${PRIMARY_BUTTON} flex-1 py-3.5 text-base justify-center`}>
