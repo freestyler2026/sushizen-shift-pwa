@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
-import { BRANCHES, labelOf, type City } from "@/lib/branches";
+import { BRANCHES, labelOf, type BranchCode, type City } from "@/lib/branches";
 import {
   GLASS_CARD,
   INPUT_CLASS,
