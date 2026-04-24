@@ -10,6 +10,7 @@ import {
   ArrowLeftRight,
   BarChart3,
   Building2,
+  ArchiveRestore,
   CalendarPlus,
   CheckCheck,
   Trash2,
@@ -1142,6 +1143,9 @@ function AdminPageInner() {
           </Link>
           <Link href="/admin/disposal" className={SMALL_BUTTON}>
             <Trash2 className="mr-1 h-3.5 w-3.5" /> Disposal Report
+          </Link>
+          <Link href="/admin/backup" className={SMALL_BUTTON}>
+            <ArchiveRestore className="mr-1 h-3.5 w-3.5" /> Backup Report
           </Link>
           {canOpenInventory ? (
             <Link href="/admin/inventory" className={`${SMALL_BUTTON} border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10`}>
