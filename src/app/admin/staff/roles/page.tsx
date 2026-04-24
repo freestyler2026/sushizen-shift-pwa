@@ -527,13 +527,22 @@ function StaffRolesPageInner() {
 
   async function handleAddAssignment() {
     if (!auth || !staffName.trim() || !assignmentRoleKey) return;
-    if (selectedStaffRoleKeys.has(assignmentRoleKey)) {
-      setError("That role is already assigned to this staff member");
-      return;
-    }
     setBusy(true);
     setError("");
     try {
+      // Always fetch fresh assignments before adding — prevents stale-state duplicates
+      // (state resets on page re-visit, so selectedStaffRoleKeys could be empty even if roles exist)
+      const fresh = await apiRequest<StaffAssignmentsResp>(
+        `/api/admin/access/staff/${encodeURIComponent(staffName.trim())}/roles`,
+        {},
+        auth,
+      );
+      setStaffAssignments(fresh);
+      const existingKeys = new Set((fresh.assignments || []).map((a) => a.role_key));
+      if (existingKeys.has(assignmentRoleKey)) {
+        setError(`"${assignmentRoleKey}" is already assigned to this staff member.`);
+        return;
+      }
       await apiRequest(
         "/api/admin/access/staff/roles",
         {
@@ -1088,8 +1097,8 @@ function StaffRolesPageInner() {
                   </div>
                 </div>
                 <div className="mt-4 space-y-3">
-                  {staffAssignments.assignments.map((assignment) => (
-                    <div key={`${assignment.role_key}-${assignment.assigned_by || "na"}`} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                  {staffAssignments.assignments.map((assignment, idx) => (
+                    <div key={`${assignment.role_key}-${assignment.assigned_by || "na"}-${idx}`} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
                       <div className="min-w-[260px] flex-1">
                         <div className="text-sm font-semibold text-white">{assignment.role_label || assignment.role_key}</div>
                         <div className="text-xs text-neutral-500">{assignment.role_key}</div>

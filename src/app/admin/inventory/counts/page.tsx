@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
@@ -91,6 +91,10 @@ export default function InventoryCountsPage() {
     setDraftLines((sheet.items || []).map((line, index) => refreshLineWithBalance({ ...line, counted_qty: 0, variance_qty: 0, sort_order: index + 1 }, balanceLookup)));
   }, [balancesMap, refreshLineWithBalance]);
 
+  // Stable ref so useEffects below don't re-fire every time balancesMap changes
+  const applySheetToDraftRef = useRef(applySheetToDraft);
+  useEffect(() => { applySheetToDraftRef.current = applySheetToDraft; });
+
   useEffect(() => {
     let cancelled = false;
     async function init() {
@@ -142,7 +146,7 @@ export default function InventoryCountsPage() {
         const matchCount = Number(currentRes?.match_count || 0);
         if (matchCount === 1 && currentRes?.row) {
           setSelectedCountSheetId(String(currentRes.row.id || ""));
-          applySheetToDraft(currentRes.row, balanceMap);
+          applySheetToDraftRef.current(currentRes.row, balanceMap);
         } else if (!activeSheets.some((row) => row.id === selectedCountSheetId)) {
           setSelectedCountSheetId("");
         }
@@ -156,7 +160,7 @@ export default function InventoryCountsPage() {
     return () => {
       cancelled = true;
     };
-  }, [allowed, applySheetToDraft, branchCode, city, cycle, ready, selectedCountSheetId]);
+  }, [allowed, branchCode, city, cycle, ready, selectedCountSheetId]);
 
   useEffect(() => {
     if (!selectedCountId || !allowed) {
@@ -184,7 +188,7 @@ export default function InventoryCountsPage() {
     async function loadSelectedSheet() {
       try {
         const res = await inventoryGet<{ row: CountSheetDetail }>(`/api/admin/inventory/count-sheets/${encodeURIComponent(selectedCountSheetId)}?city=${encodeURIComponent(city)}`);
-        if (!cancelled) applySheetToDraft(res.row || null);
+        if (!cancelled) applySheetToDraftRef.current(res.row || null);
       } catch (e: any) {
         if (!cancelled) setError(e?.message || String(e));
       }
@@ -193,7 +197,7 @@ export default function InventoryCountsPage() {
     return () => {
       cancelled = true;
     };
-  }, [allowed, applySheetToDraft, city, selectedCountSheetId]);
+  }, [allowed, city, selectedCountSheetId]);
 
   const selectedItem = useMemo(
     () => itemOptions.find((item) => item.id === selectedItemId) || null,
