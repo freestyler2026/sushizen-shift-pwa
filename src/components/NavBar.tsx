@@ -93,6 +93,7 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/calendar", label: "Calendar", icon: Calendar, match: "exact" },
   { href: "/inbox", label: "Inbox", icon: InboxIcon, match: "exact" },
   { href: "/incidents", label: "Incident Report", icon: AlertTriangle, match: "prefix" },
+  { href: "/admin/disposal", label: "Disposal Report", icon: Trash2, match: "prefix" },
   { href: "/store/procurement", label: "Store Procurement", icon: ShoppingCart, match: "prefix" },
   { href: "/swap-approve", label: "Swap Approve", icon: ArrowLeftRight, match: "exact" },
   { href: "/change-pin", label: "Change PIN", icon: KeyRound, match: "exact" },
@@ -116,7 +117,6 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/staff/roles", label: "Role Management", icon: Shield, adminOnly: true, match: "prefix" },
   { href: "/admin/draft", label: "Draft", icon: PenLine, adminOnly: true, match: "prefix" },
   { href: "/admin/manual-shift", label: "Manual Shift", icon: CalendarPlus, adminOnly: true, match: "prefix" },
-  { href: "/admin/disposal", label: "Disposal Report", icon: Trash2, adminOnly: true, match: "prefix" },
   { href: "/admin/backoffice-evaluation", label: "Backoffice Eval", icon: ClipboardCheck, adminOnly: true, match: "exact" },
   { href: "/admin/incidents", label: "Incident Reports", icon: AlertTriangle, adminOnly: true, match: "prefix" },
 ];
@@ -228,7 +228,6 @@ export default function NavBar() {
     if (href === "/admin/draft") return canAccessDraftAdmin(auth);
     if (href === "/admin/backoffice-evaluation") return canAccessBackofficeEvaluationAdmin(auth);
     if (href === "/admin/incidents") return canAccessIncidentReportAdmin(auth);
-    if (href === "/admin/disposal") return canAccessAdminNav(auth);
     if (href === "/admin/manual-shift") return canAccessAdminNav(auth);
     return false;
   }
