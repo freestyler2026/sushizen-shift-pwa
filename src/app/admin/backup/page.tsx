@@ -19,7 +19,6 @@ import {
   T_LABEL,
   T_PAGE_TITLE,
   TABLE_CELL,
-  TABLE_HEADER,
   TABLE_ROW,
 } from "@/lib/ui-tokens";
 
@@ -37,7 +36,6 @@ type TemplateItem = {
 type TemplateSection = {
   id: string;
   label: string;
-  labelJa?: string;
   items: TemplateItem[];
 };
 
@@ -45,7 +43,6 @@ const TEMPLATE_SECTIONS: TemplateSection[] = [
   {
     id: "supplies",
     label: "Condiments & Supplies",
-    labelJa: "調味料・備品",
     items: [
       { key: "ginger",     label: "Ginger",     unit: "pcs", section: "supplies", item_type: "ingredient", item_category: "野菜" },
       { key: "wasabi",     label: "Wasabi",     unit: "pcs", section: "supplies", item_type: "ingredient", item_category: "調味料" },
@@ -58,25 +55,23 @@ const TEMPLATE_SECTIONS: TemplateSection[] = [
   {
     id: "packaging",
     label: "Packaging",
-    labelJa: "包材・ボックス",
     items: [
-      { key: "box_12",      label: "NEW BOX 12",        unit: "pcs", section: "packaging", item_type: "ingredient", item_category: "包材" },
-      { key: "box_16",      label: "NEW BOX 16",        unit: "pcs", section: "packaging", item_type: "ingredient", item_category: "包材" },
-      { key: "box_24",      label: "NEW BOX 24",        unit: "pcs", section: "packaging", item_type: "ingredient", item_category: "包材" },
-      { key: "roll_box_1",  label: "1-Roll Box",        unit: "pcs", section: "packaging", item_type: "ingredient", item_category: "包材" },
-      { key: "roll_box_2",  label: "2-Roll Box",        unit: "pcs", section: "packaging", item_type: "ingredient", item_category: "包材" },
-      { key: "temaki_box",  label: "Temaki Box",        unit: "pcs", section: "packaging", item_type: "menu_item",  item_category: "包材" },
-      { key: "momo_box",    label: "Momo Box",          unit: "pcs", section: "packaging", item_type: "ingredient", item_category: "包材" },
-      { key: "cutlery_1",   label: "Cutlery Set 1",     unit: "set", section: "packaging", item_type: "ingredient", item_category: "包材" },
-      { key: "cutlery_2",   label: "Cutlery Set 2",     unit: "set", section: "packaging", item_type: "ingredient", item_category: "包材" },
-      { key: "cutlery_4",   label: "Cutlery Set 4",     unit: "set", section: "packaging", item_type: "ingredient", item_category: "包材" },
-      { key: "chopsticks",  label: "Chopsticks",        unit: "pcs", section: "packaging", item_type: "ingredient", item_category: "包材" },
+      { key: "box_12",      label: "NEW BOX 12",    unit: "pcs", section: "packaging", item_type: "ingredient", item_category: "包材" },
+      { key: "box_16",      label: "NEW BOX 16",    unit: "pcs", section: "packaging", item_type: "ingredient", item_category: "包材" },
+      { key: "box_24",      label: "NEW BOX 24",    unit: "pcs", section: "packaging", item_type: "ingredient", item_category: "包材" },
+      { key: "roll_box_1",  label: "1-Roll Box",    unit: "pcs", section: "packaging", item_type: "ingredient", item_category: "包材" },
+      { key: "roll_box_2",  label: "2-Roll Box",    unit: "pcs", section: "packaging", item_type: "ingredient", item_category: "包材" },
+      { key: "temaki_box",  label: "Temaki Box",    unit: "pcs", section: "packaging", item_type: "menu_item",  item_category: "包材" },
+      { key: "momo_box",    label: "Momo Box",      unit: "pcs", section: "packaging", item_type: "ingredient", item_category: "包材" },
+      { key: "cutlery_1",   label: "Cutlery Set 1", unit: "set", section: "packaging", item_type: "ingredient", item_category: "包材" },
+      { key: "cutlery_2",   label: "Cutlery Set 2", unit: "set", section: "packaging", item_type: "ingredient", item_category: "包材" },
+      { key: "cutlery_4",   label: "Cutlery Set 4", unit: "set", section: "packaging", item_type: "ingredient", item_category: "包材" },
+      { key: "chopsticks",  label: "Chopsticks",    unit: "pcs", section: "packaging", item_type: "ingredient", item_category: "包材" },
     ],
   },
   {
     id: "prep",
     label: "Prepared Ingredients",
-    labelJa: "仕込み品・食材",
     items: [
       { key: "cucumber",         label: "Cucumber",                  unit: "kg",        section: "prep", item_type: "ingredient", item_category: "野菜" },
       { key: "shredded_leeks",   label: "Shredded Leeks",            unit: "container", section: "prep", item_type: "menu_item",  item_category: "Processed Ingredients" },
@@ -86,10 +81,10 @@ const TEMPLATE_SECTIONS: TemplateSection[] = [
       { key: "crabstick_packs",  label: "Crab Stick Packs",          unit: "pkt",       section: "prep", item_type: "ingredient", item_category: "加工肉・卵" },
       { key: "crabstick_top",    label: "Topping Crab Sticks",       unit: "container", section: "prep", item_type: "ingredient", item_category: "加工肉・卵" },
       { key: "dumplings",        label: "Chicken Dumplings",         unit: "tray",      section: "prep", item_type: "menu_item",  item_category: "CK加工品" },
-      { key: "teriyaki_chicken", label: "Teriyaki Chicken Portion",  unit: "kg",        section: "prep", item_type: "menu_item",  item_category: "加工食材原価" },
-      { key: "beef_marinated",   label: "Beef Marinated Portion",    unit: "pcs",       section: "prep", item_type: "menu_item",  item_category: "Processed Ingredients" },
+      { key: "teriyaki_chicken", label: "Teriyaki Chicken",          unit: "kg",        section: "prep", item_type: "menu_item",  item_category: "加工食材原価" },
+      { key: "beef_marinated",   label: "Beef Marinated",            unit: "pcs",       section: "prep", item_type: "menu_item",  item_category: "Processed Ingredients" },
       { key: "fried_chicken",    label: "Fried Chicken",             unit: "kg",        section: "prep", item_type: "menu_item",  item_category: "CK加工品" },
-      { key: "stretched_shrimp", label: "Stretched Shrimp",         unit: "tray",      section: "prep", item_type: "ingredient", item_category: "鮮魚" },
+      { key: "stretched_shrimp", label: "Stretched Shrimp",          unit: "tray",      section: "prep", item_type: "ingredient", item_category: "鮮魚" },
       { key: "shrimp_tempura",   label: "Shrimp Tempura",            unit: "pcs",       section: "prep", item_type: "menu_item",  item_category: "Processed Ingredients" },
       { key: "avocado_tempura",  label: "Avocado Tempura",           unit: "rolls",     section: "prep", item_type: "menu_item",  item_category: "Processed Ingredients" },
       { key: "shiitake_tempura", label: "Shiitake Tempura",          unit: "rolls",     section: "prep", item_type: "menu_item",  item_category: "Processed Ingredients" },
@@ -99,19 +94,17 @@ const TEMPLATE_SECTIONS: TemplateSection[] = [
   {
     id: "toppings",
     label: "Toppings & Flakes",
-    labelJa: "トッピング・フレーク",
     items: [
-      { key: "chips_oman",       label: "Chips Oman",              unit: "container", section: "toppings", item_type: "ingredient", item_category: "乾物・他" },
-      { key: "tf_white",         label: "Tempura Flakes (White)",  unit: "container", section: "toppings", item_type: "menu_item",  item_category: "CK加工品" },
-      { key: "tf_orange",        label: "Tempura Flakes (Orange)", unit: "container", section: "toppings", item_type: "menu_item",  item_category: "CK加工品" },
-      { key: "tf_yellow",        label: "Tempura Flakes (Yellow)", unit: "container", section: "toppings", item_type: "menu_item",  item_category: "加工品マスタ" },
-      { key: "tf_green",         label: "Tempura Flakes (Green)",  unit: "container", section: "toppings", item_type: "menu_item",  item_category: "加工品マスタ" },
+      { key: "chips_oman",  label: "Chips Oman",              unit: "container", section: "toppings", item_type: "ingredient", item_category: "乾物・他" },
+      { key: "tf_white",    label: "Tempura Flakes (White)",  unit: "container", section: "toppings", item_type: "menu_item",  item_category: "CK加工品" },
+      { key: "tf_orange",   label: "Tempura Flakes (Orange)", unit: "container", section: "toppings", item_type: "menu_item",  item_category: "CK加工品" },
+      { key: "tf_yellow",   label: "Tempura Flakes (Yellow)", unit: "container", section: "toppings", item_type: "menu_item",  item_category: "加工品マスタ" },
+      { key: "tf_green",    label: "Tempura Flakes (Green)",  unit: "container", section: "toppings", item_type: "menu_item",  item_category: "加工品マスタ" },
     ],
   },
   {
     id: "rolls",
     label: "Sushi Rolls (Backup Ready)",
-    labelJa: "仕込みロール",
     items: [
       { key: "california",        label: "California Roll",       unit: "pcs", section: "rolls", item_type: "menu_item", item_category: "Signature Roll" },
       { key: "philadelphia",      label: "Philadelphia Roll",     unit: "pcs", section: "rolls", item_type: "menu_item", item_category: "Signature Roll" },
@@ -187,7 +180,7 @@ type Shift = (typeof SHIFT_OPTIONS)[number];
 const SHIFT_LABELS: Record<Shift, string> = {
   closing: "Closing",
   morning: "Morning",
-  midday: "Midday",
+  midday:  "Midday",
   all_day: "All Day",
 };
 
@@ -197,7 +190,6 @@ const SECTION_LABELS: Record<string, string> = {
   prep:      "Prepared Ingredients",
   toppings:  "Toppings & Flakes",
   rolls:     "Sushi Rolls",
-  boxes:     "Box Sets",
   extra:     "Extra Items",
 };
 
@@ -230,7 +222,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   return (text ? JSON.parse(text) : {}) as T;
 }
 
-// ─── Item Search Combobox (reused from disposal) ─────────────────────────────
+// ─── Item Search Combobox ─────────────────────────────────────────────────────
 
 function ItemSearch({ city, onSelect }: { city: City; onSelect: (item: SearchItem) => void }) {
   const [query, setQuery] = useState("");
@@ -264,7 +256,7 @@ function ItemSearch({ city, onSelect }: { city: City; onSelect: (item: SearchIte
   return (
     <div ref={wrapRef} className="relative">
       <input
-        className={INPUT_CLASS}
+        className={`${INPUT_CLASS} py-3 text-base`}
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -280,12 +272,11 @@ function ItemSearch({ city, onSelect }: { city: City; onSelect: (item: SearchIte
           {results.map((item) => (
             <button key={`${item.item_type}_${item.id}`} type="button"
               onMouseDown={() => { onSelect(item); setQuery(""); setResults([]); setOpen(false); }}
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-violet-500/15 transition-colors">
-              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 w-14">
+              className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-violet-500/15 active:bg-violet-500/25 transition-colors">
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 w-12">
                 {item.item_type === "menu_item" ? "MENU" : "INGR"}
               </span>
               <span className="flex-1 text-white">{item.name}</span>
-              <span className="shrink-0 text-xs text-zinc-500">{item.category}</span>
               <span className="shrink-0 text-xs text-violet-400">{item.default_unit}</span>
             </button>
           ))}
@@ -333,7 +324,6 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
     } catch (e: unknown) { alert(e instanceof Error ? e.message : String(e)); }
   };
 
-  // Group lines by section
   const groupBySection = (lines: BackupReportLine[]) => {
     const groups: Record<string, BackupReportLine[]> = {};
     for (const l of lines) {
@@ -345,15 +335,15 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
   };
 
   return (
-    <div className={`${GLASS_CARD} p-6 mt-6`}>
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+    <div className={`${GLASS_CARD} p-4 sm:p-6 mt-4`}>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <h2 className={T_CARD_TITLE}>Past Reports</h2>
         <div className="flex flex-wrap items-center gap-2">
           <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
-            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50 w-36" />
+            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500/50 w-36" />
           <span className="text-zinc-500 text-sm">–</span>
           <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
-            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50 w-36" />
+            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500/50 w-36" />
           <button onClick={load} className={SMALL_BUTTON}>Reload</button>
         </div>
       </div>
@@ -367,14 +357,13 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
           const nonZero = (r.lines ?? []).filter(l => Number(l.quantity) > 0).length;
           return (
             <div key={r.id} className="rounded-xl border border-white/8 bg-white/3 overflow-hidden">
-              <div className="flex flex-wrap items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/5 transition-colors"
+              <div className="flex flex-wrap items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/5 active:bg-white/8 transition-colors"
                 onClick={() => setExpanded(expanded === r.id ? null : r.id)}>
-                <span className="font-mono text-xs text-zinc-500">#{r.id}</span>
                 <span className="text-sm font-semibold text-white">{r.report_date}</span>
                 <span className="text-xs text-zinc-400">{r.branch_code}</span>
                 <span className={BADGE_INFO}>{r.shift}</span>
                 <span className="text-xs text-zinc-400">by {r.reported_by}</span>
-                <span className="text-xs text-zinc-500 ml-auto">{nonZero} items reported</span>
+                <span className="text-xs text-zinc-500 ml-auto">{nonZero} items</span>
                 {isAdmin && (
                   <button onClick={(e) => { e.stopPropagation(); handleDelete(r.id); }}
                     className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1">
@@ -393,7 +382,7 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
                     return (
                       <div key={sec}>
                         <button
-                          className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-500 hover:text-zinc-300 transition-colors mb-1"
+                          className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-500 hover:text-zinc-300 transition-colors mb-1 py-1"
                           onClick={() => setExpandedSection(expandedSection === sectionKey ? null : sectionKey)}
                         >
                           <span>{SECTION_LABELS[sec] ?? sec}</span>
@@ -408,7 +397,7 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
                                   <td className={`${TABLE_CELL} text-white`}>{l.item_name_snapshot}</td>
                                   <td className={`${TABLE_CELL} text-right font-mono text-violet-300`}>{l.quantity}</td>
                                   <td className={`${TABLE_CELL} text-zinc-400 pl-1`}>{l.unit}</td>
-                                  <td className={`${TABLE_CELL} text-zinc-500 text-xs`}>{l.notes}</td>
+                                  <td className={`${TABLE_CELL} text-zinc-500 text-xs hidden sm:table-cell`}>{l.notes}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -427,7 +416,7 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
   );
 }
 
-// ─── Template Section Input ───────────────────────────────────────────────────
+// ─── Template Section Block (mobile-first) ────────────────────────────────────
 
 function TemplateSectionBlock({
   section,
@@ -439,45 +428,102 @@ function TemplateSectionBlock({
   onChange: (key: string, val: string) => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const filledCount = section.items.filter((i) => (qty[i.key] ?? "") !== "").length;
 
   return (
     <div className="rounded-xl border border-white/8 bg-white/3 overflow-hidden">
+      {/* Section header — tall enough for thumb tap */}
       <button
         type="button"
         onClick={() => setCollapsed((v) => !v)}
-        className="flex w-full items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors"
+        className="flex w-full items-center justify-between px-4 py-4 hover:bg-white/5 active:bg-white/8 transition-colors"
       >
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-white">{section.label}</span>
+        <div className="flex items-center gap-2.5">
+          <span className="text-base font-semibold text-white">{section.label}</span>
+          {filledCount > 0 && (
+            <span className="text-xs font-semibold text-violet-400 bg-violet-500/15 px-2 py-0.5 rounded-full">
+              {filledCount}
+            </span>
+          )}
         </div>
-        <span className="text-zinc-500 text-sm">{collapsed ? "▼" : "▲"}</span>
+        <span className="text-zinc-500 text-base">{collapsed ? "▼" : "▲"}</span>
       </button>
 
       {!collapsed && (
-        <div className="border-t border-white/8 px-4 py-3">
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3 md:grid-cols-4">
+        <div className="border-t border-white/8 px-4 py-4">
+          {/* 2-col on mobile, 3-col on sm, 4-col on md */}
+          <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-3 md:grid-cols-4">
             {section.items.map((item) => (
               <div key={item.key}>
-                <label className={`${T_LABEL} block mb-1 truncate`} title={item.label}>
+                <label className="block mb-1 text-xs text-zinc-400 truncate" title={item.label}>
                   {item.label}
                 </label>
                 <div className="flex items-center gap-1">
                   <input
                     type="number"
+                    inputMode="numeric"
                     min="0"
                     step="1"
-                    className="w-full rounded-lg border border-white/10 bg-white/6 px-2 py-1.5 text-sm text-white text-right outline-none focus:border-violet-500/40 focus:ring-1 focus:ring-violet-500/20"
+                    className="w-full rounded-lg border border-white/10 bg-white/6 px-2 py-3 text-base text-white text-right outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
                     value={qty[item.key] ?? ""}
-                    placeholder="0"
+                    placeholder="—"
                     onChange={(e) => onChange(item.key, e.target.value)}
                   />
-                  <span className="shrink-0 text-[10px] text-zinc-500 w-10 truncate">{item.unit}</span>
+                  <span className="shrink-0 text-[10px] text-zinc-500 w-9 truncate text-center">{item.unit}</span>
                 </div>
               </div>
             ))}
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Free Line Card (mobile-friendly stacked layout) ─────────────────────────
+
+function FreeLineCard({
+  line,
+  onUpdate,
+  onRemove,
+}: {
+  line: FreeLineItem;
+  onUpdate: (patch: Partial<FreeLineItem>) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/4 p-3 space-y-2">
+      {/* Item name + remove button */}
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-sm font-medium text-white flex-1 leading-snug">{line.item_name_snapshot}</span>
+        <button type="button" onClick={onRemove}
+          className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 active:bg-red-500/20 transition-colors text-lg leading-none">
+          &times;
+        </button>
+      </div>
+      {/* Qty + unit row */}
+      <div className="flex items-center gap-2">
+        <div className="flex-1">
+          <label className="block mb-1 text-xs text-zinc-500">Qty</label>
+          <input type="number" inputMode="numeric" min="0" step="1"
+            className="w-full rounded-lg border border-white/10 bg-white/6 px-3 py-3 text-base text-white text-right outline-none focus:border-violet-500/50"
+            value={line.quantity}
+            onChange={(e) => onUpdate({ quantity: e.target.value })} />
+        </div>
+        <div className="w-24">
+          <label className="block mb-1 text-xs text-zinc-500">Unit</label>
+          <input type="text"
+            className="w-full rounded-lg border border-white/10 bg-white/6 px-3 py-3 text-base text-white outline-none focus:border-violet-500/50"
+            value={line.unit}
+            onChange={(e) => onUpdate({ unit: e.target.value })} />
+        </div>
+      </div>
+      {/* Notes */}
+      <input type="text"
+        className="w-full rounded-lg border border-white/10 bg-white/6 px-3 py-2 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-violet-500/50"
+        value={line.notes}
+        onChange={(e) => onUpdate({ notes: e.target.value })}
+        placeholder="Notes (optional)" />
     </div>
   );
 }
@@ -534,19 +580,25 @@ export default function BackupReportPage() {
     setFreeLines((prev) => prev.filter((l) => l._key !== key));
   }, []);
 
+  const handleClear = useCallback(() => {
+    setTemplateQty({});
+    setFreeLines([]);
+    setHeaderNotes("");
+    setSubmitSuccess("");
+    setSubmitError("");
+  }, []);
+
   const handleSubmit = async () => {
     if (!reportedBy.trim()) { setSubmitError("Please enter the reporter name."); return; }
 
-    // Build lines from template (only non-empty / non-zero)
     const lines: object[] = [];
 
     for (const sec of TEMPLATE_SECTIONS) {
       for (const item of sec.items) {
         const rawQty = templateQty[item.key] ?? "";
+        if (rawQty === "") continue;
         const qty = parseFloat(rawQty);
         if (isNaN(qty) || qty < 0) continue;
-        // Include even 0s to record "confirmed zero" for template items that were filled
-        if (rawQty === "") continue; // untouched fields = skip
         lines.push({
           section: sec.id,
           item_type: item.item_type,
@@ -560,7 +612,6 @@ export default function BackupReportPage() {
       }
     }
 
-    // Free-form lines
     for (const fl of freeLines) {
       if (!fl.item_name_snapshot.trim()) continue;
       const qty = parseFloat(fl.quantity);
@@ -591,7 +642,7 @@ export default function BackupReportPage() {
           }),
         }
       );
-      setSubmitSuccess(`Report #${result.report_id} submitted successfully.`);
+      setSubmitSuccess(`Report #${result.report_id} submitted.`);
       setTemplateQty({});
       setFreeLines([]);
       setHeaderNotes("");
@@ -602,158 +653,149 @@ export default function BackupReportPage() {
     }
   };
 
+  // Count filled items for the submit bar
+  const filledCount = TEMPLATE_SECTIONS.reduce(
+    (n, sec) => n + sec.items.filter((i) => (templateQty[i.key] ?? "") !== "").length,
+    freeLines.filter((fl) => fl.item_name_snapshot.trim() && parseFloat(fl.quantity) > 0).length
+  );
+
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-950 via-violet-950/20 to-slate-950 p-6">
-      <div className="mx-auto max-w-5xl space-y-5">
+    <>
+      {/* Page scrollable content */}
+      <main className="min-h-screen bg-gradient-to-br from-slate-950 via-violet-950/20 to-slate-950 px-3 pt-4 pb-28 sm:px-6 sm:pb-32">
+        <div className="mx-auto max-w-5xl space-y-4">
 
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className={T_PAGE_TITLE}>Backup Report</h1>
-            <p className="mt-1 text-sm text-zinc-500">
-              Kitchen prep & backup stock report
-            </p>
-          </div>
-          <Link href="/admin" className={SECONDARY_BUTTON}>&larr; Admin</Link>
-        </div>
-
-        {/* Report Details */}
-        <div className={`${GLASS_CARD} p-6`}>
-          <h2 className={`${T_CARD_TITLE} mb-4`}>Report Details</h2>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          {/* Page header */}
+          <div className="flex items-start justify-between gap-3">
             <div>
-              <label className={`${T_LABEL} block mb-1.5`}>City</label>
-              <select className={SELECT_CLASS} value={city} onChange={(e) => setCity(e.target.value as City)}>
-                <option value="dubai">Dubai</option>
-                <option value="manila">Manila</option>
-              </select>
+              <h1 className={T_PAGE_TITLE}>Backup Report</h1>
+              <p className="mt-0.5 text-sm text-zinc-500">Kitchen prep & backup stock report</p>
             </div>
-            <div>
-              <label className={`${T_LABEL} block mb-1.5`}>Branch</label>
-              <select className={SELECT_CLASS} value={branchCode} onChange={(e) => setBranchCode(e.target.value as BranchCode)}>
-                {BRANCHES[city].map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={`${T_LABEL} block mb-1.5`}>Date</label>
-              <input type="date" className={INPUT_CLASS} value={reportDate} onChange={(e) => setReportDate(e.target.value)} />
-            </div>
-            <div>
-              <label className={`${T_LABEL} block mb-1.5`}>Reported By</label>
-              <input type="text" className={INPUT_CLASS} value={reportedBy}
-                onChange={(e) => setReportedBy(e.target.value)} placeholder="Staff name" />
-            </div>
-            <div>
-              <label className={`${T_LABEL} block mb-1.5`}>Shift</label>
-              <select className={SELECT_CLASS} value={shift} onChange={(e) => setShift(e.target.value as Shift)}>
-                {SHIFT_OPTIONS.map((s) => <option key={s} value={s}>{SHIFT_LABELS[s]}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={`${T_LABEL} block mb-1.5`}>Notes (optional)</label>
-              <input type="text" className={INPUT_CLASS} value={headerNotes}
-                onChange={(e) => setHeaderNotes(e.target.value)} placeholder="e.g. holiday, event..." />
-            </div>
-          </div>
-        </div>
-
-        {/* Fixed Template Sections */}
-        <div className={`${GLASS_CARD} p-6`}>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className={T_CARD_TITLE}>Fixed Items</h2>
-            <span className={`${T_CAPTION} text-zinc-500`}>
-              Leave blank to skip · enter 0 to confirm zero
-            </span>
-          </div>
-          <div className="space-y-3">
-            {TEMPLATE_SECTIONS.map((sec) => (
-              <TemplateSectionBlock
-                key={sec.id}
-                section={sec}
-                qty={templateQty}
-                onChange={handleQtyChange}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Free-form Extra Section */}
-        <div className={`${GLASS_CARD} p-6`}>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className={T_CARD_TITLE}>Extra Items</h2>
-            <span className={`${BADGE_WARNING}`}>Free Entry</span>
-          </div>
-          <div className="mb-4">
-            <label className={`${T_LABEL} block mb-1.5`}>Add Item</label>
-            <ItemSearch city={city} onSelect={addFreeItem} />
+            <Link href="/admin" className={`${SECONDARY_BUTTON} shrink-0`}>&larr; Admin</Link>
           </div>
 
-          {freeLines.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm min-w-[580px]">
-                <thead>
-                  <tr>
-                    <th className={`${TABLE_HEADER} text-left w-[35%]`}>Item</th>
-                    <th className={`${TABLE_HEADER} text-right w-[12%]`}>Qty</th>
-                    <th className={`${TABLE_HEADER} text-left w-[10%]`}>Unit</th>
-                    <th className={`${TABLE_HEADER} text-left w-[35%]`}>Notes</th>
-                    <th className={`${TABLE_HEADER} text-center w-[8%]`}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {freeLines.map((fl) => (
-                    <tr key={fl._key} className={TABLE_ROW}>
-                      <td className="py-2 pr-2 text-white text-sm">{fl.item_name_snapshot}</td>
-                      <td className="py-2 pr-2">
-                        <input type="number" min="0" step="1"
-                          className="w-full rounded-lg border border-white/10 bg-white/6 px-2 py-1.5 text-sm text-white text-right outline-none focus:border-violet-500/40"
-                          value={fl.quantity} onChange={(e) => updateFreeLine(fl._key, { quantity: e.target.value })} />
-                      </td>
-                      <td className="py-2 pr-2">
-                        <input type="text"
-                          className="w-full rounded-lg border border-white/10 bg-white/6 px-2 py-1.5 text-sm text-white outline-none focus:border-violet-500/40"
-                          value={fl.unit} onChange={(e) => updateFreeLine(fl._key, { unit: e.target.value })} />
-                      </td>
-                      <td className="py-2 pr-2">
-                        <input type="text"
-                          className="w-full rounded-lg border border-white/10 bg-white/6 px-2 py-1.5 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-violet-500/40"
-                          value={fl.notes} onChange={(e) => updateFreeLine(fl._key, { notes: e.target.value })}
-                          placeholder="optional" />
-                      </td>
-                      <td className="py-2 text-center">
-                        <button type="button" onClick={() => removeFreeLine(fl._key)}
-                          className="text-zinc-600 hover:text-red-400 transition-colors text-lg leading-none">&times;</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {/* Report Details */}
+          <div className={`${GLASS_CARD} p-4 sm:p-6`}>
+            <h2 className={`${T_CARD_TITLE} mb-4`}>Report Details</h2>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
+              <div>
+                <label className={`${T_LABEL} block mb-1.5`}>City</label>
+                <select className={`${SELECT_CLASS} py-3 text-base`} value={city}
+                  onChange={(e) => setCity(e.target.value as City)}>
+                  <option value="dubai">Dubai</option>
+                  <option value="manila">Manila</option>
+                </select>
+              </div>
+              <div>
+                <label className={`${T_LABEL} block mb-1.5`}>Branch</label>
+                <select className={`${SELECT_CLASS} py-3 text-base`} value={branchCode}
+                  onChange={(e) => setBranchCode(e.target.value as BranchCode)}>
+                  {BRANCHES[city].map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={`${T_LABEL} block mb-1.5`}>Date</label>
+                <input type="date" className={`${INPUT_CLASS} py-3 text-base`} value={reportDate}
+                  onChange={(e) => setReportDate(e.target.value)} />
+              </div>
+              <div>
+                <label className={`${T_LABEL} block mb-1.5`}>Reported By</label>
+                <input type="text" className={`${INPUT_CLASS} py-3 text-base`} value={reportedBy}
+                  onChange={(e) => setReportedBy(e.target.value)} placeholder="Staff name" />
+              </div>
+              <div>
+                <label className={`${T_LABEL} block mb-1.5`}>Shift</label>
+                <select className={`${SELECT_CLASS} py-3 text-base`} value={shift}
+                  onChange={(e) => setShift(e.target.value as Shift)}>
+                  {SHIFT_OPTIONS.map((s) => <option key={s} value={s}>{SHIFT_LABELS[s]}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={`${T_LABEL} block mb-1.5`}>Notes (optional)</label>
+                <input type="text" className={`${INPUT_CLASS} py-3 text-base`} value={headerNotes}
+                  onChange={(e) => setHeaderNotes(e.target.value)} placeholder="e.g. holiday, event..." />
+              </div>
             </div>
-          )}
+          </div>
 
-          <div className="mt-3">
+          {/* Fixed Template Sections */}
+          <div className={`${GLASS_CARD} p-4 sm:p-6`}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className={T_CARD_TITLE}>Fixed Items</h2>
+              <span className={`${T_CAPTION} text-zinc-500 text-xs`}>
+                Blank = skip · 0 = confirm zero
+              </span>
+            </div>
+            <div className="space-y-3">
+              {TEMPLATE_SECTIONS.map((sec) => (
+                <TemplateSectionBlock
+                  key={sec.id}
+                  section={sec}
+                  qty={templateQty}
+                  onChange={handleQtyChange}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Free-form Extra Section */}
+          <div className={`${GLASS_CARD} p-4 sm:p-6`}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className={T_CARD_TITLE}>Extra Items</h2>
+              <span className={BADGE_WARNING}>Free Entry</span>
+            </div>
+            <div className="mb-4">
+              <label className={`${T_LABEL} block mb-1.5`}>Search & add item</label>
+              <ItemSearch city={city} onSelect={addFreeItem} />
+            </div>
+
+            {freeLines.length > 0 && (
+              <div className="space-y-2 mb-3">
+                {freeLines.map((fl) => (
+                  <FreeLineCard
+                    key={fl._key}
+                    line={fl}
+                    onUpdate={(patch) => updateFreeLine(fl._key, patch)}
+                    onRemove={() => removeFreeLine(fl._key)}
+                  />
+                ))}
+              </div>
+            )}
+
             <button type="button" onClick={() => setFreeLines((prev) => [...prev, emptyFreeLine()])}
               className={SMALL_BUTTON}>+ Add blank line</button>
           </div>
-        </div>
 
-        {/* Submit */}
-        <div className="flex flex-wrap items-center gap-4">
-          <button onClick={handleSubmit} disabled={submitting} className={PRIMARY_BUTTON}>
-            {submitting ? "Submitting..." : "Submit Backup Report"}
+          {/* Past Reports */}
+          <PastReports city={city} branchCode={branchCode} isAdmin={isAdmin} />
+
+        </div>
+      </main>
+
+      {/* Sticky submit bar */}
+      <div className="fixed bottom-0 inset-x-0 z-40 bg-slate-950/95 backdrop-blur border-t border-white/8 px-4 py-3 sm:px-6">
+        <div className="mx-auto max-w-5xl flex items-center gap-3">
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            className={`${PRIMARY_BUTTON} flex-1 py-3.5 text-base justify-center`}
+          >
+            {submitting ? "Submitting..." : "Submit Report"}
           </button>
-          <button type="button" className={SECONDARY_BUTTON}
-            onClick={() => { setTemplateQty({}); setFreeLines([]); setHeaderNotes(""); setSubmitSuccess(""); setSubmitError(""); }}>
+          <button type="button" onClick={handleClear} className={`${SECONDARY_BUTTON} py-3.5`}>
             Clear
           </button>
-          {submitError && <p className="text-sm text-red-400">{submitError}</p>}
-          {submitSuccess && <p className="text-sm text-emerald-400">{submitSuccess}</p>}
+          {filledCount > 0 && !submitSuccess && (
+            <span className="text-xs text-zinc-500 hidden sm:block">{filledCount} items filled</span>
+          )}
         </div>
-
-        {/* Past Reports */}
-        <PastReports city={city} branchCode={branchCode} isAdmin={isAdmin} />
-
+        {(submitError || submitSuccess) && (
+          <div className="mx-auto max-w-5xl mt-1">
+            {submitError && <p className="text-sm text-red-400">{submitError}</p>}
+            {submitSuccess && <p className="text-sm text-emerald-400">{submitSuccess}</p>}
+          </div>
+        )}
       </div>
-    </main>
+    </>
   );
 }
