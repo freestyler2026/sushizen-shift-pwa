@@ -693,7 +693,7 @@ export default function BackupReportPage() {
                   {BRANCHES[city].map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}
                 </select>
               </div>
-              <div>
+              <div className="min-w-0 overflow-hidden">
                 <label className={`${T_LABEL} block mb-1.5`}>Date</label>
                 <input type="date" className={`${INPUT_CLASS} py-3 text-base`} value={reportDate}
                   onChange={(e) => setReportDate(e.target.value)} />

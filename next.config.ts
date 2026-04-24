@@ -22,10 +22,21 @@ if (!IS_DEV) {
   SECURITY_HEADERS.push({ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains; preload" });
 }
 
+// Bake the deployment SHA into the client bundle so AutoReload can detect
+// when the PWA is running stale cached JavaScript and force a reload.
+const BUILD_ID =
+  process.env.VERCEL_GIT_COMMIT_SHA ||
+  process.env.VERCEL_DEPLOYMENT_ID ||
+  String(Date.now());
+
 const nextConfig: NextConfig = {
   reactStrictMode: false,
   // Prevent dev/build cache collisions that can cause missing module errors.
   distDir: IS_DEV ? ".next-dev" : ".next",
+  env: {
+    // Available client-side as process.env.NEXT_PUBLIC_BUILD_ID
+    NEXT_PUBLIC_BUILD_ID: BUILD_ID,
+  },
   async redirects() {
     return [
       {
