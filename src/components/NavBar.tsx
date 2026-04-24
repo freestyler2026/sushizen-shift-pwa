@@ -94,6 +94,7 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/inbox", label: "Inbox", icon: InboxIcon, match: "exact" },
   { href: "/incidents", label: "Incident Report", icon: AlertTriangle, match: "prefix" },
   { href: "/admin/disposal", label: "Disposal Report", icon: Trash2, match: "prefix" },
+  { href: "/admin/daily-inventory", label: "Daily Inventory", icon: Warehouse, match: "exact" },
   { href: "/store/procurement", label: "Store Procurement", icon: ShoppingCart, match: "prefix" },
   { href: "/swap-approve", label: "Swap Approve", icon: ArrowLeftRight, match: "exact" },
   { href: "/change-pin", label: "Change PIN", icon: KeyRound, match: "exact" },
@@ -102,7 +103,6 @@ const SECONDARY_BASE: NavItem[] = [
 // Admin routes here must match ACCESS_CHANNELS (group admin) in backend `app/access_control.py`.
 const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin", label: "Admin Dashboard", icon: LayoutDashboard, adminOnly: true, match: "exact" },
-  { href: "/admin/daily-inventory", label: "Daily Inventory", icon: Warehouse, adminOnly: true, match: "exact" },
   { href: "/admin/inventory", label: "Inventory", icon: Package, adminOnly: true, match: "prefix" },
   { href: "/admin/menu", label: "Menu Builder", icon: UtensilsCrossed, adminOnly: true, match: "prefix" },
   { href: "/admin/private-reports", label: "Private Reports", icon: FileBarChart, adminOnly: true, match: "exact" },
