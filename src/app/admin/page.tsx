@@ -10,6 +10,7 @@ import {
   ArrowLeftRight,
   BarChart3,
   Building2,
+  CalendarPlus,
   CheckCheck,
   Clock,
   Download,
@@ -1134,6 +1135,9 @@ function AdminPageInner() {
           ) : null}
           <Link href="/admin/draft" className={SMALL_BUTTON}>
             <PenLine className="mr-1 h-3.5 w-3.5" /> Draft
+          </Link>
+          <Link href="/admin/manual-shift" className={SMALL_BUTTON}>
+            <CalendarPlus className="mr-1 h-3.5 w-3.5" /> Manual Shift
           </Link>
           {canOpenInventory ? (
             <Link href="/admin/inventory" className={`${SMALL_BUTTON} border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10`}>

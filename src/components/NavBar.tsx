@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
@@ -14,6 +15,7 @@ import {
   Calendar,
   CalendarClock,
   CalendarDays,
+  CalendarPlus,
   ClipboardCheck,
   ClipboardList,
   FileBarChart,
@@ -22,6 +24,7 @@ import {
   KeyRound,
   LayoutDashboard,
   LogOut,
+  MoreHorizontal,
   Package,
   PenLine,
   ScrollText,
@@ -33,6 +36,7 @@ import {
   Users,
   UtensilsCrossed,
   Warehouse,
+  X,
 } from "lucide-react";
 import LogoutButton from "@/components/LogoutButton";
 import {
@@ -110,6 +114,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/staff", label: "Staff", icon: Users, adminOnly: true, match: "prefix" },
   { href: "/admin/staff/roles", label: "Role Management", icon: Shield, adminOnly: true, match: "prefix" },
   { href: "/admin/draft", label: "Draft", icon: PenLine, adminOnly: true, match: "prefix" },
+  { href: "/admin/manual-shift", label: "Manual Shift", icon: CalendarPlus, adminOnly: true, match: "prefix" },
   { href: "/admin/backoffice-evaluation", label: "Backoffice Eval", icon: ClipboardCheck, adminOnly: true, match: "exact" },
   { href: "/admin/incidents", label: "Incident Reports", icon: AlertTriangle, adminOnly: true, match: "prefix" },
 ];
@@ -196,6 +201,9 @@ export default function NavBar() {
   const [renewalBadge, setRenewalBadge] = useState(0);
   const [incidentBadge, setIncidentBadge] = useState(0);
   const [adminIncidentBadge, setAdminIncidentBadge] = useState(0);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   function canSeeAdminItem(href: string, auth: ReturnType<typeof getAuth>) {
     if (!auth) return false;
@@ -405,6 +413,17 @@ export default function NavBar() {
 
   const navItems = useMemo(() => [...staffItems, ...adminItems], [staffItems, adminItems]);
 
+  // Mobile bottom nav: show these 4 items as primary tabs
+  const MOBILE_PRIMARY_HREFS = ["/my-shift", "/week", "/request", "/inbox"];
+  const mobilePrimaryItems = useMemo(
+    () => MOBILE_PRIMARY_HREFS.map((h) => navItems.find((i) => i.href === h)).filter(Boolean) as NavItem[],
+    [navItems],
+  );
+  const mobileMoreItems = useMemo(
+    () => navItems.filter((i) => !MOBILE_PRIMARY_HREFS.includes(i.href)),
+    [navItems],
+  );
+
   const doLogout = () => {
     clearAuth();
     try { localStorage.removeItem("sushizen_shift_role_v1"); } catch {}
@@ -423,30 +442,30 @@ export default function NavBar() {
   }, [displayName]);
 
   return (
-    <div className="overflow-x-hidden">
-      <div className="flex h-11 items-center justify-between">
-        <Link href="/my-shift" className="min-w-0 flex-1">
-          <div className="flex items-center gap-2.5">
-            <div className="rounded bg-violet-600 px-1.5 py-0.5 text-xs font-bold text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
-              ZEN
-            </div>
-            <p className="text-[13px] font-semibold text-white sm:text-sm">
-              <span className="sm:hidden">ZEN Workforce</span>
-              <span className="hidden sm:inline">Sushi ZEN Workforce OS</span>
-            </p>
+    <>
+      {/* ── Top header: logo + user + logout ── */}
+      <div className="flex h-11 items-center justify-between gap-2">
+        <Link href="/my-shift" className="flex min-w-0 items-center gap-2">
+          <div className="shrink-0 rounded bg-violet-600 px-1.5 py-0.5 text-xs font-bold text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
+            ZEN
           </div>
+          <p className="truncate text-[13px] font-semibold text-white sm:text-sm">
+            <span className="md:hidden">ZEN Workforce</span>
+            <span className="hidden md:inline">Sushi ZEN Workforce OS</span>
+          </p>
         </Link>
 
-        <div className="ml-3 flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-violet-700 text-xs font-medium text-white">
             {userInitials}
           </div>
           <span className="hidden max-w-[96px] truncate text-xs text-neutral-400 sm:block sm:max-w-[180px]">
             {displayName || "Staff portal"}
           </span>
+          {/* Logout icon — always visible on mobile, hidden on desktop (desktop has button in tab row) */}
           <button
             onClick={doLogout}
-            className="ml-1 rounded-lg border border-white/10 p-1.5 text-neutral-400 transition hover:bg-white/10 hover:text-white md:hidden"
+            className="shrink-0 rounded-lg border border-white/10 p-1.5 text-neutral-400 transition hover:bg-white/10 hover:text-white md:hidden"
             aria-label="Logout"
           >
             <LogOut className="h-4 w-4" />
@@ -456,8 +475,9 @@ export default function NavBar() {
 
       <div className="border-b border-white/10" />
 
-      <div className="flex h-10 items-center">
-        <div className="flex min-w-0 flex-1 items-center overflow-x-auto scrollbar-hide [mask-image:linear-gradient(to_right,transparent,black_10px,black_calc(100%-10px),transparent)] [&::-webkit-scrollbar]:hidden">
+      {/* ── Desktop tab bar: hidden on mobile ── */}
+      <div className="hidden md:flex h-10 items-center">
+        <div className="flex min-w-0 flex-1 items-center overflow-x-auto [&::-webkit-scrollbar]:hidden">
           <div className="flex h-10 min-w-max items-center gap-0 pr-2">
             {navItems.map((item) => (
               <NavBtn
@@ -475,10 +495,115 @@ export default function NavBar() {
             ))}
           </div>
         </div>
-        <div className="hidden items-center border-l border-white/10 pl-3 md:flex">
+        <div className="flex items-center border-l border-white/10 pl-3">
           <LogoutButton className="rounded px-2 py-1 text-xs text-neutral-400 transition hover:bg-white/10 hover:text-white" />
         </div>
       </div>
-    </div>
+
+      {/* ── Mobile bottom nav + overlay: portal to body to escape backdrop-filter containing block ── */}
+      {mounted && createPortal(
+        <>
+        <nav
+          className="fixed bottom-0 left-0 right-0 z-[70] border-t border-white/10 bg-[#0d1117] md:hidden"
+          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        >
+        <div className="flex h-14 items-stretch">
+          {mobilePrimaryItems.map((item) => {
+            const active = isActive(pathname, item);
+            const badge = item.badgeCount || 0;
+            const hasDot = !badge && (item.badgeYellow || item.badgePink || item.badgeWarning);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={[
+                  "relative flex flex-1 flex-col items-center justify-center gap-0.5 transition-colors",
+                  active ? "text-violet-400" : "text-neutral-500",
+                ].join(" ")}
+              >
+                <item.icon className="h-5 w-5" />
+                <span className="text-[10px] leading-none">{item.label}</span>
+                {badge > 0 && (
+                  <span className="absolute right-[20%] top-2 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-orange-500 px-1 text-[9px] font-bold text-white">
+                    {badge > 99 ? "99+" : badge}
+                  </span>
+                )}
+                {hasDot && (
+                  <span className="absolute right-[22%] top-2.5 h-2 w-2 rounded-full bg-amber-400" />
+                )}
+              </Link>
+            );
+          })}
+
+          {/* More button */}
+          <button
+            onClick={() => setMoreOpen((v) => !v)}
+            className={[
+              "relative flex flex-1 flex-col items-center justify-center gap-0.5 transition-colors",
+              moreOpen ? "text-violet-400" : "text-neutral-500",
+            ].join(" ")}
+          >
+            <MoreHorizontal className="h-5 w-5" />
+            <span className="text-[10px] leading-none">More</span>
+            {/* Red dot if any "more" item has a badge */}
+            {mobileMoreItems.some((i) => (i.badgeCount || 0) > 0 || i.badgeCritical) && (
+              <span className="absolute right-[22%] top-2.5 h-2 w-2 rounded-full bg-rose-500" />
+            )}
+          </button>
+        </div>
+      </nav>
+
+      {/* ── More menu overlay ── */}
+      {moreOpen && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/60 md:hidden"
+          onClick={() => setMoreOpen(false)}
+        >
+          {/* Sheet slides up from the bottom nav */}
+          <div
+            className="absolute bottom-0 left-0 right-0 max-h-[75vh] overflow-y-auto rounded-t-2xl border-t border-white/10 bg-[#0d1117] p-4 shadow-2xl"
+            style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 3.5rem)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <span className="text-sm font-semibold text-neutral-200">All pages</span>
+              <button onClick={() => setMoreOpen(false)} className="text-neutral-500 hover:text-white">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {mobileMoreItems.map((item) => {
+                const active = isActive(pathname, item);
+                const badge = item.badgeCount || 0;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMoreOpen(false)}
+                    className={[
+                      "relative flex flex-col items-center gap-1.5 rounded-xl p-3 text-center transition-colors",
+                      active
+                        ? "bg-violet-900/30 text-violet-300"
+                        : "bg-white/5 text-neutral-400 hover:bg-white/10 hover:text-white",
+                    ].join(" ")}
+                  >
+                    <item.icon className="h-5 w-5" />
+                    <span className="text-[10px] leading-tight">{item.label}</span>
+                    {badge > 0 && (
+                      <span className="absolute right-1.5 top-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-orange-500 px-1 text-[9px] font-bold text-white">
+                        {badge > 99 ? "99+" : badge}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+        </>,
+        document.body,
+      )}
+    </>
   );
 }
