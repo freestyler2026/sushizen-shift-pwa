@@ -284,6 +284,16 @@ export default function WhInventoryPage() {
   const [stockLoading, setStockLoading] = useState(false);
   const [stockError, setStockError] = useState("");
   const [stockQ, setStockQ] = useState("");
+  const [stockCatFilter, setStockCatFilter] = useState("");
+
+  // Add Item modal
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addName, setAddName] = useState("");
+  const [addCategory, setAddCategory] = useState("");
+  const [addUnit, setAddUnit] = useState("pc");
+  const [addCost, setAddCost] = useState("");
+  const [addSaving, setAddSaving] = useState(false);
+  const [addError, setAddError] = useState("");
 
   // Tab: Order From Branch
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
@@ -462,12 +472,18 @@ export default function WhInventoryPage() {
   // ---------------------------------------------------------------------------
 
   const filteredStock = useMemo(() => {
-    if (!stockQ.trim()) return stockRows;
-    const lq = stockQ.trim().toLowerCase();
-    return stockRows.filter(
-      (r) => r.name.toLowerCase().includes(lq) || r.category.toLowerCase().includes(lq),
-    );
-  }, [stockRows, stockQ]);
+    let rows = stockRows;
+    if (stockCatFilter) {
+      rows = rows.filter((r) => r.category === stockCatFilter);
+    }
+    if (stockQ.trim()) {
+      const lq = stockQ.trim().toLowerCase();
+      rows = rows.filter(
+        (r) => r.name.toLowerCase().includes(lq) || r.category.toLowerCase().includes(lq),
+      );
+    }
+    return rows;
+  }, [stockRows, stockQ, stockCatFilter]);
 
   const stockCategories = useMemo(
     () => Array.from(new Set(stockRows.map((r) => r.category))).sort(),
@@ -581,6 +597,41 @@ export default function WhInventoryPage() {
   }
 
   // ---------------------------------------------------------------------------
+  // Add Item
+  // ---------------------------------------------------------------------------
+
+  function openAddModal() {
+    setAddName("");
+    setAddCategory(stockCatFilter || "");
+    setAddUnit("pc");
+    setAddCost("");
+    setAddError("");
+    setShowAddModal(true);
+  }
+
+  async function handleAddItem() {
+    if (!addName.trim()) { setAddError("Item name is required."); return; }
+    setAddSaving(true);
+    setAddError("");
+    try {
+      await inventoryPost("/api/admin/inventory/items", {
+        city,
+        name: addName.trim(),
+        category_name: addCategory.trim(),
+        storage_unit: addUnit.trim(),
+        cost: parseFloat(addCost) || 0,
+        item_type: "ITEM",
+      });
+      setShowAddModal(false);
+      await loadStock(city);
+    } catch (e: unknown) {
+      setAddError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAddSaving(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Guard
   // ---------------------------------------------------------------------------
 
@@ -651,7 +702,7 @@ export default function WhInventoryPage() {
               type="text"
               value={stockQ}
               onChange={(e) => setStockQ(e.target.value)}
-              placeholder="Search by name or category..."
+              placeholder="Search by name..."
               className="flex-1 rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm text-neutral-100 placeholder:text-neutral-600"
             />
             <button
@@ -661,6 +712,13 @@ export default function WhInventoryPage() {
               className="rounded-xl border border-neutral-700 bg-neutral-900 px-4 py-2 text-sm text-neutral-200 disabled:opacity-50"
             >
               {stockLoading ? "Loading..." : "Refresh"}
+            </button>
+            <button
+              type="button"
+              onClick={openAddModal}
+              className="rounded-xl bg-violet-700 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-violet-600 transition"
+            >
+              + Add Item
             </button>
           </div>
 
@@ -673,14 +731,26 @@ export default function WhInventoryPage() {
           {/* Category chips */}
           {stockCategories.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => setStockCatFilter("")}
+                className={[
+                  "rounded-full border px-3 py-1 text-xs transition",
+                  !stockCatFilter
+                    ? "border-violet-600/50 bg-violet-900/20 text-violet-200"
+                    : "border-neutral-700 bg-neutral-900 text-neutral-400 hover:text-neutral-200",
+                ].join(" ")}
+              >
+                All
+              </button>
               {stockCategories.map((cat) => (
                 <button
                   key={cat}
                   type="button"
-                  onClick={() => setStockQ(stockQ === cat ? "" : cat)}
+                  onClick={() => setStockCatFilter(stockCatFilter === cat ? "" : cat)}
                   className={[
                     "rounded-full border px-3 py-1 text-xs transition",
-                    stockQ === cat
+                    stockCatFilter === cat
                       ? "border-violet-600/50 bg-violet-900/20 text-violet-200"
                       : "border-neutral-700 bg-neutral-900 text-neutral-400 hover:text-neutral-200",
                   ].join(" ")}
@@ -1169,6 +1239,119 @@ export default function WhInventoryPage() {
             </div>
           </div>
         </section>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Add Item Modal                                                       */}
+      {/* ------------------------------------------------------------------ */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-neutral-800 px-6 py-4">
+              <div>
+                <div className="text-base font-semibold text-neutral-100">Add WH Item</div>
+                <div className="mt-0.5 text-xs text-neutral-500 capitalize">{city} warehouse</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAddModal(false)}
+                className="rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-xs text-neutral-400 hover:text-neutral-200 transition"
+              >
+                Cancel
+              </button>
+            </div>
+
+            {/* Form */}
+            <div className="space-y-4 p-6">
+              {addError && (
+                <div className="rounded-xl border border-rose-800/50 bg-rose-900/20 px-4 py-3 text-sm text-rose-300">
+                  {addError}
+                </div>
+              )}
+
+              {/* Name */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-neutral-400">Item Name <span className="text-rose-400">*</span></label>
+                <input
+                  type="text"
+                  value={addName}
+                  onChange={(e) => setAddName(e.target.value)}
+                  placeholder="e.g. Takeaway Bag (Large)"
+                  autoFocus
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-2.5 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-violet-600 focus:outline-none"
+                />
+              </div>
+
+              {/* Category */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-neutral-400">Category</label>
+                <input
+                  type="text"
+                  value={addCategory}
+                  onChange={(e) => setAddCategory(e.target.value)}
+                  placeholder="e.g. 包材"
+                  list="wh-categories"
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-2.5 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-violet-600 focus:outline-none"
+                />
+                <datalist id="wh-categories">
+                  {stockCategories.map((c) => <option key={c} value={c} />)}
+                </datalist>
+              </div>
+
+              {/* Unit + Cost row */}
+              <div className="flex gap-3">
+                <div className="flex-1 space-y-1.5">
+                  <label className="text-xs font-medium text-neutral-400">Unit</label>
+                  <input
+                    type="text"
+                    value={addUnit}
+                    onChange={(e) => setAddUnit(e.target.value)}
+                    placeholder="pc"
+                    list="wh-units"
+                    className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-2.5 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-violet-600 focus:outline-none"
+                  />
+                  <datalist id="wh-units">
+                    <option value="pc" />
+                    <option value="kg" />
+                    <option value="g" />
+                    <option value="L" />
+                    <option value="ml" />
+                    <option value="set" />
+                    <option value="box" />
+                    <option value="bag" />
+                    <option value="roll" />
+                    <option value="bottle" />
+                  </datalist>
+                </div>
+                <div className="flex-1 space-y-1.5">
+                  <label className="text-xs font-medium text-neutral-400">Cost (optional)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={addCost}
+                    onChange={(e) => setAddCost(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-2.5 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-violet-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end border-t border-neutral-800 px-6 py-4">
+              <button
+                type="button"
+                disabled={addSaving || !addName.trim()}
+                onClick={() => void handleAddItem()}
+                className="rounded-xl bg-violet-700 px-6 py-2.5 text-sm font-semibold text-white shadow hover:bg-violet-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                {addSaving ? "Adding..." : "Add Item"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ------------------------------------------------------------------ */}
