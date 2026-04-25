@@ -65,6 +65,9 @@ const SHIFT_LABELS: Record<Shift, string> = {
   all_day: "All Day",
 };
 
+// Common units for restaurant items
+const UNIT_OPTIONS = ["pcs", "g", "kg", "ml", "L", "bag", "box", "pack", "rolls", "bottle", "sheet", "portion", "tray", "can"];
+
 interface DisposalReport {
   id: number;
   city: string;
@@ -89,9 +92,47 @@ interface DisposalReportLine {
   notes: string;
 }
 
+// ─── Category normalisation (JP → EN) ────────────────────────────────────────
+
+const CATEGORY_MAP: Record<string, string> = {
+  "野菜": "Vegetables",
+  "魚介類": "Seafood",
+  "肉類": "Meat",
+  "乳製品": "Dairy",
+  "調味料": "Condiments",
+  "飲料": "Beverages",
+  "デザート": "Desserts",
+  "穀物": "Grains",
+  "冷凍食品": "Frozen Foods",
+  "缶詰": "Canned Goods",
+  "パン": "Bread",
+  "果物": "Fruits",
+  "卵": "Eggs",
+  "豆腐": "Tofu",
+  "油脂": "Oils & Fats",
+  "ソース": "Sauces",
+  "スパイス": "Spices",
+};
+
+function normaliseCategory(cat: string): string {
+  if (!cat) return "";
+  return CATEGORY_MAP[cat.trim()] ?? cat;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function todayStr(): string { return new Date().toISOString().slice(0, 10); }
+
+function formatDateTime(iso: string): string {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString("en-GB", {
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hour12: false,
+    }).replace(",", "");
+  } catch { return iso; }
+}
 
 let _keyCounter = 0;
 function nextKey(): string { return `line_${++_keyCounter}`; }
@@ -122,9 +163,17 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   return (text ? JSON.parse(text) : {}) as T;
 }
 
-// ─── Item Search Combobox ─────────────────────────────────────────────────────
+// ─── Inline Item Search (used inside each card) ───────────────────────────────
 
-function ItemSearch({ city, onSelect }: { city: City; onSelect: (item: SearchItem) => void }) {
+function InlineItemSearch({
+  city,
+  onSelect,
+  placeholder = "Search item name...",
+}: {
+  city: City;
+  onSelect: (item: SearchItem) => void;
+  placeholder?: string;
+}) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -153,29 +202,36 @@ function ItemSearch({ city, onSelect }: { city: City; onSelect: (item: SearchIte
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  const handleSelect = (item: SearchItem) => {
+    onSelect(item);
+    setQuery("");
+    setResults([]);
+    setOpen(false);
+  };
+
   return (
     <div ref={wrapRef} className="relative">
       <input
-        className={`${INPUT_CLASS} py-3 text-base`}
+        className="w-full rounded-lg border border-violet-500/40 bg-violet-500/8 px-3 py-2.5 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-violet-400"
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
           if (debounceRef.current) clearTimeout(debounceRef.current);
           debounceRef.current = setTimeout(() => search(e.target.value), 250);
         }}
-        placeholder="Search item name to add..."
+        placeholder={placeholder}
         autoComplete="off"
       />
       {loading && (
-        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">searching...</div>
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">…</div>
       )}
       {open && results.length > 0 && (
         <div className="absolute z-50 mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 shadow-2xl overflow-hidden">
           {results.map((item) => (
             <button key={`${item.item_type}_${item.id}`} type="button"
-              onMouseDown={() => { onSelect(item); setQuery(""); setResults([]); setOpen(false); }}
-              className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-violet-500/15 active:bg-violet-500/25 transition-colors">
-              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 w-12">
+              onMouseDown={() => handleSelect(item)}
+              className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm hover:bg-violet-500/15 transition-colors">
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 w-10">
                 {item.item_type === "menu_item" ? "MENU" : "INGR"}
               </span>
               <span className="flex-1 text-white">{item.name}</span>
@@ -193,43 +249,103 @@ function ItemSearch({ city, onSelect }: { city: City; onSelect: (item: SearchIte
   );
 }
 
-// ─── Disposal Line Card (mobile-friendly stacked layout) ──────────────────────
+// ─── Unit Selector ────────────────────────────────────────────────────────────
+
+function UnitSelector({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const isCustom = !UNIT_OPTIONS.includes(value);
+  const [showCustom, setShowCustom] = useState(isCustom);
+
+  const handleSelectChange = (v: string) => {
+    if (v === "__custom__") {
+      setShowCustom(true);
+      onChange("");
+    } else {
+      setShowCustom(false);
+      onChange(v);
+    }
+  };
+
+  return (
+    <div className="space-y-1">
+      <select
+        className="w-full rounded-lg border border-white/10 bg-white/6 px-3 py-3 text-base text-white outline-none focus:border-violet-500/50 appearance-none cursor-pointer"
+        value={showCustom ? "__custom__" : value}
+        onChange={(e) => handleSelectChange(e.target.value)}
+      >
+        {UNIT_OPTIONS.map((u) => <option key={u} value={u}>{u}</option>)}
+        <option value="__custom__">Other…</option>
+      </select>
+      {showCustom && (
+        <input
+          type="text"
+          className="w-full rounded-lg border border-violet-500/40 bg-violet-500/8 px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-violet-400"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Enter unit"
+          autoFocus
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Disposal Line Card ───────────────────────────────────────────────────────
 
 function DisposalLineCard({
   line,
+  city,
   onUpdate,
   onRemove,
 }: {
   line: DisposalLine;
+  city: City;
   onUpdate: (patch: Partial<DisposalLine>) => void;
   onRemove: () => void;
 }) {
+  const handleItemSelect = (item: SearchItem) => {
+    onUpdate({
+      item_type: item.item_type,
+      item_id: item.id,
+      item_name_snapshot: item.name,
+      item_category: item.category,
+      unit: item.default_unit || "pcs",
+    });
+  };
+
   return (
     <div className="rounded-xl border border-white/10 bg-white/4 p-3 space-y-2">
-      {/* Item name + remove */}
-      <div className="flex items-start justify-between gap-2">
+      {/* Search field — always visible */}
+      <div className="space-y-1">
+        <InlineItemSearch city={city} onSelect={handleItemSelect} placeholder="Search item name to link…" />
+        {/* Show current item name or free-text input */}
         {line.item_id ? (
-          <div className="flex-1">
-            <span className="text-sm font-medium text-white">{line.item_name_snapshot}</span>
+          <div className="flex items-center gap-2 px-1">
+            <span className="text-sm font-medium text-white flex-1">{line.item_name_snapshot}</span>
             {line.item_category && (
-              <span className="ml-2 text-xs text-zinc-500">{line.item_category}</span>
+              <span className="text-xs text-zinc-500 shrink-0">{normaliseCategory(line.item_category)}</span>
             )}
+            <button type="button" onClick={() => onUpdate({ item_id: null, item_name_snapshot: "", item_category: "" })}
+              className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors shrink-0">clear</button>
           </div>
         ) : (
           <input type="text"
-            className="flex-1 rounded-lg border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-violet-500/50"
+            className="w-full rounded-lg border border-white/10 bg-white/6 px-3 py-2 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-violet-500/50"
             value={line.item_name_snapshot}
             onChange={(e) => onUpdate({ item_name_snapshot: e.target.value })}
-            placeholder="Item name" />
+            placeholder="Or type item name manually" />
         )}
+      </div>
+
+      {/* Remove button row */}
+      <div className="flex items-center justify-end">
         <button type="button" onClick={onRemove}
-          className="shrink-0 w-8 h-8 flex items-center justify-center rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 active:bg-red-500/20 transition-colors text-lg leading-none">
-          &times;
+          className="text-xs text-zinc-600 hover:text-red-400 hover:bg-red-500/10 px-2 py-1 rounded transition-colors">
+          Remove
         </button>
       </div>
 
       {/* Qty + Unit row */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-start gap-2">
         <div className="flex-1">
           <label className="block mb-1 text-xs text-zinc-500">Qty</label>
           <input type="number" inputMode="numeric" min="0" step="0.5"
@@ -237,12 +353,9 @@ function DisposalLineCard({
             value={line.quantity}
             onChange={(e) => onUpdate({ quantity: e.target.value })} />
         </div>
-        <div className="w-24">
+        <div className="w-28">
           <label className="block mb-1 text-xs text-zinc-500">Unit</label>
-          <input type="text"
-            className="w-full rounded-lg border border-white/10 bg-white/6 px-3 py-3 text-base text-white outline-none focus:border-violet-500/50"
-            value={line.unit}
-            onChange={(e) => onUpdate({ unit: e.target.value })} />
+          <UnitSelector value={line.unit} onChange={(v) => onUpdate({ unit: v })} />
         </div>
       </div>
 
@@ -276,6 +389,7 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [deletingLineId, setDeletingLineId] = useState<number | null>(null);
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10);
   });
@@ -294,12 +408,26 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
 
   useEffect(() => { load(); }, [load]);
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Delete this disposal report?")) return;
+  const handleDeleteReport = async (id: number) => {
+    if (!confirm("Delete this entire disposal report?")) return;
     try {
       await apiFetch(`/api/admin/disposal/report/${id}?city=${city}`, { method: "DELETE" });
       setReports((prev) => prev.filter((r) => r.id !== id));
     } catch (e: unknown) { alert(e instanceof Error ? e.message : String(e)); }
+  };
+
+  const handleDeleteLine = async (reportId: number, lineId: number) => {
+    if (!confirm("Delete this item line?")) return;
+    setDeletingLineId(lineId);
+    try {
+      await apiFetch(`/api/admin/disposal/line/${lineId}?city=${city}`, { method: "DELETE" });
+      setReports((prev) =>
+        prev.map((r) =>
+          r.id !== reportId ? r : { ...r, lines: r.lines.filter((l) => l.id !== lineId) }
+        )
+      );
+    } catch (e: unknown) { alert(e instanceof Error ? e.message : String(e)); }
+    finally { setDeletingLineId(null); }
   };
 
   const reasonBadge = (r: string) => {
@@ -333,14 +461,18 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
             <div className="flex flex-wrap items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/5 active:bg-white/8 transition-colors"
               onClick={() => setExpanded(expanded === r.id ? null : r.id)}>
               <span className="text-sm font-semibold text-white">{r.report_date}</span>
+              {/* Submitted time */}
+              {r.created_at && (
+                <span className="text-xs text-zinc-500">{formatDateTime(r.created_at)}</span>
+              )}
               <span className="text-xs text-zinc-400">{r.branch_code}</span>
               <span className={BADGE_INFO}>{r.shift}</span>
               <span className="text-xs text-zinc-400">by {r.reported_by}</span>
               <span className="text-xs text-zinc-500 ml-auto">{r.lines?.length ?? 0} items</span>
               {isAdmin && (
-                <button onClick={(e) => { e.stopPropagation(); handleDelete(r.id); }}
-                  className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1">
-                  Delete
+                <button onClick={(e) => { e.stopPropagation(); handleDeleteReport(r.id); }}
+                  className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1 shrink-0">
+                  Delete All
                 </button>
               )}
             </div>
@@ -348,21 +480,39 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
             {expanded === r.id && (
               <div className="border-t border-white/8 px-4 py-3">
                 {r.notes && <p className="text-xs text-zinc-400 mb-3 italic">{r.notes}</p>}
-                {/* Mobile: stacked cards; Desktop: table */}
+
+                {/* Mobile: stacked cards */}
                 <div className="space-y-2 sm:hidden">
                   {(r.lines ?? []).map((l) => (
                     <div key={l.id} className="rounded-lg bg-white/3 p-3 space-y-1">
                       <div className="flex items-start justify-between gap-2">
-                        <span className="text-sm text-white font-medium">{l.item_name_snapshot}</span>
+                        <div className="flex-1">
+                          <span className="text-sm text-white font-medium">{l.item_name_snapshot}</span>
+                          {l.item_category && (
+                            <span className="ml-2 text-xs text-zinc-500">{normaliseCategory(l.item_category)}</span>
+                          )}
+                        </div>
                         <span className="shrink-0 font-mono text-violet-300 text-sm">{l.quantity} {l.unit}</span>
                       </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {reasonBadge(l.disposal_reason)}
-                        {l.notes && <span className="text-xs text-zinc-500 italic">{l.notes}</span>}
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {reasonBadge(l.disposal_reason)}
+                          {l.notes && <span className="text-xs text-zinc-500 italic">{l.notes}</span>}
+                        </div>
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleDeleteLine(r.id, l.id)}
+                            disabled={deletingLineId === l.id}
+                            className="text-[11px] text-red-400/70 hover:text-red-400 transition-colors px-1.5 py-0.5 rounded shrink-0 disabled:opacity-40">
+                            {deletingLineId === l.id ? "…" : "Delete"}
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
+
+                {/* Desktop: table */}
                 <table className="hidden sm:table w-full text-sm">
                   <thead>
                     <tr>
@@ -371,16 +521,27 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
                       <th className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 pb-2 text-right">Qty</th>
                       <th className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 pb-2 text-left">Unit</th>
                       <th className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 pb-2 text-left">Reason</th>
+                      {isAdmin && <th className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 pb-2 text-center w-16"></th>}
                     </tr>
                   </thead>
                   <tbody>
                     {(r.lines ?? []).map((l) => (
                       <tr key={l.id} className={TABLE_ROW}>
                         <td className={TABLE_CELL}>{l.item_name_snapshot}</td>
-                        <td className={`${TABLE_CELL} text-zinc-500`}>{l.item_category}</td>
+                        <td className={`${TABLE_CELL} text-zinc-500`}>{normaliseCategory(l.item_category)}</td>
                         <td className={`${TABLE_CELL} text-right font-mono`}>{l.quantity}</td>
                         <td className={`${TABLE_CELL} text-zinc-400`}>{l.unit}</td>
                         <td className={TABLE_CELL}>{reasonBadge(l.disposal_reason)}</td>
+                        {isAdmin && (
+                          <td className={`${TABLE_CELL} text-center`}>
+                            <button
+                              onClick={() => handleDeleteLine(r.id, l.id)}
+                              disabled={deletingLineId === l.id}
+                              className="text-[11px] text-red-400/70 hover:text-red-400 transition-colors px-1.5 py-0.5 rounded disabled:opacity-40">
+                              {deletingLineId === l.id ? "…" : "Delete"}
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -416,16 +577,6 @@ export default function DisposalPage() {
     const branches = BRANCHES[city];
     if (branches.length > 0) setBranchCode(branches[0].code);
   }, [city]);
-
-  const addItemLine = useCallback((item: SearchItem) => {
-    setLines((prev) => [
-      ...prev,
-      { _key: nextKey(), item_type: item.item_type, item_id: item.id,
-        item_name_snapshot: item.name, item_category: item.category,
-        quantity: "1", unit: item.default_unit || "pcs",
-        disposal_reason: "eod_leftover", notes: "" },
-    ]);
-  }, []);
 
   const updateLine = useCallback((key: string, patch: Partial<DisposalLine>) => {
     setLines((prev) => prev.map((l) => (l._key === key ? { ...l, ...patch } : l)));
@@ -540,19 +691,14 @@ export default function DisposalPage() {
               <span className="text-xs text-zinc-500">{itemCount} item{itemCount !== 1 ? "s" : ""}</span>
             </div>
 
-            {/* Search */}
-            <div className="mb-4">
-              <label className={`${T_LABEL} block mb-1.5`}>Search & add item</label>
-              <ItemSearch city={city} onSelect={addItemLine} />
-            </div>
-
-            {/* Line cards */}
+            {/* Line cards — each has its own search field */}
             {lines.length > 0 && (
-              <div className="space-y-2 mb-3">
+              <div className="space-y-3 mb-3">
                 {lines.map((line) => (
                   <DisposalLineCard
                     key={line._key}
                     line={line}
+                    city={city}
                     onUpdate={(patch) => updateLine(line._key, patch)}
                     onRemove={() => removeLine(line._key)}
                   />
@@ -561,7 +707,7 @@ export default function DisposalPage() {
             )}
 
             <button type="button" onClick={() => setLines((prev) => [...prev, emptyLine()])}
-              className={SMALL_BUTTON}>+ Add blank line</button>
+              className={SMALL_BUTTON}>+ Add item</button>
           </div>
 
           {/* Past Reports */}
