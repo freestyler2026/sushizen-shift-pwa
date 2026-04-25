@@ -116,24 +116,15 @@ export default function ProcurementTabs() {
   const [summary, setSummary] = useState<BadgeSummary | null>(null);
   const [accessLevel, setAccessLevel] = useState<AccessLevel>("full");
 
-  // Open groups — Operations is always open by default; auto-open the active group
-  const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
-    const active = findActiveGroup(pathname);
-    const initial = new Set<string>(["operations"]);
-    if (active) initial.add(active);
-    return initial;
-  });
+  // Exactly one group is open at a time — default to active group or "operations"
+  const [selectedGroup, setSelectedGroup] = useState<string>(
+    () => findActiveGroup(pathname) ?? "operations",
+  );
 
-  // When the URL changes (navigation), ensure the containing group is expanded
+  // When the URL changes (navigation), switch to the group that owns the new page
   useEffect(() => {
     const active = findActiveGroup(pathname);
-    if (!active) return;
-    setOpenGroups((prev) => {
-      if (prev.has(active)) return prev;
-      const next = new Set(prev);
-      next.add(active);
-      return next;
-    });
+    if (active) setSelectedGroup(active);
   }, [pathname]);
 
   // Load badge summary + resolve access level
@@ -199,22 +190,17 @@ export default function ProcurementTabs() {
     [accessLevel],
   );
 
-  function toggleGroup(id: string) {
-    setOpenGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) { next.delete(id); } else { next.add(id); }
-      return next;
-    });
-  }
-
   const activeGroupId = findActiveGroup(pathname);
+
+  // The single expanded group (user's explicit selection, or URL-derived)
+  const openGroupId = selectedGroup;
 
   return (
     <div className="space-y-1.5">
       {/* ── Group header buttons ──────────────────────────────────────── */}
       <div className="flex flex-wrap gap-1.5">
         {visibleGroups.map((group) => {
-          const isOpen   = openGroups.has(group.id);
+          const isOpen   = group.id === openGroupId;
           const isActive = group.id === activeGroupId;
 
           // Sum badge counts across all tabs in this group
@@ -230,18 +216,20 @@ export default function ProcurementTabs() {
             <button
               key={group.id}
               type="button"
-              onClick={() => toggleGroup(group.id)}
+              onClick={() => setSelectedGroup(group.id)}
               className={[
                 "flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm transition select-none",
-                isActive
-                  ? "border-violet-600/60 bg-violet-700/25 font-semibold text-violet-200"
-                  : isOpen
-                  ? "border-neutral-700 bg-neutral-800 font-medium text-neutral-200"
+                isOpen
+                  ? isActive
+                    ? "border-violet-500/70 bg-violet-700/30 font-semibold text-violet-100 shadow-sm"
+                    : "border-violet-700/50 bg-violet-900/20 font-semibold text-violet-300"
+                  : isActive
+                  ? "border-violet-800/40 bg-neutral-800/60 font-medium text-violet-400 hover:border-violet-600/50 hover:text-violet-200"
                   : "border-neutral-800 bg-neutral-900/30 font-medium text-neutral-400 hover:border-neutral-700 hover:text-neutral-200",
               ].join(" ")}
             >
               <span>{group.label}</span>
-              <span className="text-[11px] font-normal text-neutral-500">{group.sublabel}</span>
+              <span className={`text-[11px] font-normal ${isOpen ? "text-neutral-400" : "text-neutral-600"}`}>{group.sublabel}</span>
               {groupBadge.count > 0 && (
                 <span
                   className={[
@@ -254,15 +242,15 @@ export default function ProcurementTabs() {
                   {groupBadge.count > 9 ? "9+" : groupBadge.count}
                 </span>
               )}
-              <span className="text-[10px] text-neutral-600">{isOpen ? "▾" : "▸"}</span>
+              <span className={`text-[10px] ${isOpen ? "text-violet-400" : "text-neutral-600"}`}>{isOpen ? "▾" : "▸"}</span>
             </button>
           );
         })}
       </div>
 
-      {/* ── Expanded tab rows ────────────────────────────────────────── */}
+      {/* ── Expanded tab row — only the selected group ───────────────── */}
       {visibleGroups.map((group) => {
-        if (!openGroups.has(group.id)) return null;
+        if (group.id !== openGroupId) return null;
 
         const visibleTabs = group.tabs.filter((t) => t.showTo.includes(accessLevel));
         if (visibleTabs.length === 0) return null;
@@ -270,7 +258,7 @@ export default function ProcurementTabs() {
         return (
           <div
             key={group.id}
-            className="flex flex-wrap gap-1 rounded-xl border border-neutral-800 bg-neutral-900/20 px-2.5 py-2"
+            className="flex flex-wrap gap-1 rounded-xl border border-violet-900/30 bg-neutral-900/30 px-2.5 py-2"
           >
             {visibleTabs.map((tab) => {
               const active =
