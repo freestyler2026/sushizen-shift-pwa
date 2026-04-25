@@ -4,7 +4,6 @@ import { AlertTriangle, ArrowDown, ArrowUp, Minus, RefreshCw, TrendingDown, Tren
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementTokenHeaders } from "@/lib/procurementClient";
-import ProcurementTabs from "@/components/ProcurementTabs";
 import DatePicker from "@/components/DatePicker";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -609,8 +608,6 @@ export default function ProcurementPriceChecksPage() {
 
   return (
     <div className="space-y-5">
-      <ProcurementTabs />
-
       {/* Page header + auth controls */}
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
