@@ -57,11 +57,11 @@ type Column = {
 
 const COLUMNS: Column[] = [
   { key: "row_num", label: "", width: 44 },
-  { key: "category", label: "カテゴリ", width: 130, editable: true },
-  { key: "name", label: "食材名", width: 220, editable: true },
-  { key: "unit", label: "単位", width: 70, editable: true },
-  { key: "unit_price", label: "単価", width: 110, editable: true, align: "right" },
-  { key: "notes", label: "参照元・備考", width: 220, editable: true },
+  { key: "category", label: "Category", width: 130, editable: true },
+  { key: "name", label: "Name", width: 220, editable: true },
+  { key: "unit", label: "Unit", width: 70, editable: true },
+  { key: "unit_price", label: "Unit Price", width: 110, editable: true, align: "right" },
+  { key: "notes", label: "Source / Notes", width: 220, editable: true },
 ];
 
 const CATEGORY_OPTIONS = [
@@ -79,6 +79,24 @@ const CATEGORY_OPTIONS = [
   "Imported",
   "Uncategorized",
 ];
+
+// Display labels for categories (values stay in Japanese to match DB)
+const CATEGORY_LABEL: Record<string, string> = {
+  "鮮魚": "Fresh Fish",
+  "野菜": "Vegetables",
+  "米・麺・皮": "Rice / Noodles / Wrappers",
+  "肉類": "Meat",
+  "加工肉・卵": "Processed Meat / Eggs",
+  "調味料": "Seasonings",
+  "乾物・他": "Dry Goods / Other",
+  "CKソース": "CK Sauce",
+  "CK加工品": "CK Processed",
+  "Kitchen加工品": "Kitchen Processed",
+  "包材": "Packaging",
+};
+function displayCategory(cat: string): string {
+  return CATEGORY_LABEL[cat] || cat;
+}
 
 const INGREDIENT_LIST_PAGE_SIZE = 500;
 
@@ -359,12 +377,12 @@ export default function ProcurementIngredientsPage() {
         <div className="flex h-10 shrink-0 items-center gap-2 border-b border-white/10 bg-white/3 px-4 text-xs">
           <div className="inline-flex items-center gap-2 text-emerald-300">
             <Package className="h-4 w-4" />
-            <span>食材マスタ | Ingredient Master</span>
+            <span>Ingredient Master</span>
           </div>
           <input
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            placeholder="食材を検索..."
+            placeholder="Search ingredients..."
             className="rounded border border-white/15 bg-white/5 px-2 py-1 text-xs text-white outline-none placeholder:text-zinc-500"
           />
           <select
@@ -372,16 +390,16 @@ export default function ProcurementIngredientsPage() {
             onChange={(e) => setCategoryFilter(e.target.value)}
             className="rounded border border-white/15 bg-white/5 px-2 py-1 text-xs text-zinc-300 outline-none"
           >
-            <option value="">全カテゴリ</option>
-            {CATEGORY_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
+            <option value="">All Categories</option>
+            {CATEGORY_OPTIONS.map((option) => <option key={option} value={option}>{displayCategory(option)}</option>)}
           </select>
           <button className="inline-flex items-center gap-1 rounded border border-violet-500/30 bg-violet-500/20 px-3 py-1 text-violet-300" type="button" onClick={addRow}>
             <Plus className="h-3.5 w-3.5" />
-            行を追加
+            Add Row
           </button>
           <button className="inline-flex items-center gap-1 rounded border border-emerald-500/30 bg-emerald-500/20 px-3 py-1 text-emerald-300" type="button" onClick={() => void saveGrid()}>
             <Save className="h-3.5 w-3.5" />
-            保存 ({dirtyCount})
+            Save ({dirtyCount})
           </button>
           <div className="ml-auto flex items-center gap-2">
             <select
@@ -513,6 +531,8 @@ export default function ProcurementIngredientsPage() {
                               </div>
                             ) : column.key === "unit_price" ? (
                               normalizeNumber(value).toFixed(2)
+                            ) : column.key === "category" ? (
+                              displayCategory(String(value ?? ""))
                             ) : (
                               String(value ?? "")
                             )}
@@ -528,34 +548,34 @@ export default function ProcurementIngredientsPage() {
 
           <div className="overflow-auto bg-white/[0.02] p-4">
             <div className="mb-4">
-              <h2 className="text-sm font-semibold text-white">{detail?.name || "仕入れ先別単価"}</h2>
-              <p className="mt-1 text-xs text-zinc-500">{detail ? `${detail.category} · ${detail.unit}` : "左の食材行を選択してください。"}</p>
+              <h2 className="text-sm font-semibold text-white">{detail?.name || "Supplier Prices"}</h2>
+              <p className="mt-1 text-xs text-zinc-500">{detail ? `${displayCategory(detail.category)} · ${detail.unit}` : "Select an ingredient from the list on the left."}</p>
             </div>
 
             {detail ? (
               <div className="space-y-5">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                    <div className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">単価</div>
+                    <div className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">Unit Price</div>
                     <div className="mt-1 text-lg font-semibold text-white">{Number(detail.unit_price || 0).toFixed(4)}</div>
                   </div>
                   <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                    <div className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">歩留率</div>
+                    <div className="text-[10px] uppercase tracking-[0.15em] text-zinc-500">Yield Rate</div>
                     <div className="mt-1 text-lg font-semibold text-white">{(Number(detail.yield_rate || 1.15) * 100).toFixed(0)}%</div>
                   </div>
                 </div>
 
                 <div className="space-y-3">
-                  <div className="text-xs font-medium text-zinc-300">仕入れ先別単価</div>
+                  <div className="text-xs font-medium text-zinc-300">Supplier Prices</div>
                   <div className="overflow-x-auto">
                     <table className="min-w-full">
                       <thead>
                         <tr className="text-left text-[10px] uppercase tracking-[0.15em] text-zinc-500">
                           <th className="pb-2">Supplier</th>
-                          <th className="pb-2">仕入れ単位</th>
-                          <th className="pb-2">数量</th>
-                          <th className="pb-2">仕入れ価格</th>
-                          <th className="pb-2">単価換算</th>
+                          <th className="pb-2">Purchase Unit</th>
+                          <th className="pb-2">Qty</th>
+                          <th className="pb-2">Purchase Price</th>
+                          <th className="pb-2">Unit Price</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -574,7 +594,7 @@ export default function ProcurementIngredientsPage() {
                 </div>
 
                 <div className="space-y-3 rounded-xl border border-white/10 bg-white/5 p-4">
-                  <div className="text-xs font-medium text-zinc-300">新しい supplier price</div>
+                  <div className="text-xs font-medium text-zinc-300">New Supplier Price</div>
                   <select
                     value={supplierForm.supplier_id}
                     onChange={(e) => setSupplierForm((prev) => ({ ...prev, supplier_id: e.target.value }))}
@@ -584,22 +604,22 @@ export default function ProcurementIngredientsPage() {
                     {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
                   </select>
                   <div className="grid grid-cols-2 gap-3">
-                    <input className="rounded border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none" placeholder="仕入れ単位" value={supplierForm.purchase_unit} onChange={(e) => setSupplierForm((prev) => ({ ...prev, purchase_unit: e.target.value }))} />
-                    <input className="rounded border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none" type="number" placeholder="数量" value={supplierForm.purchase_qty} onChange={(e) => setSupplierForm((prev) => ({ ...prev, purchase_qty: e.target.value }))} />
-                    <input className="rounded border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none" type="number" placeholder="仕入れ価格" value={supplierForm.purchase_price} onChange={(e) => setSupplierForm((prev) => ({ ...prev, purchase_price: e.target.value }))} />
-                    <input className="rounded border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none" type="number" step="0.0001" placeholder="単価換算" value={supplierForm.unit_price} onChange={(e) => setSupplierForm((prev) => ({ ...prev, unit_price: e.target.value }))} />
+                    <input className="rounded border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none" placeholder="Purchase Unit" value={supplierForm.purchase_unit} onChange={(e) => setSupplierForm((prev) => ({ ...prev, purchase_unit: e.target.value }))} />
+                    <input className="rounded border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none" type="number" placeholder="Qty" value={supplierForm.purchase_qty} onChange={(e) => setSupplierForm((prev) => ({ ...prev, purchase_qty: e.target.value }))} />
+                    <input className="rounded border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none" type="number" placeholder="Purchase Price" value={supplierForm.purchase_price} onChange={(e) => setSupplierForm((prev) => ({ ...prev, purchase_price: e.target.value }))} />
+                    <input className="rounded border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none" type="number" step="0.0001" placeholder="Unit Price" value={supplierForm.unit_price} onChange={(e) => setSupplierForm((prev) => ({ ...prev, unit_price: e.target.value }))} />
                   </div>
                   <label className="flex items-center gap-2 text-sm text-zinc-300">
                     <input type="checkbox" checked={supplierForm.apply_to_master} onChange={(e) => setSupplierForm((prev) => ({ ...prev, apply_to_master: e.target.checked }))} />
-                    この価格を食材マスタに反映
+                    Apply to Ingredient Master
                   </label>
                   <button className="rounded border border-emerald-500/30 bg-emerald-500/20 px-3 py-2 text-sm text-emerald-300" type="button" onClick={() => void handleSupplierSave()} disabled={busy || !supplierForm.supplier_id}>
-                    保存
+                    Save
                   </button>
                 </div>
 
                 <div className="space-y-2">
-                  <div className="text-xs font-medium text-zinc-300">価格履歴</div>
+                  <div className="text-xs font-medium text-zinc-300">Price History</div>
                   {(detail.price_history || []).slice(0, 10).map((row) => (
                     <div key={row.id} className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-zinc-300">
                       <div className="flex items-center justify-between gap-3">
@@ -613,7 +633,7 @@ export default function ProcurementIngredientsPage() {
               </div>
             ) : (
               <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-sm text-zinc-400">
-                Excel の split view のように、左の grid で選択した食材の supplier price をここで編集できます。
+                Select an ingredient from the grid on the left to view and edit supplier prices here.
               </div>
             )}
           </div>

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import type { City } from "@/lib/branches";
-import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
+import { inventoryGet, inventoryPatch, inventoryPost } from "@/lib/inventoryClient";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -294,6 +294,21 @@ export default function WhInventoryPage() {
   const [addCost, setAddCost] = useState("");
   const [addSaving, setAddSaving] = useState(false);
   const [addError, setAddError] = useState("");
+
+  // Edit Item modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editId, setEditId] = useState("");
+  const [editName, setEditName] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [editUnit, setEditUnit] = useState("");
+  const [editCost, setEditCost] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState("");
+
+  // Delete confirmation
+  const [deleteConfirmId, setDeleteConfirmId] = useState("");
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [deleteDeleting, setDeleteDeleting] = useState(false);
 
   // Tab: Order From Branch
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
@@ -632,6 +647,60 @@ export default function WhInventoryPage() {
   }
 
   // ---------------------------------------------------------------------------
+  // Edit Item
+  // ---------------------------------------------------------------------------
+
+  function openEditModal(row: StockViewRow) {
+    setEditId(row.id);
+    setEditName(row.name);
+    setEditCategory(row.category || "");
+    setEditUnit(row.unit || "");
+    setEditCost(String(row.cost ?? ""));
+    setEditError("");
+    setShowEditModal(true);
+  }
+
+  async function handleEditItem() {
+    if (!editName.trim()) { setEditError("Item name is required."); return; }
+    setEditSaving(true);
+    setEditError("");
+    try {
+      await inventoryPatch(`/api/admin/inventory/items/${editId}`, {
+        name: editName.trim(),
+        category_name: editCategory.trim(),
+        storage_unit: editUnit.trim(),
+        cost: parseFloat(editCost) || 0,
+        city,
+      });
+      setShowEditModal(false);
+      await loadStock(city);
+    } catch (e: unknown) {
+      setEditError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Delete Item
+  // ---------------------------------------------------------------------------
+
+  async function handleDeleteItem() {
+    if (!deleteConfirmId) return;
+    setDeleteDeleting(true);
+    try {
+      await inventoryPost(`/api/admin/inventory/items/${deleteConfirmId}/delete`, { city });
+      setDeleteConfirmId("");
+      setDeleteConfirmName("");
+      await loadStock(city);
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeleteDeleting(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Guard
   // ---------------------------------------------------------------------------
 
@@ -773,6 +842,7 @@ export default function WhInventoryPage() {
                   <th className="px-4 py-2.5 text-right">Theoretical</th>
                   <th className="px-4 py-2.5">Last Count Date</th>
                   <th className="px-4 py-2.5">Status</th>
+                  <th className="px-4 py-2.5"></th>
                 </tr>
               </thead>
               <tbody>
@@ -807,6 +877,24 @@ export default function WhInventoryPage() {
                         <span className={["rounded-full border px-2.5 py-0.5 text-xs font-medium", badge.cls].join(" ")}>
                           {badge.label}
                         </span>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(row)}
+                            className="rounded-lg border border-neutral-700 bg-neutral-800 px-2.5 py-1 text-xs text-neutral-300 hover:bg-neutral-700 hover:text-white transition"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setDeleteConfirmId(row.id); setDeleteConfirmName(row.name); }}
+                            className="rounded-lg border border-rose-800/60 bg-rose-900/20 px-2.5 py-1 text-xs text-rose-300 hover:bg-rose-900/40 transition"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1348,6 +1436,128 @@ export default function WhInventoryPage() {
                 className="rounded-xl bg-violet-700 px-6 py-2.5 text-sm font-semibold text-white shadow hover:bg-violet-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
                 {addSaving ? "Adding..." : "Add Item"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Edit Item Modal                                                      */}
+      {/* ------------------------------------------------------------------ */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-neutral-800 px-6 py-4">
+              <div>
+                <div className="text-base font-semibold text-neutral-100">Edit Item</div>
+                <div className="mt-0.5 text-xs text-neutral-500 capitalize">{city} warehouse</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                className="rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-xs text-neutral-400 hover:text-neutral-200 transition"
+              >
+                Cancel
+              </button>
+            </div>
+            <div className="space-y-4 p-6">
+              {editError && (
+                <div className="rounded-xl border border-rose-800/50 bg-rose-900/20 px-4 py-3 text-sm text-rose-300">
+                  {editError}
+                </div>
+              )}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-neutral-400">Item Name <span className="text-rose-400">*</span></label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  autoFocus
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-2.5 text-sm text-neutral-100 focus:border-violet-600 focus:outline-none"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-neutral-400">Category</label>
+                <input
+                  type="text"
+                  value={editCategory}
+                  onChange={(e) => setEditCategory(e.target.value)}
+                  list="wh-categories"
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-2.5 text-sm text-neutral-100 focus:border-violet-600 focus:outline-none"
+                />
+              </div>
+              <div className="flex gap-3">
+                <div className="flex-1 space-y-1.5">
+                  <label className="text-xs font-medium text-neutral-400">Unit</label>
+                  <input
+                    type="text"
+                    value={editUnit}
+                    onChange={(e) => setEditUnit(e.target.value)}
+                    list="wh-units"
+                    className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-2.5 text-sm text-neutral-100 focus:border-violet-600 focus:outline-none"
+                  />
+                </div>
+                <div className="flex-1 space-y-1.5">
+                  <label className="text-xs font-medium text-neutral-400">Cost (optional)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={editCost}
+                    onChange={(e) => setEditCost(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-2.5 text-sm text-neutral-100 focus:border-violet-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end border-t border-neutral-800 px-6 py-4">
+              <button
+                type="button"
+                disabled={editSaving || !editName.trim()}
+                onClick={() => void handleEditItem()}
+                className="rounded-xl bg-violet-700 px-6 py-2.5 text-sm font-semibold text-white shadow hover:bg-violet-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                {editSaving ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Delete Confirmation                                                  */}
+      {/* ------------------------------------------------------------------ */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl">
+            <div className="border-b border-neutral-800 px-6 py-4">
+              <div className="text-base font-semibold text-neutral-100">Delete Item?</div>
+            </div>
+            <div className="px-6 py-5">
+              <p className="text-sm text-neutral-300">
+                Are you sure you want to delete <span className="font-semibold text-white">{deleteConfirmName}</span>?
+              </p>
+              <p className="mt-1.5 text-xs text-neutral-500">
+                The item will be marked as deleted and removed from the stock view. This can be reversed by support if needed.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-neutral-800 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => { setDeleteConfirmId(""); setDeleteConfirmName(""); }}
+                className="rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm text-neutral-300 hover:text-white transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleteDeleting}
+                onClick={() => void handleDeleteItem()}
+                className="rounded-xl bg-rose-700 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-600 disabled:opacity-50 transition"
+              >
+                {deleteDeleting ? "Deleting..." : "Delete"}
               </button>
             </div>
           </div>

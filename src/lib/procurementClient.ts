@@ -2,11 +2,42 @@
 
 import { getAuth, refreshAuthFromApi, setAuth } from "@/lib/auth";
 
+const _SK_NAME = "procurement_session_name";
+const _SK_PIN = "procurement_session_pin";
+
+export function saveProcurementSession(name: string, pin: string): void {
+  try {
+    if (typeof sessionStorage === "undefined") return;
+    if (name.trim()) sessionStorage.setItem(_SK_NAME, name.trim());
+    if (pin.trim()) sessionStorage.setItem(_SK_PIN, pin.trim());
+  } catch {}
+}
+
+export function clearProcurementSession(): void {
+  try {
+    if (typeof sessionStorage === "undefined") return;
+    sessionStorage.removeItem(_SK_NAME);
+    sessionStorage.removeItem(_SK_PIN);
+  } catch {}
+}
+
 export function defaultProcurementName(): string {
+  try {
+    if (typeof sessionStorage !== "undefined") {
+      const s = sessionStorage.getItem(_SK_NAME);
+      if (s) return s;
+    }
+  } catch {}
   return getAuth()?.staffName || "";
 }
 
 export function defaultProcurementPin(): string {
+  try {
+    if (typeof sessionStorage !== "undefined") {
+      const s = sessionStorage.getItem(_SK_PIN);
+      if (s) return s;
+    }
+  } catch {}
   return getAuth()?.pin || "";
 }
 
@@ -33,6 +64,7 @@ export async function procurementTokenHeaders(requestedBy: string, pin: string):
     const verifyJson = JSON.parse(verifyText || "{}");
     const remintedToken = String(verifyJson?.access_token || "").trim();
     if (!remintedToken) throw new Error("Access token could not be issued.");
+    saveProcurementSession(requestedBy.trim(), pin.trim());
     setAuth({
       staffName: String(verifyJson?.staff_name || requestedBy).trim(),
       city: (String(verifyJson?.city || "manila").toLowerCase() === "manila" ? "manila" : "dubai"),

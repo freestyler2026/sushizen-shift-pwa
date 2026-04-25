@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import { canAccessInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
-import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
+import { inventoryGet, inventoryPatch, inventoryPost } from "@/lib/inventoryClient";
 import { parseDraftNumber, stepDraftNumber } from "@/lib/quantityInput";
 
 type InventoryItemRow = {
@@ -62,6 +62,20 @@ export default function InventoryItemsPage() {
   const [syncSelected, setSyncSelected] = useState<Set<string>>(new Set());
   const [syncExpanded, setSyncExpanded] = useState(false);
   const [syncError, setSyncError] = useState("");
+  // Edit Item modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editId, setEditId] = useState("");
+  const [editName, setEditName] = useState("");
+  const [editCategoryName, setEditCategoryName] = useState("");
+  const [editUnit, setEditUnit] = useState("");
+  const [editCost, setEditCost] = useState("");
+  const [editType, setEditType] = useState("ITEM");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState("");
+  // Delete confirmation
+  const [deleteConfirmId, setDeleteConfirmId] = useState("");
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [deleteDeleting, setDeleteDeleting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -273,6 +287,48 @@ export default function InventoryItemsPage() {
     finally { setSyncBusy(false); }
   }
 
+  function openEditModal(item: InventoryItemRow) {
+    setEditId(item.id);
+    setEditName(item.name);
+    setEditCategoryName(item.category_name || "");
+    setEditUnit(item.storage_unit || "");
+    setEditCost(String(item.cost ?? ""));
+    setEditType(item.item_type || "ITEM");
+    setEditError("");
+    setShowEditModal(true);
+  }
+
+  async function handleEditItem() {
+    if (!editName.trim()) { setEditError("Item name is required."); return; }
+    setEditSaving(true); setEditError("");
+    try {
+      await inventoryPatch(`/api/admin/inventory/items/${editId}`, {
+        name: editName.trim(),
+        category_name: editCategoryName.trim(),
+        storage_unit: editUnit.trim(),
+        cost: parseFloat(editCost) || 0,
+        item_type: editType,
+        city,
+      });
+      setShowEditModal(false);
+      const updated = await inventoryGet<{ rows: InventoryItemRow[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=${encodeURIComponent(tab)}&q=${encodeURIComponent(q)}&limit=2000`);
+      setItems(updated.rows || []);
+    } catch (e: unknown) { setEditError(e instanceof Error ? e.message : String(e)); }
+    finally { setEditSaving(false); }
+  }
+
+  async function handleDeleteItem() {
+    if (!deleteConfirmId) return;
+    setDeleteDeleting(true);
+    try {
+      await inventoryPost(`/api/admin/inventory/items/${deleteConfirmId}/delete`, { city });
+      setDeleteConfirmId(""); setDeleteConfirmName("");
+      const updated = await inventoryGet<{ rows: InventoryItemRow[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=${encodeURIComponent(tab)}&q=${encodeURIComponent(q)}&limit=2000`);
+      setItems(updated.rows || []);
+    } catch (e: unknown) { alert(e instanceof Error ? e.message : String(e)); }
+    finally { setDeleteDeleting(false); }
+  }
+
   if (!ready) return <div className="text-sm text-neutral-500">Loading inventory items...</div>;
   if (!allowed) return <div className="text-sm text-neutral-500">You do not have permission to open inventory.</div>;
 
@@ -441,6 +497,7 @@ export default function InventoryItemsPage() {
                 <th className="px-3 py-2">Unit</th>
                 <th className="px-3 py-2">Cost</th>
                 <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -456,11 +513,31 @@ export default function InventoryItemsPage() {
                   <td className="px-3 py-2">{item.storage_unit || "-"}</td>
                   <td className="px-3 py-2">{Number(item.cost || 0).toFixed(2)}</td>
                   <td className="px-3 py-2">{item.status || "-"}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(item)}
+                        className="rounded-lg border border-sky-800 bg-sky-950/30 px-2.5 py-1 text-xs text-sky-300 hover:bg-sky-900/40"
+                      >
+                        Edit
+                      </button>
+                      {item.status !== "DELETED" && (
+                        <button
+                          type="button"
+                          onClick={() => { setDeleteConfirmId(item.id); setDeleteConfirmName(item.name); }}
+                          className="rounded-lg border border-rose-800 bg-rose-950/30 px-2.5 py-1 text-xs text-rose-300 hover:bg-rose-900/40"
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
               {!loading && items.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-3 py-6 text-center text-neutral-500">
+                  <td colSpan={8} className="px-3 py-6 text-center text-neutral-500">
                     No inventory items found.
                   </td>
                 </tr>
@@ -612,6 +689,112 @@ export default function InventoryItemsPage() {
           </div>
         ) : null}
       </section>
+
+      {/* ── Edit Item Modal ───────────────────────────────────────────────── */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-neutral-700 bg-neutral-900 p-6 shadow-2xl">
+            <div className="mb-4 text-base font-semibold text-neutral-100">Edit Item</div>
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs text-neutral-400">Name</label>
+                <input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-neutral-400">Category</label>
+                <input
+                  value={editCategoryName}
+                  onChange={(e) => setEditCategoryName(e.target.value)}
+                  placeholder="Category name"
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-neutral-400">Unit</label>
+                <input
+                  value={editUnit}
+                  onChange={(e) => setEditUnit(e.target.value)}
+                  placeholder="e.g. kg, pcs"
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-neutral-400">Cost</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={editCost}
+                  onChange={(e) => setEditCost(e.target.value)}
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs text-neutral-400">Type</label>
+                <select
+                  value={editType}
+                  onChange={(e) => setEditType(e.target.value)}
+                  className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+                >
+                  <option value="ITEM">ITEM (Raw ingredient)</option>
+                  <option value="PRODUCT">PRODUCT (CK product)</option>
+                </select>
+              </div>
+            </div>
+            {editError ? <div className="mt-3 text-sm text-rose-300">{editError}</div> : null}
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                className="rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleEditItem()}
+                disabled={editSaving}
+                className="rounded-xl border border-sky-700 bg-sky-900/40 px-4 py-2 text-sm font-semibold text-sky-200 hover:bg-sky-800/50 disabled:opacity-60"
+              >
+                {editSaving ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Delete Confirmation ───────────────────────────────────────────── */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-neutral-700 bg-neutral-900 p-6 shadow-2xl">
+            <div className="mb-2 text-base font-semibold text-neutral-100">Delete Item</div>
+            <p className="text-sm text-neutral-300">
+              Are you sure you want to delete <span className="font-semibold text-neutral-100">{deleteConfirmName}</span>?
+            </p>
+            <p className="mt-1 text-xs text-neutral-500">This is a soft delete and can be reversed by support if needed.</p>
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => { setDeleteConfirmId(""); setDeleteConfirmName(""); }}
+                className="rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDeleteItem()}
+                disabled={deleteDeleting}
+                className="rounded-xl border border-rose-700 bg-rose-900/40 px-4 py-2 text-sm font-semibold text-rose-200 hover:bg-rose-800/50 disabled:opacity-60"
+              >
+                {deleteDeleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

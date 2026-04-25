@@ -145,6 +145,45 @@ function emptyLine(): DisposalLine {
   };
 }
 
+// ─── LocalStorage persistence ─────────────────────────────────────────────────
+
+const LS_KEY = "disposal_draft_v1";
+
+interface DraftState {
+  city: City;
+  branchCode: BranchCode;
+  reportDate: string;
+  reportedBy: string;
+  shift: Shift;
+  headerNotes: string;
+  lines: DisposalLine[];
+  savedAt: number;
+}
+
+function loadDraft(): DraftState | null {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw) as DraftState;
+    // Discard drafts older than 24 hours
+    if (Date.now() - d.savedAt > 24 * 60 * 60 * 1000) {
+      localStorage.removeItem(LS_KEY);
+      return null;
+    }
+    return d;
+  } catch { return null; }
+}
+
+function saveDraft(state: Omit<DraftState, "savedAt">) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify({ ...state, savedAt: Date.now() }));
+  } catch { /* ignore */ }
+}
+
+function clearDraft() {
+  try { localStorage.removeItem(LS_KEY); } catch { /* ignore */ }
+}
+
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const auth = getAuth();
   const res = await fetch(path, {
@@ -226,7 +265,7 @@ function InlineItemSearch({
         <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">…</div>
       )}
       {open && results.length > 0 && (
-        <div className="absolute z-50 mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 shadow-2xl overflow-hidden">
+        <div className="absolute z-[200] mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 shadow-2xl overflow-hidden">
           {results.map((item) => (
             <button key={`${item.item_type}_${item.id}`} type="button"
               onMouseDown={() => handleSelect(item)}
@@ -241,7 +280,7 @@ function InlineItemSearch({
         </div>
       )}
       {open && !loading && results.length === 0 && query.trim() && (
-        <div className="absolute z-50 mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-zinc-500 shadow-2xl">
+        <div className="absolute z-[200] mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-zinc-500 shadow-2xl">
           No items found
         </div>
       )}
@@ -384,7 +423,8 @@ function DisposalLineCard({
 
 // ─── Past Reports Panel ───────────────────────────────────────────────────────
 
-function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: BranchCode; isAdmin: boolean }) {
+// city のみでフィルター。branch_code は渡さず全店舗分を表示する。
+function PastReports({ city, isAdmin }: { city: City; isAdmin: boolean }) {
   const [reports, setReports] = useState<DisposalReport[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -399,12 +439,13 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
     if (!city) return;
     setLoading(true); setError("");
     try {
-      const params = new URLSearchParams({ city, branch_code: branchCode, date_from: dateFrom, date_to: dateTo, limit: "50" });
+      // branch_code を省略 → 全店舗分を返す
+      const params = new URLSearchParams({ city, date_from: dateFrom, date_to: dateTo, limit: "100" });
       const data = await apiFetch<{ reports: DisposalReport[] }>(`/api/admin/disposal/reports?${params}`);
       setReports(data.reports ?? []);
     } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setLoading(false); }
-  }, [city, branchCode, dateFrom, dateTo]);
+  }, [city, dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -440,7 +481,7 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
   return (
     <div className={`${GLASS_CARD} p-4 sm:p-6 mt-4`}>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <h2 className={T_CARD_TITLE}>Past Reports</h2>
+        <h2 className={T_CARD_TITLE}>Past Reports <span className="text-xs font-normal text-zinc-500 ml-1">— all branches</span></h2>
         <div className="flex flex-wrap items-center gap-2">
           <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
             className="rounded-xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white outline-none focus:border-violet-500/50 w-36" />
@@ -461,11 +502,11 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
             <div className="flex flex-wrap items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/5 active:bg-white/8 transition-colors"
               onClick={() => setExpanded(expanded === r.id ? null : r.id)}>
               <span className="text-sm font-semibold text-white">{r.report_date}</span>
-              {/* Submitted time */}
               {r.created_at && (
                 <span className="text-xs text-zinc-500">{formatDateTime(r.created_at)}</span>
               )}
-              <span className="text-xs text-zinc-400">{r.branch_code}</span>
+              {/* Branch badge — helps distinguish when showing all branches */}
+              <span className="rounded-full bg-violet-900/40 px-2 py-0.5 text-[11px] font-semibold text-violet-300">{r.branch_code}</span>
               <span className={BADGE_INFO}>{r.shift}</span>
               <span className="text-xs text-zinc-400">by {r.reported_by}</span>
               <span className="text-xs text-zinc-500 ml-auto">{r.lines?.length ?? 0} items</span>
@@ -562,6 +603,7 @@ export default function DisposalPage() {
   const role = auth?.role ?? "";
   const isAdmin = role === "ADMIN" || role === "HQ";
 
+  // ── Form state (restored from localStorage draft if present) ──
   const [city, setCity] = useState<City>("dubai");
   const [branchCode, setBranchCode] = useState<BranchCode>("BB");
   const [reportDate, setReportDate] = useState(todayStr);
@@ -569,9 +611,50 @@ export default function DisposalPage() {
   const [shift, setShift] = useState<Shift>("closing");
   const [headerNotes, setHeaderNotes] = useState("");
   const [lines, setLines] = useState<DisposalLine[]>([emptyLine()]);
+  const [draftRestored, setDraftRestored] = useState(false);
+
+  // ── Staff list for autocomplete ──
+  const [staffNames, setStaffNames] = useState<string[]>([]);
+
+  // ── Submit state ──
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [submitSuccess, setSubmitSuccess] = useState("");
+
+  // ── Restore draft on mount ──
+  useEffect(() => {
+    const draft = loadDraft();
+    if (draft && draft.lines.some((l) => l.item_name_snapshot.trim())) {
+      setCity(draft.city);
+      setBranchCode(draft.branchCode);
+      setReportDate(draft.reportDate);
+      setReportedBy(draft.reportedBy);
+      setShift(draft.shift);
+      setHeaderNotes(draft.headerNotes);
+      setLines(draft.lines);
+      setDraftRestored(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── Auto-save draft whenever form changes ──
+  useEffect(() => {
+    // Don't save on first render before draft restore completes
+    saveDraft({ city, branchCode, reportDate, reportedBy, shift, headerNotes, lines });
+  }, [city, branchCode, reportDate, reportedBy, shift, headerNotes, lines]);
+
+  // ── Load staff names when city changes ──
+  useEffect(() => {
+    async function fetchStaff() {
+      try {
+        const data = await apiFetch<{ names: string[] }>(
+          `/api/admin/staff_master/names?city=${city}&status=ACTIVE&limit=500`
+        );
+        setStaffNames(data.names ?? []);
+      } catch { /* non-fatal */ }
+    }
+    void fetchStaff();
+  }, [city]);
 
   useEffect(() => {
     const branches = BRANCHES[city];
@@ -589,6 +672,8 @@ export default function DisposalPage() {
   const handleClear = useCallback(() => {
     setLines([emptyLine()]); setHeaderNotes("");
     setSubmitSuccess(""); setSubmitError("");
+    setDraftRestored(false);
+    clearDraft();
   }, []);
 
   const handleSubmit = async () => {
@@ -617,6 +702,8 @@ export default function DisposalPage() {
       );
       setSubmitSuccess(`Report #${result.report_id} submitted.`);
       setLines([emptyLine()]); setHeaderNotes("");
+      setDraftRestored(false);
+      clearDraft();
     } catch (e: unknown) {
       setSubmitError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -639,6 +726,20 @@ export default function DisposalPage() {
             </div>
             <Link href="/my-shift" className={`${SECONDARY_BUTTON} shrink-0`}>&larr; My Shift</Link>
           </div>
+
+          {/* Draft restored banner */}
+          {draftRestored && (
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-900/15 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span className="text-base">💾</span>
+                <span className="text-sm text-amber-200">Draft restored — your previous entry was saved automatically.</span>
+              </div>
+              <button type="button" onClick={handleClear}
+                className="shrink-0 text-xs text-amber-400/60 hover:text-amber-400 transition-colors px-2 py-1 rounded">
+                Discard
+              </button>
+            </div>
+          )}
 
           {/* Report Details */}
           <div className={`${GLASS_CARD} p-4 sm:p-6`}>
@@ -666,8 +767,19 @@ export default function DisposalPage() {
               </div>
               <div>
                 <label className={`${T_LABEL} block mb-1.5`}>Reported By</label>
-                <input type="text" className={`${INPUT_CLASS} py-3 text-base`} value={reportedBy}
-                  onChange={(e) => setReportedBy(e.target.value)} placeholder="Staff name" />
+                {/* Staff name autocomplete from staff_master */}
+                <input
+                  type="text"
+                  list="disposal-staff-names"
+                  className={`${INPUT_CLASS} py-3 text-base`}
+                  value={reportedBy}
+                  onChange={(e) => setReportedBy(e.target.value)}
+                  placeholder="Select or type staff name"
+                  autoComplete="off"
+                />
+                <datalist id="disposal-staff-names">
+                  {staffNames.map((n) => <option key={n} value={n} />)}
+                </datalist>
               </div>
               <div>
                 <label className={`${T_LABEL} block mb-1.5`}>Shift</label>
@@ -684,8 +796,8 @@ export default function DisposalPage() {
             </div>
           </div>
 
-          {/* Disposal Items */}
-          <div className={`${GLASS_CARD} p-4 sm:p-6`}>
+          {/* Disposal Items — z-10 ensures search dropdowns appear above Past Reports */}
+          <div className={`${GLASS_CARD} p-4 sm:p-6 relative z-10`}>
             <div className="flex items-center justify-between mb-4">
               <h2 className={T_CARD_TITLE}>Disposal Items</h2>
               <span className="text-xs text-zinc-500">{itemCount} item{itemCount !== 1 ? "s" : ""}</span>
@@ -710,8 +822,8 @@ export default function DisposalPage() {
               className={SMALL_BUTTON}>+ Add item</button>
           </div>
 
-          {/* Past Reports */}
-          <PastReports city={city} branchCode={branchCode} isAdmin={isAdmin} />
+          {/* Past Reports — all branches for selected city */}
+          <PastReports city={city} isAdmin={isAdmin} />
 
         </div>
       </main>
