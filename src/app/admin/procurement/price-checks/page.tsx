@@ -652,34 +652,30 @@ export default function ProcurementPriceChecksPage() {
         </div>
 
         {/* Sub-tabs */}
-        <div className="mt-5 flex gap-1 border-b border-neutral-800">
+        <div className="mt-5 flex gap-2">
           <button
             type="button"
             onClick={() => setActiveTab("variance")}
-            className={`-mb-px rounded-t-lg px-4 py-2 text-sm font-medium transition ${
+            className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
               activeTab === "variance"
-                ? "border border-b-0 border-neutral-700 bg-neutral-800/60 text-neutral-100"
-                : "text-neutral-500 hover:text-neutral-300"
+                ? "border-rose-600/60 bg-rose-900/30 text-rose-200 shadow-[0_0_12px_rgba(225,29,72,0.15)]"
+                : "border-neutral-700/50 bg-neutral-900/40 text-neutral-400 hover:border-rose-800/40 hover:bg-rose-950/20 hover:text-rose-300"
             }`}
           >
-            <span className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              ① Invoice vs PO Variance
-            </span>
+            <AlertTriangle className={`h-4 w-4 ${activeTab === "variance" ? "text-rose-400" : "text-neutral-500"}`} />
+            ① Invoice vs PO Variance
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("changes")}
-            className={`-mb-px rounded-t-lg px-4 py-2 text-sm font-medium transition ${
+            className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
               activeTab === "changes"
-                ? "border border-b-0 border-neutral-700 bg-neutral-800/60 text-neutral-100"
-                : "text-neutral-500 hover:text-neutral-300"
+                ? "border-violet-600/60 bg-violet-900/30 text-violet-200 shadow-[0_0_12px_rgba(124,58,237,0.15)]"
+                : "border-neutral-700/50 bg-neutral-900/40 text-neutral-400 hover:border-violet-800/40 hover:bg-violet-950/20 hover:text-violet-300"
             }`}
           >
-            <span className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
-              ② Price Change History
-            </span>
+            <TrendingUp className={`h-4 w-4 ${activeTab === "changes" ? "text-violet-400" : "text-neutral-500"}`} />
+            ② Price Change History
           </button>
         </div>
       </section>
