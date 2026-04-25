@@ -115,8 +115,9 @@ export default function ProcurementDashboardPage() {
   const auth = getAuth();
   const initRef = useRef(false);
   const [allowed, setAllowed] = useState(false);
-  const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
-  const [pin, setPin] = useState(defaultProcurementPin());
+  // Read-only: session credentials come from ProcurementSessionBar in the layout
+  const requestedBy = defaultProcurementName();
+  const pin = defaultProcurementPin();
   const [city, setCity] = useState((String(auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila"));
   const [monthKey, setMonthKey] = useState(monthNow());
   const [snapshotDate] = useState(todayIso());
