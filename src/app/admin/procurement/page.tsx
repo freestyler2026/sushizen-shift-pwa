@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckSquare, ShoppingCart } from "lucide-react";
+import { ShoppingCart } from "lucide-react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi, setAuth } from "@/lib/auth";
 import DatePicker from "@/components/DatePicker";
 import MonthPicker from "@/components/MonthPicker";
@@ -62,74 +62,6 @@ type ExceptionRow = {
   request_no: string;
 };
 
-type ImprovementRow = {
-  id: string;
-  month_key: string;
-  owner_name: string;
-  issue_title: string;
-  action_plan: string;
-  due_date: string | null;
-  status: string;
-  result_note: string;
-  updated_by: string;
-  updated_at: string;
-  created_at: string;
-};
-
-type ChecklistTemplateItem = {
-  code: string;
-  label: string;
-  required: boolean;
-  guide: string;
-};
-
-type ChecklistItemState = ChecklistTemplateItem & {
-  done: boolean;
-  note: string;
-  updatedAt?: string;
-};
-
-
-const DAILY_CHECKLIST_TEMPLATE: ChecklistTemplateItem[] = [
-  { code: "stock_count", label: "Today stock was checked before ordering", required: true, guide: "Verify actual stock and avoid duplicate purchase." },
-  { code: "vendor_quote", label: "Vendor price was checked against latest quote", required: true, guide: "Confirm the price is still valid before submitting." },
-  { code: "qty_reason", label: "Order quantity has a clear reason", required: true, guide: "Match quantity to usage, buffer, or urgent need." },
-  { code: "new_vendor_review", label: "New vendor risk was reviewed if applicable", required: false, guide: "Use note field when buying from a new vendor." },
-  { code: "urgent_reason", label: "Urgent reason was reviewed if marked urgent", required: false, guide: "Explain why the request cannot wait for standard flow." },
-  { code: "docs_ready", label: "Invoice, quote, or supporting note is ready", required: true, guide: "Keep procurement evidence ready for audit." },
-];
-
-function monthKeyOf(dateValue: string): string {
-  const s = String(dateValue || "").trim();
-  const m = s.match(/^(\d{4})-(\d{2})-\d{2}$/);
-  if (m) return `${m[1]}-${m[2]}`;
-  return monthNow();
-}
-
-function checklistIssueTitle(city: string, dateValue: string, code: string): string {
-  return `DAILY_CHECK:${String(city || "manila").toLowerCase()}:${dateValue}:${code}`;
-}
-
-function buildChecklistState(rows: ImprovementRow[], city: string, dateValue: string): ChecklistItemState[] {
-  const rowMap = new Map<string, ImprovementRow>();
-  const prefix = `DAILY_CHECK:${String(city || "manila").toLowerCase()}:${dateValue}:`;
-  rows.forEach((row) => {
-    const issueTitle = String(row.issue_title || "");
-    if (!issueTitle.startsWith(prefix)) return;
-    const code = issueTitle.slice(prefix.length).trim();
-    if (code) rowMap.set(code, row);
-  });
-  return DAILY_CHECKLIST_TEMPLATE.map((item) => {
-    const row = rowMap.get(item.code);
-    const status = String(row?.status || "").toUpperCase();
-    return {
-      ...item,
-      done: status === "DONE" || status === "CLOSED" || status === "COMPLETE",
-      note: String(row?.result_note || ""),
-      updatedAt: row?.updated_at,
-    };
-  });
-}
 
 function todayIso(): string {
   const d = new Date();
@@ -169,22 +101,8 @@ export default function AdminProcurementPage() {
   const [pin, setPin] = useState(auth?.pin || "");
   const [kpiMonth, setKpiMonth] = useState(monthNow());
   const [kpiSummary, setKpiSummary] = useState<any>(null);
-  const [checklistItems, setChecklistItems] = useState<ChecklistItemState[]>(() => buildChecklistState([], String(auth?.city || "manila"), todayIso()));
-  const [checklistBusy, setChecklistBusy] = useState(false);
   const [skipZeroQuantity, setSkipZeroQuantity] = useState(true);
   const currencyCode = city === "dubai" ? "AED" : "PHP";
-
-  const checklistStats = useMemo(() => {
-    const requiredItems = checklistItems.filter((item) => item.required);
-    const doneItems = requiredItems.filter((item) => item.done);
-    const pendingItems = requiredItems.filter((item) => !item.done);
-    return {
-      requiredTotal: requiredItems.length,
-      doneTotal: doneItems.length,
-      pendingTotal: pendingItems.length,
-      pendingLabels: pendingItems.map((item) => item.label),
-    };
-  }, [checklistItems]);
 
   const tokenHeaders = useCallback(async () => {
     const latest = getAuth();
@@ -253,90 +171,40 @@ export default function AdminProcurementPage() {
     setError("");
     try {
       const headers = await tokenHeaders();
-      const monthKey = monthKeyOf(requestDate);
-      const [reqRes, qRes, exRes, kpiRes, checklistRes] = await Promise.all([
+      const [reqRes, qRes, exRes, kpiRes] = await Promise.all([
         fetch(`${apiBase}/api/admin/procurement/requests?city=${encodeURIComponent(city)}&limit=200`, { headers, cache: "no-store" }),
         fetch(`${apiBase}/api/admin/procurement/approvals/queue?city=${encodeURIComponent(city)}&limit=200`, { headers, cache: "no-store" }),
         fetch(`${apiBase}/api/admin/procurement/exceptions?city=${encodeURIComponent(city)}&limit=200`, { headers, cache: "no-store" }),
         fetch(`${apiBase}/api/admin/procurement/kpi/summary?city=${encodeURIComponent(city)}&month_key=${encodeURIComponent(kpiMonth)}`, { headers, cache: "no-store" }),
-        fetch(`${apiBase}/api/admin/procurement/improvements?city=${encodeURIComponent(city)}&month_key=${encodeURIComponent(monthKey)}&owner_name=${encodeURIComponent(requestedBy.trim())}&limit=200`, { headers, cache: "no-store" }),
       ]);
       const reqText = await reqRes.text();
       const qText = await qRes.text();
       const exText = await exRes.text();
       const kpiText = await kpiRes.text();
-      const checklistText = await checklistRes.text();
       if (!reqRes.ok) throw new Error(reqText || "Failed to load requests");
       if (!qRes.ok) throw new Error(qText || "Failed to load queue");
       if (!exRes.ok) throw new Error(exText || "Failed to load exceptions");
       if (!kpiRes.ok) throw new Error(kpiText || "Failed to load KPI");
-      if (!checklistRes.ok) throw new Error(checklistText || "Failed to load checklist");
       const reqJson = JSON.parse(reqText || "{}");
       const qJson = JSON.parse(qText || "{}");
       const exJson = JSON.parse(exText || "{}");
       const kpiJson = JSON.parse(kpiText || "{}");
-      const checklistJson = JSON.parse(checklistText || "{}");
       setRows(Array.isArray(reqJson?.rows) ? reqJson.rows : []);
       setQueueRows(Array.isArray(qJson?.rows) ? qJson.rows : []);
       setExceptions(Array.isArray(exJson?.rows) ? exJson.rows : []);
       setKpiSummary(kpiJson?.summary || null);
-      setChecklistItems(buildChecklistState(Array.isArray(checklistJson?.rows) ? checklistJson.rows : [], city, requestDate));
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
       setLoading(false);
     }
-  }, [apiBase, city, kpiMonth, requestDate, requestedBy, tokenHeaders]);
+  }, [apiBase, city, kpiMonth, tokenHeaders]);
 
-  const saveChecklist = async () => {
-    if (!requestedBy.trim() || !pin.trim()) {
-      setError("Requester name and PIN are required to save checklist.");
-      return;
-    }
-    setChecklistBusy(true);
-    setError("");
-    try {
-      const headers = await tokenHeaders();
-      const monthKey = monthKeyOf(requestDate);
-      for (const item of checklistItems) {
-        const res = await fetch(`${apiBase}/api/admin/procurement/improvements/upsert`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...headers },
-          body: JSON.stringify({
-            month_key: monthKey,
-            owner_name: requestedBy.trim(),
-            issue_title: checklistIssueTitle(city, requestDate, item.code),
-            action_plan: item.label,
-            due_date: requestDate,
-            status: item.done ? "DONE" : "OPEN",
-            result_note: item.note,
-            city,
-            approver_name: requestedBy.trim(),
-            pin: pin.trim(),
-          }),
-        });
-        const text = await res.text();
-        if (!res.ok) throw new Error(text || `Checklist save failed (${res.status})`);
-      }
-      await loadAll();
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    } finally {
-      setChecklistBusy(false);
-    }
-  };
-
-  const createRequest = async (skipChecklistWarning = false) => {
+  const createRequest = async () => {
     const validItems = items.filter((x) => (x.item_name || "").trim());
     if (!validItems.length) {
       setError("At least one item is required.");
       return;
-    }
-    if (!skipChecklistWarning && checklistStats.pendingTotal > 0) {
-      const proceed = window.confirm(
-        `Daily checklist has ${checklistStats.pendingTotal} required item(s) still open.\n\n${checklistStats.pendingLabels.join("\n")}\n\nContinue with Create + Submit anyway?`
-      );
-      if (!proceed) return;
     }
     setSubmitBusy(true);
     setError("");
@@ -483,7 +351,6 @@ export default function AdminProcurementPage() {
               setQueueRows([]);
               setExceptions([]);
               setKpiSummary(null);
-              setChecklistItems(buildChecklistState([], nextCity, requestDate));
             }}
             className={SELECT_CLASS}
           >
@@ -523,67 +390,6 @@ export default function AdminProcurementPage() {
         </div>
       </div>
 
-
-      <div className={`${GLASS_CARD} mb-4 p-5`}>
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <CheckSquare className="h-4 w-4 text-sky-400" />
-            <h2 className={T_SECTION}>Daily Checklist</h2>
-          </div>
-          <span className={checklistStats.pendingTotal === 0 ? BADGE_SUCCESS : BADGE_WARNING}>
-            {checklistStats.doneTotal} / {checklistStats.requiredTotal} complete
-          </span>
-        </div>
-        <div className="mb-4 h-1 rounded-full bg-white/8">
-          <div
-            className="h-1 rounded-full bg-gradient-to-r from-violet-500 to-purple-400 transition-all duration-500"
-            style={{ width: `${checklistStats.requiredTotal ? (checklistStats.doneTotal / checklistStats.requiredTotal) * 100 : 0}%` }}
-          />
-        </div>
-        <div className="space-y-1">
-          {checklistItems.map((item) => (
-            <div key={item.code} className="border-t border-white/5 py-2">
-              <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-                <label className="flex items-start gap-3">
-                  <input
-                    className="h-4 w-4 accent-amber-500"
-                    type="checkbox"
-                    checked={item.done}
-                    onChange={(e) =>
-                      setChecklistItems((prev) => prev.map((row) => (row.code === item.code ? { ...row, done: e.target.checked } : row)))
-                    }
-                  />
-                  <span className="text-sm text-zinc-300">
-                    {item.label}
-                    {item.required ? <span className="ml-2 text-[10px] uppercase tracking-wide text-amber-300">Required</span> : null}
-                    <div className="mt-1 text-xs text-zinc-500">{item.guide}</div>
-                  </span>
-                </label>
-                <div className="text-[11px] text-zinc-500">{item.updatedAt ? `Updated: ${String(item.updatedAt).slice(0, 16).replace("T", " ")}` : "Not saved yet"}</div>
-              </div>
-              <input
-                value={item.note}
-                onChange={(e) =>
-                  setChecklistItems((prev) => prev.map((row) => (row.code === item.code ? { ...row, note: e.target.value } : row)))
-                }
-                placeholder="Optional note"
-                className={`${INPUT_CLASS} mt-2`}
-              />
-            </div>
-          ))}
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <button type="button" onClick={saveChecklist} disabled={checklistBusy} className={SECONDARY_BUTTON}>
-            {checklistBusy ? "Saving..." : "Save Checklist"}
-          </button>
-          <div className={T_CAPTION}>
-            {checklistStats.pendingTotal > 0
-              ? `${checklistStats.pendingTotal} required item(s) still open`
-              : "All required checklist items are complete"}
-          </div>
-        </div>
-        {checklistStats.pendingLabels.length ? <div className="mt-2 text-xs text-amber-300">Pending: {checklistStats.pendingLabels.join(" / ")}</div> : null}
-      </div>
 
       <div className={`${GLASS_CARD} p-6`}>
         <div className="mb-2">
