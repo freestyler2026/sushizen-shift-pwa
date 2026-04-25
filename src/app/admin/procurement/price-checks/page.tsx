@@ -309,10 +309,10 @@ function PoVarianceTab({
   }
 
   const currency = result?.currency || "AED";
-  const rows = result?.rows || [];
 
   const filteredRows = useMemo(() => {
-    let r = hideUnitMismatch ? rows.filter((x) => !x.unit_mismatch) : rows;
+    const allRows = result?.rows ?? [];
+    const r = hideUnitMismatch ? allRows.filter((x) => !x.unit_mismatch) : allRows;
     return [...r].sort((a, b) => {
       let av = 0, bv = 0;
       if (sortKey === "total_impact") { av = Math.abs(a.total_impact); bv = Math.abs(b.total_impact); }
@@ -328,7 +328,7 @@ function PoVarianceTab({
         : b.invoice_date.localeCompare(a.invoice_date);
       return sortDir === "asc" ? av - bv : bv - av;
     });
-  }, [rows, sortKey, sortDir, hideUnitMismatch]);
+  }, [result, sortKey, sortDir, hideUnitMismatch]);
 
   function handleExport() {
     const headers = ["Item", "Supplier", "PO No", "Invoice No", "Invoice Date", "PO Unit Price", "Invoice Unit Price", "PO Unit", "Invoice Unit", "Qty", "Price Delta", "% Delta", "Total Impact", "Currency", "Branch", "Unit Mismatch"];
