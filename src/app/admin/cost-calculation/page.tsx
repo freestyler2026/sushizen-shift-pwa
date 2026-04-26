@@ -130,7 +130,7 @@ type MenuItemDetail = MenuItemRow & {
   price_history: MenuPriceHistoryEntry[];
 };
 
-type CostSection = "ingredient" | "processed" | "product" | "draft";
+type CostSection = "ingredient" | "processed" | "product" | "draft" | "invoice";
 
 type MasterComponentType = "ingredient" | "processed_item";
 
@@ -270,6 +270,26 @@ type InvoiceItemMappingRow = {
 const INGREDIENT_SHEET = "食材マスタ";
 /** 500 matches legacy API `le=500`; we page with `offset` so all rows load after backend supports OFFSET. */
 const INGREDIENT_LIST_PAGE_SIZE = 500;
+
+function conversionRuleHint(invoiceUnit: string): string {
+  const u = (invoiceUnit || "").trim().toLowerCase();
+  const hints: Record<string, string> = {
+    tin: "e.g. 1 TIN = 17000 ml  →  17000 ml/TIN",
+    ltr: "e.g. 1 LTR = 1000 ml  →  1000 ml/LTR",
+    l: "e.g. 1 L = 1000 ml  →  1000 ml/L",
+    kg: "e.g. 1 KG = 1000 g  →  1000 g/KG",
+    pkt: "e.g. 1 PKT = X g  →  enter weight per packet",
+    box: "e.g. 1 BOX = X units  →  enter count per box",
+    ctn: "e.g. 1 CTN = X g  →  enter weight per carton",
+    bag: "e.g. 1 BAG = X g  →  enter weight per bag",
+    btl: "e.g. 1 BTL = X ml  →  enter ml per bottle",
+    can: "e.g. 1 CAN = X g  →  enter weight per can",
+    jar: "e.g. 1 JAR = X g  →  enter weight per jar",
+    pcs: "e.g. 1 PCS = 1 pc",
+    pc: "e.g. 1 PC = 1 pc",
+  };
+  return hints[u] || "";
+}
 
 function unmatchedInvoiceItemKey(item: Pick<UnmatchedInvoiceItemRow, "supplier_name" | "item_description">) {
   return `${item.supplier_name}::${item.item_description}`;
@@ -727,9 +747,14 @@ export default function CostCalculationPage() {
   const [menuDetailSavingId, setMenuDetailSavingId] = useState<string | null>(null);
   const [menuDraftLine, setMenuDraftLine] = useState<Record<string, RecipeIngredientDraft>>({});
   const [unmatchedInvoiceItems, setUnmatchedInvoiceItems] = useState<UnmatchedInvoiceItemRow[]>([]);
+  const [unmatchedItemSearch, setUnmatchedItemSearch] = useState("");
+  const [unmatchedSupplierFilter, setUnmatchedSupplierFilter] = useState("");
   const [invoiceMappings, setInvoiceMappings] = useState<InvoiceItemMappingRow[]>([]);
   const [invoiceMappingLoading, setInvoiceMappingLoading] = useState(false);
   const [invoiceMappingSaving, setInvoiceMappingSaving] = useState(false);
+  const [invoiceSyncBusy, setInvoiceSyncBusy] = useState(false);
+  const [invoiceSyncResult, setInvoiceSyncResult] = useState<any>(null);
+  const [invoiceSyncError, setInvoiceSyncError] = useState("");
   const [selectedUnmatchedItemKey, setSelectedUnmatchedItemKey] = useState("");
   const [skippedUnmatchedInvoiceKeys, setSkippedUnmatchedInvoiceKeys] = useState<string[]>([]);
   const [editingInvoiceMappingId, setEditingInvoiceMappingId] = useState<string | null>(null);
@@ -738,6 +763,7 @@ export default function CostCalculationPage() {
   const [mappingSourceItemDescription, setMappingSourceItemDescription] = useState("");
   const [mappingSourceInvoiceUnit, setMappingSourceInvoiceUnit] = useState("");
   const [mappingIngredientSearch, setMappingIngredientSearch] = useState("");
+  const [showMappingIngredientDropdown, setShowMappingIngredientDropdown] = useState(false);
   const [selectedMappingIngredientId, setSelectedMappingIngredientId] = useState("");
   const [mappingIngredientUnit, setMappingIngredientUnit] = useState("");
   const [mappingConversionRule, setMappingConversionRule] = useState("");
@@ -763,6 +789,7 @@ export default function CostCalculationPage() {
   const cityLabel = city === "dubai" ? "Dubai / AED" : "Manila / PHP";
   const activeMasterType = activeSection === "processed" ? "processed" : activeSection === "draft" ? "draft" : "product";
   const isIngredientSection = activeSection === "ingredient";
+  const isInvoiceSection = activeSection === "invoice";
   const isMasterSection = activeSection === "processed" || activeSection === "draft" || activeSection === "product";
   const showLegacyRecipeSection = activeSection === "product" && showLegacyProductSheets;
   const ingredientColumns = useMemo<SpreadsheetColumn[]>(
@@ -945,6 +972,24 @@ export default function CostCalculationPage() {
       setInvoiceMappingLoading(false);
     }
   }, [city]);
+
+  const runInvoiceSync = useCallback(async (dryRun: boolean) => {
+    setInvoiceSyncBusy(true);
+    setInvoiceSyncError("");
+    setInvoiceSyncResult(null);
+    try {
+      const res = await costJson<any>(
+        `/api/admin/cost/sync-invoice-prices?city=${encodeURIComponent(city)}&dry_run=${dryRun}`,
+        { method: "POST", body: JSON.stringify({}) },
+      );
+      setInvoiceSyncResult(res);
+      if (!dryRun) void loadInvoiceMappingData();
+    } catch (e: any) {
+      setInvoiceSyncError(e?.message || String(e));
+    } finally {
+      setInvoiceSyncBusy(false);
+    }
+  }, [city, loadInvoiceMappingData]);
 
   const loadRecipeSheet = useCallback(async (sheet: SheetKey) => {
     if (sheet === INGREDIENT_SHEET) return;
@@ -1379,6 +1424,34 @@ export default function CostCalculationPage() {
   }, [activeSheet, allowed, city, loadIngredients, loadMenuCategories, loadInvoiceMappingData]);
 
   useEffect(() => {
+    if (!allowed || activeSection !== "invoice") return;
+    void loadInvoiceMappingData();
+  }, [activeSection, allowed, loadInvoiceMappingData]);
+
+  // Refetch data whenever the tab/window regains focus — prevents stale data
+  // after navigating away and back without a hard reload.
+  useEffect(() => {
+    if (!allowed) return;
+    let lastRefresh = Date.now();
+    function refresh() {
+      // Throttle: at most once every 10 seconds to avoid hammering the API.
+      if (Date.now() - lastRefresh < 10_000) return;
+      lastRefresh = Date.now();
+      void loadInvoiceMappingData();
+      void loadIngredients();
+    }
+    function onVisibility() {
+      if (document.visibilityState === "visible") refresh();
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", refresh);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [allowed, loadInvoiceMappingData, loadIngredients]);
+
+  useEffect(() => {
     if (!allowed) return;
     setRecipes({});
     setRecipeMenuItemsBySheet({});
@@ -1387,6 +1460,8 @@ export default function CostCalculationPage() {
     setMenuDraftLine({});
     setShowAddItemForm(false);
     setUnmatchedInvoiceItems([]);
+    setUnmatchedItemSearch("");
+    setUnmatchedSupplierFilter("");
     setInvoiceMappings([]);
     setSelectedUnmatchedItemKey("");
     setEditingInvoiceMappingId(null);
@@ -1643,10 +1718,20 @@ export default function CostCalculationPage() {
   }, [activeRecipeMenuItems, activeSheet, searchText]);
 
   const skippedUnmatchedSet = useMemo(() => new Set(skippedUnmatchedInvoiceKeys), [skippedUnmatchedInvoiceKeys]);
-  const visibleUnmatchedInvoiceItems = useMemo(
-    () => unmatchedInvoiceItems.filter((item) => !skippedUnmatchedSet.has(unmatchedInvoiceItemKey(item))),
-    [unmatchedInvoiceItems, skippedUnmatchedSet],
+  const unmatchedSupplierOptions = useMemo(
+    () => Array.from(new Set(unmatchedInvoiceItems.map((item) => item.supplier_name).filter(Boolean))).sort(),
+    [unmatchedInvoiceItems],
   );
+  const visibleUnmatchedInvoiceItems = useMemo(() => {
+    const q = unmatchedItemSearch.trim().toLowerCase();
+    const sup = unmatchedSupplierFilter.trim().toLowerCase();
+    return unmatchedInvoiceItems.filter((item) => {
+      if (skippedUnmatchedSet.has(unmatchedInvoiceItemKey(item))) return false;
+      if (sup && (item.supplier_name || "").toLowerCase() !== sup) return false;
+      if (q && !(item.item_description || "").toLowerCase().includes(q) && !(item.supplier_name || "").toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [unmatchedInvoiceItems, skippedUnmatchedSet, unmatchedItemSearch, unmatchedSupplierFilter]);
   const selectedUnmatchedItem = useMemo(() => {
     if (!selectedUnmatchedItemKey || skippedUnmatchedSet.has(selectedUnmatchedItemKey)) return null;
     return unmatchedInvoiceItems.find((item) => unmatchedInvoiceItemKey(item) === selectedUnmatchedItemKey) || null;
@@ -2543,6 +2628,7 @@ export default function CostCalculationPage() {
 
   const startEditingInvoiceMapping = useCallback((mapping: InvoiceItemMappingRow) => {
     setSelectedUnmatchedItemKey("");
+    setShowMappingIngredientDropdown(false);
     setEditingInvoiceMappingId(mapping.id);
     setMappingMode("edit");
     setMappingSourceSupplierName(mapping.supplier_name || "");
@@ -2585,6 +2671,7 @@ export default function CostCalculationPage() {
         }),
       });
       if (mappingMode === "create") {
+        setSelectedUnmatchedItemKey("");
         setMappingSourceSupplierName("");
         setMappingSourceItemDescription("");
         setMappingSourceInvoiceUnit("");
@@ -3170,6 +3257,7 @@ export default function CostCalculationPage() {
               { key: "processed" as CostSection, label: "加工品マスタ" },
               { key: "product" as CostSection, label: "商品マスタ" },
               { key: "draft" as CostSection, label: "新商品用コスト計算" },
+              { key: "invoice" as CostSection, label: "仕入連動" },
             ].map((section) => (
               <button
                 key={section.key}
@@ -3787,514 +3875,380 @@ export default function CostCalculationPage() {
                 )}
               </div>
             </div>
-          ) : isIngredientSection ? (
-            <div className="mb-6 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-              <div className="rounded-2xl border border-white/10 bg-[#0a101c] p-4">
+          ) : isInvoiceSection ? (
+            <div className="space-y-4">
+              {/* Sync control card */}
+              <div className="rounded-2xl border border-white/10 bg-[#0a101c] p-5">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-semibold text-white">Invoice Item Mapping</div>
-                    <div className="mt-1 text-xs text-zinc-500">Map unmatched invoice item names to ingredient master entries.</div>
+                    <div className="text-sm font-semibold text-white">仕入価格 → Cost Calculation 同期</div>
+                    <div className="mt-1 text-xs text-zinc-500">
+                      Google Sheetsの請求書データをもとに食材マスタの計算単価を自動更新します。<br />
+                      マッピングが登録済みの食材のみ更新されます。新規マッピングは「食材マスタ」タブで登録してください。
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {skippedUnmatchedInvoiceKeys.length > 0 ? (
-                      <button
-                        type="button"
-                        onClick={() => clearSkippedUnmatchedInvoiceItems()}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-white/[0.06] px-2.5 py-1.5 text-xs text-zinc-200 transition hover:bg-white/[0.1]"
-                        title="Show all skipped rows again in the list"
-                      >
-                        <RotateCcw className="h-3.5 w-3.5" />
-                        Restore skipped ({skippedUnmatchedInvoiceKeys.length})
-                      </button>
-                    ) : null}
-                    {(invoiceMappingLoading || invoiceMappingSaving) ? <Loader2 className="h-4 w-4 animate-spin text-violet-300" /> : null}
+                    {invoiceSyncBusy ? <Loader2 className="h-4 w-4 animate-spin text-violet-300" /> : null}
+                    <button
+                      type="button"
+                      onClick={() => void runInvoiceSync(true)}
+                      disabled={invoiceSyncBusy}
+                      className="rounded-xl border border-violet-600/40 bg-violet-950/30 px-4 py-2 text-xs text-violet-300 transition hover:bg-violet-900/40 disabled:opacity-60"
+                    >
+                      プレビュー
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void runInvoiceSync(false)}
+                      disabled={invoiceSyncBusy}
+                      className="rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-2 text-xs font-semibold text-white transition hover:from-violet-500 hover:to-purple-500 disabled:opacity-60"
+                    >
+                      <RotateCcw className="mr-1.5 inline h-3.5 w-3.5" />
+                      同期実行
+                    </button>
                   </div>
                 </div>
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-                  <div className="overflow-hidden rounded-xl border border-white/10">
-                    <div className="grid grid-cols-[140px_minmax(0,1fr)_80px_110px] border-b border-white/10 bg-white/[0.04] px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">
-                      <div>Supplier</div>
-                      <div>Invoice Item</div>
-                      <div>Unit</div>
-                      <div className="text-right">Latest Price</div>
-                    </div>
-                    <div className="max-h-80 overflow-y-auto">
-                      {unmatchedInvoiceItems.length === 0 ? (
-                        <div className="px-3 py-6 text-sm text-zinc-500">No unmatched invoice items.</div>
-                      ) : visibleUnmatchedInvoiceItems.length === 0 ? (
-                        <div className="px-3 py-6 text-sm text-zinc-500">
-                          All unmatched rows are hidden (skipped). Use &quot;Restore skipped&quot; above to show them again.
+
+                {invoiceSyncError ? (
+                  <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-4 py-3 text-sm text-red-300">
+                    <AlertTriangle className="mr-1.5 inline h-4 w-4" />
+                    {invoiceSyncError}
+                  </div>
+                ) : invoiceSyncResult ? (
+                  <div className="space-y-3">
+                    {invoiceSyncResult.dry_run ? (
+                      <div className="rounded-xl border border-amber-700/40 bg-amber-900/15 px-4 py-3 text-sm text-amber-300">
+                        ⚠️ プレビュー結果（実際の変更はまだ行われていません）
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-300">
+                        ✅ 同期完了 — <span className="font-bold">{invoiceSyncResult.updated ?? "?"}</span> 件の食材単価を更新しました
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                      {[
+                        { label: "請求書行数", value: invoiceSyncResult.total_rows ?? "—" },
+                        { label: "マッチ", value: invoiceSyncResult.matched ?? "—" },
+                        { label: "更新", value: invoiceSyncResult.updated ?? "—" },
+                        { label: "スキップ", value: (invoiceSyncResult.skipped_unmatched ?? 0) + (invoiceSyncResult.skipped_unit_conversion ?? 0) + (invoiceSyncResult.skipped_matched_but_unmapped ?? 0) },
+                      ].map((kpi) => (
+                        <div key={kpi.label} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3">
+                          <div className="text-[10px] uppercase tracking-wide text-zinc-500">{kpi.label}</div>
+                          <div className="mt-1 font-mono text-xl text-white">{kpi.value}</div>
                         </div>
-                      ) : visibleUnmatchedInvoiceItems.map((item, index) => {
-                        const itemKey = unmatchedInvoiceItemKey(item);
-                        const selected = itemKey === selectedUnmatchedItemKey;
-                        return (
-                          <button
-                            key={`${itemKey}-${index}`}
-                            type="button"
-                            onClick={() => selectUnmatchedInvoiceItem(itemKey)}
-                            className={cx(
-                              "grid w-full grid-cols-[140px_minmax(0,1fr)_80px_110px] items-center gap-3 border-b border-white/5 px-3 py-3 text-left text-sm last:border-b-0",
-                              selected ? "bg-sky-500/10" : "hover:bg-white/[0.04]",
-                            )}
-                          >
-                            <div className="truncate text-zinc-300">{item.supplier_name || "—"}</div>
-                            <div className="min-w-0">
-                              <div className="truncate text-white">{item.item_description}</div>
-                              <div className="mt-1 text-[10px] text-zinc-500">{item.line_count} lines · {item.invoice_count} invoices</div>
+                      ))}
+                    </div>
+                    {Array.isArray(invoiceSyncResult.updates) && invoiceSyncResult.updates.length > 0 ? (
+                      <div className="overflow-hidden rounded-xl border border-white/10">
+                        <div className="grid grid-cols-[minmax(0,1fr)_90px_90px] bg-white/[0.04] px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+                          <div>食材</div>
+                          <div className="text-right">更新前</div>
+                          <div className="text-right">更新後</div>
+                        </div>
+                        {invoiceSyncResult.updates.map((u: any, i: number) => (
+                          <div key={i} className="grid grid-cols-[minmax(0,1fr)_90px_90px] border-t border-white/5 px-3 py-2 text-sm">
+                            <div className="truncate text-white">{u.ingredient_name}</div>
+                            <div className="text-right font-mono text-zinc-400">{Number(u.previous_unit_price || 0).toFixed(4)}</div>
+                            <div className="text-right font-mono text-emerald-300">{Number(u.next_unit_price || 0).toFixed(4)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {Array.isArray(invoiceSyncResult.skipped_items) && invoiceSyncResult.skipped_items.length > 0 ? (
+                      <details className="rounded-xl border border-white/10">
+                        <summary className="cursor-pointer px-4 py-2.5 text-xs text-zinc-500 hover:text-zinc-300">
+                          スキップ詳細 ({invoiceSyncResult.skipped_items.length} 件)
+                        </summary>
+                        <div className="max-h-40 overflow-y-auto border-t border-white/5">
+                          {invoiceSyncResult.skipped_items.map((item: any, i: number) => (
+                            <div key={i} className="border-b border-white/5 px-4 py-2 text-xs last:border-b-0">
+                              <span className="text-zinc-300">{item.item_description || "—"}</span>
+                              <span className="ml-2 rounded bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">{item.reason}</span>
                             </div>
-                            <div className="font-mono text-zinc-400">{item.unit || "—"}</div>
-                            <div className="text-right font-mono text-zinc-200">{currencyCode} {Number(item.latest_unit_price || 0).toFixed(2)}</div>
-                          </button>
-                        );
-                      })}
+                          ))}
+                        </div>
+                      </details>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Mapping list + edit panel */}
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+                {/* Left: mapping list */}
+                <div className="rounded-2xl border border-white/10 bg-[#0a101c] p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-semibold text-white">登録済みマッピング</div>
+                      <div className="mt-1 text-xs text-zinc-500">これらの品目が同期対象になります。</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {(invoiceMappingLoading || invoiceMappingSaving) ? <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-300" /> : null}
+                      <div className="text-xs font-mono text-zinc-500">{invoiceMappings.length} 件</div>
                     </div>
                   </div>
-
-                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">Selected Invoice Item</div>
-                      <div className={cx(
-                        "rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.14em]",
-                        mappingMode === "edit" ? "border-amber-500/30 bg-amber-500/10 text-amber-200" : "border-sky-500/30 bg-sky-500/10 text-sky-200",
-                      )}>
-                        {mappingMode === "edit" ? "Edit Mode" : "Create Mode"}
+                  <div className="max-h-[28rem] overflow-y-auto rounded-xl border border-white/10">
+                    {invoiceMappingLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
                       </div>
-                    </div>
-                    {hasActiveMappingSelection ? (
-                      <div className="space-y-3">
-                        <div className="rounded-lg border border-white/10 bg-black/10 p-3 text-sm">
-                          <div className="text-white">{activeMappingSelectionMeta.itemDescription}</div>
-                          <div className="mt-1 text-xs text-zinc-500">
-                            {activeMappingSelectionMeta.supplierName || "Unknown supplier"} · {activeMappingSelectionMeta.invoiceUnit || "—"}
-                            {mappingMode === "create" ? ` · ${currencyCode} ${Number(activeMappingSelectionMeta.latestUnitPrice || 0).toFixed(2)}` : ""}
-                          </div>
-                          {mappingMode === "create" && (activeMappingSelectionMeta.lineCount > 0 || activeMappingSelectionMeta.invoiceCount > 0) ? (
-                            <div className="mt-1 text-[10px] text-zinc-600">
-                              {activeMappingSelectionMeta.lineCount} lines · {activeMappingSelectionMeta.invoiceCount} invoices
+                    ) : invoiceMappings.length === 0 ? (
+                      <div className="px-4 py-6 text-sm text-zinc-500">マッピングなし。</div>
+                    ) : invoiceMappings.map((m) => (
+                      <div
+                        key={m.id}
+                        className={cx(
+                          "border-b border-white/5 px-3 py-3 last:border-b-0",
+                          editingInvoiceMappingId === m.id ? "bg-amber-500/8" : "",
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-xs font-medium text-white">{m.invoice_item_description}</div>
+                            <div className="mt-0.5 text-[10px] text-zinc-500">
+                              {m.supplier_name || "—"} · {m.invoice_unit || "—"} → {m.ingredient_name_snapshot || "—"} ({m.ingredient_unit || "—"})
                             </div>
-                          ) : null}
-                        </div>
-
-                        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
-                          <div className="mb-3 text-[10px] uppercase tracking-[0.16em] text-zinc-500">Mapping</div>
-                          <div>
-                            <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Ingredient Search</div>
-                            <input
-                              value={mappingIngredientSearch}
-                              onChange={(e) => setMappingIngredientSearch(e.target.value)}
-                              placeholder="Search ingredient"
-                              className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
-                            />
+                            {m.conversion_rule ? (
+                              <div className="mt-0.5 font-mono text-[10px] text-zinc-600">{m.conversion_rule}</div>
+                            ) : null}
                           </div>
-                          <div className="mt-3">
-                            <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Ingredient</div>
-                            <select
-                              value={selectedMappingIngredientId}
-                              onChange={(e) => {
-                                const nextId = e.target.value;
-                                const selectedIngredient = allIngredientOptions.find((option) => String(option.id) === String(nextId));
-                                setSelectedMappingIngredientId(nextId);
-                                setMappingIngredientUnit(selectedIngredient?.unit || "");
-                                setSelectedMappingIngredientDetail(null);
-                                setMappingCostPriceInput("");
-                                setMappingCostFormulaInput("");
-                                setMappingCostFormulaNoteInput("");
-                                setMappingCostSaveError("");
-                                mappingCostInputsDirtyRef.current = false;
-                                if (selectedIngredient) {
-                                  setMappingIngredientSearch(selectedIngredient.name || "");
-                                }
-                              }}
-                              className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-200 outline-none focus:border-sky-500/50"
-                            >
-                              <option value="">Select ingredient</option>
-                              {mappingIngredientOptions.map((option) => (
-                                <option key={option.id} value={option.id}>
-                                  {option.name} ({option.category})
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                            <div>
-                              <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Ingredient Unit</div>
-                              <input
-                                value={mappingIngredientUnit}
-                                onChange={(e) => setMappingIngredientUnit(e.target.value)}
-                                className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
-                              />
-                            </div>
-                            <div>
-                              <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Conversion Rule</div>
-                              <input
-                                value={mappingConversionRule}
-                                onChange={(e) => setMappingConversionRule(e.target.value)}
-                                placeholder="e.g. KG->g / 1000"
-                                className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
-                              />
-                            </div>
-                          </div>
-                          <div className="mt-3">
-                            <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Notes</div>
-                            <input
-                              value={mappingNotes}
-                              onChange={(e) => setMappingNotes(e.target.value)}
-                              className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
-                            />
-                          </div>
-                          {mappingSaveError ? (
-                            <div className="mt-3 rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
-                              {mappingSaveError}
-                            </div>
-                          ) : null}
-                          <div className="mt-4 rounded-md border border-white/10 bg-black/10 p-3">
-                            <div className="mb-3 text-[10px] uppercase tracking-[0.16em] text-zinc-500">Quick Create Ingredient</div>
-                            <div className="grid gap-3">
-                              <div>
-                                <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Name</div>
-                                <input
-                                  value={mappingNewIngredientName}
-                                  onChange={(e) => setMappingNewIngredientName(e.target.value)}
-                                  placeholder="New ingredient name"
-                                  className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
-                                />
-                              </div>
-                              {mappingNewIngredientSuggestions.length ? (
-                                <div className="rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-3">
-                                  <div className="mb-2 text-[10px] uppercase tracking-[0.14em] text-amber-200">
-                                    Existing Candidates
-                                  </div>
-                                  <div className="space-y-2">
-                                    {mappingNewIngredientSuggestions.map((option) => {
-                                      const isExact = String(option.id) === String(mappingNewIngredientExactMatch?.id || "");
-                                      return (
-                                        <button
-                                          key={option.id}
-                                          type="button"
-                                          onClick={() => void selectMappingIngredientOption(option)}
-                                          className={cx(
-                                            "flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition",
-                                            isExact
-                                              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15"
-                                              : "border-white/10 bg-white/[0.04] text-zinc-200 hover:bg-white/[0.08]",
-                                          )}
-                                        >
-                                          <span>{option.name}</span>
-                                          <span className="text-xs text-zinc-400">{option.category} · {option.unit}</span>
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                  {mappingNewIngredientExactMatch ? (
-                                    <div className="mt-2 text-xs text-amber-200">
-                                      同じ名前の食材が既にあるため、新規作成ではなく既存食材を選択してください。
-                                    </div>
-                                  ) : null}
-                                </div>
-                              ) : null}
-                              <div className="grid gap-3 sm:grid-cols-2">
-                                <div>
-                                  <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Category</div>
-                                  <select
-                                    value={mappingNewIngredientCategory}
-                                    onChange={(e) => setMappingNewIngredientCategory(e.target.value)}
-                                    className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-200 outline-none focus:border-sky-500/50"
-                                  >
-                                    <option value="">Select category</option>
-                                    {ingredientCategories.map((option) => (
-                                      <option key={option} value={option}>
-                                        {option}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                                <div>
-                                  <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Unit</div>
-                                  <input
-                                    value={mappingNewIngredientUnit}
-                                    onChange={(e) => setMappingNewIngredientUnit(e.target.value)}
-                                    placeholder="g / pc / ml"
-                                    className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
-                                  />
-                                </div>
-                              </div>
-                              {mappingCreateIngredientError ? (
-                                <div className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
-                                  {mappingCreateIngredientError}
-                                </div>
-                              ) : null}
-                              <div className="flex justify-start">
-                                <button
-                                  type="button"
-                                  onClick={() => void createMappingIngredient()}
-                                  disabled={mappingCreateIngredientSaving || Boolean(mappingNewIngredientExactMatch)}
-                                  className="inline-flex items-center justify-center gap-2 rounded-md border border-violet-500/30 bg-violet-500/15 px-3 py-2 text-sm font-medium text-violet-200 transition hover:bg-violet-500/25 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  <Plus className="h-4 w-4" />
-                                  Create Ingredient
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <div className="flex shrink-0 gap-1">
                             <button
                               type="button"
-                              onClick={() => void saveInvoiceItemMapping()}
-                              disabled={!selectedMappingIngredientId || invoiceMappingSaving}
-                              className="inline-flex items-center justify-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/15 px-3 py-2 text-sm font-medium text-emerald-200 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-60"
+                              onClick={() => startEditingInvoiceMapping(m)}
+                              disabled={invoiceMappingSaving}
+                              className="inline-flex items-center gap-1 rounded border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-[10px] text-sky-300 hover:bg-sky-500/20 disabled:opacity-60"
                             >
-                              <Save className="h-4 w-4" />
-                              Save Mapping
+                              <Pencil className="h-3 w-3" />
+                              Edit
                             </button>
-                            {mappingMode === "create" && activeCreateUnmatchedItemKey ? (
-                              <button
-                                type="button"
-                                onClick={() => skipCurrentUnmatchedInvoiceItem()}
-                                disabled={invoiceMappingSaving}
-                                className="inline-flex items-center justify-center gap-2 rounded-md border border-zinc-500/30 bg-zinc-500/10 px-3 py-2 text-sm font-medium text-zinc-200 transition hover:bg-zinc-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                                title="Hide this row from the list (stored in this browser only)"
-                              >
-                                <SkipForward className="h-4 w-4" />
-                                Skip
-                              </button>
-                            ) : null}
-                            {mappingMode === "edit" ? (
+                            <button
+                              type="button"
+                              onClick={() => void disableInvoiceItemMapping(m.id)}
+                              disabled={invoiceMappingSaving}
+                              className="inline-flex items-center gap-1 rounded border border-red-500/30 bg-red-500/10 px-2 py-1 text-[10px] text-red-300 hover:bg-red-500/20 disabled:opacity-60"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                              Off
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right: edit/create panel or unmatched summary */}
+                {(editingInvoiceMappingId || selectedUnmatchedItemKey) ? (
+                  <div className={cx("rounded-2xl border bg-[#0a101c] p-4", editingInvoiceMappingId ? "border-amber-500/20" : "border-sky-500/20")}>
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <div className="text-sm font-semibold text-white">
+                        {editingInvoiceMappingId ? "マッピング編集" : "新規マッピング作成"}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setEditingInvoiceMappingId(null); setSelectedUnmatchedItemKey(""); setMappingMode("create"); setMappingSaveError(""); }}
+                        className="text-zinc-500 hover:text-zinc-200"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    {/* Source item info */}
+                    <div className="mb-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs">
+                      <div className="font-medium text-white">{mappingSourceItemDescription}</div>
+                      <div className="mt-0.5 text-zinc-500">{mappingSourceSupplierName || "—"} · {mappingSourceInvoiceUnit || "—"}</div>
+                    </div>
+
+                    <div className="space-y-3">
+                      {/* Ingredient autocomplete */}
+                      <div>
+                        <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">食材検索</div>
+                        <div className="relative">
+                          {/* Show selected ingredient as chip if confirmed */}
+                          {selectedMappingIngredientId && !showMappingIngredientDropdown ? (
+                            <div className="flex items-center gap-2 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2">
+                              <span className="flex-1 text-sm text-sky-200">
+                                {allIngredientOptions.find((o) => String(o.id) === selectedMappingIngredientId)?.name || mappingIngredientSearch}
+                                <span className="ml-1.5 text-xs text-sky-400/60">
+                                  ({allIngredientOptions.find((o) => String(o.id) === selectedMappingIngredientId)?.unit || ""})
+                                </span>
+                              </span>
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const firstItem = visibleUnmatchedInvoiceItems[0];
-                                  if (firstItem) {
-                                    selectUnmatchedInvoiceItem(unmatchedInvoiceItemKey(firstItem));
-                                  } else {
-                                    setEditingInvoiceMappingId(null);
-                                    setMappingMode("create");
-                                    setMappingSourceSupplierName("");
-                                    setMappingSourceItemDescription("");
-                                    setMappingSourceInvoiceUnit("");
-                                    setMappingIngredientSearch("");
-                                    setSelectedMappingIngredientId("");
-                                    setMappingIngredientUnit("");
-                                    setMappingConversionRule("");
-                                    setMappingNotes("");
-                                    setMappingSaveError("");
-                                    setSelectedMappingIngredientDetail(null);
-                                    setMappingCostPriceInput("");
-                                    setMappingCostFormulaInput("");
-                                    setMappingCostFormulaNoteInput("");
-                                    setMappingCostSaveError("");
-                                  }
+                                  setSelectedMappingIngredientId("");
+                                  setMappingIngredientSearch("");
+                                  setMappingIngredientUnit("");
+                                  setShowMappingIngredientDropdown(true);
                                 }}
-                                className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/[0.08]"
+                                className="text-sky-400/60 hover:text-sky-200"
                               >
-                                Reset To New
+                                <X className="h-3.5 w-3.5" />
                               </button>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
-                          <div className="mb-3 flex items-center justify-between gap-2">
-                            <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500">Ingredient Cost</div>
-                            {mappingDetailLoading ? <Loader2 className="h-4 w-4 animate-spin text-violet-300" /> : null}
-                          </div>
-                          {selectedMappingIngredientId ? (
-                            <div className="space-y-3">
-                              <div className="grid gap-3 sm:grid-cols-2">
-                                <div className="rounded-md border border-white/10 bg-black/10 px-3 py-2">
-                                  <div className="text-[10px] uppercase tracking-wide text-zinc-500">Current Unit Price</div>
-                                  <div className="mt-1 font-mono text-sm text-white">
-                                    {currencyCode} {Number(selectedMappingIngredientDetail?.unit_price || 0).toFixed(5)}
-                                  </div>
-                                </div>
-                                <div className="rounded-md border border-white/10 bg-black/10 px-3 py-2">
-                                  <div className="text-[10px] uppercase tracking-wide text-zinc-500">Latest Updated</div>
-                                  <div className="mt-1 text-sm text-zinc-300">
-                                    {selectedMappingIngredientDetail?.updated_at
-                                      ? new Date(selectedMappingIngredientDetail.updated_at).toLocaleString("ja-JP")
-                                      : "—"}
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="rounded-md border border-white/10 bg-black/10 px-3 py-2">
-                                <div className="text-[10px] uppercase tracking-wide text-zinc-500">Saved Formula</div>
-                                <div className="mt-1 text-sm text-zinc-200">
-                                  {selectedMappingIngredientDetail?.unit_price_formula || "—"}
-                                </div>
-                                {selectedMappingIngredientDetail?.unit_price_formula_note ? (
-                                  <div className="mt-1 text-xs text-zinc-500">{selectedMappingIngredientDetail.unit_price_formula_note}</div>
-                                ) : null}
-                              </div>
-                              <div className="grid gap-3 sm:grid-cols-2">
-                                <div>
-                                  <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Direct Unit Price</div>
-                                  <input
-                                    value={mappingCostPriceInput}
-                                    onChange={(e) => {
-                                      setMappingCostPriceInput(e.target.value);
-                                      mappingCostInputsDirtyRef.current = true;
-                                    }}
-                                    placeholder="0.07475"
-                                    className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
-                                  />
-                                </div>
-                                <div>
-                                  <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Cost Formula</div>
-                                  <input
-                                    value={mappingCostFormulaInput}
-                                    onChange={(e) => {
-                                      setMappingCostFormulaInput(e.target.value);
-                                      mappingCostInputsDirtyRef.current = true;
-                                    }}
-                                    placeholder="65 / 1000 * 1.15"
-                                    className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
-                                  />
-                                </div>
-                              </div>
-                              <div>
-                                <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Formula Note / Calculation Basis</div>
-                                <input
-                                  value={mappingCostFormulaNoteInput}
-                                  onChange={(e) => {
-                                    setMappingCostFormulaNoteInput(e.target.value);
-                                    mappingCostInputsDirtyRef.current = true;
-                                  }}
-                                  placeholder="65 AED/kg with 15% buffer"
-                                  className="w-full rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
-                                />
-                              </div>
-                              {mappingCostSaveError ? (
-                                <div className="rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
-                                  {mappingCostSaveError}
-                                </div>
-                              ) : null}
-                              <div className="flex flex-wrap items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => void saveMappingIngredientCost()}
-                                  disabled={mappingCostSaving || mappingDetailLoading}
-                                  className="inline-flex items-center justify-center gap-2 rounded-md border border-sky-500/30 bg-sky-500/15 px-3 py-2 text-sm font-medium text-sky-200 transition hover:bg-sky-500/25 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  <Save className="h-4 w-4" />
-                                  Save Ingredient Cost
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setMappingCostPriceInput(String(Number(selectedMappingIngredientDetail?.unit_price || 0)));
-                                    setMappingCostFormulaInput(String(selectedMappingIngredientDetail?.unit_price_formula || ""));
-                                    setMappingCostFormulaNoteInput(String(selectedMappingIngredientDetail?.unit_price_formula_note || ""));
-                                    setMappingCostSaveError("");
-                                    mappingCostInputsDirtyRef.current = false;
-                                  }}
-                                  disabled={!selectedMappingIngredientDetail}
-                                  className="inline-flex items-center justify-center rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  Reset Cost
-                                </button>
-                              </div>
-                              <div className="rounded-md border border-white/10 bg-black/10">
-                                <div className="border-b border-white/10 px-3 py-2 text-[10px] uppercase tracking-wide text-zinc-500">
-                                  Supplier Reference Prices
-                                </div>
-                                {selectedMappingIngredientDetail?.supplier_prices?.length ? (
-                                  <div className="max-h-48 overflow-y-auto">
-                                    {selectedMappingIngredientDetail.supplier_prices.map((price) => (
-                                      <div key={price.id} className="border-b border-white/5 px-3 py-2 text-xs last:border-b-0">
-                                        <div className="text-zinc-200">{price.supplier_name || "Unknown supplier"}</div>
-                                        <div className="mt-1 text-zinc-500">
-                                          {Number(price.purchase_qty || 0).toFixed(2)} {price.purchase_unit || "—"} · {currencyCode} {Number(price.purchase_price || 0).toFixed(2)}
-                                        </div>
-                                        <div className="mt-1 font-mono text-zinc-400">
-                                          Converted: {currencyCode} {Number(price.unit_price || 0).toFixed(5)}
-                                        </div>
-                                        <div className="mt-1 text-zinc-600">
-                                          {price.updated_at ? new Date(price.updated_at).toLocaleString("ja-JP") : "—"}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <div className="px-3 py-3 text-sm text-zinc-500">No supplier reference prices.</div>
-                                )}
-                              </div>
                             </div>
                           ) : (
-                            <div className="rounded-md border border-white/10 bg-black/10 px-3 py-4 text-sm text-zinc-500">
-                              Select an ingredient to edit its unit cost in this panel.
+                            <input
+                              value={mappingIngredientSearch}
+                              onChange={(e) => {
+                                setMappingIngredientSearch(e.target.value);
+                                setSelectedMappingIngredientId("");
+                                setShowMappingIngredientDropdown(true);
+                              }}
+                              onFocus={() => setShowMappingIngredientDropdown(true)}
+                              onBlur={() => setTimeout(() => setShowMappingIngredientDropdown(false), 150)}
+                              placeholder="食材名を入力..."
+                              autoComplete="off"
+                              className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
+                            />
+                          )}
+                          {/* Dropdown candidates */}
+                          {showMappingIngredientDropdown && mappingIngredientOptions.length > 0 && (
+                            <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-48 overflow-y-auto rounded-lg border border-white/15 bg-[#0d1520] shadow-xl">
+                              {mappingIngredientOptions.map((o) => (
+                                <button
+                                  key={o.id}
+                                  type="button"
+                                  onMouseDown={(e) => {
+                                    e.preventDefault(); // prevent onBlur firing first
+                                    setSelectedMappingIngredientId(String(o.id));
+                                    setMappingIngredientSearch(o.name);
+                                    setMappingIngredientUnit(o.unit || "");
+                                    setShowMappingIngredientDropdown(false);
+                                  }}
+                                  className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-white/[0.06]"
+                                >
+                                  <span className="text-white">{o.name}</span>
+                                  <span className="ml-2 shrink-0 text-xs text-zinc-500">{o.unit}</span>
+                                </button>
+                              ))}
                             </div>
                           )}
                         </div>
                       </div>
-                    ) : (
-                      <div className="rounded-lg border border-white/10 bg-black/10 px-3 py-6 text-sm text-zinc-500">
-                        Select an unmatched invoice item to create a mapping.
+                      {/* Units row */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">請求書単位</div>
+                          <input
+                            value={mappingSourceInvoiceUnit}
+                            onChange={(e) => setMappingSourceInvoiceUnit(e.target.value)}
+                            placeholder="e.g. TIN"
+                            className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
+                          />
+                        </div>
+                        <div>
+                          <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">食材単位</div>
+                          <input
+                            value={mappingIngredientUnit}
+                            onChange={(e) => setMappingIngredientUnit(e.target.value)}
+                            placeholder="e.g. ml"
+                            className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
+                          />
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-[#0a101c] p-4">
-                <div className="mb-4 flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-semibold text-white">Existing Mappings</div>
-                    <div className="mt-1 text-xs text-zinc-500">Active manual mappings for this city.</div>
-                  </div>
-                  <div className="text-xs font-mono text-zinc-500">{invoiceMappings.length}</div>
-                </div>
-                <div className="max-h-[26rem] overflow-y-auto rounded-xl border border-white/10">
-                  {invoiceMappings.length === 0 ? (
-                    <div className="px-4 py-6 text-sm text-zinc-500">No mappings yet.</div>
-                  ) : invoiceMappings.map((mapping) => (
-                    <div
-                      key={mapping.id}
-                      className={cx(
-                        "border-b border-white/5 px-4 py-3 last:border-b-0",
-                        editingInvoiceMappingId === mapping.id ? "bg-sky-500/10" : "",
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="truncate text-sm text-white">{mapping.invoice_item_description}</div>
-                          <div className="mt-1 text-xs text-zinc-500">
-                            {mapping.supplier_name || "Unknown supplier"} · {mapping.invoice_unit || "—"} -&gt; {mapping.ingredient_name_snapshot || "—"} ({mapping.ingredient_unit || "—"})
-                          </div>
-                          {mapping.conversion_rule || mapping.notes ? (
-                            <div className="mt-1 text-[11px] text-zinc-400">
-                              {[mapping.conversion_rule, mapping.notes].filter(Boolean).join(" · ")}
-                            </div>
+                      {/* Conversion rule */}
+                      <div>
+                        <div className="mb-1 flex items-center justify-between">
+                          <div className="text-[10px] uppercase tracking-wide text-zinc-500">変換ルール</div>
+                          {mappingSourceInvoiceUnit ? (
+                            <div className="text-[10px] text-sky-400/70">{(() => { const h = conversionRuleHint(mappingSourceInvoiceUnit); return h || null; })()}</div>
                           ) : null}
                         </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => startEditingInvoiceMapping(mapping)}
-                            disabled={invoiceMappingSaving || mappingCostSaving}
-                            className="inline-flex items-center gap-1 rounded-md border border-sky-500/30 bg-sky-500/10 px-2.5 py-1 text-xs text-sky-200 hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void disableInvoiceItemMapping(mapping.id)}
-                            disabled={invoiceMappingSaving}
-                            className="inline-flex items-center gap-1 rounded-md border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-xs text-red-200 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            Disable
-                          </button>
-                        </div>
+                        <input
+                          value={mappingConversionRule}
+                          onChange={(e) => setMappingConversionRule(e.target.value)}
+                          placeholder="e.g. KG->g / 1000"
+                          className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
+                        />
+                      </div>
+                      {/* Notes */}
+                      <div>
+                        <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">メモ</div>
+                        <input
+                          value={mappingNotes}
+                          onChange={(e) => setMappingNotes(e.target.value)}
+                          className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
+                        />
+                      </div>
+                      {mappingSaveError ? (
+                        <div className="rounded-lg border border-red-900/40 bg-red-950/20 px-3 py-2 text-xs text-red-300">{mappingSaveError}</div>
+                      ) : null}
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => void saveInvoiceItemMapping()}
+                          disabled={invoiceMappingSaving || !selectedMappingIngredientId}
+                          className="flex-1 rounded-lg bg-gradient-to-r from-violet-600 to-purple-600 py-2 text-xs font-semibold text-white disabled:opacity-60"
+                        >
+                          {invoiceMappingSaving ? "保存中..." : "保存"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setEditingInvoiceMappingId(null); setSelectedUnmatchedItemKey(""); setMappingMode("create"); }}
+                          className="rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2 text-xs text-zinc-300 hover:bg-white/[0.08]"
+                        >
+                          キャンセル
+                        </button>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-white/10 bg-[#0a101c] p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-semibold text-white">未マッピング品目</div>
+                        <div className="mt-1 text-xs text-zinc-500">同期対象外。マッピング登録が必要です。</div>
+                      </div>
+                      <div className="text-xs font-mono text-zinc-500">{unmatchedInvoiceItems.length} 件</div>
+                    </div>
+                    <div className="max-h-[28rem] overflow-y-auto rounded-xl border border-white/10">
+                      {invoiceMappingLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
+                        </div>
+                      ) : unmatchedInvoiceItems.length === 0 ? (
+                        <div className="px-4 py-6 text-sm text-zinc-500">未マッピング品目なし。</div>
+                      ) : unmatchedInvoiceItems.map((item, i) => {
+                        const itemKey = unmatchedInvoiceItemKey(item);
+                        const isSelected = selectedUnmatchedItemKey === itemKey;
+                        return (
+                          <div
+                            key={i}
+                            onClick={() => {
+                              setEditingInvoiceMappingId(null);
+                              setMappingMode("create");
+                              setSelectedUnmatchedItemKey(itemKey);
+                              setMappingSourceItemDescription(item.item_description || "");
+                              setMappingSourceSupplierName(item.supplier_name || "");
+                              setMappingSourceInvoiceUnit(item.unit || "");
+                              setSelectedMappingIngredientId("");
+                              setMappingIngredientSearch("");
+                              setMappingIngredientUnit("");
+                              setMappingConversionRule("");
+                              setMappingNotes("");
+                              setMappingSaveError("");
+                            }}
+                            className={cx(
+                              "cursor-pointer border-b border-white/5 px-3 py-2.5 last:border-b-0 transition hover:bg-white/[0.04]",
+                              isSelected ? "bg-sky-500/10 border-l-2 border-l-sky-500" : "",
+                            )}
+                          >
+                            <div className={cx("text-xs font-medium", isSelected ? "text-sky-200" : "text-white")}>{item.item_description}</div>
+                            <div className="mt-0.5 text-[10px] text-zinc-500">
+                              {item.supplier_name || "—"} · {item.unit || "—"} · {currencyCode} {Number(item.latest_unit_price || 0).toFixed(2)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ) : null}
 
-          <div className={cx(isMasterSection && !showLegacyRecipeSection && "hidden")}>
+          <div className={cx((isMasterSection && !showLegacyRecipeSection || isInvoiceSection) && "hidden")}>
           {activeSheet === INGREDIENT_SHEET && loading ? (
             <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-6 animate-pulse">
               <div className="h-10 rounded-lg bg-white/[0.05]" />

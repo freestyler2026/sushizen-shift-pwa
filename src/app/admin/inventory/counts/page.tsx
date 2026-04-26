@@ -5,7 +5,7 @@ import InventoryTabs from "@/components/InventoryTabs";
 import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
 import { defaultBranch, groupBySupplier, lineFromItem, monthNow, number3, todayIso, withVariance, type InventoryCountLine, type InventoryItemLookup } from "@/lib/inventoryCountUtils";
-import { inventoryGet, inventoryPost } from "@/lib/inventoryClient";
+import { inventoryGet, inventoryPatch, inventoryPost } from "@/lib/inventoryClient";
 import { formatDraftNumber, getInventoryQuantityStep, parseDraftNumber, stepDraftNumber } from "@/lib/quantityInput";
 
 type CountSheetRow = {
@@ -78,6 +78,13 @@ export default function InventoryCountsPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  // Inline item editing state
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editItemUnit, setEditItemUnit] = useState("");
+  const [editItemPrice, setEditItemPrice] = useState("");
+  const [editItemSupplier, setEditItemSupplier] = useState("");
+  const [editItemMemo, setEditItemMemo] = useState("");
+  const [editItemSaving, setEditItemSaving] = useState(false);
 
   const refreshLineWithBalance = useCallback((line: InventoryCountLine, balanceLookup: Record<string, number> = balancesMap): InventoryCountLine => {
     return withVariance({
@@ -352,6 +359,57 @@ export default function InventoryCountsPage() {
     }
   }
 
+  async function reopenSelectedCount() {
+    if (!selectedCountId) return;
+    if (!confirm("このカウントをDRAFTに戻して編集可能にしますか？")) return;
+    setActionLoading(true);
+    setError("");
+    setSuccess("");
+    try {
+      await inventoryPost(`/api/admin/inventory/counts/${encodeURIComponent(selectedCountId)}/reopen`, { city });
+      await refreshHistoryAndDetail(selectedCountId);
+      setSuccess("Count reopened to DRAFT. You can now edit items.");
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  function startEditItem(item: InventoryCountLine) {
+    setEditingItemId(item.id || null);
+    setEditItemUnit(item.storage_unit || "");
+    setEditItemPrice(String(item.unit_price ?? ""));
+    setEditItemSupplier(item.supplier_name || "");
+    setEditItemMemo(item.memo || "");
+  }
+
+  async function saveEditItem() {
+    if (!editingItemId || !selectedCountId) return;
+    setEditItemSaving(true);
+    setError("");
+    try {
+      const price = parseFloat(editItemPrice);
+      await inventoryPatch(
+        `/api/admin/inventory/counts/${encodeURIComponent(selectedCountId)}/items/${encodeURIComponent(editingItemId)}`,
+        {
+          city,
+          ...(editItemUnit ? { storage_unit: editItemUnit } : {}),
+          ...(!isNaN(price) ? { unit_price: price } : {}),
+          ...(editItemSupplier ? { supplier_name: editItemSupplier } : {}),
+          memo: editItemMemo,
+        },
+      );
+      setEditingItemId(null);
+      await refreshHistoryAndDetail(selectedCountId);
+      setSuccess("Item updated.");
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setEditItemSaving(false);
+    }
+  }
+
   if (!ready) return <div className="text-sm text-neutral-500">Loading counts...</div>;
   if (!allowed) return <div className="text-sm text-neutral-500">You do not have permission to open inventory.</div>;
 
@@ -531,17 +589,26 @@ export default function InventoryCountsPage() {
               </thead>
               <tbody>
                 {filteredHistory.map((row) => (
-                  <tr key={row.id} className={["border-t border-neutral-800 text-neutral-200 transition", selectedCountId === row.id ? "bg-emerald-950/20" : ""].join(" ")}>
+                  <tr
+                    key={row.id}
+                    onClick={() => { setSelectedCountId(row.id); setEditingItemId(null); }}
+                    className={["cursor-pointer border-t border-neutral-800 text-neutral-200 transition hover:bg-neutral-800/30", selectedCountId === row.id ? "bg-emerald-950/20" : ""].join(" ")}
+                  >
                     <td className="px-3 py-2">
-                      <button type="button" onClick={() => setSelectedCountId(row.id)} className="text-left hover:text-white">
-                        <div>{row.count_no}</div>
-                        <div className="mt-1 text-xs text-neutral-500">{labelOf(city, row.branch_code)}</div>
-                      </button>
+                      <div className="font-medium">{row.count_no}</div>
+                      <div className="mt-0.5 text-xs text-neutral-500">{labelOf(city, row.branch_code)}</div>
                     </td>
                     <td className="px-3 py-2">{String(row.business_date || "").slice(0, 10)}</td>
                     <td className="px-3 py-2">{row.cycle || "-"}</td>
-                    <td className="px-3 py-2">{row.count_sheet_name || "-"}</td>
-                    <td className="px-3 py-2">{row.status || "-"}</td>
+                    <td className="px-3 py-2 text-xs">{row.count_sheet_name || "-"}</td>
+                    <td className="px-3 py-2">
+                      <span className={["rounded px-2 py-0.5 text-xs font-medium",
+                        row.status === "CLOSED" ? "bg-neutral-700 text-neutral-300" :
+                        row.status === "SUBMITTED" ? "bg-sky-900/60 text-sky-300" :
+                        "bg-amber-900/40 text-amber-300"].join(" ")}>
+                        {row.status || "-"}
+                      </span>
+                    </td>
                   </tr>
                 ))}
                 {!loading && filteredHistory.length === 0 ? (
@@ -565,6 +632,9 @@ export default function InventoryCountsPage() {
                 <button type="button" onClick={submitSelectedCount} disabled={!selectedCountId || actionLoading || selectedCount?.status !== "DRAFT"} className="rounded-lg border border-sky-800 bg-sky-950/30 px-3 py-1.5 text-xs text-sky-200 disabled:opacity-50">
                   Submit
                 </button>
+                <button type="button" onClick={reopenSelectedCount} disabled={!selectedCountId || actionLoading || selectedCount?.status !== "SUBMITTED"} className="rounded-lg border border-amber-700 bg-amber-950/30 px-3 py-1.5 text-xs text-amber-200 disabled:opacity-50" title="SUBMITTED → DRAFTに戻して修正可能にする">
+                  {actionLoading ? "..." : "Reopen"}
+                </button>
                 <button type="button" onClick={closeSelectedCount} disabled={!selectedCountId || actionLoading || selectedCount?.status === "CLOSED"} className="rounded-lg border border-emerald-800 bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-200 disabled:opacity-50">
                   {actionLoading ? "Processing..." : selectedCount?.status === "CLOSED" ? "Closed" : "Close"}
                 </button>
@@ -575,36 +645,103 @@ export default function InventoryCountsPage() {
               <div className="mt-3 text-sm text-neutral-500">Select a count from the history list on the left.</div>
             ) : (
               <div className="mt-3 space-y-3 text-sm text-neutral-200">
-                <div>
-                  <div className="text-xs text-neutral-500">Count No.</div>
-                  <div>{selectedCount.count_no}</div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div><span className="text-neutral-500">No. </span>{selectedCount.count_no}</div>
+                  <div><span className="text-neutral-500">Status </span>
+                    <span className={["rounded px-1.5 py-0.5 font-medium",
+                      selectedCount.status === "CLOSED" ? "bg-neutral-700 text-neutral-300" :
+                      selectedCount.status === "SUBMITTED" ? "bg-sky-900/60 text-sky-300" :
+                      "bg-amber-900/40 text-amber-300"].join(" ")}>
+                      {selectedCount.status}
+                    </span>
+                  </div>
+                  <div><span className="text-neutral-500">Branch </span>{labelOf(city, selectedCount.branch_code)}</div>
+                  <div><span className="text-neutral-500">Cycle </span>{selectedCount.cycle || "-"}</div>
+                  <div><span className="text-neutral-500">PIC </span>{selectedCount.pic_name || "-"}</div>
+                  <div><span className="text-neutral-500">Approver </span>{selectedCount.approver_name || "-"}</div>
                 </div>
-                <div>
-                  <div className="text-xs text-neutral-500">Branch / Cycle</div>
-                  <div>{labelOf(city, selectedCount.branch_code)} • {selectedCount.cycle || "-"}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-neutral-500">PIC / Approver</div>
-                  <div>{selectedCount.pic_name || "-"} / {selectedCount.approver_name || "-"}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-neutral-500">Sheet / Status</div>
-                  <div>{selectedCount.count_sheet_name || "-"} • {selectedCount.status || "-"}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-neutral-500">Notes</div>
-                  <div className="whitespace-pre-wrap text-neutral-300">{selectedCount.notes || "-"}</div>
-                </div>
-                <div className="max-h-96 space-y-2 overflow-y-auto">
-                  {(selectedCount.items || []).map((item, index) => (
-                    <div key={`${item.sku}-${index}`} className="rounded-xl border border-neutral-800 bg-neutral-900/30 px-3 py-2">
-                      <div>{item.supplier_name || "Unknown supplier"} / {item.item_name}</div>
-                      <div className="mt-1 text-xs text-neutral-500">
-                        {item.sku || "-"} • Theo {number3(item.theoretical_qty)} • Counted {number3(item.counted_qty)} • Var {number3(item.variance_qty)}
-                      </div>
-                    </div>
-                  ))}
-                  {!(selectedCount.items || []).length ? <div className="text-xs text-neutral-500">No rows linked.</div> : null}
+                {selectedCount.notes ? <div className="text-xs text-neutral-400 whitespace-pre-wrap">{selectedCount.notes}</div> : null}
+
+                {/* Item detail table with inline editing */}
+                <div className="overflow-x-auto rounded-xl border border-neutral-800">
+                  <table className="min-w-full text-xs">
+                    <thead className="bg-neutral-900/60 text-neutral-400">
+                      <tr>
+                        <th className="px-2 py-2 text-left">Item</th>
+                        <th className="px-2 py-2 text-left">Supplier</th>
+                        <th className="px-2 py-2 text-left">Unit</th>
+                        <th className="px-2 py-2 text-right">Price</th>
+                        <th className="px-2 py-2 text-right">Theo</th>
+                        <th className="px-2 py-2 text-right">Counted</th>
+                        <th className="px-2 py-2 text-right">Var</th>
+                        <th className="px-2 py-2 text-left">Memo</th>
+                        <th className="px-2 py-2 text-right">Edit</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(selectedCount.items || []).map((item, index) => {
+                        const isEditing = editingItemId === item.id;
+                        return (
+                          <tr key={`${item.sku}-${index}`} className={["border-t border-neutral-800", isEditing ? "bg-amber-950/20" : ""].join(" ")}>
+                            <td className="px-2 py-2">
+                              <div className="text-neutral-100">{item.item_name}</div>
+                              <div className="text-neutral-500">{item.sku || "-"}</div>
+                            </td>
+                            <td className="px-2 py-2">
+                              {isEditing
+                                ? <input value={editItemSupplier} onChange={(e) => setEditItemSupplier(e.target.value)} className="w-28 rounded border border-amber-700/50 bg-neutral-950 px-1.5 py-1 text-xs text-neutral-100" />
+                                : <span className="text-neutral-300">{item.supplier_name || "-"}</span>
+                              }
+                            </td>
+                            <td className="px-2 py-2">
+                              {isEditing
+                                ? <input value={editItemUnit} onChange={(e) => setEditItemUnit(e.target.value)} className="w-16 rounded border border-amber-700/50 bg-neutral-950 px-1.5 py-1 text-xs text-neutral-100" />
+                                : <span className="text-neutral-300">{item.storage_unit || "-"}</span>
+                              }
+                            </td>
+                            <td className="px-2 py-2 text-right">
+                              {isEditing
+                                ? <input type="number" step="any" value={editItemPrice} onChange={(e) => setEditItemPrice(e.target.value)} className="w-20 rounded border border-amber-700/50 bg-neutral-950 px-1.5 py-1 text-right text-xs text-neutral-100" />
+                                : <span className="text-neutral-300">{Number(item.unit_price || 0).toFixed(4)}</span>
+                              }
+                            </td>
+                            <td className="px-2 py-2 text-right text-neutral-400">{number3(item.theoretical_qty)}</td>
+                            <td className="px-2 py-2 text-right text-neutral-100">{number3(item.counted_qty)}</td>
+                            <td className={["px-2 py-2 text-right font-medium", Number(item.variance_qty) === 0 ? "text-neutral-400" : Number(item.variance_qty) > 0 ? "text-emerald-300" : "text-amber-300"].join(" ")}>
+                              {number3(item.variance_qty)}
+                            </td>
+                            <td className="px-2 py-2">
+                              {isEditing
+                                ? <input value={editItemMemo} onChange={(e) => setEditItemMemo(e.target.value)} className="w-24 rounded border border-amber-700/50 bg-neutral-950 px-1.5 py-1 text-xs text-neutral-100" />
+                                : <span className="text-neutral-400">{item.memo || "-"}</span>
+                              }
+                            </td>
+                            <td className="px-2 py-2 text-right">
+                              {isEditing ? (
+                                <div className="flex justify-end gap-1">
+                                  <button type="button" onClick={saveEditItem} disabled={editItemSaving} className="rounded border border-emerald-700 bg-emerald-950/40 px-2 py-0.5 text-xs text-emerald-200 disabled:opacity-50">
+                                    {editItemSaving ? "…" : "Save"}
+                                  </button>
+                                  <button type="button" onClick={() => setEditingItemId(null)} className="rounded border border-neutral-700 bg-neutral-900 px-2 py-0.5 text-xs text-neutral-300">
+                                    ✕
+                                  </button>
+                                </div>
+                              ) : (
+                                selectedCount.status !== "CLOSED" ? (
+                                  <button type="button" onClick={() => startEditItem(item)} className="rounded border border-neutral-700 bg-neutral-900 px-2 py-0.5 text-xs text-neutral-300 hover:bg-neutral-800">
+                                    Edit
+                                  </button>
+                                ) : null
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {!(selectedCount.items || []).length ? (
+                        <tr><td colSpan={9} className="px-3 py-4 text-center text-neutral-500">No rows linked.</td></tr>
+                      ) : null}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}

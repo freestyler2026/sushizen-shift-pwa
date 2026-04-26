@@ -33,6 +33,14 @@ const nextConfig: NextConfig = {
   reactStrictMode: false,
   // Prevent dev/build cache collisions that can cause missing module errors.
   distDir: IS_DEV ? ".next-dev" : ".next",
+  // Disable the client-side router cache so navigating back to a page always
+  // remounts the component and re-runs useEffect hooks, loading fresh data.
+  experimental: {
+    staleTimes: {
+      dynamic: 0,
+      static: 0,
+    },
+  },
   env: {
     // Available client-side as process.env.NEXT_PUBLIC_BUILD_ID
     NEXT_PUBLIC_BUILD_ID: BUILD_ID,
