@@ -865,6 +865,9 @@ export default function CostCalculationPage() {
   const [mappingDetailLoading, setMappingDetailLoading] = useState(false);
   const [mappingCostSaving, setMappingCostSaving] = useState(false);
   const mappingCostInputsDirtyRef = useRef(false);
+  // Tracks whether ingredients have been loaded at least once.
+  // Background refreshes skip the skeleton loader to avoid disrupting in-progress edits.
+  const ingredientsLoadedRef = useRef(false);
   const allIngredientOptionsRef = useRef(allIngredientOptions);
   const selectedIngredientDetailRef = useRef<IngredientDetail | null>(null);
   const activeSpreadsheetUrl = SPREADSHEET_URLS[city];
@@ -922,7 +925,11 @@ export default function CostCalculationPage() {
   }, [city]);
 
   const loadIngredients = useCallback(async () => {
-    setLoading(true);
+    // Show skeleton only on the initial load; background refreshes run silently
+    // so that in-progress edits (new rows, open detail panel) are not disrupted.
+    if (!ingredientsLoadedRef.current) {
+      setLoading(true);
+    }
     try {
       const mapRow = (row: IngredientRow) => ({
         ...row,
@@ -960,6 +967,7 @@ export default function CostCalculationPage() {
         return newRows.length ? [...newRows, ...merged] : merged;
       });
       setAllIngredientOptions(merged);
+      ingredientsLoadedRef.current = true;
     } catch (e) {
       console.error("Failed to load ingredients:", e);
       setIngredients((prev) => prev.filter((row) => row._new)); // keep new rows on error
@@ -1504,6 +1512,12 @@ export default function CostCalculationPage() {
     }
   }, [city, loadComponentOptions, loadMasterItems, masterEditor]);
 
+  // Reset the "already loaded" flag when the city changes so the skeleton loader
+  // is shown again on the first load for the new city.
+  useEffect(() => {
+    ingredientsLoadedRef.current = false;
+  }, [city]);
+
   useEffect(() => {
     if (!allowed) return;
     void loadIngredients();
@@ -1957,12 +1971,10 @@ export default function CostCalculationPage() {
         : item
     )));
     if (selectedIngredientDetailRef.current && String(selectedIngredientDetailRef.current.id) === String(detail.id)) {
+      // Update the detail object (header/display fields) but do NOT reset the editable form
+      // inputs — those are controlled by the user's live edits and should only be reset when
+      // openIngredientDetail() is deliberately called (e.g., panel open or after save).
       setSelectedIngredientDetail((prev) => prev ? { ...prev, ...detail } : prev);
-      setIngredientDetailPriceInput(String(normalizedUnitPrice));
-      setIngredientDetailBufferInput(String((normalizedBufferRate * 100).toFixed(0)));
-      setIngredientDetailYieldInput(normalizedYieldRate == null ? "" : String((normalizedYieldRate * 100).toFixed(0)));
-      setIngredientDetailFormulaInput(normalizedFormula);
-      setIngredientDetailFormulaNoteInput(normalizedFormulaNote);
     }
   }, []);
 
