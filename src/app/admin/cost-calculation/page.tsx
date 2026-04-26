@@ -4452,20 +4452,20 @@ export default function CostCalculationPage() {
             const avgRatio = withRatio.length > 0
               ? withRatio.reduce((s, p) => s + (p.cost_ratio ?? 0), 0) / withRatio.length
               : null;
-            const highCount = withRatio.filter((p) => (p.cost_ratio ?? 0) >= 0.35).length;
-            const goodCount = withRatio.filter((p) => (p.cost_ratio ?? 0) < 0.30).length;
+            const highCount = withRatio.filter((p) => (p.cost_ratio ?? 0) >= 0.32).length;
+            const goodCount = withRatio.filter((p) => (p.cost_ratio ?? 0) < 0.27).length;
             function ratioColor(ratio: number | null) {
               if (ratio == null) return "text-zinc-500";
-              if (ratio >= 0.40) return "text-red-400";
-              if (ratio >= 0.35) return "text-amber-400";
-              if (ratio >= 0.30) return "text-yellow-300";
+              if (ratio >= 0.37) return "text-red-400";
+              if (ratio >= 0.32) return "text-amber-400";
+              if (ratio >= 0.27) return "text-yellow-300";
               return "text-emerald-400";
             }
             function ratioBarColor(ratio: number | null) {
               if (ratio == null) return "bg-zinc-700";
-              if (ratio >= 0.40) return "bg-red-500";
-              if (ratio >= 0.35) return "bg-amber-500";
-              if (ratio >= 0.30) return "bg-yellow-400";
+              if (ratio >= 0.37) return "bg-red-500";
+              if (ratio >= 0.32) return "bg-amber-500";
+              if (ratio >= 0.27) return "bg-yellow-400";
               return "bg-emerald-500";
             }
             function SortBtn({ col, label }: { col: typeof ratioSortKey; label: string }) {
@@ -4499,11 +4499,11 @@ export default function CostCalculationPage() {
                     </div>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                    <div className="text-[10px] uppercase tracking-wider text-zinc-500">⚠ 35%超</div>
+                    <div className="text-[10px] uppercase tracking-wider text-zinc-500">⚠ 32%超</div>
                     <div className="mt-1 text-2xl font-bold text-amber-400">{highCount}</div>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                    <div className="text-[10px] uppercase tracking-wider text-zinc-500">✓ 30%未満</div>
+                    <div className="text-[10px] uppercase tracking-wider text-zinc-500">✓ 27%未満</div>
                     <div className="mt-1 text-2xl font-bold text-emerald-400">{goodCount}</div>
                   </div>
                 </div>
@@ -4590,10 +4590,10 @@ export default function CostCalculationPage() {
 
                 {/* Legend */}
                 <div className="flex flex-wrap gap-4 text-[11px] text-zinc-500">
-                  <span><span className="mr-1 text-emerald-400">●</span>30%未満（優）</span>
-                  <span><span className="mr-1 text-yellow-300">●</span>30〜35%（良）</span>
-                  <span><span className="mr-1 text-amber-400">●</span>35〜40%（要注意）</span>
-                  <span><span className="mr-1 text-red-400">●</span>40%超（高）</span>
+                  <span><span className="mr-1 text-emerald-400">●</span>27%未満（優）</span>
+                  <span><span className="mr-1 text-yellow-300">●</span>27〜32%（良）</span>
+                  <span><span className="mr-1 text-amber-400">●</span>32〜37%（要注意）</span>
+                  <span><span className="mr-1 text-red-400">●</span>37%超（高）</span>
                 </div>
               </div>
             );
