@@ -3774,7 +3774,48 @@ export default function CostCalculationPage() {
                           </div>
                         </div>
                         <div>
-                          <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Formula</div>
+                          <div className="mb-1 flex items-center justify-between">
+                            <span className="text-[10px] uppercase tracking-wide text-zinc-500">Formula</span>
+                            <button
+                              type="button"
+                              title="コスト合計・Yield・Bufferから自動でFormulaを生成します"
+                              onClick={() => {
+                                const rawCost = masterEditorPreview?.raw_cost ?? 0;
+                                const yieldRate = normalizeRateValue(masterEditor.yield_rate);
+                                const bufferRate = normalizeMenuBufferRate(masterEditor.buffer_rate);
+                                const outputQty = Number(masterEditor.output_qty || 1) > 0 ? Number(masterEditor.output_qty) : 1;
+                                // Build formula: (rawCost / yieldRate) * bufferRate / outputQty
+                                const rStr = rawCost.toFixed(4);
+                                const yStr = String(+yieldRate.toFixed(6));
+                                const bStr = String(+bufferRate.toFixed(6));
+                                const hasYield = Math.abs(yieldRate - 1) > 1e-6;
+                                const hasBuffer = Math.abs(bufferRate - 1) > 1e-6;
+                                const hasOutput = Math.abs(outputQty - 1) > 1e-6;
+                                let formula: string;
+                                if (hasYield && hasBuffer) {
+                                  formula = `(${rStr}/${yStr})*${bStr}`;
+                                } else if (hasYield) {
+                                  formula = `${rStr}/${yStr}`;
+                                } else if (hasBuffer) {
+                                  formula = `${rStr}*${bStr}`;
+                                } else {
+                                  formula = rStr;
+                                }
+                                if (hasOutput) {
+                                  formula = `(${formula})/${String(+outputQty.toFixed(6))}`;
+                                }
+                                const evaluated = evaluateCostFormulaExpression(formula);
+                                updateMasterEditor((current) => ({
+                                  ...current,
+                                  cost_unit_price_formula: formula,
+                                  cost_unit_price: evaluated != null ? evaluated : current.cost_unit_price,
+                                }));
+                              }}
+                              className="rounded border border-sky-600/40 bg-sky-950/30 px-2 py-0.5 text-[10px] text-sky-300 hover:bg-sky-900/40 transition-colors"
+                            >
+                              自動入力
+                            </button>
+                          </div>
                           <input
                             value={masterEditor.cost_unit_price_formula}
                             onChange={(e) => updateMasterEditor((current) => {
