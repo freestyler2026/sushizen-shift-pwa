@@ -287,8 +287,70 @@ function conversionRuleHint(invoiceUnit: string): string {
     jar: "e.g. 1 JAR = X g  →  enter weight per jar",
     pcs: "e.g. 1 PCS = 1 pc",
     pc: "e.g. 1 PC = 1 pc",
+    tray: "e.g. 1 TRAY = 30 pc  →  enter count per tray",
   };
   return hints[u] || "";
+}
+
+/** Parse "1 TRAY = 30 pc" → { fromUnit: "tray", multiplier: 30, toUnit: "pc" } */
+function parseConversionRule(rule: string): { fromUnit: string; multiplier: number; toUnit: string } | null {
+  if (!rule || !rule.trim()) return null;
+  const cleaned = rule.split(/[→>]/)[0].trim();
+  const m = cleaned.match(/(?:1\s+)?(\w+)\s*=\s*([0-9]+(?:\.[0-9]+)?)\s*(\w+)/i);
+  if (!m) return null;
+  const multiplier = parseFloat(m[2]);
+  if (!multiplier || multiplier <= 0) return null;
+  return { fromUnit: m[1].toUpperCase(), multiplier, toUnit: m[3].toLowerCase() };
+}
+
+interface ConversionPreviewProps {
+  rule: string;
+  invoiceUnit: string;
+  ingredientUnit: string;
+  invoiceUnitPrice: number;
+  currency: string;
+}
+function ConversionPreview({ rule, invoiceUnit, ingredientUnit, invoiceUnitPrice, currency }: ConversionPreviewProps) {
+  const parsed = parseConversionRule(rule);
+  if (!parsed) return null;
+
+  const fromMatch = parsed.fromUnit.toLowerCase() === (invoiceUnit || "").trim().toLowerCase();
+  const toMatch = parsed.toUnit.toLowerCase() === (ingredientUnit || "").trim().toLowerCase();
+
+  const pricePerUnit = invoiceUnitPrice > 0 && parsed.multiplier > 0
+    ? invoiceUnitPrice / parsed.multiplier
+    : null;
+
+  return (
+    <div className="mt-1.5 rounded-lg border border-sky-900/40 bg-sky-950/20 px-3 py-2 text-xs">
+      <div className="flex items-center gap-1.5 text-sky-300">
+        <span>1 {parsed.fromUnit}</span>
+        <span className="text-zinc-500">=</span>
+        <span className="font-semibold">{parsed.multiplier} {parsed.toUnit}</span>
+        {(!fromMatch || !toMatch) && invoiceUnit && ingredientUnit && (
+          <span className="ml-1 text-amber-400/80">
+            ⚠ 単位が一致していません ({invoiceUnit.toUpperCase()} / {ingredientUnit})
+          </span>
+        )}
+      </div>
+      {pricePerUnit !== null && (
+        <div className="mt-1 text-zinc-300">
+          <span className="text-zinc-500">1 {parsed.toUnit} あたり = </span>
+          <span className="font-semibold text-emerald-300">
+            {currency} {pricePerUnit.toFixed(4)}
+          </span>
+          {invoiceUnitPrice > 0 && (
+            <span className="ml-2 text-zinc-500">
+              ({currency} {invoiceUnitPrice.toFixed(3)} ÷ {parsed.multiplier})
+            </span>
+          )}
+        </div>
+      )}
+      {pricePerUnit === null && invoiceUnitPrice > 0 && (
+        <div className="mt-1 text-zinc-500">請求書単価を入力すると1個あたりの価格が表示されます</div>
+      )}
+    </div>
+  );
 }
 
 function unmatchedInvoiceItemKey(item: Pick<UnmatchedInvoiceItemRow, "supplier_name" | "item_description">) {
@@ -4158,8 +4220,15 @@ export default function CostCalculationPage() {
                         <input
                           value={mappingConversionRule}
                           onChange={(e) => setMappingConversionRule(e.target.value)}
-                          placeholder="e.g. KG->g / 1000"
+                          placeholder="e.g. 1 TRAY = 30 pc"
                           className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
+                        />
+                        <ConversionPreview
+                          rule={mappingConversionRule}
+                          invoiceUnit={mappingSourceInvoiceUnit}
+                          ingredientUnit={mappingIngredientUnit}
+                          invoiceUnitPrice={activeMappingSelectionMeta.latestUnitPrice}
+                          currency={currencyCode}
                         />
                       </div>
                       {/* Notes */}
