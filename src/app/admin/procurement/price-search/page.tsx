@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, Package, Tag, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
-import { GLASS_CARD, T_MUTED, T_BODY } from "@/lib/ui-tokens";
+import { GLASS_CARD, T_CAPTION, T_BODY } from "@/lib/ui-tokens";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type PriceResult = {
@@ -29,7 +29,7 @@ async function fetchAuthHeaders(): Promise<Record<string, string>> {
   const refreshed = await refreshAuthFromApi(auth);
   const token = refreshed?.accessToken || auth?.accessToken || "";
   const stepUp = refreshed?.stepUpToken || auth?.stepUpToken || "";
-  if (!token) throw new Error("ログインし直してください。");
+  if (!token) throw new Error("Please log in again.");
   return {
     Authorization: `Bearer ${token}`,
     ...(stepUp ? { "X-Step-Up-Token": stepUp } : {}),
@@ -96,7 +96,7 @@ export default function PriceSearchPage() {
     const trimmed = q.trim();
     if (trimmed.length < 2) {
       setResults([]);
-      setMessage(trimmed.length === 0 ? "" : "2文字以上入力してください。");
+      setMessage(trimmed.length === 0 ? "" : "Enter at least 2 characters.");
       return;
     }
     setLoading(true);
@@ -111,12 +111,12 @@ export default function PriceSearchPage() {
         headers,
       });
       const text = await res.text();
-      if (!res.ok) throw new Error(text || `エラー (${res.status})`);
+      if (!res.ok) throw new Error(text || `Error (${res.status})`);
       const json = JSON.parse(text || "{}");
       const items: PriceResult[] = Array.isArray(json?.items) ? json.items : [];
       const grouped = groupResults(items);
       setResults(grouped);
-      if (grouped.length === 0) setMessage(`「${trimmed}」に一致するアイテムが見つかりません。`);
+      if (grouped.length === 0) setMessage(`No items found matching "${trimmed}".`);
     } catch (e: any) {
       setError(e?.message || String(e));
       setResults([]);
@@ -175,14 +175,14 @@ export default function PriceSearchPage() {
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="アイテム名で検索（例：TOM YUM PASTE）"
+              placeholder="Search by item name (e.g. TOM YUM PASTE)"
               className="w-full rounded-lg border border-white/15 bg-white/5 py-2 pl-9 pr-4 text-sm text-white placeholder-zinc-500 focus:border-violet-500/50 focus:outline-none"
             />
           </div>
         </div>
 
         {loading && (
-          <p className={`mt-2 text-xs ${T_MUTED}`}>検索中...</p>
+          <p className={`mt-2 text-xs ${T_CAPTION}`}>Searching...</p>
         )}
         {error && (
           <div className="mt-2 flex items-center gap-2 rounded border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-300">
@@ -191,10 +191,10 @@ export default function PriceSearchPage() {
           </div>
         )}
         {!loading && message && (
-          <p className={`mt-2 text-xs ${T_MUTED}`}>{message}</p>
+          <p className={`mt-2 text-xs ${T_CAPTION}`}>{message}</p>
         )}
         {!loading && results.length > 0 && (
-          <p className={`mt-2 text-xs ${T_MUTED}`}>{results.length} 件のアイテムが見つかりました。</p>
+          <p className={`mt-2 text-xs ${T_CAPTION}`}>{results.length} item{results.length !== 1 ? "s" : ""} found.</p>
         )}
       </div>
 
@@ -220,8 +220,8 @@ export default function PriceSearchPage() {
                     <p className="truncate font-semibold text-white text-sm">
                       {group.ingredient_name}
                     </p>
-                    <p className={`text-xs ${T_MUTED}`}>
-                      単位: {group.ingredient_unit}
+                    <p className={`text-xs ${T_CAPTION}`}>
+                      Unit: {group.ingredient_unit}
                     </p>
                   </div>
                 </div>
@@ -229,11 +229,11 @@ export default function PriceSearchPage() {
                 <div className="flex shrink-0 items-center gap-4">
                   {/* Cost unit price */}
                   <div className="text-right">
-                    <p className={`text-[10px] uppercase tracking-wider ${T_MUTED}`}>計算単価</p>
+                    <p className={`text-[10px] uppercase tracking-wider ${T_CAPTION}`}>Unit Cost</p>
                     <p className="font-mono text-sm font-semibold text-violet-300">
                       {group.unit_price > 0
                         ? `${currencyCode} ${fmt(group.unit_price)}`
-                        : <span className="text-zinc-500">未設定</span>}
+                        : <span className="text-zinc-500">Not set</span>}
                     </p>
                     {group.unit_price_formula && (
                       <p className="font-mono text-[10px] text-zinc-500">{group.unit_price_formula}</p>
@@ -252,8 +252,8 @@ export default function PriceSearchPage() {
               {isExpanded && (
                 <div className="border-t border-white/8">
                   {!hasRows ? (
-                    <p className={`px-4 py-3 text-xs ${T_MUTED}`}>
-                      仕入れ情報が登録されていません。
+                    <p className={`px-4 py-3 text-xs ${T_CAPTION}`}>
+                      No purchase data registered.
                     </p>
                   ) : (
                     <div className="divide-y divide-white/5">
@@ -261,23 +261,23 @@ export default function PriceSearchPage() {
                         <div key={idx} className="grid grid-cols-1 gap-x-6 gap-y-2 px-4 py-3 sm:grid-cols-2 lg:grid-cols-4">
                           {/* Invoice item */}
                           <div>
-                            <p className={`text-[10px] uppercase tracking-wider ${T_MUTED}`}>
-                              仕入れアイテム名
+                            <p className={`text-[10px] uppercase tracking-wider ${T_CAPTION}`}>
+                              Invoice Item
                             </p>
                             <p className={`text-xs ${T_BODY} break-words`}>
                               {row.invoice_item_description || "-"}
                             </p>
                             {row.invoice_unit && (
-                              <p className={`text-[10px] ${T_MUTED}`}>
-                                単位: {row.invoice_unit}
+                              <p className={`text-[10px] ${T_CAPTION}`}>
+                                Unit: {row.invoice_unit}
                               </p>
                             )}
                           </div>
 
                           {/* Supplier */}
                           <div>
-                            <p className={`text-[10px] uppercase tracking-wider ${T_MUTED}`}>
-                              サプライヤー
+                            <p className={`text-[10px] uppercase tracking-wider ${T_CAPTION}`}>
+                              Supplier
                             </p>
                             <p className={`flex items-center gap-1 text-xs ${T_BODY}`}>
                               <Tag className="h-3 w-3 text-violet-400 shrink-0" />
@@ -287,36 +287,36 @@ export default function PriceSearchPage() {
 
                           {/* Purchase price */}
                           <div>
-                            <p className={`text-[10px] uppercase tracking-wider ${T_MUTED}`}>
-                              仕入れ価格
+                            <p className={`text-[10px] uppercase tracking-wider ${T_CAPTION}`}>
+                              Purchase Price
                             </p>
                             {row.purchase_price > 0 ? (
                               <>
                                 <p className="font-mono text-sm font-semibold text-emerald-300">
                                   {currencyCode} {fmt(row.purchase_price, 2)}
                                 </p>
-                                <p className={`text-[10px] ${T_MUTED}`}>
+                                <p className={`text-[10px] ${T_CAPTION}`}>
                                   {row.purchase_qty > 0
-                                    ? `${row.purchase_qty} ${row.purchase_unit} あたり`
+                                    ? `per ${row.purchase_qty} ${row.purchase_unit}`
                                     : row.purchase_unit}
                                 </p>
                               </>
                             ) : (
-                              <p className={`text-xs ${T_MUTED}`}>価格データなし</p>
+                              <p className={`text-xs ${T_CAPTION}`}>No price data</p>
                             )}
                           </div>
 
                           {/* Conversion */}
                           <div>
-                            <p className={`text-[10px] uppercase tracking-wider ${T_MUTED}`}>
-                              換算ルール
+                            <p className={`text-[10px] uppercase tracking-wider ${T_CAPTION}`}>
+                              Conversion Rule
                             </p>
                             <p className={`font-mono text-xs ${T_BODY}`}>
                               {row.conversion_rule || "-"}
                             </p>
                             {row.price_updated_at && (
-                              <p className={`text-[10px] ${T_MUTED}`}>
-                                更新: {new Date(row.price_updated_at).toLocaleDateString("ja-JP")}
+                              <p className={`text-[10px] ${T_CAPTION}`}>
+                                Updated: {new Date(row.price_updated_at).toLocaleDateString("en-GB")}
                               </p>
                             )}
                           </div>
