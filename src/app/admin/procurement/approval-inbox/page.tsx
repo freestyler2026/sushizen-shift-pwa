@@ -71,6 +71,7 @@ export default function ProcurementApprovalInboxPage() {
         pin,
       );
       await load();
+      window.dispatchEvent(new Event("procurement-badge-refresh"));
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {

@@ -69,6 +69,8 @@ export default function ProcurementCaseDetailPage() {
       );
       setMessage("");
       await load();
+      // Notify ProcurementTabs to refresh badge counts immediately
+      window.dispatchEvent(new Event("procurement-badge-refresh"));
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {

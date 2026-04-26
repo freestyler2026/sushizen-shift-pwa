@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { TAB_ACTIVE, TAB_INACTIVE } from "@/lib/ui-tokens";
 
@@ -129,45 +129,51 @@ export default function ProcurementTabs() {
   }, [pathname]);
 
   // Load badge summary + resolve access level
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const auth = getAuth();
-        if (!auth?.accessToken) return;
-        const refreshed = await refreshAuthFromApi(auth);
-        const role = String(refreshed?.role || auth?.role || "STAFF");
-        const city =
-          String(refreshed?.city || auth?.city || "manila").toLowerCase() === "dubai"
-            ? "dubai"
-            : "manila";
-        if (!cancelled) setAccessLevel(roleToAccessLevel(role));
-        const res = await fetch(
-          `/api/admin/procurement/badge-summary?city=${encodeURIComponent(city)}`,
-          {
-            method: "GET",
-            cache: "no-store",
-            headers: {
-              Authorization: `Bearer ${refreshed?.accessToken || auth.accessToken}`,
-              ...(refreshed?.stepUpToken ? { "X-Step-Up-Token": refreshed.stepUpToken } : {}),
-            },
+  const loadBadge = useCallback(async () => {
+    try {
+      const auth = getAuth();
+      if (!auth?.accessToken) return;
+      const refreshed = await refreshAuthFromApi(auth);
+      const role = String(refreshed?.role || auth?.role || "STAFF");
+      const city =
+        String(refreshed?.city || auth?.city || "manila").toLowerCase() === "dubai"
+          ? "dubai"
+          : "manila";
+      setAccessLevel(roleToAccessLevel(role));
+      const res = await fetch(
+        `/api/admin/procurement/badge-summary?city=${encodeURIComponent(city)}`,
+        {
+          method: "GET",
+          cache: "no-store",
+          headers: {
+            Authorization: `Bearer ${refreshed?.accessToken || auth.accessToken}`,
+            ...(refreshed?.stepUpToken ? { "X-Step-Up-Token": refreshed.stepUpToken } : {}),
           },
-        );
-        if (!res.ok || cancelled) return;
-        const json = JSON.parse(await res.text() || "{}");
-        setSummary({
-          incoming_requests_count:  Number(json?.incoming_requests_count  || 0),
-          issue_count:              Number(json?.issue_count              || 0),
-          issue_critical_count:     Number(json?.issue_critical_count     || 0),
-          price_check_pending_count: Number(json?.price_check_pending_count || 0),
-          price_check_overdue_count: Number(json?.price_check_overdue_count || 0),
-        });
-      } catch { /* keep tabs usable if badge load fails */ }
-    }
-    void load();
-    const timer = window.setInterval(() => void load(), 60_000);
-    return () => { cancelled = true; window.clearInterval(timer); };
+        },
+      );
+      if (!res.ok) return;
+      const json = JSON.parse(await res.text() || "{}");
+      setSummary({
+        incoming_requests_count:  Number(json?.incoming_requests_count  || 0),
+        issue_count:              Number(json?.issue_count              || 0),
+        issue_critical_count:     Number(json?.issue_critical_count     || 0),
+        price_check_pending_count: Number(json?.price_check_pending_count || 0),
+        price_check_overdue_count: Number(json?.price_check_overdue_count || 0),
+      });
+    } catch { /* keep tabs usable if badge load fails */ }
   }, []);
+
+  useEffect(() => {
+    void loadBadge();
+    const timer = window.setInterval(() => void loadBadge(), 15_000);
+    // Listen for immediate refresh requests (e.g., after approve/reject)
+    const onRefresh = () => void loadBadge();
+    window.addEventListener("procurement-badge-refresh", onRefresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("procurement-badge-refresh", onRefresh);
+    };
+  }, [loadBadge]);
 
   // Badge map: href → { count, critical }
   const badgeMap = useMemo<Record<string, { count: number; critical: boolean }>>(() => ({
