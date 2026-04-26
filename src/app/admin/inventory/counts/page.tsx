@@ -377,7 +377,7 @@ export default function InventoryCountsPage() {
   }
 
   function startEditItem(item: InventoryCountLine) {
-    setEditingItemId(item.id || null);
+    setEditingItemId(item.id != null ? String(item.id) : null);
     setEditItemUnit(item.storage_unit || "");
     setEditItemPrice(String(item.unit_price ?? ""));
     setEditItemSupplier(item.supplier_name || "");
@@ -680,7 +680,7 @@ export default function InventoryCountsPage() {
                     </thead>
                     <tbody>
                       {(selectedCount.items || []).map((item, index) => {
-                        const isEditing = editingItemId === item.id;
+                        const isEditing = editingItemId != null && editingItemId === String(item.id ?? "");
                         return (
                           <tr key={`${item.sku}-${index}`} className={["border-t border-neutral-800", isEditing ? "bg-amber-950/20" : ""].join(" ")}>
                             <td className="px-2 py-2">

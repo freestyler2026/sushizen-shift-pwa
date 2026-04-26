@@ -12,6 +12,7 @@ export type InventoryItemLookup = {
 };
 
 export type InventoryCountLine = {
+  id?: string | number;
   item_id: string;
   category: string;
   supplier_name: string;
