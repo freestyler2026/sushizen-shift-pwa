@@ -12,7 +12,20 @@ function parseApiErrorDetail(text: string, fallback: string): string {
   }
   try {
     const parsed = JSON.parse(trimmed || "{}");
-    return String(parsed?.detail || parsed?.message || fallback);
+    const detail = parsed?.detail;
+    // FastAPI validation errors return detail as an array of {loc, msg, type} objects
+    if (Array.isArray(detail)) {
+      const msgs = detail.map((d: any) => {
+        const loc = Array.isArray(d?.loc) ? d.loc.filter((l: any) => l !== "body").join(".") : "";
+        return loc ? `${loc}: ${d?.msg ?? ""}` : String(d?.msg ?? "");
+      }).filter(Boolean);
+      return msgs.length ? msgs.join("; ") : fallback;
+    }
+    // detail is an object (but not array)
+    if (detail !== null && typeof detail === "object") {
+      return parsed?.message ? String(parsed.message) : fallback;
+    }
+    return String(detail || parsed?.message || fallback);
   } catch {
     return trimmed || fallback;
   }
