@@ -130,7 +130,7 @@ type MenuItemDetail = MenuItemRow & {
   price_history: MenuPriceHistoryEntry[];
 };
 
-type CostSection = "ingredient" | "processed" | "product" | "draft" | "invoice";
+type CostSection = "ingredient" | "processed" | "product" | "draft" | "invoice" | "cost-ratio";
 
 type MasterComponentType = "ingredient" | "processed_item";
 
@@ -864,6 +864,9 @@ export default function CostCalculationPage() {
   const [mappingCostSaveError, setMappingCostSaveError] = useState("");
   const [mappingDetailLoading, setMappingDetailLoading] = useState(false);
   const [mappingCostSaving, setMappingCostSaving] = useState(false);
+  const [ratioSortKey, setRatioSortKey] = useState<"cost_ratio" | "name" | "category" | "selling_price" | "unit_cost">("cost_ratio");
+  const [ratioSortDir, setRatioSortDir] = useState<"asc" | "desc">("desc");
+  const [ratioCategoryFilter, setRatioCategoryFilter] = useState("all");
   const mappingCostInputsDirtyRef = useRef(false);
   // Tracks whether ingredients have been loaded at least once.
   // Background refreshes skip the skeleton loader to avoid disrupting in-progress edits.
@@ -880,6 +883,7 @@ export default function CostCalculationPage() {
   const activeMasterType = activeSection === "processed" ? "processed" : activeSection === "draft" ? "draft" : "product";
   const isIngredientSection = activeSection === "ingredient";
   const isInvoiceSection = activeSection === "invoice";
+  const isRatioSection = activeSection === "cost-ratio";
   const isMasterSection = activeSection === "processed" || activeSection === "draft" || activeSection === "product";
   const showLegacyRecipeSection = activeSection === "product" && showLegacyProductSheets;
   const ingredientColumns = useMemo<SpreadsheetColumn[]>(
@@ -1622,6 +1626,11 @@ export default function CostCalculationPage() {
     void loadMasterItems(activeMasterType);
     void loadComponentOptions();
   }, [activeMasterType, activeSection, allowed, isMasterSection, loadComponentOptions, loadMasterItems, showLegacyProductSheets]);
+
+  useEffect(() => {
+    if (!allowed || !isRatioSection) return;
+    void loadMasterItems("product");
+  }, [allowed, isRatioSection, loadMasterItems]);
 
   useEffect(() => {
     if (!isMasterSection || showLegacyRecipeSection) return;
@@ -3372,6 +3381,7 @@ export default function CostCalculationPage() {
               { key: "product" as CostSection, label: "商品マスタ" },
               { key: "draft" as CostSection, label: "新商品用コスト計算" },
               { key: "invoice" as CostSection, label: "仕入連動" },
+              { key: "cost-ratio" as CostSection, label: "原価率一覧" },
             ].map((section) => (
               <button
                 key={section.key}
@@ -4409,9 +4419,187 @@ export default function CostCalculationPage() {
                 )}
               </div>
             </div>
-          ) : null}
+          ) : isRatioSection ? (() => {
+            const productItems = masterItemsByType.product || [];
+            const categories = Array.from(new Set(productItems.map((p) => p.category).filter(Boolean))).sort();
+            const filtered = productItems.filter((p) =>
+              ratioCategoryFilter === "all" || p.category === ratioCategoryFilter,
+            );
+            const sorted = [...filtered].sort((a, b) => {
+              let av: number;
+              let bv: number;
+              if (ratioSortKey === "cost_ratio") {
+                av = a.cost_ratio ?? -1;
+                bv = b.cost_ratio ?? -1;
+              } else if (ratioSortKey === "selling_price") {
+                av = a.selling_price;
+                bv = b.selling_price;
+              } else if (ratioSortKey === "unit_cost") {
+                av = a.unit_cost;
+                bv = b.unit_cost;
+              } else if (ratioSortKey === "category") {
+                return ratioSortDir === "asc"
+                  ? (a.category || "").localeCompare(b.category || "")
+                  : (b.category || "").localeCompare(a.category || "");
+              } else {
+                return ratioSortDir === "asc"
+                  ? (a.name || "").localeCompare(b.name || "")
+                  : (b.name || "").localeCompare(a.name || "");
+              }
+              return ratioSortDir === "asc" ? av - bv : bv - av;
+            });
+            const withRatio = sorted.filter((p) => p.cost_ratio != null && p.selling_price > 0);
+            const avgRatio = withRatio.length > 0
+              ? withRatio.reduce((s, p) => s + (p.cost_ratio ?? 0), 0) / withRatio.length
+              : null;
+            const highCount = withRatio.filter((p) => (p.cost_ratio ?? 0) >= 0.35).length;
+            const goodCount = withRatio.filter((p) => (p.cost_ratio ?? 0) < 0.30).length;
+            function ratioColor(ratio: number | null) {
+              if (ratio == null) return "text-zinc-500";
+              if (ratio >= 0.40) return "text-red-400";
+              if (ratio >= 0.35) return "text-amber-400";
+              if (ratio >= 0.30) return "text-yellow-300";
+              return "text-emerald-400";
+            }
+            function ratioBarColor(ratio: number | null) {
+              if (ratio == null) return "bg-zinc-700";
+              if (ratio >= 0.40) return "bg-red-500";
+              if (ratio >= 0.35) return "bg-amber-500";
+              if (ratio >= 0.30) return "bg-yellow-400";
+              return "bg-emerald-500";
+            }
+            function SortBtn({ col, label }: { col: typeof ratioSortKey; label: string }) {
+              const active = ratioSortKey === col;
+              return (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (active) setRatioSortDir((d) => d === "asc" ? "desc" : "asc");
+                    else { setRatioSortKey(col); setRatioSortDir("desc"); }
+                  }}
+                  className={cx("flex items-center gap-1 text-[10px] uppercase tracking-wider transition", active ? "text-violet-300" : "text-zinc-500 hover:text-zinc-300")}
+                >
+                  {label}
+                  <span className="text-[8px]">{active ? (ratioSortDir === "asc" ? "▲" : "▼") : "⇅"}</span>
+                </button>
+              );
+            }
+            return (
+              <div className="space-y-4">
+                {/* KPI row */}
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                    <div className="text-[10px] uppercase tracking-wider text-zinc-500">商品数</div>
+                    <div className="mt-1 text-2xl font-bold text-white">{sorted.length}</div>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                    <div className="text-[10px] uppercase tracking-wider text-zinc-500">平均原価率</div>
+                    <div className={cx("mt-1 text-2xl font-bold", ratioColor(avgRatio))}>
+                      {avgRatio != null ? `${(avgRatio * 100).toFixed(1)}%` : "—"}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                    <div className="text-[10px] uppercase tracking-wider text-zinc-500">⚠ 35%超</div>
+                    <div className="mt-1 text-2xl font-bold text-amber-400">{highCount}</div>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                    <div className="text-[10px] uppercase tracking-wider text-zinc-500">✓ 30%未満</div>
+                    <div className="mt-1 text-2xl font-bold text-emerald-400">{goodCount}</div>
+                  </div>
+                </div>
 
-          <div className={cx((isMasterSection && !showLegacyRecipeSection || isInvoiceSection) && "hidden")}>
+                {/* Filter */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-zinc-500">カテゴリ：</span>
+                  {["all", ...categories].map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setRatioCategoryFilter(cat)}
+                      className={cx(
+                        "rounded-full border px-3 py-1 text-xs transition",
+                        ratioCategoryFilter === cat
+                          ? "border-violet-500/60 bg-violet-600/30 text-violet-200"
+                          : "border-white/10 text-zinc-400 hover:text-zinc-200",
+                      )}
+                    >
+                      {cat === "all" ? "すべて" : cat}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Table */}
+                <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0a101c]">
+                  {/* Header */}
+                  <div className="grid grid-cols-[minmax(0,1fr)_110px_90px_90px_110px_130px] gap-x-3 border-b border-white/10 px-4 py-2">
+                    <SortBtn col="name" label="商品名" />
+                    <SortBtn col="category" label="カテゴリ" />
+                    <div className="text-right"><SortBtn col="selling_price" label="売価" /></div>
+                    <div className="text-right"><SortBtn col="unit_cost" label="原価" /></div>
+                    <div className="text-right"><SortBtn col="cost_ratio" label="原価率" /></div>
+                    <div className="text-[10px] uppercase tracking-wider text-zinc-500">バー</div>
+                  </div>
+
+                  {masterItemsLoading ? (
+                    <div className="space-y-2 p-4">
+                      {[...Array(8)].map((_, i) => (
+                        <div key={i} className="h-9 animate-pulse rounded bg-white/[0.04]" />
+                      ))}
+                    </div>
+                  ) : sorted.length === 0 ? (
+                    <div className="flex h-32 items-center justify-center text-sm text-zinc-500">商品データがありません</div>
+                  ) : (
+                    <div className="divide-y divide-white/5">
+                      {sorted.map((item) => {
+                        const ratio = item.cost_ratio;
+                        const pct = ratio != null ? ratio * 100 : null;
+                        const barWidth = ratio != null ? Math.min(ratio / 0.60, 1) * 100 : 0;
+                        return (
+                          <div
+                            key={item.id}
+                            className="grid grid-cols-[minmax(0,1fr)_110px_90px_90px_110px_130px] items-center gap-x-3 px-4 py-2.5 hover:bg-white/[0.02] cursor-pointer"
+                            onClick={() => { setActiveSection("product"); void loadMasterDetail(item.id); }}
+                          >
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-medium text-white">{item.name}</div>
+                            </div>
+                            <div className="truncate text-xs text-zinc-400">{item.category || "—"}</div>
+                            <div className="text-right font-mono text-xs text-zinc-300">
+                              {item.selling_price > 0 ? `${currencyCode} ${item.selling_price.toFixed(0)}` : "—"}
+                            </div>
+                            <div className="text-right font-mono text-xs text-zinc-300">
+                              {currencyCode} {item.unit_cost.toFixed(2)}
+                            </div>
+                            <div className={cx("text-right font-mono text-sm font-semibold", ratioColor(ratio))}>
+                              {pct != null ? `${pct.toFixed(1)}%` : "—"}
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
+                                <div
+                                  className={cx("h-full rounded-full transition-all", ratioBarColor(ratio))}
+                                  style={{ width: `${barWidth}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Legend */}
+                <div className="flex flex-wrap gap-4 text-[11px] text-zinc-500">
+                  <span><span className="mr-1 text-emerald-400">●</span>30%未満（優）</span>
+                  <span><span className="mr-1 text-yellow-300">●</span>30〜35%（良）</span>
+                  <span><span className="mr-1 text-amber-400">●</span>35〜40%（要注意）</span>
+                  <span><span className="mr-1 text-red-400">●</span>40%超（高）</span>
+                </div>
+              </div>
+            );
+          })() : null}
+
+          <div className={cx((isMasterSection && !showLegacyRecipeSection || isInvoiceSection || isRatioSection) && "hidden")}>
           {activeSheet === INGREDIENT_SHEET && loading ? (
             <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-6 animate-pulse">
               <div className="h-10 rounded-lg bg-white/[0.05]" />
