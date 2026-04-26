@@ -953,11 +953,16 @@ export default function CostCalculationPage() {
         if (source.length < INGREDIENT_LIST_PAGE_SIZE || added === 0) break;
         offset += INGREDIENT_LIST_PAGE_SIZE;
       }
-      setIngredients(merged);
+      // Preserve any locally-added rows that haven't been saved yet so that
+      // focus/visibility-triggered refreshes don't wipe out in-progress edits.
+      setIngredients((prev) => {
+        const newRows = prev.filter((row) => row._new);
+        return newRows.length ? [...newRows, ...merged] : merged;
+      });
       setAllIngredientOptions(merged);
     } catch (e) {
       console.error("Failed to load ingredients:", e);
-      setIngredients([]);
+      setIngredients((prev) => prev.filter((row) => row._new)); // keep new rows on error
       setAllIngredientOptions([]);
     } finally {
       setLoading(false);
