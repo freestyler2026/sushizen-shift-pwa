@@ -135,6 +135,79 @@ export default function ProcurementCaseDetailPage() {
         </button>
       </div>
 
+      {/* ── Request Details ── */}
+      {bundle.request && (
+        <div className="rounded-2xl border border-sky-800/40 bg-sky-950/20 p-4">
+          <div className="mb-3 flex flex-wrap items-baseline gap-3">
+            <span className="text-base font-semibold text-sky-200">{bundle.request.request_no}</span>
+            <span className="text-sm text-neutral-400">{String(bundle.request.request_date || "").slice(0, 10)}</span>
+            <span className="text-sm text-neutral-400">Store: {bundle.request.store_code || "-"}</span>
+            <span className="text-sm text-neutral-400">By: {bundle.request.requested_by || "-"}</span>
+            {bundle.request.urgent_flag && (
+              <span className="rounded-full border border-rose-700/60 bg-rose-900/30 px-2 py-0.5 text-[11px] font-bold text-rose-300">URGENT</span>
+            )}
+            {bundle.request.new_vendor_flag && (
+              <span className="rounded-full border border-amber-700/60 bg-amber-900/30 px-2 py-0.5 text-[11px] font-bold text-amber-300">NEW VENDOR</span>
+            )}
+            <span className="ml-auto text-lg font-bold text-sky-200">
+              {Number(bundle.request.total_amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })} {bundle.request.currency || "PHP"}
+            </span>
+          </div>
+          {bundle.request.notes && (
+            <div className="mb-3 rounded-xl border border-neutral-700/40 bg-neutral-900/40 px-3 py-2 text-sm text-neutral-300">
+              {bundle.request.notes}
+            </div>
+          )}
+          {/* Line items table */}
+          {(bundle.request.items || []).length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-neutral-700/60 text-left text-xs text-neutral-500">
+                    <th className="pb-2 pr-3">Item</th>
+                    <th className="pb-2 pr-3">Category</th>
+                    <th className="pb-2 pr-3">Spec</th>
+                    <th className="pb-2 pr-3 text-right">Qty</th>
+                    <th className="pb-2 pr-3">Unit</th>
+                    <th className="pb-2 pr-3 text-right">Unit Price</th>
+                    <th className="pb-2 pr-3 text-right">Total</th>
+                    <th className="pb-2 pr-3">Vendor</th>
+                    <th className="pb-2">Needed By</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(bundle.request.items as any[]).map((item: any, idx: number) => (
+                    <tr key={item.id || idx} className="border-b border-neutral-800/40 last:border-0">
+                      <td className="py-2 pr-3 font-medium text-neutral-100">{item.item_name || "-"}</td>
+                      <td className="py-2 pr-3 text-neutral-400">{item.category || "-"}</td>
+                      <td className="py-2 pr-3 text-neutral-400">{item.spec || "-"}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums text-neutral-200">{Number(item.qty || 0).toLocaleString()}</td>
+                      <td className="py-2 pr-3 text-neutral-400">{item.unit || "-"}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums text-neutral-200">{Number(item.unit_price || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums font-semibold text-sky-300">{Number(item.line_total || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</td>
+                      <td className="py-2 pr-3 text-neutral-400">{item.vendor_name || "-"}</td>
+                      <td className="py-2 text-neutral-400">{String(item.needed_by_date || "").slice(0, 10) || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-sky-800/40">
+                    <td colSpan={6} className="pt-2 text-right text-xs text-neutral-500">Total</td>
+                    <td className="pt-2 pr-3 text-right tabular-nums font-bold text-sky-200">
+                      {Number(bundle.request.total_amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                    </td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+          {!(bundle.request.items || []).length && (
+            <div className="text-sm text-neutral-500">No line items found.</div>
+          )}
+        </div>
+      )}
+
       <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
         <div className="text-lg font-semibold">{bundle.case?.parent_case_no || bundle.request?.request_no || caseId}</div>
         <div className="mt-1 text-sm text-neutral-400">
