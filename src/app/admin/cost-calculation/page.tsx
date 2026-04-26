@@ -868,6 +868,10 @@ export default function CostCalculationPage() {
   // Tracks whether ingredients have been loaded at least once.
   // Background refreshes skip the skeleton loader to avoid disrupting in-progress edits.
   const ingredientsLoadedRef = useRef(false);
+  // True when there are unsaved new ingredient rows in the table.
+  // Background focus/visibility refreshes skip loadIngredients when this is set
+  // so that row indices (used by selectedCell/editingCell) don't shift mid-edit.
+  const hasNewIngredientRowsRef = useRef(false);
   const allIngredientOptionsRef = useRef(allIngredientOptions);
   const selectedIngredientDetailRef = useRef<IngredientDetail | null>(null);
   const activeSpreadsheetUrl = SPREADSHEET_URLS[city];
@@ -960,11 +964,12 @@ export default function CostCalculationPage() {
         if (source.length < INGREDIENT_LIST_PAGE_SIZE || added === 0) break;
         offset += INGREDIENT_LIST_PAGE_SIZE;
       }
-      // Preserve any locally-added rows that haven't been saved yet so that
-      // focus/visibility-triggered refreshes don't wipe out in-progress edits.
+      // Preserve any locally-added rows that haven't been saved yet.
+      // IMPORTANT: append new rows at the END (not the front) so that their
+      // row indices stay consistent with selectedCell/editingCell which are index-based.
       setIngredients((prev) => {
         const newRows = prev.filter((row) => row._new);
-        return newRows.length ? [...newRows, ...merged] : merged;
+        return newRows.length ? [...merged, ...newRows] : merged;
       });
       setAllIngredientOptions(merged);
       ingredientsLoadedRef.current = true;
@@ -1540,7 +1545,12 @@ export default function CostCalculationPage() {
       if (Date.now() - lastRefresh < 10_000) return;
       lastRefresh = Date.now();
       void loadInvoiceMappingData();
-      void loadIngredients();
+      // Skip ingredient refresh when:
+      //  - the user has the detail panel open (form inputs would be disrupted), or
+      //  - there are unsaved new rows in the table (row indices would shift mid-edit).
+      if (!selectedIngredientDetailRef.current && !hasNewIngredientRowsRef.current) {
+        void loadIngredients();
+      }
     }
     function onVisibility() {
       if (document.visibilityState === "visible") refresh();
@@ -1981,6 +1991,10 @@ export default function CostCalculationPage() {
   useEffect(() => {
     allIngredientOptionsRef.current = allIngredientOptions;
   }, [allIngredientOptions]);
+
+  useEffect(() => {
+    hasNewIngredientRowsRef.current = ingredients.some((row) => row._new);
+  }, [ingredients]);
 
   useEffect(() => {
     selectedIngredientDetailRef.current = selectedIngredientDetail;
