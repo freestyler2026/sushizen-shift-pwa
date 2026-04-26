@@ -308,46 +308,67 @@ interface ConversionPreviewProps {
   invoiceUnit: string;
   ingredientUnit: string;
   invoiceUnitPrice: number;
+  ingredientUnitPrice: number;
   currency: string;
 }
-function ConversionPreview({ rule, invoiceUnit, ingredientUnit, invoiceUnitPrice, currency }: ConversionPreviewProps) {
+function ConversionPreview({ rule, invoiceUnit, ingredientUnit, invoiceUnitPrice, ingredientUnitPrice, currency }: ConversionPreviewProps) {
+  // Implied count from existing prices: trayPrice / pcPrice = pcs per tray
+  const impliedCount =
+    invoiceUnitPrice > 0 && ingredientUnitPrice > 0
+      ? invoiceUnitPrice / ingredientUnitPrice
+      : null;
+
   const parsed = parseConversionRule(rule);
-  if (!parsed) return null;
 
-  const fromMatch = parsed.fromUnit.toLowerCase() === (invoiceUnit || "").trim().toLowerCase();
-  const toMatch = parsed.toUnit.toLowerCase() === (ingredientUnit || "").trim().toLowerCase();
+  const showImplied = impliedCount !== null && !parsed;
+  const pricePerUnit = parsed && invoiceUnitPrice > 0 ? invoiceUnitPrice / parsed.multiplier : null;
 
-  const pricePerUnit = invoiceUnitPrice > 0 && parsed.multiplier > 0
-    ? invoiceUnitPrice / parsed.multiplier
-    : null;
+  if (!parsed && impliedCount === null) return null;
 
   return (
-    <div className="mt-1.5 rounded-lg border border-sky-900/40 bg-sky-950/20 px-3 py-2 text-xs">
-      <div className="flex items-center gap-1.5 text-sky-300">
-        <span>1 {parsed.fromUnit}</span>
-        <span className="text-zinc-500">=</span>
-        <span className="font-semibold">{parsed.multiplier} {parsed.toUnit}</span>
-        {(!fromMatch || !toMatch) && invoiceUnit && ingredientUnit && (
-          <span className="ml-1 text-amber-400/80">
-            ⚠ 単位が一致していません ({invoiceUnit.toUpperCase()} / {ingredientUnit})
-          </span>
-        )}
-      </div>
-      {pricePerUnit !== null && (
-        <div className="mt-1 text-zinc-300">
-          <span className="text-zinc-500">1 {parsed.toUnit} あたり = </span>
-          <span className="font-semibold text-emerald-300">
-            {currency} {pricePerUnit.toFixed(4)}
-          </span>
-          {invoiceUnitPrice > 0 && (
-            <span className="ml-2 text-zinc-500">
-              ({currency} {invoiceUnitPrice.toFixed(3)} ÷ {parsed.multiplier})
+    <div className="mt-1.5 rounded-lg border border-sky-900/40 bg-sky-950/20 px-3 py-2 text-xs space-y-1">
+      {/* Implied count from price data */}
+      {showImplied && (
+        <div>
+          <div className="text-zinc-400 mb-0.5">現在の価格データから逆算：</div>
+          <div className="flex items-center gap-1.5 text-sky-300">
+            <span>{currency} {invoiceUnitPrice.toFixed(3)} / {invoiceUnit.toUpperCase()}</span>
+            <span className="text-zinc-500">÷</span>
+            <span>{currency} {ingredientUnitPrice.toFixed(4)} / {ingredientUnit}</span>
+            <span className="text-zinc-500">=</span>
+            <span className="font-semibold text-amber-300">
+              約 {Math.round(impliedCount)} {ingredientUnit} / {invoiceUnit.toUpperCase()}
             </span>
-          )}
+          </div>
+          <div className="mt-1 text-zinc-500">
+            → 変換ルール例: <span className="text-sky-400">1 {invoiceUnit.toUpperCase()} = {Math.round(impliedCount)} {ingredientUnit}</span>
+          </div>
         </div>
       )}
-      {pricePerUnit === null && invoiceUnitPrice > 0 && (
-        <div className="mt-1 text-zinc-500">請求書単価を入力すると1個あたりの価格が表示されます</div>
+      {/* Rule parse result */}
+      {parsed && (
+        <div>
+          <div className="flex items-center gap-1.5 text-sky-300">
+            <span>1 {parsed.fromUnit}</span>
+            <span className="text-zinc-500">=</span>
+            <span className="font-semibold">{parsed.multiplier} {parsed.toUnit}</span>
+          </div>
+          {pricePerUnit !== null && (
+            <div className="mt-0.5 text-zinc-300">
+              <span className="text-zinc-500">1 {parsed.toUnit} あたり = </span>
+              <span className="font-semibold text-emerald-300">{currency} {pricePerUnit.toFixed(4)}</span>
+              <span className="ml-2 text-zinc-500">({currency} {invoiceUnitPrice.toFixed(3)} ÷ {parsed.multiplier})</span>
+            </div>
+          )}
+          {impliedCount !== null && (
+            <div className="mt-0.5 text-zinc-500">
+              価格データからの推計: 約 {impliedCount.toFixed(1)} {ingredientUnit} / {invoiceUnit.toUpperCase()}
+              {Math.abs(impliedCount - parsed.multiplier) > 1 && (
+                <span className="ml-1 text-amber-400">⚠ 入力値 ({parsed.multiplier}) と差があります</span>
+              )}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -4228,6 +4249,7 @@ export default function CostCalculationPage() {
                           invoiceUnit={mappingSourceInvoiceUnit}
                           ingredientUnit={mappingIngredientUnit}
                           invoiceUnitPrice={activeMappingSelectionMeta.latestUnitPrice}
+                          ingredientUnitPrice={Number(allIngredientOptions.find((o) => String(o.id) === String(selectedMappingIngredientId))?.unit_price || 0)}
                           currency={currencyCode}
                         />
                       </div>
