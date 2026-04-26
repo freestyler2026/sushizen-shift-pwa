@@ -5444,26 +5444,66 @@ export default function CostCalculationPage() {
                         setIngredientDetailSaving(true);
                         setIngredientDetailSaveError("");
                         try {
-                          const payload: Record<string, unknown> = {
-                            notes_for_history: trimmedFormula ? "Ingredient cost formula updated from cost admin" : "Ingredient price updated from cost admin",
-                            buffer_rate: numericBuffer / 100,
-                            yield_rate: numericYield == null ? null : Number(numericYield) / 100,
-                          };
-                          if (trimmedFormula) {
-                            payload.unit_price_formula = trimmedFormula;
-                            payload.unit_price_formula_note = ingredientDetailFormulaNoteInput.trim();
-                            if (Number.isFinite(numericPrice)) payload.unit_price = numericPrice;
+                          const isNewRow = String(selectedIngredientDetail.id).startsWith("new-");
+                          const bufferRate = numericBuffer / 100;
+                          const yieldRate = numericYield == null ? null : Number(numericYield) / 100;
+                          const unitPrice = trimmedFormula
+                            ? (Number.isFinite(numericPrice) ? numericPrice : undefined)
+                            : numericPrice;
+                          const unitPriceFormula = trimmedFormula || "";
+                          const unitPriceFormulaNoteVal = trimmedFormula ? ingredientDetailFormulaNoteInput.trim() : "";
+
+                          let ingredientIdForDetail: string | number = selectedIngredientDetail.id;
+
+                          if (isNewRow) {
+                            // Ingredient has not been created on the server yet — POST first.
+                            const created = await costJson<{ item?: { id?: number } }>(
+                              "/api/cost/ingredients",
+                              {
+                                method: "POST",
+                                body: JSON.stringify({
+                                  city,
+                                  category: selectedIngredientDetail.category || "Uncategorized",
+                                  name: selectedIngredientDetail.name,
+                                  unit: selectedIngredientDetail.unit || "pc",
+                                  unit_price: unitPrice ?? 0,
+                                  unit_price_formula: unitPriceFormula,
+                                  unit_price_formula_note: unitPriceFormulaNoteVal,
+                                  buffer_rate: bufferRate,
+                                  yield_rate: yieldRate,
+                                  notes: selectedIngredientDetail.notes || "",
+                                }),
+                              },
+                            );
+                            const newId = created?.item?.id;
+                            if (!newId) throw new Error("登録に失敗しました。");
+                            ingredientIdForDetail = newId;
                           } else {
-                            payload.unit_price = numericPrice;
-                            payload.unit_price_formula = "";
-                            payload.unit_price_formula_note = "";
+                            const payload: Record<string, unknown> = {
+                              notes_for_history: trimmedFormula ? "Ingredient cost formula updated from cost admin" : "Ingredient price updated from cost admin",
+                              buffer_rate: bufferRate,
+                              yield_rate: yieldRate,
+                            };
+                            if (trimmedFormula) {
+                              payload.unit_price_formula = unitPriceFormula;
+                              payload.unit_price_formula_note = unitPriceFormulaNoteVal;
+                              if (unitPrice !== undefined) payload.unit_price = unitPrice;
+                            } else {
+                              payload.unit_price = numericPrice;
+                              payload.unit_price_formula = "";
+                              payload.unit_price_formula_note = "";
+                            }
+                            await costJson(`/api/cost/ingredients/${selectedIngredientDetail.id}`, {
+                              method: "PATCH",
+                              body: JSON.stringify(payload),
+                            });
                           }
-                          await costJson(`/api/cost/ingredients/${selectedIngredientDetail.id}`, {
-                            method: "PATCH",
-                            body: JSON.stringify(payload),
-                          });
                           await loadIngredients();
-                          void openIngredientDetail(selectedIngredientDetail);
+                          // Re-open detail with server-assigned ID (handles the new-row case)
+                          const refreshed = allIngredientOptionsRef.current.find(
+                            (item) => String(item.id) === String(ingredientIdForDetail),
+                          ) || { ...selectedIngredientDetail, id: ingredientIdForDetail };
+                          void openIngredientDetail(refreshed as IngredientRow);
                         } catch (e: any) {
                           setIngredientDetailSaveError(e?.message || String(e));
                         } finally {
