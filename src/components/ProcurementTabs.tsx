@@ -41,11 +41,12 @@ const GROUPS: TabGroup[] = [
     label: "Operations",
     sublabel: "Daily work",
     tabs: [
-      { href: "/admin/procurement",               label: "Requests",          showTo: ["staff", "manager", "inventory", "full"] },
-      { href: "/admin/procurement/approval-inbox", label: "Needs My Approval", showTo: ["staff", "manager", "inventory", "full"] },
-      { href: "/admin/procurement/quotes",         label: "Quotes",            showTo: ["manager", "full"] },
-      { href: "/admin/procurement/pos",            label: "PO",                showTo: ["manager", "full"] },
-      { href: "/admin/procurement/receiving",      label: "Confirm Delivery",  showTo: ["manager", "full"] },
+      { href: "/admin/procurement",                  label: "Requests",          showTo: ["staff", "manager", "inventory", "full"] },
+      { href: "/admin/procurement/approval-inbox",   label: "Needs My Approval", showTo: ["staff", "manager", "inventory", "full"] },
+      { href: "/admin/procurement/price-search",     label: "Item Price Search", showTo: ["staff", "manager", "inventory", "full"] },
+      { href: "/admin/procurement/quotes",           label: "Quotes",            showTo: ["manager", "full"] },
+      { href: "/admin/procurement/pos",              label: "PO",                showTo: ["manager", "full"] },
+      { href: "/admin/procurement/receiving",        label: "Confirm Delivery",  showTo: ["manager", "full"] },
     ],
   },
   {
