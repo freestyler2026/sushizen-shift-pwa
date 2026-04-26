@@ -41,7 +41,12 @@ export default function ProcurementApprovalInboxPage() {
         requestedBy,
         pin,
       );
-      setRows(Array.isArray(data?.rows) ? data.rows : []);
+      const CLOSED_STATUSES = ["REJECTED", "APPROVED", "RETURNED"];
+      setRows(
+        Array.isArray(data?.rows)
+          ? data.rows.filter((r) => !CLOSED_STATUSES.includes((r.status || "").toUpperCase()))
+          : [],
+      );
     } catch (e: any) {
       setError(e?.message || String(e));
     }
