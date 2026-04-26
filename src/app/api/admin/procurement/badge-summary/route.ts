@@ -59,7 +59,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(exceptionsResult.json || { ok: false, detail: "Failed to load exceptions." }, { status: exceptionsResult.res.status });
     }
 
-    const approvalRows = Array.isArray(queueResult.json?.rows) ? queueResult.json.rows : [];
+    const CLOSED_STATUSES = ["REJECTED", "APPROVED", "RETURNED"];
+    const allApprovalRows = Array.isArray(queueResult.json?.rows) ? queueResult.json.rows : [];
+    const approvalRows = allApprovalRows.filter(
+      (r: any) => !CLOSED_STATUSES.includes(String(r?.status || "").toUpperCase()),
+    );
     const exceptionRows = Array.isArray(exceptionsResult.json?.rows) ? exceptionsResult.json.rows : [];
     const issueCriticalCount = exceptionRows.filter((row) => {
       const severity = String(row?.severity || "").toUpperCase();
