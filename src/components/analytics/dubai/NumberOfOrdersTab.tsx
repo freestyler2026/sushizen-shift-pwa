@@ -147,12 +147,70 @@ export type DubaiOrderCountsResp = {
   };
 };
 
+// Maps analytics page branch codes → order-counts branch names (as stored in DB)
+const BRANCH_CODE_TO_ORDER_NAME: Record<string, string> = {
+  BB: "Business Bay",
+  JLT: "JLT",
+  ARJ: "Arjan",
+  AM: "Al Hudaiba",
+  AB: "Al Barsha",
+};
+
+type RawRow = DubaiOrderCountsResp["raw"][number];
+
+function buildFromRaw(raw: RawRow[], brand: string): DubaiOrderCountsResp {
+  const dailyMap = new Map<
+    string,
+    { order_date: string; total_orders: number; by_aggregator: Record<string, number>; by_branch: Record<string, number> }
+  >();
+  const summaryAgg: Record<string, number> = {};
+  const summaryBranch: Record<string, number> = {};
+  let summaryTotal = 0;
+  let dateFrom = "";
+  let dateTo = "";
+
+  for (const r of raw) {
+    const cnt = r.order_count || 0;
+    const existing = dailyMap.get(r.order_date) ?? {
+      order_date: r.order_date,
+      total_orders: 0,
+      by_aggregator: {},
+      by_branch: {},
+    };
+    existing.total_orders += cnt;
+    existing.by_aggregator[r.aggregator] = (existing.by_aggregator[r.aggregator] ?? 0) + cnt;
+    existing.by_branch[r.branch] = (existing.by_branch[r.branch] ?? 0) + cnt;
+    dailyMap.set(r.order_date, existing);
+
+    summaryTotal += cnt;
+    summaryAgg[r.aggregator] = (summaryAgg[r.aggregator] ?? 0) + cnt;
+    summaryBranch[r.branch] = (summaryBranch[r.branch] ?? 0) + cnt;
+    if (!dateFrom || r.order_date < dateFrom) dateFrom = r.order_date;
+    if (!dateTo || r.order_date > dateTo) dateTo = r.order_date;
+  }
+
+  return {
+    ok: true,
+    daily: Array.from(dailyMap.values()),
+    raw,
+    summary: {
+      total_orders: summaryTotal,
+      by_aggregator: summaryAgg,
+      by_branch: summaryBranch,
+      date_from: dateFrom,
+      date_to: dateTo,
+      brand,
+    },
+  };
+}
+
 type Props = {
   approverName: string;
   pin: string;
   stepUpReady: boolean;
   externalDateFrom?: string;
   externalDateTo?: string;
+  externalBranchCode?: string;
 };
 
 function mergeOrderCountsResponses(responses: DubaiOrderCountsResp[]): DubaiOrderCountsResp {
@@ -241,7 +299,7 @@ function heatmapBg(value: number, max: number, brandHex: string): CSSProperties 
   return { backgroundColor: `rgba(${r},${g},${b},${alpha})` };
 }
 
-export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, externalDateFrom, externalDateTo }: Props) {
+export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, externalDateFrom, externalDateTo, externalBranchCode }: Props) {
   const [brand, setBrand] = useState<BrandTab>("Sushi Zen");
   const [dateFrom, setDateFrom] = useState(() => externalDateFrom || defaultWideRange().from);
   const [dateTo, setDateTo] = useState(() => externalDateTo || defaultWideRange().to);
@@ -323,15 +381,24 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
     void fetchData();
   }, [brand, fetchData, canLoad]);
 
+  // Filter fetched data by the page-level Store selection
+  const displayData = useMemo(() => {
+    if (!data) return null;
+    const branchName = externalBranchCode ? (BRANCH_CODE_TO_ORDER_NAME[externalBranchCode] ?? null) : null;
+    if (!branchName) return data;
+    const filteredRaw = data.raw.filter((r) => r.branch === branchName);
+    return buildFromRaw(filteredRaw, data.summary?.brand ?? brand);
+  }, [data, externalBranchCode, brand]);
+
   const dailySorted = useMemo(() => {
-    const d = data?.daily || [];
+    const d = displayData?.daily || [];
     return [...d].sort((a, b) => b.order_date.localeCompare(a.order_date));
-  }, [data?.daily]);
+  }, [displayData?.daily]);
 
   const dailyAsc = useMemo(() => {
-    const d = data?.daily || [];
+    const d = displayData?.daily || [];
     return [...d].sort((a, b) => a.order_date.localeCompare(b.order_date));
-  }, [data?.daily]);
+  }, [displayData?.daily]);
 
   const chartRows = useMemo(() => {
     return dailyAsc.map((row) => {
@@ -352,9 +419,9 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
     return dailySorted.slice(start, start + PAGE_SIZE);
   }, [dailySorted, page]);
 
-  const summary = data?.summary;
-  const rawCount = data?.raw?.length ?? 0;
-  const hasNoImportedRows = !loading && !error && canLoad && data && rawCount === 0;
+  const summary = displayData?.summary;
+  const rawCount = displayData?.raw?.length ?? 0;
+  const hasNoImportedRows = !loading && !error && canLoad && displayData && rawCount === 0;
 
   const topAgg = useMemo(() => {
     const m = summary?.by_aggregator || {};
@@ -389,7 +456,7 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
   }, [summary]);
 
   const crossTab = useMemo(() => {
-    const raw = data?.raw || [];
+    const raw = displayData?.raw || [];
     const out: Record<string, Record<string, number>> = {};
     for (const r of raw) {
       const br = r.branch || "";
@@ -543,9 +610,20 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
             );
           })}
         </div>
-        <p className="mb-4 text-[11px] text-neutral-600">
-          ※ Store / Brand filters above do not apply here. Date range syncs automatically. Overall = all 4 brands combined.
-        </p>
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <p className="text-[11px] text-neutral-600">
+            ※ Date range syncs from Summary Range above. Brand filter N/A. Overall = all 4 brands combined.
+          </p>
+          {externalBranchCode && BRANCH_CODE_TO_ORDER_NAME[externalBranchCode] ? (
+            <span className="rounded-full border border-indigo-500/40 bg-indigo-500/10 px-2.5 py-0.5 text-[11px] text-indigo-300">
+              📍 {BRANCH_CODE_TO_ORDER_NAME[externalBranchCode]} only
+            </span>
+          ) : externalBranchCode && !BRANCH_CODE_TO_ORDER_NAME[externalBranchCode] ? (
+            <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-0.5 text-[11px] text-amber-300">
+              ⚠ {externalBranchCode} — no order count data for this branch
+            </span>
+          ) : null}
+        </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex gap-1 rounded-lg bg-white/5 p-1">
@@ -640,9 +718,9 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
         </div>
       ) : null}
 
-      {!loading && data ? (
+      {!loading && displayData ? (
         <>
-          {data.daily.length === 0 ? (
+          {displayData.daily.length === 0 ? (
             <div className="rounded-xl border border-white/10 bg-white/[0.03] py-16 text-center text-neutral-500">
               <p className="mb-3 text-4xl">📭</p>
               <p className="font-medium text-neutral-300">No data for this period</p>
