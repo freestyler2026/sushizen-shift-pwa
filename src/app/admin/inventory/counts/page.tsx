@@ -43,6 +43,10 @@ type CountRow = {
   status: string;
   creator_name: string;
   notes: string;
+  submitted_by?: string;
+  submitted_at?: string;
+  closed_by?: string;
+  closed_at?: string;
   created_at: string;
   updated_at: string;
 };
@@ -659,6 +663,22 @@ export default function InventoryCountsPage() {
                   <div><span className="text-neutral-500">Cycle </span>{selectedCount.cycle || "-"}</div>
                   <div><span className="text-neutral-500">PIC </span>{selectedCount.pic_name || "-"}</div>
                   <div><span className="text-neutral-500">Approver </span>{selectedCount.approver_name || "-"}</div>
+                  <div><span className="text-neutral-500">Date </span>{selectedCount.business_date || "-"}</div>
+                  <div><span className="text-neutral-500">Items </span>{(selectedCount.items || []).length}</div>
+                  {selectedCount.submitted_by && (
+                    <div className="col-span-2 border-t border-neutral-800 pt-1.5">
+                      <span className="text-neutral-500">Submitted by </span>{selectedCount.submitted_by}
+                      {selectedCount.submitted_at && <span className="ml-2 text-neutral-500">{new Date(selectedCount.submitted_at).toLocaleString()}</span>}
+                    </div>
+                  )}
+                  {(selectedCount.items || []).length > 0 && (
+                    <div className="col-span-2 border-t border-neutral-800 pt-1.5">
+                      <span className="text-neutral-500">Total Asset Value </span>
+                      <span className="font-semibold text-emerald-300">
+                        {(selectedCount.items || []).reduce((sum, item) => sum + Number(item.asset_value || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 {selectedCount.notes ? <div className="text-xs text-neutral-400 whitespace-pre-wrap">{selectedCount.notes}</div> : null}
 
