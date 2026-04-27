@@ -3067,7 +3067,7 @@ export default function AdminAnalyticsPage() {
         date_to: summaryDateTo,
         branch_code: summaryBranchCode,
         brand_name: summaryBrandName,
-        limit: "500",
+        limit: "100",
         approver_name: approverName.trim(),
         pin: pin.trim(),
       });
