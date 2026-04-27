@@ -323,6 +323,7 @@ function StaffEditor({
   submitLabel,
   onCancel,
   lockEmpId = false,
+  staffMasterNames = [],
 }: {
   staffForm: StaffFormState;
   setStaffForm: Dispatch<SetStateAction<StaffFormState>>;
@@ -333,6 +334,7 @@ function StaffEditor({
   submitLabel: string;
   onCancel?: () => void;
   lockEmpId?: boolean;
+  staffMasterNames?: string[];
 }) {
   const updateDocField = (docType: DocType, field: keyof DocumentFormValue, value: string) => {
     setDocForms((prev) => ({
@@ -359,11 +361,23 @@ function StaffEditor({
             />
           </FormInput>
           <FormInput label="Full Name">
-            <input
-              value={staffForm.full_name}
-              onChange={(event) => setStaffForm((prev) => ({ ...prev, full_name: event.target.value }))}
-              className={baseInputClass()}
-            />
+            <>
+              {staffMasterNames.length > 0 && (
+                <datalist id="staff-master-names-list">
+                  {staffMasterNames.map((name) => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
+              )}
+              <input
+                value={staffForm.full_name}
+                onChange={(event) => setStaffForm((prev) => ({ ...prev, full_name: event.target.value }))}
+                className={baseInputClass()}
+                list={staffMasterNames.length > 0 ? "staff-master-names-list" : undefined}
+                placeholder={staffMasterNames.length > 0 ? "Type to search staff..." : ""}
+                autoComplete="off"
+              />
+            </>
           </FormInput>
           <FormInput label="Position">
             <input
@@ -466,6 +480,7 @@ export default function RenewalsAdminPage() {
   const [alertStaffFilter, setAlertStaffFilter] = useState<StaffStatusFilter>("all");
   const [addStaffForm, setAddStaffForm] = useState<StaffFormState>(emptyStaffForm());
   const [addDocForms, setAddDocForms] = useState<DocumentFormState>(emptyDocumentForm());
+  const [staffMasterNames, setStaffMasterNames] = useState<string[]>([]);
   const [editingStaff, setEditingStaff] = useState<RenewalStaff | null>(null);
   const [editStaffForm, setEditStaffForm] = useState<StaffFormState>(emptyStaffForm());
   const [editDocForms, setEditDocForms] = useState<DocumentFormState>(emptyDocumentForm());
@@ -523,13 +538,21 @@ export default function RenewalsAdminPage() {
     if (!accessReady) return;
     void loadAlerts();
     void loadStaff();
+    // Load staff master names for Add Staff autocomplete
+    const auth = getAuth();
+    const city = (auth?.city as string) || "dubai";
+    requestJson<{ names?: string[] }>(
+      `/api/admin/staff_master/names?city=${encodeURIComponent(city)}&status=ACTIVE&limit=5000`,
+    )
+      .then((data) => setStaffMasterNames((data?.names || []).sort((a, b) => a.localeCompare(b))))
+      .catch(() => {/* ignore */});
   }, [accessReady]);
 
   const summary = useMemo(
     () => ({
-      expired: alerts.filter((item) => item.alert_level === "EXPIRED").length,
-      critical: alerts.filter((item) => item.alert_level === "CRITICAL").length,
-      warning: alerts.filter((item) => item.alert_level === "WARNING").length,
+      expired: alerts.filter((item) => item.alert_level === "EXPIRED" && !isResignedStatus(item.active_status)).length,
+      critical: alerts.filter((item) => item.alert_level === "CRITICAL" && !isResignedStatus(item.active_status)).length,
+      warning: alerts.filter((item) => item.alert_level === "WARNING" && !isResignedStatus(item.active_status)).length,
     }),
     [alerts],
   );
@@ -999,6 +1022,7 @@ export default function RenewalsAdminPage() {
             onSubmit={() => void handleCreateStaff()}
             saving={saving}
             submitLabel="Save Staff & Documents"
+            staffMasterNames={staffMasterNames}
           />
         ) : null}
       </div>
