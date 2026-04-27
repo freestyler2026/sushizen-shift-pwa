@@ -27,18 +27,25 @@ type EditTarget = { staffName: string; dateStr: string } | null;
 const ROLE_OPTIONS = ["CK", "SV", "BA", "HK", "SC", "MGR", "ADMIN", "DRIVER", "TRAINEE"];
 const HOUR_OPTIONS = Array.from({ length: 19 }, (_, i) => i + 6); // 6..24
 
+function localDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+
 function mondayOf(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
   const day = d.getDay();
   const diff = day === 0 ? -6 : 1 - day;
   d.setDate(d.getDate() + diff);
-  return d.toISOString().slice(0, 10);
+  return localDateStr(d);
 }
 
 function addDays(dateStr: string, n: number): string {
   const d = new Date(dateStr + "T00:00:00");
   d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  return localDateStr(d);
 }
 
 function formatDate(dateStr: string): string {
@@ -47,7 +54,7 @@ function formatDate(dateStr: string): string {
 }
 
 function todayMonday(): string {
-  return mondayOf(new Date().toISOString().slice(0, 10));
+  return mondayOf(localDateStr(new Date()));
 }
 
 function fmtHour(h: number): string {
