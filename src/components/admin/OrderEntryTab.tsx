@@ -427,6 +427,8 @@ export default function OrderEntryTab() {
           />
         ))}
       </div>
+
+      <CombinedGrid gridData={gridData} selectedDate={selectedDate} />
     </div>
   );
 }
@@ -447,6 +449,129 @@ function branchShortLabel(branch: string) {
   if (branch === "Business Bay") return "Biz Bay";
   if (branch === "Al Hudaiba") return "Hudaiba";
   return branch;
+}
+
+// All unique branches and aggregators across every brand (union)
+const ALL_COMBINED_BRANCHES = ["Business Bay", "JLT", "Arjan", "Al Hudaiba", "Al Barsha"];
+const ALL_COMBINED_AGGS = ["Careem", "NOON", "Talabat", "Deliveroo", "Smiles", "Keeta", "Dine-in"];
+
+function CombinedGrid({ gridData, selectedDate }: { gridData: GridData; selectedDate: string }) {
+  const combinedValue = (agg: string, branch: string) => {
+    let total = 0;
+    for (const brand of ORDER_ENTRY_BRANDS) {
+      const cfg = BRAND_GRID_CONFIG[brand];
+      if (
+        (cfg.aggregators as readonly string[]).includes(agg) &&
+        (cfg.branches as readonly string[]).includes(branch)
+      ) {
+        total += gridData[cellKey(brand, agg, branch)] ?? 0;
+      }
+    }
+    return total;
+  };
+
+  const rowTotal = (agg: string) =>
+    ALL_COMBINED_BRANCHES.reduce((s, br) => s + combinedValue(agg, br), 0);
+
+  const colTotal = (branch: string) =>
+    ALL_COMBINED_AGGS.reduce((s, agg) => s + combinedValue(agg, branch), 0);
+
+  const grandTotal = ALL_COMBINED_BRANCHES.reduce((s, br) => s + colTotal(br), 0);
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-white/20 bg-white/[0.03]">
+      <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+        <h3 className="flex items-center gap-2 text-sm font-bold text-white">
+          <span className="flex gap-0.5">
+            <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: "#6366f1" }} />
+            <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: "#f97316" }} />
+            <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: "#22c55e" }} />
+            <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: "#a855f7" }} />
+          </span>
+          All Brands Combined
+        </h3>
+        {grandTotal > 0 ? (
+          <span className="text-xs font-bold text-white">Grand Total: {grandTotal.toLocaleString()}</span>
+        ) : null}
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-white/10">
+              <th className="sticky left-0 z-10 w-28 bg-[#0f1117] px-3 py-2 text-left font-medium text-gray-500">
+                Aggregator
+              </th>
+              {ALL_COMBINED_BRANCHES.map((branch) => (
+                <th
+                  key={branch}
+                  className="min-w-[72px] px-2 py-2 text-center text-[10px] font-medium uppercase tracking-wide text-gray-500"
+                >
+                  {branchShortLabel(branch)}
+                </th>
+              ))}
+              <th className="px-3 py-2 text-center text-[10px] font-semibold uppercase tracking-wide text-white">
+                Total
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {ALL_COMBINED_AGGS.map((agg) => {
+              const rt = rowTotal(agg);
+              return (
+                <tr key={agg} className="border-b border-white/5 transition-colors hover:bg-white/[0.03]">
+                  <td className="sticky left-0 z-10 bg-[#0f1117] px-3 py-1.5 font-medium text-gray-400">{agg}</td>
+                  {ALL_COMBINED_BRANCHES.map((branch) => {
+                    const v = combinedValue(agg, branch);
+                    return (
+                      <td key={branch} className="px-2 py-1.5 text-center">
+                        <span className={v > 0 ? "font-medium text-white" : "text-gray-700"}>
+                          {v > 0 ? v.toLocaleString() : "—"}
+                        </span>
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-1.5 text-center font-bold">
+                    <span className={rt > 0 ? "text-white" : "text-gray-700"}>{rt > 0 ? rt.toLocaleString() : "—"}</span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot>
+            <tr className="border-t border-white/20 bg-white/[0.04]">
+              <td className="sticky left-0 z-10 bg-[#141720] px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                TOTAL
+              </td>
+              {ALL_COMBINED_BRANCHES.map((branch) => {
+                const ct = colTotal(branch);
+                return (
+                  <td key={branch} className="px-2 py-2 text-center">
+                    <span className={`text-sm font-bold ${ct > 0 ? "text-white" : "text-gray-700"}`}>
+                      {ct > 0 ? ct.toLocaleString() : "—"}
+                    </span>
+                  </td>
+                );
+              })}
+              <td className="px-3 py-2 text-center">
+                <span className={`text-sm font-bold ${grandTotal > 0 ? "text-white" : "text-gray-700"}`}>
+                  {grandTotal > 0 ? grandTotal.toLocaleString() : "—"}
+                </span>
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      {grandTotal > 0 ? (
+        <div className="flex items-center justify-end gap-3 border-t border-white/10 px-4 py-2">
+          <span className="text-xs text-gray-500">
+            {selectedDate} · {ALL_COMBINED_AGGS.length} aggregators · {ALL_COMBINED_BRANCHES.length} branches · 4 brands
+          </span>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function BrandGrid({
