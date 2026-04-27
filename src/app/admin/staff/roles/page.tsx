@@ -276,12 +276,19 @@ function StaffRolesPageInner() {
     if (!active) return;
     setStaffOptionsLoading(true);
     try {
-      const base = `/api/admin/staff_master/names?city=${encodeURIComponent(active.city)}`;
-      const [activeNames, inactiveNames] = await Promise.all([
-        apiRequest<StaffNameListResp>(`${base}&status=ACTIVE&limit=5000`, {}, active),
-        apiRequest<StaffNameListResp>(`${base}&status=INACTIVE&limit=5000`, {}, active),
+      // Load staff from both cities so HQ can assign roles to Dubai and Manila staff
+      const [dubaiActive, dubaiInactive, manilaActive, manilaInactive] = await Promise.all([
+        apiRequest<StaffNameListResp>(`/api/admin/staff_master/names?city=dubai&status=ACTIVE&limit=5000`, {}, active),
+        apiRequest<StaffNameListResp>(`/api/admin/staff_master/names?city=dubai&status=INACTIVE&limit=5000`, {}, active),
+        apiRequest<StaffNameListResp>(`/api/admin/staff_master/names?city=manila&status=ACTIVE&limit=5000`, {}, active),
+        apiRequest<StaffNameListResp>(`/api/admin/staff_master/names?city=manila&status=INACTIVE&limit=5000`, {}, active),
       ]);
-      const merged = Array.from(new Set([...(activeNames.names || []), ...(inactiveNames.names || [])])).sort((a, b) => a.localeCompare(b));
+      const merged = Array.from(new Set([
+        ...(dubaiActive.names || []),
+        ...(dubaiInactive.names || []),
+        ...(manilaActive.names || []),
+        ...(manilaInactive.names || []),
+      ])).sort((a, b) => a.localeCompare(b));
       setStaffOptions(merged);
     } catch {
       setStaffOptions([]);
