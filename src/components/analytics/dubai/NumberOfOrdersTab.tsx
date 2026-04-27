@@ -19,14 +19,23 @@ import { BADGE_INFO, SECONDARY_BUTTON } from "@/lib/ui-tokens";
 import { Spinner } from "@/components/ui/Spinner";
 
 const BRANDS = ["Sushi Zen", "Ramen Zen", "All Veggie Sushi", "J-Deli"] as const;
+const ALL_BRAND_TABS = ["Overall", ...BRANDS] as const;
 const BRANCHES = ["Business Bay", "JLT", "Arjan", "Al Hudaiba", "Al Barsha"] as const;
 const DISPLAY_AGGS = ["Careem", "NOON", "Talabat", "Keeta", "Deliveroo", "Smiles"] as const;
 const CHART_AGG_KEYS = ["Careem", "NOON", "Talabat", "Keeta", "Deliveroo", "Smiles", "Dine-in"] as const;
 
+type BrandTab = (typeof ALL_BRAND_TABS)[number];
+
 const BRAND_CONFIG: Record<
-  (typeof BRANDS)[number],
+  BrandTab,
   { color: string; bg: string; border: string; text: string }
 > = {
+  Overall: {
+    color: "#e2e8f0",
+    bg: "bg-white/10",
+    border: "border-white/40",
+    text: "text-white",
+  },
   "Sushi Zen": {
     color: "#6366f1",
     bg: "bg-indigo-500/20",
@@ -142,7 +151,73 @@ type Props = {
   approverName: string;
   pin: string;
   stepUpReady: boolean;
+  externalDateFrom?: string;
+  externalDateTo?: string;
 };
+
+function mergeOrderCountsResponses(responses: DubaiOrderCountsResp[]): DubaiOrderCountsResp {
+  const dailyMap = new Map<string, {
+    order_date: string;
+    total_orders: number;
+    by_aggregator: Record<string, number>;
+    by_branch: Record<string, number>;
+  }>();
+
+  for (const r of responses) {
+    for (const day of r.daily || []) {
+      const existing = dailyMap.get(day.order_date) ?? {
+        order_date: day.order_date,
+        total_orders: 0,
+        by_aggregator: {},
+        by_branch: {},
+      };
+      existing.total_orders += day.total_orders;
+      for (const [k, v] of Object.entries(day.by_aggregator || {})) {
+        existing.by_aggregator[k] = (existing.by_aggregator[k] ?? 0) + v;
+      }
+      for (const [k, v] of Object.entries(day.by_branch || {})) {
+        existing.by_branch[k] = (existing.by_branch[k] ?? 0) + v;
+      }
+      dailyMap.set(day.order_date, existing);
+    }
+  }
+
+  const raw = responses.flatMap((r) => r.raw || []);
+
+  const summaryAgg: Record<string, number> = {};
+  const summaryBranch: Record<string, number> = {};
+  let summaryTotal = 0;
+  let dateFrom = "";
+  let dateTo = "";
+
+  for (const r of responses) {
+    const s = r.summary;
+    if (!s) continue;
+    summaryTotal += s.total_orders;
+    for (const [k, v] of Object.entries(s.by_aggregator || {})) {
+      summaryAgg[k] = (summaryAgg[k] ?? 0) + v;
+    }
+    for (const [k, v] of Object.entries(s.by_branch || {})) {
+      summaryBranch[k] = (summaryBranch[k] ?? 0) + v;
+    }
+    if (!dateFrom || s.date_from < dateFrom) dateFrom = s.date_from;
+    if (!dateTo || s.date_to > dateTo) dateTo = s.date_to;
+  }
+
+  return {
+    ok: true,
+    daily: Array.from(dailyMap.values()),
+    raw,
+    summary: {
+      total_orders: summaryTotal,
+      by_aggregator: summaryAgg,
+      by_branch: summaryBranch,
+      date_from: dateFrom,
+      date_to: dateTo,
+      brand: "Overall",
+    },
+  };
+}
 
 function defaultWideRange() {
   const to = new Date();
@@ -166,10 +241,10 @@ function heatmapBg(value: number, max: number, brandHex: string): CSSProperties 
   return { backgroundColor: `rgba(${r},${g},${b},${alpha})` };
 }
 
-export default function NumberOfOrdersTab({ approverName, pin, stepUpReady }: Props) {
-  const [brand, setBrand] = useState<string>("Sushi Zen");
-  const [dateFrom, setDateFrom] = useState(() => defaultWideRange().from);
-  const [dateTo, setDateTo] = useState(() => defaultWideRange().to);
+export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, externalDateFrom, externalDateTo }: Props) {
+  const [brand, setBrand] = useState<BrandTab>("Sushi Zen");
+  const [dateFrom, setDateFrom] = useState(() => externalDateFrom || defaultWideRange().from);
+  const [dateTo, setDateTo] = useState(() => externalDateTo || defaultWideRange().to);
   const [activePreset, setActivePreset] = useState<(typeof DATE_PRESETS)[number]["label"] | null>(null);
   const [chartMode, setChartMode] = useState<"Total" | "By Aggregator">("Total");
   const [data, setData] = useState<DubaiOrderCountsResp | null>(null);
@@ -182,6 +257,21 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady }: Pr
   dateFromRef.current = dateFrom;
   dateToRef.current = dateTo;
 
+  // Sync when the analytics page-level date range changes
+  useEffect(() => {
+    if (externalDateFrom && externalDateFrom !== dateFromRef.current) {
+      setDateFrom(externalDateFrom);
+      setActivePreset(null);
+    }
+  }, [externalDateFrom]);
+
+  useEffect(() => {
+    if (externalDateTo && externalDateTo !== dateToRef.current) {
+      setDateTo(externalDateTo);
+      setActivePreset(null);
+    }
+  }, [externalDateTo]);
+
   const canLoad = !!approverName.trim() && !!pin.trim() && stepUpReady;
 
   const fetchData = useCallback(
@@ -192,15 +282,31 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady }: Pr
       setLoading(true);
       setError("");
       try {
-        const qs = new URLSearchParams({
-          brand,
-          approver_name: approverName.trim(),
-          pin: pin.trim(),
-        });
-        if (df) qs.set("date_from", df);
-        if (dt) qs.set("date_to", dt);
-        const json = await apiGet<DubaiOrderCountsResp>(`/api/admin/analytics/dubai/order-counts?${qs}`);
-        setData(json);
+        if (brand === "Overall") {
+          const results = await Promise.all(
+            BRANDS.map(async (b) => {
+              const qs = new URLSearchParams({
+                brand: b,
+                approver_name: approverName.trim(),
+                pin: pin.trim(),
+              });
+              if (df) qs.set("date_from", df);
+              if (dt) qs.set("date_to", dt);
+              return apiGet<DubaiOrderCountsResp>(`/api/admin/analytics/dubai/order-counts?${qs}`);
+            }),
+          );
+          setData(mergeOrderCountsResponses(results));
+        } else {
+          const qs = new URLSearchParams({
+            brand,
+            approver_name: approverName.trim(),
+            pin: pin.trim(),
+          });
+          if (df) qs.set("date_from", df);
+          if (dt) qs.set("date_to", dt);
+          const json = await apiGet<DubaiOrderCountsResp>(`/api/admin/analytics/dubai/order-counts?${qs}`);
+          setData(json);
+        }
         setPage(0);
       } catch (e: unknown) {
         setData(null);
@@ -329,7 +435,7 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady }: Pr
     void fetchData({ from: fromStr, to: toStr });
   };
 
-  const brandCfg = BRAND_CONFIG[brand as (typeof BRANDS)[number]] || BRAND_CONFIG["Sushi Zen"];
+  const brandCfg = BRAND_CONFIG[brand] ?? BRAND_CONFIG["Sushi Zen"];
 
   const kpiCards = useMemo(() => {
     if (!summary) return [];
@@ -404,10 +510,11 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady }: Pr
           </button>
         </div>
 
-        <div className="mb-4 flex flex-wrap gap-2">
-          {BRANDS.map((b) => {
+        <div className="mb-1 flex flex-wrap gap-2">
+          {ALL_BRAND_TABS.map((b) => {
             const cfg = BRAND_CONFIG[b];
             const isActive = brand === b;
+            const isOverall = b === "Overall";
             return (
               <button
                 key={b}
@@ -419,15 +526,26 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady }: Pr
                     : "border-transparent text-neutral-400 hover:bg-white/5 hover:text-neutral-200"
                 } `}
               >
-                <span
-                  className="h-2 w-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: cfg.color, opacity: isActive ? 1 : 0.4 }}
-                />
+                {isOverall ? (
+                  <span className="flex gap-0.5">
+                    {(["#6366f1","#f97316","#22c55e","#a855f7"] as const).map((c, i) => (
+                      <span key={i} className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: c, opacity: isActive ? 1 : 0.4 }} />
+                    ))}
+                  </span>
+                ) : (
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: cfg.color, opacity: isActive ? 1 : 0.4 }}
+                  />
+                )}
                 {b}
               </button>
             );
           })}
         </div>
+        <p className="mb-4 text-[11px] text-neutral-600">
+          ※ Store / Brand filters above do not apply here. Date range syncs automatically. Overall = all 4 brands combined.
+        </p>
 
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex gap-1 rounded-lg bg-white/5 p-1">

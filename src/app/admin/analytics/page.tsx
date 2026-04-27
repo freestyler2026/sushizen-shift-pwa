@@ -8372,7 +8372,7 @@ export default function AdminAnalyticsPage() {
 
             {salesSectionView === "all" || salesSectionView === "orderCounts" ? (
               <div id="sales-order-counts">
-                <NumberOfOrdersTab approverName={approverName} pin={pin} stepUpReady={salesStepUpReady} />
+                <NumberOfOrdersTab approverName={approverName} pin={pin} stepUpReady={salesStepUpReady} externalDateFrom={dateFrom} externalDateTo={dateTo} />
               </div>
             ) : null}
             {salesSectionView === "all" || salesSectionView === "manilaOverallRatings" ? (
