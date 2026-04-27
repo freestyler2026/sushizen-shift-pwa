@@ -20,6 +20,7 @@ import {
   ClipboardList,
   FileBarChart,
   FileText,
+  Headphones,
   Inbox as InboxIcon,
   KeyRound,
   LayoutDashboard,
@@ -92,6 +93,7 @@ const PRIMARY: NavItem[] = [
 
 const SECONDARY_BASE: NavItem[] = [
   { href: "/calendar", label: "Calendar", icon: Calendar, match: "exact" },
+  { href: "/zen-music", label: "ZEN Music", icon: Headphones, match: "exact" },
   { href: "/inbox", label: "Inbox", icon: InboxIcon, match: "exact" },
   { href: "/incidents", label: "Incident Report", icon: AlertTriangle, match: "prefix" },
   { href: "/admin/disposal", label: "Disposal Report", icon: Trash2, match: "prefix" },
