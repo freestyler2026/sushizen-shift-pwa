@@ -1,167 +1,397 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Pause,
-  Play,
-  SkipBack,
-  SkipForward,
-  Volume2,
-  VolumeX,
-} from "lucide-react";
+import { Pause, Play, Shuffle, SkipBack, SkipForward, Volume2, VolumeX, Repeat } from "lucide-react";
 
 type Track = {
   id: number;
   title: string;
+  subtitle: string;
   file: string;
-  emoji: string;
-  color: string;
+  accent: string;       // Tailwind gradient (bg-gradient-to-br ...)
+  accentHex: string;    // for canvas / glow
+  glyph: string;        // big decorative character
 };
 
 const TRACKS: Track[] = [
   {
     id: 1,
-    title: "Sushi ZEN Anthem",
+    title: "ZEN Anthem",
+    subtitle: "Sushi ZEN",
     file: "/music/sushi-zen-anthem.mp3",
-    emoji: "🎌",
-    color: "from-violet-600 to-indigo-800",
+    accent: "from-violet-500 via-indigo-600 to-blue-700",
+    accentHex: "#7c3aed",
+    glyph: "禅",
   },
   {
     id: 2,
-    title: "Sushi ZEN Slay",
+    title: "ZEN Slay",
+    subtitle: "Sushi ZEN",
     file: "/music/sushi-zen-slay.mp3",
-    emoji: "⚡",
-    color: "from-rose-600 to-pink-800",
+    accent: "from-rose-500 via-pink-600 to-fuchsia-700",
+    accentHex: "#e11d48",
+    glyph: "斬",
   },
   {
     id: 3,
-    title: "Sushi ZEN Soul",
+    title: "ZEN Soul",
+    subtitle: "Sushi ZEN",
     file: "/music/sushi-zen-soul.mp3",
-    emoji: "🌸",
-    color: "from-emerald-600 to-teal-800",
+    accent: "from-emerald-400 via-teal-500 to-cyan-700",
+    accentHex: "#059669",
+    glyph: "魂",
   },
   {
     id: 4,
     title: "Heart of ZEN",
+    subtitle: "Sushi ZEN",
     file: "/music/heart-of-zen.mp3",
-    emoji: "❤️",
-    color: "from-amber-600 to-orange-800",
+    accent: "from-amber-400 via-orange-500 to-red-600",
+    accentHex: "#f59e0b",
+    glyph: "心",
+  },
+  {
+    id: 5,
+    title: "ZEN Groove",
+    subtitle: "Sushi ZEN",
+    file: "/music/sushi-zen-groove.mp3",
+    accent: "from-lime-400 via-green-500 to-emerald-700",
+    accentHex: "#84cc16",
+    glyph: "律",
+  },
+  {
+    id: 6,
+    title: "ZEN Gorilla",
+    subtitle: "Sushi ZEN",
+    file: "/music/sushi-zen-gorilla.mp3",
+    accent: "from-yellow-400 via-amber-500 to-orange-600",
+    accentHex: "#eab308",
+    glyph: "猿",
   },
 ];
 
-function fmtTime(sec: number) {
-  if (!isFinite(sec)) return "0:00";
+function fmt(sec: number) {
+  if (!isFinite(sec) || sec < 0) return "0:00";
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-function WaveBar({ playing, delay }: { playing: boolean; delay: string }) {
+/* ── Animated album art ─────────────────────────────────────── */
+function AlbumArt({ track, playing }: { track: Track; playing: boolean }) {
+  const angle = useRef(0);
+  const rafRef = useRef<number | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const SIZE = canvas.width;
+    const cx = SIZE / 2;
+
+    const draw = () => {
+      ctx.clearRect(0, 0, SIZE, SIZE);
+
+      // Outer glow ring
+      const glow = ctx.createRadialGradient(cx, cx, cx * 0.55, cx, cx, cx * 0.98);
+      glow.addColorStop(0, `${track.accentHex}00`);
+      glow.addColorStop(0.7, `${track.accentHex}22`);
+      glow.addColorStop(1, `${track.accentHex}55`);
+      ctx.beginPath();
+      ctx.arc(cx, cx, cx * 0.97, 0, Math.PI * 2);
+      ctx.fillStyle = glow;
+      ctx.fill();
+
+      // Disc base
+      ctx.save();
+      ctx.translate(cx, cx);
+      ctx.rotate(angle.current);
+
+      const grad = ctx.createLinearGradient(-cx, -cx, cx, cx);
+      grad.addColorStop(0, `${track.accentHex}cc`);
+      grad.addColorStop(1, "#0d0d0d");
+      ctx.beginPath();
+      ctx.arc(0, 0, cx * 0.88, 0, Math.PI * 2);
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Vinyl grooves
+      for (let i = 0; i < 6; i++) {
+        const r = cx * (0.35 + i * 0.09);
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(255,255,255,0.04)";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      // Sheen arc
+      ctx.beginPath();
+      ctx.arc(0, 0, cx * 0.88, -Math.PI * 0.6, -Math.PI * 0.1);
+      ctx.strokeStyle = "rgba(255,255,255,0.12)";
+      ctx.lineWidth = cx * 0.18;
+      ctx.stroke();
+
+      ctx.restore();
+
+      // Center hub
+      const hub = ctx.createRadialGradient(cx, cx, 0, cx, cx, cx * 0.18);
+      hub.addColorStop(0, "#2a2a2a");
+      hub.addColorStop(1, "#111");
+      ctx.beginPath();
+      ctx.arc(cx, cx, cx * 0.18, 0, Math.PI * 2);
+      ctx.fillStyle = hub;
+      ctx.fill();
+
+      // Center dot
+      ctx.beginPath();
+      ctx.arc(cx, cx, cx * 0.05, 0, Math.PI * 2);
+      ctx.fillStyle = track.accentHex + "cc";
+      ctx.fill();
+
+      if (playing) angle.current += 0.006;
+      rafRef.current = requestAnimationFrame(draw);
+    };
+
+    draw();
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [track, playing]);
+
   return (
-    <span
-      className="inline-block w-1 rounded-full bg-white/80"
-      style={{
-        height: playing ? undefined : "4px",
-        animation: playing ? `waveAnim 0.8s ease-in-out infinite alternate` : "none",
-        animationDelay: delay,
-        minHeight: "4px",
-        maxHeight: "20px",
-        transition: "height 0.2s",
-      }}
+    <canvas
+      ref={canvasRef}
+      width={280}
+      height={280}
+      className="drop-shadow-2xl"
+      style={{ borderRadius: "50%" }}
     />
   );
 }
 
+/* ── Waveform bars ──────────────────────────────────────────── */
+function Bars({ playing, accent }: { playing: boolean; accent: string }) {
+  const BARS = 28;
+  return (
+    <div className="flex items-end justify-center gap-[2px]" style={{ height: 32 }}>
+      {Array.from({ length: BARS }).map((_, i) => (
+        <span
+          key={i}
+          className={`w-[3px] rounded-full bg-gradient-to-t ${accent}`}
+          style={{
+            height: playing ? undefined : "3px",
+            minHeight: 3,
+            opacity: playing ? 0.85 : 0.25,
+            animation: playing
+              ? `bar${(i % 5) + 1} ${0.55 + (i % 7) * 0.08}s ease-in-out infinite alternate`
+              : "none",
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* ── Seek / Volume slider ───────────────────────────────────── */
+function Slider({
+  value,
+  max,
+  onChange,
+  accent,
+}: {
+  value: number;
+  max: number;
+  onChange: (v: number) => void;
+  accent: string;
+}) {
+  const pct = max > 0 ? (value / max) * 100 : 0;
+  return (
+    <div className="relative flex h-1.5 w-full cursor-pointer items-center rounded-full bg-white/10">
+      <div
+        className={`pointer-events-none absolute left-0 h-full rounded-full bg-gradient-to-r ${accent}`}
+        style={{ width: `${pct}%`, transition: "width 0.05s linear" }}
+      />
+      <input
+        type="range"
+        min={0}
+        max={max || 100}
+        step={max < 2 ? 0.01 : 0.5}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+      />
+    </div>
+  );
+}
+
+/* ── Track row ──────────────────────────────────────────────── */
+function TrackRow({
+  track,
+  active,
+  playing,
+  onClick,
+}: {
+  track: Track;
+  active: boolean;
+  playing: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={[
+        "group flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all duration-200 active:scale-[0.98]",
+        active
+          ? "bg-white/10 ring-1 ring-white/20"
+          : "hover:bg-white/6",
+      ].join(" ")}
+    >
+      {/* mini disc */}
+      <div
+        className={`relative flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${track.accent} text-xl font-bold text-white/90 shadow-lg`}
+        style={{ fontFamily: "serif" }}
+      >
+        {track.glyph}
+        {active && (
+          <span className="absolute inset-0 animate-ping rounded-full opacity-20"
+            style={{ background: track.accentHex }} />
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div className={`truncate text-sm font-semibold ${active ? "text-white" : "text-neutral-200"}`}>
+          {track.title}
+        </div>
+        <div className="text-xs text-neutral-500">{track.subtitle}</div>
+      </div>
+
+      {active ? (
+        <div className="flex items-end gap-[2px]" style={{ height: 18 }}>
+          {[0, 1, 2, 3].map((i) => (
+            <span
+              key={i}
+              className={`w-[3px] rounded-full bg-gradient-to-t ${track.accent}`}
+              style={{
+                height: playing ? undefined : "3px",
+                minHeight: 3,
+                animation: playing
+                  ? `bar${(i % 5) + 1} ${0.5 + i * 0.1}s ease-in-out infinite alternate`
+                  : "none",
+              }}
+            />
+          ))}
+        </div>
+      ) : (
+        <span className="text-xs text-neutral-600 tabular-nums">
+          #{track.id}
+        </span>
+      )}
+    </button>
+  );
+}
+
+/* ── Main page ──────────────────────────────────────────────── */
 export default function ZenMusicPage() {
-  const [trackIdx, setTrackIdx] = useState(0);
+  const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(0.85);
   const [muted, setMuted] = useState(false);
-  const [volume, setVolume] = useState(1);
+  const [shuffle, setShuffle] = useState(false);
+  const [repeat, setRepeat] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const track = TRACKS[trackIdx];
+  const track = TRACKS[idx];
 
-  // Load new track
+  /* load new track */
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.src = track.file;
-    audio.load();
+    const a = audioRef.current;
+    if (!a) return;
+    a.src = track.file;
+    a.load();
     setCurrentTime(0);
     setDuration(0);
-    if (playing) {
-      audio.play().catch(() => setPlaying(false));
-    }
+    if (playing) a.play().catch(() => setPlaying(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trackIdx]);
+  }, [idx]);
 
-  // Sync playing state
+  /* play / pause */
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (playing) {
-      audio.play().catch(() => setPlaying(false));
-    } else {
-      audio.pause();
-    }
+    const a = audioRef.current;
+    if (!a) return;
+    playing ? a.play().catch(() => setPlaying(false)) : a.pause();
   }, [playing]);
 
-  // Volume/mute sync
+  /* volume */
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.volume = volume;
-    audio.muted = muted;
+    const a = audioRef.current;
+    if (!a) return;
+    a.volume = volume;
+    a.muted = muted;
   }, [volume, muted]);
 
   const onTimeUpdate = useCallback(() => {
-    const audio = audioRef.current;
-    if (audio) setCurrentTime(audio.currentTime);
+    const a = audioRef.current;
+    if (a) setCurrentTime(a.currentTime);
   }, []);
-
   const onLoadedMetadata = useCallback(() => {
-    const audio = audioRef.current;
-    if (audio) setDuration(audio.duration);
+    const a = audioRef.current;
+    if (a) setDuration(a.duration);
   }, []);
-
   const onEnded = useCallback(() => {
-    setTrackIdx((i) => (i + 1) % TRACKS.length);
+    if (repeat) {
+      const a = audioRef.current;
+      if (a) { a.currentTime = 0; a.play().catch(() => {}); }
+      return;
+    }
+    if (shuffle) {
+      let next: number;
+      do { next = Math.floor(Math.random() * TRACKS.length); } while (next === idx && TRACKS.length > 1);
+      setIdx(next);
+    } else {
+      setIdx((i) => (i + 1) % TRACKS.length);
+    }
     setPlaying(true);
-  }, []);
+  }, [idx, shuffle, repeat]);
 
-  const seek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const t = Number(e.target.value);
-    audio.currentTime = t;
-    setCurrentTime(t);
+  const prev = () => {
+    if (currentTime > 3) {
+      const a = audioRef.current;
+      if (a) { a.currentTime = 0; setCurrentTime(0); }
+      return;
+    }
+    setIdx((i) => (i - 1 + TRACKS.length) % TRACKS.length);
+    setPlaying(true);
   };
-
-  const prevTrack = () => setTrackIdx((i) => (i - 1 + TRACKS.length) % TRACKS.length);
-  const nextTrack = () => setTrackIdx((i) => (i + 1) % TRACKS.length);
-
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const next = () => {
+    setIdx((i) => shuffle
+      ? (() => { let n; do { n = Math.floor(Math.random() * TRACKS.length); } while (n === i && TRACKS.length > 1); return n; })()
+      : (i + 1) % TRACKS.length
+    );
+    setPlaying(true);
+  };
 
   return (
     <>
       <style>{`
-        @keyframes waveAnim {
-          0%   { height: 4px; }
-          50%  { height: 16px; }
-          100% { height: 8px; }
+        @keyframes bar1 { from{height:3px} to{height:22px} }
+        @keyframes bar2 { from{height:6px} to{height:16px} }
+        @keyframes bar3 { from{height:4px} to{height:26px} }
+        @keyframes bar4 { from{height:8px} to{height:14px} }
+        @keyframes bar5 { from{height:5px} to{height:20px} }
+
+        input[type=range]::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          width: 14px; height: 14px;
+          border-radius: 50%;
+          background: white;
+          cursor: pointer;
+          box-shadow: 0 0 6px rgba(0,0,0,0.5);
         }
-        @keyframes spin-slow {
-          from { transform: rotate(0deg); }
-          to   { transform: rotate(360deg); }
-        }
-        @keyframes pulse-glow {
-          0%, 100% { box-shadow: 0 0 20px 4px rgba(167,139,250,0.25); }
-          50%       { box-shadow: 0 0 40px 12px rgba(167,139,250,0.45); }
-        }
+        input[type=range]:focus { outline: none; }
       `}</style>
 
       <audio
@@ -172,169 +402,172 @@ export default function ZenMusicPage() {
         preload="metadata"
       />
 
-      <div className="flex min-h-screen flex-col bg-neutral-950 text-white">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
-          <div className="flex items-center gap-2">
-            <span className="text-lg font-bold tracking-tight text-violet-400">ZEN</span>
-            <span className="text-lg font-semibold text-white">Music</span>
+      {/* full-page dark canvas */}
+      <div
+        className="relative flex min-h-screen flex-col overflow-hidden bg-[#080808] text-white"
+        style={{ fontFamily: "'SF Pro Display', 'Helvetica Neue', sans-serif" }}
+      >
+        {/* ambient background glow */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-20 blur-[120px] transition-all duration-1000"
+          style={{
+            background: `radial-gradient(ellipse at 40% 20%, ${track.accentHex}88, transparent 60%),
+                         radial-gradient(ellipse at 80% 80%, ${track.accentHex}44, transparent 55%)`,
+          }}
+        />
+
+        {/* ── Header ── */}
+        <header className="relative flex items-center justify-between px-6 pt-safe pt-6 pb-2">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/30">Now Playing</p>
+            <h1 className="text-base font-bold tracking-tight text-white/90">ZEN Music</h1>
           </div>
           <div className="flex gap-1.5">
             {TRACKS.map((_, i) => (
-              <span
-                key={i}
-                className={`h-1.5 w-1.5 rounded-full transition-all ${
-                  i === trackIdx ? "w-5 bg-violet-400" : "bg-white/20"
-                }`}
-              />
+              <button key={i} onClick={() => { setIdx(i); setPlaying(true); }}>
+                <span
+                  className="block rounded-full transition-all duration-300"
+                  style={{
+                    width: i === idx ? 20 : 6,
+                    height: 6,
+                    background: i === idx ? track.accentHex : "rgba(255,255,255,0.2)",
+                  }}
+                />
+              </button>
             ))}
           </div>
-        </div>
+        </header>
 
-        {/* Album art area */}
-        <div className="flex flex-1 flex-col items-center justify-between px-6 py-8">
-          {/* Art disc */}
-          <div className="relative mb-8 flex items-center justify-center">
-            <div
-              className={`flex h-56 w-56 items-center justify-center rounded-full bg-gradient-to-br ${track.color} text-8xl shadow-2xl`}
-              style={{
-                animation: playing ? "spin-slow 8s linear infinite" : "none",
-                boxShadow: playing
-                  ? "0 0 40px 12px rgba(167,139,250,0.35)"
-                  : "0 8px 32px rgba(0,0,0,0.5)",
-                transition: "box-shadow 0.5s",
-              }}
-            >
-              {track.emoji}
-            </div>
-            {/* Center dot */}
-            <div className="absolute h-8 w-8 rounded-full border-4 border-neutral-950 bg-neutral-800" />
-            {/* Wave bars overlay */}
-            {playing && (
-              <div className="absolute -bottom-6 flex items-end gap-1">
-                {["0s", "0.1s", "0.2s", "0.3s", "0.4s", "0.5s", "0.6s"].map((d, i) => (
-                  <WaveBar key={i} playing={playing} delay={d} />
-                ))}
-              </div>
-            )}
+        {/* ── Album art ── */}
+        <div className="relative flex flex-1 flex-col items-center px-8 pt-6 pb-2">
+          {/* disc */}
+          <div
+            className="relative mb-6"
+            style={{
+              filter: playing
+                ? `drop-shadow(0 0 32px ${track.accentHex}88)`
+                : `drop-shadow(0 8px 24px rgba(0,0,0,0.7))`,
+              transition: "filter 0.6s ease",
+            }}
+          >
+            <AlbumArt track={track} playing={playing} />
+          </div>
+
+          {/* Waveform */}
+          <div className="mb-5 w-full">
+            <Bars playing={playing} accent={track.accent} />
           </div>
 
           {/* Track info */}
-          <div className="mb-6 text-center">
-            <div className="mb-1 text-2xl font-bold tracking-tight">{track.title}</div>
-            <div className="text-sm text-neutral-400">Sushi ZEN Original</div>
+          <div className="mb-6 w-full text-center">
+            <h2 className="text-2xl font-bold tracking-tight">{track.title}</h2>
+            <p className="mt-0.5 text-sm font-medium text-white/40">{track.subtitle} Original</p>
           </div>
 
-          {/* Progress */}
-          <div className="mb-6 w-full">
-            <input
-              type="range"
-              min={0}
-              max={duration || 100}
+          {/* Seek bar */}
+          <div className="mb-1.5 w-full">
+            <Slider
               value={currentTime}
-              onChange={seek}
-              className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/10"
-              style={{
-                backgroundImage: `linear-gradient(to right, #a78bfa ${progress}%, transparent ${progress}%)`,
+              max={duration}
+              onChange={(v) => {
+                const a = audioRef.current;
+                if (a) { a.currentTime = v; setCurrentTime(v); }
               }}
+              accent={track.accent}
             />
-            <div className="mt-2 flex justify-between text-xs text-neutral-500">
-              <span>{fmtTime(currentTime)}</span>
-              <span>{fmtTime(duration)}</span>
-            </div>
+          </div>
+          <div className="mb-6 flex w-full justify-between text-[11px] font-medium text-white/30 tabular-nums">
+            <span>{fmt(currentTime)}</span>
+            <span>{fmt(duration)}</span>
           </div>
 
           {/* Controls */}
-          <div className="mb-8 flex w-full items-center justify-between px-4">
+          <div className="mb-6 flex w-full items-center justify-between px-2">
+            {/* Shuffle */}
             <button
-              onClick={prevTrack}
-              className="flex h-12 w-12 items-center justify-center rounded-full text-neutral-400 transition hover:text-white active:scale-95"
+              onClick={() => setShuffle((s) => !s)}
+              className={`flex h-10 w-10 items-center justify-center rounded-full transition ${shuffle ? "text-white" : "text-white/25 hover:text-white/50"}`}
             >
-              <SkipBack className="h-6 w-6" />
+              <Shuffle className="h-5 w-5" />
             </button>
 
+            {/* Prev */}
+            <button
+              onClick={prev}
+              className="flex h-12 w-12 items-center justify-center rounded-full text-white/70 transition hover:text-white active:scale-90"
+            >
+              <SkipBack className="h-6 w-6 fill-current" />
+            </button>
+
+            {/* Play / Pause */}
             <button
               onClick={() => setPlaying((p) => !p)}
-              className="flex h-18 w-18 items-center justify-center rounded-full bg-violet-600 shadow-lg transition hover:bg-violet-500 active:scale-95"
-              style={{ width: "72px", height: "72px" }}
+              className="relative flex h-20 w-20 items-center justify-center rounded-full shadow-2xl transition active:scale-95"
+              style={{
+                background: `linear-gradient(135deg, ${track.accentHex}dd, ${track.accentHex}88)`,
+                boxShadow: `0 0 ${playing ? "32px" : "16px"} ${track.accentHex}66`,
+              }}
             >
-              {playing ? <Pause className="h-8 w-8" /> : <Play className="h-8 w-8 translate-x-0.5" />}
+              {playing
+                ? <Pause className="h-8 w-8 fill-white text-white" />
+                : <Play className="h-8 w-8 translate-x-0.5 fill-white text-white" />
+              }
             </button>
 
+            {/* Next */}
             <button
-              onClick={nextTrack}
-              className="flex h-12 w-12 items-center justify-center rounded-full text-neutral-400 transition hover:text-white active:scale-95"
+              onClick={next}
+              className="flex h-12 w-12 items-center justify-center rounded-full text-white/70 transition hover:text-white active:scale-90"
             >
-              <SkipForward className="h-6 w-6" />
+              <SkipForward className="h-6 w-6 fill-current" />
+            </button>
+
+            {/* Repeat */}
+            <button
+              onClick={() => setRepeat((r) => !r)}
+              className={`flex h-10 w-10 items-center justify-center rounded-full transition ${repeat ? "text-white" : "text-white/25 hover:text-white/50"}`}
+            >
+              <Repeat className="h-5 w-5" />
             </button>
           </div>
 
           {/* Volume */}
-          <div className="flex w-full items-center gap-3">
-            <button onClick={() => setMuted((m) => !m)} className="text-neutral-400 hover:text-white">
-              {muted || volume === 0 ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+          <div className="flex w-full items-center gap-3 px-1">
+            <button
+              onClick={() => setMuted((m) => !m)}
+              className="text-white/30 transition hover:text-white/70"
+            >
+              {muted || volume === 0
+                ? <VolumeX className="h-4 w-4" />
+                : <Volume2 className="h-4 w-4" />
+              }
             </button>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
+            <Slider
               value={muted ? 0 : volume}
-              onChange={(e) => {
-                setVolume(Number(e.target.value));
-                setMuted(false);
-              }}
-              className="h-1 flex-1 cursor-pointer appearance-none rounded-full bg-white/10"
-              style={{
-                backgroundImage: `linear-gradient(to right, #a78bfa ${(muted ? 0 : volume) * 100}%, transparent ${(muted ? 0 : volume) * 100}%)`,
-              }}
+              max={1}
+              onChange={(v) => { setVolume(v); setMuted(false); }}
+              accent={track.accent}
             />
           </div>
         </div>
 
-        {/* Playlist */}
-        <div className="border-t border-white/8 px-4 pb-8 pt-4">
-          <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-neutral-500">Playlist</div>
-          <div className="flex flex-col gap-2">
+        {/* ── Playlist ── */}
+        <div className="relative mt-4 rounded-t-3xl border-t border-white/8 bg-white/[0.03] px-4 pb-8 pt-5 backdrop-blur-xl">
+          <p className="mb-3 px-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white/25">
+            Playlist · {TRACKS.length} tracks
+          </p>
+          <div className="flex flex-col gap-1">
             {TRACKS.map((t, i) => (
-              <button
+              <TrackRow
                 key={t.id}
+                track={t}
+                active={i === idx}
+                playing={playing}
                 onClick={() => {
-                  if (i === trackIdx) {
-                    setPlaying((p) => !p);
-                  } else {
-                    setTrackIdx(i);
-                    setPlaying(true);
-                  }
+                  if (i === idx) { setPlaying((p) => !p); }
+                  else { setIdx(i); setPlaying(true); }
                 }}
-                className={`flex items-center gap-3 rounded-xl px-4 py-3 text-left transition active:scale-[0.98] ${
-                  i === trackIdx
-                    ? "bg-violet-600/20 ring-1 ring-violet-500/40"
-                    : "bg-white/4 hover:bg-white/8"
-                }`}
-              >
-                <div
-                  className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br ${t.color} text-xl`}
-                >
-                  {t.emoji}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className={`truncate text-sm font-medium ${i === trackIdx ? "text-violet-300" : "text-white"}`}>
-                    {t.title}
-                  </div>
-                  <div className="text-xs text-neutral-500">Sushi ZEN Original</div>
-                </div>
-                {i === trackIdx && (
-                  <div className="flex items-end gap-0.5">
-                    {["0s", "0.15s", "0.3s"].map((d, j) => (
-                      <WaveBar key={j} playing={playing} delay={d} />
-                    ))}
-                  </div>
-                )}
-                {i !== trackIdx && (
-                  <ChevronRight className="h-4 w-4 flex-shrink-0 text-neutral-600" />
-                )}
-              </button>
+              />
             ))}
           </div>
         </div>
