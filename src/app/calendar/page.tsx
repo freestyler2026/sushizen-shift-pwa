@@ -91,6 +91,7 @@ function isAbsenceRow(row: ShiftRow) {
   const role = String(row.role || "").toUpperCase().trim();
   return Number(row.start_hour || 0) === 0 && Number(row.end_hour || 0) === 0 && (
     role === "DAY_OFF" ||
+    role === "VL" ||
     role === "VACATION_LEAVE" ||
     role === "MATERNITY_LEAVE" ||
     role === "MEDICAL_LEAVE" ||

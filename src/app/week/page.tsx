@@ -96,6 +96,7 @@ const BLUSH_HIGHLIGHT = "rounded-2xl border border-violet-500/20 bg-gradient-to-
 // -----------------------------
 const ABSENCE_TYPES = new Set([
   "DAY_OFF",
+  "VL",
   "VACATION_LEAVE",
   "MATERNITY_LEAVE",
   "MEDICAL_LEAVE",
