@@ -224,6 +224,17 @@ export default function InventoryCountSheetsPage() {
   }, [draftLines]);
 
   const selectableItems = itemOptions;
+  // Set of inventory item IDs currently in the draft (for Add/Remove toggle)
+  const draftItemIdSet = useMemo(() => new Set(draftLines.map((l) => String(l.item_id || "")).filter(Boolean)), [draftLines]);
+
+  function removeItemFromDraft(itemId: string) {
+    const nextLines = draftLines
+      .filter((l) => String(l.item_id || "") !== itemId)
+      .map((line, idx) => ({ ...line, sort_order: idx + 1 }));
+    setDraftLines(nextLines);
+    rebuildDraftCellInputs(nextLines);
+  }
+
   const filteredSelectableItems = useMemo(() => {
     const q = itemSearch.trim().toLowerCase();
     if (!q) return selectableItems;
@@ -686,7 +697,7 @@ export default function InventoryCountSheetsPage() {
                   <thead className="sticky top-0 bg-neutral-950/95 text-neutral-300">
                     <tr>
                       <th className="px-3 py-2 text-left">Item</th>
-                      <th className="px-3 py-2 text-left">Invoice Name</th>
+                      <th className="px-3 py-2 text-left">Category</th>
                       <th className="px-3 py-2 text-left">Unit</th>
                       <th className="px-3 py-2 text-right">Unit Price</th>
                       <th className="px-3 py-2 text-right text-emerald-300">Counted Qty</th>
@@ -696,8 +707,18 @@ export default function InventoryCountSheetsPage() {
                   <tbody>
                     {group.rows.map((item) => (
                       <tr key={item.id} className="border-t border-neutral-800 text-neutral-200">
-                        <td className="px-3 py-2">{item.name} <span className="text-neutral-500">({item.sku || "-"})</span></td>
-                        <td className="px-3 py-2">{item.name}</td>
+                        <td className="px-3 py-2">
+                          <div>{item.name}</div>
+                          {item.sku && <div className="text-neutral-500">{item.sku}</div>}
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="text-neutral-400">{item.category_name || <span className="text-neutral-600">—</span>}</div>
+                          {item.item_type && item.item_type !== "ITEM" && (
+                            <div className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold ${item.item_type === "PRODUCT" ? "bg-violet-900/50 text-violet-300" : "bg-sky-900/50 text-sky-300"}`}>
+                              {item.item_type}
+                            </div>
+                          )}
+                        </td>
                         <td className="px-3 py-2">{item.storage_unit || "-"}</td>
                         <td className="px-3 py-2 text-right">{Number(item.cost || 0).toFixed(2)}</td>
                         <td className="px-3 py-2 text-right">
@@ -710,16 +731,26 @@ export default function InventoryCountSheetsPage() {
                           />
                         </td>
                         <td className="px-3 py-2 text-right">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const countedQty = parseDraftNumber(addQtyValue(item.id));
-                              appendItemToDraft(item, countedQty === null || countedQty < 0 ? 0 : countedQty);
-                            }}
-                            className="rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-800"
-                          >
-                            Add
-                          </button>
+                          {draftItemIdSet.has(String(item.id)) ? (
+                            <button
+                              type="button"
+                              onClick={() => removeItemFromDraft(String(item.id))}
+                              className="rounded-lg border border-rose-700/70 bg-rose-950/30 px-2 py-1 text-xs text-rose-300 hover:bg-rose-900/40"
+                            >
+                              ✕ Remove
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const countedQty = parseDraftNumber(addQtyValue(item.id));
+                                appendItemToDraft(item, countedQty === null || countedQty < 0 ? 0 : countedQty);
+                              }}
+                              className="rounded-lg border border-emerald-700/70 bg-emerald-950/30 px-2 py-1 text-xs text-emerald-300 hover:bg-emerald-900/40"
+                            >
+                              + Add
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}

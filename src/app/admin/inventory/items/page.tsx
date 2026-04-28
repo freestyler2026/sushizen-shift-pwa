@@ -342,7 +342,23 @@ export default function InventoryItemsPage() {
             <div className="text-lg font-semibold text-neutral-100">Ingredients / Products</div>
             <div className="mt-1 text-sm text-neutral-400">Register all stock masters here. Use Items for raw ingredients and Products for CK-made items.</div>
           </div>
-          <div className="text-xs text-neutral-500">{city.toUpperCase()} inventory</div>
+          {/* City switcher — prominent toggle buttons */}
+          <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-1">
+            <button
+              type="button"
+              onClick={() => setCity("manila")}
+              className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${city === "manila" ? "bg-violet-600 text-white shadow" : "text-neutral-400 hover:text-white"}`}
+            >
+              🇵🇭 Manila
+            </button>
+            <button
+              type="button"
+              onClick={() => setCity("dubai")}
+              className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${city === "dubai" ? "bg-violet-600 text-white shadow" : "text-neutral-400 hover:text-white"}`}
+            >
+              🇦🇪 Dubai
+            </button>
+          </div>
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
@@ -452,21 +468,13 @@ export default function InventoryItemsPage() {
           {createSuccess ? <div className="mt-3 text-sm text-emerald-300">{createSuccess}</div> : null}
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <select
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-            value={city}
-            onChange={(e) => setCity(e.target.value as "manila" | "dubai")}
-          >
-            <option value="manila">Manila</option>
-            <option value="dubai">Dubai</option>
-          </select>
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
           <select
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             value={tab}
             onChange={(e) => setTab(e.target.value)}
           >
-            <option value="ALL">All</option>
+            <option value="ALL">All Types</option>
             <option value="ITEMS">Raw Ingredients</option>
             <option value="PRODUCTS">CK Products / Semi-finished</option>
             <option value="DELETED">Deleted</option>

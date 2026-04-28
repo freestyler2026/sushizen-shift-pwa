@@ -5,6 +5,7 @@ export type InventoryItemLookup = {
   name: string;
   sku: string;
   category_name: string;
+  item_type: string;
   supplier_name: string;
   storage_unit: string;
   cost: number;
