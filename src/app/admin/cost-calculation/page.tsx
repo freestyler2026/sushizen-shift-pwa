@@ -1012,10 +1012,10 @@ export default function CostCalculationPage() {
     try {
       const [unmatchedResult, mappingsResult] = await Promise.allSettled([
         costJson<{ items?: UnmatchedInvoiceItemRow[] }>(
-          `/api/admin/cost/invoice-item-mappings/unmatched?city=${encodeURIComponent(city)}&limit=100`,
+          `/api/admin/cost/invoice-item-mappings/unmatched?city=${encodeURIComponent(city)}&limit=500`,
         ),
         costJson<{ items?: InvoiceItemMappingRow[] }>(
-          `/api/admin/cost/invoice-item-mappings?city=${encodeURIComponent(city)}&limit=200&is_active=true`,
+          `/api/admin/cost/invoice-item-mappings?city=${encodeURIComponent(city)}&limit=2000&is_active=true`,
         ),
       ]);
       const nextUnmatched = unmatchedResult.status === "fulfilled" && Array.isArray(unmatchedResult.value?.items)
