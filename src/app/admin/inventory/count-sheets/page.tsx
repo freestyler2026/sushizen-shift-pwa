@@ -65,9 +65,7 @@ export default function InventoryCountSheetsPage() {
   const [reference, setReference] = useState("");
   const [historyMonth, setHistoryMonth] = useState(monthNow());
   const [itemSearch, setItemSearch] = useState("");
-  const [selectedItemId, setSelectedItemId] = useState("");
-  const [selectedAddQty, setSelectedAddQty] = useState("0");
-  const [addQtyByItemId, setAddQtyByItemId] = useState<Record<string, string>>({});
+
   const [draftLines, setDraftLines] = useState<InventoryCountLine[]>([]);
   const [draftCellInputs, setDraftCellInputs] = useState<Record<string, string>>({});
   const [itemOptions, setItemOptions] = useState<InventoryItemLookup[]>([]);
@@ -255,7 +253,6 @@ export default function InventoryCountSheetsPage() {
       }))
       .sort((a, b) => a.supplier.localeCompare(b.supplier));
   }, [filteredSelectableItems]);
-  const selectedItem = useMemo(() => selectableItems.find((item) => item.id === selectedItemId) || null, [selectableItems, selectedItemId]);
 
   function cycleLabel(value: string) {
     return cycleOptions().find((opt) => opt.value === value)?.label || value;
@@ -334,14 +331,6 @@ export default function InventoryCountSheetsPage() {
     });
   }
 
-  function addQtyValue(itemId: string) {
-    return addQtyByItemId[itemId] ?? "0";
-  }
-
-  function setAddQty(itemId: string, value: string) {
-    setAddQtyByItemId((prev) => ({ ...prev, [itemId]: value }));
-  }
-
   function buildDraftLine(item: InventoryItemLookup, countedQty: number, sortOrder: number) {
     const normalizedQty = Number.isFinite(countedQty) ? countedQty : 0;
     if (item.id.startsWith("excel-")) {
@@ -372,14 +361,6 @@ export default function InventoryCountSheetsPage() {
     const nextLines = [...draftLines, buildDraftLine(item, countedQty, draftLines.length + 1)];
     setDraftLines(nextLines);
     rebuildDraftCellInputs(nextLines);
-  }
-
-  function addManualItem() {
-    if (!selectedItem) return;
-    const countedQty = parseDraftNumber(selectedAddQty);
-    appendItemToDraft(selectedItem, countedQty === null || countedQty < 0 ? 0 : countedQty);
-    setSelectedItemId("");
-    setSelectedAddQty("0");
   }
 
   function addRow() {
@@ -414,7 +395,7 @@ export default function InventoryCountSheetsPage() {
     setError("");
     setSuccess("");
     try {
-      const created = await inventoryPost<{ row?: { id?: string } }>("/api/admin/inventory/items", {
+      await inventoryPost<{ row?: { id?: string } }>("/api/admin/inventory/items", {
         city,
         name,
         sku: newItemSku.trim(),
@@ -433,8 +414,6 @@ export default function InventoryCountSheetsPage() {
         custom_levels: [],
       });
       await refreshItemOptions();
-      const createdId = String(created?.row?.id || "");
-      if (createdId) setSelectedItemId(createdId);
       setNewItemName("");
       setNewItemSku("");
       setNewItemUnit("");
@@ -767,7 +746,7 @@ export default function InventoryCountSheetsPage() {
             <div className="mt-6 rounded-xl border border-dashed border-neutral-800 bg-neutral-950/30 py-14 text-center">
               <div className="text-3xl">📋</div>
               <div className="mt-2 text-sm text-neutral-500">Pick items from the library to build your count sheet</div>
-              <div className="mt-1 text-xs text-neutral-600">Or use "+ Blank Row" to add a row manually</div>
+              <div className="mt-1 text-xs text-neutral-600">Or use &quot;+ Blank Row&quot; to add a row manually</div>
             </div>
           ) : (
             <div className="mt-4 space-y-4">
