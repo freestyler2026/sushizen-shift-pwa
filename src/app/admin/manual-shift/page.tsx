@@ -32,6 +32,24 @@ function getRoleOptions(city: string) {
 }
 const HOUR_OPTIONS = Array.from({ length: 19 }, (_, i) => i + 6); // 6..24
 
+// Special (non-shift) types
+const SPECIAL_TYPES = [
+  { role: "DAY_OFF",  label: "Day Off",        style: "border-neutral-600/50 bg-neutral-700/30 text-neutral-300" },
+  { role: "ABSENT",   label: "Absent",          style: "border-rose-600/50 bg-rose-900/30 text-rose-300" },
+  { role: "VL",       label: "VL (Vacation)",   style: "border-sky-600/50 bg-sky-900/30 text-sky-300" },
+  { role: "ML",       label: "ML (Medical)",    style: "border-amber-600/50 bg-amber-900/30 text-amber-300" },
+  { role: "SL",       label: "SL (Sick)",       style: "border-orange-600/50 bg-orange-900/30 text-orange-300" },
+] as const;
+type SpecialRole = (typeof SPECIAL_TYPES)[number]["role"];
+const SPECIAL_ROLE_SET = new Set<string>(SPECIAL_TYPES.map((s) => s.role));
+function isSpecialRole(role: string) { return SPECIAL_ROLE_SET.has(role); }
+function specialStyle(role: string) {
+  return SPECIAL_TYPES.find((s) => s.role === role)?.style ?? "border-neutral-600/50 bg-neutral-700/30 text-neutral-300";
+}
+function specialLabel(role: string) {
+  return SPECIAL_TYPES.find((s) => s.role === role)?.label ?? role;
+}
+
 function localDateStr(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -275,10 +293,13 @@ export default function ManualShiftPage() {
   const [staffList, setStaffList] = useState<string[]>([]);
   const [gridData, setGridData] = useState<GridData>({});
   const [editTarget, setEditTarget] = useState<EditTarget>(null);
+  const [editMode, setEditMode] = useState<"shift" | "special">("shift");
   const [editStart, setEditStart] = useState(9);
   const [editEnd, setEditEnd] = useState(17);
   const [editRole, setEditRole] = useState("CK");
   const [editCustomRole, setEditCustomRole] = useState("");
+  const [editSpecialType, setEditSpecialType] = useState<SpecialRole>("DAY_OFF");
+  const [timeError, setTimeError] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -368,15 +389,22 @@ export default function ManualShiftPage() {
 
   function openEdit(staffName: string, dateStr: string) {
     const existing = gridData[staffName]?.[dateStr];
-    setEditStart(existing?.start_hour ?? 9);
-    setEditEnd(existing?.end_hour ?? 17);
-    const role = existing?.role ?? "CK";
-    if (getRoleOptions(city).includes(role)) {
-      setEditRole(role);
-      setEditCustomRole("");
+    setTimeError("");
+    if (existing && isSpecialRole(existing.role)) {
+      setEditMode("special");
+      setEditSpecialType(existing.role as SpecialRole);
     } else {
-      setEditRole("OTHER");
-      setEditCustomRole(role);
+      setEditMode("shift");
+      setEditStart(existing?.start_hour ?? 9);
+      setEditEnd(existing?.end_hour ?? 17);
+      const role = existing?.role ?? getRoleOptions(city)[0];
+      if (getRoleOptions(city).includes(role)) {
+        setEditRole(role);
+        setEditCustomRole("");
+      } else {
+        setEditRole("OTHER");
+        setEditCustomRole(role);
+      }
     }
     setEditTarget({ staffName, dateStr });
   }
@@ -384,6 +412,22 @@ export default function ManualShiftPage() {
   function saveEdit() {
     if (!editTarget) return;
     const { staffName, dateStr } = editTarget;
+    setTimeError("");
+
+    if (editMode === "special") {
+      setGridData((prev) => ({
+        ...prev,
+        [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: { start_hour: 0, end_hour: 0, role: editSpecialType } },
+      }));
+      setEditTarget(null);
+      return;
+    }
+
+    // Shift mode — validate time
+    if (editStart >= editEnd) {
+      setTimeError(`Start (${fmtHour(editStart)}) must be earlier than End (${fmtHour(editEnd)})`);
+      return;
+    }
     const role = editRole === "OTHER" ? editCustomRole.trim() : editRole;
     if (!role) return;
     setGridData((prev) => ({
@@ -590,57 +634,99 @@ export default function ManualShiftPage() {
                         return (
                           <td key={d} className="px-1 py-1 text-center align-top">
                             {isEditing ? (
-                              <div className="rounded-xl border border-violet-500/40 bg-violet-950/40 p-2 text-left text-xs">
-                                <div className="mb-1.5 flex items-center gap-1">
-                                  <label className="w-10 shrink-0 text-neutral-400">Start</label>
-                                  <select
-                                    className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
-                                    value={editStart}
-                                    onChange={(e) => setEditStart(Number(e.target.value))}
+                              <div className="rounded-xl border border-violet-500/40 bg-violet-950/40 p-2 text-left text-xs" style={{ minWidth: 170 }}>
+                                {/* Mode tabs */}
+                                <div className="mb-2 flex rounded-lg border border-white/10 bg-white/5 p-0.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => { setEditMode("shift"); setTimeError(""); }}
+                                    className={`flex-1 rounded-md py-1 text-[10px] font-semibold transition ${editMode === "shift" ? "bg-violet-600 text-white" : "text-neutral-400 hover:text-white"}`}
                                   >
-                                    {HOUR_OPTIONS.map((h) => (
-                                      <option key={h} value={h}>{fmtHour(h)}</option>
-                                    ))}
-                                  </select>
-                                </div>
-                                <div className="mb-1.5 flex items-center gap-1">
-                                  <label className="w-10 shrink-0 text-neutral-400">End</label>
-                                  <select
-                                    className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
-                                    value={editEnd}
-                                    onChange={(e) => setEditEnd(Number(e.target.value))}
+                                    Shift
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => { setEditMode("special"); setTimeError(""); }}
+                                    className={`flex-1 rounded-md py-1 text-[10px] font-semibold transition ${editMode === "special" ? "bg-violet-600 text-white" : "text-neutral-400 hover:text-white"}`}
                                   >
-                                    {HOUR_OPTIONS.map((h) => (
-                                      <option key={h} value={h}>{fmtHour(h)}</option>
-                                    ))}
-                                  </select>
+                                    Day Off / Absent
+                                  </button>
                                 </div>
-                                <div className="mb-2 flex items-center gap-1">
-                                  <label className="w-10 shrink-0 text-neutral-400">Role</label>
-                                  <select
-                                    className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
-                                    value={editRole}
-                                    onChange={(e) => setEditRole(e.target.value)}
-                                  >
-                                    {getRoleOptions(city).map((r) => (
-                                      <option key={r} value={r}>{r}</option>
+
+                                {editMode === "shift" ? (
+                                  <>
+                                    <div className="mb-1.5 flex items-center gap-1">
+                                      <label className="w-10 shrink-0 text-neutral-400">Start</label>
+                                      <select
+                                        className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
+                                        value={editStart}
+                                        onChange={(e) => { setEditStart(Number(e.target.value)); setTimeError(""); }}
+                                      >
+                                        {HOUR_OPTIONS.map((h) => (
+                                          <option key={h} value={h}>{fmtHour(h)}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    <div className="mb-1.5 flex items-center gap-1">
+                                      <label className="w-10 shrink-0 text-neutral-400">End</label>
+                                      <select
+                                        className={`flex-1 rounded-lg border px-1.5 py-1 text-xs text-white ${editStart >= editEnd ? "border-rose-500/70 bg-rose-950/60" : "border-neutral-700 bg-neutral-900"}`}
+                                        value={editEnd}
+                                        onChange={(e) => { setEditEnd(Number(e.target.value)); setTimeError(""); }}
+                                      >
+                                        {HOUR_OPTIONS.map((h) => (
+                                          <option key={h} value={h}>{fmtHour(h)}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                    {timeError && (
+                                      <div className="mb-1.5 rounded-lg bg-rose-900/40 px-2 py-1 text-[10px] text-rose-300">
+                                        ⚠ {timeError}
+                                      </div>
+                                    )}
+                                    <div className="mb-2 flex items-center gap-1">
+                                      <label className="w-10 shrink-0 text-neutral-400">Role</label>
+                                      <select
+                                        className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
+                                        value={editRole}
+                                        onChange={(e) => setEditRole(e.target.value)}
+                                      >
+                                        {getRoleOptions(city).map((r) => (
+                                          <option key={r} value={r}>{r}</option>
+                                        ))}
+                                        <option value="OTHER">Other...</option>
+                                      </select>
+                                    </div>
+                                    {editRole === "OTHER" && (
+                                      <input
+                                        className="mb-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
+                                        placeholder="Role name"
+                                        value={editCustomRole}
+                                        onChange={(e) => setEditCustomRole(e.target.value)}
+                                      />
+                                    )}
+                                  </>
+                                ) : (
+                                  <div className="mb-2 flex flex-col gap-1">
+                                    {SPECIAL_TYPES.map((sp) => (
+                                      <button
+                                        key={sp.role}
+                                        type="button"
+                                        onClick={() => setEditSpecialType(sp.role)}
+                                        className={`w-full rounded-lg border px-2 py-1.5 text-left text-[11px] font-semibold transition ${editSpecialType === sp.role ? sp.style + " ring-1 ring-white/20" : "border-white/8 bg-white/4 text-neutral-400 hover:bg-white/8"}`}
+                                      >
+                                        {sp.label}
+                                      </button>
                                     ))}
-                                    <option value="OTHER">Other...</option>
-                                  </select>
-                                </div>
-                                {editRole === "OTHER" && (
-                                  <input
-                                    className="mb-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
-                                    placeholder="Role name"
-                                    value={editCustomRole}
-                                    onChange={(e) => setEditCustomRole(e.target.value)}
-                                  />
+                                  </div>
                                 )}
+
                                 <div className="flex gap-1">
                                   <button
                                     type="button"
                                     onClick={saveEdit}
-                                    className="flex-1 rounded-lg bg-violet-600 py-1 text-xs font-semibold text-white hover:bg-violet-500"
+                                    disabled={editMode === "shift" && editStart >= editEnd}
+                                    className="flex-1 rounded-lg bg-violet-600 py-1 text-xs font-semibold text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-40"
                                   >
                                     Save
                                   </button>
@@ -653,7 +739,7 @@ export default function ManualShiftPage() {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => setEditTarget(null)}
+                                    onClick={() => { setEditTarget(null); setTimeError(""); }}
                                     className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-neutral-400 hover:bg-white/10"
                                   >
                                     ✕
@@ -661,6 +747,15 @@ export default function ManualShiftPage() {
                                 </div>
                               </div>
                             ) : cell ? (
+                              isSpecialRole(cell.role) ? (
+                                <button
+                                  type="button"
+                                  onClick={() => openEdit(name, d)}
+                                  className={`w-full rounded-lg border px-1.5 py-2 text-center text-[11px] font-semibold hover:opacity-80 ${specialStyle(cell.role)}`}
+                                >
+                                  {specialLabel(cell.role)}
+                                </button>
+                              ) : (
                               <button
                                 type="button"
                                 onClick={() => openEdit(name, d)}
@@ -671,6 +766,7 @@ export default function ManualShiftPage() {
                                 </div>
                                 <div className="text-[10px] text-emerald-400/70">{cell.role}</div>
                               </button>
+                              )
                             ) : (
                               <button
                                 type="button"
