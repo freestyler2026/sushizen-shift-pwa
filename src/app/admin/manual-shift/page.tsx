@@ -25,7 +25,11 @@ type PageView = "edit" | "published";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const ROLE_OPTIONS = ["CK", "SV", "BA", "HK", "SC", "MGR", "ADMIN", "DRIVER", "TRAINEE"];
+const ROLE_OPTIONS_DUBAI = ["CK", "SV", "BA", "HK", "SC", "MGR", "ADMIN", "DRIVER", "TRAINEE", "STAFF", "PIC", "CDP", "DCDP", "Area Manager"];
+const ROLE_OPTIONS_MANILA = ["CK", "SV", "BA", "HK", "SC", "MGR", "ADMIN", "DRIVER", "TRAINEE", "STAFF", "PIC", "Cashier"];
+function getRoleOptions(city: string) {
+  return city === "manila" ? ROLE_OPTIONS_MANILA : ROLE_OPTIONS_DUBAI;
+}
 const HOUR_OPTIONS = Array.from({ length: 19 }, (_, i) => i + 6); // 6..24
 
 function localDateStr(d: Date): string {
@@ -367,7 +371,7 @@ export default function ManualShiftPage() {
     setEditStart(existing?.start_hour ?? 9);
     setEditEnd(existing?.end_hour ?? 17);
     const role = existing?.role ?? "CK";
-    if (ROLE_OPTIONS.includes(role)) {
+    if (getRoleOptions(city).includes(role)) {
       setEditRole(role);
       setEditCustomRole("");
     } else {
@@ -618,7 +622,7 @@ export default function ManualShiftPage() {
                                     value={editRole}
                                     onChange={(e) => setEditRole(e.target.value)}
                                   >
-                                    {ROLE_OPTIONS.map((r) => (
+                                    {getRoleOptions(city).map((r) => (
                                       <option key={r} value={r}>{r}</option>
                                     ))}
                                     <option value="OTHER">Other...</option>
