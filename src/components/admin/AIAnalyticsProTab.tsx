@@ -38,10 +38,15 @@ type SavedSnapshotRow = {
 
 const TOOL_LABELS: Record<string, string> = {
   get_dubai_sales: "🇦🇪 Dubai Sales",
+  get_dubai_revenue_by_location: "🇦🇪 Dubai Revenue",
   get_dubai_cancellations: "🇦🇪 Dubai Cancellations",
+  get_dubai_ratings: "🇦🇪 Dubai Ratings",
   get_manila_sales: "🇵🇭 Manila Sales",
   get_manila_cancellations: "🇵🇭 Manila Cancellations",
+  get_manila_ratings: "🇵🇭 Manila Ratings",
   get_cashier_evaluations: "⭐ Cashier Evaluations",
+  get_hourly_sales: "⏰ Hourly Sales",
+  get_attendance: "🕐 Attendance",
   get_pnl: "💰 P&L imports",
   get_procurement: "🛒 Procurement",
   get_evaluations: "📋 Eval settings",
@@ -51,10 +56,10 @@ const TOOL_LABELS: Record<string, string> = {
 const EXAMPLES = [
   { icon: "📉", q: "Why did Dubai net revenue change in the last 7 days vs the prior 7 days?" },
   { icon: "🏆", q: "Summarize Manila sales overview this month (totals and channel mix if present)." },
+  { icon: "⏰", q: "What are the peak hours for Dubai sales this month? When is it busiest?" },
+  { icon: "⭐", q: "What are Dubai and Manila aggregator ratings this month? Any brand below 4.0?" },
+  { icon: "🕐", q: "What is the Dubai attendance compliance this month? Any no-shows or missing check-outs?" },
   { icon: "🚫", q: "Which Dubai platform had the most cancellation rows this month?" },
-  { icon: "⭐", q: "List Manila cashier evaluations this month with any large QRPH diffs." },
-  { icon: "⚖️", q: "Compare Dubai POS daily net revenue this month vs last month using compare_periods." },
-  { icon: "💰", q: "What P&L monthly imports exist for Dubai and Manila in the last two months?" },
 ];
 
 function getApiBase() {
