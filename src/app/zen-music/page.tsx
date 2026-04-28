@@ -68,6 +68,15 @@ const TRACKS: Track[] = [
     accentHex: "#eab308",
     glyph: "猿",
   },
+  {
+    id: 7,
+    title: "Rock'n Vibes",
+    subtitle: "Sushi ZEN",
+    file: "/music/sushi-zen-rocknvibes.mp3",
+    accent: "from-red-500 via-orange-600 to-yellow-500",
+    accentHex: "#ef4444",
+    glyph: "轟",
+  },
 ];
 
 function fmt(sec: number) {
