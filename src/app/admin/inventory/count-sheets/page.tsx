@@ -454,6 +454,18 @@ export default function InventoryCountSheetsPage() {
     setSuccess("Started a new count template draft.");
   }
 
+  function handleBranchChange(nextBranchCode: string) {
+    setBranchCode(nextBranchCode);
+    // Reset editor when branch changes to prevent saving a different branch's template by mistake
+    setEditingSheetId("");
+    setTemplateName("");
+    setSelectedSheetId("");
+    setSelectedSheet(null);
+    setVersionRows([]);
+    setSelectedVersionId("");
+    setSelectedVersion(null);
+  }
+
   async function saveCountSheet() {
     if (!draftLines.length) {
       setError("Please add at least one item.");
@@ -584,7 +596,7 @@ export default function InventoryCountSheetsPage() {
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" value={branchCode} onChange={(e) => setBranchCode(e.target.value)}>
+          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" value={branchCode} onChange={(e) => handleBranchChange(e.target.value)}>
             {BRANCHES[city].map((branch) => (
               <option key={branch.code} value={branch.code}>{branch.name}</option>
             ))}
@@ -720,7 +732,12 @@ export default function InventoryCountSheetsPage() {
         <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-semibold text-neutral-100">Counting Grid</div>
+              <div className="flex items-center gap-2">
+                <div className="text-sm font-semibold text-neutral-100">Counting Grid</div>
+                {editingSheetId
+                  ? <span className="rounded-md bg-amber-900/30 px-2 py-0.5 text-xs text-amber-300">Updating existing template</span>
+                  : <span className="rounded-md bg-sky-900/30 px-2 py-0.5 text-xs text-sky-400">New template</span>}
+              </div>
               <div className="mt-0.5 text-xs text-neutral-500">
                 {draftLines.length === 0
                   ? "Add items from the library on the left."
@@ -737,7 +754,7 @@ export default function InventoryCountSheetsPage() {
                 disabled={saving || draftLines.length === 0}
                 className="rounded-xl border border-emerald-800 bg-emerald-950/30 px-4 py-1.5 text-sm font-medium text-emerald-200 hover:bg-emerald-900/30 disabled:opacity-50"
               >
-                {saving ? "Saving…" : editingSheetId ? "Save Changes" : "Save Template"}
+                {saving ? "Saving…" : "Save Count Sheet"}
               </button>
             </div>
           </div>
