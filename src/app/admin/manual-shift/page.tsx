@@ -21,6 +21,7 @@ import {
 type ShiftCell = { start_hour: number; end_hour: number; role: string };
 type GridData = Record<string, Record<string, ShiftCell | null>>; // staffName → dateStr → cell
 type EditTarget = { staffName: string; dateStr: string } | null;
+type PageView = "edit" | "published";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -53,6 +54,11 @@ function formatDate(dateStr: string): string {
   return d.toLocaleDateString("en-US", { weekday: "short", month: "numeric", day: "numeric" });
 }
 
+function formatDateFull(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+}
+
 function todayMonday(): string {
   return mondayOf(localDateStr(new Date()));
 }
@@ -81,7 +87,180 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   return (text ? JSON.parse(text) : {}) as T;
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
+// ─── Published View ───────────────────────────────────────────────────────────
+
+function PublishedView({
+  gridData,
+  weekDates,
+  branchLabel,
+  weekStart,
+  shiftCount,
+  onBackToEdit,
+}: {
+  gridData: GridData;
+  weekDates: string[];
+  branchLabel: string;
+  weekStart: string;
+  shiftCount: number;
+  onBackToEdit: () => void;
+}) {
+  // Collect all staff names that have at least one shift this week
+  const activeStaff = useMemo(() => {
+    return Object.entries(gridData)
+      .filter(([, days]) => Object.values(days).some((c) => c != null && c.role))
+      .map(([name]) => name)
+      .sort((a, b) => a.localeCompare(b));
+  }, [gridData]);
+
+  // Dates that have at least one shift
+  const activeDates = useMemo(
+    () => weekDates.filter((d) => activeStaff.some((n) => gridData[n]?.[d])),
+    [weekDates, activeStaff, gridData]
+  );
+
+  // Role badge color
+  const roleColor = (role: string) => {
+    const map: Record<string, string> = {
+      CK: "bg-violet-500/20 text-violet-300 border-violet-500/30",
+      SV: "bg-sky-500/20 text-sky-300 border-sky-500/30",
+      MGR: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+      DRIVER: "bg-orange-500/20 text-orange-300 border-orange-500/30",
+      TRAINEE: "bg-neutral-500/20 text-neutral-300 border-neutral-500/30",
+    };
+    return map[role] ?? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30";
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Summary banner */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-950/20 px-5 py-4">
+        <div>
+          <p className="text-sm font-semibold text-emerald-300">
+            ✅ {shiftCount} shifts published · {branchLabel} · Week of {weekStart}
+          </p>
+          <p className="mt-0.5 text-xs text-emerald-400/60">
+            {activeStaff.length} staff · {activeDates.length} active days
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onBackToEdit}
+          className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-neutral-300 transition hover:bg-white/10"
+        >
+          ✏️ Back to Edit
+        </button>
+      </div>
+
+      {activeDates.length === 0 ? (
+        <div className={`${GLASS_CARD} py-12 text-center text-sm text-neutral-500`}>
+          No shifts in this week/branch.
+        </div>
+      ) : (
+        <>
+          {/* Day-by-day cards */}
+          <div className="space-y-3">
+            {activeDates.map((d) => {
+              const dayStaff = activeStaff
+                .map((name) => ({ name, cell: gridData[name]?.[d] ?? null }))
+                .filter((s) => s.cell != null);
+
+              return (
+                <div key={d} className={`${GLASS_CARD} overflow-hidden p-0`}>
+                  {/* Date header */}
+                  <div className="flex items-center justify-between border-b border-white/8 bg-white/[0.03] px-5 py-3">
+                    <span className="text-sm font-semibold text-white">{formatDateFull(d)}</span>
+                    <span className="rounded-full bg-white/8 px-2.5 py-0.5 text-xs text-neutral-400">
+                      {dayStaff.length} staff
+                    </span>
+                  </div>
+
+                  {/* Staff rows */}
+                  <div className="divide-y divide-white/5">
+                    {dayStaff.map(({ name, cell }) => (
+                      <div key={name} className="flex items-center justify-between px-5 py-3">
+                        <span className="text-sm font-medium text-neutral-200">{name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono text-neutral-400">
+                            {fmtHour(cell!.start_hour)} – {fmtHour(cell!.end_hour)}
+                          </span>
+                          <span
+                            className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${roleColor(cell!.role)}`}
+                          >
+                            {cell!.role}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Staff summary table */}
+          <div className={`${GLASS_CARD} overflow-hidden p-0`}>
+            <div className="border-b border-white/8 bg-white/[0.03] px-5 py-3">
+              <span className="text-sm font-semibold text-white">Staff Overview</span>
+              <span className="ml-2 text-xs text-neutral-500">all days side by side</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-white/8">
+                    <th className="px-4 py-2.5 text-left font-semibold text-neutral-400">Staff</th>
+                    {activeDates.map((d) => (
+                      <th key={d} className="px-3 py-2.5 text-center font-semibold text-neutral-400">
+                        {formatDate(d)}
+                      </th>
+                    ))}
+                    <th className="px-3 py-2.5 text-center font-semibold text-neutral-400">Days</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeStaff.map((name, i) => {
+                    const dayCount = activeDates.filter((d) => gridData[name]?.[d]).length;
+                    if (dayCount === 0) return null;
+                    return (
+                      <tr key={name} className={`border-b border-white/5 ${i % 2 === 0 ? "bg-white/[0.02]" : ""}`}>
+                        <td className="px-4 py-2 font-medium text-neutral-200 whitespace-nowrap">{name}</td>
+                        {activeDates.map((d) => {
+                          const cell = gridData[name]?.[d];
+                          return (
+                            <td key={d} className="px-2 py-2 text-center">
+                              {cell ? (
+                                <div>
+                                  <div className="font-mono text-neutral-300">
+                                    {fmtHour(cell.start_hour)}–{fmtHour(cell.end_hour)}
+                                  </div>
+                                  <div className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold border ${roleColor(cell.role)}`}>
+                                    {cell.role}
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-neutral-700">—</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className="px-3 py-2 text-center">
+                          <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-violet-300 font-semibold">
+                            {dayCount}d
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ManualShiftPage() {
   const auth = useMemo(() => getAuth(), []);
@@ -100,6 +279,8 @@ export default function ManualShiftPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [view, setView] = useState<PageView>("edit");
+  const [publishedCount, setPublishedCount] = useState(0);
 
   // Week dates Mon–Sun
   const weekDates = useMemo(
@@ -113,6 +294,7 @@ export default function ManualShiftPage() {
     setStaffList([]);
     setGridData({});
     setEditTarget(null);
+    setView("edit");
   }, [city]);
 
   // Load staff list
@@ -125,7 +307,6 @@ export default function ManualShiftPage() {
       );
       const names = (data.names || []).sort((a, b) => a.localeCompare(b));
       setStaffList(names);
-      // Seed grid rows for new names
       setGridData((prev) => {
         const next = { ...prev };
         for (const name of names) {
@@ -150,7 +331,6 @@ export default function ManualShiftPage() {
       );
       const rows = (data.rows || []).filter((r) => r.branch_code === branchCode);
       const nextGrid: GridData = {};
-      // Keep existing staff list rows
       for (const name of staffList) nextGrid[name] = {};
       for (const r of rows) {
         if (!nextGrid[r.staff_name]) nextGrid[r.staff_name] = {};
@@ -161,7 +341,6 @@ export default function ManualShiftPage() {
         };
       }
       setGridData(nextGrid);
-      // Add any staff from existing shifts not already in list
       const extraNames = rows.map((r) => r.staff_name).filter((n) => !staffList.includes(n));
       if (extraNames.length > 0) {
         const merged = Array.from(new Set([...staffList, ...extraNames])).sort((a, b) => a.localeCompare(b));
@@ -178,11 +357,11 @@ export default function ManualShiftPage() {
   useEffect(() => {
     if (staffList.length > 0) {
       void loadExistingShifts();
+      setView("edit");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStart, branchCode]);
 
-  // Open cell editor
   function openEdit(staffName: string, dateStr: string) {
     const existing = gridData[staffName]?.[dateStr];
     setEditStart(existing?.start_hour ?? 9);
@@ -226,26 +405,18 @@ export default function ManualShiftPage() {
     setGridData((prev) => ({ ...prev, [n]: prev[n] ?? {} }));
   }
 
-  // Flatten grid → rows for API
   const buildRows = useCallback(() => {
     const rows: { work_date: string; staff_name: string; role: string; start_hour: number; end_hour: number }[] = [];
     for (const [staffName, days] of Object.entries(gridData)) {
       for (const [dateStr, cell] of Object.entries(days)) {
         if (cell && cell.role) {
-          rows.push({
-            work_date: dateStr,
-            staff_name: staffName,
-            role: cell.role,
-            start_hour: cell.start_hour,
-            end_hour: cell.end_hour,
-          });
+          rows.push({ work_date: dateStr, staff_name: staffName, role: cell.role, start_hour: cell.start_hour, end_hour: cell.end_hour });
         }
       }
     }
     return rows;
   }, [gridData]);
 
-  // Save & Publish
   async function handlePublish() {
     setError("");
     setSuccess("");
@@ -272,10 +443,10 @@ export default function ManualShiftPage() {
       );
       const exportNote = result.export_result?.error
         ? ` (Sheet export error: ${result.export_result.error})`
-        : result.export_result
-        ? " + Exported to Sheet ✓"
-        : "";
+        : result.export_result ? " + Exported to Sheet ✓" : "";
       setSuccess(`✅ Published ${result.rows_copied} shifts to Week/My-Shift${exportNote}`);
+      setPublishedCount(result.rows_copied);
+      setView("published"); // ← auto-switch to Published View
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -284,6 +455,7 @@ export default function ManualShiftPage() {
   }
 
   const branches = BRANCHES[city];
+  const shiftCount = buildRows().length;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-8">
@@ -304,22 +476,14 @@ export default function ManualShiftPage() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div>
             <label className={`${T_LABEL} mb-1 block`}>City</label>
-            <select
-              className={SELECT_CLASS}
-              value={city}
-              onChange={(e) => setCity(e.target.value as City)}
-            >
+            <select className={SELECT_CLASS} value={city} onChange={(e) => setCity(e.target.value as City)}>
               <option value="dubai">Dubai</option>
               <option value="manila">Manila</option>
             </select>
           </div>
           <div>
             <label className={`${T_LABEL} mb-1 block`}>Branch</label>
-            <select
-              className={SELECT_CLASS}
-              value={branchCode}
-              onChange={(e) => setBranchCode(e.target.value as BranchCode)}
-            >
+            <select className={SELECT_CLASS} value={branchCode} onChange={(e) => setBranchCode(e.target.value as BranchCode)}>
               {branches.map((b) => (
                 <option key={b.code} value={b.code}>{b.name}</option>
               ))}
@@ -358,169 +522,211 @@ export default function ManualShiftPage() {
           {error}
         </div>
       )}
-      {success && (
-        <div className="rounded-2xl border border-emerald-900/50 bg-emerald-950/20 px-4 py-3 text-sm text-emerald-300">
-          {success}
-        </div>
-      )}
 
-      {/* Grid */}
+      {/* View tabs (only when staff loaded) */}
       {staffList.length > 0 && (
-        <div className={`${GLASS_CARD} overflow-hidden p-0`}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-white/10">
-                  <th className="w-40 px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-neutral-400">
-                    Staff
-                  </th>
-                  {weekDates.map((d) => (
-                    <th key={d} className="min-w-[100px] px-2 py-3 text-center text-xs font-semibold text-neutral-300">
-                      {formatDate(d)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {staffList.map((name, idx) => (
-                  <tr
-                    key={name}
-                    className={`border-b border-white/5 ${idx % 2 === 0 ? "bg-white/[0.02]" : ""}`}
-                  >
-                    <td className="px-4 py-2 text-xs font-medium text-neutral-200">{name}</td>
-                    {weekDates.map((d) => {
-                      const cell = gridData[name]?.[d] ?? null;
-                      const isEditing = editTarget?.staffName === name && editTarget?.dateStr === d;
-                      return (
-                        <td key={d} className="px-1 py-1 text-center align-top">
-                          {isEditing ? (
-                            <div className="rounded-xl border border-violet-500/40 bg-violet-950/40 p-2 text-left text-xs">
-                              <div className="mb-1.5 flex items-center gap-1">
-                                <label className="w-10 shrink-0 text-neutral-400">Start</label>
-                                <select
-                                  className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
-                                  value={editStart}
-                                  onChange={(e) => setEditStart(Number(e.target.value))}
-                                >
-                                  {HOUR_OPTIONS.map((h) => (
-                                    <option key={h} value={h}>{fmtHour(h)}</option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div className="mb-1.5 flex items-center gap-1">
-                                <label className="w-10 shrink-0 text-neutral-400">End</label>
-                                <select
-                                  className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
-                                  value={editEnd}
-                                  onChange={(e) => setEditEnd(Number(e.target.value))}
-                                >
-                                  {HOUR_OPTIONS.map((h) => (
-                                    <option key={h} value={h}>{fmtHour(h)}</option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div className="mb-2 flex items-center gap-1">
-                                <label className="w-10 shrink-0 text-neutral-400">Role</label>
-                                <select
-                                  className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
-                                  value={editRole}
-                                  onChange={(e) => setEditRole(e.target.value)}
-                                >
-                                  {ROLE_OPTIONS.map((r) => (
-                                    <option key={r} value={r}>{r}</option>
-                                  ))}
-                                  <option value="OTHER">Other...</option>
-                                </select>
-                              </div>
-                              {editRole === "OTHER" && (
-                                <input
-                                  className="mb-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
-                                  placeholder="Role name"
-                                  value={editCustomRole}
-                                  onChange={(e) => setEditCustomRole(e.target.value)}
-                                />
-                              )}
-                              <div className="flex gap-1">
-                                <button
-                                  type="button"
-                                  onClick={saveEdit}
-                                  className="flex-1 rounded-lg bg-violet-600 py-1 text-xs font-semibold text-white hover:bg-violet-500"
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => clearCell(name, d)}
-                                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-neutral-400 hover:bg-white/10"
-                                >
-                                  Clear
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setEditTarget(null)}
-                                  className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-neutral-400 hover:bg-white/10"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            </div>
-                          ) : cell ? (
-                            <button
-                              type="button"
-                              onClick={() => openEdit(name, d)}
-                              className="w-full rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-1.5 text-center hover:bg-emerald-500/20"
-                            >
-                              <div className="text-xs font-semibold text-emerald-300">
-                                {fmtHour(cell.start_hour)}–{fmtHour(cell.end_hour)}
-                              </div>
-                              <div className="text-[10px] text-emerald-400/70">{cell.role}</div>
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => openEdit(name, d)}
-                              className="h-10 w-full rounded-lg border border-dashed border-white/10 text-neutral-600 hover:border-violet-500/40 hover:text-violet-400"
-                            >
-                              +
-                            </button>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Add staff row */}
-          <div className="border-t border-white/10 px-4 py-3">
-            <button
-              type="button"
-              onClick={addStaffRow}
-              className="text-xs text-neutral-400 hover:text-violet-300"
-            >
-              + Add staff row manually
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Publish footer */}
-      {staffList.length > 0 && (
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-1 border-b border-white/10 pb-0">
           <button
             type="button"
-            onClick={handlePublish}
-            disabled={saving}
-            className={`${PRIMARY_BUTTON} min-w-[200px]`}
+            onClick={() => setView("edit")}
+            className={[
+              "px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px",
+              view === "edit"
+                ? "border-violet-400 text-white"
+                : "border-transparent text-neutral-400 hover:text-white",
+            ].join(" ")}
           >
-            {saving ? "Publishing..." : "💾 Save & Publish"}
+            ✏️ Edit Grid
           </button>
-          <p className="text-xs text-neutral-500">
-            Publishes {buildRows().length} shift{buildRows().length !== 1 ? "s" : ""} to Week / My-Shift and exports to Google Sheets.
-          </p>
+          <button
+            type="button"
+            onClick={() => setView("published")}
+            className={[
+              "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px",
+              view === "published"
+                ? "border-emerald-400 text-white"
+                : "border-transparent text-neutral-400 hover:text-white",
+            ].join(" ")}
+          >
+            📋 Published View
+            {publishedCount > 0 && (
+              <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                {publishedCount}
+              </span>
+            )}
+          </button>
         </div>
+      )}
+
+      {/* ── Edit view ── */}
+      {staffList.length > 0 && view === "edit" && (
+        <>
+          <div className={`${GLASS_CARD} overflow-hidden p-0`}>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/10">
+                    <th className="w-40 px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-neutral-400">
+                      Staff
+                    </th>
+                    {weekDates.map((d) => (
+                      <th key={d} className="min-w-[100px] px-2 py-3 text-center text-xs font-semibold text-neutral-300">
+                        {formatDate(d)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {staffList.map((name, idx) => (
+                    <tr key={name} className={`border-b border-white/5 ${idx % 2 === 0 ? "bg-white/[0.02]" : ""}`}>
+                      <td className="px-4 py-2 text-xs font-medium text-neutral-200">{name}</td>
+                      {weekDates.map((d) => {
+                        const cell = gridData[name]?.[d] ?? null;
+                        const isEditing = editTarget?.staffName === name && editTarget?.dateStr === d;
+                        return (
+                          <td key={d} className="px-1 py-1 text-center align-top">
+                            {isEditing ? (
+                              <div className="rounded-xl border border-violet-500/40 bg-violet-950/40 p-2 text-left text-xs">
+                                <div className="mb-1.5 flex items-center gap-1">
+                                  <label className="w-10 shrink-0 text-neutral-400">Start</label>
+                                  <select
+                                    className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
+                                    value={editStart}
+                                    onChange={(e) => setEditStart(Number(e.target.value))}
+                                  >
+                                    {HOUR_OPTIONS.map((h) => (
+                                      <option key={h} value={h}>{fmtHour(h)}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div className="mb-1.5 flex items-center gap-1">
+                                  <label className="w-10 shrink-0 text-neutral-400">End</label>
+                                  <select
+                                    className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
+                                    value={editEnd}
+                                    onChange={(e) => setEditEnd(Number(e.target.value))}
+                                  >
+                                    {HOUR_OPTIONS.map((h) => (
+                                      <option key={h} value={h}>{fmtHour(h)}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div className="mb-2 flex items-center gap-1">
+                                  <label className="w-10 shrink-0 text-neutral-400">Role</label>
+                                  <select
+                                    className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
+                                    value={editRole}
+                                    onChange={(e) => setEditRole(e.target.value)}
+                                  >
+                                    {ROLE_OPTIONS.map((r) => (
+                                      <option key={r} value={r}>{r}</option>
+                                    ))}
+                                    <option value="OTHER">Other...</option>
+                                  </select>
+                                </div>
+                                {editRole === "OTHER" && (
+                                  <input
+                                    className="mb-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
+                                    placeholder="Role name"
+                                    value={editCustomRole}
+                                    onChange={(e) => setEditCustomRole(e.target.value)}
+                                  />
+                                )}
+                                <div className="flex gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={saveEdit}
+                                    className="flex-1 rounded-lg bg-violet-600 py-1 text-xs font-semibold text-white hover:bg-violet-500"
+                                  >
+                                    Save
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => clearCell(name, d)}
+                                    className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-neutral-400 hover:bg-white/10"
+                                  >
+                                    Clear
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditTarget(null)}
+                                    className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-neutral-400 hover:bg-white/10"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              </div>
+                            ) : cell ? (
+                              <button
+                                type="button"
+                                onClick={() => openEdit(name, d)}
+                                className="w-full rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-1.5 text-center hover:bg-emerald-500/20"
+                              >
+                                <div className="text-xs font-semibold text-emerald-300">
+                                  {fmtHour(cell.start_hour)}–{fmtHour(cell.end_hour)}
+                                </div>
+                                <div className="text-[10px] text-emerald-400/70">{cell.role}</div>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => openEdit(name, d)}
+                                className="h-10 w-full rounded-lg border border-dashed border-white/10 text-neutral-600 hover:border-violet-500/40 hover:text-violet-400"
+                              >
+                                +
+                              </button>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="border-t border-white/10 px-4 py-3">
+              <button type="button" onClick={addStaffRow} className="text-xs text-neutral-400 hover:text-violet-300">
+                + Add staff row manually
+              </button>
+            </div>
+          </div>
+
+          {/* Publish footer */}
+          <div className="flex flex-wrap items-center gap-4">
+            <button
+              type="button"
+              onClick={handlePublish}
+              disabled={saving}
+              className={`${PRIMARY_BUTTON} min-w-[200px]`}
+            >
+              {saving ? "Publishing..." : "💾 Save & Publish"}
+            </button>
+            <p className="text-xs text-neutral-500">
+              Publishes {shiftCount} shift{shiftCount !== 1 ? "s" : ""} to Week / My-Shift and exports to Google Sheets.
+            </p>
+            {shiftCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setView("published")}
+                className="text-xs text-emerald-400 hover:text-emerald-300 underline underline-offset-2"
+              >
+                Preview before publishing →
+              </button>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ── Published View ── */}
+      {staffList.length > 0 && view === "published" && (
+        <PublishedView
+          gridData={gridData}
+          weekDates={weekDates}
+          branchLabel={labelOf(city, branchCode)}
+          weekStart={weekStart}
+          shiftCount={publishedCount || shiftCount}
+          onBackToEdit={() => setView("edit")}
+        />
       )}
 
       {/* Empty state */}
