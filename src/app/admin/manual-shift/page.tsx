@@ -30,7 +30,8 @@ const ROLE_OPTIONS_MANILA = ["CK", "SV", "BA", "HK", "SC", "MGR", "ADMIN", "DRIV
 function getRoleOptions(city: string) {
   return city === "manila" ? ROLE_OPTIONS_MANILA : ROLE_OPTIONS_DUBAI;
 }
-const HOUR_OPTIONS = Array.from({ length: 19 }, (_, i) => i + 6); // 6..24
+const START_HOUR_OPTIONS = Array.from({ length: 19 }, (_, i) => i + 6); // 6..24
+const END_HOUR_OPTIONS = Array.from({ length: 23 }, (_, i) => i + 6);   // 6..28 (+4:00)
 
 // Special (non-shift) types
 const SPECIAL_TYPES = [
@@ -612,13 +613,13 @@ export default function ManualShiftPage() {
           <div className={`${GLASS_CARD} overflow-hidden p-0`}>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-white/10">
-                    <th className="w-40 px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-neutral-400">
+                <thead className="sticky top-0 z-20">
+                  <tr className="border-b border-white/10 bg-[#111827]">
+                    <th className="w-40 bg-[#111827] px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-neutral-400">
                       Staff
                     </th>
                     {weekDates.map((d) => (
-                      <th key={d} className="min-w-[100px] px-2 py-3 text-center text-xs font-semibold text-neutral-300">
+                      <th key={d} className="min-w-[100px] bg-[#111827] px-2 py-3 text-center text-xs font-semibold text-neutral-300">
                         {formatDate(d)}
                       </th>
                     ))}
@@ -662,7 +663,7 @@ export default function ManualShiftPage() {
                                         value={editStart}
                                         onChange={(e) => { setEditStart(Number(e.target.value)); setTimeError(""); }}
                                       >
-                                        {HOUR_OPTIONS.map((h) => (
+                                        {START_HOUR_OPTIONS.map((h) => (
                                           <option key={h} value={h}>{fmtHour(h)}</option>
                                         ))}
                                       </select>
@@ -674,7 +675,7 @@ export default function ManualShiftPage() {
                                         value={editEnd}
                                         onChange={(e) => { setEditEnd(Number(e.target.value)); setTimeError(""); }}
                                       >
-                                        {HOUR_OPTIONS.map((h) => (
+                                        {END_HOUR_OPTIONS.map((h) => (
                                           <option key={h} value={h}>{fmtHour(h)}</option>
                                         ))}
                                       </select>
