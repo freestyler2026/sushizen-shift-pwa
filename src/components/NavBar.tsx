@@ -31,6 +31,7 @@ import {
   ScrollText,
   ShoppingCart,
   Shield,
+  Tag,
   Trash2,
   ArchiveRestore,
   Truck,
@@ -123,6 +124,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/manual-shift", label: "Manual Shift", icon: CalendarPlus, adminOnly: true, match: "prefix" },
   { href: "/admin/backoffice-evaluation", label: "Backoffice Eval", icon: ClipboardCheck, adminOnly: true, match: "exact" },
   { href: "/admin/incidents", label: "Incident Reports", icon: AlertTriangle, adminOnly: true, match: "prefix" },
+  { href: "/admin/price-check", label: "Price Check", icon: Tag, adminOnly: true, match: "prefix" },
 ];
 
 function isActive(pathname: string, item: NavItem) {
@@ -207,6 +209,7 @@ export default function NavBar() {
   const [renewalBadge, setRenewalBadge] = useState(0);
   const [incidentBadge, setIncidentBadge] = useState(0);
   const [adminIncidentBadge, setAdminIncidentBadge] = useState(0);
+  const [priceCheckBadge, setPriceCheckBadge] = useState(0);
   const [moreOpen, setMoreOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -233,6 +236,7 @@ export default function NavBar() {
     if (href === "/admin/backoffice-evaluation") return canAccessBackofficeEvaluationAdmin(auth);
     if (href === "/admin/incidents") return canAccessIncidentReportAdmin(auth);
     if (href === "/admin/manual-shift") return canAccessAdminNav(auth);
+    if (href === "/admin/price-check") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
     return false;
   }
 
@@ -381,6 +385,24 @@ export default function NavBar() {
           setProcurementBadgeCritical(false);
         }
       }
+
+      // Price Check badge (non-blocking)
+      try {
+        const authForPriceCheck = resolved || a;
+        const role = String(authForPriceCheck?.role || "").toUpperCase();
+        if (["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role)) {
+          const pcRes = await fetch(`${API_BASE}/api/admin/price-check/flagged-count`, {
+            cache: "no-store",
+            headers: { Authorization: `Bearer ${authForPriceCheck?.accessToken}` },
+          });
+          if (pcRes.ok) {
+            const pcJson = await pcRes.json();
+            if (!cancelled) setPriceCheckBadge(Number(pcJson?.flagged_count || 0));
+          }
+        }
+      } catch {
+        // badge is optional — ignore
+      }
     }
 
     loadAuth();
@@ -414,9 +436,11 @@ export default function NavBar() {
             ? { ...item, badgeCount: renewalBadge, badgeWarning: true }
           : item.href === "/admin/incidents"
             ? { ...item, badgeCount: adminIncidentBadge, badgeWarning: adminIncidentBadge > 0 }
+          : item.href === "/admin/price-check"
+            ? { ...item, badgeCount: priceCheckBadge, badgeCritical: priceCheckBadge > 0 }
           : item,
       );
-  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge]);
+  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge, priceCheckBadge]);
 
   const navItems = useMemo(() => [...staffItems, ...adminItems], [staffItems, adminItems]);
 

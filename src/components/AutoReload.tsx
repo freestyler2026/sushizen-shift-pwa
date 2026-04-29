@@ -12,7 +12,8 @@ const BUNDLE_BUILD_ID = process.env.NEXT_PUBLIC_BUILD_ID || "dev";
 
 async function fetchFrontendVersion(): Promise<string | null> {
   try {
-    const res = await fetch("/api/version", { cache: "no-store" });
+    // Add timestamp to prevent iOS Safari standalone mode from caching the response
+    const res = await fetch(`/api/version?_t=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) return null;
     const data = await res.json();
     return data.v ?? null;
@@ -33,8 +34,11 @@ async function fetchBackendVersion(): Promise<string | null> {
 }
 
 function hardReload() {
-  // Append a cache-busting param so the browser is forced to fetch
-  // a completely fresh document even if it has a cached copy.
+  // Append a cache-busting param so the browser fetches a fresh document.
+  // The unique URL (_r=timestamp) bypasses any cached copy in iOS Safari
+  // standalone mode. Do NOT attempt async Cache Storage clearing here —
+  // it races with the synchronous navigation and can leave the service
+  // worker in a broken state.
   const url = new URL(window.location.href);
   url.searchParams.set("_r", String(Date.now()));
   window.location.replace(url.toString());

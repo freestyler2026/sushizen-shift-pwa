@@ -82,6 +82,9 @@ export default function InventoryCountsPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  // Draft UX state
+  const [draftSearch, setDraftSearch] = useState("");
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   // Inline item editing state
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editItemUnit, setEditItemUnit] = useState("");
@@ -222,6 +225,31 @@ export default function InventoryCountsPage() {
 
   const groupedDraft = useMemo(() => groupBySupplier(draftLines), [draftLines]);
 
+  const countedLineCount = useMemo(
+    () => draftLines.filter((l) => Number(l.counted_qty) > 0).length,
+    [draftLines],
+  );
+
+  const filteredGroupedDraft = useMemo(() => {
+    const q = draftSearch.toLowerCase().trim();
+    if (!q) return groupedDraft;
+    return groupedDraft
+      .map((g) => ({
+        ...g,
+        rows: g.rows.filter(
+          (l) =>
+            l.item_name.toLowerCase().includes(q) ||
+            (l.sku || "").toLowerCase().includes(q) ||
+            (l.category || "").toLowerCase().includes(q),
+        ),
+      }))
+      .filter((g) => g.rows.length > 0);
+  }, [groupedDraft, draftSearch]);
+
+  function toggleGroup(supplier: string) {
+    setCollapsedGroups((prev) => ({ ...prev, [supplier]: !prev[supplier] }));
+  }
+
   useEffect(() => {
     const nextInputs: Record<string, string> = {};
     draftLines.forEach((line, index) => {
@@ -268,13 +296,48 @@ export default function InventoryCountsPage() {
     setDraftLines((prev) => prev.filter((_, idx) => idx !== index).map((line, idx) => ({ ...line, sort_order: idx + 1 })));
   }
 
+  // Build item_id → master lookup once
+  const itemMasterById = useMemo(() => {
+    const map: Record<string, typeof itemOptions[number]> = {};
+    for (const item of itemOptions) map[item.id] = item;
+    return map;
+  }, [itemOptions]);
+
+  // Merge current item master data (unit, price, supplier, category) into a saved line.
+  // Counted qty and memo are preserved from the saved line.
+  function mergeWithMaster(line: InventoryCountLine, index: number): InventoryCountLine {
+    const master = itemMasterById[line.item_id];
+    if (!master) return { ...line, sort_order: index + 1 };
+    return {
+      ...line,
+      storage_unit: master.storage_unit || line.storage_unit,
+      unit_price: Number(master.cost ?? line.unit_price),
+      supplier_name: master.supplier_name || line.supplier_name,
+      category: master.category_name || line.category,
+      sort_order: index + 1,
+    };
+  }
+
   function loadSelectedCountToDraft() {
     if (!selectedCount) return;
-    setDraftLines((selectedCount.items || []).map((line, index) => refreshLineWithBalance({ ...line, sort_order: index + 1 })));
+    setDraftLines(
+      (selectedCount.items || []).map((line, index) =>
+        refreshLineWithBalance(mergeWithMaster(line, index)),
+      ),
+    );
     setNotes(selectedCount.notes || "");
     setCycle(selectedCount.cycle || cycle);
     setPicName(selectedCount.pic_name || "");
     setApproverName(selectedCount.approver_name || "");
+    setSuccess("Loaded to draft — item master data (unit, price, supplier) refreshed from current master.");
+  }
+
+  function syncDraftWithMaster() {
+    if (!draftLines.length) return;
+    setDraftLines((prev) =>
+      prev.map((line, index) => refreshLineWithBalance(mergeWithMaster(line, index))),
+    );
+    setSuccess("Draft lines synced with current item master data.");
   }
 
   async function refreshHistoryAndDetail(nextSelectedId = selectedCountId) {
@@ -461,11 +524,30 @@ export default function InventoryCountsPage() {
       </section>
 
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
+        {/* ── Header row ── */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="text-sm font-semibold text-neutral-100">Draft Count</div>
-          <div className="text-xs text-neutral-500">{draftLines.length} rows</div>
+          <div>
+            <div className="text-sm font-semibold text-neutral-100">Draft Count</div>
+            {draftLines.length > 0 && (
+              <div className="mt-0.5 flex items-center gap-2">
+                <div className="text-xs text-neutral-500">{draftLines.length} items</div>
+                <div className={["text-xs font-semibold", countedLineCount === draftLines.length ? "text-emerald-400" : countedLineCount > 0 ? "text-amber-400" : "text-neutral-500"].join(" ")}>
+                  {countedLineCount} / {draftLines.length} counted
+                </div>
+              </div>
+            )}
+          </div>
+          {draftLines.length > 0 && (
+            <div className="h-2 w-40 overflow-hidden rounded-full bg-neutral-800">
+              <div
+                className={["h-full rounded-full transition-all", countedLineCount === draftLines.length ? "bg-emerald-500" : "bg-amber-500"].join(" ")}
+                style={{ width: `${draftLines.length ? (countedLineCount / draftLines.length) * 100 : 0}%` }}
+              />
+            </div>
+          )}
         </div>
 
+        {/* ── Add item row ── */}
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_140px]">
           <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)}>
             <option value="">Add inventory item</option>
@@ -480,94 +562,192 @@ export default function InventoryCountsPage() {
           </button>
         </div>
 
-        <div className="mt-3 text-xs text-neutral-400">Excel-like view: rows are grouped by supplier. Enter `Counted` directly; `Variance` is calculated automatically.</div>
+        {/* ── Search bar ── */}
+        {draftLines.length > 0 && (
+          <div className="mt-3 flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="Search items by name, SKU, or category…"
+              value={draftSearch}
+              onChange={(e) => setDraftSearch(e.target.value)}
+              className="flex-1 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-600 focus:border-violet-500 focus:outline-none"
+            />
+            {draftSearch && (
+              <button type="button" onClick={() => setDraftSearch("")} className="rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-xs text-neutral-400 hover:text-neutral-200">
+                ✕ Clear
+              </button>
+            )}
+          </div>
+        )}
 
-        <div className="mt-4 space-y-4">
-          {groupedDraft.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-950/30 px-3 py-6 text-center text-xs text-neutral-500">
+        {/* ── Item groups ── */}
+        <div className="mt-4 space-y-3">
+          {filteredGroupedDraft.length === 0 && draftLines.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-950/30 px-3 py-8 text-center text-sm text-neutral-500">
               Load a count template or add items manually.
             </div>
+          ) : filteredGroupedDraft.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-950/30 px-3 py-6 text-center text-xs text-neutral-500">
+              No items match &ldquo;{draftSearch}&rdquo;.
+            </div>
           ) : null}
-          {groupedDraft.map((group) => (
-            <section key={group.supplier} className="rounded-xl border border-neutral-800 bg-neutral-950/20">
-              <div className="border-b border-neutral-800 px-4 py-3">
-                <div className="text-sm font-medium text-amber-300">{group.supplier}</div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-xs">
-                  <thead className="sticky top-0 bg-neutral-950/95 text-neutral-300">
-                    <tr>
-                      <th className="px-3 py-2 text-left">Category</th>
-                      <th className="px-3 py-2 text-left">SKU</th>
-                      <th className="px-3 py-2 text-left">Supplier</th>
-                      <th className="px-3 py-2 text-left">Item Name</th>
-                      <th className="px-3 py-2 text-left">Invoice Name</th>
-                      <th className="px-3 py-2 text-left">Unit</th>
-                      <th className="px-3 py-2 text-right">Unit Price</th>
-                      <th className="px-3 py-2 text-right">Theoretical</th>
-                      <th className="px-3 py-2 text-right">Counted</th>
-                      <th className="px-3 py-2 text-right">Variance</th>
-                      <th className="px-3 py-2 text-right">Assets</th>
-                      <th className="px-3 py-2 text-left">Memo</th>
-                      <th className="px-3 py-2 text-left">Foodics</th>
-                      <th className="px-3 py-2 text-left">Order Diff</th>
-                      <th className="px-3 py-2 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {group.rows.map((line) => {
-                      const index = draftLines.indexOf(line);
-                      return (
-                        <tr key={`${line.sku}-${index}-${line.item_name}`} className="border-t border-neutral-800 bg-neutral-950/30">
-                          <td className="px-3 py-2 text-neutral-300">{line.category || "-"}</td>
-                          <td className="px-3 py-2 text-neutral-100">{line.sku || "-"}</td>
-                          <td className="px-3 py-2 text-neutral-300">{line.supplier_name || "-"}</td>
-                          <td className="px-3 py-2 text-neutral-100">{line.item_name || "-"}</td>
-                          <td className="px-3 py-2 text-neutral-400">{line.invoice_name || "-"}</td>
-                          <td className="px-3 py-2 text-neutral-300">{line.storage_unit || "-"}</td>
-                          <td className="px-3 py-2 text-right text-neutral-300">{Number(line.unit_price || 0).toFixed(2)}</td>
-                          <td className="px-3 py-2 text-right text-neutral-300">{number3(line.theoretical_qty)}</td>
-                          <td className="px-3 py-2">
-                            <input type="text" inputMode="decimal" value={draftQtyValue(index, line)} onChange={(e) => setDraftQtyInputs((prev) => ({ ...prev, [String(index)]: e.target.value }))} onBlur={() => commitDraftQty(index, line)} onKeyDown={(e) => {
-                              if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
-                              e.preventDefault();
-                              const step = getInventoryQuantityStep(line.storage_unit);
-                              setDraftQtyInputs((prev) => ({ ...prev, [String(index)]: stepDraftNumber(draftQtyValue(index, line), step, e.key === "ArrowUp" ? 1 : -1) }));
-                            }} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-right text-xs text-neutral-100" />
-                          </td>
-                          <td className={["px-3 py-2 text-right", Number(line.variance_qty || 0) === 0 ? "text-neutral-300" : Number(line.variance_qty || 0) > 0 ? "text-emerald-300" : "text-amber-300"].join(" ")}>
-                            {number3(line.variance_qty)}
-                          </td>
-                          <td className="px-3 py-2 text-right text-neutral-300">{Number(line.asset_value || 0).toFixed(2)}</td>
-                          <td className="px-3 py-2">
-                            <input value={line.memo} onChange={(e) => updateDraftLine(index, { memo: e.target.value })} className="w-28 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100" />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input value={line.foodics_data} onChange={(e) => updateDraftLine(index, { foodics_data: e.target.value })} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100" />
-                          </td>
-                          <td className="px-3 py-2">
-                            <input value={line.order_difference} onChange={(e) => updateDraftLine(index, { order_difference: e.target.value })} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs text-neutral-100" />
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <button type="button" onClick={() => removeDraftLine(index)} className="rounded-lg border border-rose-800/70 bg-rose-950/20 px-2 py-1 text-xs text-rose-200">
-                              Remove
-                            </button>
-                          </td>
+
+          {filteredGroupedDraft.map((group) => {
+            const groupCounted = group.rows.filter((l) => Number(l.counted_qty) > 0).length;
+            const groupTotal = group.rows.length;
+            const allDone = groupCounted === groupTotal;
+            const isCollapsed = collapsedGroups[group.supplier];
+
+            return (
+              <section key={group.supplier} className={["rounded-xl border bg-neutral-950/20 transition-colors", allDone ? "border-emerald-900/40" : "border-neutral-800"].join(" ")}>
+                {/* Group header — click to collapse/expand */}
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.supplier)}
+                  className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={["text-sm font-medium", allDone ? "text-emerald-400" : "text-amber-300"].join(" ")}>
+                      {group.supplier}
+                    </span>
+                    {allDone && <span className="text-xs text-emerald-500">✓ Done</span>}
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className={["text-xs font-semibold", allDone ? "text-emerald-400" : groupCounted > 0 ? "text-amber-400" : "text-neutral-500"].join(" ")}>
+                      {groupCounted}/{groupTotal}
+                    </span>
+                    <span className="text-xs text-neutral-600">{isCollapsed ? "▶" : "▼"}</span>
+                  </div>
+                </button>
+
+                {!isCollapsed && (
+                  <div className="overflow-x-auto border-t border-neutral-800">
+                    <table className="min-w-full text-xs">
+                      <thead className="bg-neutral-950/80 text-neutral-400">
+                        <tr>
+                          <th className="px-3 py-2 text-left">Item</th>
+                          <th className="px-3 py-2 text-left">Unit</th>
+                          <th className="px-3 py-2 text-right">Theo.</th>
+                          <th className="px-3 py-2 text-right font-semibold text-neutral-200">Counted</th>
+                          <th className="px-3 py-2 text-right">Variance</th>
+                          <th className="px-3 py-2 text-right">Assets</th>
+                          <th className="hidden px-3 py-2 text-right md:table-cell">Price</th>
+                          <th className="hidden px-3 py-2 text-left lg:table-cell">Memo</th>
+                          <th className="hidden px-3 py-2 text-left lg:table-cell">Foodics</th>
+                          <th className="hidden px-3 py-2 text-left lg:table-cell">Order Diff</th>
+                          <th className="px-3 py-2 text-right"></th>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          ))}
+                      </thead>
+                      <tbody>
+                        {group.rows.map((line) => {
+                          const index = draftLines.indexOf(line);
+                          const isCounted = Number(line.counted_qty) > 0;
+                          return (
+                            <tr
+                              key={`${line.sku}-${index}-${line.item_name}`}
+                              className={[
+                                "border-t border-neutral-800 transition-colors",
+                                isCounted ? "bg-emerald-950/10" : "opacity-70 hover:opacity-100",
+                              ].join(" ")}
+                            >
+                              <td className="px-3 py-2">
+                                <div className={["font-medium", isCounted ? "text-neutral-100" : "text-neutral-400"].join(" ")}>
+                                  {line.item_name || "-"}
+                                </div>
+                                <div className="text-neutral-500">{line.sku || "-"}</div>
+                              </td>
+                              <td className="px-3 py-2 text-neutral-300">{line.storage_unit || "-"}</td>
+                              <td className="px-3 py-2 text-right text-neutral-500">{number3(line.theoretical_qty)}</td>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  data-qty-input
+                                  value={draftQtyValue(index, line)}
+                                  onChange={(e) => setDraftQtyInputs((prev) => ({ ...prev, [String(index)]: e.target.value }))}
+                                  onFocus={(e) => e.currentTarget.select()}
+                                  onBlur={() => commitDraftQty(index, line)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      commitDraftQty(index, line);
+                                      const all = document.querySelectorAll<HTMLInputElement>("[data-qty-input]");
+                                      const cur = Array.from(all).indexOf(e.currentTarget as HTMLInputElement);
+                                      if (cur >= 0 && all[cur + 1]) { all[cur + 1].focus(); all[cur + 1].select(); }
+                                    }
+                                    if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+                                    e.preventDefault();
+                                    const step = getInventoryQuantityStep(line.storage_unit);
+                                    setDraftQtyInputs((prev) => ({ ...prev, [String(index)]: stepDraftNumber(draftQtyValue(index, line), step, e.key === "ArrowUp" ? 1 : -1) }));
+                                  }}
+                                  className={[
+                                    "w-24 rounded-lg border px-2 py-2 text-right text-sm font-semibold focus:outline-none focus:ring-1",
+                                    isCounted
+                                      ? "border-emerald-700/60 bg-emerald-950/30 text-emerald-200 focus:ring-emerald-600"
+                                      : "border-neutral-700 bg-neutral-950 text-neutral-300 focus:border-violet-600 focus:ring-violet-700",
+                                  ].join(" ")}
+                                />
+                              </td>
+                              <td className={["px-3 py-2 text-right font-semibold", Number(line.variance_qty || 0) === 0 ? "text-neutral-500" : Number(line.variance_qty || 0) > 0 ? "text-emerald-300" : "text-amber-300"].join(" ")}>
+                                {number3(line.variance_qty)}
+                              </td>
+                              <td className="px-3 py-2 text-right text-neutral-400">{Number(line.asset_value || 0).toFixed(2)}</td>
+                              <td className="hidden px-3 py-2 text-right text-neutral-500 md:table-cell">{Number(line.unit_price || 0).toFixed(2)}</td>
+                              <td className="hidden px-3 py-2 lg:table-cell">
+                                <input value={line.memo} onChange={(e) => updateDraftLine(index, { memo: e.target.value })} className="w-28 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1 text-xs text-neutral-100" />
+                              </td>
+                              <td className="hidden px-3 py-2 lg:table-cell">
+                                <input value={line.foodics_data} onChange={(e) => updateDraftLine(index, { foodics_data: e.target.value })} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1 text-xs text-neutral-100" />
+                              </td>
+                              <td className="hidden px-3 py-2 lg:table-cell">
+                                <input value={line.order_difference} onChange={(e) => updateDraftLine(index, { order_difference: e.target.value })} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1 text-xs text-neutral-100" />
+                              </td>
+                              <td className="px-3 py-2 text-right">
+                                <button type="button" onClick={() => removeDraftLine(index)} className="rounded-lg border border-rose-800/60 bg-rose-950/10 px-2 py-1 text-xs text-rose-400 hover:bg-rose-950/30">
+                                  ×
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            );
+          })}
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button type="button" onClick={saveDraft} disabled={saving || draftLines.length === 0} className="rounded-xl border border-emerald-800 bg-emerald-950/30 px-4 py-2 text-sm text-emerald-200 hover:bg-emerald-900/30 disabled:opacity-60">
-            {saving ? "Saving..." : "Save Draft"}
-          </button>
-        </div>
+        {/* ── Sticky action bar ── */}
+        {draftLines.length > 0 && (
+          <div className="sticky bottom-4 z-10 mt-5">
+            <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-neutral-700 bg-neutral-900/95 px-4 py-3 shadow-xl backdrop-blur-sm">
+              <button
+                type="button"
+                onClick={saveDraft}
+                disabled={saving || draftLines.length === 0}
+                className="rounded-xl bg-emerald-700 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-60"
+              >
+                {saving ? "Saving…" : "Save Draft"}
+              </button>
+              <button
+                type="button"
+                onClick={syncDraftWithMaster}
+                className="rounded-xl border border-sky-800 bg-sky-950/20 px-4 py-2 text-sm text-sky-300 hover:bg-sky-900/20"
+                title="Updates Unit / Price / Supplier from current item master. Counted quantities are preserved."
+              >
+                ↻ Sync Master
+              </button>
+              <div className="ml-auto text-right">
+                <div className={["text-sm font-semibold", countedLineCount === draftLines.length ? "text-emerald-400" : "text-amber-400"].join(" ")}>
+                  {countedLineCount} / {draftLines.length}
+                </div>
+                <div className="text-xs text-neutral-500">items counted</div>
+              </div>
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">

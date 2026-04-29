@@ -77,6 +77,15 @@ const TRACKS: Track[] = [
     accentHex: "#ef4444",
     glyph: "轟",
   },
+  {
+    id: 8,
+    title: "We Are ZEN",
+    subtitle: "Sushi ZEN",
+    file: "/music/we-are-zen.mp3",
+    accent: "from-sky-400 via-blue-500 to-indigo-600",
+    accentHex: "#0ea5e9",
+    glyph: "和",
+  },
 ];
 
 function fmt(sec: number) {

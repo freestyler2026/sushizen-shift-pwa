@@ -74,18 +74,20 @@ const nextConfig: NextConfig = {
     ];
   },
   async headers() {
-    // Admin HTML must not be cached long at the edge/browser, or users can keep an old
-    // document shell that references pre-Ratings-tab JS after a deploy.
-    const adminNoStore = [
+    // All navigable pages must not be cached at the edge/browser, or the PWA can serve
+    // a stale document shell after a deploy (especially iOS Safari in standalone mode).
+    const pageNoStore = [
       ...SECURITY_HEADERS,
       { key: "Cache-Control", value: "private, no-store, must-revalidate" },
     ] as const;
     return [
-      { source: "/admin", headers: [...adminNoStore] },
-      { source: "/admin/:path*", headers: [...adminNoStore] },
+      { source: "/admin", headers: [...pageNoStore] },
+      { source: "/admin/:path*", headers: [...pageNoStore] },
       {
-        source: "/:path*",
-        headers: SECURITY_HEADERS,
+        // Apply no-store to all routes except Next.js static bundles and image optimizer,
+        // which have their own immutable content-hash cache busting.
+        source: "/((?!_next/static|_next/image).*)",
+        headers: [...pageNoStore],
       },
     ];
   },

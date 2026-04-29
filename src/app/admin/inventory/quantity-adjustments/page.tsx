@@ -13,6 +13,8 @@ type InventoryItemOption = {
   sku: string;
   cost: number;
   storage_unit: string;
+  category?: string;
+  supplier_name?: string;
   status: string;
 };
 
@@ -23,6 +25,8 @@ type DraftItem = {
   quantity: number;
   unit_cost: number;
   action_type: string;
+  storage_unit: string;
+  draftQtyText: string;
 };
 
 type QuantityAdjustmentRow = {
@@ -73,6 +77,14 @@ function csvEscape(value: unknown) {
   return text;
 }
 
+const REASON_LABELS: Record<string, string> = {
+  WASTE: "Waste",
+  EXPIRED: "Expired",
+  LOSS: "Loss",
+  DAMAGE: "Damage",
+  MANUAL_FIX: "Manual Fix",
+};
+
 export default function InventoryQuantityAdjustmentsPage() {
   const auth = useMemo(() => getAuth(), []);
   const [ready, setReady] = useState(false);
@@ -82,10 +94,8 @@ export default function InventoryQuantityAdjustmentsPage() {
   const [businessDate, setBusinessDate] = useState(todayIso());
   const [reason, setReason] = useState("WASTE");
   const [notes, setNotes] = useState("");
-  const [selectedItemId, setSelectedItemId] = useState("");
-  const [selectedQty, setSelectedQty] = useState("1");
-  const [selectedActionType, setSelectedActionType] = useState("DECREASE");
   const [historyMonth, setHistoryMonth] = useState(monthNow());
+  const [itemSearch, setItemSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -95,6 +105,7 @@ export default function InventoryQuantityAdjustmentsPage() {
   const [draftItems, setDraftItems] = useState<DraftItem[]>([]);
   const [historyRows, setHistoryRows] = useState<QuantityAdjustmentRow[]>([]);
   const [selectedAdjustmentId, setSelectedAdjustmentId] = useState("");
+  const [draftAdjustmentId, setDraftAdjustmentId] = useState("");
   const [selectedAdjustment, setSelectedAdjustment] = useState<QuantityAdjustmentDetail | null>(null);
 
   useEffect(() => {
@@ -109,15 +120,15 @@ export default function InventoryQuantityAdjustmentsPage() {
       setReady(true);
     }
     void init();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [auth]);
 
   useEffect(() => {
     setBranchCode(defaultBranch(city));
     setSelectedAdjustmentId("");
+    setDraftAdjustmentId("");
     setSelectedAdjustment(null);
+    setDraftItems([]);
   }, [city]);
 
   useEffect(() => {
@@ -145,9 +156,7 @@ export default function InventoryQuantityAdjustmentsPage() {
       }
     }
     void load();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [allowed, branchCode, city, ready]);
 
   useEffect(() => {
@@ -167,9 +176,7 @@ export default function InventoryQuantityAdjustmentsPage() {
       }
     }
     void loadDetail();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [allowed, city, selectedAdjustmentId]);
 
   const filteredHistory = useMemo(
@@ -177,39 +184,62 @@ export default function InventoryQuantityAdjustmentsPage() {
     [historyMonth, historyRows],
   );
 
-  const selectedItem = useMemo(
-    () => itemOptions.find((item) => item.id === selectedItemId) || null,
-    [itemOptions, selectedItemId],
-  );
-  const selectedQtyStep = getInventoryQuantityStep(selectedItem?.storage_unit);
+  const filteredItems = useMemo(() => {
+    const q = itemSearch.toLowerCase().trim();
+    if (!q) return itemOptions;
+    return itemOptions.filter(
+      (item) =>
+        item.name.toLowerCase().includes(q) ||
+        (item.sku || "").toLowerCase().includes(q) ||
+        (item.category || "").toLowerCase().includes(q),
+    );
+  }, [itemOptions, itemSearch]);
 
-  function addDraftItem() {
-    if (!selectedItem) return;
-    const parsedQty = parseDraftNumber(selectedQty);
-    const qty = parsedQty === null ? NaN : parsedQty;
-    if (!Number.isFinite(qty) || qty <= 0) {
-      setError("Please enter a valid quantity.");
-      return;
-    }
+  function addItem(item: InventoryItemOption) {
     setError("");
     setDraftItems((prev) => [
       ...prev,
       {
-        item_id: selectedItem.id,
-        item_name: selectedItem.name,
-        sku: selectedItem.sku,
-        quantity: Number(qty.toFixed(3)),
-        unit_cost: Number(selectedItem.cost || 0),
-        action_type: selectedActionType,
+        item_id: item.id,
+        item_name: item.name,
+        sku: item.sku,
+        quantity: 1,
+        unit_cost: Number(item.cost || 0),
+        action_type: "DECREASE",
+        storage_unit: item.storage_unit || "",
+        draftQtyText: "1",
       },
     ]);
-    setSelectedItemId("");
-    setSelectedQty("1");
-    setSelectedActionType("DECREASE");
   }
 
   function removeDraftItem(index: number) {
     setDraftItems((prev) => prev.filter((_, idx) => idx !== index));
+  }
+
+  function toggleActionType(index: number) {
+    setDraftItems((prev) =>
+      prev.map((item, idx) =>
+        idx === index
+          ? { ...item, action_type: item.action_type === "DECREASE" ? "INCREASE" : "DECREASE" }
+          : item,
+      ),
+    );
+  }
+
+  function commitDraftQty(index: number, item: DraftItem) {
+    const parsed = parseDraftNumber(item.draftQtyText);
+    const qty = parsed === null ? NaN : parsed;
+    if (!Number.isFinite(qty) || qty <= 0) {
+      setDraftItems((prev) =>
+        prev.map((it, idx) => (idx === index ? { ...it, draftQtyText: number3(it.quantity) } : it)),
+      );
+      return;
+    }
+    setDraftItems((prev) =>
+      prev.map((it, idx) =>
+        idx === index ? { ...it, quantity: Number(qty.toFixed(3)), draftQtyText: String(qty) } : it,
+      ),
+    );
   }
 
   async function refreshHistoryAndDetail(nextSelectedId = selectedAdjustmentId) {
@@ -226,45 +256,37 @@ export default function InventoryQuantityAdjustmentsPage() {
   }
 
   async function createAdjustment() {
-    if (!branchCode) {
-      setError("Please select a branch.");
-      return;
-    }
-    if (!reason.trim()) {
-      setError("Please enter a reason.");
-      return;
-    }
-    if (draftItems.length === 0) {
-      setError("Please add at least one item.");
-      return;
-    }
+    if (!branchCode) { setError("Please select a branch."); return; }
+    if (!reason.trim()) { setError("Please select a reason."); return; }
+    if (draftItems.length === 0) { setError("Please add at least one item."); return; }
     setSaving(true);
     setError("");
     setSuccess("");
     try {
-      const created = await inventoryPost<{ row: QuantityAdjustmentRow }>("/api/admin/inventory/quantity-adjustments", {
-        city,
-        branch_code: branchCode,
-        business_date: businessDate,
-        reason,
-        notes,
-      });
+      const created = await inventoryPost<{ row: QuantityAdjustmentRow }>(
+        "/api/admin/inventory/quantity-adjustments",
+        { city, branch_code: branchCode, business_date: businessDate, reason, notes },
+      );
       const adjustmentId = String(created?.row?.id || "");
-      await inventoryPost(`/api/admin/inventory/quantity-adjustments/${encodeURIComponent(adjustmentId)}/items`, {
-        city,
-        items: draftItems.map((item) => ({
-          item_id: item.item_id,
-          item_name: item.item_name,
-          sku: item.sku,
-          quantity: item.quantity,
-          unit_cost: item.unit_cost,
-          action_type: item.action_type,
-        })),
-      });
+      await inventoryPost(
+        `/api/admin/inventory/quantity-adjustments/${encodeURIComponent(adjustmentId)}/items`,
+        {
+          city,
+          items: draftItems.map((item) => ({
+            item_id: item.item_id,
+            item_name: item.item_name,
+            sku: item.sku,
+            quantity: item.quantity,
+            unit_cost: item.unit_cost,
+            action_type: item.action_type,
+          })),
+        },
+      );
       await refreshHistoryAndDetail(adjustmentId);
       setDraftItems([]);
       setNotes("");
-      setSuccess("Quantity adjustment draft created.");
+      setSuccess("Quantity adjustment draft saved.");
+      setDraftAdjustmentId(adjustmentId);
       setSelectedAdjustmentId(adjustmentId);
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -279,7 +301,10 @@ export default function InventoryQuantityAdjustmentsPage() {
     setError("");
     setSuccess("");
     try {
-      await inventoryPost(`/api/admin/inventory/quantity-adjustments/${encodeURIComponent(selectedAdjustmentId)}/close`, { city });
+      await inventoryPost(
+        `/api/admin/inventory/quantity-adjustments/${encodeURIComponent(selectedAdjustmentId)}/close`,
+        { city },
+      );
       await refreshHistoryAndDetail(selectedAdjustmentId);
       setSuccess("Quantity adjustment closed and posted to ledger.");
     } catch (e: any) {
@@ -302,7 +327,7 @@ export default function InventoryQuantityAdjustmentsPage() {
       const nextId = String(duplicated?.row?.id || "");
       await refreshHistoryAndDetail(nextId);
       setSelectedAdjustmentId(nextId);
-      setSuccess("Selected adjustment duplicated.");
+      setSuccess("Adjustment duplicated as new draft.");
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -334,166 +359,304 @@ export default function InventoryQuantityAdjustmentsPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `quantity-adjustments-history-${city}-${historyMonth || monthNow()}.csv`;
+    link.download = `quantity-adjustments-${city}-${historyMonth || monthNow()}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   }
 
-  if (!ready) return <div className="text-sm text-neutral-500">Loading quantity adjustments...</div>;
+  if (!ready) return <div className="text-sm text-neutral-500">Loading...</div>;
   if (!allowed) return <div className="text-sm text-neutral-500">You do not have permission to open inventory.</div>;
 
+  const isDraft = draftAdjustmentId !== "";
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <InventoryTabs />
 
-      <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
+      {/* ── Settings row ── */}
+      <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+        {/* City pill toggle */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-lg font-semibold text-neutral-100">Quantity Adjustments</div>
-            <div className="mt-1 text-sm text-neutral-400">
-              Register stock quantity adjustments such as expired, waste, loss, or manual fixes.
-            </div>
+          <div className="flex gap-1 rounded-xl border border-neutral-700 bg-neutral-950 p-1">
+            {(["manila", "dubai"] as City[]).map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setCity(c)}
+                className={[
+                  "rounded-lg px-4 py-1.5 text-sm font-medium transition",
+                  city === c
+                    ? "bg-violet-700 text-white shadow"
+                    : "text-neutral-400 hover:text-neutral-200",
+                ].join(" ")}
+              >
+                {c === "manila" ? "🇵🇭 Manila" : "🇦🇪 Dubai"}
+              </button>
+            ))}
           </div>
-          <div className="text-xs text-neutral-500">{city.toUpperCase()} quantity workflow</div>
+
+          <div className="text-xs font-semibold tracking-wide">
+            {isDraft ? (
+              <span className="rounded-full bg-amber-500/15 px-3 py-1 text-amber-300">
+                ✏️ Editing draft
+              </span>
+            ) : (
+              <span className="rounded-full bg-sky-500/15 px-3 py-1 text-sky-300">
+                ＋ New adjustment
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-5">
-          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={city} onChange={(e) => setCity(e.target.value as City)}>
-            <option value="dubai">Dubai</option>
-            <option value="manila">Manila</option>
-          </select>
-          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={branchCode} onChange={(e) => setBranchCode(e.target.value)}>
+        {/* Settings fields */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <select
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            value={branchCode}
+            onChange={(e) => setBranchCode(e.target.value)}
+          >
             {BRANCHES[city].map((branch) => (
-              <option key={branch.code} value={branch.code}>
-                {branch.name}
-              </option>
+              <option key={branch.code} value={branch.code}>{branch.name}</option>
             ))}
           </select>
-          <input type="date" value={businessDate} onChange={(e) => setBusinessDate(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={reason} onChange={(e) => setReason(e.target.value)}>
+
+          <input
+            type="date"
+            value={businessDate}
+            onChange={(e) => setBusinessDate(e.target.value)}
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+          />
+
+          <select
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+          >
             <option value="WASTE">Waste</option>
             <option value="EXPIRED">Expired</option>
             <option value="LOSS">Loss</option>
             <option value="DAMAGE">Damage</option>
             <option value="MANUAL_FIX">Manual Fix</option>
           </select>
-          <input type="month" value={historyMonth} onChange={(e) => setHistoryMonth(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        </div>
 
-        <div className="mt-3">
-          <textarea
+          <input
+            type="text"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Notes / adjustment note"
-            className="min-h-24 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            placeholder="Notes (optional)"
+            className="min-w-[200px] flex-1 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
           />
         </div>
 
-        {error ? <div className="mt-3 text-sm text-rose-300">{error}</div> : null}
-        {success ? <div className="mt-3 text-sm text-emerald-300">{success}</div> : null}
+        {error ? <div className="mt-3 rounded-xl bg-rose-950/30 px-3 py-2 text-sm text-rose-300">{error}</div> : null}
+        {success ? <div className="mt-3 rounded-xl bg-emerald-950/30 px-3 py-2 text-sm text-emerald-300">{success}</div> : null}
       </section>
 
-      <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="text-sm font-semibold text-neutral-100">Add Adjustment Lines</div>
-          <div className="text-xs text-neutral-500">{itemOptions.length} registered items</div>
+      {/* ── Item Library + Adjustment Lines ── */}
+      <section className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+
+        {/* Left: Item Library */}
+        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-sm font-semibold text-neutral-100">Item Library</span>
+            <span className="text-xs text-neutral-500">{itemOptions.length} items</span>
+          </div>
+          <input
+            type="text"
+            placeholder="Search items..."
+            value={itemSearch}
+            onChange={(e) => setItemSearch(e.target.value)}
+            className="mb-3 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm placeholder-neutral-600"
+          />
+          <div className="max-h-[420px] space-y-1 overflow-y-auto pr-1">
+            {filteredItems.length === 0 ? (
+              <div className="py-6 text-center text-xs text-neutral-600">No items found</div>
+            ) : (
+              filteredItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => addItem(item)}
+                  className="flex w-full items-center justify-between gap-2 rounded-xl border border-transparent px-3 py-2 text-left hover:border-neutral-700 hover:bg-neutral-800/50"
+                >
+                  <div className="min-w-0">
+                    <div className="truncate text-sm text-neutral-200">{item.name}</div>
+                    <div className="truncate text-xs text-neutral-500">
+                      {item.sku || "—"}
+                      {item.category ? ` · ${item.category}` : ""}
+                    </div>
+                  </div>
+                  <span className="shrink-0 rounded-lg bg-neutral-800 px-2 py-0.5 text-xs text-neutral-300">+</span>
+                </button>
+              ))
+            )}
+          </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_150px_160px_140px]">
-          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)}>
-            <option value="">Select an item</option>
-            {itemOptions.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name} {item.sku ? `(${item.sku})` : ""}
-              </option>
-            ))}
-          </select>
-          <input type="text" inputMode="decimal" value={selectedQty} onChange={(e) => setSelectedQty(e.target.value)} onKeyDown={(e) => {
-            if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
-            e.preventDefault();
-            setSelectedQty((current) => stepDraftNumber(current, selectedQtyStep, e.key === "ArrowUp" ? 1 : -1));
-          }} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={selectedActionType} onChange={(e) => setSelectedActionType(e.target.value)}>
-            <option value="DECREASE">Decrease</option>
-            <option value="INCREASE">Increase</option>
-          </select>
-          <button type="button" onClick={addDraftItem} disabled={!selectedItem} className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900 disabled:opacity-60">
-            Add Item
-          </button>
-        </div>
+        {/* Right: Adjustment Lines */}
+        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <span className="text-sm font-semibold text-neutral-100">Adjustment Lines</span>
+            <span className="text-xs text-neutral-500">{draftItems.length} line{draftItems.length !== 1 ? "s" : ""}</span>
+          </div>
 
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="text-xs uppercase tracking-wide text-neutral-500">
-              <tr>
-                <th className="px-3 py-2">Item</th>
-                <th className="px-3 py-2">Action</th>
-                <th className="px-3 py-2">Quantity</th>
-                <th className="px-3 py-2">Unit Cost</th>
-                <th className="px-3 py-2">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {draftItems.map((item, index) => (
-                <tr key={`${item.item_id}-${index}`} className="border-t border-neutral-800 text-neutral-200">
-                  <td className="px-3 py-2">
-                    <div>{item.item_name}</div>
-                    <div className="mt-1 text-xs text-neutral-500">{item.sku || "-"}</div>
-                  </td>
-                  <td className="px-3 py-2">{item.action_type}</td>
-                  <td className="px-3 py-2">{number3(item.quantity)}</td>
-                  <td className="px-3 py-2">{Number(item.unit_cost || 0).toFixed(2)}</td>
-                  <td className="px-3 py-2">
-                    <button type="button" onClick={() => removeDraftItem(index)} className="rounded-lg border border-rose-800/70 bg-rose-950/20 px-2 py-1 text-xs text-rose-200">
-                      Remove
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {draftItems.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
-                    No adjustment lines yet.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
+          {draftItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="mb-2 text-3xl">📋</div>
+              <div className="text-sm text-neutral-400">No lines yet</div>
+              <div className="mt-1 text-xs text-neutral-600">Tap + on an item from the library</div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead>
+                  <tr className="text-xs uppercase tracking-wide text-neutral-500">
+                    <th className="px-3 py-2">Item</th>
+                    <th className="px-3 py-2 text-center">Action</th>
+                    <th className="px-3 py-2 text-center">Qty</th>
+                    <th className="px-3 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {draftItems.map((item, index) => {
+                    const isDecrease = item.action_type === "DECREASE";
+                    const step = getInventoryQuantityStep(item.storage_unit);
+                    return (
+                      <tr key={`${item.item_id}-${index}`} className="border-t border-neutral-800">
+                        <td className="px-3 py-2">
+                          <div className="text-neutral-100">{item.item_name}</div>
+                          <div className="text-xs text-neutral-500">{item.sku || "—"}</div>
+                        </td>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button type="button" onClick={createAdjustment} disabled={saving || draftItems.length === 0} className="rounded-xl border border-emerald-800 bg-emerald-950/30 px-4 py-2 text-sm text-emerald-200 hover:bg-emerald-900/30 disabled:opacity-60">
-            {saving ? "Creating..." : "Create Quantity Adjustment"}
-          </button>
+                        {/* Action type toggle pill */}
+                        <td className="px-3 py-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => toggleActionType(index)}
+                            className={[
+                              "rounded-full px-3 py-1 text-xs font-semibold transition",
+                              isDecrease
+                                ? "bg-rose-500/15 text-rose-300 hover:bg-rose-500/25"
+                                : "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25",
+                            ].join(" ")}
+                          >
+                            {isDecrease ? "▼ Decrease" : "▲ Increase"}
+                          </button>
+                        </td>
+
+                        {/* Qty input */}
+                        <td className="px-3 py-2 text-center">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            data-qty-input
+                            value={item.draftQtyText}
+                            onChange={(e) =>
+                              setDraftItems((prev) =>
+                                prev.map((it, idx) =>
+                                  idx === index ? { ...it, draftQtyText: e.target.value } : it,
+                                ),
+                              )
+                            }
+                            onBlur={() => commitDraftQty(index, item)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                commitDraftQty(index, item);
+                                const inputs = document.querySelectorAll<HTMLInputElement>("[data-qty-input]");
+                                const current = e.currentTarget as HTMLInputElement;
+                                const currentIdx = Array.from(inputs).indexOf(current);
+                                if (currentIdx >= 0 && inputs[currentIdx + 1]) {
+                                  inputs[currentIdx + 1].focus();
+                                }
+                              }
+                              if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                                e.preventDefault();
+                                setDraftItems((prev) =>
+                                  prev.map((it, idx) => {
+                                    if (idx !== index) return it;
+                                    const next = stepDraftNumber(it.draftQtyText, step, e.key === "ArrowUp" ? 1 : -1);
+                                    return { ...it, draftQtyText: next };
+                                  }),
+                                );
+                              }
+                            }}
+                            className={[
+                              "w-20 rounded-xl border px-2 py-1.5 text-center text-sm font-semibold",
+                              isDecrease
+                                ? "border-rose-800/50 bg-rose-950/20 text-rose-200 focus:border-rose-600 focus:outline-none"
+                                : "border-emerald-800/50 bg-emerald-950/20 text-emerald-200 focus:border-emerald-600 focus:outline-none",
+                            ].join(" ")}
+                          />
+                        </td>
+
+                        <td className="px-3 py-2 text-right">
+                          <button
+                            type="button"
+                            onClick={() => removeDraftItem(index)}
+                            className="rounded-lg px-2 py-1 text-xs text-neutral-500 hover:bg-rose-950/30 hover:text-rose-300"
+                          >
+                            ×
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Save button */}
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={createAdjustment}
+              disabled={saving || draftItems.length === 0}
+              className="rounded-xl bg-emerald-700 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:opacity-40"
+            >
+              {saving ? "Saving..." : "Save Adjustment Draft"}
+            </button>
+          </div>
         </div>
       </section>
 
-      <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* ── History ── */}
+      <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-neutral-100">History</div>
-            <div className="mt-1 text-xs text-neutral-500">Review adjustment history by month.</div>
+            <div className="mt-0.5 text-xs text-neutral-500">
+              {loading ? "Loading..." : `${filteredHistory.length} adjustment${filteredHistory.length !== 1 ? "s" : ""}`}
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2">
+            <input
+              type="month"
+              value={historyMonth}
+              onChange={(e) => setHistoryMonth(e.target.value)}
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-1.5 text-sm"
+            />
             <button
               type="button"
               onClick={exportHistoryCsv}
               disabled={!filteredHistory.length}
-              className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900 disabled:opacity-60"
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-1.5 text-sm text-neutral-300 hover:bg-neutral-900 disabled:opacity-40"
             >
               Export CSV
             </button>
-            <div className="text-xs text-neutral-500">{loading ? "Loading..." : `${filteredHistory.length} rows`}</div>
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)]">
-          <div className="overflow-x-auto">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,0.7fr)]">
+
+          {/* History table */}
+          <div className="overflow-x-auto rounded-xl border border-neutral-800">
             <table className="min-w-full text-left text-sm">
-              <thead className="text-xs uppercase tracking-wide text-neutral-500">
-                <tr>
+              <thead className="border-b border-neutral-800 bg-neutral-900/40">
+                <tr className="text-xs uppercase tracking-wide text-neutral-500">
                   <th className="px-3 py-2">No.</th>
                   <th className="px-3 py-2">Date</th>
                   <th className="px-3 py-2">Branch</th>
@@ -502,23 +665,43 @@ export default function InventoryQuantityAdjustmentsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredHistory.map((row) => (
-                  <tr key={row.id} className={["border-t border-neutral-800 text-neutral-200 transition", selectedAdjustmentId === row.id ? "bg-emerald-950/20" : ""].join(" ")}>
-                    <td className="px-3 py-2">
-                      <button type="button" onClick={() => setSelectedAdjustmentId(row.id)} className="text-left hover:text-white">
-                        {row.adjustment_no}
-                      </button>
-                    </td>
-                    <td className="px-3 py-2">{String(row.business_date || "").slice(0, 10)}</td>
-                    <td className="px-3 py-2">{labelOf(city, row.branch_code)}</td>
-                    <td className="px-3 py-2">{row.reason || "-"}</td>
-                    <td className="px-3 py-2">{row.status || "-"}</td>
-                  </tr>
-                ))}
+                {filteredHistory.map((row) => {
+                  const isSelected = selectedAdjustmentId === row.id;
+                  const isClosed = row.status === "CLOSED";
+                  return (
+                    <tr
+                      key={row.id}
+                      onClick={() => setSelectedAdjustmentId(row.id)}
+                      className={[
+                        "cursor-pointer border-t border-neutral-800 text-neutral-200 transition",
+                        isSelected ? "bg-violet-950/30" : "hover:bg-neutral-800/30",
+                      ].join(" ")}
+                    >
+                      <td className="px-3 py-2 font-mono text-xs text-neutral-300">{row.adjustment_no}</td>
+                      <td className="px-3 py-2 tabular-nums">{String(row.business_date || "").slice(0, 10)}</td>
+                      <td className="px-3 py-2">{labelOf(city, row.branch_code)}</td>
+                      <td className="px-3 py-2">
+                        <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-xs text-neutral-300">
+                          {REASON_LABELS[row.reason] || row.reason || "—"}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className={[
+                          "rounded-full px-2 py-0.5 text-xs font-semibold",
+                          isClosed
+                            ? "bg-neutral-700/40 text-neutral-400"
+                            : "bg-amber-500/15 text-amber-300",
+                        ].join(" ")}>
+                          {isClosed ? "Closed" : "Draft"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {!loading && filteredHistory.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
-                      No history for this month.
+                    <td colSpan={5} className="px-3 py-8 text-center text-neutral-500">
+                      No adjustments for this month.
                     </td>
                   </tr>
                 ) : null}
@@ -526,56 +709,108 @@ export default function InventoryQuantityAdjustmentsPage() {
             </table>
           </div>
 
+          {/* Detail panel */}
           <div className="rounded-2xl border border-neutral-800 bg-neutral-950/20 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="text-sm font-semibold text-neutral-100">Selected Adjustment</div>
-              <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={duplicateSelectedAdjustment} disabled={!selectedAdjustmentId || actionLoading} className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-200 disabled:opacity-50">
-                  Duplicate
-                </button>
-                <button type="button" onClick={closeSelectedAdjustment} disabled={!selectedAdjustmentId || actionLoading || selectedAdjustment?.status === "CLOSED"} className="rounded-lg border border-emerald-800 bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-200 disabled:opacity-50">
-                  {actionLoading ? "Processing..." : selectedAdjustment?.status === "CLOSED" ? "Closed" : "Close"}
-                </button>
-              </div>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <span className="text-sm font-semibold text-neutral-100">
+                {selectedAdjustment ? selectedAdjustment.adjustment_no : "Details"}
+              </span>
+              {selectedAdjustment ? (
+                <span className={[
+                  "rounded-full px-2 py-0.5 text-xs font-semibold",
+                  selectedAdjustment.status === "CLOSED"
+                    ? "bg-neutral-700/40 text-neutral-400"
+                    : "bg-amber-500/15 text-amber-300",
+                ].join(" ")}>
+                  {selectedAdjustment.status === "CLOSED" ? "Closed" : "Draft"}
+                </span>
+              ) : null}
             </div>
 
             {!selectedAdjustment ? (
-              <div className="mt-3 text-sm text-neutral-500">Select an adjustment from the history list on the left.</div>
+              <div className="py-8 text-center text-sm text-neutral-500">
+                Select a row to view details
+              </div>
             ) : (
-              <div className="mt-3 space-y-3 text-sm text-neutral-200">
-                <div>
-                  <div className="text-xs text-neutral-500">Adjustment No.</div>
-                  <div>{selectedAdjustment.adjustment_no}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-neutral-500">Branch</div>
-                  <div>{labelOf(city, selectedAdjustment.branch_code)}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-neutral-500">Reason</div>
-                  <div>{selectedAdjustment.reason || "-"}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-neutral-500">Created By</div>
-                  <div>{selectedAdjustment.created_by || "-"}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-neutral-500">Notes</div>
-                  <div className="whitespace-pre-wrap text-neutral-300">{selectedAdjustment.notes || "-"}</div>
-                </div>
-                <div>
-                  <div className="mb-2 text-xs text-neutral-500">Items</div>
-                  <div className="space-y-2">
-                    {(selectedAdjustment.items || []).map((item) => (
-                      <div key={item.id} className="rounded-xl border border-neutral-800 bg-neutral-900/30 px-3 py-2">
-                        <div>{item.item_name}</div>
-                        <div className="mt-1 text-xs text-neutral-500">
-                          {item.sku || "-"} • {item.action_type} • Qty {number3(item.quantity)}
-                        </div>
-                      </div>
-                    ))}
-                    {!(selectedAdjustment.items || []).length ? <div className="text-xs text-neutral-500">No items linked.</div> : null}
+              <div className="space-y-3 text-sm">
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <div className="text-neutral-500">Branch</div>
+                    <div className="text-neutral-200">{labelOf(city, selectedAdjustment.branch_code)}</div>
                   </div>
+                  <div>
+                    <div className="text-neutral-500">Date</div>
+                    <div className="text-neutral-200 tabular-nums">{String(selectedAdjustment.business_date || "").slice(0, 10)}</div>
+                  </div>
+                  <div>
+                    <div className="text-neutral-500">Reason</div>
+                    <div className="text-neutral-200">{REASON_LABELS[selectedAdjustment.reason] || selectedAdjustment.reason || "—"}</div>
+                  </div>
+                  <div>
+                    <div className="text-neutral-500">Created By</div>
+                    <div className="text-neutral-200">{selectedAdjustment.created_by || "—"}</div>
+                  </div>
+                </div>
+
+                {selectedAdjustment.notes ? (
+                  <div className="rounded-xl bg-neutral-900/40 px-3 py-2 text-xs text-neutral-300">
+                    {selectedAdjustment.notes}
+                  </div>
+                ) : null}
+
+                <div>
+                  <div className="mb-2 text-xs text-neutral-500">Items ({(selectedAdjustment.items || []).length})</div>
+                  <div className="max-h-52 space-y-1.5 overflow-y-auto pr-1">
+                    {(selectedAdjustment.items || []).map((item) => {
+                      const isDecrease = item.action_type === "DECREASE";
+                      return (
+                        <div key={item.id} className="rounded-xl border border-neutral-800 bg-neutral-900/30 px-3 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm text-neutral-200">{item.item_name}</div>
+                              <div className="text-xs text-neutral-500">{item.sku || "—"}</div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <div className={[
+                                "text-sm font-semibold",
+                                isDecrease ? "text-rose-300" : "text-emerald-300",
+                              ].join(" ")}>
+                                {isDecrease ? "▼" : "▲"} {number3(item.quantity)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {!(selectedAdjustment.items || []).length ? (
+                      <div className="text-xs text-neutral-500">No items linked.</div>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={duplicateSelectedAdjustment}
+                    disabled={actionLoading}
+                    className="flex-1 rounded-xl border border-neutral-700 bg-neutral-900 py-2 text-xs text-neutral-300 hover:bg-neutral-800 disabled:opacity-50"
+                  >
+                    Duplicate
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeSelectedAdjustment}
+                    disabled={actionLoading || selectedAdjustment.status === "CLOSED"}
+                    className={[
+                      "flex-1 rounded-xl py-2 text-xs font-semibold transition disabled:opacity-50",
+                      selectedAdjustment.status === "CLOSED"
+                        ? "border border-neutral-700 bg-neutral-900 text-neutral-500"
+                        : "bg-emerald-700 text-white hover:bg-emerald-600",
+                    ].join(" ")}
+                  >
+                    {actionLoading ? "Processing..." : selectedAdjustment.status === "CLOSED" ? "Posted" : "Close & Post"}
+                  </button>
                 </div>
               </div>
             )}

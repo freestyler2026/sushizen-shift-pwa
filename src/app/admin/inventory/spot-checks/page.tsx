@@ -41,7 +41,7 @@ export default function InventorySpotChecksPage() {
   const [picName, setPicName] = useState(auth?.staffName || "");
   const [notes, setNotes] = useState("");
   const [historyMonth, setHistoryMonth] = useState(monthNow());
-  const [selectedItemId, setSelectedItemId] = useState("");
+  const [itemSearch, setItemSearch] = useState("");
   const [itemOptions, setItemOptions] = useState<InventoryItemLookup[]>([]);
   const [balancesMap, setBalancesMap] = useState<Record<string, number>>({});
   const [draftLines, setDraftLines] = useState<InventoryCountLine[]>([]);
@@ -69,9 +69,7 @@ export default function InventorySpotChecksPage() {
       setReady(true);
     }
     void init();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [auth]);
 
   useEffect(() => {
@@ -107,9 +105,7 @@ export default function InventorySpotChecksPage() {
       }
     }
     void load();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [allowed, branchCode, businessDate, city, ready]);
 
   useEffect(() => {
@@ -129,15 +125,8 @@ export default function InventorySpotChecksPage() {
       }
     }
     void loadDetail();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [allowed, city, selectedSpotCheckId]);
-
-  const selectedItem = useMemo(
-    () => itemOptions.find((item) => item.id === selectedItemId) || null,
-    [itemOptions, selectedItemId],
-  );
 
   const filteredHistory = useMemo(
     () => historyRows.filter((row) => String(row.business_date || "").slice(0, 7) === historyMonth),
@@ -147,6 +136,33 @@ export default function InventorySpotChecksPage() {
   const groupedDraft = useMemo(() => groupBySupplier(draftLines), [draftLines]);
   const editingExistingDraft = Boolean(draftSpotCheckId);
   const selectedSpotCheckIsDraft = selectedSpotCheck?.status === "DRAFT";
+
+  // Item library — filtered + grouped
+  const draftItemIdSet = useMemo(() => new Set(draftLines.map((l) => String(l.item_id || "")).filter(Boolean)), [draftLines]);
+
+  const filteredItems = useMemo(() => {
+    const q = itemSearch.trim().toLowerCase();
+    if (!q) return itemOptions;
+    return itemOptions.filter((item) =>
+      `${item.supplier_name || ""} ${item.name || ""} ${item.sku || ""}`.toLowerCase().includes(q),
+    );
+  }, [itemOptions, itemSearch]);
+
+  const groupedItems = useMemo(() => {
+    const groups = new Map<string, InventoryItemLookup[]>();
+    filteredItems.forEach((item) => {
+      const supplier = String(item.supplier_name || "").trim() || "Unknown supplier";
+      const rows = groups.get(supplier) || [];
+      rows.push(item);
+      groups.set(supplier, rows);
+    });
+    return Array.from(groups.entries())
+      .map(([supplier, rows]) => ({
+        supplier,
+        rows: [...rows].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))),
+      }))
+      .sort((a, b) => a.supplier.localeCompare(b.supplier));
+  }, [filteredItems]);
 
   function refreshLineWithBalance(line: InventoryCountLine): InventoryCountLine {
     return withVariance({
@@ -158,12 +174,7 @@ export default function InventorySpotChecksPage() {
   useEffect(() => {
     if (!draftLines.length) return;
     setDraftLines((prev) =>
-      prev.map((line) =>
-        withVariance({
-          ...line,
-          theoretical_qty: Number(balancesMap[line.item_id] ?? 0),
-        }),
-      ),
+      prev.map((line) => withVariance({ ...line, theoretical_qty: Number(balancesMap[line.item_id] ?? 0) })),
     );
   }, [balancesMap, draftLines.length]);
 
@@ -192,26 +203,26 @@ export default function InventorySpotChecksPage() {
   function syncedDraftLines() {
     return draftLines.map((line, index) => {
       const parsedQty = parseDraftNumber(draftQtyValue(index, line));
-      return withVariance({
-        ...line,
-        counted_qty: parsedQty === null || parsedQty < 0 ? 0 : parsedQty,
-      });
+      return withVariance({ ...line, counted_qty: parsedQty === null || parsedQty < 0 ? 0 : parsedQty });
     });
   }
 
-  function addManualItem() {
-    if (!selectedItem) return;
-    if (draftLines.some((line) => line.item_id === selectedItem.id)) {
-      setError("This inventory item is already in the draft spot check.");
-      return;
-    }
+  function appendItemToDraft(item: InventoryItemLookup) {
+    if (draftLines.some((line) => line.item_id === item.id)) return;
     setError("");
-    setDraftLines((prev) => [...prev, refreshLineWithBalance(lineFromItem(selectedItem, prev.length + 1))]);
-    setSelectedItemId("");
+    setDraftLines((prev) => [...prev, refreshLineWithBalance(lineFromItem(item, prev.length + 1))]);
+  }
+
+  function removeItemFromDraft(itemId: string) {
+    setDraftLines((prev) =>
+      prev.filter((l) => String(l.item_id || "") !== itemId).map((line, idx) => ({ ...line, sort_order: idx + 1 })),
+    );
   }
 
   function removeDraftLine(index: number) {
-    setDraftLines((prev) => prev.filter((_, idx) => idx !== index).map((line, idx) => ({ ...line, sort_order: idx + 1 })));
+    setDraftLines((prev) =>
+      prev.filter((_, idx) => idx !== index).map((line, idx) => ({ ...line, sort_order: idx + 1 })),
+    );
   }
 
   function loadSelectedSpotCheckToDraft() {
@@ -225,13 +236,12 @@ export default function InventorySpotChecksPage() {
     setPicName(selectedSpotCheck.pic_name || "");
     setDraftSpotCheckId(selectedSpotCheck.status === "DRAFT" ? selectedSpotCheck.id : "");
     setError("");
-    setSuccess(selectedSpotCheck.status === "DRAFT" ? "Loaded selected DRAFT for editing." : "Loaded selected spot check as a new draft template.");
+    setSuccess(selectedSpotCheck.status === "DRAFT" ? "Loaded selected DRAFT for editing." : "Loaded selected spot check as a new draft.");
   }
 
   function resetDraft() {
     setDraftSpotCheckId("");
     setDraftLines([]);
-    setSelectedItemId("");
     setBusinessDate(todayIso());
     setNotes("");
     setPicName(auth?.staffName || "");
@@ -249,14 +259,8 @@ export default function InventorySpotChecksPage() {
   }
 
   async function saveDraft() {
-    if (!branchCode) {
-      setError("Please select a branch.");
-      return;
-    }
-    if (!draftLines.length) {
-      setError("Please add at least one item.");
-      return;
-    }
+    if (!branchCode) { setError("Please select a branch."); return; }
+    if (!draftLines.length) { setError("Please add at least one item."); return; }
     const nextDraftLines = syncedDraftLines();
     const uniqueItemIds = new Set(nextDraftLines.map((line) => line.item_id).filter(Boolean));
     if (uniqueItemIds.size !== nextDraftLines.length) {
@@ -270,28 +274,17 @@ export default function InventorySpotChecksPage() {
       let spotCheckId = draftSpotCheckId;
       if (spotCheckId) {
         await inventoryPatch(`/api/admin/inventory/spot-checks/${encodeURIComponent(spotCheckId)}`, {
-          city,
-          branch_code: branchCode,
-          business_date: businessDate,
-          pic_name: picName,
-          notes,
+          city, branch_code: branchCode, business_date: businessDate, pic_name: picName, notes,
         });
       } else {
         const created = await inventoryPost<{ row: SpotCheckRow }>("/api/admin/inventory/spot-checks", {
-          city,
-          branch_code: branchCode,
-          business_date: businessDate,
-          pic_name: picName,
-          notes,
+          city, branch_code: branchCode, business_date: businessDate, pic_name: picName, notes,
         });
         spotCheckId = String(created?.row?.id || "");
       }
       await inventoryPost(`/api/admin/inventory/spot-checks/${encodeURIComponent(spotCheckId)}/items`, {
         city,
-        items: nextDraftLines.map((line, index) => ({
-          ...line,
-          sort_order: index + 1,
-        })),
+        items: nextDraftLines.map((line, index) => ({ ...line, sort_order: index + 1 })),
       });
       setDraftLines(nextDraftLines);
       await refreshHistoryAndDetail(spotCheckId);
@@ -313,10 +306,8 @@ export default function InventorySpotChecksPage() {
     try {
       await inventoryPost(`/api/admin/inventory/spot-checks/${encodeURIComponent(selectedSpotCheckId)}/close`, { city });
       await refreshHistoryAndDetail(selectedSpotCheckId);
-      if (draftSpotCheckId === selectedSpotCheckId) {
-        setDraftSpotCheckId("");
-      }
-      setSuccess("Selected spot check closed and variances posted to ledger.");
+      if (draftSpotCheckId === selectedSpotCheckId) setDraftSpotCheckId("");
+      setSuccess("Spot check closed. Variances posted to ledger.");
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -332,156 +323,311 @@ export default function InventorySpotChecksPage() {
       <InventoryTabs />
       <InventoryRegistrationHelp />
 
+      {/* ── Header & Settings ── */}
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="text-lg font-semibold text-neutral-100">Quick Spot Check</div>
-            <div className="mt-1 text-sm text-neutral-400">Use for daily or weekly checks of selected items.</div>
+            <div className="mt-1 text-sm text-neutral-400">Spot-check selected items at any time — enter counted quantities and save a draft to close later.</div>
           </div>
-          <div className="text-xs text-neutral-500">{city.toUpperCase()} spot check workflow</div>
+          {/* City toggle */}
+          <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-1">
+            <button
+              type="button"
+              onClick={() => setCity("manila")}
+              className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${city === "manila" ? "bg-violet-600 text-white shadow" : "text-neutral-400 hover:text-white"}`}
+            >
+              🇵🇭 Manila
+            </button>
+            <button
+              type="button"
+              onClick={() => setCity("dubai")}
+              className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${city === "dubai" ? "bg-violet-600 text-white shadow" : "text-neutral-400 hover:text-white"}`}
+            >
+              🇦🇪 Dubai
+            </button>
+          </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-5">
-          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={city} onChange={(e) => setCity(e.target.value as City)}>
-            <option value="dubai">Dubai</option>
-            <option value="manila">Manila</option>
-          </select>
-          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={branchCode} onChange={(e) => setBranchCode(e.target.value)}>
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <select
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+            value={branchCode}
+            onChange={(e) => setBranchCode(e.target.value)}
+          >
             {BRANCHES[city].map((branch) => (
-              <option key={branch.code} value={branch.code}>
-                {branch.name}
-              </option>
+              <option key={branch.code} value={branch.code}>{branch.name}</option>
             ))}
           </select>
-          <input type="date" value={businessDate} onChange={(e) => setBusinessDate(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <input value={picName} onChange={(e) => setPicName(e.target.value)} placeholder="PIC" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <input type="month" value={historyMonth} onChange={(e) => setHistoryMonth(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+          <input
+            type="date"
+            value={businessDate}
+            onChange={(e) => setBusinessDate(e.target.value)}
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+          />
+          <input
+            value={picName}
+            onChange={(e) => setPicName(e.target.value)}
+            placeholder="PIC name"
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+          />
+          <input
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Notes (optional)"
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+          />
         </div>
 
-        <div className="mt-3">
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes" className="min-h-24 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        </div>
-
-        {error ? <div className="mt-3 text-sm text-rose-300">{error}</div> : null}
-        {success ? <div className="mt-3 text-sm text-emerald-300">{success}</div> : null}
+        {error ? <div className="mt-3 rounded-lg bg-rose-950/30 px-3 py-2 text-sm text-rose-300">{error}</div> : null}
+        {success ? <div className="mt-3 rounded-lg bg-emerald-950/30 px-3 py-2 text-sm text-emerald-300">{success}</div> : null}
       </section>
 
-      <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold text-neutral-100">Draft Spot Check</div>
-            <div className="mt-1 text-xs text-neutral-500">
-              {editingExistingDraft ? `Editing existing draft ${selectedSpotCheck?.spot_check_no || ""}`.trim() : "New draft"}
+      {/* ── Main Workspace ── */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[340px_1fr]">
+
+        {/* LEFT: Item Library */}
+        <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-sm font-semibold text-neutral-100">Item Library</div>
+            <span className="text-xs text-neutral-500">{filteredItems.length} items</span>
+          </div>
+
+          <div className="mt-3">
+            <input
+              value={itemSearch}
+              onChange={(e) => setItemSearch(e.target.value)}
+              placeholder="Search by name, SKU, supplier…"
+              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+            />
+          </div>
+
+          {!itemOptions.length ? (
+            <div className="mt-3 rounded-xl border border-amber-900/70 bg-amber-950/20 px-3 py-3 text-sm text-amber-200">
+              No items registered yet.
+            </div>
+          ) : (
+            <div className="mt-3 max-h-[540px] space-y-3 overflow-y-auto pr-1">
+              {groupedItems.map((group) => (
+                <div key={group.supplier}>
+                  <div className="mb-1 px-1 text-xs font-semibold text-amber-400/80">{group.supplier}</div>
+                  {group.rows.map((item) => {
+                    const inDraft = draftItemIdSet.has(String(item.id));
+                    return (
+                      <div
+                        key={item.id}
+                        className={`flex items-center gap-2 rounded-lg px-2 py-1.5 transition ${inDraft ? "bg-emerald-950/20" : "hover:bg-white/5"}`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className={`truncate text-sm ${inDraft ? "text-emerald-200" : "text-neutral-200"}`}>{item.name}</div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                            {item.category_name && <span className="text-[10px] text-neutral-500">{item.category_name}</span>}
+                            {item.sku && <span className="text-[10px] text-neutral-600">{item.sku}</span>}
+                            {item.item_type && item.item_type !== "ITEM" && (
+                              <span className="rounded px-1 py-px text-[9px] font-semibold bg-violet-900/50 text-violet-300">{item.item_type}</span>
+                            )}
+                          </div>
+                        </div>
+                        <span className="shrink-0 text-xs text-neutral-500">{item.storage_unit || ""}</span>
+                        {inDraft ? (
+                          <button
+                            type="button"
+                            onClick={() => removeItemFromDraft(String(item.id))}
+                            className="shrink-0 rounded-lg border border-rose-700/60 bg-rose-950/30 px-2 py-0.5 text-xs font-medium text-rose-300 hover:bg-rose-900/40"
+                            title="Remove from spot check"
+                          >✕</button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => appendItemToDraft(item)}
+                            className="shrink-0 rounded-lg border border-emerald-700/60 bg-emerald-950/20 px-2 py-0.5 text-xs font-medium text-emerald-300 hover:bg-emerald-900/40"
+                            title="Add to spot check"
+                          >+</button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+              {groupedItems.length === 0 && (
+                <div className="py-6 text-center text-xs text-neutral-500">No items matched your search.</div>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* RIGHT: Spot Check Grid */}
+        <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="text-sm font-semibold text-neutral-100">Spot Check Grid</div>
+                {editingExistingDraft
+                  ? <span className="rounded-md bg-amber-900/30 px-2 py-0.5 text-xs text-amber-300">
+                      Editing {selectedSpotCheck?.spot_check_no || "draft"}
+                    </span>
+                  : <span className="rounded-md bg-sky-900/30 px-2 py-0.5 text-xs text-sky-400">New draft</span>}
+              </div>
+              <div className="mt-0.5 text-xs text-neutral-500">
+                {draftLines.length === 0
+                  ? "Pick items from the library on the left."
+                  : `${draftLines.length} item${draftLines.length !== 1 ? "s" : ""} · Enter to move down · ↑↓ to adjust qty`}
+              </div>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={resetDraft}
+                className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-300 hover:bg-neutral-800"
+              >
+                + New Draft
+              </button>
+              <button
+                type="button"
+                onClick={saveDraft}
+                disabled={saving || draftLines.length === 0}
+                className="rounded-xl border border-emerald-800 bg-emerald-950/30 px-4 py-1.5 text-sm font-medium text-emerald-200 hover:bg-emerald-900/30 disabled:opacity-50"
+              >
+                {saving ? "Saving…" : editingExistingDraft ? "Update Draft" : "Save Draft"}
+              </button>
             </div>
           </div>
-          <div className="text-xs text-neutral-500">{draftLines.length} rows</div>
-        </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_140px]">
-          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)}>
-            <option value="">Add inventory item</option>
-            {itemOptions.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.supplier_name ? `${item.supplier_name} / ` : ""}{item.name} {item.sku ? `(${item.sku})` : ""}
-              </option>
-            ))}
-          </select>
-          <button type="button" onClick={addManualItem} disabled={!selectedItem} className="rounded-xl border border-neutral-800 bg-neutral-950 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900 disabled:opacity-60">
-            Add Item
-          </button>
-        </div>
-
-        <div className="mt-3 text-xs text-neutral-400">Excel-like view: rows are grouped by supplier so you can quickly enter counted quantities for priority items only.</div>
-
-        <div className="mt-4 space-y-4">
-          {groupedDraft.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-950/30 px-3 py-6 text-center text-xs text-neutral-500">
-              Add items to be included in this spot check.
+          {draftLines.length === 0 ? (
+            <div className="mt-6 rounded-xl border border-dashed border-neutral-800 bg-neutral-950/30 py-14 text-center">
+              <div className="text-3xl">🔍</div>
+              <div className="mt-2 text-sm text-neutral-500">Add items from the library to start your spot check</div>
+              <div className="mt-1 text-xs text-neutral-600">Items are grouped by supplier for easier counting</div>
             </div>
-          ) : null}
-          {groupedDraft.map((group) => (
-            <section key={group.supplier} className="rounded-xl border border-neutral-800 bg-neutral-950/20">
-              <div className="border-b border-neutral-800 px-4 py-3">
-                <div className="text-sm font-medium text-amber-300">{group.supplier}</div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-xs">
-                  <thead className="sticky top-0 bg-neutral-950/95 text-neutral-300">
-                    <tr>
-                      <th className="px-3 py-2 text-left">Category</th>
-                      <th className="px-3 py-2 text-left">SKU</th>
-                      <th className="px-3 py-2 text-left">Supplier</th>
-                      <th className="px-3 py-2 text-left">Item Name</th>
-                      <th className="px-3 py-2 text-left">Unit</th>
-                      <th className="px-3 py-2 text-right">Unit Price</th>
-                      <th className="px-3 py-2 text-right">Theoretical</th>
-                      <th className="px-3 py-2 text-right">Counted</th>
-                      <th className="px-3 py-2 text-right">Variance</th>
-                      <th className="px-3 py-2 text-left">Memo</th>
-                      <th className="px-3 py-2 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {group.rows.map((line) => {
-                      const index = draftLines.indexOf(line);
-                      return (
-                        <tr key={`${line.sku}-${index}-${line.item_name}`} className="border-t border-neutral-800 bg-neutral-950/30">
-                          <td className="px-3 py-2 text-neutral-300">{line.category || "-"}</td>
-                          <td className="px-3 py-2 text-neutral-100">{line.sku || "-"}</td>
-                          <td className="px-3 py-2 text-neutral-300">{line.supplier_name || "-"}</td>
-                          <td className="px-3 py-2 text-neutral-100">{line.item_name || "-"}</td>
-                          <td className="px-3 py-2 text-neutral-300">{line.storage_unit || "-"}</td>
-                          <td className="px-3 py-2 text-right text-neutral-300">{Number(line.unit_price || 0).toFixed(2)}</td>
-                          <td className="px-3 py-2 text-right text-neutral-300">{number3(line.theoretical_qty)}</td>
-                          <td className="px-3 py-2">
-                            <input type="text" inputMode="decimal" value={draftQtyValue(index, line)} onChange={(e) => setDraftQtyInputs((prev) => ({ ...prev, [String(index)]: e.target.value }))} onBlur={() => commitDraftQty(index, line)} onKeyDown={(e) => {
-                              if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
-                              e.preventDefault();
-                              const step = getInventoryQuantityStep(line.storage_unit);
-                              setDraftQtyInputs((prev) => ({ ...prev, [String(index)]: stepDraftNumber(draftQtyValue(index, line), step, e.key === "ArrowUp" ? 1 : -1) }));
-                            }} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-right text-xs" />
-                          </td>
-                          <td className={["px-3 py-2 text-right", Number(line.variance_qty || 0) === 0 ? "text-neutral-300" : Number(line.variance_qty || 0) > 0 ? "text-emerald-300" : "text-amber-300"].join(" ")}>
-                            {number3(line.variance_qty)}
-                          </td>
-                          <td className="px-3 py-2">
-                            <input value={line.memo} onChange={(e) => updateDraftLine(index, { memo: e.target.value })} className="w-28 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1.5 text-xs" />
-                          </td>
-                          <td className="px-3 py-2 text-right">
-                            <button type="button" onClick={() => removeDraftLine(index)} className="rounded-lg border border-rose-800/70 bg-rose-950/20 px-2 py-1 text-xs text-rose-200">
-                              Remove
-                            </button>
-                          </td>
+          ) : (
+            <div className="mt-4 space-y-4">
+              {groupedDraft.map((group) => (
+                <section key={group.supplier} className="rounded-xl border border-neutral-800 bg-neutral-950/20">
+                  <div className="border-b border-neutral-800 px-3 py-2 text-xs font-semibold text-amber-400/80">{group.supplier}</div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-xs">
+                      <thead className="border-b border-neutral-800 text-neutral-500">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium">Item</th>
+                          <th className="px-3 py-2 text-left font-medium w-16">Unit</th>
+                          <th className="px-3 py-2 text-right font-medium w-24 text-neutral-400">Theoretical</th>
+                          <th className="px-3 py-2 text-right font-medium w-28 text-emerald-400">Counted</th>
+                          <th className="px-3 py-2 text-right font-medium w-24">Variance</th>
+                          <th className="px-3 py-2 text-left font-medium">Memo</th>
+                          <th className="px-3 py-2 w-8"></th>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          ))}
-        </div>
+                      </thead>
+                      <tbody>
+                        {group.rows.map((line) => {
+                          const index = draftLines.indexOf(line);
+                          const variance = Number(line.variance_qty || 0);
+                          const varianceClass =
+                            variance === 0
+                              ? "text-neutral-500"
+                              : variance > 0
+                              ? "text-emerald-300 font-medium"
+                              : "text-rose-300 font-medium";
+                          return (
+                            <tr
+                              key={`${line.sku}-${index}-${line.item_name}`}
+                              className="border-t border-neutral-800/60 hover:bg-white/[0.02]"
+                            >
+                              {/* Item name + supplier sub-text */}
+                              <td className="px-3 py-2">
+                                <div className="text-sm text-neutral-200">{line.item_name || "-"}</div>
+                                <div className="mt-0.5 flex items-center gap-2 text-[10px] text-neutral-600">
+                                  {line.sku && <span>{line.sku}</span>}
+                                  {line.category && <span>{line.category}</span>}
+                                </div>
+                              </td>
+                              <td className="px-3 py-2 text-neutral-400">{line.storage_unit || "-"}</td>
+                              {/* Theoretical — read-only, from balances */}
+                              <td className="px-3 py-2 text-right text-neutral-500">{number3(line.theoretical_qty)}</td>
+                              {/* Counted qty — primary input */}
+                              <td className="px-3 py-2">
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={draftQtyValue(index, line)}
+                                  onChange={(e) => setDraftQtyInputs((prev) => ({ ...prev, [String(index)]: e.target.value }))}
+                                  onBlur={() => commitDraftQty(index, line)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                                      e.preventDefault();
+                                      const step = getInventoryQuantityStep(line.storage_unit);
+                                      setDraftQtyInputs((prev) => ({
+                                        ...prev,
+                                        [String(index)]: stepDraftNumber(draftQtyValue(index, line), step, e.key === "ArrowUp" ? 1 : -1),
+                                      }));
+                                      return;
+                                    }
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      commitDraftQty(index, line);
+                                      // Move focus to next row
+                                      const inputs = document.querySelectorAll<HTMLInputElement>("[data-qty-input]");
+                                      const current = e.currentTarget as HTMLInputElement;
+                                      const currentIdx = Array.from(inputs).indexOf(current);
+                                      if (currentIdx >= 0 && inputs[currentIdx + 1]) inputs[currentIdx + 1].focus();
+                                    }
+                                  }}
+                                  data-qty-input
+                                  className="w-24 rounded-lg border border-emerald-800 bg-emerald-950/20 px-2 py-1.5 text-right text-sm font-medium text-emerald-100 focus:outline-none focus:ring-1 focus:ring-emerald-700"
+                                />
+                              </td>
+                              {/* Variance */}
+                              <td className={`px-3 py-2 text-right text-sm ${varianceClass}`}>
+                                {variance === 0 ? "—" : (variance > 0 ? "+" : "") + number3(variance)}
+                              </td>
+                              {/* Memo */}
+                              <td className="px-3 py-2">
+                                <input
+                                  value={line.memo}
+                                  onChange={(e) => updateDraftLine(index, { memo: e.target.value })}
+                                  placeholder="—"
+                                  className="w-28 rounded border border-transparent bg-transparent px-1 py-0.5 text-xs text-neutral-500 placeholder-neutral-700 hover:border-neutral-700 focus:border-neutral-600 focus:bg-neutral-950 focus:outline-none"
+                                />
+                              </td>
+                              {/* Remove */}
+                              <td className="px-2 py-2 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => removeDraftLine(index)}
+                                  className="rounded px-1.5 py-1 text-neutral-600 transition hover:text-rose-400"
+                                  title="Remove row"
+                                >×</button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button type="button" onClick={resetDraft} className="rounded-xl border border-neutral-800 bg-neutral-950/30 px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-900/40">
-            New Draft
-          </button>
-          <button type="button" onClick={saveDraft} disabled={saving || draftLines.length === 0} className="rounded-xl border border-emerald-800 bg-emerald-950/30 px-4 py-2 text-sm text-emerald-200 hover:bg-emerald-900/30 disabled:opacity-60">
-            {saving ? "Saving..." : editingExistingDraft ? "Update Draft" : "Save Draft"}
-          </button>
-        </div>
-      </section>
-
+      {/* ── History ── */}
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-neutral-100">History</div>
-            <div className="mt-1 text-xs text-neutral-500">Review daily and weekly spot check history.</div>
+            <div className="mt-0.5 text-xs text-neutral-500">Select a spot check to view details, load for editing, or close it.</div>
           </div>
-          <div className="text-xs text-neutral-500">{loading ? "Loading..." : `${filteredHistory.length} rows`}</div>
+          <input
+            type="month"
+            lang="en"
+            value={historyMonth}
+            onChange={(e) => setHistoryMonth(e.target.value)}
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+          />
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)]">
+          {/* History table */}
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead className="text-xs uppercase tracking-wide text-neutral-500">
@@ -494,76 +640,101 @@ export default function InventorySpotChecksPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredHistory.map((row) => (
-                  <tr key={row.id} className={["border-t border-neutral-800 text-neutral-200 transition", selectedSpotCheckId === row.id ? "bg-emerald-950/20" : ""].join(" ")}>
-                    <td className="px-3 py-2">
-                      <button type="button" onClick={() => setSelectedSpotCheckId(row.id)} className="text-left hover:text-white">
-                        <div>{row.spot_check_no}</div>
-                        <div className="mt-1 text-xs text-neutral-500">{labelOf(city, row.branch_code)}</div>
-                      </button>
-                    </td>
-                    <td className="px-3 py-2">{String(row.business_date || "").slice(0, 10)}</td>
-                    <td className="px-3 py-2">{labelOf(city, row.branch_code)}</td>
-                    <td className="px-3 py-2">{row.pic_name || row.creator_name || "-"}</td>
-                    <td className="px-3 py-2">{row.status || "-"}</td>
-                  </tr>
-                ))}
-                {!loading && filteredHistory.length === 0 ? (
+                {filteredHistory.map((row) => {
+                  const isClosed = row.status === "CLOSED";
+                  return (
+                    <tr
+                      key={row.id}
+                      onClick={() => setSelectedSpotCheckId(row.id)}
+                      className={[
+                        "border-t border-neutral-800 text-neutral-200 cursor-pointer transition",
+                        selectedSpotCheckId === row.id ? "bg-emerald-950/20" : "hover:bg-white/5",
+                      ].join(" ")}
+                    >
+                      <td className="px-3 py-2 font-medium">{row.spot_check_no}</td>
+                      <td className="px-3 py-2 text-neutral-400">{String(row.business_date || "").slice(0, 10)}</td>
+                      <td className="px-3 py-2 text-neutral-400">{labelOf(city, row.branch_code)}</td>
+                      <td className="px-3 py-2 text-neutral-400">{row.pic_name || row.creator_name || "-"}</td>
+                      <td className="px-3 py-2">
+                        <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${isClosed ? "bg-neutral-800 text-neutral-400" : "bg-amber-900/30 text-amber-300"}`}>
+                          {row.status || "-"}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {!loading && filteredHistory.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
-                      No spot check history for this month.
-                    </td>
+                    <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">No spot check history for this period.</td>
                   </tr>
-                ) : null}
+                )}
               </tbody>
             </table>
           </div>
 
+          {/* Detail panel */}
           <div className="rounded-2xl border border-neutral-800 bg-neutral-950/20 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="text-sm font-semibold text-neutral-100">Selected Spot Check</div>
-              <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={loadSelectedSpotCheckToDraft} disabled={!selectedSpotCheck || actionLoading} className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-200 disabled:opacity-50">
-                  {selectedSpotCheckIsDraft ? "Load DRAFT" : "Copy to Draft"}
-                </button>
-                <button type="button" onClick={closeSelectedSpotCheck} disabled={!selectedSpotCheckId || actionLoading || selectedSpotCheck?.status === "CLOSED"} className="rounded-lg border border-emerald-800 bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-200 disabled:opacity-50">
-                  {actionLoading ? "Processing..." : selectedSpotCheck?.status === "CLOSED" ? "Closed" : "Close"}
-                </button>
-              </div>
-            </div>
-
             {!selectedSpotCheck ? (
-              <div className="mt-3 text-sm text-neutral-500">Select a spot check from the history list on the left.</div>
+              <div className="text-sm text-neutral-500">← Select a spot check to see its details</div>
             ) : (
-              <div className="mt-3 space-y-3 text-sm text-neutral-200">
-                <div>
-                  <div className="text-xs text-neutral-500">Spot Check No.</div>
-                  <div>{selectedSpotCheck.spot_check_no}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-neutral-500">Branch / PIC</div>
-                  <div>{labelOf(city, selectedSpotCheck.branch_code)} • {selectedSpotCheck.pic_name || selectedSpotCheck.creator_name || "-"}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-neutral-500">Status</div>
-                  <div>{selectedSpotCheck.status || "-"}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-neutral-500">Notes</div>
-                  <div className="whitespace-pre-wrap text-neutral-300">{selectedSpotCheck.notes || "-"}</div>
-                </div>
-                <div className="max-h-96 space-y-2 overflow-y-auto">
-                  {(selectedSpotCheck.items || []).map((item, index) => (
-                    <div key={`${item.sku}-${index}`} className="rounded-xl border border-neutral-800 bg-neutral-900/30 px-3 py-2">
-                      <div>{item.supplier_name || "Unknown supplier"} / {item.item_name}</div>
-                      <div className="mt-1 text-xs text-neutral-500">
-                        {item.sku || "-"} • Theo {number3(item.theoretical_qty)} • Counted {number3(item.counted_qty)} • Var {number3(item.variance_qty)}
-                      </div>
+              <>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <div className="font-semibold text-neutral-100">{selectedSpotCheck.spot_check_no}</div>
+                    <div className="mt-0.5 text-xs text-neutral-500">
+                      {labelOf(city, selectedSpotCheck.branch_code)} · {selectedSpotCheck.pic_name || selectedSpotCheck.creator_name || "-"}
                     </div>
-                  ))}
-                  {!(selectedSpotCheck.items || []).length ? <div className="text-xs text-neutral-500">No rows linked.</div> : null}
+                    {selectedSpotCheck.notes ? (
+                      <div className="mt-1 text-xs text-neutral-400">{selectedSpotCheck.notes}</div>
+                    ) : null}
+                  </div>
+                  <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${selectedSpotCheck.status === "CLOSED" ? "bg-neutral-800 text-neutral-400" : "bg-amber-900/30 text-amber-300"}`}>
+                    {selectedSpotCheck.status}
+                  </span>
                 </div>
-              </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={loadSelectedSpotCheckToDraft}
+                    disabled={!selectedSpotCheck || actionLoading}
+                    className="rounded-lg border border-violet-700/70 bg-violet-950/30 px-3 py-1.5 text-xs font-medium text-violet-200 hover:bg-violet-900/30 disabled:opacity-50"
+                  >
+                    {selectedSpotCheckIsDraft ? "Load Draft ↑" : "Copy to Draft ↑"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeSelectedSpotCheck}
+                    disabled={!selectedSpotCheckId || actionLoading || selectedSpotCheck?.status === "CLOSED"}
+                    className="rounded-lg border border-emerald-800 bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-200 disabled:opacity-50"
+                  >
+                    {actionLoading ? "Processing…" : selectedSpotCheck?.status === "CLOSED" ? "Closed" : "Close & Post"}
+                  </button>
+                </div>
+
+                <div className="mt-4 max-h-72 space-y-1.5 overflow-y-auto">
+                  {(selectedSpotCheck.items || []).map((item, i) => {
+                    const variance = Number(item.variance_qty || 0);
+                    const varClass = variance === 0 ? "text-neutral-500" : variance > 0 ? "text-emerald-400" : "text-rose-400";
+                    return (
+                      <div key={`${item.sku}-${i}`} className="rounded-lg border border-neutral-800 bg-neutral-900/30 px-3 py-2 text-xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-neutral-200">{item.item_name}</span>
+                          <span className={`font-medium ${varClass}`}>
+                            {variance === 0 ? "±0" : (variance > 0 ? "+" : "") + number3(variance)}
+                          </span>
+                        </div>
+                        <div className="mt-0.5 text-neutral-500">
+                          {item.storage_unit || ""} · Theo {number3(item.theoretical_qty)} · Count {number3(item.counted_qty)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {!(selectedSpotCheck.items || []).length && (
+                    <div className="text-xs text-neutral-500">No rows linked.</div>
+                  )}
+                </div>
+              </>
             )}
           </div>
         </div>

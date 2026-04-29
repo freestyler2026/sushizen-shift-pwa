@@ -213,6 +213,15 @@ export default function PrivateReportPage() {
               </div>
 
               {reportType === "hq-private-report" ? (
+                <div className="mt-4 rounded-2xl border border-sky-700/30 bg-sky-950/20 px-4 py-3.5">
+                  <p className="text-sm leading-relaxed text-neutral-300">
+                    This channel is for sharing anything that concerns you directly with HQ — issues you notice in day-to-day operations, problems between staff members, or anything else you feel HQ should be aware of.
+                    You are welcome to write in whatever language you are most comfortable with.
+                  </p>
+                </div>
+              ) : null}
+
+              {reportType === "hq-private-report" ? (
                 <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <label className="block">
                     <div className={LABEL_CLASS}>Category</div>

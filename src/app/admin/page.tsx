@@ -21,6 +21,7 @@ import {
   RefreshCw,
   Search,
   Shield,
+  Tag,
   UserX,
   Users,
 } from "lucide-react";
@@ -616,6 +617,11 @@ function AdminPageInner() {
   const tokenTimerRef = useRef<any>(null);
   const canOpenInventory = useMemo(() => canAccessInventoryWorkspace(sessionAuth || auth), [auth, sessionAuth]);
   const canOpenRoleManagement = useMemo(() => canAccessRoleManagement(sessionAuth || auth), [auth, sessionAuth]);
+  const [priceCheckFlagged, setPriceCheckFlagged] = useState<number | null>(null);
+  const canOpenPriceCheck = useMemo(() => {
+    const r = (sessionAuth?.role || auth?.role || "");
+    return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(r);
+  }, [auth, sessionAuth]);
 
   const clearTokenTimer = () => {
     if (tokenTimerRef.current) {
@@ -758,6 +764,27 @@ function AdminPageInner() {
     }
     setDashView(tabParamToDashView(tab));
   }, [ready, allowed, searchParams, router]);
+
+  // Price Check flagged count (non-blocking, best-effort)
+  useEffect(() => {
+    if (!ready || !allowed || !canOpenPriceCheck) return;
+    const activeAuth = sessionAuth || auth;
+    if (!activeAuth?.accessToken) return;
+    void (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/price-check/flagged-count`, {
+          headers: { Authorization: `Bearer ${activeAuth.accessToken}` },
+          cache: "no-store",
+        });
+        if (res.ok) {
+          const j = await res.json();
+          setPriceCheckFlagged(Number(j?.flagged_count ?? 0));
+        }
+      } catch {
+        // ignore — badge is optional
+      }
+    })();
+  }, [ready, allowed, canOpenPriceCheck, sessionAuth, auth]);
 
   useEffect(() => {
     if (!ready || !allowed) return;
@@ -1152,8 +1179,43 @@ function AdminPageInner() {
               <Package className="mr-1 h-3.5 w-3.5" /> Inventory
             </Link>
           ) : null}
+          {canOpenPriceCheck ? (
+            <Link
+              href="/admin/price-check"
+              className={`${SMALL_BUTTON} relative ${priceCheckFlagged ? "border-red-500/40 text-red-300 hover:bg-red-500/10" : ""}`}
+            >
+              <Tag className="mr-1 h-3.5 w-3.5" /> Price Check
+              {priceCheckFlagged ? (
+                <span className="ml-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
+                  {priceCheckFlagged > 9 ? "9+" : priceCheckFlagged}
+                </span>
+              ) : null}
+            </Link>
+          ) : null}
         </div>
       </div>
+
+      {/* Price Check alert card */}
+      {canOpenPriceCheck && priceCheckFlagged != null && priceCheckFlagged > 0 ? (
+        <Link href="/admin/price-check" className="block">
+          <div className="rounded-2xl border border-red-500/30 bg-red-950/20 px-4 py-3 transition-all hover:border-red-500/50 hover:bg-red-950/30">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="h-5 w-5 shrink-0 text-red-400" />
+                <div>
+                  <div className="text-sm font-semibold text-red-200">
+                    Price Check — {priceCheckFlagged} 件の価格変更を検出
+                  </div>
+                  <div className="text-xs text-red-400/70">
+                    StoreHubの販売価格が基準価格から変更されています。確認してください。
+                  </div>
+                </div>
+              </div>
+              <span className="shrink-0 text-xs text-red-400">詳細を見る →</span>
+            </div>
+          </div>
+        </Link>
+      ) : null}
 
       <div className={`${TAB_CONTAINER} w-full max-w-full overflow-x-auto`} role="tablist" aria-label="Admin dashboard sections">
         <div className="flex w-max max-w-none flex-nowrap items-center gap-1 pb-0.5">

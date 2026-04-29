@@ -832,6 +832,9 @@ export default function CostCalculationPage() {
   const [unmatchedInvoiceItems, setUnmatchedInvoiceItems] = useState<UnmatchedInvoiceItemRow[]>([]);
   const [unmatchedItemSearch, setUnmatchedItemSearch] = useState("");
   const [unmatchedSupplierFilter, setUnmatchedSupplierFilter] = useState("");
+  const [renamingUnmatchedKey, setRenamingUnmatchedKey] = useState("");
+  const [renameText, setRenameText] = useState("");
+  const [renameSaving, setRenameSaving] = useState(false);
   const [invoiceMappings, setInvoiceMappings] = useState<InvoiceItemMappingRow[]>([]);
   const [invoiceMappingLoading, setInvoiceMappingLoading] = useState(false);
   const [invoiceMappingSaving, setInvoiceMappingSaving] = useState(false);
@@ -2740,6 +2743,47 @@ export default function CostCalculationPage() {
     unmatchedInvoiceItems,
   ]);
 
+  const saveRenameUnmatchedItem = useCallback(async () => {
+    const item = unmatchedInvoiceItems.find((it) => unmatchedInvoiceItemKey(it) === renamingUnmatchedKey);
+    if (!item) return;
+    const newName = renameText.trim();
+    if (!newName || newName === item.item_description) {
+      setRenamingUnmatchedKey("");
+      return;
+    }
+    setRenameSaving(true);
+    try {
+      await costJson("/api/admin/cost/invoice-line-items/rename", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          city,
+          supplier_name: item.supplier_name,
+          old_description: item.item_description,
+          new_description: newName,
+        }),
+      });
+      // Update local state so the list reflects the new name immediately
+      setUnmatchedInvoiceItems((prev) =>
+        prev.map((it) =>
+          unmatchedInvoiceItemKey(it) === renamingUnmatchedKey
+            ? { ...it, item_description: newName }
+            : it,
+        ),
+      );
+      // If the renamed item was selected, update dependent state
+      if (selectedUnmatchedItemKey === renamingUnmatchedKey) {
+        setMappingSourceItemDescription(newName);
+      }
+      setRenamingUnmatchedKey("");
+    } catch (e: any) {
+      /* show error inline */
+      alert(e?.message || "Rename failed");
+    } finally {
+      setRenameSaving(false);
+    }
+  }, [city, renameText, renamingUnmatchedKey, selectedUnmatchedItemKey, unmatchedInvoiceItems]);
+
   const clearSkippedUnmatchedInvoiceItems = useCallback(() => {
     try {
       localStorage.removeItem(skippedUnmatchedStorageKey(city));
@@ -4385,10 +4429,12 @@ export default function CostCalculationPage() {
                       ) : unmatchedInvoiceItems.map((item, i) => {
                         const itemKey = unmatchedInvoiceItemKey(item);
                         const isSelected = selectedUnmatchedItemKey === itemKey;
+                        const isRenaming = renamingUnmatchedKey === itemKey;
                         return (
                           <div
                             key={i}
                             onClick={() => {
+                              if (isRenaming) return;
                               setEditingInvoiceMappingId(null);
                               setMappingMode("create");
                               setSelectedUnmatchedItemKey(itemKey);
@@ -4403,14 +4449,63 @@ export default function CostCalculationPage() {
                               setMappingSaveError("");
                             }}
                             className={cx(
-                              "cursor-pointer border-b border-white/5 px-3 py-2.5 last:border-b-0 transition hover:bg-white/[0.04]",
-                              isSelected ? "bg-sky-500/10 border-l-2 border-l-sky-500" : "",
+                              "group border-b border-white/5 px-3 py-2.5 last:border-b-0 transition",
+                              isRenaming ? "bg-amber-500/8" : isSelected ? "bg-sky-500/10 border-l-2 border-l-sky-500 cursor-pointer hover:bg-sky-500/15" : "cursor-pointer hover:bg-white/[0.04]",
                             )}
                           >
-                            <div className={cx("text-xs font-medium", isSelected ? "text-sky-200" : "text-white")}>{item.item_description}</div>
-                            <div className="mt-0.5 text-[10px] text-zinc-500">
-                              {item.supplier_name || "—"} · {item.unit || "—"} · {currencyCode} {Number(item.latest_unit_price || 0).toFixed(2)}
-                            </div>
+                            {isRenaming ? (
+                              /* ── Inline rename input ── */
+                              <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  autoFocus
+                                  type="text"
+                                  value={renameText}
+                                  onChange={(e) => setRenameText(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") void saveRenameUnmatchedItem();
+                                    if (e.key === "Escape") setRenamingUnmatchedKey("");
+                                  }}
+                                  className="min-w-0 flex-1 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-100 focus:border-amber-400 focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  disabled={renameSaving}
+                                  onClick={() => void saveRenameUnmatchedItem()}
+                                  className="shrink-0 rounded border border-emerald-500/40 bg-emerald-500/15 px-2 py-1 text-[10px] text-emerald-300 hover:bg-emerald-500/25 disabled:opacity-50"
+                                >
+                                  {renameSaving ? "…" : "保存"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setRenamingUnmatchedKey("")}
+                                  className="shrink-0 rounded border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-zinc-400 hover:bg-white/10"
+                                >
+                                  取消
+                                </button>
+                              </div>
+                            ) : (
+                              /* ── Normal row ── */
+                              <div className="flex items-center justify-between gap-1">
+                                <div className="min-w-0">
+                                  <div className={cx("truncate text-xs font-medium", isSelected ? "text-sky-200" : "text-white")}>{item.item_description}</div>
+                                  <div className="mt-0.5 text-[10px] text-zinc-500">
+                                    {item.supplier_name || "—"} · {item.unit || "—"} · {currencyCode} {Number(item.latest_unit_price || 0).toFixed(2)}
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  title="品目名を修正"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setRenamingUnmatchedKey(itemKey);
+                                    setRenameText(item.item_description || "");
+                                  }}
+                                  className="ml-1 shrink-0 rounded p-1 text-zinc-600 opacity-0 transition group-hover:opacity-100 hover:bg-white/10 hover:text-amber-300"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </button>
+                              </div>
+                            )}
                           </div>
                         );
                       })}

@@ -7,6 +7,9 @@ export function GET() {
     process.env.VERCEL_DEPLOYMENT_ID ||
     "dev";
   return Response.json({ v }, {
-    headers: { "Cache-Control": "no-store" },
+    headers: {
+      "Cache-Control": "no-store, no-cache, must-revalidate, private",
+      "Pragma": "no-cache",
+    },
   });
 }

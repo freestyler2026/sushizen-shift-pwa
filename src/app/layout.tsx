@@ -27,12 +27,40 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // Baked into the HTML at build time — used by the inline version-check script below.
+  const buildId = process.env.NEXT_PUBLIC_BUILD_ID || "dev";
   return (
     <html lang="en">
       <head>
-        {/* Catch ChunkLoadError / dynamic import failures before React boots.
-            On a new deployment, old cached PWA bundles reference chunk filenames
-            that no longer exist → auto-reload fetches the fresh bundle. */}
+        {/* ── Inline version check (runs before React boots) ─────────────────
+            Even when iOS Safari serves a stale cached HTML document, this
+            script detects the mismatch by fetching /api/version from the
+            server and reloading to a cache-busting URL (?_r=timestamp).
+            The BUILD_ID is baked in as a string literal at deploy time so
+            that each deploy's HTML carries a unique fingerprint.           */}
+        <script dangerouslySetInnerHTML={{ __html: `
+(function(){
+  var BUILD_ID = ${JSON.stringify(buildId)};
+  if(!BUILD_ID || BUILD_ID === 'dev') return;
+  // Avoid reload loops: if we already reloaded (?_r present), skip.
+  var params = new URLSearchParams(window.location.search);
+  if(params.get('_r')) return;
+  fetch('/api/version?_t=' + Date.now(), {cache:'no-store'})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d && d.v && d.v !== BUILD_ID){
+        var u = new URL(window.location.href);
+        u.searchParams.set('_r', String(Date.now()));
+        window.location.replace(u.toString());
+      }
+    })
+    .catch(function(){});
+})();
+        `}} />
+        {/* ── ChunkLoadError handler ──────────────────────────────────────────
+            Catches missing JS chunk errors that occur when old cached PWA
+            bundles reference chunk filenames that no longer exist after
+            a new deployment, and forces a cache-busting reload.            */}
         <script dangerouslySetInnerHTML={{ __html: `
 (function(){
   var CHUNK_ERRS = ['Loading chunk','ChunkLoadError','Failed to fetch dynamically imported module','Importing a module script failed','error loading dynamically imported module'];
