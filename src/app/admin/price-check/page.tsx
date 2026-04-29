@@ -13,6 +13,7 @@ import {
   PencilLine,
   Clock,
   Zap,
+  Building2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
@@ -69,18 +70,64 @@ type LastRun = {
   error_msg: string | null;
 };
 
-type Tab = "TAFT" | "PAR";
+type DubaiItem = {
+  item_name: string;
+  qty_sold: number;
+  net_sales: number;
+  actual_unit_price: number | null;
+  baseline_price: number | null;
+  expected_price: number | null;
+  variance_pct: number | null;
+  status: "within" | "outside" | "no_baseline" | "no_sales";
+};
+
+type DubaiConfirmation = {
+  discount_rate_ok: boolean;
+  menu_ok: boolean;
+  confirmed_by: string | null;
+  confirmed_at: string | null;
+  memo: string;
+};
+
+type DubaiSummary = {
+  total_items: number;
+  within_5pct: number;
+  outside_5pct: number;
+  no_baseline: number;
+};
+
+type DubaiStatus = {
+  check_date: string;
+  discount_rate: number;
+  items: DubaiItem[];
+  confirmation: DubaiConfirmation;
+  summary: DubaiSummary;
+};
+
+type Tab = "TAFT" | "PAR" | "DUBAI";
 
 const STORE_LABELS: Record<Tab, string> = {
   TAFT: "Taft",
   PAR: "Parañaque",
+  DUBAI: "Dubai",
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+function yesterday(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
 function fmtPrice(v: number | null | undefined): string {
   if (v == null) return "—";
   return `₱${Number(v).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function fmtAED(v: number | null | undefined): string {
+  if (v == null) return "—";
+  return `AED ${Number(v).toLocaleString("en-AE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function fmtRate(v: number | null | undefined): string {
@@ -131,6 +178,415 @@ function statusBadge(status: PriceCheckResult["status"]) {
         </span>
       );
   }
+}
+
+function dubaiItemBadge(status: DubaiItem["status"]) {
+  switch (status) {
+    case "outside":
+      return (
+        <span className={BADGE_ERROR}>
+          <AlertTriangle className="h-3 w-3" />
+          Outside 5%
+        </span>
+      );
+    case "no_baseline":
+      return (
+        <span className={BADGE_WARNING}>
+          <PencilLine className="h-3 w-3" />
+          No Baseline
+        </span>
+      );
+    case "no_sales":
+      return <span className="text-zinc-500 text-xs">No Sales</span>;
+    default:
+      return (
+        <span className={BADGE_SUCCESS}>
+          <CheckCircle2 className="h-3 w-3" />
+          Within 5%
+        </span>
+      );
+  }
+}
+
+// ─── Dubai Tab Component ─────────────────────────────────────────────────────
+
+function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: () => Promise<Record<string, string>> }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [checkDate, setCheckDate] = useState(yesterday());
+  const [dubaiData, setDubaiData] = useState<DubaiStatus | null>(null);
+
+  // Overall confirmation state (mirrors server state + local edits)
+  const [discountRateOk, setDiscountRateOk] = useState(false);
+  const [menuOk, setMenuOk] = useState(false);
+  const [confirmMemo, setConfirmMemo] = useState("");
+  const [confirmBusy, setConfirmBusy] = useState(false);
+
+  // Baseline editor
+  const [showBaselineEditor, setShowBaselineEditor] = useState(false);
+  const [baselineText, setBaselineText] = useState("");
+  const [baselineBusy, setBaselineBusy] = useState(false);
+
+  const loadDubai = useCallback(async (date: string) => {
+    setLoading(true);
+    setError("");
+    try {
+      const headers = await tokenHeaders();
+      const res = await fetch(
+        `${apiBase}/api/admin/price-check/dubai/status?date=${date}`,
+        { headers, cache: "no-store" }
+      );
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || `Failed (${res.status})`);
+      const j: DubaiStatus = JSON.parse(text);
+      setDubaiData(j);
+      setDiscountRateOk(j.confirmation.discount_rate_ok);
+      setMenuOk(j.confirmation.menu_ok);
+      setConfirmMemo(j.confirmation.memo || "");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [apiBase, tokenHeaders]);
+
+  useEffect(() => {
+    void loadDubai(checkDate);
+  }, [loadDubai, checkDate]);
+
+  const saveConfirmation = async () => {
+    setConfirmBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      const headers = await tokenHeaders();
+      const res = await fetch(`${apiBase}/api/admin/price-check/dubai/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({
+          check_date: checkDate,
+          discount_rate_ok: discountRateOk,
+          menu_ok: menuOk,
+          memo: confirmMemo,
+        }),
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || `Failed (${res.status})`);
+      setSuccess("Dubai confirmation saved.");
+      await loadDubai(checkDate);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setConfirmBusy(false);
+    }
+  };
+
+  const saveBaselines = async () => {
+    if (!baselineText.trim()) { setError("Please enter baseline data."); return; }
+    const lines = baselineText.trim().split("\n").filter(Boolean);
+    const items: { product_name: string; baseline_price: number }[] = [];
+    for (const line of lines) {
+      const parts = line.split("\t");
+      if (parts.length < 2) continue;
+      const name = parts[0].trim();
+      const price = parseFloat(parts[1].trim().replace(/[^0-9.]/g, ""));
+      if (!name || isNaN(price) || price <= 0) continue;
+      items.push({ product_name: name, baseline_price: price });
+    }
+    if (items.length === 0) { setError("No valid rows found. Use tab-separated: Item Name\\tPrice"); return; }
+    setBaselineBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      const headers = await tokenHeaders();
+      const res = await fetch(`${apiBase}/api/admin/price-check/dubai/set-baseline`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ items }),
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || `Failed (${res.status})`);
+      const j = JSON.parse(text);
+      setSuccess(`${j.updated} baselines saved.`);
+      setBaselineText("");
+      setShowBaselineEditor(false);
+      await loadDubai(checkDate);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBaselineBusy(false);
+    }
+  };
+
+  const summary = dubaiData?.summary;
+  const conf = dubaiData?.confirmation;
+
+  return (
+    <div className="space-y-5">
+      {/* KPI row */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className={KPI_CARD}>
+          <div className={KPI_LABEL}>Total Items</div>
+          <div className={KPI_VALUE}>{summary?.total_items ?? "—"}</div>
+        </div>
+        <div className={KPI_CARD}>
+          <div className={KPI_LABEL}>Within 5%</div>
+          <div className={`${KPI_VALUE} text-emerald-400`}>{summary?.within_5pct ?? "—"}</div>
+        </div>
+        <div className={KPI_CARD}>
+          <div className={KPI_LABEL}>Outside 5%</div>
+          <div className={`${KPI_VALUE} ${(summary?.outside_5pct ?? 0) > 0 ? "text-red-400" : "text-emerald-400"}`}>
+            {summary?.outside_5pct ?? "—"}
+          </div>
+        </div>
+        <div className={KPI_CARD}>
+          <div className={KPI_LABEL}>No Baseline</div>
+          <div className={`${KPI_VALUE} ${(summary?.no_baseline ?? 0) > 0 ? "text-amber-400" : "text-zinc-400"}`}>
+            {summary?.no_baseline ?? "—"}
+          </div>
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className={T_SECTION}>Dubai — Controls</div>
+          <div className="flex items-center gap-2">
+            <label className={T_LABEL}>Check Date</label>
+            <input
+              type="date"
+              value={checkDate}
+              onChange={(e) => setCheckDate(e.target.value)}
+              className={INPUT_CLASS}
+              style={{ width: "160px" }}
+            />
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => loadDubai(checkDate)}
+            disabled={loading}
+            className={SECONDARY_BUTTON}
+          >
+            <span className="flex items-center gap-2">
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowBaselineEditor((v) => !v)}
+            className={SECONDARY_BUTTON}
+          >
+            {showBaselineEditor ? "Hide Baseline Editor" : "Set Baselines"}
+          </button>
+        </div>
+        <p className={`mt-2 ${T_CAPTION}`}>
+          Dubai operates at a fixed 50% discount from the standard menu price. Prices are derived
+          from Atlas/Foodics POS data in pos_menu_item_daily.
+        </p>
+
+        {error && (
+          <div className="mt-3 rounded-xl border border-red-500/30 bg-red-950/20 px-4 py-2 text-sm text-red-300">
+            {error}
+          </div>
+        )}
+        {success && (
+          <div className="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-950/20 px-4 py-2 text-sm text-emerald-300">
+            {success}
+          </div>
+        )}
+      </div>
+
+      {/* Baseline editor */}
+      {showBaselineEditor && (
+        <div className={`${GLASS_CARD} p-4`}>
+          <div className="mb-2">
+            <div className={T_SECTION}>Standard Price Baselines (Full Price before 50% off)</div>
+            <p className={`${T_CAPTION} mt-1`}>
+              Paste tab-separated data: one row per line, format: Item Name{"\t"}Price (AED)
+            </p>
+          </div>
+          <textarea
+            className={`${INPUT_CLASS} w-full font-mono text-xs`}
+            rows={8}
+            placeholder={"Salmon Sashimi\t65.00\nTuna Roll\t48.00"}
+            value={baselineText}
+            onChange={(e) => setBaselineText(e.target.value)}
+          />
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={saveBaselines}
+              disabled={baselineBusy}
+              className={PRIMARY_BUTTON}
+            >
+              {baselineBusy ? "Saving..." : "Save Baselines"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Overall Confirmation — two checkboxes */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <div className="mb-3">
+          <div className={T_SECTION}>Daily Confirmation — {checkDate}</div>
+          {conf?.confirmed_by && (
+            <p className={T_CAPTION}>
+              Last confirmed by {conf.confirmed_by} at {fmtDatetime(conf.confirmed_at)}
+            </p>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-8">
+          {/* Discount Rate checkmark */}
+          <label className="flex cursor-pointer items-start gap-3">
+            <div
+              onClick={() => setDiscountRateOk((v) => !v)}
+              className={`mt-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-2 transition-colors ${
+                discountRateOk
+                  ? "border-emerald-500 bg-emerald-500"
+                  : "border-zinc-600 bg-transparent"
+              }`}
+            >
+              {discountRateOk && <CheckCircle2 className="h-4 w-4 text-white" />}
+            </div>
+            <div>
+              <div className="font-semibold text-white">Discount Rate OK</div>
+              <div className={T_CAPTION}>
+                Actual selling prices are at 50% of standard menu price (within ±5%)
+              </div>
+            </div>
+          </label>
+
+          {/* Menu checkmark */}
+          <label className="flex cursor-pointer items-start gap-3">
+            <div
+              onClick={() => setMenuOk((v) => !v)}
+              className={`mt-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-2 transition-colors ${
+                menuOk
+                  ? "border-emerald-500 bg-emerald-500"
+                  : "border-zinc-600 bg-transparent"
+              }`}
+            >
+              {menuOk && <CheckCircle2 className="h-4 w-4 text-white" />}
+            </div>
+            <div>
+              <div className="font-semibold text-white">Menu OK</div>
+              <div className={T_CAPTION}>
+                Menu items are correct — no unauthorized additions or removals
+              </div>
+            </div>
+          </label>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <input
+            type="text"
+            className={INPUT_CLASS}
+            placeholder="Memo (optional)"
+            value={confirmMemo}
+            onChange={(e) => setConfirmMemo(e.target.value)}
+            style={{ maxWidth: "300px" }}
+          />
+          <button
+            type="button"
+            onClick={saveConfirmation}
+            disabled={confirmBusy}
+            className={PRIMARY_BUTTON}
+          >
+            <span className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4" />
+              {confirmBusy ? "Saving..." : "Save Confirmation"}
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* Price comparison table */}
+      {dubaiData && dubaiData.items.length > 0 && (
+        <div className={`${GLASS_CARD} p-4`}>
+          <div className="mb-3">
+            <div className={T_SECTION}>
+              Price Comparison — {checkDate}
+            </div>
+            <p className={T_CAPTION}>
+              Expected price = Standard price × 50%. Variance shows how actual differs from expected.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[700px]">
+              <thead>
+                <tr>
+                  <th className={`${TABLE_HEADER} text-left`}>Item</th>
+                  <th className={`${TABLE_HEADER} text-right`}>Qty Sold</th>
+                  <th className={`${TABLE_HEADER} text-right hidden sm:table-cell`}>Net Sales</th>
+                  <th className={`${TABLE_HEADER} text-right`}>Actual Price</th>
+                  <th className={`${TABLE_HEADER} text-right hidden md:table-cell`}>Standard Price</th>
+                  <th className={`${TABLE_HEADER} text-right`}>Expected (50%)</th>
+                  <th className={`${TABLE_HEADER} text-right`}>Variance</th>
+                  <th className={`${TABLE_HEADER} text-center`}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dubaiData.items.map((item) => {
+                  const vp = item.variance_pct;
+                  const varClass =
+                    vp == null
+                      ? "text-zinc-500"
+                      : Math.abs(vp) <= 5
+                      ? "text-emerald-400"
+                      : "text-red-400 font-semibold";
+
+                  return (
+                    <tr key={item.item_name} className={TABLE_ROW}>
+                      <td className={TABLE_CELL}>
+                        <div className="font-medium text-white">{item.item_name}</div>
+                      </td>
+                      <td className={`${TABLE_CELL} text-right tabular-nums text-zinc-300`}>
+                        {item.qty_sold > 0 ? item.qty_sold.toFixed(1) : "—"}
+                      </td>
+                      <td className={`${TABLE_CELL} text-right tabular-nums text-zinc-300 hidden sm:table-cell`}>
+                        {fmtAED(item.net_sales)}
+                      </td>
+                      <td className={`${TABLE_CELL} text-right tabular-nums font-medium text-white`}>
+                        {fmtAED(item.actual_unit_price)}
+                      </td>
+                      <td className={`${TABLE_CELL} text-right tabular-nums text-zinc-400 hidden md:table-cell`}>
+                        {fmtAED(item.baseline_price)}
+                      </td>
+                      <td className={`${TABLE_CELL} text-right tabular-nums text-zinc-300`}>
+                        {fmtAED(item.expected_price)}
+                      </td>
+                      <td className={`${TABLE_CELL} text-right tabular-nums ${varClass}`}>
+                        <span className="flex items-center justify-end gap-1">
+                          {vp != null && vp < -5 && <TrendingDown className="h-3 w-3" />}
+                          {vp != null && vp > 5 && <TrendingUp className="h-3 w-3" />}
+                          {vp != null ? `${vp >= 0 ? "+" : ""}${vp.toFixed(1)}%` : "—"}
+                        </span>
+                      </td>
+                      <td className={`${TABLE_CELL} text-center`}>{dubaiItemBadge(item.status)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {!loading && dubaiData && dubaiData.items.length === 0 && (
+        <div className={`${GLASS_CARD} flex flex-col items-center gap-3 py-10`}>
+          <Building2 className="h-8 w-8 text-zinc-600" />
+          <p className={T_CAPTION}>
+            No POS data found for {checkDate}. Data comes from pos_menu_item_daily (Dubai).
+          </p>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Main Component ─────────────────────────────────────────────────────────
@@ -188,8 +644,8 @@ export default function PriceCheckPage() {
       setResults(j.results || []);
       setLastRun(j.last_run || null);
       setFlaggedCount(Number(j.flagged_count || 0));
-    } catch (e: any) {
-      setError(e?.message || String(e));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
@@ -211,8 +667,8 @@ export default function PriceCheckPage() {
       const j = JSON.parse(text);
       setSuccess(`Check complete — ${j.items_checked} item${j.items_checked !== 1 ? "s" : ""} checked, ${j.items_flagged} flagged`);
       await loadStatus();
-    } catch (e: any) {
-      setError(e?.message || String(e));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setRunBusy(false);
     }
@@ -235,8 +691,8 @@ export default function PriceCheckPage() {
       const j = JSON.parse(text);
       setSuccess(`Baseline updated — ${j.products_snapshotted} product${j.products_snapshotted !== 1 ? "s" : ""} snapshotted`);
       await loadStatus();
-    } catch (e: any) {
-      setError(e?.message || String(e));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBaselineBusy(false);
     }
@@ -261,8 +717,8 @@ export default function PriceCheckPage() {
       if (!res.ok) throw new Error(text || `Failed (${res.status})`);
       setSuccess(`"${row.product_name}" marked as confirmed`);
       await loadStatus();
-    } catch (e: any) {
-      setError(e?.message || String(e));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setConfirmingIds((ids) => ids.filter((x) => x !== row.id));
     }
@@ -303,8 +759,8 @@ export default function PriceCheckPage() {
       setManualPrice("");
       setManualMemo("");
       await loadStatus();
-    } catch (e: any) {
-      setError(e?.message || String(e));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setManualBusy(false);
     }
@@ -324,8 +780,8 @@ export default function PriceCheckPage() {
   }, [auth, router]);
 
   useEffect(() => {
-    void loadStatus();
-  }, [loadStatus]);
+    if (activeTab !== "DUBAI") void loadStatus();
+  }, [loadStatus, activeTab]);
 
   // Grouped
   const flaggedRows = useMemo(() => results.filter((r) => r.status === "changed"), [results]);
@@ -333,6 +789,7 @@ export default function PriceCheckPage() {
   const okRows = useMemo(() => results.filter((r) => r.status === "ok"), [results]);
 
   const isParanaque = activeTab === "PAR";
+  const isDubai = activeTab === "DUBAI";
 
   return (
     <div className="min-h-screen text-white">
@@ -347,27 +804,29 @@ export default function PriceCheckPage() {
           <div>
             <h1 className={T_PAGE_TITLE}>Price Check</h1>
             <p className={T_BODY}>
-              Monitor StoreHub selling prices and detect changes from the baseline.
+              Monitor selling prices and verify discount compliance across all locations.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            {flaggedCount > 0 ? (
-              <span className={BADGE_ERROR}>
-                <AlertTriangle className="h-3 w-3" />
-                {flaggedCount} change{flaggedCount !== 1 ? "s" : ""} detected
-              </span>
-            ) : (
-              <span className={BADGE_SUCCESS}>
-                <CheckCircle2 className="h-3 w-3" />
-                All OK
-              </span>
-            )}
-          </div>
+          {!isDubai && (
+            <div className="flex items-center gap-2">
+              {flaggedCount > 0 ? (
+                <span className={BADGE_ERROR}>
+                  <AlertTriangle className="h-3 w-3" />
+                  {flaggedCount} change{flaggedCount !== 1 ? "s" : ""} detected
+                </span>
+              ) : (
+                <span className={BADGE_SUCCESS}>
+                  <CheckCircle2 className="h-3 w-3" />
+                  All OK
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Tabs */}
         <div className={TAB_CONTAINER}>
-          {(["TAFT", "PAR"] as Tab[]).map((tab) => (
+          {(["TAFT", "PAR", "DUBAI"] as Tab[]).map((tab) => (
             <button
               key={tab}
               type="button"
@@ -382,239 +841,249 @@ export default function PriceCheckPage() {
           ))}
         </div>
 
-        {/* KPI row */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className={KPI_CARD}>
-            <div className={KPI_LABEL}>Flagged</div>
-            <div className={`${KPI_VALUE} ${flaggedCount > 0 ? "text-red-400" : "text-emerald-400"}`}>
-              {flaggedCount}
-            </div>
-          </div>
-          <div className={KPI_CARD}>
-            <div className={KPI_LABEL}>Confirmed</div>
-            <div className={KPI_VALUE}>{confirmedRows.length}</div>
-          </div>
-          <div className={KPI_CARD}>
-            <div className={KPI_LABEL}>Monitored Items</div>
-            <div className={KPI_VALUE}>{results.length}</div>
-          </div>
-          <div className={KPI_CARD}>
-            <div className={KPI_LABEL}>Last Check</div>
-            <div className="mt-1 text-sm font-semibold text-white">
-              {lastRun?.run_at ? fmtDatetime(lastRun.run_at) : "Never run"}
-            </div>
-          </div>
-        </div>
+        {/* Dubai tab renders its own component */}
+        {isDubai && (
+          <DubaiTab apiBase={apiBase} tokenHeaders={tokenHeaders} />
+        )}
 
-        {/* Control panel */}
-        <div className={`${GLASS_CARD} p-4`}>
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <div className={T_SECTION}>{STORE_LABELS[activeTab]} — Controls</div>
-            {lastRun && (
-              <div className={`${T_CAPTION} flex items-center gap-1`}>
-                <Clock className="h-3 w-3" />
-                Last run: {fmtDatetime(lastRun.run_at)}
-                {lastRun.error_msg && (
-                  <span className="ml-2 text-red-400">({lastRun.error_msg})</span>
+        {/* Manila tabs */}
+        {!isDubai && (
+          <>
+            {/* KPI row */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className={KPI_CARD}>
+                <div className={KPI_LABEL}>Flagged</div>
+                <div className={`${KPI_VALUE} ${flaggedCount > 0 ? "text-red-400" : "text-emerald-400"}`}>
+                  {flaggedCount}
+                </div>
+              </div>
+              <div className={KPI_CARD}>
+                <div className={KPI_LABEL}>Confirmed</div>
+                <div className={KPI_VALUE}>{confirmedRows.length}</div>
+              </div>
+              <div className={KPI_CARD}>
+                <div className={KPI_LABEL}>Monitored Items</div>
+                <div className={KPI_VALUE}>{results.length}</div>
+              </div>
+              <div className={KPI_CARD}>
+                <div className={KPI_LABEL}>Last Check</div>
+                <div className="mt-1 text-sm font-semibold text-white">
+                  {lastRun?.run_at ? fmtDatetime(lastRun.run_at) : "Never run"}
+                </div>
+              </div>
+            </div>
+
+            {/* Control panel */}
+            <div className={`${GLASS_CARD} p-4`}>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <div className={T_SECTION}>{STORE_LABELS[activeTab]} — Controls</div>
+                {lastRun && (
+                  <div className={`${T_CAPTION} flex items-center gap-1`}>
+                    <Clock className="h-3 w-3" />
+                    Last run: {fmtDatetime(lastRun.run_at)}
+                    {lastRun.error_msg && (
+                      <span className="ml-2 text-red-400">({lastRun.error_msg})</span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {!isParanaque && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={runCheck}
+                      disabled={runBusy || loading}
+                      className={PRIMARY_BUTTON}
+                    >
+                      {runBusy ? (
+                        <span className="flex items-center gap-2">
+                          <RefreshCw className="h-4 w-4 animate-spin" /> Checking...
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <Zap className="h-4 w-4" /> Run Check Now
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={initBaseline}
+                      disabled={baselineBusy || loading}
+                      className={SECONDARY_BUTTON}
+                    >
+                      {baselineBusy ? "Updating..." : "Reset Baseline to Current Prices"}
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={loadStatus}
+                  disabled={loading}
+                  className={SECONDARY_BUTTON}
+                >
+                  <span className="flex items-center gap-2">
+                    <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                    Refresh
+                  </span>
+                </button>
+              </div>
+
+              {!isParanaque && (
+                <p className={`mt-2 ${T_CAPTION}`}>
+                  Auto-check runs every 3 hours. Use &ldquo;Run Check Now&rdquo; to trigger a manual run.
+                </p>
+              )}
+              {isParanaque && (
+                <p className={`mt-2 ${T_CAPTION}`}>
+                  Parañaque is not connected to StoreHub API. Enter prices manually below.
+                </p>
+              )}
+
+              {error && (
+                <div className="mt-3 rounded-xl border border-red-500/30 bg-red-950/20 px-4 py-2 text-sm text-red-300">
+                  {error}
+                </div>
+              )}
+              {success && (
+                <div className="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-950/20 px-4 py-2 text-sm text-emerald-300">
+                  {success}
+                </div>
+              )}
+            </div>
+
+            {/* Manual entry (Parañaque) */}
+            {isParanaque && (
+              <div className={`${GLASS_CARD} p-4`}>
+                <div className="mb-3">
+                  <div className={T_SECTION}>Manual Price Entry</div>
+                  <p className={T_BODY}>Enter the product ID and current selling price to record.</p>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <label className="block">
+                    <div className={`${T_LABEL} mb-1.5`}>Product ID *</div>
+                    <input
+                      className={INPUT_CLASS}
+                      value={manualProductId}
+                      onChange={(e) => setManualProductId(e.target.value)}
+                      placeholder="e.g. PROD-001"
+                    />
+                  </label>
+                  <label className="block">
+                    <div className={`${T_LABEL} mb-1.5`}>Product Name</div>
+                    <input
+                      className={INPUT_CLASS}
+                      value={manualProductName}
+                      onChange={(e) => setManualProductName(e.target.value)}
+                      placeholder="e.g. Salmon Bowl"
+                    />
+                  </label>
+                  <label className="block">
+                    <div className={`${T_LABEL} mb-1.5`}>Category</div>
+                    <input
+                      className={INPUT_CLASS}
+                      value={manualCategory}
+                      onChange={(e) => setManualCategory(e.target.value)}
+                      placeholder="e.g. Main"
+                    />
+                  </label>
+                  <label className="block">
+                    <div className={`${T_LABEL} mb-1.5`}>Current Selling Price (₱) *</div>
+                    <input
+                      className={INPUT_CLASS}
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={manualPrice}
+                      onChange={(e) => setManualPrice(e.target.value)}
+                      placeholder="e.g. 350.00"
+                    />
+                  </label>
+                  <label className="block sm:col-span-2">
+                    <div className={`${T_LABEL} mb-1.5`}>Memo</div>
+                    <input
+                      className={INPUT_CLASS}
+                      value={manualMemo}
+                      onChange={(e) => setManualMemo(e.target.value)}
+                      placeholder="Optional note"
+                    />
+                  </label>
+                </div>
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={submitManualEntry}
+                    disabled={manualBusy}
+                    className={PRIMARY_BUTTON}
+                  >
+                    {manualBusy ? "Saving..." : "Save & Check Price"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Flagged items */}
+            {flaggedRows.length > 0 && (
+              <div className={`${GLASS_CARD} border-red-500/20 p-4`}>
+                <div className="mb-3 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-red-400" />
+                  <div className={T_SECTION}>Price Changes Detected ({flaggedRows.length})</div>
+                </div>
+                <PriceTable
+                  rows={flaggedRows}
+                  confirmingIds={confirmingIds}
+                  confirmMemos={confirmMemos}
+                  setConfirmMemos={setConfirmMemos}
+                  onConfirm={confirmItem}
+                  showConfirm
+                />
+              </div>
+            )}
+
+            {/* OK / Confirmed items */}
+            {(okRows.length > 0 || confirmedRows.length > 0) && (
+              <div className={`${GLASS_CARD} p-4`}>
+                <div className="mb-3">
+                  <div className={T_SECTION}>
+                    Monitored Items ({okRows.length + confirmedRows.length})
+                  </div>
+                </div>
+                <PriceTable
+                  rows={[...confirmedRows, ...okRows]}
+                  confirmingIds={confirmingIds}
+                  confirmMemos={confirmMemos}
+                  setConfirmMemos={setConfirmMemos}
+                  onConfirm={confirmItem}
+                  showConfirm={false}
+                />
+              </div>
+            )}
+
+            {!loading && results.length === 0 && (
+              <div className={`${GLASS_CARD} flex flex-col items-center gap-3 py-10`}>
+                <Tag className="h-8 w-8 text-zinc-600" />
+                <p className={T_CAPTION}>
+                  {isParanaque
+                    ? "No prices recorded yet. Use the form above to enter prices manually."
+                    : "No price data yet. Run a check to populate this list."}
+                </p>
+                {!isParanaque && (
+                  <button
+                    type="button"
+                    onClick={runCheck}
+                    disabled={runBusy}
+                    className={PRIMARY_BUTTON}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Zap className="h-4 w-4" />
+                      Run Check Now
+                    </span>
+                  </button>
                 )}
               </div>
             )}
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {!isParanaque && (
-              <>
-                <button
-                  type="button"
-                  onClick={runCheck}
-                  disabled={runBusy || loading}
-                  className={PRIMARY_BUTTON}
-                >
-                  {runBusy ? (
-                    <span className="flex items-center gap-2">
-                      <RefreshCw className="h-4 w-4 animate-spin" /> Checking...
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <Zap className="h-4 w-4" /> Run Check Now
-                    </span>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={initBaseline}
-                  disabled={baselineBusy || loading}
-                  className={SECONDARY_BUTTON}
-                >
-                  {baselineBusy ? "Updating..." : "Reset Baseline to Current Prices"}
-                </button>
-              </>
-            )}
-            <button
-              type="button"
-              onClick={loadStatus}
-              disabled={loading}
-              className={SECONDARY_BUTTON}
-            >
-              <span className="flex items-center gap-2">
-                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                Refresh
-              </span>
-            </button>
-          </div>
-
-          {!isParanaque && (
-            <p className={`mt-2 ${T_CAPTION}`}>
-              Auto-check runs every 3 hours. Use &ldquo;Run Check Now&rdquo; to trigger a manual run.
-            </p>
-          )}
-          {isParanaque && (
-            <p className={`mt-2 ${T_CAPTION}`}>
-              Parañaque is not connected to StoreHub API. Enter prices manually below.
-            </p>
-          )}
-
-          {error && (
-            <div className="mt-3 rounded-xl border border-red-500/30 bg-red-950/20 px-4 py-2 text-sm text-red-300">
-              {error}
-            </div>
-          )}
-          {success && (
-            <div className="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-950/20 px-4 py-2 text-sm text-emerald-300">
-              {success}
-            </div>
-          )}
-        </div>
-
-        {/* Manual entry (Parañaque) */}
-        {isParanaque && (
-          <div className={`${GLASS_CARD} p-4`}>
-            <div className="mb-3">
-              <div className={T_SECTION}>Manual Price Entry</div>
-              <p className={T_BODY}>Enter the product ID and current selling price to record.</p>
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <label className="block">
-                <div className={`${T_LABEL} mb-1.5`}>Product ID *</div>
-                <input
-                  className={INPUT_CLASS}
-                  value={manualProductId}
-                  onChange={(e) => setManualProductId(e.target.value)}
-                  placeholder="e.g. PROD-001"
-                />
-              </label>
-              <label className="block">
-                <div className={`${T_LABEL} mb-1.5`}>Product Name</div>
-                <input
-                  className={INPUT_CLASS}
-                  value={manualProductName}
-                  onChange={(e) => setManualProductName(e.target.value)}
-                  placeholder="e.g. Salmon Bowl"
-                />
-              </label>
-              <label className="block">
-                <div className={`${T_LABEL} mb-1.5`}>Category</div>
-                <input
-                  className={INPUT_CLASS}
-                  value={manualCategory}
-                  onChange={(e) => setManualCategory(e.target.value)}
-                  placeholder="e.g. Main"
-                />
-              </label>
-              <label className="block">
-                <div className={`${T_LABEL} mb-1.5`}>Current Selling Price (₱) *</div>
-                <input
-                  className={INPUT_CLASS}
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={manualPrice}
-                  onChange={(e) => setManualPrice(e.target.value)}
-                  placeholder="e.g. 350.00"
-                />
-              </label>
-              <label className="block sm:col-span-2">
-                <div className={`${T_LABEL} mb-1.5`}>Memo</div>
-                <input
-                  className={INPUT_CLASS}
-                  value={manualMemo}
-                  onChange={(e) => setManualMemo(e.target.value)}
-                  placeholder="Optional note"
-                />
-              </label>
-            </div>
-            <div className="mt-3">
-              <button
-                type="button"
-                onClick={submitManualEntry}
-                disabled={manualBusy}
-                className={PRIMARY_BUTTON}
-              >
-                {manualBusy ? "Saving..." : "Save & Check Price"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Flagged items */}
-        {flaggedRows.length > 0 && (
-          <div className={`${GLASS_CARD} border-red-500/20 p-4`}>
-            <div className="mb-3 flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-red-400" />
-              <div className={T_SECTION}>Price Changes Detected ({flaggedRows.length})</div>
-            </div>
-            <PriceTable
-              rows={flaggedRows}
-              confirmingIds={confirmingIds}
-              confirmMemos={confirmMemos}
-              setConfirmMemos={setConfirmMemos}
-              onConfirm={confirmItem}
-              showConfirm
-            />
-          </div>
-        )}
-
-        {/* OK / Confirmed items */}
-        {(okRows.length > 0 || confirmedRows.length > 0) && (
-          <div className={`${GLASS_CARD} p-4`}>
-            <div className="mb-3">
-              <div className={T_SECTION}>
-                Monitored Items ({okRows.length + confirmedRows.length})
-              </div>
-            </div>
-            <PriceTable
-              rows={[...confirmedRows, ...okRows]}
-              confirmingIds={confirmingIds}
-              confirmMemos={confirmMemos}
-              setConfirmMemos={setConfirmMemos}
-              onConfirm={confirmItem}
-              showConfirm={false}
-            />
-          </div>
-        )}
-
-        {!loading && results.length === 0 && (
-          <div className={`${GLASS_CARD} flex flex-col items-center gap-3 py-10`}>
-            <Tag className="h-8 w-8 text-zinc-600" />
-            <p className={T_CAPTION}>
-              {isParanaque
-                ? "No prices recorded yet. Use the form above to enter prices manually."
-                : "No price data yet. Run a check to populate this list."}
-            </p>
-            {!isParanaque && (
-              <button
-                type="button"
-                onClick={runCheck}
-                disabled={runBusy}
-                className={PRIMARY_BUTTON}
-              >
-                <span className="flex items-center gap-2">
-                  <Zap className="h-4 w-4" />
-                  Run Check Now
-                </span>
-              </button>
-            )}
-          </div>
+          </>
         )}
       </motion.div>
     </div>
