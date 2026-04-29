@@ -104,10 +104,31 @@ export default function InventoryCountsPage() {
     });
   }, [balancesMap]);
 
+  // Build item_id → master lookup (moved up so applySheetToDraft can use it)
+  const itemMasterById = useMemo(() => {
+    const map: Record<string, typeof itemOptions[number]> = {};
+    for (const item of itemOptions) map[item.id] = item;
+    return map;
+  }, [itemOptions]);
+
   const applySheetToDraft = useCallback((sheet: CountSheetDetail | null, balanceLookup: Record<string, number> = balancesMap) => {
     if (!sheet) return;
-    setDraftLines((sheet.items || []).map((line, index) => refreshLineWithBalance({ ...line, counted_qty: 0, variance_qty: 0, sort_order: index + 1 }, balanceLookup)));
-  }, [balancesMap, refreshLineWithBalance]);
+    setDraftLines((sheet.items || []).map((line, index) => {
+      // Always apply current master data (unit, price, supplier) so stale template values are overwritten
+      const master = itemMasterById[line.item_id];
+      const merged: InventoryCountLine = master ? {
+        ...line,
+        storage_unit: master.storage_unit || line.storage_unit,
+        unit_price: Number(master.cost ?? line.unit_price),
+        supplier_name: master.supplier_name || line.supplier_name,
+        category: master.category_name || line.category,
+        sort_order: index + 1,
+        counted_qty: 0,
+        variance_qty: 0,
+      } : { ...line, counted_qty: 0, variance_qty: 0, sort_order: index + 1 };
+      return refreshLineWithBalance(merged, balanceLookup);
+    }));
+  }, [balancesMap, itemMasterById, refreshLineWithBalance]);
 
   // Stable ref so useEffects below don't re-fire every time balancesMap changes
   const applySheetToDraftRef = useRef(applySheetToDraft);
@@ -313,13 +334,6 @@ export default function InventoryCountsPage() {
   function removeDraftLine(index: number) {
     setDraftLines((prev) => prev.filter((_, idx) => idx !== index).map((line, idx) => ({ ...line, sort_order: idx + 1 })));
   }
-
-  // Build item_id → master lookup once
-  const itemMasterById = useMemo(() => {
-    const map: Record<string, typeof itemOptions[number]> = {};
-    for (const item of itemOptions) map[item.id] = item;
-    return map;
-  }, [itemOptions]);
 
   // Merge current item master data (unit, price, supplier, category) into a saved line.
   // Counted qty and memo are preserved from the saved line.
