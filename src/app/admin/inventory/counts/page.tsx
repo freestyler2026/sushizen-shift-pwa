@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import InventoryTabs from "@/components/InventoryTabs";
 import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
@@ -11,6 +12,7 @@ import { formatDraftNumber, getInventoryQuantityStep, parseDraftNumber, stepDraf
 type CountSheetRow = {
   id: string;
   name: string;
+  reference?: string;
   branch_code: string;
   cycle: string;
   source_sheet_name: string;
@@ -85,6 +87,8 @@ export default function InventoryCountsPage() {
   // Draft UX state
   const [draftSearch, setDraftSearch] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  // Template picker — separate from selectedCountSheetId to allow explicit "Load" action
+  const [templatePickerId, setTemplatePickerId] = useState("");
   // Inline item editing state
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editItemUnit, setEditItemUnit] = useState("");
@@ -132,6 +136,7 @@ export default function InventoryCountsPage() {
     setSelectedCountId("");
     setSelectedCount(null);
     setSelectedCountSheetId("");
+    setTemplatePickerId("");
     setDraftLines([]);
   }, [city]);
 
@@ -159,7 +164,9 @@ export default function InventoryCountsPage() {
         setBalancesMap(balanceMap);
         const matchCount = Number(currentRes?.match_count || 0);
         if (matchCount === 1 && currentRes?.row) {
-          setSelectedCountSheetId(String(currentRes.row.id || ""));
+          const autoId = String(currentRes.row.id || "");
+          setSelectedCountSheetId(autoId);
+          setTemplatePickerId(autoId);
           applySheetToDraftRef.current(currentRes.row, balanceMap);
         } else if (!activeSheets.some((row) => row.id === selectedCountSheetId)) {
           setSelectedCountSheetId("");
@@ -290,6 +297,17 @@ export default function InventoryCountsPage() {
     if (!selectedItem) return;
     setDraftLines((prev) => [...prev, refreshLineWithBalance(lineFromItem(selectedItem, prev.length + 1))]);
     setSelectedItemId("");
+  }
+
+  function handleLoadTemplate() {
+    if (!templatePickerId) return;
+    if (draftLines.length > 0) {
+      if (!window.confirm("現在のDraft itemsはテンプレートの内容に置き換えられます。続けますか？\n(Current draft items will be replaced by the template. Continue?)")) {
+        return;
+      }
+    }
+    setSelectedCountSheetId(templatePickerId);
+    // The useEffect watching selectedCountSheetId will auto-fetch & applySheetToDraft
   }
 
   function removeDraftLine(index: number) {
@@ -547,10 +565,56 @@ export default function InventoryCountsPage() {
           )}
         </div>
 
+        {/* ── Template loader ── */}
+        <div className="mt-4 rounded-xl border border-violet-900/40 bg-violet-950/10 p-3">
+          <div className="mb-2 flex items-center gap-2">
+            <span className="text-xs font-semibold text-violet-300">Load Count Template</span>
+            {selectedCountSheetId && (
+              <span className="rounded-md bg-emerald-900/40 px-2 py-0.5 text-xs text-emerald-300">
+                ✓ {countSheetOptions.find((s) => s.id === selectedCountSheetId)?.name || "Template loaded"}
+              </span>
+            )}
+          </div>
+          {countSheetOptions.length > 0 ? (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_140px]">
+              <select
+                value={templatePickerId}
+                onChange={(e) => setTemplatePickerId(e.target.value)}
+                className="rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+              >
+                <option value="">— Select a template —</option>
+                {countSheetOptions.map((sheet) => (
+                  <option key={sheet.id} value={sheet.id}>
+                    {sheet.name}{sheet.reference ? ` · ${sheet.reference}` : ""}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={handleLoadTemplate}
+                disabled={!templatePickerId || loading}
+                className="rounded-xl border border-violet-700/60 bg-violet-950/30 px-4 py-2 text-sm font-medium text-violet-200 hover:bg-violet-900/30 disabled:opacity-50"
+              >
+                {loading ? "Loading…" : "Load Template"}
+              </button>
+            </div>
+          ) : (
+            <div className="text-xs text-neutral-500">
+              No templates available for this branch / cycle.{" "}
+              <Link href="/admin/inventory/count-sheets" className="text-violet-400 underline hover:text-violet-300">
+                Create a template →
+              </Link>
+            </div>
+          )}
+          <p className="mt-1.5 text-[11px] text-neutral-600">
+            Template items are loaded with counted qty = 0. Branch and cycle must match.
+          </p>
+        </div>
+
         {/* ── Add item row ── */}
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_140px]">
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_140px]">
           <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)}>
-            <option value="">Add inventory item</option>
+            <option value="">Add inventory item manually</option>
             {itemOptions.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.supplier_name ? `${item.supplier_name} / ` : ""}{item.name} {item.sku ? `(${item.sku})` : ""}
@@ -584,7 +648,7 @@ export default function InventoryCountsPage() {
         <div className="mt-4 space-y-3">
           {filteredGroupedDraft.length === 0 && draftLines.length === 0 ? (
             <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-950/30 px-3 py-8 text-center text-sm text-neutral-500">
-              Load a count template or add items manually.
+              Select a template above and click <span className="font-semibold text-violet-400">Load Template</span>, or add items manually.
             </div>
           ) : filteredGroupedDraft.length === 0 ? (
             <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-950/30 px-3 py-6 text-center text-xs text-neutral-500">
