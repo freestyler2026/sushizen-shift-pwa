@@ -287,6 +287,32 @@ function PublishedView({
   );
 }
 
+// ─── LocalStorage helpers ─────────────────────────────────────────────────────
+
+function draftKey(city: string, branch: string, week: string) {
+  return `manual-shift-draft::${city}::${branch}::${week}`;
+}
+function saveDraft(city: string, branch: string, week: string, grid: GridData) {
+  try {
+    // Only persist non-null cells to keep storage compact
+    const compact: GridData = {};
+    for (const [name, days] of Object.entries(grid)) {
+      const filled = Object.fromEntries(Object.entries(days).filter(([, v]) => v != null));
+      if (Object.keys(filled).length > 0) compact[name] = filled as Record<string, ShiftCell>;
+    }
+    localStorage.setItem(draftKey(city, branch, week), JSON.stringify(compact));
+  } catch { /* quota exceeded — silently ignore */ }
+}
+function loadDraft(city: string, branch: string, week: string): GridData {
+  try {
+    const raw = localStorage.getItem(draftKey(city, branch, week));
+    return raw ? (JSON.parse(raw) as GridData) : {};
+  } catch { return {}; }
+}
+function clearDraft(city: string, branch: string, week: string) {
+  try { localStorage.removeItem(draftKey(city, branch, week)); } catch { /* ignore */ }
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ManualShiftPage() {
@@ -308,15 +334,30 @@ export default function ManualShiftPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [view, setView] = useState<PageView>("edit");
   const [publishedCount, setPublishedCount] = useState(0);
+  // True when the user has locally entered cells not yet published
+  const [hasDraft, setHasDraft] = useState(false);
 
   // Week dates Mon–Sun
   const weekDates = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
     [weekStart]
   );
+
+  // Count locally-entered (non-null) cells so we know if there is unsaved data
+  const localCellCount = useMemo(
+    () => Object.values(gridData).reduce((sum, days) => sum + Object.values(days).filter(Boolean).length, 0),
+    [gridData]
+  );
+
+  // Auto-save draft to localStorage whenever the grid changes
+  useEffect(() => {
+    if (staffList.length > 0) {
+      saveDraft(city, branchCode, weekStart, gridData);
+      setHasDraft(localCellCount > 0);
+    }
+  }, [gridData, city, branchCode, weekStart, staffList.length, localCellCount]);
 
   // Reset branch when city changes
   useEffect(() => {
@@ -344,49 +385,87 @@ export default function ManualShiftPage() {
         }
         return next;
       });
-    } catch (e: any) {
-      setError(e?.message || String(e));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
   }, [city]);
 
-  // Load existing published shifts for this week/branch
-  const loadExistingShifts = useCallback(async () => {
+  /**
+   * Merge server-published shifts into the local grid.
+   * NEVER overwrites a cell that already has local data.
+   * If forceOverwrite=true (user explicitly clicked reload), wipe local and reload.
+   */
+  const loadExistingShifts = useCallback(async (forceOverwrite = false) => {
     setLoading(true);
     setError("");
     try {
       const data = await apiFetch<{ rows?: any[] }>(
         `/api/published/week?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}`
       );
-      const rows = (data.rows || []).filter((r) => r.branch_code === branchCode);
-      const nextGrid: GridData = {};
-      for (const name of staffList) nextGrid[name] = {};
-      for (const r of rows) {
-        if (!nextGrid[r.staff_name]) nextGrid[r.staff_name] = {};
-        nextGrid[r.staff_name][r.work_date] = {
-          start_hour: Number(r.start_hour),
-          end_hour: Number(r.end_hour),
-          role: String(r.role || ""),
-        };
-      }
-      setGridData(nextGrid);
-      const extraNames = rows.map((r) => r.staff_name).filter((n) => !staffList.includes(n));
+      const rows = (data.rows || []).filter((r: any) => r.branch_code === branchCode);
+
+      setGridData((prev) => {
+        // Start with current local state (preserves unsaved work)
+        const nextGrid: GridData = {};
+        const allNames = Array.from(new Set([
+          ...Object.keys(prev),
+          ...rows.map((r: any) => r.staff_name as string),
+        ]));
+        for (const name of allNames) {
+          nextGrid[name] = forceOverwrite ? {} : { ...(prev[name] ?? {}) };
+        }
+        // Merge server rows — only fill cells that are locally empty (unless forceOverwrite)
+        for (const r of rows) {
+          if (!nextGrid[r.staff_name]) nextGrid[r.staff_name] = {};
+          if (forceOverwrite || nextGrid[r.staff_name][r.work_date] == null) {
+            nextGrid[r.staff_name][r.work_date] = {
+              start_hour: Number(r.start_hour),
+              end_hour: Number(r.end_hour),
+              role: String(r.role || ""),
+            };
+          }
+        }
+        return nextGrid;
+      });
+
+      const extraNames = rows.map((r: any) => r.staff_name as string).filter((n: string) => !staffList.includes(n));
       if (extraNames.length > 0) {
         const merged = Array.from(new Set([...staffList, ...extraNames])).sort((a, b) => a.localeCompare(b));
         setStaffList(merged);
       }
-    } catch (e: any) {
-      setError(e?.message || String(e));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
   }, [city, weekStart, branchCode, staffList]);
 
-  // Auto-load existing when week/branch changes (if staff already loaded)
+  /**
+   * Restore draft from localStorage when staff first loads or key changes.
+   * Called after loadStaff + loadExistingShifts so draft wins over server data.
+   */
+  const restoreDraft = useCallback((names: string[], branch: string, week: string) => {
+    const draft = loadDraft(city, branch, week);
+    if (Object.keys(draft).length === 0) return;
+    setGridData((prev) => {
+      const next: GridData = {};
+      for (const name of names) next[name] = { ...(prev[name] ?? {}) };
+      for (const [name, days] of Object.entries(draft)) {
+        if (!next[name]) next[name] = {};
+        for (const [date, cell] of Object.entries(days)) {
+          if (cell != null) next[name][date] = cell; // draft wins
+        }
+      }
+      return next;
+    });
+  }, [city]);
+
+  // When week/branch changes while staff is already loaded: merge-reload (never wipe)
   useEffect(() => {
     if (staffList.length > 0) {
-      void loadExistingShifts();
+      void loadExistingShifts(false); // merge — don't wipe local data
       setView("edit");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -424,6 +503,7 @@ export default function ManualShiftPage() {
         ...prev,
         [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: { start_hour: 0, end_hour: 0, role: editSpecialType } },
       }));
+      setHasDraft(true);
       setEditTarget(null);
       return;
     }
@@ -439,6 +519,7 @@ export default function ManualShiftPage() {
       ...prev,
       [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: { start_hour: editStart, end_hour: editEnd, role } },
     }));
+    setHasDraft(true);
     setEditTarget(null);
   }
 
@@ -472,7 +553,6 @@ export default function ManualShiftPage() {
 
   async function handlePublish() {
     setError("");
-    setSuccess("");
     const rows = buildRows();
     if (rows.length === 0) {
       setError("No shifts to publish. Please add at least one shift.");
@@ -499,9 +579,11 @@ export default function ManualShiftPage() {
         : result.export_result ? " + Exported to Sheet ✓" : "";
       setSuccess(`✅ Published ${result.rows_copied} shifts to Week/My-Shift${exportNote}`);
       setPublishedCount(result.rows_copied);
-      setView("published"); // ← auto-switch to Published View
-    } catch (e: any) {
-      setError(e?.message || String(e));
+      clearDraft(city, branchCode, weekStart); // ← clear saved draft after successful publish
+      setHasDraft(false);
+      setView("published");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
@@ -551,21 +633,47 @@ export default function ManualShiftPage() {
               onChange={(e) => setWeekStart(mondayOf(e.target.value || weekStart))}
             />
           </div>
-          <div className="flex items-end gap-2">
+          <div className="flex items-end gap-2 flex-wrap">
             <button
               type="button"
-              onClick={() => { void loadStaff().then(() => loadExistingShifts()); }}
+              onClick={async () => {
+                await loadStaff();
+                await loadExistingShifts(false); // merge — preserves local entries
+                restoreDraft(staffList, branchCode, weekStart); // restore any saved draft
+              }}
               disabled={loading}
               className={SECONDARY_BUTTON}
             >
               {loading ? "Loading..." : "Load Staff & Shifts"}
             </button>
+            {staffList.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!window.confirm("Reload from server? All locally entered shifts that have not been published will be lost.")) return;
+                  clearDraft(city, branchCode, weekStart);
+                  setHasDraft(false);
+                  void loadExistingShifts(true);
+                }}
+                disabled={loading}
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-neutral-400 transition hover:bg-white/10"
+              >
+                ↺ Reload from Server
+              </button>
+            )}
           </div>
         </div>
         {staffList.length > 0 && (
-          <p className="mt-2 text-xs text-neutral-500">
-            {staffList.length} staff loaded · {labelOf(city, branchCode)} · Week of {weekStart}
-          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <p className="text-xs text-neutral-500">
+              {staffList.length} staff · {labelOf(city, branchCode)} · Week of {weekStart}
+            </p>
+            {hasDraft && (
+              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-amber-300">
+                ● Unsaved draft
+              </span>
+            )}
+          </div>
         )}
       </div>
 
