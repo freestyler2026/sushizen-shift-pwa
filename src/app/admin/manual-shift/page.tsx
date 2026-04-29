@@ -574,10 +574,9 @@ export default function ManualShiftPage() {
           }),
         }
       );
-      const exportNote = result.export_result?.error
-        ? ` (Sheet export error: ${result.export_result.error})`
-        : result.export_result ? " + Exported to Sheet ✓" : "";
-      setSuccess(`✅ Published ${result.rows_copied} shifts to Week/My-Shift${exportNote}`);
+      if (result.export_result?.error) {
+        setError(`Sheet export error: ${result.export_result.error}`);
+      }
       setPublishedCount(result.rows_copied);
       clearDraft(city, branchCode, weekStart); // ← clear saved draft after successful publish
       setHasDraft(false);
