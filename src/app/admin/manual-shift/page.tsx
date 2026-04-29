@@ -30,8 +30,10 @@ const ROLE_OPTIONS_MANILA = ["CK", "SV", "BA", "HK", "SC", "MGR", "ADMIN", "DRIV
 function getRoleOptions(city: string) {
   return city === "manila" ? ROLE_OPTIONS_MANILA : ROLE_OPTIONS_DUBAI;
 }
-const START_HOUR_OPTIONS = Array.from({ length: 19 }, (_, i) => i + 6); // 6..24
-const END_HOUR_OPTIONS = Array.from({ length: 23 }, (_, i) => i + 6);   // 6..28 (+4:00)
+// 30-minute steps: 6:00, 6:30, 7:00, … 24:00
+const START_HOUR_OPTIONS = Array.from({ length: 37 }, (_, i) => 6 + i * 0.5); // 6..24
+// 30-minute steps: 6:00, 6:30, … 28:00 (+4:00)
+const END_HOUR_OPTIONS = Array.from({ length: 45 }, (_, i) => 6 + i * 0.5);   // 6..28
 
 // Special (non-shift) types
 const SPECIAL_TYPES = [
@@ -87,9 +89,11 @@ function todayMonday(): string {
 }
 
 function fmtHour(h: number): string {
-  if (h === 0) return "0:00";
-  if (h >= 24) return `+${h - 24}:00`;
-  return `${h}:00`;
+  const mins = (h % 1) === 0.5 ? "30" : "00";
+  const base = Math.floor(h);
+  if (base === 0 && mins === "00") return "0:00";
+  if (base >= 24) return `+${base - 24}:${mins}`;
+  return `${base}:${mins}`;
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
