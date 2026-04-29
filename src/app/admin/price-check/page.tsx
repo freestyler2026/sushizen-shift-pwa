@@ -29,7 +29,6 @@ import {
   BADGE_SUCCESS,
   BADGE_WARNING,
   BADGE_ERROR,
-  BADGE_INFO,
   INPUT_CLASS,
   TABLE_HEADER,
   TABLE_ROW,
@@ -466,7 +465,7 @@ export default function PriceCheckPage() {
 
           {!isParanaque && (
             <p className={`mt-2 ${T_CAPTION}`}>
-              Auto-check runs every 3 hours. Use "Run Check Now" to trigger a manual run.
+              Auto-check runs every 3 hours. Use &ldquo;Run Check Now&rdquo; to trigger a manual run.
             </p>
           )}
           {isParanaque && (
