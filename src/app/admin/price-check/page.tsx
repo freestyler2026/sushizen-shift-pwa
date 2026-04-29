@@ -210,7 +210,7 @@ export default function PriceCheckPage() {
       const text = await res.text();
       if (!res.ok) throw new Error(text || `Failed (${res.status})`);
       const j = JSON.parse(text);
-      setSuccess(`チェック完了 — ${j.items_checked} 商品, ${j.items_flagged} 件フラグ`);
+      setSuccess(`Check complete — ${j.items_checked} item${j.items_checked !== 1 ? "s" : ""} checked, ${j.items_flagged} flagged`);
       await loadStatus();
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -220,7 +220,7 @@ export default function PriceCheckPage() {
   };
 
   const initBaseline = async () => {
-    if (!window.confirm("現在のStoreHub価格を基準価格として上書き保存します。よろしいですか？")) return;
+    if (!window.confirm("This will overwrite the baseline with current StoreHub prices. Are you sure?")) return;
     setBaselineBusy(true);
     setError("");
     setSuccess("");
@@ -234,7 +234,7 @@ export default function PriceCheckPage() {
       const text = await res.text();
       if (!res.ok) throw new Error(text || `Failed (${res.status})`);
       const j = JSON.parse(text);
-      setSuccess(`基準価格を更新しました — ${j.products_snapshotted} 商品`);
+      setSuccess(`Baseline updated — ${j.products_snapshotted} product${j.products_snapshotted !== 1 ? "s" : ""} snapshotted`);
       await loadStatus();
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -260,7 +260,7 @@ export default function PriceCheckPage() {
       });
       const text = await res.text();
       if (!res.ok) throw new Error(text || `Failed (${res.status})`);
-      setSuccess(`"${row.product_name}" を確認済みにしました`);
+      setSuccess(`"${row.product_name}" marked as confirmed`);
       await loadStatus();
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -270,9 +270,9 @@ export default function PriceCheckPage() {
   };
 
   const submitManualEntry = async () => {
-    if (!manualProductId.trim()) { setError("商品IDを入力してください"); return; }
+    if (!manualProductId.trim()) { setError("Product ID is required"); return; }
     const price = parseFloat(manualPrice);
-    if (isNaN(price) || price <= 0) { setError("正しい価格を入力してください"); return; }
+    if (isNaN(price) || price <= 0) { setError("Please enter a valid price"); return; }
     setManualBusy(true);
     setError("");
     setSuccess("");
@@ -295,8 +295,8 @@ export default function PriceCheckPage() {
       const j = JSON.parse(text);
       setSuccess(
         j.status === "changed"
-          ? `⚠️ 価格変更を検出: 基準 ${fmtPrice(j.baseline_price)} → 現在 ${fmtPrice(j.current_price)}`
-          : `"${manualProductId}" を登録しました (価格変化なし)`
+          ? `⚠️ Price change detected: baseline ${fmtPrice(j.baseline_price)} → current ${fmtPrice(j.current_price)}`
+          : `"${manualProductId}" saved (no price change)`
       );
       setManualProductId("");
       setManualProductName("");
@@ -348,19 +348,19 @@ export default function PriceCheckPage() {
           <div>
             <h1 className={T_PAGE_TITLE}>Price Check</h1>
             <p className={T_BODY}>
-              StoreHubの販売価格を監視し、基準価格からの変更を検出します。
+              Monitor StoreHub selling prices and detect changes from the baseline.
             </p>
           </div>
           <div className="flex items-center gap-2">
             {flaggedCount > 0 ? (
               <span className={BADGE_ERROR}>
                 <AlertTriangle className="h-3 w-3" />
-                {flaggedCount} 件の変更あり
+                {flaggedCount} change{flaggedCount !== 1 ? "s" : ""} detected
               </span>
             ) : (
               <span className={BADGE_SUCCESS}>
                 <CheckCircle2 className="h-3 w-3" />
-                全て正常
+                All OK
               </span>
             )}
           </div>
@@ -377,7 +377,7 @@ export default function PriceCheckPage() {
             >
               {STORE_LABELS[tab]}
               {tab === "PAR" && (
-                <span className="ml-1.5 text-[10px] text-zinc-500">(手動)</span>
+                <span className="ml-1.5 text-[10px] text-zinc-500">(manual)</span>
               )}
             </button>
           ))}
@@ -386,23 +386,23 @@ export default function PriceCheckPage() {
         {/* KPI row */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className={KPI_CARD}>
-            <div className={KPI_LABEL}>フラグ件数</div>
+            <div className={KPI_LABEL}>Flagged</div>
             <div className={`${KPI_VALUE} ${flaggedCount > 0 ? "text-red-400" : "text-emerald-400"}`}>
               {flaggedCount}
             </div>
           </div>
           <div className={KPI_CARD}>
-            <div className={KPI_LABEL}>確認済み</div>
+            <div className={KPI_LABEL}>Confirmed</div>
             <div className={KPI_VALUE}>{confirmedRows.length}</div>
           </div>
           <div className={KPI_CARD}>
-            <div className={KPI_LABEL}>監視商品数</div>
+            <div className={KPI_LABEL}>Monitored Items</div>
             <div className={KPI_VALUE}>{results.length}</div>
           </div>
           <div className={KPI_CARD}>
-            <div className={KPI_LABEL}>最終チェック</div>
+            <div className={KPI_LABEL}>Last Check</div>
             <div className="mt-1 text-sm font-semibold text-white">
-              {lastRun?.run_at ? fmtDatetime(lastRun.run_at) : "未実行"}
+              {lastRun?.run_at ? fmtDatetime(lastRun.run_at) : "Never run"}
             </div>
           </div>
         </div>
@@ -410,11 +410,11 @@ export default function PriceCheckPage() {
         {/* Control panel */}
         <div className={`${GLASS_CARD} p-4`}>
           <div className="mb-3 flex items-center justify-between gap-2">
-            <div className={T_SECTION}>{STORE_LABELS[activeTab]} — コントロール</div>
+            <div className={T_SECTION}>{STORE_LABELS[activeTab]} — Controls</div>
             {lastRun && (
               <div className={`${T_CAPTION} flex items-center gap-1`}>
                 <Clock className="h-3 w-3" />
-                最終実行: {fmtDatetime(lastRun.run_at)}
+                Last run: {fmtDatetime(lastRun.run_at)}
                 {lastRun.error_msg && (
                   <span className="ml-2 text-red-400">({lastRun.error_msg})</span>
                 )}
@@ -433,11 +433,11 @@ export default function PriceCheckPage() {
                 >
                   {runBusy ? (
                     <span className="flex items-center gap-2">
-                      <RefreshCw className="h-4 w-4 animate-spin" /> チェック中...
+                      <RefreshCw className="h-4 w-4 animate-spin" /> Checking...
                     </span>
                   ) : (
                     <span className="flex items-center gap-2">
-                      <Zap className="h-4 w-4" /> 今すぐチェック
+                      <Zap className="h-4 w-4" /> Run Check Now
                     </span>
                   )}
                 </button>
@@ -447,7 +447,7 @@ export default function PriceCheckPage() {
                   disabled={baselineBusy || loading}
                   className={SECONDARY_BUTTON}
                 >
-                  {baselineBusy ? "更新中..." : "基準価格を現在値で更新"}
+                  {baselineBusy ? "Updating..." : "Reset Baseline to Current Prices"}
                 </button>
               </>
             )}
@@ -459,19 +459,19 @@ export default function PriceCheckPage() {
             >
               <span className="flex items-center gap-2">
                 <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                更新
+                Refresh
               </span>
             </button>
           </div>
 
           {!isParanaque && (
             <p className={`mt-2 ${T_CAPTION}`}>
-              自動チェックは3時間ごとに実行されます。「今すぐチェック」で手動実行も可能です。
+              Auto-check runs every 3 hours. Use "Run Check Now" to trigger a manual run.
             </p>
           )}
           {isParanaque && (
             <p className={`mt-2 ${T_CAPTION}`}>
-              ParañaqueはStoreHub APIに対応していないため、価格を手動で入力・確認してください。
+              Parañaque is not connected to StoreHub API. Enter prices manually below.
             </p>
           )}
 
@@ -491,39 +491,39 @@ export default function PriceCheckPage() {
         {isParanaque && (
           <div className={`${GLASS_CARD} p-4`}>
             <div className="mb-3">
-              <div className={T_SECTION}>手動価格入力</div>
-              <p className={T_BODY}>商品IDと現在の販売価格を入力してください。</p>
+              <div className={T_SECTION}>Manual Price Entry</div>
+              <p className={T_BODY}>Enter the product ID and current selling price to record.</p>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <label className="block">
-                <div className={`${T_LABEL} mb-1.5`}>商品ID *</div>
+                <div className={`${T_LABEL} mb-1.5`}>Product ID *</div>
                 <input
                   className={INPUT_CLASS}
                   value={manualProductId}
                   onChange={(e) => setManualProductId(e.target.value)}
-                  placeholder="例: PROD-001"
+                  placeholder="e.g. PROD-001"
                 />
               </label>
               <label className="block">
-                <div className={`${T_LABEL} mb-1.5`}>商品名</div>
+                <div className={`${T_LABEL} mb-1.5`}>Product Name</div>
                 <input
                   className={INPUT_CLASS}
                   value={manualProductName}
                   onChange={(e) => setManualProductName(e.target.value)}
-                  placeholder="例: サーモン丼"
+                  placeholder="e.g. Salmon Bowl"
                 />
               </label>
               <label className="block">
-                <div className={`${T_LABEL} mb-1.5`}>カテゴリ</div>
+                <div className={`${T_LABEL} mb-1.5`}>Category</div>
                 <input
                   className={INPUT_CLASS}
                   value={manualCategory}
                   onChange={(e) => setManualCategory(e.target.value)}
-                  placeholder="例: Main"
+                  placeholder="e.g. Main"
                 />
               </label>
               <label className="block">
-                <div className={`${T_LABEL} mb-1.5`}>現在の販売価格 (₱) *</div>
+                <div className={`${T_LABEL} mb-1.5`}>Current Selling Price (₱) *</div>
                 <input
                   className={INPUT_CLASS}
                   type="number"
@@ -531,16 +531,16 @@ export default function PriceCheckPage() {
                   step="0.01"
                   value={manualPrice}
                   onChange={(e) => setManualPrice(e.target.value)}
-                  placeholder="例: 350.00"
+                  placeholder="e.g. 350.00"
                 />
               </label>
               <label className="block sm:col-span-2">
-                <div className={`${T_LABEL} mb-1.5`}>メモ</div>
+                <div className={`${T_LABEL} mb-1.5`}>Memo</div>
                 <input
                   className={INPUT_CLASS}
                   value={manualMemo}
                   onChange={(e) => setManualMemo(e.target.value)}
-                  placeholder="任意メモ"
+                  placeholder="Optional note"
                 />
               </label>
             </div>
@@ -551,7 +551,7 @@ export default function PriceCheckPage() {
                 disabled={manualBusy}
                 className={PRIMARY_BUTTON}
               >
-                {manualBusy ? "登録中..." : "価格を登録・チェック"}
+                {manualBusy ? "Saving..." : "Save & Check Price"}
               </button>
             </div>
           </div>
@@ -562,7 +562,7 @@ export default function PriceCheckPage() {
           <div className={`${GLASS_CARD} border-red-500/20 p-4`}>
             <div className="mb-3 flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-red-400" />
-              <div className={T_SECTION}>価格変更あり ({flaggedRows.length} 件)</div>
+              <div className={T_SECTION}>Price Changes Detected ({flaggedRows.length})</div>
             </div>
             <PriceTable
               rows={flaggedRows}
@@ -580,7 +580,7 @@ export default function PriceCheckPage() {
           <div className={`${GLASS_CARD} p-4`}>
             <div className="mb-3">
               <div className={T_SECTION}>
-                監視中 ({okRows.length + confirmedRows.length} 件)
+                Monitored Items ({okRows.length + confirmedRows.length})
               </div>
             </div>
             <PriceTable
@@ -599,8 +599,8 @@ export default function PriceCheckPage() {
             <Tag className="h-8 w-8 text-zinc-600" />
             <p className={T_CAPTION}>
               {isParanaque
-                ? "まだ価格が登録されていません。上のフォームから手動入力してください。"
-                : "まだ価格データがありません。「今すぐチェック」を実行してください。"}
+                ? "No prices recorded yet. Use the form above to enter prices manually."
+                : "No price data yet. Run a check to populate this list."}
             </p>
             {!isParanaque && (
               <button
@@ -611,7 +611,7 @@ export default function PriceCheckPage() {
               >
                 <span className="flex items-center gap-2">
                   <Zap className="h-4 w-4" />
-                  今すぐチェック
+                  Run Check Now
                 </span>
               </button>
             )}
@@ -644,14 +644,14 @@ function PriceTable({
       <table className="w-full min-w-[640px]">
         <thead>
           <tr>
-            <th className={`${TABLE_HEADER} text-left`}>商品名</th>
-            <th className={`${TABLE_HEADER} text-left hidden sm:table-cell`}>カテゴリ</th>
-            <th className={`${TABLE_HEADER} text-right`}>基準価格</th>
-            <th className={`${TABLE_HEADER} text-right`}>現在価格</th>
-            <th className={`${TABLE_HEADER} text-right`}>変動率</th>
-            <th className={`${TABLE_HEADER} text-center`}>ステータス</th>
-            <th className={`${TABLE_HEADER} text-left hidden md:table-cell`}>最終確認</th>
-            {showConfirm && <th className={`${TABLE_HEADER} text-left`}>確認</th>}
+            <th className={`${TABLE_HEADER} text-left`}>Product</th>
+            <th className={`${TABLE_HEADER} text-left hidden sm:table-cell`}>Category</th>
+            <th className={`${TABLE_HEADER} text-right`}>Baseline</th>
+            <th className={`${TABLE_HEADER} text-right`}>Current</th>
+            <th className={`${TABLE_HEADER} text-right`}>Change</th>
+            <th className={`${TABLE_HEADER} text-center`}>Status</th>
+            <th className={`${TABLE_HEADER} text-left hidden md:table-cell`}>Last Confirmed</th>
+            {showConfirm && <th className={`${TABLE_HEADER} text-left`}>Confirm</th>}
           </tr>
         </thead>
         <tbody>
@@ -706,7 +706,7 @@ function PriceTable({
                     <div className="flex items-center gap-2">
                       <input
                         className="w-28 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white placeholder:text-zinc-600 outline-none focus:border-violet-500/50"
-                        placeholder="メモ"
+                        placeholder="Note"
                         value={confirmMemos[row.id] || ""}
                         onChange={(e) =>
                           setConfirmMemos((m) => ({ ...m, [row.id]: e.target.value }))
@@ -723,7 +723,7 @@ function PriceTable({
                         ) : (
                           <span className="flex items-center gap-1">
                             <ShieldCheck className="h-3 w-3" />
-                            確認済
+                            Confirm
                           </span>
                         )}
                       </button>
