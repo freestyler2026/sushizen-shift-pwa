@@ -96,11 +96,17 @@ type DubaiSummary = {
   no_baseline: number;
 };
 
+type DubaiBaseline = {
+  product_name: string;
+  baseline_price: number;
+};
+
 type DubaiStatus = {
   check_date: string;
   discount_rate: number;
   items: DubaiItem[];
   confirmation: DubaiConfirmation;
+  baselines: DubaiBaseline[];
   summary: DubaiSummary;
 };
 
@@ -223,8 +229,8 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
   const [confirmMemo, setConfirmMemo] = useState("");
   const [confirmBusy, setConfirmBusy] = useState(false);
 
-  // Baseline editor
-  const [showBaselineEditor, setShowBaselineEditor] = useState(false);
+  // Baseline editor (open by default so saved prices are visible)
+  const [showBaselineEditor, setShowBaselineEditor] = useState(true);
   const [baselineText, setBaselineText] = useState("");
   const [baselineBusy, setBaselineBusy] = useState(false);
 
@@ -244,6 +250,10 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
       setDiscountRateOk(j.confirmation.discount_rate_ok);
       setMenuOk(j.confirmation.menu_ok);
       setConfirmMemo(j.confirmation.memo || "");
+      // Pre-fill baseline editor with saved baselines (if any)
+      if (j.baselines && j.baselines.length > 0) {
+        setBaselineText(j.baselines.map((b) => `${b.product_name}\t${b.baseline_price.toFixed(2)}`).join("\n"));
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
