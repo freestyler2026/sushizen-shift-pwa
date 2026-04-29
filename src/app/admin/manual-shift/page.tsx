@@ -351,13 +351,14 @@ export default function ManualShiftPage() {
     [gridData]
   );
 
-  // Auto-save draft to localStorage whenever the grid changes
+  // Auto-save draft to localStorage whenever the grid changes.
+  // Guard with !loading so we never overwrite the saved draft mid-load.
   useEffect(() => {
-    if (staffList.length > 0) {
+    if (staffList.length > 0 && !loading) {
       saveDraft(city, branchCode, weekStart, gridData);
       setHasDraft(localCellCount > 0);
     }
-  }, [gridData, city, branchCode, weekStart, staffList.length, localCellCount]);
+  }, [gridData, city, branchCode, weekStart, staffList.length, localCellCount, loading]);
 
   // Reset branch when city changes
   useEffect(() => {
@@ -441,26 +442,6 @@ export default function ManualShiftPage() {
       setLoading(false);
     }
   }, [city, weekStart, branchCode, staffList]);
-
-  /**
-   * Restore draft from localStorage when staff first loads or key changes.
-   * Called after loadStaff + loadExistingShifts so draft wins over server data.
-   */
-  const restoreDraft = useCallback((names: string[], branch: string, week: string) => {
-    const draft = loadDraft(city, branch, week);
-    if (Object.keys(draft).length === 0) return;
-    setGridData((prev) => {
-      const next: GridData = {};
-      for (const name of names) next[name] = { ...(prev[name] ?? {}) };
-      for (const [name, days] of Object.entries(draft)) {
-        if (!next[name]) next[name] = {};
-        for (const [date, cell] of Object.entries(days)) {
-          if (cell != null) next[name][date] = cell; // draft wins
-        }
-      }
-      return next;
-    });
-  }, [city]);
 
   // When week/branch changes while staff is already loaded: merge-reload (never wipe)
   useEffect(() => {
@@ -636,9 +617,25 @@ export default function ManualShiftPage() {
             <button
               type="button"
               onClick={async () => {
+                // Snapshot draft BEFORE loadStaff runs (which would trigger auto-save
+                // and overwrite the draft with the current — possibly empty — grid).
+                const savedDraft = loadDraft(city, branchCode, weekStart);
                 await loadStaff();
                 await loadExistingShifts(false); // merge — preserves local entries
-                restoreDraft(staffList, branchCode, weekStart); // restore any saved draft
+                // Apply saved draft on top of server data using current staffList from state.
+                if (Object.keys(savedDraft).length > 0) {
+                  setGridData((prev) => {
+                    const next: GridData = {};
+                    for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
+                    for (const [name, days] of Object.entries(savedDraft)) {
+                      if (!next[name]) next[name] = {};
+                      for (const [date, cell] of Object.entries(days)) {
+                        if (cell != null) next[name][date] = cell; // draft wins
+                      }
+                    }
+                    return next;
+                  });
+                }
               }}
               disabled={loading}
               className={SECONDARY_BUTTON}
