@@ -364,12 +364,42 @@ export default function InventoryCountsPage() {
     setSuccess("Loaded to draft — item master data (unit, price, supplier) refreshed from current master.");
   }
 
-  function syncDraftWithMaster() {
+  async function syncDraftWithMaster() {
     if (!draftLines.length) return;
-    setDraftLines((prev) =>
-      prev.map((line, index) => refreshLineWithBalance(mergeWithMaster(line, index))),
-    );
-    setSuccess("Draft lines synced with current item master data.");
+    // Re-fetch the latest item master before syncing so any unit/price/supplier
+    // changes made after the page was loaded are picked up immediately.
+    try {
+      const freshItems = await inventoryGet<{ rows: InventoryItemLookup[] }>(
+        `/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=ITEMS&limit=5000`,
+      );
+      const rows = (freshItems.rows || []).filter((item) => item.status !== "DELETED");
+      setItemOptions(rows);
+      // Build fresh lookup inline so the setDraftLines below uses it immediately
+      // (state update from setItemOptions is async and won't be visible yet).
+      const freshMap: Record<string, InventoryItemLookup> = {};
+      for (const item of rows) freshMap[item.id] = item;
+      setDraftLines((prev) =>
+        prev.map((line, index) => {
+          const master = freshMap[line.item_id];
+          const merged: InventoryCountLine = master ? {
+            ...line,
+            storage_unit: master.storage_unit || line.storage_unit,
+            unit_price: Number(master.cost ?? line.unit_price),
+            supplier_name: master.supplier_name || line.supplier_name,
+            category: master.category_name || line.category,
+            sort_order: index + 1,
+          } : { ...line, sort_order: index + 1 };
+          return refreshLineWithBalance(merged);
+        }),
+      );
+      setSuccess("Draft lines synced with current item master data.");
+    } catch {
+      // Fallback: sync with cached data if fetch fails
+      setDraftLines((prev) =>
+        prev.map((line, index) => refreshLineWithBalance(mergeWithMaster(line, index))),
+      );
+      setSuccess("Draft lines synced (using cached master data).");
+    }
   }
 
   async function refreshHistoryAndDetail(nextSelectedId = selectedCountId) {
