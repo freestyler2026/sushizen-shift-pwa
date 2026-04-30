@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
-import { BRANCHES, labelOf, type BranchCode, type City } from "@/lib/branches";
+import { BRANCHES, labelOf, normalizeBranchCode, type BranchCode, type City } from "@/lib/branches";
 import {
   GLASS_CARD,
   INPUT_CLASS,
@@ -412,7 +412,10 @@ export default function ManualShiftPage() {
       const data = await apiFetch<{ rows?: any[] }>(
         `/api/published/week?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}`
       );
-      const rows = (data.rows || []).filter((r: any) => r.branch_code === branchCode);
+      const rows = (data.rows || []).filter((r: any) => {
+        const normalized = normalizeBranchCode(city as City, r.branch_code);
+        return normalized === branchCode || r.branch_code === branchCode;
+      });
 
       setGridData((prev) => {
         // Start with current local state (preserves unsaved work)
@@ -629,7 +632,7 @@ export default function ManualShiftPage() {
                   const rect = branchButtonRef.current?.getBoundingClientRect();
                   if (rect) {
                     // fixed positioning is viewport-relative — do NOT add scrollY/scrollX
-                    setBranchDropdownRect({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+                    setBranchDropdownRect({ top: rect.bottom + 24, left: rect.left, width: rect.width });
                   }
                   setBranchDropdownOpen((o) => !o);
                 }}
