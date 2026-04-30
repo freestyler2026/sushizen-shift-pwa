@@ -30,10 +30,8 @@ const ROLE_OPTIONS_MANILA = ["CK", "SV", "BA", "HK", "SC", "MGR", "ADMIN", "DRIV
 function getRoleOptions(city: string) {
   return city === "manila" ? ROLE_OPTIONS_MANILA : ROLE_OPTIONS_DUBAI;
 }
-// 30-minute steps: 6:00, 6:30, 7:00, … 24:00
-const START_HOUR_OPTIONS = Array.from({ length: 37 }, (_, i) => 6 + i * 0.5); // 6..24
-// 30-minute steps: 6:00, 6:30, … 28:00 (+4:00)
-const END_HOUR_OPTIONS = Array.from({ length: 45 }, (_, i) => 6 + i * 0.5);   // 6..28
+const START_HOUR_OPTIONS = Array.from({ length: 19 }, (_, i) => i + 6); // 6..24
+const END_HOUR_OPTIONS = Array.from({ length: 23 }, (_, i) => i + 6);   // 6..28 (+4:00)
 
 // Special (non-shift) types
 const SPECIAL_TYPES = [
@@ -89,11 +87,9 @@ function todayMonday(): string {
 }
 
 function fmtHour(h: number): string {
-  const mins = (h % 1) === 0.5 ? "30" : "00";
-  const base = Math.floor(h);
-  if (base === 0 && mins === "00") return "0:00";
-  if (base >= 24) return `+${base - 24}:${mins}`;
-  return `${base}:${mins}`;
+  if (h === 0) return "0:00";
+  if (h >= 24) return `+${h - 24}:00`;
+  return `${h}:00`;
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -287,32 +283,6 @@ function PublishedView({
   );
 }
 
-// ─── LocalStorage helpers ─────────────────────────────────────────────────────
-
-function draftKey(city: string, branch: string, week: string) {
-  return `manual-shift-draft::${city}::${branch}::${week}`;
-}
-function saveDraft(city: string, branch: string, week: string, grid: GridData) {
-  try {
-    // Only persist non-null cells to keep storage compact
-    const compact: GridData = {};
-    for (const [name, days] of Object.entries(grid)) {
-      const filled = Object.fromEntries(Object.entries(days).filter(([, v]) => v != null));
-      if (Object.keys(filled).length > 0) compact[name] = filled as Record<string, ShiftCell>;
-    }
-    localStorage.setItem(draftKey(city, branch, week), JSON.stringify(compact));
-  } catch { /* quota exceeded — silently ignore */ }
-}
-function loadDraft(city: string, branch: string, week: string): GridData {
-  try {
-    const raw = localStorage.getItem(draftKey(city, branch, week));
-    return raw ? (JSON.parse(raw) as GridData) : {};
-  } catch { return {}; }
-}
-function clearDraft(city: string, branch: string, week: string) {
-  try { localStorage.removeItem(draftKey(city, branch, week)); } catch { /* ignore */ }
-}
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ManualShiftPage() {
@@ -334,31 +304,15 @@ export default function ManualShiftPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [view, setView] = useState<PageView>("edit");
   const [publishedCount, setPublishedCount] = useState(0);
-  // True when the user has locally entered cells not yet published
-  const [hasDraft, setHasDraft] = useState(false);
 
   // Week dates Mon–Sun
   const weekDates = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
     [weekStart]
   );
-
-  // Count locally-entered (non-null) cells so we know if there is unsaved data
-  const localCellCount = useMemo(
-    () => Object.values(gridData).reduce((sum, days) => sum + Object.values(days).filter(Boolean).length, 0),
-    [gridData]
-  );
-
-  // Auto-save draft to localStorage whenever the grid changes.
-  // Guard with !loading so we never overwrite the saved draft mid-load.
-  useEffect(() => {
-    if (staffList.length > 0 && !loading) {
-      saveDraft(city, branchCode, weekStart, gridData);
-      setHasDraft(localCellCount > 0);
-    }
-  }, [gridData, city, branchCode, weekStart, staffList.length, localCellCount, loading]);
 
   // Reset branch when city changes
   useEffect(() => {
@@ -386,67 +340,49 @@ export default function ManualShiftPage() {
         }
         return next;
       });
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+    } catch (e: any) {
+      setError(e?.message || String(e));
     } finally {
       setLoading(false);
     }
   }, [city]);
 
-  /**
-   * Merge server-published shifts into the local grid.
-   * NEVER overwrites a cell that already has local data.
-   * If forceOverwrite=true (user explicitly clicked reload), wipe local and reload.
-   */
-  const loadExistingShifts = useCallback(async (forceOverwrite = false) => {
+  // Load existing published shifts for this week/branch
+  const loadExistingShifts = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       const data = await apiFetch<{ rows?: any[] }>(
         `/api/published/week?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}`
       );
-      const rows = (data.rows || []).filter((r: any) => r.branch_code === branchCode);
-
-      setGridData((prev) => {
-        // Start with current local state (preserves unsaved work)
-        const nextGrid: GridData = {};
-        const allNames = Array.from(new Set([
-          ...Object.keys(prev),
-          ...rows.map((r: any) => r.staff_name as string),
-        ]));
-        for (const name of allNames) {
-          nextGrid[name] = forceOverwrite ? {} : { ...(prev[name] ?? {}) };
-        }
-        // Merge server rows — only fill cells that are locally empty (unless forceOverwrite)
-        for (const r of rows) {
-          if (!nextGrid[r.staff_name]) nextGrid[r.staff_name] = {};
-          if (forceOverwrite || nextGrid[r.staff_name][r.work_date] == null) {
-            nextGrid[r.staff_name][r.work_date] = {
-              start_hour: Number(r.start_hour),
-              end_hour: Number(r.end_hour),
-              role: String(r.role || ""),
-            };
-          }
-        }
-        return nextGrid;
-      });
-
-      const extraNames = rows.map((r: any) => r.staff_name as string).filter((n: string) => !staffList.includes(n));
+      const rows = (data.rows || []).filter((r) => r.branch_code === branchCode);
+      const nextGrid: GridData = {};
+      for (const name of staffList) nextGrid[name] = {};
+      for (const r of rows) {
+        if (!nextGrid[r.staff_name]) nextGrid[r.staff_name] = {};
+        nextGrid[r.staff_name][r.work_date] = {
+          start_hour: Number(r.start_hour),
+          end_hour: Number(r.end_hour),
+          role: String(r.role || ""),
+        };
+      }
+      setGridData(nextGrid);
+      const extraNames = rows.map((r) => r.staff_name).filter((n) => !staffList.includes(n));
       if (extraNames.length > 0) {
         const merged = Array.from(new Set([...staffList, ...extraNames])).sort((a, b) => a.localeCompare(b));
         setStaffList(merged);
       }
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+    } catch (e: any) {
+      setError(e?.message || String(e));
     } finally {
       setLoading(false);
     }
   }, [city, weekStart, branchCode, staffList]);
 
-  // When week/branch changes while staff is already loaded: merge-reload (never wipe)
+  // Auto-load existing when week/branch changes (if staff already loaded)
   useEffect(() => {
     if (staffList.length > 0) {
-      void loadExistingShifts(false); // merge — don't wipe local data
+      void loadExistingShifts();
       setView("edit");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -484,7 +420,6 @@ export default function ManualShiftPage() {
         ...prev,
         [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: { start_hour: 0, end_hour: 0, role: editSpecialType } },
       }));
-      setHasDraft(true);
       setEditTarget(null);
       return;
     }
@@ -500,7 +435,6 @@ export default function ManualShiftPage() {
       ...prev,
       [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: { start_hour: editStart, end_hour: editEnd, role } },
     }));
-    setHasDraft(true);
     setEditTarget(null);
   }
 
@@ -534,6 +468,7 @@ export default function ManualShiftPage() {
 
   async function handlePublish() {
     setError("");
+    setSuccess("");
     const rows = buildRows();
     if (rows.length === 0) {
       setError("No shifts to publish. Please add at least one shift.");
@@ -555,15 +490,14 @@ export default function ManualShiftPage() {
           }),
         }
       );
-      if (result.export_result?.error) {
-        setError(`Sheet export error: ${result.export_result.error}`);
-      }
+      const exportNote = result.export_result?.error
+        ? ` (Sheet export error: ${result.export_result.error})`
+        : result.export_result ? " + Exported to Sheet ✓" : "";
+      setSuccess(`✅ Published ${result.rows_copied} shifts to Week/My-Shift${exportNote}`);
       setPublishedCount(result.rows_copied);
-      clearDraft(city, branchCode, weekStart); // ← clear saved draft after successful publish
-      setHasDraft(false);
-      setView("published");
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      setView("published"); // ← auto-switch to Published View
+    } catch (e: any) {
+      setError(e?.message || String(e));
     } finally {
       setSaving(false);
     }
@@ -613,63 +547,21 @@ export default function ManualShiftPage() {
               onChange={(e) => setWeekStart(mondayOf(e.target.value || weekStart))}
             />
           </div>
-          <div className="flex items-end gap-2 flex-wrap">
+          <div className="flex items-end gap-2">
             <button
               type="button"
-              onClick={async () => {
-                // Snapshot draft BEFORE loadStaff runs (which would trigger auto-save
-                // and overwrite the draft with the current — possibly empty — grid).
-                const savedDraft = loadDraft(city, branchCode, weekStart);
-                await loadStaff();
-                await loadExistingShifts(false); // merge — preserves local entries
-                // Apply saved draft on top of server data using current staffList from state.
-                if (Object.keys(savedDraft).length > 0) {
-                  setGridData((prev) => {
-                    const next: GridData = {};
-                    for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
-                    for (const [name, days] of Object.entries(savedDraft)) {
-                      if (!next[name]) next[name] = {};
-                      for (const [date, cell] of Object.entries(days)) {
-                        if (cell != null) next[name][date] = cell; // draft wins
-                      }
-                    }
-                    return next;
-                  });
-                }
-              }}
+              onClick={() => { void loadStaff().then(() => loadExistingShifts()); }}
               disabled={loading}
               className={SECONDARY_BUTTON}
             >
               {loading ? "Loading..." : "Load Staff & Shifts"}
             </button>
-            {staffList.length > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (!window.confirm("Reload from server? All locally entered shifts that have not been published will be lost.")) return;
-                  clearDraft(city, branchCode, weekStart);
-                  setHasDraft(false);
-                  void loadExistingShifts(true);
-                }}
-                disabled={loading}
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-neutral-400 transition hover:bg-white/10"
-              >
-                ↺ Reload from Server
-              </button>
-            )}
           </div>
         </div>
         {staffList.length > 0 && (
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            <p className="text-xs text-neutral-500">
-              {staffList.length} staff · {labelOf(city, branchCode)} · Week of {weekStart}
-            </p>
-            {hasDraft && (
-              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-amber-300">
-                ● Unsaved draft
-              </span>
-            )}
-          </div>
+          <p className="mt-2 text-xs text-neutral-500">
+            {staffList.length} staff loaded · {labelOf(city, branchCode)} · Week of {weekStart}
+          </p>
         )}
       </div>
 

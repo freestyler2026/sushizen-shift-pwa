@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import InventoryTabs from "@/components/InventoryTabs";
 import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
@@ -12,7 +11,6 @@ import { formatDraftNumber, getInventoryQuantityStep, parseDraftNumber, stepDraf
 type CountSheetRow = {
   id: string;
   name: string;
-  reference?: string;
   branch_code: string;
   cycle: string;
   source_sheet_name: string;
@@ -87,8 +85,6 @@ export default function InventoryCountsPage() {
   // Draft UX state
   const [draftSearch, setDraftSearch] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
-  // Template picker — separate from selectedCountSheetId to allow explicit "Load" action
-  const [templatePickerId, setTemplatePickerId] = useState("");
   // Inline item editing state
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editItemUnit, setEditItemUnit] = useState("");
@@ -104,31 +100,10 @@ export default function InventoryCountsPage() {
     });
   }, [balancesMap]);
 
-  // Build item_id → master lookup (moved up so applySheetToDraft can use it)
-  const itemMasterById = useMemo(() => {
-    const map: Record<string, typeof itemOptions[number]> = {};
-    for (const item of itemOptions) map[item.id] = item;
-    return map;
-  }, [itemOptions]);
-
   const applySheetToDraft = useCallback((sheet: CountSheetDetail | null, balanceLookup: Record<string, number> = balancesMap) => {
     if (!sheet) return;
-    setDraftLines((sheet.items || []).map((line, index) => {
-      // Always apply current master data (unit, price, supplier) so stale template values are overwritten
-      const master = itemMasterById[line.item_id];
-      const merged: InventoryCountLine = master ? {
-        ...line,
-        storage_unit: master.storage_unit || line.storage_unit,
-        unit_price: Number(master.cost ?? line.unit_price),
-        supplier_name: master.supplier_name || line.supplier_name,
-        category: master.category_name || line.category,
-        sort_order: index + 1,
-        counted_qty: 0,
-        variance_qty: 0,
-      } : { ...line, counted_qty: 0, variance_qty: 0, sort_order: index + 1 };
-      return refreshLineWithBalance(merged, balanceLookup);
-    }));
-  }, [balancesMap, itemMasterById, refreshLineWithBalance]);
+    setDraftLines((sheet.items || []).map((line, index) => refreshLineWithBalance({ ...line, counted_qty: 0, variance_qty: 0, sort_order: index + 1 }, balanceLookup)));
+  }, [balancesMap, refreshLineWithBalance]);
 
   // Stable ref so useEffects below don't re-fire every time balancesMap changes
   const applySheetToDraftRef = useRef(applySheetToDraft);
@@ -157,7 +132,6 @@ export default function InventoryCountsPage() {
     setSelectedCountId("");
     setSelectedCount(null);
     setSelectedCountSheetId("");
-    setTemplatePickerId("");
     setDraftLines([]);
   }, [city]);
 
@@ -185,9 +159,7 @@ export default function InventoryCountsPage() {
         setBalancesMap(balanceMap);
         const matchCount = Number(currentRes?.match_count || 0);
         if (matchCount === 1 && currentRes?.row) {
-          const autoId = String(currentRes.row.id || "");
-          setSelectedCountSheetId(autoId);
-          setTemplatePickerId(autoId);
+          setSelectedCountSheetId(String(currentRes.row.id || ""));
           applySheetToDraftRef.current(currentRes.row, balanceMap);
         } else if (!activeSheets.some((row) => row.id === selectedCountSheetId)) {
           setSelectedCountSheetId("");
@@ -320,20 +292,16 @@ export default function InventoryCountsPage() {
     setSelectedItemId("");
   }
 
-  function handleLoadTemplate() {
-    if (!templatePickerId) return;
-    if (draftLines.length > 0) {
-      if (!window.confirm("現在のDraft itemsはテンプレートの内容に置き換えられます。続けますか？\n(Current draft items will be replaced by the template. Continue?)")) {
-        return;
-      }
-    }
-    setSelectedCountSheetId(templatePickerId);
-    // The useEffect watching selectedCountSheetId will auto-fetch & applySheetToDraft
-  }
-
   function removeDraftLine(index: number) {
     setDraftLines((prev) => prev.filter((_, idx) => idx !== index).map((line, idx) => ({ ...line, sort_order: idx + 1 })));
   }
+
+  // Build item_id → master lookup once
+  const itemMasterById = useMemo(() => {
+    const map: Record<string, typeof itemOptions[number]> = {};
+    for (const item of itemOptions) map[item.id] = item;
+    return map;
+  }, [itemOptions]);
 
   // Merge current item master data (unit, price, supplier, category) into a saved line.
   // Counted qty and memo are preserved from the saved line.
@@ -364,42 +332,12 @@ export default function InventoryCountsPage() {
     setSuccess("Loaded to draft — item master data (unit, price, supplier) refreshed from current master.");
   }
 
-  async function syncDraftWithMaster() {
+  function syncDraftWithMaster() {
     if (!draftLines.length) return;
-    // Re-fetch the latest item master before syncing so any unit/price/supplier
-    // changes made after the page was loaded are picked up immediately.
-    try {
-      const freshItems = await inventoryGet<{ rows: InventoryItemLookup[] }>(
-        `/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=ITEMS&limit=5000`,
-      );
-      const rows = (freshItems.rows || []).filter((item) => item.status !== "DELETED");
-      setItemOptions(rows);
-      // Build fresh lookup inline so the setDraftLines below uses it immediately
-      // (state update from setItemOptions is async and won't be visible yet).
-      const freshMap: Record<string, InventoryItemLookup> = {};
-      for (const item of rows) freshMap[item.id] = item;
-      setDraftLines((prev) =>
-        prev.map((line, index) => {
-          const master = freshMap[line.item_id];
-          const merged: InventoryCountLine = master ? {
-            ...line,
-            storage_unit: master.storage_unit || line.storage_unit,
-            unit_price: Number(master.cost ?? line.unit_price),
-            supplier_name: master.supplier_name || line.supplier_name,
-            category: master.category_name || line.category,
-            sort_order: index + 1,
-          } : { ...line, sort_order: index + 1 };
-          return refreshLineWithBalance(merged);
-        }),
-      );
-      setSuccess("Draft lines synced with current item master data.");
-    } catch {
-      // Fallback: sync with cached data if fetch fails
-      setDraftLines((prev) =>
-        prev.map((line, index) => refreshLineWithBalance(mergeWithMaster(line, index))),
-      );
-      setSuccess("Draft lines synced (using cached master data).");
-    }
+    setDraftLines((prev) =>
+      prev.map((line, index) => refreshLineWithBalance(mergeWithMaster(line, index))),
+    );
+    setSuccess("Draft lines synced with current item master data.");
   }
 
   async function refreshHistoryAndDetail(nextSelectedId = selectedCountId) {
@@ -609,56 +547,10 @@ export default function InventoryCountsPage() {
           )}
         </div>
 
-        {/* ── Template loader ── */}
-        <div className="mt-4 rounded-xl border border-violet-900/40 bg-violet-950/10 p-3">
-          <div className="mb-2 flex items-center gap-2">
-            <span className="text-xs font-semibold text-violet-300">Load Count Template</span>
-            {selectedCountSheetId && (
-              <span className="rounded-md bg-emerald-900/40 px-2 py-0.5 text-xs text-emerald-300">
-                ✓ {countSheetOptions.find((s) => s.id === selectedCountSheetId)?.name || "Template loaded"}
-              </span>
-            )}
-          </div>
-          {countSheetOptions.length > 0 ? (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_140px]">
-              <select
-                value={templatePickerId}
-                onChange={(e) => setTemplatePickerId(e.target.value)}
-                className="rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
-              >
-                <option value="">— Select a template —</option>
-                {countSheetOptions.map((sheet) => (
-                  <option key={sheet.id} value={sheet.id}>
-                    {sheet.name}{sheet.reference ? ` · ${sheet.reference}` : ""}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={handleLoadTemplate}
-                disabled={!templatePickerId || loading}
-                className="rounded-xl border border-violet-700/60 bg-violet-950/30 px-4 py-2 text-sm font-medium text-violet-200 hover:bg-violet-900/30 disabled:opacity-50"
-              >
-                {loading ? "Loading…" : "Load Template"}
-              </button>
-            </div>
-          ) : (
-            <div className="text-xs text-neutral-500">
-              No templates available for this branch / cycle.{" "}
-              <Link href="/admin/inventory/count-sheets" className="text-violet-400 underline hover:text-violet-300">
-                Create a template →
-              </Link>
-            </div>
-          )}
-          <p className="mt-1.5 text-[11px] text-neutral-600">
-            Template items are loaded with counted qty = 0. Branch and cycle must match.
-          </p>
-        </div>
-
         {/* ── Add item row ── */}
-        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_140px]">
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_140px]">
           <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" value={selectedItemId} onChange={(e) => setSelectedItemId(e.target.value)}>
-            <option value="">Add inventory item manually</option>
+            <option value="">Add inventory item</option>
             {itemOptions.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.supplier_name ? `${item.supplier_name} / ` : ""}{item.name} {item.sku ? `(${item.sku})` : ""}
@@ -692,7 +584,7 @@ export default function InventoryCountsPage() {
         <div className="mt-4 space-y-3">
           {filteredGroupedDraft.length === 0 && draftLines.length === 0 ? (
             <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-950/30 px-3 py-8 text-center text-sm text-neutral-500">
-              Select a template above and click <span className="font-semibold text-violet-400">Load Template</span>, or add items manually.
+              Load a count template or add items manually.
             </div>
           ) : filteredGroupedDraft.length === 0 ? (
             <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-950/30 px-3 py-6 text-center text-xs text-neutral-500">

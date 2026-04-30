@@ -53,6 +53,3 @@ package.json.broken*
 .ops.env
 .next-dev/
 step3-deploy-dir/
-
-# Nested scaffold — never deploy this
-sushizen-shift-pwa/

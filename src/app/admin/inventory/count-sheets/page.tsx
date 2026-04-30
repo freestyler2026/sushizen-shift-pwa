@@ -358,14 +358,9 @@ export default function InventoryCountSheetsPage() {
 
   function appendItemToDraft(item: InventoryItemLookup, countedQty = 0) {
     if (!item) return;
-    // Preserve window scroll position — adding a row can cause browsers to jump to top
-    const savedY = typeof window !== "undefined" ? window.scrollY : 0;
     const nextLines = [...draftLines, buildDraftLine(item, countedQty, draftLines.length + 1)];
     setDraftLines(nextLines);
     rebuildDraftCellInputs(nextLines);
-    if (typeof window !== "undefined" && savedY > 0) {
-      requestAnimationFrame(() => window.scrollTo({ top: savedY, behavior: "instant" }));
-    }
   }
 
   function addRow() {

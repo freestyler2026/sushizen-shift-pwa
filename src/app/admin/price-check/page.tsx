@@ -96,17 +96,11 @@ type DubaiSummary = {
   no_baseline: number;
 };
 
-type DubaiBaseline = {
-  product_name: string;
-  baseline_price: number;
-};
-
 type DubaiStatus = {
   check_date: string;
   discount_rate: number;
   items: DubaiItem[];
   confirmation: DubaiConfirmation;
-  baselines: DubaiBaseline[];
   summary: DubaiSummary;
 };
 
@@ -186,6 +180,33 @@ function statusBadge(status: PriceCheckResult["status"]) {
   }
 }
 
+function dubaiItemBadge(status: DubaiItem["status"]) {
+  switch (status) {
+    case "outside":
+      return (
+        <span className={BADGE_ERROR}>
+          <AlertTriangle className="h-3 w-3" />
+          Outside 5%
+        </span>
+      );
+    case "no_baseline":
+      return (
+        <span className={BADGE_WARNING}>
+          <PencilLine className="h-3 w-3" />
+          No Baseline
+        </span>
+      );
+    case "no_sales":
+      return <span className="text-zinc-500 text-xs">No Sales</span>;
+    default:
+      return (
+        <span className={BADGE_SUCCESS}>
+          <CheckCircle2 className="h-3 w-3" />
+          Within 5%
+        </span>
+      );
+  }
+}
 
 // ─── Dubai Tab Component ─────────────────────────────────────────────────────
 
@@ -196,11 +217,16 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
   const [checkDate, setCheckDate] = useState(yesterday());
   const [dubaiData, setDubaiData] = useState<DubaiStatus | null>(null);
 
-  // Overall confirmation state
+  // Overall confirmation state (mirrors server state + local edits)
   const [discountRateOk, setDiscountRateOk] = useState(false);
   const [menuOk, setMenuOk] = useState(false);
   const [confirmMemo, setConfirmMemo] = useState("");
   const [confirmBusy, setConfirmBusy] = useState(false);
+
+  // Baseline editor
+  const [showBaselineEditor, setShowBaselineEditor] = useState(false);
+  const [baselineText, setBaselineText] = useState("");
+  const [baselineBusy, setBaselineBusy] = useState(false);
 
   const loadDubai = useCallback(async (date: string) => {
     setLoading(true);
@@ -256,41 +282,68 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
     }
   };
 
+  const saveBaselines = async () => {
+    if (!baselineText.trim()) { setError("Please enter baseline data."); return; }
+    const lines = baselineText.trim().split("\n").filter(Boolean);
+    const items: { product_name: string; baseline_price: number }[] = [];
+    for (const line of lines) {
+      const parts = line.split("\t");
+      if (parts.length < 2) continue;
+      const name = parts[0].trim();
+      const price = parseFloat(parts[1].trim().replace(/[^0-9.]/g, ""));
+      if (!name || isNaN(price) || price <= 0) continue;
+      items.push({ product_name: name, baseline_price: price });
+    }
+    if (items.length === 0) { setError("No valid rows found. Use tab-separated: Item Name\\tPrice"); return; }
+    setBaselineBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      const headers = await tokenHeaders();
+      const res = await fetch(`${apiBase}/api/admin/price-check/dubai/set-baseline`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ items }),
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || `Failed (${res.status})`);
+      const j = JSON.parse(text);
+      setSuccess(`${j.updated} baselines saved.`);
+      setBaselineText("");
+      setShowBaselineEditor(false);
+      await loadDubai(checkDate);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBaselineBusy(false);
+    }
+  };
+
   const summary = dubaiData?.summary;
   const conf = dubaiData?.confirmation;
-
-  // Totals for KPI
-  const totalNetSales = dubaiData?.items.reduce((s, i) => s + i.net_sales, 0) ?? 0;
 
   return (
     <div className="space-y-5">
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className={KPI_CARD}>
-          <div className={KPI_LABEL}>Menu Items</div>
+          <div className={KPI_LABEL}>Total Items</div>
           <div className={KPI_VALUE}>{summary?.total_items ?? "—"}</div>
         </div>
         <div className={KPI_CARD}>
-          <div className={KPI_LABEL}>Total Net Sales</div>
-          <div className="mt-1 text-sm font-semibold text-white">
-            {totalNetSales > 0 ? fmtAED(totalNetSales) : "—"}
+          <div className={KPI_LABEL}>Within 5%</div>
+          <div className={`${KPI_VALUE} text-emerald-400`}>{summary?.within_5pct ?? "—"}</div>
+        </div>
+        <div className={KPI_CARD}>
+          <div className={KPI_LABEL}>Outside 5%</div>
+          <div className={`${KPI_VALUE} ${(summary?.outside_5pct ?? 0) > 0 ? "text-red-400" : "text-emerald-400"}`}>
+            {summary?.outside_5pct ?? "—"}
           </div>
         </div>
         <div className={KPI_CARD}>
-          <div className={KPI_LABEL}>Discount Rate</div>
-          <div className={`${KPI_VALUE} text-violet-300`}>50%</div>
-        </div>
-        <div className={KPI_CARD}>
-          <div className={KPI_LABEL}>Confirmed</div>
-          <div className="mt-1 flex items-center gap-1.5">
-            {conf?.confirmed_by ? (
-              <>
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                <span className="text-xs text-zinc-300">{conf.confirmed_by}</span>
-              </>
-            ) : (
-              <span className="text-sm text-zinc-500">Not yet</span>
-            )}
+          <div className={KPI_LABEL}>No Baseline</div>
+          <div className={`${KPI_VALUE} ${(summary?.no_baseline ?? 0) > 0 ? "text-amber-400" : "text-zinc-400"}`}>
+            {summary?.no_baseline ?? "—"}
           </div>
         </div>
       </div>
@@ -300,7 +353,7 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div className={T_SECTION}>Dubai — Controls</div>
           <div className="flex items-center gap-2">
-            <label className={T_LABEL}>Date</label>
+            <label className={T_LABEL}>Check Date</label>
             <input
               type="date"
               value={checkDate}
@@ -310,19 +363,29 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
             />
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => loadDubai(checkDate)}
-          disabled={loading}
-          className={SECONDARY_BUTTON}
-        >
-          <span className="flex items-center gap-2">
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </span>
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => loadDubai(checkDate)}
+            disabled={loading}
+            className={SECONDARY_BUTTON}
+          >
+            <span className="flex items-center gap-2">
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowBaselineEditor((v) => !v)}
+            className={SECONDARY_BUTTON}
+          >
+            {showBaselineEditor ? "Hide Baseline Editor" : "Set Baselines"}
+          </button>
+        </div>
         <p className={`mt-2 ${T_CAPTION}`}>
-          Dubai sells at a fixed 50% discount. Prices are derived from Atlas/Foodics POS data.
+          Dubai operates at a fixed 50% discount from the standard menu price. Prices are derived
+          from Atlas/Foodics POS data in pos_menu_item_daily.
         </p>
 
         {error && (
@@ -337,54 +400,32 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
         )}
       </div>
 
-      {/* Yesterday's prices — read-only table from POS */}
-      {dubaiData && dubaiData.items.length > 0 && (
+      {/* Baseline editor */}
+      {showBaselineEditor && (
         <div className={`${GLASS_CARD} p-4`}>
-          <div className="mb-3">
-            <div className={T_SECTION}>Menu &amp; Prices — {checkDate} (Atlas/Foodics)</div>
-            <p className={T_CAPTION}>
-              Actual selling prices from POS. Dubai discount: 50% off standard price.
+          <div className="mb-2">
+            <div className={T_SECTION}>Standard Price Baselines (Full Price before 50% off)</div>
+            <p className={`${T_CAPTION} mt-1`}>
+              Paste tab-separated data: one row per line, format: Item Name{"\t"}Price (AED)
             </p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[480px]">
-              <thead>
-                <tr>
-                  <th className={`${TABLE_HEADER} text-left`}>Item</th>
-                  <th className={`${TABLE_HEADER} text-right`}>Qty Sold</th>
-                  <th className={`${TABLE_HEADER} text-right`}>Net Sales</th>
-                  <th className={`${TABLE_HEADER} text-right`}>Avg Unit Price</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dubaiData.items.map((item) => (
-                  <tr key={item.item_name} className={TABLE_ROW}>
-                    <td className={TABLE_CELL}>
-                      <div className="font-medium text-white">{item.item_name}</div>
-                    </td>
-                    <td className={`${TABLE_CELL} text-right tabular-nums text-zinc-300`}>
-                      {item.qty_sold > 0 ? item.qty_sold.toFixed(0) : "—"}
-                    </td>
-                    <td className={`${TABLE_CELL} text-right tabular-nums text-zinc-300`}>
-                      {fmtAED(item.net_sales)}
-                    </td>
-                    <td className={`${TABLE_CELL} text-right tabular-nums font-medium text-white`}>
-                      {fmtAED(item.actual_unit_price)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <textarea
+            className={`${INPUT_CLASS} w-full font-mono text-xs`}
+            rows={8}
+            placeholder={"Salmon Sashimi\t65.00\nTuna Roll\t48.00"}
+            value={baselineText}
+            onChange={(e) => setBaselineText(e.target.value)}
+          />
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={saveBaselines}
+              disabled={baselineBusy}
+              className={PRIMARY_BUTTON}
+            >
+              {baselineBusy ? "Saving..." : "Save Baselines"}
+            </button>
           </div>
-        </div>
-      )}
-
-      {!loading && dubaiData && dubaiData.items.length === 0 && (
-        <div className={`${GLASS_CARD} flex flex-col items-center gap-3 py-10`}>
-          <Building2 className="h-8 w-8 text-zinc-600" />
-          <p className={T_CAPTION}>
-            No POS data found for {checkDate}. Data is sourced from pos_menu_item_daily (Dubai).
-          </p>
         </div>
       )}
 
@@ -415,7 +456,7 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
             <div>
               <div className="font-semibold text-white">Discount Rate OK</div>
               <div className={T_CAPTION}>
-                Selling prices confirmed at 50% discount
+                Actual selling prices are at 50% of standard menu price (within ±5%)
               </div>
             </div>
           </label>
@@ -435,7 +476,7 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
             <div>
               <div className="font-semibold text-white">Menu OK</div>
               <div className={T_CAPTION}>
-                Menu items confirmed — no unauthorized changes
+                Menu items are correct — no unauthorized additions or removals
               </div>
             </div>
           </label>
@@ -463,6 +504,87 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
           </button>
         </div>
       </div>
+
+      {/* Price comparison table */}
+      {dubaiData && dubaiData.items.length > 0 && (
+        <div className={`${GLASS_CARD} p-4`}>
+          <div className="mb-3">
+            <div className={T_SECTION}>
+              Price Comparison — {checkDate}
+            </div>
+            <p className={T_CAPTION}>
+              Expected price = Standard price × 50%. Variance shows how actual differs from expected.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[700px]">
+              <thead>
+                <tr>
+                  <th className={`${TABLE_HEADER} text-left`}>Item</th>
+                  <th className={`${TABLE_HEADER} text-right`}>Qty Sold</th>
+                  <th className={`${TABLE_HEADER} text-right hidden sm:table-cell`}>Net Sales</th>
+                  <th className={`${TABLE_HEADER} text-right`}>Actual Price</th>
+                  <th className={`${TABLE_HEADER} text-right hidden md:table-cell`}>Standard Price</th>
+                  <th className={`${TABLE_HEADER} text-right`}>Expected (50%)</th>
+                  <th className={`${TABLE_HEADER} text-right`}>Variance</th>
+                  <th className={`${TABLE_HEADER} text-center`}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dubaiData.items.map((item) => {
+                  const vp = item.variance_pct;
+                  const varClass =
+                    vp == null
+                      ? "text-zinc-500"
+                      : Math.abs(vp) <= 5
+                      ? "text-emerald-400"
+                      : "text-red-400 font-semibold";
+
+                  return (
+                    <tr key={item.item_name} className={TABLE_ROW}>
+                      <td className={TABLE_CELL}>
+                        <div className="font-medium text-white">{item.item_name}</div>
+                      </td>
+                      <td className={`${TABLE_CELL} text-right tabular-nums text-zinc-300`}>
+                        {item.qty_sold > 0 ? item.qty_sold.toFixed(1) : "—"}
+                      </td>
+                      <td className={`${TABLE_CELL} text-right tabular-nums text-zinc-300 hidden sm:table-cell`}>
+                        {fmtAED(item.net_sales)}
+                      </td>
+                      <td className={`${TABLE_CELL} text-right tabular-nums font-medium text-white`}>
+                        {fmtAED(item.actual_unit_price)}
+                      </td>
+                      <td className={`${TABLE_CELL} text-right tabular-nums text-zinc-400 hidden md:table-cell`}>
+                        {fmtAED(item.baseline_price)}
+                      </td>
+                      <td className={`${TABLE_CELL} text-right tabular-nums text-zinc-300`}>
+                        {fmtAED(item.expected_price)}
+                      </td>
+                      <td className={`${TABLE_CELL} text-right tabular-nums ${varClass}`}>
+                        <span className="flex items-center justify-end gap-1">
+                          {vp != null && vp < -5 && <TrendingDown className="h-3 w-3" />}
+                          {vp != null && vp > 5 && <TrendingUp className="h-3 w-3" />}
+                          {vp != null ? `${vp >= 0 ? "+" : ""}${vp.toFixed(1)}%` : "—"}
+                        </span>
+                      </td>
+                      <td className={`${TABLE_CELL} text-center`}>{dubaiItemBadge(item.status)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {!loading && dubaiData && dubaiData.items.length === 0 && (
+        <div className={`${GLASS_CARD} flex flex-col items-center gap-3 py-10`}>
+          <Building2 className="h-8 w-8 text-zinc-600" />
+          <p className={T_CAPTION}>
+            No POS data found for {checkDate}. Data comes from pos_menu_item_daily (Dubai).
+          </p>
+        </div>
+      )}
     </div>
   );
 }
