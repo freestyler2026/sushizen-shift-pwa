@@ -343,6 +343,7 @@ export default function ManualShiftPage() {
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
   const branchButtonRef = useRef<HTMLButtonElement>(null);
+  const branchListRef = useRef<HTMLDivElement>(null);
   const [branchDropdownRect, setBranchDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
 
   // Week dates Mon–Sun
@@ -578,10 +579,12 @@ export default function ManualShiftPage() {
   const branches = BRANCHES[city];
   const shiftCount = buildRows().length;
 
-  // Close branch dropdown when clicking outside the button
+  // Close branch dropdown when clicking outside both the button AND the dropdown list
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (branchButtonRef.current && !branchButtonRef.current.contains(e.target as Node)) {
+      const inButton = branchButtonRef.current?.contains(e.target as Node);
+      const inList = branchListRef.current?.contains(e.target as Node);
+      if (!inButton && !inList) {
         setBranchDropdownOpen(false);
       }
     }
@@ -638,6 +641,7 @@ export default function ManualShiftPage() {
             {/* Rendered via fixed positioning to escape backdrop-blur stacking context */}
             {branchDropdownOpen && branchDropdownRect && (
               <div
+                ref={branchListRef}
                 style={{ position: "fixed", top: branchDropdownRect.top, left: branchDropdownRect.left, width: branchDropdownRect.width, zIndex: 9999 }}
                 className="overflow-hidden rounded-xl border border-white/10 bg-neutral-900 shadow-2xl"
               >
