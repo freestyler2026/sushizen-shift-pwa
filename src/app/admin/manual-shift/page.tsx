@@ -344,6 +344,7 @@ export default function ManualShiftPage() {
   const branchDropdownRef = useRef<HTMLDivElement>(null);
   const branchButtonRef = useRef<HTMLButtonElement>(null);
   const branchListRef = useRef<HTMLDivElement>(null);
+  const controlsCardRef = useRef<HTMLDivElement>(null);
   const [branchDropdownRect, setBranchDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
 
   // Week dates Mon–Sun
@@ -612,7 +613,7 @@ export default function ManualShiftPage() {
       </div>
 
       {/* Controls */}
-      <div className={`${GLASS_CARD} p-5`}>
+      <div ref={controlsCardRef} className={`${GLASS_CARD} p-5`}>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div>
             <label className={`${T_LABEL} mb-1 block`}>City</label>
@@ -629,10 +630,12 @@ export default function ManualShiftPage() {
                 ref={branchButtonRef}
                 type="button"
                 onClick={() => {
-                  const rect = branchButtonRef.current?.getBoundingClientRect();
-                  if (rect) {
-                    // fixed positioning is viewport-relative — do NOT add scrollY/scrollX
-                    setBranchDropdownRect({ top: rect.bottom + 24, left: rect.left, width: rect.width });
+                  const btnRect = branchButtonRef.current?.getBoundingClientRect();
+                  const cardRect = controlsCardRef.current?.getBoundingClientRect();
+                  if (btnRect) {
+                    // Use card's bottom edge (not button's) so dropdown always clears the card
+                    const topAnchor = cardRect ? cardRect.bottom + 8 : btnRect.bottom + 8;
+                    setBranchDropdownRect({ top: topAnchor, left: btnRect.left, width: btnRect.width });
                   }
                   setBranchDropdownOpen((o) => !o);
                 }}
