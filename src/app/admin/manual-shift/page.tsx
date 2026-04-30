@@ -628,7 +628,8 @@ export default function ManualShiftPage() {
                 onClick={() => {
                   const rect = branchButtonRef.current?.getBoundingClientRect();
                   if (rect) {
-                    setBranchDropdownRect({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX, width: rect.width });
+                    // fixed positioning is viewport-relative — do NOT add scrollY/scrollX
+                    setBranchDropdownRect({ top: rect.bottom + 4, left: rect.left, width: rect.width });
                   }
                   setBranchDropdownOpen((o) => !o);
                 }}
