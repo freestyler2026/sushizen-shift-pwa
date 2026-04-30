@@ -139,175 +139,117 @@ function roleColor(role: string) {
   return map[role] ?? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30";
 }
 
-function PublishedView({
-  city,
-  weekStart,
-  weekDates,
-  onBackToEdit,
-}: {
-  city: string;
-  weekStart: string;
-  weekDates: string[];
-  onBackToEdit: () => void;
-}) {
-  const [rows, setRows] = useState<PublishedRow[]>([]);
+/** One branch section — fetches its own data with branch_code filter to avoid cross-branch contamination */
+function BranchSection({
+  city, weekStart, weekDates, bc,
+}: { city: string; weekStart: string; weekDates: string[]; bc: string }) {
+  const [bRows, setBRows] = useState<PublishedRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState("");
 
   useEffect(() => {
     setLoading(true);
-    setFetchError("");
     apiFetch<{ rows?: PublishedRow[] }>(
-      `/api/published/week?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}`
+      `/api/published/week?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}&branch_code=${encodeURIComponent(bc)}`
     )
-      .then((data) => setRows(data.rows || []))
-      .catch((e) => setFetchError(e instanceof Error ? e.message : String(e)))
+      .then((d) => setBRows(d.rows || []))
+      .catch(() => setBRows([]))
       .finally(() => setLoading(false));
-  }, [city, weekStart]);
+  }, [city, weekStart, bc]);
 
-  // Group rows by canonical branch code, in canonical order
-  const branchGroups = useMemo(() => {
-    const canonicalOrder = BRANCHES[city as City]?.map((b) => b.code) ?? [];
-    const map = new Map<string, PublishedRow[]>();
+  if (loading) {
+    return (
+      <div className={`${GLASS_CARD} overflow-hidden p-0`}>
+        <div className="flex items-center gap-3 border-b border-white/10 bg-white/[0.04] px-5 py-3">
+          <span className="rounded-lg border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-xs font-bold text-violet-300 tracking-wide">{bc}</span>
+          <span className="text-sm font-semibold text-white">{labelOf(city as City, bc as BranchCode)}</span>
+          <span className="text-xs text-neutral-600">Loading…</span>
+        </div>
+      </div>
+    );
+  }
 
-    for (const row of rows) {
-      const bc = normalizeBranchCode(city as City, row.branch_code) || row.branch_code;
-      if (!map.has(bc)) map.set(bc, []);
-      map.get(bc)!.push(row);
-    }
+  if (bRows.length === 0) return null; // hide branches with no published shifts
 
-    // Sort branches: canonical order first, then any extras alphabetically
-    const canonicalSet = new Set<string>(canonicalOrder);
-    const knownKeys = canonicalOrder.filter((c) => map.has(c));
-    const unknownKeys = [...map.keys()].filter((c) => !canonicalSet.has(c)).sort();
-    return [...knownKeys, ...unknownKeys].map((bc) => ({ bc, rows: map.get(bc)! }));
-  }, [rows, city]);
+  const staff = [...new Set(bRows.map((r) => r.staff_name))].sort((a, b) => a.localeCompare(b));
+  const bDates = weekDates.filter((d) => bRows.some((r) => r.work_date === d));
+  const lookup = (name: string, d: string) => bRows.find((r) => r.staff_name === name && r.work_date === d) ?? null;
 
-  // Active dates (days that have at least one shift across all branches)
-  const activeDates = useMemo(
-    () => weekDates.filter((d) => rows.some((r) => r.work_date === d)),
-    [weekDates, rows]
+  return (
+    <div className={`${GLASS_CARD} overflow-hidden p-0`}>
+      <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.04] px-5 py-3">
+        <div className="flex items-center gap-3">
+          <span className="rounded-lg border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-xs font-bold text-violet-300 tracking-wide">{bc}</span>
+          <span className="text-sm font-semibold text-white">{labelOf(city as City, bc as BranchCode)}</span>
+        </div>
+        <span className="text-xs text-neutral-500">{bRows.length} shifts · {staff.length} staff</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-white/8 bg-white/[0.02]">
+              <th className="sticky left-0 bg-[#111827] px-4 py-2.5 text-left font-semibold text-neutral-400 whitespace-nowrap">Staff</th>
+              {bDates.map((d) => (
+                <th key={d} className="px-3 py-2.5 text-center font-semibold text-neutral-400 whitespace-nowrap">{formatDate(d)}</th>
+              ))}
+              <th className="px-3 py-2.5 text-center font-semibold text-neutral-400">Days</th>
+            </tr>
+          </thead>
+          <tbody>
+            {staff.map((name, i) => {
+              const dayCount = bDates.filter((d) => lookup(name, d)).length;
+              return (
+                <tr key={name} className={`border-b border-white/5 ${i % 2 === 0 ? "bg-white/[0.015]" : ""}`}>
+                  <td className="sticky left-0 bg-[#111827] px-4 py-2 font-medium text-neutral-200 whitespace-nowrap">{name}</td>
+                  {bDates.map((d) => {
+                    const row = lookup(name, d);
+                    if (!row) return <td key={d} className="px-2 py-2 text-center text-neutral-700">—</td>;
+                    if (isSpecialRole(row.role)) {
+                      return (
+                        <td key={d} className="px-2 py-2 text-center">
+                          <span className={`inline-block rounded px-2 py-0.5 text-[10px] font-semibold border ${specialStyle(row.role)}`}>{specialLabel(row.role)}</span>
+                        </td>
+                      );
+                    }
+                    return (
+                      <td key={d} className="px-2 py-2 text-center">
+                        <div className="font-mono text-[11px] text-neutral-300 leading-tight">{fmtHour(row.start_hour)}–{fmtHour(row.end_hour)}</div>
+                        <div className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold border ${roleColor(row.role)}`}>{row.role}</div>
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-2 text-center">
+                    <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-violet-300 font-semibold">{dayCount}d</span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
+}
+
+function PublishedView({
+  city, weekStart, weekDates, onBackToEdit,
+}: { city: string; weekStart: string; weekDates: string[]; onBackToEdit: () => void }) {
+  const canonicalBranches = BRANCHES[city as City]?.map((b) => b.code) ?? [];
 
   return (
     <div className="space-y-4">
-      {/* Header bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-950/20 px-5 py-4">
         <div>
-          <p className="text-sm font-semibold text-emerald-300">
-            📋 Published Schedule — Week of {weekStart}
-          </p>
-          <p className="mt-0.5 text-xs text-emerald-400/60">
-            {rows.length} shifts · {branchGroups.length} branches
-          </p>
+          <p className="text-sm font-semibold text-emerald-300">📋 Published Schedule — Week of {weekStart}</p>
+          <p className="mt-0.5 text-xs text-emerald-400/60">All branches · {city === "dubai" ? "🇦🇪 Dubai" : "🇵🇭 Manila"}</p>
         </div>
-        <button
-          type="button"
-          onClick={onBackToEdit}
-          className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-neutral-300 transition hover:bg-white/10"
-        >
+        <button type="button" onClick={onBackToEdit}
+          className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-neutral-300 transition hover:bg-white/10">
           ✏️ Back to Edit
         </button>
       </div>
-
-      {loading && (
-        <div className={`${GLASS_CARD} py-10 text-center text-sm text-neutral-500`}>Loading…</div>
-      )}
-      {fetchError && (
-        <div className="rounded-2xl border border-rose-900/50 bg-rose-950/20 px-4 py-3 text-sm text-rose-300">{fetchError}</div>
-      )}
-
-      {!loading && !fetchError && rows.length === 0 && (
-        <div className={`${GLASS_CARD} py-12 text-center text-sm text-neutral-500`}>
-          No published shifts for this week.
-        </div>
-      )}
-
-      {!loading && branchGroups.map(({ bc, rows: bRows }) => {
-        // Staff unique to this branch
-        const staff = [...new Set(bRows.map((r) => r.staff_name))].sort((a, b) => a.localeCompare(b));
-        // Dates with at least one shift in this branch
-        const bDates = activeDates.filter((d) => bRows.some((r) => r.work_date === d));
-        // Row lookup: staff × date → first matching row
-        const lookup = (name: string, d: string) =>
-          bRows.find((r) => r.staff_name === name && r.work_date === d) ?? null;
-
-        return (
-          <div key={bc} className={`${GLASS_CARD} overflow-hidden p-0`}>
-            {/* Branch header */}
-            <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.04] px-5 py-3">
-              <div className="flex items-center gap-3">
-                <span className="rounded-lg border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-xs font-bold text-violet-300 tracking-wide">
-                  {bc}
-                </span>
-                <span className="text-sm font-semibold text-white">{labelOf(city as City, bc as BranchCode)}</span>
-              </div>
-              <span className="text-xs text-neutral-500">
-                {bRows.length} shifts · {staff.length} staff
-              </span>
-            </div>
-
-            {/* Staff × Days grid */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-white/8 bg-white/[0.02]">
-                    <th className="sticky left-0 bg-[#111827] px-4 py-2.5 text-left font-semibold text-neutral-400 whitespace-nowrap">
-                      Staff
-                    </th>
-                    {bDates.map((d) => (
-                      <th key={d} className="px-3 py-2.5 text-center font-semibold text-neutral-400 whitespace-nowrap">
-                        {formatDate(d)}
-                      </th>
-                    ))}
-                    <th className="px-3 py-2.5 text-center font-semibold text-neutral-400">Days</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {staff.map((name, i) => {
-                    const dayCount = bDates.filter((d) => lookup(name, d)).length;
-                    return (
-                      <tr key={name} className={`border-b border-white/5 ${i % 2 === 0 ? "bg-white/[0.015]" : ""}`}>
-                        <td className="sticky left-0 bg-[#111827] px-4 py-2 font-medium text-neutral-200 whitespace-nowrap">
-                          {name}
-                        </td>
-                        {bDates.map((d) => {
-                          const row = lookup(name, d);
-                          if (!row) return <td key={d} className="px-2 py-2 text-center text-neutral-700">—</td>;
-                          if (isSpecialRole(row.role)) {
-                            return (
-                              <td key={d} className="px-2 py-2 text-center">
-                                <span className={`inline-block rounded px-2 py-0.5 text-[10px] font-semibold border ${specialStyle(row.role)}`}>
-                                  {specialLabel(row.role)}
-                                </span>
-                              </td>
-                            );
-                          }
-                          return (
-                            <td key={d} className="px-2 py-2 text-center">
-                              <div className="font-mono text-[11px] text-neutral-300 leading-tight">
-                                {fmtHour(row.start_hour)}–{fmtHour(row.end_hour)}
-                              </div>
-                              <div className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold border ${roleColor(row.role)}`}>
-                                {row.role}
-                              </div>
-                            </td>
-                          );
-                        })}
-                        <td className="px-3 py-2 text-center">
-                          <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-violet-300 font-semibold">
-                            {dayCount}d
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        );
-      })}
+      {canonicalBranches.map((bc) => (
+        <BranchSection key={bc} city={city} weekStart={weekStart} weekDates={weekDates} bc={bc} />
+      ))}
     </div>
   );
 }
