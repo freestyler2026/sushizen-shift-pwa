@@ -197,6 +197,8 @@ function StaffRolesPageInner() {
   const [assignmentCityFilter, setAssignmentCityFilter] = useState<"dubai" | "manila">("dubai");
   const [assignmentSearch, setAssignmentSearch] = useState("");
   const [staffMasterRows, setStaffMasterRows] = useState<StaffMasterRow[]>([]);
+  // Cache of effective roles loaded from the access system (keyed by display_name)
+  const [effectiveRoleCache, setEffectiveRoleCache] = useState<Record<string, string>>({});
 
   const canManage = canAccessRoleManagement(auth);
 
@@ -324,6 +326,10 @@ function StaffRolesPageInner() {
       nextDrafts[assignment.role_key] = assignment.role_key;
     });
     setAssignmentDrafts(nextDrafts);
+    // Cache effective role so the list badge stays in sync with the access system
+    if (data.effective_role) {
+      setEffectiveRoleCache((prev) => ({ ...prev, [target]: data.effective_role }));
+    }
   }
 
   useEffect(() => {
@@ -1077,9 +1083,21 @@ function StaffRolesPageInner() {
             <div className="max-h-[480px] space-y-1 overflow-y-auto pr-1">
               {assignmentCityRows.map((row) => {
                 const isSelected = staffAssignments?.staff_name === row.display_name;
-                const roleLabel = (row.role || "STAFF").toUpperCase();
                 const isInactive = row.status === "INACTIVE";
                 const branchLabel = row.home_branch || "";
+                // Use cached effective role (access system) if available; fall back to staff_master.role
+                const cachedRole = effectiveRoleCache[row.display_name];
+                const displayRole = cachedRole || (row.role || "STAFF").toUpperCase();
+                const isCached = Boolean(cachedRole);
+                const roleBadgeClass = isCached
+                  ? displayRole === "HQ"
+                    ? "border-violet-500/40 bg-violet-500/10 text-violet-300"
+                    : displayRole === "MANAGER" || displayRole.includes("MANAGER")
+                    ? "border-sky-500/40 bg-sky-500/10 text-sky-300"
+                    : displayRole === "STAFF"
+                    ? "border-white/10 bg-white/5 text-neutral-300"
+                    : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                  : "border-white/5 bg-white/3 text-neutral-500"; // dim = not yet loaded
                 return (
                   <button
                     key={row.id}
@@ -1093,8 +1111,8 @@ function StaffRolesPageInner() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className={`truncate text-sm font-medium ${isSelected ? "text-white" : "text-neutral-200"}`}>{row.display_name}</span>
-                      <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${roleLabel === "HQ" ? "border-violet-500/40 bg-violet-500/10 text-violet-300" : roleLabel === "MANAGER" ? "border-sky-500/40 bg-sky-500/10 text-sky-300" : "border-white/10 bg-white/5 text-neutral-400"}`}>
-                        {roleLabel}
+                      <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${roleBadgeClass}`}>
+                        {displayRole}
                       </span>
                     </div>
                     {branchLabel ? <div className="mt-0.5 text-xs text-neutral-500">{branchLabel}</div> : null}
