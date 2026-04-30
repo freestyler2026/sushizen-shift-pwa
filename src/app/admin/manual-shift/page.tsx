@@ -375,7 +375,7 @@ export default function ManualShiftPage() {
     setError("");
     try {
       const data = await apiFetch<{ names?: string[] }>(
-        `/api/admin/staff_master/names?city=${encodeURIComponent(city)}&status=ACTIVE&home_branch=${encodeURIComponent(branchCode)}&limit=5000`
+        `/api/admin/staff_master/names?city=${encodeURIComponent(city)}&status=ACTIVE&home_branch=${encodeURIComponent(branchCode)}&exclude_role=HQ&limit=5000`
       );
       const names = (data.names || []).sort((a, b) => a.localeCompare(b));
       setStaffList(names);
