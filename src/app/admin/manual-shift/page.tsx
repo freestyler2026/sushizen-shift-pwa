@@ -342,6 +342,8 @@ export default function ManualShiftPage() {
   // Custom branch dropdown (replaces native <select> to avoid Edge autocomplete interference)
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
+  const branchButtonRef = useRef<HTMLButtonElement>(null);
+  const [branchDropdownRect, setBranchDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
 
   // Week dates Mon–Sun
   const weekDates = useMemo(
@@ -576,10 +578,10 @@ export default function ManualShiftPage() {
   const branches = BRANCHES[city];
   const shiftCount = buildRows().length;
 
-  // Close branch dropdown when clicking outside
+  // Close branch dropdown when clicking outside the button
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (branchDropdownRef.current && !branchDropdownRef.current.contains(e.target as Node)) {
+      if (branchButtonRef.current && !branchButtonRef.current.contains(e.target as Node)) {
         setBranchDropdownOpen(false);
       }
     }
@@ -618,28 +620,39 @@ export default function ManualShiftPage() {
             {/* Custom dropdown — avoids Edge/Chrome autofill intercepting native <select> */}
             <div ref={branchDropdownRef} className="relative">
               <button
+                ref={branchButtonRef}
                 type="button"
-                onClick={() => setBranchDropdownOpen((o) => !o)}
+                onClick={() => {
+                  const rect = branchButtonRef.current?.getBoundingClientRect();
+                  if (rect) {
+                    setBranchDropdownRect({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX, width: rect.width });
+                  }
+                  setBranchDropdownOpen((o) => !o);
+                }}
                 className={SELECT_CLASS + " flex items-center justify-between gap-2"}
               >
                 <span>{branches.find((b) => b.code === branchCode)?.name ?? branchCode}</span>
                 <ChevronDown className={`h-4 w-4 shrink-0 text-neutral-400 transition-transform ${branchDropdownOpen ? "rotate-180" : ""}`} />
               </button>
-              {branchDropdownOpen && (
-                <div className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-xl border border-white/10 bg-neutral-900 shadow-2xl">
-                  {branches.map((b) => (
-                    <button
-                      key={b.code}
-                      type="button"
-                      onClick={() => { setBranchCode(b.code as BranchCode); setBranchDropdownOpen(false); }}
-                      className={`w-full px-4 py-2.5 text-left text-sm transition hover:bg-white/10 ${b.code === branchCode ? "bg-violet-500/15 text-violet-200 font-medium" : "text-neutral-200"}`}
-                    >
-                      {b.name}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
+            {/* Rendered via fixed positioning to escape backdrop-blur stacking context */}
+            {branchDropdownOpen && branchDropdownRect && (
+              <div
+                style={{ position: "fixed", top: branchDropdownRect.top, left: branchDropdownRect.left, width: branchDropdownRect.width, zIndex: 9999 }}
+                className="overflow-hidden rounded-xl border border-white/10 bg-neutral-900 shadow-2xl"
+              >
+                {branches.map((b) => (
+                  <button
+                    key={b.code}
+                    type="button"
+                    onClick={() => { setBranchCode(b.code as BranchCode); setBranchDropdownOpen(false); }}
+                    className={`w-full px-4 py-2.5 text-left text-sm transition hover:bg-white/10 ${b.code === branchCode ? "bg-violet-500/15 text-violet-200 font-medium" : "text-neutral-200"}`}
+                  >
+                    {b.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div>
             <label className={`${T_LABEL} mb-1 block`}>Week (Monday)</label>
