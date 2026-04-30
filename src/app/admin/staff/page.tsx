@@ -21,6 +21,7 @@ import {
   Zap,
 } from "lucide-react";
 import { canAccessAdminNav, canAccessRoleManagement, getAuth, type City } from "@/lib/auth";
+import { BRANCHES, labelOf, normalizeBranchCode } from "@/lib/branches";
 import { apiGet, apiPost, qs } from "@/lib/api";
 import { fmtNum } from "@/lib/formatters";
 import {
@@ -663,29 +664,39 @@ export default function AdminStaffPage() {
     }
   };
 
-  const DUBAI_BRANCHES = ["BB", "Business Bay", "JLT", "ARJ", "Arjan", "AM", "Al Mina", "AB", "Al Barsha", "CK", "Delivery"];
-  const MANILA_BRANCHES = ["CK", "CUBAO", "PAR"];
+  // Canonical branch codes from branches.ts — single source of truth, no duplicates
+  const canonicalBranches = (c: City): string[] => BRANCHES[c].map((b) => b.code);
 
   const branches = useMemo(() => {
-    const set = new Set<string>();
-    // Add city-specific hardcoded branches first
-    (city === "manila" ? MANILA_BRANCHES : DUBAI_BRANCHES).forEach((x) => set.add(x));
-    // Add any branches already in the loaded rows (covers custom/future branches)
+    const canonical = canonicalBranches(city as City);
+    const set = new Set<string>(canonical);
+    // Normalize any non-standard values already stored in DB rows and add if unknown
     rows.forEach((r) => {
       const hb = norm(r.home_branch);
-      if (hb) set.add(hb);
+      if (!hb) return;
+      const normalized = normalizeBranchCode(city as City, hb);
+      if (normalized && !set.has(normalized)) set.add(normalized);
     });
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
+    // Keep canonical order first, then extras alphabetically
+    return [
+      ...canonical,
+      ...Array.from(set).filter((x) => !canonical.includes(x)).sort(),
+    ];
   }, [rows, city]);
 
   const newStaffBranches = useMemo(() => {
-    const base = newStaffCity === "manila" ? MANILA_BRANCHES : DUBAI_BRANCHES;
-    const set = new Set<string>(base);
+    const canonical = canonicalBranches(newStaffCity as City);
+    const set = new Set<string>(canonical);
     rows.filter((r) => norm(r.city) === newStaffCity).forEach((r) => {
       const hb = norm(r.home_branch);
-      if (hb) set.add(hb);
+      if (!hb) return;
+      const normalized = normalizeBranchCode(newStaffCity as City, hb);
+      if (normalized && !set.has(normalized)) set.add(normalized);
     });
-    return Array.from(set).sort((a, b) => a.localeCompare(b));
+    return [
+      ...canonical,
+      ...Array.from(set).filter((x) => !canonical.includes(x)).sort(),
+    ];
   }, [rows, newStaffCity]);
 
   const filteredRows = useMemo(() => {
@@ -934,9 +945,14 @@ export default function AdminStaffPage() {
               onChange={(e) => setNewStaffHomeBranch(e.target.value)}
             >
               <option value="">— select branch —</option>
-              {newStaffBranches.map((b) => (
-                <option key={b} value={b}>{b}</option>
-              ))}
+              {newStaffBranches.map((b) => {
+                const label = labelOf(newStaffCity as City, b);
+                return (
+                  <option key={b} value={b}>
+                    {b === label ? b : `${b} – ${label}`}
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div>
@@ -1030,9 +1046,14 @@ export default function AdminStaffPage() {
               onChange={(e) => setHomeBranchFilter(e.target.value)}
             >
               <option value="">(All branches)</option>
-              {branches.map((b) => (
-                <option key={b} value={b}>{b}</option>
-              ))}
+              {branches.map((b) => {
+                const label = labelOf(city as City, b);
+                return (
+                  <option key={b} value={b}>
+                    {b === label ? b : `${b} – ${label}`}
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div className="sm:col-span-2">
@@ -1137,14 +1158,19 @@ export default function AdminStaffPage() {
                           max/wk:{Number(r.max_days_per_week ?? 6)} | max/cons:{Number(r.max_consecutive_days ?? 6)}
                         </div>
                         <select
-                          className={SELECT_CLASS + " py-1 text-xs max-w-[140px]"}
+                          className={SELECT_CLASS + " py-1 text-xs max-w-[180px]"}
                           value={branchDrafts[dn] ?? hb}
                           onChange={(e) => setBranchDrafts((prev) => ({ ...prev, [dn]: e.target.value }))}
                         >
                           <option value="">— select —</option>
-                          {branches.map((b) => (
-                            <option key={b} value={b}>{b}</option>
-                          ))}
+                          {branches.map((b) => {
+                            const label = labelOf(city as City, b);
+                            return (
+                              <option key={b} value={b}>
+                                {b === label ? b : `${b} – ${label}`}
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
                     </td>
