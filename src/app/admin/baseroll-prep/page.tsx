@@ -8,7 +8,6 @@ import {
   GLASS_CARD,
   PRIMARY_BUTTON,
   SECONDARY_BUTTON,
-  DANGER_BUTTON,
   INPUT_CLASS,
   TAB_ACTIVE,
   TAB_INACTIVE,
@@ -118,7 +117,7 @@ function rollColor(name: string) {
 function SessionTable({ label, emoji, rows }: { label: string; emoji: string; rows: RollQty[] }) {
   if (rows.length === 0) return (
     <div className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-xs text-neutral-500">
-      {emoji} {label} — データなし
+      {emoji} {label} — No data
     </div>
   );
   return (
@@ -138,7 +137,7 @@ function SessionTable({ label, emoji, rows }: { label: string; emoji: string; ro
               <span className="min-w-[2.5rem] rounded-lg bg-violet-600 px-3 py-1 text-center text-sm font-bold text-white tabular-nums">
                 {r.qty_prep}
               </span>
-              <span className="text-xs text-neutral-400">本</span>
+              <span className="text-xs text-neutral-400">pcs</span>
             </div>
           </div>
         ))}
@@ -163,11 +162,11 @@ function StoreCard({ s }: { s: StoreResult }) {
           <span className="rounded-xl bg-violet-500/20 px-3 py-0.5 text-sm font-bold text-violet-200">
             🏪 {s.store}
           </span>
-          <span className="text-xs text-neutral-400">参照: {fmtDate(s.reference_date)}</span>
+          <span className="text-xs text-neutral-400">Ref: {fmtDate(s.reference_date)}</span>
         </div>
         <div className="flex items-center gap-4 text-xs text-neutral-400">
-          <span>🕐 ランチ {lunchPct}%</span>
-          <span>🌙 ディナー {dinnerPct}%</span>
+          <span>🕐 Lunch {lunchPct}%</span>
+          <span>🌙 Dinner {dinnerPct}%</span>
           <span className="text-neutral-600">{open ? "▲" : "▼"}</span>
         </div>
       </button>
@@ -176,35 +175,35 @@ function StoreCard({ s }: { s: StoreResult }) {
         <div className="space-y-4 p-4">
           {/* Order distribution bar */}
           <div className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3">
-            <p className="mb-2 text-xs font-semibold text-neutral-400">注文時間帯分布（前週同日）</p>
+            <p className="mb-2 text-xs font-semibold text-neutral-400">Order time distribution (same day last week)</p>
             <div className="flex h-3 overflow-hidden rounded-full bg-white/10">
-              <div className="bg-sky-500/70" style={{ width: `${lunchPct}%` }} title={`ランチ ${lunchPct}%`} />
-              <div className="bg-violet-500/70" style={{ width: `${dinnerPct}%` }} title={`ディナー ${dinnerPct}%`} />
+              <div className="bg-sky-500/70" style={{ width: `${lunchPct}%` }} title={`Lunch ${lunchPct}%`} />
+              <div className="bg-violet-500/70" style={{ width: `${dinnerPct}%` }} title={`Dinner ${dinnerPct}%`} />
             </div>
             <div className="mt-1.5 flex gap-4 text-[10px] text-neutral-500">
-              <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-sky-500/70" />ランチ 11–14時 {s.lunch_orders}件 ({lunchPct}%)</span>
-              <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-violet-500/70" />ディナー 17–22時 {s.dinner_orders}件 ({dinnerPct}%)</span>
-              <span className="ml-auto">合計 {s.total_orders}件</span>
+              <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-sky-500/70" />Lunch 11–14h: {s.lunch_orders} orders ({lunchPct}%)</span>
+              <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-violet-500/70" />Dinner 17–22h: {s.dinner_orders} orders ({dinnerPct}%)</span>
+              <span className="ml-auto">Total: {s.total_orders} orders</span>
             </div>
           </div>
 
           {/* Lunch / Dinner base roll tables */}
           <div className="grid gap-4 lg:grid-cols-2">
-            <SessionTable label="ランチ仕込み (×0.9)" emoji="🕐" rows={s.lunch} />
-            <SessionTable label="ディナー仕込み (×0.9)" emoji="🌙" rows={s.dinner} />
+            <SessionTable label="Lunch Prep (×0.9)" emoji="🕐" rows={s.lunch} />
+            <SessionTable label="Dinner Prep (×0.9)" emoji="🌙" rows={s.dinner} />
           </div>
 
           {/* Matched products detail (collapsible) */}
           {s.matched_products.length > 0 && (
             <details className="rounded-xl border border-white/8 bg-white/[0.02]">
               <summary className="cursor-pointer px-4 py-2.5 text-xs text-neutral-500 hover:text-neutral-300">
-                📋 使用した商品データ ({s.matched_products.length}品)
+                📋 Products used in calculation ({s.matched_products.length} items)
               </summary>
               <div className="divide-y divide-white/5 px-4 pb-3">
                 {s.matched_products.map((p) => (
                   <div key={p.name} className="flex items-center justify-between py-1.5 text-xs">
                     <span className="text-neutral-300">{p.name}</span>
-                    <span className="text-neutral-500">{p.daily_qty} 個</span>
+                    <span className="text-neutral-500">{p.daily_qty} pcs</span>
                   </div>
                 ))}
               </div>
@@ -226,12 +225,10 @@ function MappingSettings() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState<number | "new" | null>(null);
 
-  // Add form state
   const [showAdd, setShowAdd] = useState(false);
   const [addForm, setAddForm] = useState(EMPTY_FORM);
   const [addError, setAddError] = useState("");
 
-  // Edit state: rowId → {coefficient, notes}
   const [edits, setEdits] = useState<Record<number, { coefficient: string; notes: string }>>({});
 
   const loadRows = useCallback(async () => {
@@ -243,7 +240,7 @@ function MappingSettings() {
       );
       setRows(data.items);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "エラーが発生しました");
+      setError(e instanceof Error ? e.message : "Failed to load mappings");
     } finally {
       setLoading(false);
     }
@@ -251,7 +248,6 @@ function MappingSettings() {
 
   useEffect(() => { void loadRows(); }, [loadRows]);
 
-  // Group rows by product_name
   const grouped = useMemo(() => {
     const map: Record<string, MapRow[]> = {};
     for (const r of rows) {
@@ -269,20 +265,20 @@ function MappingSettings() {
       });
       setRows((prev) => prev.map((r) => r.id === row.id ? { ...r, is_active: !r.is_active } : r));
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "エラーが発生しました");
+      setError(e instanceof Error ? e.message : "Failed to update");
     } finally {
       setSaving(null);
     }
   };
 
   const handleDelete = async (row: MapRow) => {
-    if (!confirm(`「${row.product_name}」→「${row.base_roll_name}」のマッピングを削除しますか？`)) return;
+    if (!confirm(`Delete mapping: "${row.product_name}" → "${row.base_roll_name}"?`)) return;
     setSaving(row.id);
     try {
       await apiFetch(`/api/admin/analytics/manila/baseroll-map/${row.id}`, { method: "DELETE" });
       setRows((prev) => prev.filter((r) => r.id !== row.id));
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "エラーが発生しました");
+      setError(e instanceof Error ? e.message : "Failed to delete");
     } finally {
       setSaving(null);
     }
@@ -292,7 +288,7 @@ function MappingSettings() {
     const edit = edits[row.id];
     if (!edit) return;
     const coeff = parseFloat(edit.coefficient);
-    if (isNaN(coeff) || coeff < 0) { setError("係数は0以上の数値を入力してください"); return; }
+    if (isNaN(coeff) || coeff < 0) { setError("Coefficient must be a number ≥ 0"); return; }
     setSaving(row.id);
     try {
       const data = await apiFetch<{ ok: boolean; item: MapRow }>(
@@ -311,7 +307,7 @@ function MappingSettings() {
       setRows((prev) => prev.map((r) => r.id === row.id ? data.item : r));
       setEdits((prev) => { const n = { ...prev }; delete n[row.id]; return n; });
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "エラーが発生しました");
+      setError(e instanceof Error ? e.message : "Failed to save");
     } finally {
       setSaving(null);
     }
@@ -320,8 +316,8 @@ function MappingSettings() {
   const handleAdd = async () => {
     setAddError("");
     const coeff = parseFloat(addForm.coefficient);
-    if (!addForm.product_name.trim()) { setAddError("商品名を入力してください"); return; }
-    if (isNaN(coeff) || coeff < 0) { setAddError("係数は0以上の数値を入力してください"); return; }
+    if (!addForm.product_name.trim()) { setAddError("Product name is required"); return; }
+    if (isNaN(coeff) || coeff < 0) { setAddError("Coefficient must be a number ≥ 0"); return; }
     setSaving("new");
     try {
       const data = await apiFetch<{ ok: boolean; item: MapRow }>(
@@ -338,7 +334,6 @@ function MappingSettings() {
         }
       );
       setRows((prev) => {
-        // Replace existing row with same key, or add new
         const idx = prev.findIndex(
           (r) => r.product_name === data.item.product_name && r.base_roll_name === data.item.base_roll_name
         );
@@ -352,7 +347,7 @@ function MappingSettings() {
       setAddForm(EMPTY_FORM);
       setShowAdd(false);
     } catch (e: unknown) {
-      setAddError(e instanceof Error ? e.message : "エラーが発生しました");
+      setAddError(e instanceof Error ? e.message : "Failed to save");
     } finally {
       setSaving(null);
     }
@@ -362,51 +357,48 @@ function MappingSettings() {
     <div className="flex items-center justify-center py-16 text-neutral-500">
       <div className="flex flex-col items-center gap-3">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-        <p className="text-sm">マッピングデータを取得中…</p>
+        <p className="text-sm">Loading mappings…</p>
       </div>
     </div>
   );
 
   return (
     <div className="space-y-4">
-      {/* Header row */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-neutral-400">
-          商品名とベースロールの係数マッピングを管理します。変更は次回の仕込み計算から反映されます。
+          Manage product → base roll coefficient mappings. Changes take effect on the next prep calculation.
         </p>
         <button
           type="button"
           onClick={() => { setShowAdd(true); setAddError(""); }}
           className={`${PRIMARY_BUTTON} text-sm`}
         >
-          ＋ 追加
+          + Add
         </button>
       </div>
 
-      {/* Error */}
       {error && (
         <div className="rounded-xl border border-rose-500/30 bg-rose-950/20 px-4 py-3 text-sm text-rose-300">
           ⚠️ {error}
-          <button type="button" className="ml-3 text-xs underline" onClick={() => setError("")}>閉じる</button>
+          <button type="button" className="ml-3 text-xs underline" onClick={() => setError("")}>Dismiss</button>
         </div>
       )}
 
-      {/* Add form */}
       {showAdd && (
         <div className={`${GLASS_CARD} space-y-3`}>
-          <p className="text-sm font-semibold text-white">新しいマッピングを追加</p>
+          <p className="text-sm font-semibold text-white">Add New Mapping</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs text-neutral-400">商品名</label>
+              <label className="mb-1 block text-xs text-neutral-400">Product Name</label>
               <input
                 className={INPUT_CLASS}
-                placeholder="例: California Roll (8pcs)"
+                placeholder="e.g. California Roll (8pcs)"
                 value={addForm.product_name}
                 onChange={(e) => setAddForm((f) => ({ ...f, product_name: e.target.value }))}
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-neutral-400">ベースロール</label>
+              <label className="mb-1 block text-xs text-neutral-400">Base Roll</label>
               <select
                 className={INPUT_CLASS}
                 value={addForm.base_roll_name}
@@ -416,7 +408,7 @@ function MappingSettings() {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs text-neutral-400">係数（1商品あたりのロール本数）</label>
+              <label className="mb-1 block text-xs text-neutral-400">Coefficient (rolls per unit sold)</label>
               <input
                 className={INPUT_CLASS}
                 type="number"
@@ -427,10 +419,10 @@ function MappingSettings() {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-neutral-400">メモ（任意）</label>
+              <label className="mb-1 block text-xs text-neutral-400">Notes (optional)</label>
               <input
                 className={INPUT_CLASS}
-                placeholder="メモ"
+                placeholder="Notes"
                 value={addForm.notes}
                 onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))}
               />
@@ -444,34 +436,31 @@ function MappingSettings() {
               disabled={saving === "new"}
               className={`${PRIMARY_BUTTON} text-sm`}
             >
-              {saving === "new" ? "保存中…" : "保存"}
+              {saving === "new" ? "Saving…" : "Save"}
             </button>
             <button
               type="button"
               onClick={() => { setShowAdd(false); setAddForm(EMPTY_FORM); setAddError(""); }}
               className={`${SECONDARY_BUTTON} text-sm`}
             >
-              キャンセル
+              Cancel
             </button>
           </div>
         </div>
       )}
 
-      {/* Mapping table grouped by product */}
       {Object.keys(grouped).length === 0 ? (
         <div className={`${GLASS_CARD} py-12 text-center text-sm text-neutral-500`}>
-          マッピングがありません
+          No mappings found
         </div>
       ) : (
         <div className="space-y-3">
           {Object.entries(grouped).map(([product, pRows]) => (
             <div key={product} className={`${GLASS_CARD} overflow-hidden p-0`}>
-              {/* Product header */}
               <div className="border-b border-white/10 bg-white/[0.04] px-4 py-2.5">
                 <span className="text-sm font-semibold text-white">{product}</span>
-                <span className="ml-2 text-xs text-neutral-500">{pRows.length}件</span>
+                <span className="ml-2 text-xs text-neutral-500">{pRows.length} roll{pRows.length !== 1 ? "s" : ""}</span>
               </div>
-              {/* Roll rows */}
               <div className="divide-y divide-white/5">
                 {pRows.map((row) => {
                   const isEditing = row.id in edits;
@@ -479,14 +468,12 @@ function MappingSettings() {
                   const isBusy = saving === row.id;
                   return (
                     <div key={row.id} className={`flex flex-wrap items-center gap-3 px-4 py-3 ${!row.is_active ? "opacity-50" : ""}`}>
-                      {/* Roll name badge */}
                       <span className={`inline-flex items-center rounded-lg border px-2.5 py-0.5 text-xs font-medium ${rollColor(row.base_roll_name)}`}>
                         {row.base_roll_name}
                       </span>
 
-                      {/* Coefficient */}
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-neutral-500">係数:</span>
+                        <span className="text-xs text-neutral-500">Coeff:</span>
                         {isEditing ? (
                           <input
                             type="number"
@@ -500,18 +487,17 @@ function MappingSettings() {
                           <span
                             className="cursor-pointer rounded-lg bg-white/8 px-2.5 py-0.5 text-sm font-mono text-white hover:bg-white/12"
                             onClick={() => setEdits((prev) => ({ ...prev, [row.id]: { coefficient: String(row.coefficient), notes: row.notes } }))}
-                            title="クリックして編集"
+                            title="Click to edit"
                           >
                             {row.coefficient}
                           </span>
                         )}
                       </div>
 
-                      {/* Notes */}
                       {isEditing ? (
                         <input
                           className="flex-1 min-w-[120px] rounded-lg border border-white/10 bg-white/6 px-2 py-0.5 text-xs text-white outline-none focus:border-violet-500/50"
-                          placeholder="メモ"
+                          placeholder="Notes"
                           value={editVal.notes}
                           onChange={(e) => setEdits((prev) => ({ ...prev, [row.id]: { ...prev[row.id], notes: e.target.value } }))}
                         />
@@ -519,7 +505,6 @@ function MappingSettings() {
                         row.notes && <span className="text-xs text-neutral-500 italic">{row.notes}</span>
                       )}
 
-                      {/* Actions */}
                       <div className="ml-auto flex items-center gap-2">
                         {isEditing ? (
                           <>
@@ -529,14 +514,14 @@ function MappingSettings() {
                               onClick={() => handleSaveEdit(row)}
                               className="rounded-lg bg-violet-600 px-3 py-1 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-50"
                             >
-                              {isBusy ? "…" : "保存"}
+                              {isBusy ? "…" : "Save"}
                             </button>
                             <button
                               type="button"
                               onClick={() => setEdits((prev) => { const n = { ...prev }; delete n[row.id]; return n; })}
                               className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-400 hover:bg-white/10"
                             >
-                              取消
+                              Cancel
                             </button>
                           </>
                         ) : (
@@ -546,11 +531,10 @@ function MappingSettings() {
                             onClick={() => setEdits((prev) => ({ ...prev, [row.id]: { coefficient: String(row.coefficient), notes: row.notes } }))}
                             className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-xs text-neutral-400 hover:bg-white/10 disabled:opacity-50"
                           >
-                            編集
+                            Edit
                           </button>
                         )}
 
-                        {/* Toggle active */}
                         <button
                           type="button"
                           disabled={isBusy}
@@ -561,16 +545,15 @@ function MappingSettings() {
                               : "border-neutral-500/30 bg-neutral-500/10 text-neutral-500 hover:bg-neutral-500/20"
                           }`}
                         >
-                          {row.is_active ? "有効" : "無効"}
+                          {row.is_active ? "Active" : "Inactive"}
                         </button>
 
-                        {/* Delete */}
                         <button
                           type="button"
                           disabled={isBusy}
                           onClick={() => handleDelete(row)}
                           className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-2 py-1 text-xs text-rose-400 hover:bg-rose-500/20 disabled:opacity-50"
-                          title="削除"
+                          title="Delete"
                         >
                           🗑
                         </button>
@@ -584,9 +567,8 @@ function MappingSettings() {
         </div>
       )}
 
-      {/* Legend */}
       <div className="rounded-xl border border-white/8 bg-white/[0.02] px-4 py-3 text-xs text-neutral-500">
-        💡 係数 = 1商品を1個販売した際に使用するベースロールの本数。例: 係数0.5の場合、2個売れると1本使用。
+        💡 Coefficient = number of base rolls used per unit sold. Example: coefficient 0.5 means 2 units sold = 1 roll used.
       </div>
     </div>
   );
@@ -613,7 +595,7 @@ export default function BaserollPrepPage() {
       );
       setResult(data);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "エラーが発生しました");
+      setError(e instanceof Error ? e.message : "An error occurred");
     } finally {
       setLoading(false);
     }
@@ -629,9 +611,9 @@ export default function BaserollPrepPage() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className={T_PAGE_TITLE}>🍣 ベースロール仕込み指示</h1>
+          <h1 className={T_PAGE_TITLE}>🍣 Base Roll Prep Instructions</h1>
           <p className="mt-1 text-sm text-neutral-400">
-            前週同日の販売データから、ランチ・ディナーのベースロール仕込み本数を自動計算します
+            Automatically calculates base roll prep quantities for lunch and dinner based on the previous week&apos;s same-day sales
           </p>
         </div>
         <Link href="/admin" className="text-xs text-neutral-500 hover:text-neutral-300">
@@ -642,20 +624,19 @@ export default function BaserollPrepPage() {
       {/* Tab navigation */}
       <div className="flex gap-2">
         <button type="button" onClick={() => setTab("prep")} className={tab === "prep" ? TAB_ACTIVE : TAB_INACTIVE}>
-          🍱 仕込み計算
+          🍱 Prep Calculator
         </button>
         <button type="button" onClick={() => setTab("settings")} className={tab === "settings" ? TAB_ACTIVE : TAB_INACTIVE}>
-          ⚙️ マッピング設定
+          ⚙️ Mapping Settings
         </button>
       </div>
 
       {/* ── Prep Tab ── */}
       {tab === "prep" && (
         <div className="space-y-6">
-          {/* Controls */}
           <div className={`${GLASS_CARD} flex flex-wrap items-end gap-4`}>
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-neutral-400">仕込み日</label>
+              <label className="mb-1.5 block text-xs font-semibold text-neutral-400">Prep Date</label>
               <input
                 type="date"
                 value={prepDate}
@@ -664,7 +645,7 @@ export default function BaserollPrepPage() {
               />
             </div>
             <div className="flex flex-col gap-0.5">
-              <span className="text-xs text-neutral-500">参照日（前週同日）</span>
+              <span className="text-xs text-neutral-500">Reference Date (same day last week)</span>
               <span className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-neutral-300">
                 {fmtDate(refDate)}
               </span>
@@ -675,45 +656,40 @@ export default function BaserollPrepPage() {
               disabled={loading}
               className={`${PRIMARY_BUTTON} min-w-[140px]`}
             >
-              {loading ? "計算中…" : "🔄 計算する"}
+              {loading ? "Calculating…" : "🔄 Calculate"}
             </button>
           </div>
 
-          {/* Note */}
           <div className="rounded-xl border border-sky-500/20 bg-sky-950/20 px-4 py-3 text-xs text-sky-300">
-            💡 計算式: 前週同日の商品別販売数 × 時間帯注文比率 × 0.9（四捨五入）<br />
-            <span className="text-sky-400/70">ランチ = 11–14時注文 / 全注文　ディナー = 17–22時注文 / 全注文</span>
+            💡 Formula: previous week same-day product sales × session order ratio × 0.9 (rounded)<br />
+            <span className="text-sky-400/70">Lunch = orders 11–14h / total orders &nbsp;·&nbsp; Dinner = orders 17–22h / total orders</span>
           </div>
 
-          {/* Error */}
           {error && (
             <div className="rounded-xl border border-rose-500/30 bg-rose-950/20 px-4 py-3 text-sm text-rose-300">
               ⚠️ {error}
             </div>
           )}
 
-          {/* Loading */}
           {loading && (
             <div className="flex items-center justify-center py-16 text-neutral-500">
               <div className="flex flex-col items-center gap-3">
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
-                <p className="text-sm">データを取得中…</p>
+                <p className="text-sm">Fetching data…</p>
               </div>
             </div>
           )}
 
-          {/* No data */}
           {!loading && result && !hasData && (
             <div className={`${GLASS_CARD} flex flex-col items-center py-16 text-center`}>
               <div className="mb-3 text-4xl">📭</div>
               <p className="text-sm font-medium text-neutral-300">
-                {fmtDate(refDate)} のマニラ売上データが見つかりません
+                No Manila sales data found for {fmtDate(refDate)}
               </p>
-              <p className="mt-1 text-xs text-neutral-500">別の日付を選択してください</p>
+              <p className="mt-1 text-xs text-neutral-500">Please select a different date</p>
             </div>
           )}
 
-          {/* Results */}
           {!loading && hasData && (
             <div className="space-y-4">
               {result!.stores.map((s) => (
