@@ -2,6 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
@@ -630,12 +631,10 @@ export default function ManualShiftPage() {
                 ref={branchButtonRef}
                 type="button"
                 onClick={() => {
-                  const btnRect = branchButtonRef.current?.getBoundingClientRect();
-                  const cardRect = controlsCardRef.current?.getBoundingClientRect();
-                  if (btnRect) {
-                    // Use card's bottom edge (not button's) so dropdown always clears the card
-                    const topAnchor = cardRect ? cardRect.bottom + 8 : btnRect.bottom + 8;
-                    setBranchDropdownRect({ top: topAnchor, left: btnRect.left, width: btnRect.width });
+                  const rect = branchButtonRef.current?.getBoundingClientRect();
+                  if (rect) {
+                    // Portal renders at document.body, so fixed coords are truly viewport-relative
+                    setBranchDropdownRect({ top: rect.bottom + 4, left: rect.left, width: rect.width });
                   }
                   setBranchDropdownOpen((o) => !o);
                 }}
@@ -645,8 +644,8 @@ export default function ManualShiftPage() {
                 <ChevronDown className={`h-4 w-4 shrink-0 text-neutral-400 transition-transform ${branchDropdownOpen ? "rotate-180" : ""}`} />
               </button>
             </div>
-            {/* Rendered via fixed positioning to escape backdrop-blur stacking context */}
-            {branchDropdownOpen && branchDropdownRect && (
+            {/* Portal to document.body — escapes all backdrop-blur stacking contexts */}
+            {branchDropdownOpen && branchDropdownRect && typeof document !== "undefined" && createPortal(
               <div
                 ref={branchListRef}
                 style={{ position: "fixed", top: branchDropdownRect.top, left: branchDropdownRect.left, width: branchDropdownRect.width, zIndex: 9999 }}
@@ -662,7 +661,8 @@ export default function ManualShiftPage() {
                     {b.name}
                   </button>
                 ))}
-              </div>
+              </div>,
+              document.body
             )}
           </div>
           <div>
