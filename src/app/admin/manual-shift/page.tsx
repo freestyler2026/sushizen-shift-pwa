@@ -1,8 +1,9 @@
 // src/app/admin/manual-shift/page.tsx
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { ChevronDown } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import { BRANCHES, labelOf, type BranchCode, type City } from "@/lib/branches";
 import {
@@ -338,6 +339,9 @@ export default function ManualShiftPage() {
   const [publishedCount, setPublishedCount] = useState(0);
   // True when the user has locally entered cells not yet published
   const [hasDraft, setHasDraft] = useState(false);
+  // Custom branch dropdown (replaces native <select> to avoid Edge autocomplete interference)
+  const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
+  const branchDropdownRef = useRef<HTMLDivElement>(null);
 
   // Week dates Mon–Sun
   const weekDates = useMemo(
@@ -572,6 +576,19 @@ export default function ManualShiftPage() {
   const branches = BRANCHES[city];
   const shiftCount = buildRows().length;
 
+  // Close branch dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (branchDropdownRef.current && !branchDropdownRef.current.contains(e.target as Node)) {
+        setBranchDropdownOpen(false);
+      }
+    }
+    if (branchDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [branchDropdownOpen]);
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-8">
       {/* Header */}
@@ -598,11 +615,31 @@ export default function ManualShiftPage() {
           </div>
           <div>
             <label className={`${T_LABEL} mb-1 block`}>Branch</label>
-            <select className={SELECT_CLASS} autoComplete="off" value={branchCode} onChange={(e) => setBranchCode(e.target.value as BranchCode)}>
-              {branches.map((b) => (
-                <option key={b.code} value={b.code}>{b.name}</option>
-              ))}
-            </select>
+            {/* Custom dropdown — avoids Edge/Chrome autofill intercepting native <select> */}
+            <div ref={branchDropdownRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setBranchDropdownOpen((o) => !o)}
+                className={SELECT_CLASS + " flex items-center justify-between gap-2"}
+              >
+                <span>{branches.find((b) => b.code === branchCode)?.name ?? branchCode}</span>
+                <ChevronDown className={`h-4 w-4 shrink-0 text-neutral-400 transition-transform ${branchDropdownOpen ? "rotate-180" : ""}`} />
+              </button>
+              {branchDropdownOpen && (
+                <div className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-xl border border-white/10 bg-neutral-900 shadow-2xl">
+                  {branches.map((b) => (
+                    <button
+                      key={b.code}
+                      type="button"
+                      onClick={() => { setBranchCode(b.code as BranchCode); setBranchDropdownOpen(false); }}
+                      className={`w-full px-4 py-2.5 text-left text-sm transition hover:bg-white/10 ${b.code === branchCode ? "bg-violet-500/15 text-violet-200 font-medium" : "text-neutral-200"}`}
+                    >
+                      {b.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           <div>
             <label className={`${T_LABEL} mb-1 block`}>Week (Monday)</label>
