@@ -86,6 +86,42 @@ const TRACKS: Track[] = [
     accentHex: "#0ea5e9",
     glyph: "和",
   },
+  {
+    id: 9,
+    title: "ZEN Party",
+    subtitle: "Sushi ZEN",
+    file: "/music/sushi-zen-party.mp3",
+    accent: "from-fuchsia-400 via-pink-500 to-rose-600",
+    accentHex: "#d946ef",
+    glyph: "祭",
+  },
+  {
+    id: 10,
+    title: "ZEN Hawaiian",
+    subtitle: "Sushi ZEN",
+    file: "/music/sushi-zen-hawaiian.mp3",
+    accent: "from-cyan-400 via-teal-400 to-emerald-500",
+    accentHex: "#22d3ee",
+    glyph: "浜",
+  },
+  {
+    id: 11,
+    title: "ZEN Memories",
+    subtitle: "Sushi ZEN",
+    file: "/music/sushi-zen-memories.mp3",
+    accent: "from-purple-400 via-violet-500 to-indigo-600",
+    accentHex: "#a855f7",
+    glyph: "想",
+  },
+  {
+    id: 12,
+    title: "ZEN Midnight",
+    subtitle: "Sushi ZEN",
+    file: "/music/sushi-zen-midnight.mp3",
+    accent: "from-slate-400 via-blue-700 to-indigo-900",
+    accentHex: "#3730a3",
+    glyph: "夜",
+  },
 ];
 
 function fmt(sec: number) {
