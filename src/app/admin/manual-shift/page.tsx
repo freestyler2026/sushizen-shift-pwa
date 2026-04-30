@@ -118,57 +118,87 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
 
 // ─── Published View ───────────────────────────────────────────────────────────
 
+type PublishedRow = {
+  work_date: string;
+  branch_code: string;
+  staff_name: string;
+  role: string;
+  start_hour: number;
+  end_hour: number;
+};
+
+function roleColor(role: string) {
+  const map: Record<string, string> = {
+    CK: "bg-violet-500/20 text-violet-300 border-violet-500/30",
+    SV: "bg-sky-500/20 text-sky-300 border-sky-500/30",
+    MGR: "bg-amber-500/20 text-amber-300 border-amber-500/30",
+    DRIVER: "bg-orange-500/20 text-orange-300 border-orange-500/30",
+    TRAINEE: "bg-neutral-500/20 text-neutral-300 border-neutral-500/30",
+    PIC: "bg-indigo-500/20 text-indigo-300 border-indigo-500/30",
+  };
+  return map[role] ?? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30";
+}
+
 function PublishedView({
-  gridData,
-  weekDates,
-  branchLabel,
+  city,
   weekStart,
-  shiftCount,
+  weekDates,
   onBackToEdit,
 }: {
-  gridData: GridData;
-  weekDates: string[];
-  branchLabel: string;
+  city: string;
   weekStart: string;
-  shiftCount: number;
+  weekDates: string[];
   onBackToEdit: () => void;
 }) {
-  // Collect all staff names that have at least one shift this week
-  const activeStaff = useMemo(() => {
-    return Object.entries(gridData)
-      .filter(([, days]) => Object.values(days).some((c) => c != null && c.role))
-      .map(([name]) => name)
-      .sort((a, b) => a.localeCompare(b));
-  }, [gridData]);
+  const [rows, setRows] = useState<PublishedRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState("");
 
-  // Dates that have at least one shift
+  useEffect(() => {
+    setLoading(true);
+    setFetchError("");
+    apiFetch<{ rows?: PublishedRow[] }>(
+      `/api/published/week?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}`
+    )
+      .then((data) => setRows(data.rows || []))
+      .catch((e) => setFetchError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false));
+  }, [city, weekStart]);
+
+  // Group rows by canonical branch code, in canonical order
+  const branchGroups = useMemo(() => {
+    const canonicalOrder = BRANCHES[city as City]?.map((b) => b.code) ?? [];
+    const map = new Map<string, PublishedRow[]>();
+
+    for (const row of rows) {
+      const bc = normalizeBranchCode(city as City, row.branch_code) || row.branch_code;
+      if (!map.has(bc)) map.set(bc, []);
+      map.get(bc)!.push(row);
+    }
+
+    // Sort branches: canonical order first, then any extras alphabetically
+    const canonicalSet = new Set<string>(canonicalOrder);
+    const knownKeys = canonicalOrder.filter((c) => map.has(c));
+    const unknownKeys = [...map.keys()].filter((c) => !canonicalSet.has(c)).sort();
+    return [...knownKeys, ...unknownKeys].map((bc) => ({ bc, rows: map.get(bc)! }));
+  }, [rows, city]);
+
+  // Active dates (days that have at least one shift across all branches)
   const activeDates = useMemo(
-    () => weekDates.filter((d) => activeStaff.some((n) => gridData[n]?.[d])),
-    [weekDates, activeStaff, gridData]
+    () => weekDates.filter((d) => rows.some((r) => r.work_date === d)),
+    [weekDates, rows]
   );
-
-  // Role badge color
-  const roleColor = (role: string) => {
-    const map: Record<string, string> = {
-      CK: "bg-violet-500/20 text-violet-300 border-violet-500/30",
-      SV: "bg-sky-500/20 text-sky-300 border-sky-500/30",
-      MGR: "bg-amber-500/20 text-amber-300 border-amber-500/30",
-      DRIVER: "bg-orange-500/20 text-orange-300 border-orange-500/30",
-      TRAINEE: "bg-neutral-500/20 text-neutral-300 border-neutral-500/30",
-    };
-    return map[role] ?? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30";
-  };
 
   return (
     <div className="space-y-4">
-      {/* Summary banner */}
+      {/* Header bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-950/20 px-5 py-4">
         <div>
           <p className="text-sm font-semibold text-emerald-300">
-            ✅ {shiftCount} shifts published · {branchLabel} · Week of {weekStart}
+            📋 Published Schedule — Week of {weekStart}
           </p>
           <p className="mt-0.5 text-xs text-emerald-400/60">
-            {activeStaff.length} staff · {activeDates.length} active days
+            {rows.length} shifts · {branchGroups.length} branches
           </p>
         </div>
         <button
@@ -180,65 +210,53 @@ function PublishedView({
         </button>
       </div>
 
-      {activeDates.length === 0 ? (
+      {loading && (
+        <div className={`${GLASS_CARD} py-10 text-center text-sm text-neutral-500`}>Loading…</div>
+      )}
+      {fetchError && (
+        <div className="rounded-2xl border border-rose-900/50 bg-rose-950/20 px-4 py-3 text-sm text-rose-300">{fetchError}</div>
+      )}
+
+      {!loading && !fetchError && rows.length === 0 && (
         <div className={`${GLASS_CARD} py-12 text-center text-sm text-neutral-500`}>
-          No shifts in this week/branch.
+          No published shifts for this week.
         </div>
-      ) : (
-        <>
-          {/* Day-by-day cards */}
-          <div className="space-y-3">
-            {activeDates.map((d) => {
-              const dayStaff = activeStaff
-                .map((name) => ({ name, cell: gridData[name]?.[d] ?? null }))
-                .filter((s) => s.cell != null);
+      )}
 
-              return (
-                <div key={d} className={`${GLASS_CARD} overflow-hidden p-0`}>
-                  {/* Date header */}
-                  <div className="flex items-center justify-between border-b border-white/8 bg-white/[0.03] px-5 py-3">
-                    <span className="text-sm font-semibold text-white">{formatDateFull(d)}</span>
-                    <span className="rounded-full bg-white/8 px-2.5 py-0.5 text-xs text-neutral-400">
-                      {dayStaff.length} staff
-                    </span>
-                  </div>
+      {!loading && branchGroups.map(({ bc, rows: bRows }) => {
+        // Staff unique to this branch
+        const staff = [...new Set(bRows.map((r) => r.staff_name))].sort((a, b) => a.localeCompare(b));
+        // Dates with at least one shift in this branch
+        const bDates = activeDates.filter((d) => bRows.some((r) => r.work_date === d));
+        // Row lookup: staff × date → first matching row
+        const lookup = (name: string, d: string) =>
+          bRows.find((r) => r.staff_name === name && r.work_date === d) ?? null;
 
-                  {/* Staff rows */}
-                  <div className="divide-y divide-white/5">
-                    {dayStaff.map(({ name, cell }) => (
-                      <div key={name} className="flex items-center justify-between px-5 py-3">
-                        <span className="text-sm font-medium text-neutral-200">{name}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono text-neutral-400">
-                            {fmtHour(cell!.start_hour)} – {fmtHour(cell!.end_hour)}
-                          </span>
-                          <span
-                            className={`rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${roleColor(cell!.role)}`}
-                          >
-                            {cell!.role}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Staff summary table */}
-          <div className={`${GLASS_CARD} overflow-hidden p-0`}>
-            <div className="border-b border-white/8 bg-white/[0.03] px-5 py-3">
-              <span className="text-sm font-semibold text-white">Staff Overview</span>
-              <span className="ml-2 text-xs text-neutral-500">all days side by side</span>
+        return (
+          <div key={bc} className={`${GLASS_CARD} overflow-hidden p-0`}>
+            {/* Branch header */}
+            <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.04] px-5 py-3">
+              <div className="flex items-center gap-3">
+                <span className="rounded-lg border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-xs font-bold text-violet-300 tracking-wide">
+                  {bc}
+                </span>
+                <span className="text-sm font-semibold text-white">{labelOf(city as City, bc as BranchCode)}</span>
+              </div>
+              <span className="text-xs text-neutral-500">
+                {bRows.length} shifts · {staff.length} staff
+              </span>
             </div>
+
+            {/* Staff × Days grid */}
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-white/8">
-                    <th className="px-4 py-2.5 text-left font-semibold text-neutral-400">Staff</th>
-                    {activeDates.map((d) => (
-                      <th key={d} className="px-3 py-2.5 text-center font-semibold text-neutral-400">
+                  <tr className="border-b border-white/8 bg-white/[0.02]">
+                    <th className="sticky left-0 bg-[#111827] px-4 py-2.5 text-left font-semibold text-neutral-400 whitespace-nowrap">
+                      Staff
+                    </th>
+                    {bDates.map((d) => (
+                      <th key={d} className="px-3 py-2.5 text-center font-semibold text-neutral-400 whitespace-nowrap">
                         {formatDate(d)}
                       </th>
                     ))}
@@ -246,28 +264,33 @@ function PublishedView({
                   </tr>
                 </thead>
                 <tbody>
-                  {activeStaff.map((name, i) => {
-                    const dayCount = activeDates.filter((d) => gridData[name]?.[d]).length;
-                    if (dayCount === 0) return null;
+                  {staff.map((name, i) => {
+                    const dayCount = bDates.filter((d) => lookup(name, d)).length;
                     return (
-                      <tr key={name} className={`border-b border-white/5 ${i % 2 === 0 ? "bg-white/[0.02]" : ""}`}>
-                        <td className="px-4 py-2 font-medium text-neutral-200 whitespace-nowrap">{name}</td>
-                        {activeDates.map((d) => {
-                          const cell = gridData[name]?.[d];
+                      <tr key={name} className={`border-b border-white/5 ${i % 2 === 0 ? "bg-white/[0.015]" : ""}`}>
+                        <td className="sticky left-0 bg-[#111827] px-4 py-2 font-medium text-neutral-200 whitespace-nowrap">
+                          {name}
+                        </td>
+                        {bDates.map((d) => {
+                          const row = lookup(name, d);
+                          if (!row) return <td key={d} className="px-2 py-2 text-center text-neutral-700">—</td>;
+                          if (isSpecialRole(row.role)) {
+                            return (
+                              <td key={d} className="px-2 py-2 text-center">
+                                <span className={`inline-block rounded px-2 py-0.5 text-[10px] font-semibold border ${specialStyle(row.role)}`}>
+                                  {specialLabel(row.role)}
+                                </span>
+                              </td>
+                            );
+                          }
                           return (
                             <td key={d} className="px-2 py-2 text-center">
-                              {cell ? (
-                                <div>
-                                  <div className="font-mono text-neutral-300">
-                                    {fmtHour(cell.start_hour)}–{fmtHour(cell.end_hour)}
-                                  </div>
-                                  <div className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold border ${roleColor(cell.role)}`}>
-                                    {cell.role}
-                                  </div>
-                                </div>
-                              ) : (
-                                <span className="text-neutral-700">—</span>
-                              )}
+                              <div className="font-mono text-[11px] text-neutral-300 leading-tight">
+                                {fmtHour(row.start_hour)}–{fmtHour(row.end_hour)}
+                              </div>
+                              <div className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold border ${roleColor(row.role)}`}>
+                                {row.role}
+                              </div>
                             </td>
                           );
                         })}
@@ -283,8 +306,8 @@ function PublishedView({
               </table>
             </div>
           </div>
-        </>
-      )}
+        );
+      })}
     </div>
   );
 }
@@ -340,6 +363,8 @@ export default function ManualShiftPage() {
   const [publishedCount, setPublishedCount] = useState(0);
   // True when the user has locally entered cells not yet published
   const [hasDraft, setHasDraft] = useState(false);
+  // Tracks which cell is being deleted from server (for loading state)
+  const [deletingCell, setDeletingCell] = useState<{ staffName: string; dateStr: string } | null>(null);
   // Custom branch dropdown (replaces native <select> to avoid Edge autocomplete interference)
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
@@ -522,6 +547,22 @@ export default function ManualShiftPage() {
       [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: null },
     }));
     setEditTarget(null);
+  }
+
+  /** Delete a shift from the server AND from local state. */
+  async function deletePublishedShift(staffName: string, dateStr: string) {
+    setDeletingCell({ staffName, dateStr });
+    try {
+      await apiFetch("/api/admin/shifts/delete_published_row", {
+        method: "POST",
+        body: JSON.stringify({ city, branch_code: branchCode, work_date: dateStr, staff_name: staffName }),
+      });
+    } catch {
+      // Shift may not have been published yet — still clear locally
+    } finally {
+      setDeletingCell(null);
+    }
+    clearCell(staffName, dateStr);
   }
 
   function addStaffRow() {
@@ -900,13 +941,20 @@ export default function ManualShiftPage() {
                                   >
                                     Save
                                   </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => clearCell(name, d)}
-                                    className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-neutral-400 hover:bg-white/10"
-                                  >
-                                    Clear
-                                  </button>
+                                  {cell && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (!window.confirm(`Delete shift for ${name} on ${formatDate(d)}?`)) return;
+                                        void deletePublishedShift(name, d);
+                                      }}
+                                      disabled={deletingCell?.staffName === name && deletingCell?.dateStr === d}
+                                      className="rounded-lg border border-rose-500/30 bg-rose-950/20 px-2 py-1 text-xs text-rose-400 hover:bg-rose-900/30 disabled:opacity-40"
+                                      title="Delete this shift (removes from server)"
+                                    >
+                                      {deletingCell?.staffName === name && deletingCell?.dateStr === d ? "…" : "🗑"}
+                                    </button>
+                                  )}
                                   <button
                                     type="button"
                                     onClick={() => { setEditTarget(null); setTimeError(""); }}
@@ -918,24 +966,54 @@ export default function ManualShiftPage() {
                               </div>
                             ) : cell ? (
                               isSpecialRole(cell.role) ? (
+                                <div className="group relative">
+                                  <button
+                                    type="button"
+                                    onClick={() => openEdit(name, d)}
+                                    className={`w-full rounded-lg border px-1.5 py-2 text-center text-[11px] font-semibold hover:opacity-80 ${specialStyle(cell.role)}`}
+                                  >
+                                    {specialLabel(cell.role)}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    title="Delete shift"
+                                    disabled={!!(deletingCell?.staffName === name && deletingCell?.dateStr === d)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (!window.confirm(`Delete shift for ${name} on ${formatDate(d)}?`)) return;
+                                      void deletePublishedShift(name, d);
+                                    }}
+                                    className="absolute right-0.5 top-0.5 hidden h-4 w-4 items-center justify-center rounded-full bg-rose-600 text-[9px] text-white group-hover:flex"
+                                  >
+                                    {deletingCell?.staffName === name && deletingCell?.dateStr === d ? "…" : "×"}
+                                  </button>
+                                </div>
+                              ) : (
+                              <div className="group relative">
                                 <button
                                   type="button"
                                   onClick={() => openEdit(name, d)}
-                                  className={`w-full rounded-lg border px-1.5 py-2 text-center text-[11px] font-semibold hover:opacity-80 ${specialStyle(cell.role)}`}
+                                  className="w-full rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-1.5 text-center hover:bg-emerald-500/20"
                                 >
-                                  {specialLabel(cell.role)}
+                                  <div className="text-xs font-semibold text-emerald-300">
+                                    {fmtHour(cell.start_hour)}–{fmtHour(cell.end_hour)}
+                                  </div>
+                                  <div className="text-[10px] text-emerald-400/70">{cell.role}</div>
                                 </button>
-                              ) : (
-                              <button
-                                type="button"
-                                onClick={() => openEdit(name, d)}
-                                className="w-full rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-1.5 text-center hover:bg-emerald-500/20"
-                              >
-                                <div className="text-xs font-semibold text-emerald-300">
-                                  {fmtHour(cell.start_hour)}–{fmtHour(cell.end_hour)}
-                                </div>
-                                <div className="text-[10px] text-emerald-400/70">{cell.role}</div>
-                              </button>
+                                <button
+                                  type="button"
+                                  title="Delete shift"
+                                  disabled={!!(deletingCell?.staffName === name && deletingCell?.dateStr === d)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!window.confirm(`Delete shift for ${name} on ${formatDate(d)}?`)) return;
+                                    void deletePublishedShift(name, d);
+                                  }}
+                                  className="absolute right-0.5 top-0.5 hidden h-4 w-4 items-center justify-center rounded-full bg-rose-600 text-[9px] text-white group-hover:flex"
+                                >
+                                  {deletingCell?.staffName === name && deletingCell?.dateStr === d ? "…" : "×"}
+                                </button>
+                              </div>
                               )
                             ) : (
                               <button
@@ -990,11 +1068,9 @@ export default function ManualShiftPage() {
       {/* ── Published View ── */}
       {staffList.length > 0 && view === "published" && (
         <PublishedView
-          gridData={gridData}
-          weekDates={weekDates}
-          branchLabel={labelOf(city, branchCode)}
+          city={city}
           weekStart={weekStart}
-          shiftCount={publishedCount || shiftCount}
+          weekDates={weekDates}
           onBackToEdit={() => setView("edit")}
         />
       )}
