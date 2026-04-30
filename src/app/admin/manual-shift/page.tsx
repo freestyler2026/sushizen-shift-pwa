@@ -371,6 +371,9 @@ export default function ManualShiftPage() {
   const branchButtonRef = useRef<HTMLButtonElement>(null);
   const branchListRef = useRef<HTMLDivElement>(null);
   const controlsCardRef = useRef<HTMLDivElement>(null);
+  // Keep a ref to staffList so loadExistingShifts can always read the latest value
+  // without needing staffList in its dependency array (which causes stale-closure issues).
+  const staffListRef = useRef<string[]>([]);
   const [branchDropdownRect, setBranchDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
 
   // Week dates Mon–Sun
@@ -384,6 +387,9 @@ export default function ManualShiftPage() {
     () => Object.values(gridData).reduce((sum, days) => sum + Object.values(days).filter(Boolean).length, 0),
     [gridData]
   );
+
+  // Keep staffListRef in sync so loadExistingShifts always reads current names.
+  useEffect(() => { staffListRef.current = staffList; }, [staffList]);
 
   // Auto-save draft to localStorage whenever the grid changes.
   // Guard with !loading so we never overwrite the saved draft mid-load.
@@ -468,9 +474,10 @@ export default function ManualShiftPage() {
         return nextGrid;
       });
 
-      const extraNames = rows.map((r: any) => r.staff_name as string).filter((n: string) => !staffList.includes(n));
+      const currentStaff = staffListRef.current;
+      const extraNames = rows.map((r: any) => r.staff_name as string).filter((n: string) => !currentStaff.includes(n));
       if (extraNames.length > 0) {
-        const merged = Array.from(new Set([...staffList, ...extraNames])).sort((a, b) => a.localeCompare(b));
+        const merged = Array.from(new Set([...currentStaff, ...extraNames])).sort((a, b) => a.localeCompare(b));
         setStaffList(merged);
       }
     } catch (e: unknown) {
@@ -478,7 +485,7 @@ export default function ManualShiftPage() {
     } finally {
       setLoading(false);
     }
-  }, [city, weekStart, branchCode, staffList]);
+  }, [city, weekStart, branchCode]); // staffList removed — read via staffListRef to avoid stale closure
 
   // When week/branch changes while staff is already loaded: merge-reload (never wipe)
   useEffect(() => {
@@ -624,6 +631,24 @@ export default function ManualShiftPage() {
 
   const branches = BRANCHES[city];
   const shiftCount = buildRows().length;
+
+  /**
+   * Return to Edit view and re-merge any saved draft back into gridData.
+   * This ensures locally-entered changes are never lost when switching to/from Published View.
+   */
+  const handleBackToEdit = useCallback(() => {
+    setView("edit");
+    setGridData((prev) => {
+      const saved = loadDraft(city, branchCode, weekStart);
+      if (!saved || Object.keys(saved).length === 0) return prev;
+      const next = { ...prev };
+      for (const [name, days] of Object.entries(saved)) {
+        // Merge saved cells on top of current state (saved draft wins for any cell it has)
+        next[name] = { ...(next[name] ?? {}), ...days };
+      }
+      return next;
+    });
+  }, [city, branchCode, weekStart]);
 
   // Close branch dropdown when clicking outside both the button AND the dropdown list
   useEffect(() => {
@@ -1071,7 +1096,7 @@ export default function ManualShiftPage() {
           city={city}
           weekStart={weekStart}
           weekDates={weekDates}
-          onBackToEdit={() => setView("edit")}
+          onBackToEdit={handleBackToEdit}
         />
       )}
 
