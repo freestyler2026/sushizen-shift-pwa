@@ -121,6 +121,20 @@ type StaffNameListResp = {
   names: string[];
 };
 
+type StaffMasterRow = {
+  id: string;
+  city: string;
+  display_name: string;
+  home_branch?: string;
+  role?: string;
+  status?: string;
+};
+
+type StaffMasterListResp = {
+  ok: boolean;
+  rows: StaffMasterRow[];
+};
+
 async function apiRequest<T>(path: string, options: RequestInit = {}, auth?: Auth | null): Promise<T> {
   const res = await fetch(`${clientApiOrigin()}${path}`, {
     cache: "no-store",
@@ -179,6 +193,10 @@ function StaffRolesPageInner() {
   const [staffOptionsLoading, setStaffOptionsLoading] = useState(false);
   const [assignmentDrafts, setAssignmentDrafts] = useState<Record<string, string>>({});
   const [assignmentSavingRoleKey, setAssignmentSavingRoleKey] = useState("");
+  // City-filtered staff list for assignments tab
+  const [assignmentCityFilter, setAssignmentCityFilter] = useState<"dubai" | "manila">("dubai");
+  const [assignmentSearch, setAssignmentSearch] = useState("");
+  const [staffMasterRows, setStaffMasterRows] = useState<StaffMasterRow[]>([]);
 
   const canManage = canAccessRoleManagement(auth);
 
@@ -276,22 +294,20 @@ function StaffRolesPageInner() {
     if (!active) return;
     setStaffOptionsLoading(true);
     try {
-      // Load staff from both cities so HQ can assign roles to Dubai and Manila staff
-      const [dubaiActive, dubaiInactive, manilaActive, manilaInactive] = await Promise.all([
-        apiRequest<StaffNameListResp>(`/api/admin/staff_master/names?city=dubai&status=ACTIVE&limit=5000`, {}, active),
-        apiRequest<StaffNameListResp>(`/api/admin/staff_master/names?city=dubai&status=INACTIVE&limit=5000`, {}, active),
-        apiRequest<StaffNameListResp>(`/api/admin/staff_master/names?city=manila&status=ACTIVE&limit=5000`, {}, active),
-        apiRequest<StaffNameListResp>(`/api/admin/staff_master/names?city=manila&status=INACTIVE&limit=5000`, {}, active),
+      // Load full staff master rows (with role/branch) from both cities
+      const [dubaiRows, manilaRows] = await Promise.all([
+        apiRequest<StaffMasterListResp>(`/api/admin/staff_master?city=dubai&limit=5000`, {}, active),
+        apiRequest<StaffMasterListResp>(`/api/admin/staff_master?city=manila&limit=5000`, {}, active),
       ]);
-      const merged = Array.from(new Set([
-        ...(dubaiActive.names || []),
-        ...(dubaiInactive.names || []),
-        ...(manilaActive.names || []),
-        ...(manilaInactive.names || []),
-      ])).sort((a, b) => a.localeCompare(b));
-      setStaffOptions(merged);
+      const allRows = [
+        ...(dubaiRows.rows || []),
+        ...(manilaRows.rows || []),
+      ].sort((a, b) => a.display_name.localeCompare(b.display_name));
+      setStaffMasterRows(allRows);
+      setStaffOptions(allRows.map((r) => r.display_name));
     } catch {
       setStaffOptions([]);
+      setStaffMasterRows([]);
     } finally {
       setStaffOptionsLoading(false);
     }
@@ -355,6 +371,14 @@ function StaffRolesPageInner() {
     if (!q) return staffOptions.slice(0, 18);
     return staffOptions.filter((name) => name.toLowerCase().includes(q)).slice(0, 18);
   }, [staffName, staffOptions]);
+
+  // City-filtered + searched staff list for the assignments tab
+  const assignmentCityRows = useMemo(() => {
+    const q = assignmentSearch.trim().toLowerCase();
+    return staffMasterRows
+      .filter((r) => r.city.toLowerCase() === assignmentCityFilter)
+      .filter((r) => !q || r.display_name.toLowerCase().includes(q));
+  }, [staffMasterRows, assignmentCityFilter, assignmentSearch]);
 
   const selectedStaffRoleKeys = useMemo(
     () => new Set((staffAssignments?.assignments || []).map((assignment) => assignment.role_key)),
@@ -1014,48 +1038,77 @@ function StaffRolesPageInner() {
       ) : null}
 
       {tab === "assignments" ? (
-        <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
+        <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
           <div className={`${GLASS_CARD} p-5`}>
             <div className="mb-3 flex items-center gap-2">
               <Users className="h-4 w-4 text-violet-300" />
               <h2 className={T_SECTION}>Staff Assignments</h2>
             </div>
             <p className={`${T_CAPTION} mb-4`}>HQ-only staff role assignment management.</p>
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <input
-                  list="staff-role-options"
-                  value={staffName}
-                  onChange={(e) => setStaffName(e.target.value)}
-                  className={INPUT_CLASS}
-                  placeholder="Staff full name"
-                />
-                <datalist id="staff-role-options">
-                  {staffOptions.map((name) => (
-                    <option key={name} value={name} />
-                  ))}
-                </datalist>
-                <div className="text-xs text-neutral-500">
-                  {staffOptionsLoading ? "Loading staff list..." : `${staffOptions.length} staff available`}
-                </div>
-                {filteredStaffOptions.length ? (
-                  <div className="max-h-48 space-y-2 overflow-auto rounded-2xl border border-white/10 bg-white/5 p-2">
-                    {filteredStaffOptions.map((name) => (
-                      <button
-                        key={name}
-                        type="button"
-                        onClick={() => {
-                          setStaffName(name);
-                          loadStaffAssignments(name, auth);
-                        }}
-                        className={`w-full rounded-xl border px-3 py-2 text-left text-sm transition ${staffAssignments?.staff_name === name ? "border-violet-500 bg-violet-500/10 text-white" : "border-white/10 bg-neutral-950/30 text-neutral-300 hover:bg-white/10"}`}
-                      >
-                        {name}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
+
+            {/* City filter tabs */}
+            <div className="mb-3 flex gap-1 rounded-xl border border-white/10 bg-white/5 p-1">
+              {(["dubai", "manila"] as const).map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => { setAssignmentCityFilter(c); setAssignmentSearch(""); }}
+                  className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold capitalize transition ${assignmentCityFilter === c ? "bg-violet-500 text-white" : "text-neutral-400 hover:text-white"}`}
+                >
+                  {c === "dubai" ? "🇦🇪 Dubai" : "🇵🇭 Manila"}
+                </button>
+              ))}
+            </div>
+
+            {/* Search */}
+            <input
+              value={assignmentSearch}
+              onChange={(e) => setAssignmentSearch(e.target.value)}
+              className={INPUT_CLASS + " mb-2"}
+              placeholder="Search staff..."
+            />
+            <div className="mb-2 text-xs text-neutral-500">
+              {staffOptionsLoading
+                ? "Loading..."
+                : `${assignmentCityRows.length} staff in ${assignmentCityFilter === "dubai" ? "Dubai" : "Manila"}`}
+            </div>
+
+            {/* Full staff list */}
+            <div className="max-h-[480px] space-y-1 overflow-y-auto pr-1">
+              {assignmentCityRows.map((row) => {
+                const isSelected = staffAssignments?.staff_name === row.display_name;
+                const roleLabel = (row.role || "STAFF").toUpperCase();
+                const isInactive = row.status === "INACTIVE";
+                const branchLabel = row.home_branch || "";
+                return (
+                  <button
+                    key={row.id}
+                    type="button"
+                    onClick={() => {
+                      setStaffName(row.display_name);
+                      setAssignmentSearch("");
+                      loadStaffAssignments(row.display_name, auth);
+                    }}
+                    className={`w-full rounded-xl border px-3 py-2 text-left transition ${isSelected ? "border-violet-500 bg-violet-500/10" : "border-white/10 bg-neutral-950/30 hover:bg-white/10"} ${isInactive ? "opacity-40" : ""}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`truncate text-sm font-medium ${isSelected ? "text-white" : "text-neutral-200"}`}>{row.display_name}</span>
+                      <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${roleLabel === "HQ" ? "border-violet-500/40 bg-violet-500/10 text-violet-300" : roleLabel === "MANAGER" ? "border-sky-500/40 bg-sky-500/10 text-sky-300" : "border-white/10 bg-white/5 text-neutral-400"}`}>
+                        {roleLabel}
+                      </span>
+                    </div>
+                    {branchLabel ? <div className="mt-0.5 text-xs text-neutral-500">{branchLabel}</div> : null}
+                  </button>
+                );
+              })}
+              {!staffOptionsLoading && assignmentCityRows.length === 0 ? (
+                <p className="py-4 text-center text-xs text-neutral-500">No staff found.</p>
+              ) : null}
+            </div>
+
+            {/* Add assignment controls */}
+            <div className="mt-4 space-y-2 border-t border-white/10 pt-4">
+              <div className={T_LABEL}>Add Role to: {staffName || "—"}</div>
               <select value={assignmentRoleKey} onChange={(e) => setAssignmentRoleKey(e.target.value)} className={SELECT_CLASS}>
                 {roles.map((role) => (
                   <option key={role.role_key} value={role.role_key}>{role.label}</option>
@@ -1065,14 +1118,9 @@ function StaffRolesPageInner() {
                 <input type="checkbox" checked={assignmentPrimary} onChange={(e) => setAssignmentPrimary(e.target.checked)} />
                 Set as primary role
               </label>
-              <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => loadStaffAssignments(staffName.trim(), auth)} disabled={busy || !staffName.trim()} className={SECONDARY_BUTTON}>
-                  Load Staff
-                </button>
-                <button type="button" onClick={handleAddAssignment} disabled={busy || !staffName.trim() || !assignmentRoleKey} className={PRIMARY_BUTTON}>
-                  <UserPlus className="mr-1 h-4 w-4" /> Add Assignment
-                </button>
-              </div>
+              <button type="button" onClick={handleAddAssignment} disabled={busy || !staffName.trim() || !assignmentRoleKey} className={PRIMARY_BUTTON + " w-full justify-center"}>
+                <UserPlus className="mr-1 h-4 w-4" /> Add Assignment
+              </button>
             </div>
           </div>
 
