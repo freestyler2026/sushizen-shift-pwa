@@ -591,14 +591,14 @@ export default function ManualShiftPage() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div>
             <label className={`${T_LABEL} mb-1 block`}>City</label>
-            <select className={SELECT_CLASS} value={city} onChange={(e) => setCity(e.target.value as City)}>
+            <select className={SELECT_CLASS} autoComplete="off" value={city} onChange={(e) => setCity(e.target.value as City)}>
               <option value="dubai">Dubai</option>
               <option value="manila">Manila</option>
             </select>
           </div>
           <div>
             <label className={`${T_LABEL} mb-1 block`}>Branch</label>
-            <select className={SELECT_CLASS} value={branchCode} onChange={(e) => setBranchCode(e.target.value as BranchCode)}>
+            <select className={SELECT_CLASS} autoComplete="off" value={branchCode} onChange={(e) => setBranchCode(e.target.value as BranchCode)}>
               {branches.map((b) => (
                 <option key={b.code} value={b.code}>{b.name}</option>
               ))}
