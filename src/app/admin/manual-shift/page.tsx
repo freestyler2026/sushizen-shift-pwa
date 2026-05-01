@@ -441,8 +441,11 @@ export default function ManualShiftPage() {
 
         // サーバー行の名前をグリッド既存キーに正規化したリストを作成
         const serverNames = rows.map((r: any) => findKey(r.staff_name as string));
-        const allNames = Array.from(new Set([...Object.keys(prev), ...serverNames]));
-        for (const name of allNames) {
+        // forceOverwrite 時は古い prev の名前を引き継がず、staff_master + サーバー行のみにリセット
+        const baseNames = forceOverwrite
+          ? Array.from(new Set([...staffListRef.current, ...serverNames]))
+          : Array.from(new Set([...Object.keys(prev), ...serverNames]));
+        for (const name of baseNames) {
           nextGrid[name] = forceOverwrite ? {} : { ...(prev[name] ?? {}) };
         }
         // Merge server rows — only fill cells that are locally empty (unless forceOverwrite)
@@ -765,10 +768,11 @@ export default function ManualShiftPage() {
             {staffList.length > 0 && (
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   if (!window.confirm("Reload from server? All locally entered shifts that have not been published will be lost.")) return;
                   clearDraft(city, branchCode, weekStart);
                   setHasDraft(false);
+                  await loadStaff(); // スタッフリストも最新化
                   void loadExistingShifts(true);
                 }}
                 disabled={loading}
