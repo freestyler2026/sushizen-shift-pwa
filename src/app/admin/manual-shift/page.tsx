@@ -90,6 +90,11 @@ function todayMonday(): string {
   return mondayOf(localDateStr(new Date()));
 }
 
+/** Strip trailing role annotations like (S), (R), (AL), (CDP), etc. from staff names. */
+function stripRoleSuffix(name: string): string {
+  return name.replace(/(\s*\([^)]*\))+\s*$/, "").trim();
+}
+
 function fmtHour(h: number): string {
   const mins = (h % 1) === 0.5 ? "30" : "00";
   const base = Math.floor(h);
@@ -145,6 +150,7 @@ function BranchSection({
 }: { city: string; weekStart: string; weekDates: string[]; bc: string }) {
   const [bRows, setBRows] = useState<PublishedRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingStaff, setDeletingStaff] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -155,6 +161,27 @@ function BranchSection({
       .catch(() => setBRows([]))
       .finally(() => setLoading(false));
   }, [city, weekStart, bc]);
+
+  /** Delete all shifts for a staff member in this branch/week. */
+  async function deleteStaffRow(staffName: string) {
+    const shiftsForStaff = bRows.filter((r) => r.staff_name === staffName);
+    if (shiftsForStaff.length === 0) return;
+    if (!window.confirm(`Delete all ${shiftsForStaff.length} shift(s) for "${stripRoleSuffix(staffName)}"?`)) return;
+    setDeletingStaff(staffName);
+    try {
+      for (const r of shiftsForStaff) {
+        await apiFetch("/api/admin/shifts/delete_published_row", {
+          method: "POST",
+          body: JSON.stringify({ city, branch_code: bc, work_date: r.work_date, staff_name: staffName }),
+        });
+      }
+      setBRows((prev) => prev.filter((r) => r.staff_name !== staffName));
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeletingStaff(null);
+    }
+  }
 
   if (loading) {
     return (
@@ -192,14 +219,16 @@ function BranchSection({
                 <th key={d} className="px-3 py-2.5 text-center font-semibold text-neutral-400 whitespace-nowrap">{formatDate(d)}</th>
               ))}
               <th className="px-3 py-2.5 text-center font-semibold text-neutral-400">Days</th>
+              <th className="px-3 py-2.5 text-center font-semibold text-neutral-400"></th>
             </tr>
           </thead>
           <tbody>
             {staff.map((name, i) => {
               const dayCount = bDates.filter((d) => lookup(name, d)).length;
+              const isDeleting = deletingStaff === name;
               return (
                 <tr key={name} className={`border-b border-white/5 ${i % 2 === 0 ? "bg-white/[0.015]" : ""}`}>
-                  <td className="sticky left-0 bg-[#111827] px-4 py-2 font-medium text-neutral-200 whitespace-nowrap">{name}</td>
+                  <td className="sticky left-0 bg-[#111827] px-4 py-2 font-medium text-neutral-200 whitespace-nowrap">{stripRoleSuffix(name)}</td>
                   {bDates.map((d) => {
                     const row = lookup(name, d);
                     if (!row) return <td key={d} className="px-2 py-2 text-center text-neutral-700">—</td>;
@@ -219,6 +248,17 @@ function BranchSection({
                   })}
                   <td className="px-3 py-2 text-center">
                     <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-violet-300 font-semibold">{dayCount}d</span>
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    <button
+                      type="button"
+                      title="Delete all shifts for this staff member"
+                      disabled={isDeleting}
+                      onClick={() => void deleteStaffRow(name)}
+                      className="rounded-lg border border-rose-500/30 bg-rose-950/20 px-2 py-0.5 text-[10px] text-rose-400 hover:bg-rose-900/30 disabled:opacity-40 transition"
+                    >
+                      {isDeleting ? "…" : "🗑 Delete"}
+                    </button>
                   </td>
                 </tr>
               );
@@ -805,7 +845,7 @@ export default function ManualShiftPage() {
                 <tbody>
                   {staffList.map((name, idx) => (
                     <tr key={name} className={`border-b border-white/5 ${idx % 2 === 0 ? "bg-white/[0.02]" : ""}`}>
-                      <td className="px-4 py-2 text-xs font-medium text-neutral-200">{name}</td>
+                      <td className="px-4 py-2 text-xs font-medium text-neutral-200">{stripRoleSuffix(name)}</td>
                       {weekDates.map((d) => {
                         const cell = gridData[name]?.[d] ?? null;
                         const isEditing = editTarget?.staffName === name && editTarget?.dateStr === d;
