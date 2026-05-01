@@ -16,6 +16,15 @@ type Track = {
 const TRACKS: Track[] = [
   {
     id: 1,
+    title: "ZEN Style",
+    subtitle: "Sushi ZEN",
+    file: "/music/sushi-zen-style.mp3",
+    accent: "from-pink-400 via-rose-500 to-red-600",
+    accentHex: "#ec4899",
+    glyph: "粋",
+  },
+  {
+    id: 2,
     title: "ZEN Anthem",
     subtitle: "Sushi ZEN",
     file: "/music/sushi-zen-anthem.mp3",
@@ -24,7 +33,7 @@ const TRACKS: Track[] = [
     glyph: "禅",
   },
   {
-    id: 2,
+    id: 3,
     title: "ZEN Slay",
     subtitle: "Sushi ZEN",
     file: "/music/sushi-zen-slay.mp3",
@@ -33,7 +42,7 @@ const TRACKS: Track[] = [
     glyph: "斬",
   },
   {
-    id: 3,
+    id: 4,
     title: "ZEN Soul",
     subtitle: "Sushi ZEN",
     file: "/music/sushi-zen-soul.mp3",
@@ -42,7 +51,7 @@ const TRACKS: Track[] = [
     glyph: "魂",
   },
   {
-    id: 4,
+    id: 5,
     title: "Heart of ZEN",
     subtitle: "Sushi ZEN",
     file: "/music/heart-of-zen.mp3",
@@ -51,7 +60,7 @@ const TRACKS: Track[] = [
     glyph: "心",
   },
   {
-    id: 5,
+    id: 6,
     title: "ZEN Groove",
     subtitle: "Sushi ZEN",
     file: "/music/sushi-zen-groove.mp3",
@@ -60,7 +69,7 @@ const TRACKS: Track[] = [
     glyph: "律",
   },
   {
-    id: 6,
+    id: 7,
     title: "ZEN Gorilla",
     subtitle: "Sushi ZEN",
     file: "/music/sushi-zen-gorilla.mp3",
@@ -69,7 +78,7 @@ const TRACKS: Track[] = [
     glyph: "猿",
   },
   {
-    id: 7,
+    id: 8,
     title: "Rock'n Vibes",
     subtitle: "Sushi ZEN",
     file: "/music/sushi-zen-rocknvibes.mp3",
@@ -78,7 +87,7 @@ const TRACKS: Track[] = [
     glyph: "轟",
   },
   {
-    id: 8,
+    id: 9,
     title: "We Are ZEN",
     subtitle: "Sushi ZEN",
     file: "/music/we-are-zen.mp3",
@@ -87,7 +96,7 @@ const TRACKS: Track[] = [
     glyph: "和",
   },
   {
-    id: 9,
+    id: 10,
     title: "ZEN Party",
     subtitle: "Sushi ZEN",
     file: "/music/sushi-zen-party.mp3",
@@ -96,7 +105,7 @@ const TRACKS: Track[] = [
     glyph: "祭",
   },
   {
-    id: 10,
+    id: 11,
     title: "ZEN Hawaiian",
     subtitle: "Sushi ZEN",
     file: "/music/sushi-zen-hawaiian.mp3",
@@ -105,7 +114,7 @@ const TRACKS: Track[] = [
     glyph: "浜",
   },
   {
-    id: 11,
+    id: 12,
     title: "ZEN Memories",
     subtitle: "Sushi ZEN",
     file: "/music/sushi-zen-memories.mp3",
@@ -114,7 +123,7 @@ const TRACKS: Track[] = [
     glyph: "想",
   },
   {
-    id: 12,
+    id: 13,
     title: "ZEN Midnight",
     subtitle: "Sushi ZEN",
     file: "/music/sushi-zen-midnight.mp3",
