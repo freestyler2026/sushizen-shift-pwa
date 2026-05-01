@@ -424,29 +424,34 @@ export default function ManualShiftPage() {
     setLoading(true);
     setError("");
     try {
+      // branch_code をAPIに渡してサーバー側でフィルタ → 他店データの混入を防ぐ
       const data = await apiFetch<{ rows?: any[] }>(
-        `/api/published/week?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}`
+        `/api/published/week?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}&branch_code=${encodeURIComponent(branchCode)}`
       );
-      const rows = (data.rows || []).filter((r: any) => {
-        const normalized = normalizeBranchCode(city as City, r.branch_code);
-        return normalized === branchCode || r.branch_code === branchCode;
-      });
+      const rows = (data.rows || []);
 
       setGridData((prev) => {
-        // Start with current local state (preserves unsaved work)
         const nextGrid: GridData = {};
-        const allNames = Array.from(new Set([
-          ...Object.keys(prev),
-          ...rows.map((r: any) => r.staff_name as string),
-        ]));
+
+        // サフィックス除去後の名前で既存グリッドキーを検索するヘルパー
+        const findKey = (serverName: string): string => {
+          const stripped = stripRoleSuffix(serverName);
+          return Object.keys(prev).find(k => stripRoleSuffix(k) === stripped) ?? serverName;
+        };
+
+        // サーバー行の名前をグリッド既存キーに正規化したリストを作成
+        const serverNames = rows.map((r: any) => findKey(r.staff_name as string));
+        const allNames = Array.from(new Set([...Object.keys(prev), ...serverNames]));
         for (const name of allNames) {
           nextGrid[name] = forceOverwrite ? {} : { ...(prev[name] ?? {}) };
         }
         // Merge server rows — only fill cells that are locally empty (unless forceOverwrite)
-        for (const r of rows) {
-          if (!nextGrid[r.staff_name]) nextGrid[r.staff_name] = {};
-          if (forceOverwrite || nextGrid[r.staff_name][r.work_date] == null) {
-            nextGrid[r.staff_name][r.work_date] = {
+        for (let i = 0; i < rows.length; i++) {
+          const r = rows[i];
+          const key = serverNames[i];
+          if (!nextGrid[key]) nextGrid[key] = {};
+          if (forceOverwrite || nextGrid[key][r.work_date] == null) {
+            nextGrid[key][r.work_date] = {
               start_hour: Number(r.start_hour),
               end_hour: Number(r.end_hour),
               role: String(r.role || ""),
@@ -457,7 +462,13 @@ export default function ManualShiftPage() {
       });
 
       const currentStaff = staffListRef.current;
-      const extraNames = rows.map((r: any) => r.staff_name as string).filter((n: string) => !currentStaff.includes(n));
+      // サフィックス除去後の名前で比較して重複追加を防ぐ
+      const extraNames = rows
+        .map((r: any) => r.staff_name as string)
+        .filter((n: string) => {
+          const stripped = stripRoleSuffix(n);
+          return !currentStaff.some(s => stripRoleSuffix(s) === stripped);
+        });
       if (extraNames.length > 0) {
         const merged = Array.from(new Set([...currentStaff, ...extraNames])).sort((a, b) => a.localeCompare(b));
         setStaffList(merged);
