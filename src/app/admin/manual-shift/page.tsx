@@ -401,6 +401,7 @@ export default function ManualShiftPage() {
       );
       const names = (data.names || []).sort((a, b) => a.localeCompare(b));
       setStaffList(names);
+      staffListRef.current = names; // 次の loadExistingShifts で即座に参照できるよう同期更新
       setGridData((prev) => {
         const next = { ...prev };
         for (const name of names) {
@@ -483,12 +484,29 @@ export default function ManualShiftPage() {
     }
   }, [city, weekStart, branchCode]); // staffList removed — read via staffListRef to avoid stale closure
 
-  // When week/branch changes while staff is already loaded: merge-reload (never wipe)
+  // 支店・週が変わったら自動でスタッフ＋シフトを再ロード（古いスタッフを引き継がない）
   useEffect(() => {
-    if (staffList.length > 0) {
-      void loadExistingShifts(false); // merge — don't wipe local data
+    if (staffList.length === 0) return; // 初回ロード前はスキップ
+    const savedDraft = loadDraft(city, branchCode, weekStart);
+    void (async () => {
+      await loadStaff();
+      await loadExistingShifts(true); // 強制上書き
+      // 保存済みドラフトを現支店のスタッフにのみ適用
+      if (Object.keys(savedDraft).length > 0) {
+        setGridData((prev) => {
+          const next: GridData = {};
+          for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
+          for (const [name, days] of Object.entries(savedDraft)) {
+            if (!next[name]) continue; // 現支店にいないスタッフはスキップ
+            for (const [date, cell] of Object.entries(days)) {
+              if (cell != null) next[name][date] = cell;
+            }
+          }
+          return next;
+        });
+      }
       setView("edit");
-    }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStart, branchCode]);
 
@@ -740,20 +758,18 @@ export default function ManualShiftPage() {
             <button
               type="button"
               onClick={async () => {
-                // Snapshot draft BEFORE loadStaff runs (which would trigger auto-save
-                // and overwrite the draft with the current — possibly empty — grid).
                 const savedDraft = loadDraft(city, branchCode, weekStart);
                 await loadStaff();
-                await loadExistingShifts(false); // merge — preserves local entries
-                // Apply saved draft on top of server data using current staffList from state.
+                await loadExistingShifts(true); // 強制上書き（古いスタッフを排除）
+                // 保存済みドラフトを現支店のスタッフにのみ適用
                 if (Object.keys(savedDraft).length > 0) {
                   setGridData((prev) => {
                     const next: GridData = {};
                     for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
                     for (const [name, days] of Object.entries(savedDraft)) {
-                      if (!next[name]) next[name] = {};
+                      if (!next[name]) continue; // 現支店にいないスタッフはスキップ
                       for (const [date, cell] of Object.entries(days)) {
-                        if (cell != null) next[name][date] = cell; // draft wins
+                        if (cell != null) next[name][date] = cell;
                       }
                     }
                     return next;
