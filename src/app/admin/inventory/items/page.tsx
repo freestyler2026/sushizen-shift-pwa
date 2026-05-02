@@ -382,7 +382,10 @@ export default function InventoryItemsPage() {
 
         <div className="mt-4 rounded-2xl border border-neutral-800 bg-neutral-950/20 p-4">
           <div className="text-sm font-semibold text-neutral-100">Register Ingredient / Product</div>
-          <div className="mt-1 text-xs text-neutral-400">Create stock masters directly here. Use `ITEM` for ingredients and `PRODUCT` for CK-made items.</div>
+          <div className="mt-1 text-xs text-neutral-400">Use <span className="text-amber-400 font-medium">ITEM</span> for raw ingredients and <span className="text-amber-400 font-medium">PRODUCT</span> for CK-made items.</div>
+          <div className="mt-2 rounded-lg border border-amber-700/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-300">
+            ⚠️ <span className="font-semibold">For food ingredients &amp; products:</span> register in Cost Calculation first, then use <span className="font-medium">Sync from Cost Calculation</span> below. Only use this form for non-food items (e.g. cleaning supplies, packaging) that are not managed in Cost Calculation.
+          </div>
           <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-4">
             <input
               value={createName}
