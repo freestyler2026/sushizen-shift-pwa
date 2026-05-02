@@ -340,7 +340,7 @@ export default function InventoryItemsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-lg font-semibold text-neutral-100">Ingredients / Products</div>
-            <div className="mt-1 text-sm text-neutral-400">Register all stock masters here. Use Items for raw ingredients and Products for CK-made items.</div>
+            <div className="mt-1 text-sm text-neutral-200">Register all stock masters here. Use Items for raw ingredients and Products for CK-made items.</div>
           </div>
           {/* City switcher — prominent toggle buttons */}
           <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-1">
@@ -563,7 +563,7 @@ export default function InventoryItemsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-sm font-semibold text-violet-200">Sync from Cost Calculation</div>
-            <div className="mt-0.5 text-xs text-neutral-400">
+            <div className="mt-0.5 text-xs text-neutral-200">
               Find items in 食材マスタ / 加工品マスタ / 商品マスタ not yet registered here. Auto-assign SKUs on import.
             </div>
           </div>
@@ -708,7 +708,7 @@ export default function InventoryItemsPage() {
             <div className="mb-4 text-base font-semibold text-neutral-100">Edit Item</div>
             <div className="space-y-3">
               <div>
-                <label className="mb-1 block text-xs text-neutral-400">Name</label>
+                <label className="mb-1 block text-xs text-neutral-200">Name</label>
                 <input
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
@@ -716,7 +716,7 @@ export default function InventoryItemsPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-neutral-400">Category</label>
+                <label className="mb-1 block text-xs text-neutral-200">Category</label>
                 <input
                   value={editCategoryName}
                   onChange={(e) => setEditCategoryName(e.target.value)}
@@ -725,7 +725,7 @@ export default function InventoryItemsPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-neutral-400">Unit</label>
+                <label className="mb-1 block text-xs text-neutral-200">Unit</label>
                 <input
                   value={editUnit}
                   onChange={(e) => setEditUnit(e.target.value)}
@@ -734,7 +734,7 @@ export default function InventoryItemsPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-neutral-400">Cost</label>
+                <label className="mb-1 block text-xs text-neutral-200">Cost</label>
                 <input
                   type="text"
                   inputMode="decimal"
@@ -744,7 +744,7 @@ export default function InventoryItemsPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-neutral-400">Type</label>
+                <label className="mb-1 block text-xs text-neutral-200">Type</label>
                 <select
                   value={editType}
                   onChange={(e) => setEditType(e.target.value)}
