@@ -169,7 +169,7 @@ export default function InventoryCountsPage() {
       setError("");
       try {
         const [itemsRes, sheetsRes, currentRes, countsRes, balancesRes] = await Promise.all([
-          inventoryGet<{ rows: InventoryItemLookup[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=ITEMS&limit=5000`),
+          inventoryGet<{ rows: InventoryItemLookup[] }>(`/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=ITEMS&limit=5000&slim=1`),
           inventoryGet<{ rows: CountSheetRow[] }>(`/api/admin/inventory/count-sheets?city=${encodeURIComponent(city)}&tab=ACTIVE&limit=500`),
           inventoryGet<CurrentCountSheetResponse>(`/api/admin/inventory/count-sheets/current?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}&cycle=${encodeURIComponent(cycle)}`),
           inventoryGet<{ rows: CountRow[] }>(`/api/admin/inventory/counts?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}&limit=500`),
@@ -370,7 +370,7 @@ export default function InventoryCountsPage() {
     // changes made after the page was loaded are picked up immediately.
     try {
       const freshItems = await inventoryGet<{ rows: InventoryItemLookup[] }>(
-        `/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=ITEMS&limit=5000`,
+        `/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=ITEMS&limit=5000&slim=1`,
       );
       const rows = (freshItems.rows || []).filter((item) => item.status !== "DELETED");
       setItemOptions(rows);
