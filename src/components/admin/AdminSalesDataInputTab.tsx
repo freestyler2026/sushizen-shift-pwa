@@ -16,6 +16,8 @@ type SaleRow = {
   grabfood_amount: number | null;
   foodpanda_orders: number | null;
   foodpanda_amount: number | null;
+  beep_orders: number | null;
+  beep_amount: number | null;
   total_orders: number | null;
   total_amount: number | null;
   ratio_to_prev_week: number | null;
@@ -29,6 +31,8 @@ type EditableRow = {
   grabfood_amount: string;
   foodpanda_orders: string;
   foodpanda_amount: string;
+  beep_orders: string;
+  beep_amount: string;
   saving: boolean;
   saved: boolean;
   error: string | null;
@@ -70,8 +74,8 @@ function floatOrNull(s: string): number | null {
 }
 
 function calcTotal(row: EditableRow) {
-  const orders = (intOrNull(row.dine_in_orders) ?? 0) + (intOrNull(row.grabfood_orders) ?? 0) + (intOrNull(row.foodpanda_orders) ?? 0);
-  const amount = (floatOrNull(row.dine_in_amount) ?? 0) + (floatOrNull(row.grabfood_amount) ?? 0) + (floatOrNull(row.foodpanda_amount) ?? 0);
+  const orders = (intOrNull(row.dine_in_orders) ?? 0) + (intOrNull(row.grabfood_orders) ?? 0) + (intOrNull(row.foodpanda_orders) ?? 0) + (intOrNull(row.beep_orders) ?? 0);
+  const amount = (floatOrNull(row.dine_in_amount) ?? 0) + (floatOrNull(row.grabfood_amount) ?? 0) + (floatOrNull(row.foodpanda_amount) ?? 0) + (floatOrNull(row.beep_amount) ?? 0);
   return { orders, amount };
 }
 
@@ -88,6 +92,8 @@ function rowToEditable(r: SaleRow): EditableRow {
     grabfood_amount: r.grabfood_amount != null ? String(r.grabfood_amount) : "",
     foodpanda_orders: r.foodpanda_orders != null ? String(r.foodpanda_orders) : "",
     foodpanda_amount: r.foodpanda_amount != null ? String(r.foodpanda_amount) : "",
+    beep_orders: r.beep_orders != null ? String(r.beep_orders) : "",
+    beep_amount: r.beep_amount != null ? String(r.beep_amount) : "",
     saving: false,
     saved: false,
     error: null,
@@ -95,7 +101,7 @@ function rowToEditable(r: SaleRow): EditableRow {
 }
 
 function hasRowInput(row: EditableRow) {
-  return [row.dine_in_orders, row.dine_in_amount, row.grabfood_orders, row.grabfood_amount, row.foodpanda_orders, row.foodpanda_amount].some(
+  return [row.dine_in_orders, row.dine_in_amount, row.grabfood_orders, row.grabfood_amount, row.foodpanda_orders, row.foodpanda_amount, row.beep_orders, row.beep_amount].some(
     (v) => v.trim() !== "",
   );
 }
@@ -191,6 +197,8 @@ export default function AdminSalesDataInputTab() {
       grabfood_amount: "",
       foodpanda_orders: "",
       foodpanda_amount: "",
+      beep_orders: "",
+      beep_amount: "",
       saving: false,
       saved: false,
       error: null,
@@ -233,6 +241,8 @@ export default function AdminSalesDataInputTab() {
           grabfood_amount: "",
           foodpanda_orders: "",
           foodpanda_amount: "",
+          beep_orders: "",
+          beep_amount: "",
           saving: false,
           saved: false,
           error: null,
@@ -276,6 +286,8 @@ export default function AdminSalesDataInputTab() {
         grabfood_amount: floatOrNull(row.grabfood_amount),
         foodpanda_orders: intOrNull(row.foodpanda_orders),
         foodpanda_amount: floatOrNull(row.foodpanda_amount),
+        beep_orders: intOrNull(row.beep_orders),
+        beep_amount: floatOrNull(row.beep_amount),
       });
       setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, saving: false, saved: true, error: null } : r)));
       return true;
@@ -312,6 +324,8 @@ export default function AdminSalesDataInputTab() {
           grabfood_amount: floatOrNull(snapshot[i].grabfood_amount),
           foodpanda_orders: intOrNull(snapshot[i].foodpanda_orders),
           foodpanda_amount: floatOrNull(snapshot[i].foodpanda_amount),
+          beep_orders: intOrNull(snapshot[i].beep_orders),
+          beep_amount: floatOrNull(snapshot[i].beep_amount),
         });
         setRows((prev) => prev.map((r, j) => (j === i ? { ...r, saving: false, saved: true, error: null } : r)));
       } catch {
@@ -338,7 +352,7 @@ export default function AdminSalesDataInputTab() {
             <div>
               <h2 className="text-lg font-semibold text-white">Sales Data Input</h2>
               <p className={`${T_CAPTION} mt-1`}>
-                Enter daily Dine-in / GrabFood / FoodPanda counts and PHP amounts. Data appears in Manila Sales Analytics → Sales Data after save.
+                Enter daily Dine-in / GrabFood / FoodPanda / Beep Delivery counts and PHP amounts. Data appears in Manila Sales Analytics → Sales Data after save.
               </p>
             </div>
           </div>
@@ -412,7 +426,7 @@ export default function AdminSalesDataInputTab() {
 
         {!loadingDate ? (
           <div className="space-y-3">
-            <div className="grid grid-cols-[minmax(100px,140px)_repeat(6,minmax(0,1fr))_minmax(72px,100px)_minmax(72px,100px)_80px] gap-2 px-1 text-xs sm:px-4">
+            <div className="grid grid-cols-[minmax(100px,140px)_repeat(8,minmax(0,1fr))_minmax(72px,100px)_minmax(72px,100px)_80px] gap-2 px-1 text-xs sm:px-4">
               <div className="font-medium text-white/30">Branch</div>
               <div className="text-center text-white/30">Dine-in #</div>
               <div className="text-center text-white/30">Dine-in PHP</div>
@@ -420,6 +434,8 @@ export default function AdminSalesDataInputTab() {
               <div className="text-center text-white/30">Grab PHP</div>
               <div className="text-center text-white/30">FP #</div>
               <div className="text-center text-white/30">FP PHP</div>
+              <div className="text-center text-white/30">Beep #</div>
+              <div className="text-center text-white/30">Beep PHP</div>
               <div className="text-center text-white/30">Total #</div>
               <div className="text-center text-white/30">Total PHP</div>
               <div />
@@ -437,7 +453,7 @@ export default function AdminSalesDataInputTab() {
                     row.saved ? "border-emerald-500/40 bg-emerald-500/5" : row.error ? "border-red-500/40 bg-red-500/5" : "border-white/10 bg-white/5"
                   }`}
                 >
-                  <div className="grid grid-cols-[minmax(100px,140px)_repeat(6,minmax(0,1fr))_minmax(72px,100px)_minmax(72px,100px)_80px] items-center gap-2 px-1 py-3 sm:px-4">
+                  <div className="grid grid-cols-[minmax(100px,140px)_repeat(8,minmax(0,1fr))_minmax(72px,100px)_minmax(72px,100px)_80px] items-center gap-2 px-1 py-3 sm:px-4">
                     <div className="flex items-center gap-2">
                       <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: colors?.dot }} />
                       <span className="text-sm font-medium" style={{ color: colors?.text }}>
@@ -450,6 +466,8 @@ export default function AdminSalesDataInputTab() {
                     <InputCell value={row.grabfood_amount} onChange={(v) => updateRow(idx, "grabfood_amount", v)} isAmount />
                     <InputCell value={row.foodpanda_orders} onChange={(v) => updateRow(idx, "foodpanda_orders", v)} />
                     <InputCell value={row.foodpanda_amount} onChange={(v) => updateRow(idx, "foodpanda_amount", v)} isAmount />
+                    <InputCell value={row.beep_orders} onChange={(v) => updateRow(idx, "beep_orders", v)} />
+                    <InputCell value={row.beep_amount} onChange={(v) => updateRow(idx, "beep_amount", v)} isAmount />
                     <div className="text-right text-sm font-semibold text-white">
                       {hasData && orders > 0 ? orders.toLocaleString("en-PH") : <span className="text-white/20">—</span>}
                     </div>

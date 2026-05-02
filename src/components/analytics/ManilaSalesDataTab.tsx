@@ -77,6 +77,8 @@ type SalesRow = {
   grabfood_amount: number;
   foodpanda_orders: number;
   foodpanda_amount: number;
+  beep_orders: number;
+  beep_amount: number;
   total_orders: number;
   total_amount: number;
   ratio_to_prev_week: number | null;
@@ -91,6 +93,8 @@ type DailySalesRow = {
   grabfood_amount: number | null;
   foodpanda_orders: number | null;
   foodpanda_amount: number | null;
+  beep_orders: number | null;
+  beep_amount: number | null;
   total_orders: number | null;
   total_amount: number | null;
   ratio_to_prev_week: number | null;
@@ -114,6 +118,7 @@ const CHANNEL_COLORS = {
   "Dine-in": "#818cf8",
   GrabFood: "#34d399",
   FoodPanda: "#fbbf24",
+  BeepDelivery: "#38bdf8",
 } as const;
 
 const PERIOD_OPTIONS = [
@@ -138,6 +143,8 @@ function toSalesRow(r: DailySalesRow): SalesRow {
     grabfood_amount: num(r.grabfood_amount),
     foodpanda_orders: num(r.foodpanda_orders),
     foodpanda_amount: num(r.foodpanda_amount),
+    beep_orders: num(r.beep_orders),
+    beep_amount: num(r.beep_amount),
     total_orders: num(r.total_orders),
     total_amount: num(r.total_amount),
     ratio_to_prev_week:
@@ -352,6 +359,7 @@ export function ManilaSalesDataTab({
           "Dine-in": bRows.reduce((s, r) => s + r.dine_in_orders, 0),
           GrabFood: bRows.reduce((s, r) => s + r.grabfood_orders, 0),
           FoodPanda: bRows.reduce((s, r) => s + r.foodpanda_orders, 0),
+          BeepDelivery: bRows.reduce((s, r) => s + r.beep_orders, 0),
         },
       ];
     }
@@ -371,6 +379,7 @@ export function ManilaSalesDataTab({
         "Dine-in": bRows.reduce((s, r) => s + r.dine_in_orders, 0),
         GrabFood: bRows.reduce((s, r) => s + r.grabfood_orders, 0),
         FoodPanda: bRows.reduce((s, r) => s + r.foodpanda_orders, 0),
+        BeepDelivery: bRows.reduce((s, r) => s + r.beep_orders, 0),
       };
     });
   }, [filteredByPeriod, selectedBranch]);
@@ -406,6 +415,8 @@ export function ManilaSalesDataTab({
     { key: "grabfood_amount", label: "Grab PHP" },
     { key: "foodpanda_orders", label: "FP #" },
     { key: "foodpanda_amount", label: "FP PHP" },
+    { key: "beep_orders", label: "Beep #" },
+    { key: "beep_amount", label: "Beep PHP" },
     { key: "total_orders", label: "Total #" },
     { key: "total_amount", label: "Total PHP" },
     { key: "ratio_to_prev_week", label: "WoW" },
@@ -614,7 +625,8 @@ export function ManilaSalesDataTab({
                       />
                       <Bar dataKey="Dine-in" stackId="a" fill={CHANNEL_COLORS["Dine-in"]} />
                       <Bar dataKey="GrabFood" stackId="a" fill={CHANNEL_COLORS.GrabFood} />
-                      <Bar dataKey="FoodPanda" stackId="a" fill={CHANNEL_COLORS.FoodPanda} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="FoodPanda" stackId="a" fill={CHANNEL_COLORS.FoodPanda} />
+                      <Bar dataKey="BeepDelivery" stackId="a" fill={CHANNEL_COLORS.BeepDelivery} radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -689,6 +701,12 @@ export function ManilaSalesDataTab({
                           <td className="px-4 py-2.5 text-right text-white/50">
                             {row.foodpanda_amount > 0 ? fmtPHP(row.foodpanda_amount) : <span className="text-white/20">—</span>}
                           </td>
+                          <td className="px-4 py-2.5 text-right text-white/60">
+                            {row.beep_orders > 0 ? row.beep_orders : <span className="text-white/20">—</span>}
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-white/50">
+                            {row.beep_amount > 0 ? fmtPHP(row.beep_amount) : <span className="text-white/20">—</span>}
+                          </td>
                           <td className="px-4 py-2.5 text-right font-semibold text-white">
                             {row.total_orders > 0 ? row.total_orders : <span className="text-white/20">—</span>}
                           </td>
@@ -710,7 +728,7 @@ export function ManilaSalesDataTab({
                     })}
                     {sortedRows.length === 0 ? (
                       <tr>
-                        <td colSpan={11} className="px-4 py-8 text-center text-white/30">
+                        <td colSpan={13} className="px-4 py-8 text-center text-white/30">
                           No data for selected filter
                         </td>
                       </tr>
