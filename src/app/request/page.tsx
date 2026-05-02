@@ -60,8 +60,10 @@ export default function RequestPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
+  const [staffNames, setStaffNames] = useState<string[]>([]);
   const auth = useMemo(() => getAuth(), []);
-  const canSubmitForOthers = auth?.role === "HQ" || auth?.role === "ADMIN";
+  const MANAGER_ROLES = ["HQ", "ADMIN", "MANAGER", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT"];
+  const canSubmitForOthers = MANAGER_ROLES.includes(auth?.role ?? "");
 
   useEffect(() => {
     if (!auth?.staffName || !auth?.accessToken) {
@@ -72,6 +74,18 @@ export default function RequestPage() {
     if (auth.city) setCity(auth.city);
     if (auth.staffName) setStaffName(auth.staffName);
   }, [auth, router]);
+
+  // Fetch staff names for managers so they can pick from a dropdown
+  useEffect(() => {
+    if (!canSubmitForOthers || !auth?.accessToken) return;
+    const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
+    fetch(`${apiBase}/api/admin/staff_master/names?city=${encodeURIComponent(city)}&status=ACTIVE&limit=500`, {
+      headers: { Authorization: `Bearer ${auth.accessToken}` },
+    })
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d.names)) setStaffNames(d.names); })
+      .catch(() => setStaffNames([]));
+  }, [canSubmitForOthers, city, auth?.accessToken]);
 
   const submit = async () => {
     setLoading(true);
@@ -174,7 +188,7 @@ export default function RequestPage() {
           </div>
           <span className={canSubmitForOthers ? BADGE_WARNING : BADGE_SUCCESS}>
             <FileText className="h-3 w-3" />
-            {canSubmitForOthers ? "Admin mode" : "Self submit"}
+            {canSubmitForOthers ? "Manager / Admin mode" : "Self submit"}
           </span>
         </div>
 
@@ -194,14 +208,28 @@ export default function RequestPage() {
             <input className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`} value={branch} onChange={(e) => setBranch(e.target.value)} />
           </Field>
 
-          <Field label="Staff name" hint="Exact spelling as in sheet">
-            <input
-              className={`${INPUT_CLASS} disabled:opacity-70 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-              value={staffName}
-              onChange={(e) => setStaffName(e.target.value)}
-              readOnly={!canSubmitForOthers}
-              disabled={!canSubmitForOthers}
-            />
+          <Field label="Staff name" hint={canSubmitForOthers ? "Submit on behalf of this staff member" : "Locked to your login"}>
+            {canSubmitForOthers && staffNames.length > 0 ? (
+              <select
+                className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
+                value={staffName}
+                onChange={(e) => setStaffName(e.target.value)}
+              >
+                <option value="">— Select staff member —</option>
+                {staffNames.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                className={`${INPUT_CLASS} disabled:opacity-70 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
+                value={staffName}
+                onChange={(e) => setStaffName(e.target.value)}
+                readOnly={!canSubmitForOthers}
+                disabled={!canSubmitForOthers}
+                placeholder={canSubmitForOthers ? "Loading staff list..." : undefined}
+              />
+            )}
           </Field>
 
           <Field label="Work date">
