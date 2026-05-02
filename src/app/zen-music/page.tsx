@@ -131,6 +131,15 @@ const TRACKS: Track[] = [
     accentHex: "#3730a3",
     glyph: "夜",
   },
+  {
+    id: 14,
+    title: "ZEN ZA WARUDO",
+    subtitle: "Sushi ZEN",
+    file: "/music/zen-za-warudo.mp3",
+    accent: "from-cyan-300 via-blue-500 to-violet-800",
+    accentHex: "#6d28d9",
+    glyph: "界",
+  },
 ];
 
 function fmt(sec: number) {
