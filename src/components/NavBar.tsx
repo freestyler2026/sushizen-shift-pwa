@@ -211,6 +211,9 @@ export default function NavBar() {
   const [incidentBadge, setIncidentBadge] = useState(0);
   const [adminIncidentBadge, setAdminIncidentBadge] = useState(0);
   const [priceCheckBadge, setPriceCheckBadge] = useState(0);
+  const [adminRequestBadge, setAdminRequestBadge] = useState(0);
+  const [privateReportBadge, setPrivateReportBadge] = useState(0);
+  const [inboxBadge, setInboxBadge] = useState(0);
   const [moreOpen, setMoreOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -339,6 +342,77 @@ export default function NavBar() {
     return () => { cancelled = true; window.clearInterval(id); };
   }, []);
 
+  // Admin requests badge (Pending: Manager count) — no auth required, matches /api/admin/overview pattern
+  useEffect(() => {
+    let cancelled = false;
+    const fetchAdminRequestBadge = async () => {
+      try {
+        const auth = getAuth();
+        // Only poll if logged in as admin-capable user
+        if (!auth?.accessToken) { if (!cancelled) setAdminRequestBadge(0); return; }
+        const city = String(auth.city || "dubai").toLowerCase();
+        const res = await fetch(`${API_BASE}/api/admin/requests/badge?city=${encodeURIComponent(city)}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setAdminRequestBadge(Number(data?.badge_count ?? 0));
+      } catch {}
+    };
+    void fetchAdminRequestBadge();
+    const id = window.setInterval(fetchAdminRequestBadge, 30_000);
+    // Immediately re-poll when a request is approved/rejected on the Admin Dashboard
+    const onRefresh = () => void fetchAdminRequestBadge();
+    window.addEventListener("sushizen:requests:badge:refresh", onRefresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      window.removeEventListener("sushizen:requests:badge:refresh", onRefresh);
+    };
+  }, []);
+
+  // Private reports badge (unread notifications)
+  useEffect(() => {
+    let cancelled = false;
+    const fetchPrivateReportBadge = async () => {
+      try {
+        const auth = getAuth();
+        if (!auth?.accessToken) { if (!cancelled) setPrivateReportBadge(0); return; }
+        const res = await fetch(`${API_BASE}/api/admin/private_reports/badge`, {
+          headers: { Authorization: `Bearer ${auth.accessToken}` },
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setPrivateReportBadge(Number(data?.badge_count ?? 0));
+      } catch {}
+    };
+    void fetchPrivateReportBadge();
+    const id = window.setInterval(fetchPrivateReportBadge, 30_000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, []);
+
+  // Inbox badge — unread count (includes shift requests + private report replies)
+  useEffect(() => {
+    let cancelled = false;
+    const fetchInboxBadge = async () => {
+      try {
+        const auth = getAuth();
+        if (!auth?.accessToken) { if (!cancelled) setInboxBadge(0); return; }
+        const res = await fetch(`${API_BASE}/api/private_reports/my_inbox?limit=200`, {
+          headers: { Authorization: `Bearer ${auth.accessToken}` },
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setInboxBadge(Number(data?.unread_count ?? 0));
+      } catch {}
+    };
+    void fetchInboxBadge();
+    const id = window.setInterval(fetchInboxBadge, 30_000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -420,18 +494,20 @@ export default function NavBar() {
     return [...PRIMARY, ...SECONDARY_BASE].map((item) =>
       item.href === "/incidents"
         ? { ...item, badgeCount: incidentBadge, badgeWarning: incidentBadge > 0 }
+        : item.href === "/inbox"
+        ? { ...item, badgeCount: inboxBadge, badgeWarning: inboxBadge > 0 }
         : item,
     );
-  }, [incidentBadge]);
+  }, [incidentBadge, inboxBadge]);
 
   const adminItems = useMemo(() => {
     return ADMIN_ITEMS
       .filter((item) => canSeeAdminItem(item.href, resolvedAuth))
       .map((item) =>
         item.href === "/admin"
-          ? { ...item, badgeYellow: true }
+          ? { ...item, badgeCount: adminRequestBadge, badgeYellow: adminRequestBadge > 0 }
           : item.href === "/admin/private-reports"
-            ? { ...item, badgePink: true }
+            ? { ...item, badgeCount: privateReportBadge, badgePink: privateReportBadge > 0 }
             : item.href === "/admin/procurement"
           ? { ...item, badgeCount: procurementBadgeCount, badgeCritical: procurementBadgeCritical, badgeSuccess: true }
           : item.href === "/admin/renewals"
@@ -442,7 +518,7 @@ export default function NavBar() {
             ? { ...item, badgeCount: priceCheckBadge, badgeCritical: priceCheckBadge > 0 }
           : item,
       );
-  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge, priceCheckBadge]);
+  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge, priceCheckBadge, adminRequestBadge, privateReportBadge]);
 
   const navItems = useMemo(() => [...staffItems, ...adminItems], [staffItems, adminItems]);
 

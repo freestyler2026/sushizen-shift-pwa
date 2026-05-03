@@ -1,13 +1,13 @@
 // src/app/request/page.tsx
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { CalendarDays, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Field } from "@/components/Field";
 import DatePicker from "@/components/DatePicker";
-import { getAuth } from "@/lib/auth";
+import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import {
   GLASS_CARD,
   SMALL_BUTTON,
@@ -61,9 +61,20 @@ export default function RequestPage() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState("");
   const [staffNames, setStaffNames] = useState<string[]>([]);
-  const auth = useMemo(() => getAuth(), []);
+  const [auth, setAuth] = useState(() => getAuth());
   const MANAGER_ROLES = ["HQ", "ADMIN", "MANAGER", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT"];
   const canSubmitForOthers = MANAGER_ROLES.includes(auth?.role ?? "");
+
+  // Re-read auth on focus and visibility change (handles back-navigation without hard reload)
+  useEffect(() => {
+    const refresh = () => setAuth(getAuth());
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
 
   useEffect(() => {
     if (!auth?.staffName || !auth?.accessToken) {
@@ -77,15 +88,17 @@ export default function RequestPage() {
 
   // Fetch staff names for managers so they can pick from a dropdown
   useEffect(() => {
-    if (!canSubmitForOthers || !auth?.accessToken) return;
+    if (!canSubmitForOthers) return;
+    const freshAuth = getAuth();
+    if (!freshAuth?.accessToken) return;
     const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
     fetch(`${apiBase}/api/admin/staff_master/names?city=${encodeURIComponent(city)}&status=ACTIVE&limit=500`, {
-      headers: { Authorization: `Bearer ${auth.accessToken}` },
+      headers: { Authorization: `Bearer ${freshAuth.accessToken}` },
     })
       .then((r) => r.json())
       .then((d) => { if (Array.isArray(d.names)) setStaffNames(d.names); })
       .catch(() => setStaffNames([]));
-  }, [canSubmitForOthers, city, auth?.accessToken]);
+  }, [canSubmitForOthers, city]);
 
   const submit = async () => {
     setLoading(true);
@@ -93,7 +106,9 @@ export default function RequestPage() {
     setResult(null);
 
     try {
-      if (!auth?.accessToken) {
+      // Always read auth fresh at submit time to avoid using an expired token
+      let currentAuth = getAuth();
+      if (!currentAuth?.accessToken) {
         throw new Error("Please log in again before submitting a request.");
       }
       if (!workDate.trim()) {
@@ -139,14 +154,33 @@ export default function RequestPage() {
       }
 
       const url = `/api/shift_change/submit`;
-      const res = await fetch(`${apiBase}${url}`, {
+      let res = await fetch(`${apiBase}${url}`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${auth.accessToken}`,
-          ...(auth.stepUpToken ? { "X-Step-Up-Token": auth.stepUpToken } : {}),
+          Authorization: `Bearer ${currentAuth.accessToken}`,
+          ...(currentAuth.stepUpToken ? { "X-Step-Up-Token": currentAuth.stepUpToken } : {}),
         },
         body: form,
       });
+
+      // If 401, try refreshing the token once and retry
+      if (res.status === 401) {
+        const refreshed = await refreshAuthFromApi(currentAuth);
+        if (refreshed?.accessToken && refreshed.accessToken !== currentAuth.accessToken) {
+          currentAuth = refreshed;
+          // Rebuild form for retry (FormData can't be reused after sending)
+          const form2 = new FormData();
+          form.forEach((v, k) => form2.set(k, v));
+          res = await fetch(`${apiBase}${url}`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${currentAuth.accessToken}`,
+              ...(currentAuth.stepUpToken ? { "X-Step-Up-Token": currentAuth.stepUpToken } : {}),
+            },
+            body: form2,
+          });
+        }
+      }
 
       const text = await res.text();
       if (!res.ok) throw new Error(`Submit failed: ${res.status} ${text}`);
@@ -371,9 +405,45 @@ export default function RequestPage() {
         </div>
 
         {result ? (
-          <div className={`mt-4 p-4 ${BLUSH_GLASS}`}>
-            <div className={T_SECTION}>Result</div>
-            <pre className="mt-2 overflow-auto text-xs text-neutral-300">{JSON.stringify(result, null, 2)}</pre>
+          <div className={`mt-4 ${BLUSH_HIGHLIGHT} p-5`}>
+            <div className="mb-4 flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 text-lg">✓</span>
+              <div>
+                <div className="font-semibold text-emerald-300 text-sm">Request Submitted</div>
+                <div className="text-xs text-neutral-400">Your request has been received and is pending review.</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div className="rounded-lg bg-violet-950/40 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1">Request ID</div>
+                <div className="font-mono text-xs text-neutral-300 break-all">{String(result.request_id || "—").slice(0, 8)}…</div>
+              </div>
+              <div className="rounded-lg bg-violet-950/40 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1">Urgency</div>
+                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
+                  result.urgency_status === "RED" ? "bg-rose-500/20 text-rose-300" :
+                  result.urgency_status === "YELLOW" ? "bg-amber-500/20 text-amber-300" :
+                  "bg-emerald-500/20 text-emerald-300"
+                }`}>{result.urgency_status || "—"}</span>
+              </div>
+              <div className="rounded-lg bg-violet-950/40 p-3">
+                <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1">Days Before</div>
+                <div className="text-sm font-semibold text-white">{result.days_before ?? "—"} <span className="text-xs text-neutral-400 font-normal">days</span></div>
+              </div>
+              {result.counterparty_status && result.counterparty_status !== "NOT_REQUIRED" && (
+                <div className="rounded-lg bg-violet-950/40 p-3">
+                  <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1">Counterparty</div>
+                  <div className="text-xs text-neutral-300">{result.counterparty_status}</div>
+                </div>
+              )}
+              {result.medical_upload_status && result.medical_upload_status !== "not_uploaded" && (
+                <div className="rounded-lg bg-violet-950/40 p-3">
+                  <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1">Medical Doc</div>
+                  <div className="text-xs text-neutral-300">{result.medical_upload_status}</div>
+                </div>
+              )}
+            </div>
+            <div className="mt-3 text-xs text-neutral-500">Your manager will be notified and will review the request shortly.</div>
           </div>
         ) : null}
       </div>

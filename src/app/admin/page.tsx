@@ -541,7 +541,7 @@ function hydrateApproverFromAuth(
 
 function isHQOrAdmin(role: string) {
   const r = String(role || "").toUpperCase();
-  return r === "HQ" || r === "ADMIN";
+  return r === "HQ" || r === "ADMIN" || r === "HR_MANAGER";
 }
 
 function needsManagerDecision(item: AdminItem | null) {
@@ -898,6 +898,7 @@ function AdminPageInner() {
       setSelected(null);
       setSearch("");
       await fetchLatest();
+      window.dispatchEvent(new CustomEvent("sushizen:requests:badge:refresh"));
     } catch (e: any) {
       setOpMsg(`❌ ${e?.message || String(e)}`);
     } finally {
@@ -932,6 +933,7 @@ function AdminPageInner() {
       setSelected(null);
       setSearch("");
       await fetchLatest();
+      window.dispatchEvent(new CustomEvent("sushizen:requests:badge:refresh"));
     } catch (e: any) {
       setOpMsg(`❌ ${e?.message || String(e)}`);
     } finally {

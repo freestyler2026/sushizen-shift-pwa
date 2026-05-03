@@ -3,8 +3,8 @@
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
-// Poll every 8 seconds — fast enough to feel instant without hammering the server.
-const POLL_INTERVAL_MS = 8 * 1000;
+// Poll every 5 seconds — fast enough to feel near-instant without hammering the server.
+const POLL_INTERVAL_MS = 5 * 1000;
 
 // Baked into the JavaScript bundle at build time by next.config.ts.
 // If a PWA is running an old cached bundle, this will differ from what
@@ -86,7 +86,7 @@ export default function AutoReload() {
 
     fetchBackendVersion().then((v) => { backendBaseline.current = v; });
 
-    // Periodic poll — 8 s feels near-instant to the user.
+    // Periodic poll — 5 s feels near-instant to the user.
     const timer = setInterval(check, POLL_INTERVAL_MS);
 
     // Check when app comes back to foreground.
@@ -98,11 +98,20 @@ export default function AutoReload() {
     // Check on browser window focus.
     window.addEventListener("focus", check);
 
+    // iOS Safari PWA: when a page is restored from bfcache (e.g. app icon tap after
+    // backgrounding), neither mount nor visibilitychange may fire reliably. The
+    // pageshow event with persisted=true is the most reliable signal on iOS.
+    function onPageShow(e: PageTransitionEvent) {
+      if (e.persisted) check();
+    }
+    window.addEventListener("pageshow", onPageShow);
+
     return () => {
       clearInterval(timer);
       if (earlyTimerRef.current) clearTimeout(earlyTimerRef.current);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("focus", check);
+      window.removeEventListener("pageshow", onPageShow);
     };
   }, []);
 

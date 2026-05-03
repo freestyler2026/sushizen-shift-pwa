@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Bell, MailOpen } from "lucide-react";
+import { Bell, MailOpen, ClipboardList } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import {
@@ -32,10 +32,27 @@ type InboxRow = {
   created_at: string;
 };
 
+// Parse "[Request Submitted] ..." style messages into structured data
+function parseRequestMessage(message: string) {
+  if (!message.startsWith("[Request Submitted]")) return null;
+  const lines = message.split("\n");
+  const title = lines[0].replace("[Request Submitted]", "").trim();
+  const data: Record<string, string> = {};
+  lines.slice(1).forEach((line) => {
+    const colonIdx = line.indexOf(":");
+    if (colonIdx > -1) {
+      const key = line.slice(0, colonIdx).trim();
+      const val = line.slice(colonIdx + 1).trim();
+      data[key] = val;
+    }
+  });
+  return { title, ...data };
+}
+
 export default function InboxPage() {
   const router = useRouter();
   const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
-  const auth = useMemo(() => getAuth(), []);
+  const [auth, setAuth] = useState(() => getAuth());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [rows, setRows] = useState<InboxRow[]>([]);
@@ -43,15 +60,27 @@ export default function InboxPage() {
   const [markingIds, setMarkingIds] = useState<number[]>([]);
   const [markAllBusy, setMarkAllBusy] = useState(false);
 
+  // Re-read auth on focus and visibility change (no hard reload needed)
+  useEffect(() => {
+    const refresh = () => setAuth(getAuth());
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, []);
+
   const tokenHeaders = useCallback(async () => {
-    const refreshed = await refreshAuthFromApi(auth);
-    const accessToken = refreshed?.accessToken || auth?.accessToken;
+    const freshAuth = getAuth();
+    const refreshed = await refreshAuthFromApi(freshAuth);
+    const accessToken = refreshed?.accessToken || freshAuth?.accessToken;
     if (!accessToken) throw new Error("Please log in again.");
     return {
       Authorization: `Bearer ${accessToken}`,
       ...(refreshed?.stepUpToken ? { "X-Step-Up-Token": refreshed.stepUpToken } : {}),
     };
-  }, [auth]);
+  }, []);
 
   const loadInbox = useCallback(async () => {
     setLoading(true);
@@ -126,7 +155,7 @@ export default function InboxPage() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className={T_PAGE_TITLE}>Inbox</h1>
-          <p className={T_BODY}>Private acknowledgements and replies from HQ/HR appear here.</p>
+          <p className={T_BODY}>Submitted requests and private replies from HQ/HR appear here.</p>
         </div>
         <div className="flex items-center gap-2">
           <span className={unreadCount ? BADGE_WARNING : BADGE_SUCCESS}>
@@ -167,10 +196,18 @@ export default function InboxPage() {
       </div>
 
       <div className="space-y-3">
-        {rows.map((row) => (
-          <div key={row.id} className={`${BLUSH_GLASS} p-4`}>
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-xs text-neutral-400">{row.created_at}</div>
+        {rows.map((row) => {
+          const parsed = parseRequestMessage(row.message);
+          return (
+          <div key={row.id} className={`${BLUSH_GLASS} p-4 ${!row.is_read ? "border-l-2 border-violet-500" : ""}`}>
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2">
+                {parsed
+                  ? <ClipboardList className="h-4 w-4 text-violet-400 shrink-0 mt-0.5" />
+                  : <Bell className="h-4 w-4 text-neutral-400 shrink-0 mt-0.5" />
+                }
+                <div className="text-xs text-neutral-400">{new Date(row.created_at).toLocaleString()}</div>
+              </div>
               {!row.is_read ? (
                 <button
                   type="button"
@@ -187,9 +224,52 @@ export default function InboxPage() {
                 </span>
               )}
             </div>
-            <div className="mt-1 whitespace-pre-wrap text-sm text-neutral-200">{row.message}</div>
+
+            {parsed ? (
+              <div className="mt-3">
+                <div className="text-sm font-semibold text-violet-300 mb-2">{parsed.title}</div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {parsed["Date"] && (
+                    <div className="rounded-md bg-violet-950/40 px-3 py-2">
+                      <div className="text-[10px] uppercase tracking-wide text-neutral-500">Date</div>
+                      <div className="text-xs text-neutral-200">{parsed["Date"]}</div>
+                    </div>
+                  )}
+                  {parsed["Urgency"] && (
+                    <div className="rounded-md bg-violet-950/40 px-3 py-2">
+                      <div className="text-[10px] uppercase tracking-wide text-neutral-500">Urgency</div>
+                      <div className="text-xs text-neutral-200">{parsed["Urgency"]}</div>
+                    </div>
+                  )}
+                  {parsed["Status"] && (
+                    <div className="rounded-md bg-violet-950/40 px-3 py-2">
+                      <div className="text-[10px] uppercase tracking-wide text-neutral-500">Status</div>
+                      <div className="text-xs text-amber-300">{parsed["Status"]}</div>
+                    </div>
+                  )}
+                  {parsed["Reason"] && (
+                    <div className="rounded-md bg-violet-950/40 px-3 py-2 col-span-2 sm:col-span-3">
+                      <div className="text-[10px] uppercase tracking-wide text-neutral-500">Reason</div>
+                      <div className="text-xs text-neutral-200">{parsed["Reason"]}</div>
+                    </div>
+                  )}
+                  {parsed["Requested time"] && (
+                    <div className="rounded-md bg-violet-950/40 px-3 py-2 col-span-2 sm:col-span-3">
+                      <div className="text-[10px] uppercase tracking-wide text-neutral-500">Requested time</div>
+                      <div className="text-xs text-neutral-200">{parsed["Requested time"]}</div>
+                    </div>
+                  )}
+                </div>
+                {parsed["Request ID"] && (
+                  <div className="mt-2 text-[10px] text-neutral-500 font-mono">ID: {parsed["Request ID"]}</div>
+                )}
+              </div>
+            ) : (
+              <div className="mt-1 whitespace-pre-wrap text-sm text-neutral-200">{row.message}</div>
+            )}
           </div>
-        ))}
+          );
+        })}
         {!loading && !error && !rows.length ? (
           <div className={`${BLUSH_GLASS} flex flex-col items-center gap-2 py-8`}>
             <MailOpen className="h-6 w-6 text-zinc-600" />
