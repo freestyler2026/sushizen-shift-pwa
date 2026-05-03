@@ -347,6 +347,8 @@ export default function ManualShiftPage() {
   const [hasDraft, setHasDraft] = useState(false);
   // Tracks which cell is being deleted from server (for loading state)
   const [deletingCell, setDeletingCell] = useState<{ staffName: string; dateStr: string } | null>(null);
+  // Tracks which staff row is being deleted in Edit Grid
+  const [deletingStaffGrid, setDeletingStaffGrid] = useState<string | null>(null);
   // Custom branch dropdown (replaces native <select> to avoid Edge autocomplete interference)
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
@@ -584,6 +586,35 @@ export default function ManualShiftPage() {
       setDeletingCell(null);
     }
     clearCell(staffName, dateStr);
+  }
+
+  /** Delete all shifts for a staff member from Edit Grid (server + local state). */
+  async function deleteStaffFromGrid(staffName: string) {
+    const datesWithShifts = weekDates.filter((d) => gridData[staffName]?.[d]);
+    const totalShifts = datesWithShifts.length;
+    if (!window.confirm(`Delete all ${totalShifts} shift(s) for "${stripRoleSuffix(staffName)}" and remove from grid?`)) return;
+    setDeletingStaffGrid(staffName);
+    try {
+      for (const d of datesWithShifts) {
+        try {
+          await apiFetch("/api/admin/shifts/delete_published_row", {
+            method: "POST",
+            body: JSON.stringify({ city, branch_code: branchCode, work_date: d, staff_name: staffName }),
+          });
+        } catch {
+          // May not be published yet — continue
+        }
+      }
+    } finally {
+      setDeletingStaffGrid(null);
+    }
+    setStaffList((prev) => prev.filter((n) => n !== staffName));
+    setGridData((prev) => {
+      const next = { ...prev };
+      delete next[staffName];
+      return next;
+    });
+    if (editTarget?.staffName === staffName) setEditTarget(null);
   }
 
   function addStaffRow() {
@@ -876,7 +907,20 @@ export default function ManualShiftPage() {
                 <tbody>
                   {staffList.map((name, idx) => (
                     <tr key={name} className={`border-b border-white/5 ${idx % 2 === 0 ? "bg-white/[0.02]" : ""}`}>
-                      <td className="px-4 py-2 text-xs font-medium text-neutral-200">{stripRoleSuffix(name)}</td>
+                      <td className="px-3 py-2 text-xs font-medium text-neutral-200">
+                        <div className="flex items-center justify-between gap-1">
+                          <span>{stripRoleSuffix(name)}</span>
+                          <button
+                            type="button"
+                            title="Delete all shifts for this staff member"
+                            disabled={deletingStaffGrid === name}
+                            onClick={() => void deleteStaffFromGrid(name)}
+                            className="shrink-0 rounded border border-rose-500/30 bg-rose-950/20 px-1.5 py-0.5 text-[10px] text-rose-400 hover:bg-rose-900/30 disabled:opacity-40 transition"
+                          >
+                            {deletingStaffGrid === name ? "…" : "🗑"}
+                          </button>
+                        </div>
+                      </td>
                       {weekDates.map((d) => {
                         const cell = gridData[name]?.[d] ?? null;
                         const isEditing = editTarget?.staffName === name && editTarget?.dateStr === d;
