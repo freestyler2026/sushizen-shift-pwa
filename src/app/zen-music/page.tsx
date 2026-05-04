@@ -140,6 +140,24 @@ const TRACKS: Track[] = [
     accentHex: "#6d28d9",
     glyph: "界",
   },
+  {
+    id: 15,
+    title: "ZEN SHOGUN MODE",
+    subtitle: "Sushi ZEN",
+    file: "/music/zen-shogun-mode.mp3",
+    accent: "from-red-900 via-red-700 to-orange-500",
+    accentHex: "#b91c1c",
+    glyph: "将",
+  },
+  {
+    id: 16,
+    title: "ZEN Night",
+    subtitle: "Sushi ZEN",
+    file: "/music/zen-night.mp3",
+    accent: "from-indigo-900 via-purple-800 to-violet-600",
+    accentHex: "#4c1d95",
+    glyph: "宵",
+  },
 ];
 
 function fmt(sec: number) {
