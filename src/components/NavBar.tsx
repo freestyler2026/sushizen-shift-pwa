@@ -12,6 +12,7 @@ import {
   BarChart3,
   Bot,
   Calculator,
+  MessageSquare,
   Calendar,
   CalendarClock,
   CalendarDays,
@@ -70,6 +71,7 @@ import {
 } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import { RENEWALS_BADGE_EVENT, readRenewalsBadgeCount, setRenewalsBadgeCount } from "@/lib/renewals";
+import { BADGE_EVENTS } from "@/lib/badgeEvents";
 
 type NavItem = {
   href: string;
@@ -126,6 +128,8 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/incidents", label: "Incident Reports", icon: AlertTriangle, adminOnly: true, match: "prefix" },
   { href: "/admin/price-check", label: "Price Check", icon: Tag, adminOnly: true, match: "prefix" },
   { href: "/admin/baseroll-prep", label: "Base Roll Prep", icon: UtensilsCrossed, adminOnly: true, match: "prefix" },
+  { href: "/admin/daily-report", label: "Daily Report", icon: CalendarDays, adminOnly: true, match: "prefix" },
+  { href: "/admin/discord-inbox", label: "Discord Inbox", icon: MessageSquare, adminOnly: true, match: "prefix" },
 ];
 
 function isActive(pathname: string, item: NavItem) {
@@ -242,6 +246,7 @@ export default function NavBar() {
     if (href === "/admin/manual-shift") return canAccessAdminNav(auth);
     if (href === "/admin/price-check") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
     if (href === "/admin/baseroll-prep") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
+    if (href === "/admin/daily-report") return canAccessAnalyticsAdmin(auth);
     return false;
   }
 
@@ -313,7 +318,13 @@ export default function NavBar() {
     };
     void fetchIncidentBadge();
     const id = window.setInterval(fetchIncidentBadge, 60_000);
-    return () => { cancelled = true; window.clearInterval(id); };
+    const onRefresh = () => void fetchIncidentBadge();
+    window.addEventListener(BADGE_EVENTS.incidents, onRefresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      window.removeEventListener(BADGE_EVENTS.incidents, onRefresh);
+    };
   }, []);
 
   // Admin incident badge polling (unprocessed count)
@@ -339,7 +350,13 @@ export default function NavBar() {
     };
     void fetchAdminIncidentBadge();
     const id = window.setInterval(fetchAdminIncidentBadge, 60_000);
-    return () => { cancelled = true; window.clearInterval(id); };
+    const onRefresh = () => void fetchAdminIncidentBadge();
+    window.addEventListener(BADGE_EVENTS.adminIncidents, onRefresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      window.removeEventListener(BADGE_EVENTS.adminIncidents, onRefresh);
+    };
   }, []);
 
   // Admin requests badge (Pending: Manager count) — no auth required, matches /api/admin/overview pattern
@@ -371,7 +388,7 @@ export default function NavBar() {
     };
   }, []);
 
-  // Private reports badge (unread notifications)
+  // Private reports badge (unreplied reports)
   useEffect(() => {
     let cancelled = false;
     const fetchPrivateReportBadge = async () => {
@@ -389,7 +406,13 @@ export default function NavBar() {
     };
     void fetchPrivateReportBadge();
     const id = window.setInterval(fetchPrivateReportBadge, 30_000);
-    return () => { cancelled = true; window.clearInterval(id); };
+    const onRefresh = () => void fetchPrivateReportBadge();
+    window.addEventListener(BADGE_EVENTS.privateReports, onRefresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      window.removeEventListener(BADGE_EVENTS.privateReports, onRefresh);
+    };
   }, []);
 
   // Inbox badge — unread count (includes shift requests + private report replies)
@@ -410,7 +433,40 @@ export default function NavBar() {
     };
     void fetchInboxBadge();
     const id = window.setInterval(fetchInboxBadge, 30_000);
-    return () => { cancelled = true; window.clearInterval(id); };
+    const onRefresh = () => void fetchInboxBadge();
+    window.addEventListener(BADGE_EVENTS.inbox, onRefresh);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      window.removeEventListener(BADGE_EVENTS.inbox, onRefresh);
+    };
+  }, []);
+
+  // Price-check badge event listener (re-fetch on confirm/run)
+  useEffect(() => {
+    let cancelled = false;
+    const fetchPriceCheckBadge = async () => {
+      try {
+        const auth = getAuth();
+        if (!auth?.accessToken) return;
+        const role = String(auth.role || "").toUpperCase();
+        if (!["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role)) return;
+        const pcRes = await fetch(`${API_BASE}/api/admin/price-check/flagged-count`, {
+          cache: "no-store",
+          headers: { Authorization: `Bearer ${auth.accessToken}` },
+        });
+        if (pcRes.ok) {
+          const pcJson = await pcRes.json();
+          if (!cancelled) setPriceCheckBadge(Number(pcJson?.flagged_count || 0));
+        }
+      } catch {}
+    };
+    const onRefresh = () => void fetchPriceCheckBadge();
+    window.addEventListener(BADGE_EVENTS.priceCheck, onRefresh);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(BADGE_EVENTS.priceCheck, onRefresh);
+    };
   }, []);
 
   useEffect(() => {
