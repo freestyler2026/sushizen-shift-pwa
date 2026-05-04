@@ -7,7 +7,7 @@ import {
   RefreshCw, Bell, BellOff, Hash, User, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { getAuth } from "@/lib/auth";
-import { GLASS_CARD, PRIMARY_BUTTON, T_PAGE_TITLE, BADGE_SUCCESS, BADGE_WARNING, BADGE_INFO } from "@/lib/ui-tokens";
+import { GLASS_CARD, PRIMARY_BUTTON, T_PAGE_TITLE, BADGE_SUCCESS, BADGE_WARNING } from "@/lib/ui-tokens";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "";
 
@@ -246,11 +246,9 @@ export default function DiscordInboxPage() {
       if (!keyData.ok) throw new Error("VAPID key not available");
 
       const vapidKey = keyData.public_key;
-      const applicationServerKey = urlBase64ToUint8Array(vapidKey);
-
       const subscription = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey,
+        applicationServerKey: vapidKey,
       });
 
       const subJson = subscription.toJSON();
@@ -454,10 +452,3 @@ export default function DiscordInboxPage() {
   );
 }
 
-// Utility: convert VAPID public key base64url to Uint8Array
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const rawData = atob(base64);
-  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
-}
