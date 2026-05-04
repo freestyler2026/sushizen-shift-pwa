@@ -158,6 +158,15 @@ const TRACKS: Track[] = [
     accentHex: "#4c1d95",
     glyph: "宵",
   },
+  {
+    id: 17,
+    title: "ZEN Days",
+    subtitle: "Sushi ZEN",
+    file: "/music/zen-days.mp3",
+    accent: "from-sky-400 via-cyan-300 to-emerald-400",
+    accentHex: "#0891b2",
+    glyph: "陽",
+  },
 ];
 
 function fmt(sec: number) {
