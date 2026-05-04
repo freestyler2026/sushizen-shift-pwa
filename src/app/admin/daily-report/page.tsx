@@ -917,6 +917,12 @@ export default function DailyReportPage() {
   const [selectedDate, setSelectedDate] = useState("");
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [generateDate, setGenerateDate] = useState(() => {
+    // Default to yesterday PHT
+    const d = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().slice(0, 10);
+  });
   const [error, setError] = useState("");
   const [allowed, setAllowed] = useState(false);
   const [ready, setReady] = useState(false);
@@ -951,10 +957,11 @@ export default function DailyReportPage() {
   useEffect(() => { if (ready) void fetchReports(city); }, [ready, city, fetchReports]);
 
   const handleGenerate = async () => {
-    if (!window.confirm(t.generateConfirm.replace("{city}", city === "dubai" ? "Dubai" : "Manila"))) return;
+    const label = city === "dubai" ? "Dubai" : "Manila";
+    if (!window.confirm(`Generate report for ${label} on ${generateDate}?`)) return;
     setGenerating(true); setError("");
     try {
-      await apiPost("/api/admin/daily-report/generate", {});
+      await apiPost(`/api/admin/daily-report/generate?report_date=${encodeURIComponent(generateDate)}`, {});
       await fetchReports(city);
     } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setGenerating(false); }
@@ -1013,9 +1020,17 @@ export default function DailyReportPage() {
               <RefreshCw className={`h-4 w-4 ${loading?"animate-spin":""}`} />{t.refresh}
             </button>
             {isHQAdmin && (
-              <button onClick={() => void handleGenerate()} disabled={generating||loading} className={PRIMARY_BUTTON}>
-                {generating ? t.generating : t.generateNow}
-              </button>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="date"
+                  value={generateDate}
+                  onChange={e => setGenerateDate(e.target.value)}
+                  className="rounded-lg border border-white/15 bg-white/5 px-2 py-1.5 text-xs text-white [color-scheme:dark] focus:outline-none focus:ring-1 focus:ring-violet-500"
+                />
+                <button onClick={() => void handleGenerate()} disabled={generating||loading} className={PRIMARY_BUTTON}>
+                  {generating ? t.generating : t.generateNow}
+                </button>
+              </div>
             )}
           </div>
         </div>
