@@ -86,9 +86,8 @@ export default function RequestPage() {
     if (auth.staffName) setStaffName(auth.staffName);
   }, [auth, router]);
 
-  // Fetch staff names for managers so they can pick from a dropdown
+  // Fetch staff names for dropdowns (manager selection + swap counterparty)
   useEffect(() => {
-    if (!canSubmitForOthers) return;
     const freshAuth = getAuth();
     if (!freshAuth?.accessToken) return;
     const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
@@ -98,7 +97,7 @@ export default function RequestPage() {
       .then((r) => r.json())
       .then((d) => { if (Array.isArray(d.names)) setStaffNames(d.names); })
       .catch(() => setStaffNames([]));
-  }, [canSubmitForOthers, city]);
+  }, [city]);
 
   const submit = async () => {
     setLoading(true);
@@ -359,7 +358,27 @@ export default function RequestPage() {
           {requestType === "swap" ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="With staff (counterparty)">
-                <input className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`} value={withStaff} onChange={(e) => setWithStaff(e.target.value)} />
+                {staffNames.length > 0 ? (
+                  <select
+                    className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
+                    value={withStaff}
+                    onChange={(e) => setWithStaff(e.target.value)}
+                  >
+                    <option value="">— Select staff member —</option>
+                    {staffNames
+                      .filter((n) => n !== staffName)
+                      .map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                  </select>
+                ) : (
+                  <input
+                    className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
+                    value={withStaff}
+                    onChange={(e) => setWithStaff(e.target.value)}
+                    placeholder="Staff name"
+                  />
+                )}
               </Field>
               <div />
 
