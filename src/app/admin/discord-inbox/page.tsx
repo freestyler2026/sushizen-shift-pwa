@@ -6,7 +6,7 @@ import {
   MessageSquare, Send, CheckCircle, XCircle, Clock,
   RefreshCw, Bell, BellOff, Hash, User, ChevronDown, ChevronUp,
 } from "lucide-react";
-import { getAuth } from "@/lib/auth";
+import { getAuth, canAccessAdminNav } from "@/lib/auth";
 import { GLASS_CARD, PRIMARY_BUTTON, T_PAGE_TITLE, BADGE_SUCCESS, BADGE_WARNING } from "@/lib/ui-tokens";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "";
@@ -189,6 +189,15 @@ export default function DiscordInboxPage() {
   const auth = getAuth();
   const staffName = auth?.staffName || "";
 
+  // Auth guard — redirect immediately if not logged in or insufficient role
+  useEffect(() => {
+    if (!auth) { router.replace("/week"); return; }
+    const role = (auth.role || "").toUpperCase();
+    if (role !== "HQ" && role !== "ADMIN" && !canAccessAdminNav(auth)) {
+      router.replace("/week");
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const fetchMentions = useCallback(async (filter: StatusFilter = statusFilter) => {
     try {
       const token = auth?.accessToken || "";
@@ -196,7 +205,8 @@ export default function DiscordInboxPage() {
         `${API_BASE}/api/admin/discord/mentions?status=${filter}&limit=100`,
         { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
       );
-      if (res.status === 401 || res.status === 403) { router.replace("/week"); return; }
+      if (res.status === 401) { router.replace("/week"); return; }
+      if (res.status === 403) { setError("アクセス権限がありません。管理者にご連絡ください。"); setLoading(false); return; }
       const data = await res.json();
       if (data.ok) {
         setMentions(data.items || []);
