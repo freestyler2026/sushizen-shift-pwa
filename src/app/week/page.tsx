@@ -108,7 +108,10 @@ const ABSENCE_TYPES = new Set([
 
 function isAbsenceRow(r: any) {
   const at = String(r?.role || "").toUpperCase().trim();
+  // VL / Vacation Leave branch → always treat as absence regardless of hours
+  const bc = String((r as any)?.branch_code || "").toUpperCase().replace(/[\s_]/g, "");
   if (r?.applied?.applied_type === "absence") return true;
+  if (bc === "VL" || bc === "VACATIONLEAVE") return true;
   return Number(r?.start_hour ?? 0) === 0 && Number(r?.end_hour ?? 0) === 0 && ABSENCE_TYPES.has(at);
 }
 
@@ -123,6 +126,21 @@ function absenceNote(rows: any[]) {
     if (note) return String(note);
   }
   return "";
+}
+
+// Human-readable labels for absence types
+function absenceDisplayLabel(type: string): string {
+  const t = (type || "").toUpperCase().replace(/[\s_]/g, "");
+  if (t === "ABSENT") return "Day Off";
+  if (t === "DAYOFF") return "Day Off";
+  if (t === "VL" || t === "VACATIONLEAVE") return "Vacation Leave";
+  if (t === "ML" || t === "MEDICALLEAVE") return "Medical Leave";
+  if (t === "SL" || t === "SICKLEAVE") return "Sick Leave";
+  if (t === "MATERNITYLEAVE") return "Maternity Leave";
+  if (t === "BEREAVEMENTLEAVE") return "Bereavement Leave";
+  if (t === "INJURY") return "Injury Leave";
+  if (t === "HOSPITAL") return "Hospital Leave";
+  return type;
 }
 
 // -----------------------------
@@ -455,9 +473,10 @@ export default function WeekPage() {
     const absence = isAbsenceStaff(rows);
     const absType = String(rows[0]?.role || "").toUpperCase().trim();
     const absNote = absenceNote(rows);
+    const absLabel = absenceDisplayLabel(absType);
 
     const badge = badgeForRow(rows[0]);
-    const roleText = absence ? absType : (rows[0]?.role || "");
+    const roleText = absence ? absLabel : (rows[0]?.role || "");
 
     return (
       <div
@@ -482,7 +501,7 @@ export default function WeekPage() {
           </div>
 
           {absence ? (
-            <div className="mt-0.5 text-[10px] text-neutral-400">{absNote || absType}</div>
+            <div className="mt-0.5 text-[10px] text-neutral-400">{absNote || absLabel}</div>
           ) : (
             <Timeline2Rows rows={rows} />
           )}
