@@ -199,6 +199,8 @@ export default function InventoryProductionsPage() {
   // Stock quick-entry: productId → qty string
   const [stockQtys, setStockQtys] = useState<Record<string, string>>({});
   const [stockSearch, setStockSearch] = useState("");
+  // CK-produced product IDs (from production recipes); empty = no recipes defined yet
+  const [ckProductIds, setCkProductIds] = useState<Set<string>>(new Set());
   // Completed order ready for delivery note printing
   const [completedOrderForPrint, setCompletedOrderForPrint] = useState<CkPendingRequest | null>(null);
   // IDs of orders completed this session (hidden from pending list)
@@ -269,7 +271,7 @@ export default function InventoryProductionsPage() {
       setLoading(true);
       setError("");
       try {
-        const [productsRes, ingredientsRes, staffRes] = await Promise.all([
+        const [productsRes, ingredientsRes, staffRes, recipesRes] = await Promise.all([
           inventoryGet<{ rows: ProductOption[] }>(
             `/api/admin/inventory/items?city=${encodeURIComponent(city)}&tab=PRODUCTS&limit=500`,
           ),
@@ -283,10 +285,18 @@ export default function InventoryProductionsPage() {
             if (!res.ok) throw new Error(text || "staff names failed");
             return text ? (JSON.parse(text) as StaffNameDirectory) : {};
           }),
+          inventoryGet<{ rows: { product_item_id: string }[] }>(
+            `/api/admin/inventory/production-recipes?city=${encodeURIComponent(city)}&limit=2000`,
+          ).catch(() => ({ rows: [] })),
         ]);
         if (cancelled) return;
         const nextProducts = (productsRes.rows || []).filter((item) => item.status !== "DELETED");
         setProductOptions(nextProducts);
+        // Build set of product IDs that have at least one production recipe (= CK-produced items)
+        const recipeProductIdSet = new Set<string>(
+          (recipesRes.rows || []).map((r) => r.product_item_id).filter(Boolean),
+        );
+        setCkProductIds(recipeProductIdSet);
         setIngredientOptions((ingredientsRes.rows || []).filter((item) => item.status !== "DELETED"));
         setStaffOptions(Array.isArray(staffRes.names) ? staffRes.names : []);
         await loadHistory(city, branchCode, historyMonth);
@@ -1338,6 +1348,8 @@ ${pages}
 
           {productOptions.length === 0 ? (
             <div className="py-4 text-sm text-neutral-500">No production items registered.</div>
+          ) : productOptions.filter((p) => ckProductIds.size === 0 || ckProductIds.has(p.id)).length === 0 ? (
+            <div className="py-4 text-sm text-neutral-500">No CK production recipes defined yet. Add recipes in the Build tab to see items here.</div>
           ) : (
             <>
               <div className="overflow-hidden rounded-xl border border-neutral-800">
@@ -1347,8 +1359,9 @@ ${pages}
                   <div className="text-right">Qty Produced</div>
                   <div className="pl-3">Unit</div>
                 </div>
-                {/* Product rows */}
+                {/* Product rows — filtered to CK-produced items (those with a production recipe) */}
                 {productOptions
+                  .filter((p) => ckProductIds.size === 0 || ckProductIds.has(p.id))
                   .filter((p) =>
                     !stockSearch.trim() ||
                     p.name.toLowerCase().includes(stockSearch.toLowerCase()) ||
