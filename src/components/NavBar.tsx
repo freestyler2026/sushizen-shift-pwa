@@ -442,7 +442,7 @@ export default function NavBar() {
     };
   }, []);
 
-  // Price-check badge event listener (re-fetch on confirm/run)
+  // Price-check badge: fetch on event (confirm/run) AND poll every 30 min so badge stays fresh
   useEffect(() => {
     let cancelled = false;
     const fetchPriceCheckBadge = async () => {
@@ -463,9 +463,12 @@ export default function NavBar() {
     };
     const onRefresh = () => void fetchPriceCheckBadge();
     window.addEventListener(BADGE_EVENTS.priceCheck, onRefresh);
+    // Poll every 30 minutes so badge reflects background job results without page reload
+    const pollTimer = setInterval(() => void fetchPriceCheckBadge(), 30 * 60 * 1000);
     return () => {
       cancelled = true;
       window.removeEventListener(BADGE_EVENTS.priceCheck, onRefresh);
+      clearInterval(pollTimer);
     };
   }, []);
 
