@@ -225,7 +225,7 @@ function InlineItemSearch({
     setLoading(true);
     try {
       const data = await apiFetch<{ items: SearchItem[] }>(
-        `/api/admin/disposal/items/search?city=${city}&q=${encodeURIComponent(q)}&limit=20`
+        `/api/admin/disposal/items/search?city=${city}&q=${encodeURIComponent(q)}&limit=50`
       );
       setResults(data.items ?? []);
       setOpen(true);
