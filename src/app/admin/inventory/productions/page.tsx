@@ -202,6 +202,10 @@ export default function InventoryProductionsPage() {
   const [stockSearch, setStockSearch] = useState("");
   // CK-produced product IDs (from production recipes); empty = no recipes defined yet
   const [ckProductIds, setCkProductIds] = useState<Set<string>>(new Set());
+  // Free-text "other" item row at bottom of Stock tab
+  const [freeItemName, setFreeItemName] = useState("");
+  const [freeItemQty, setFreeItemQty] = useState("");
+  const [freeItemUnit, setFreeItemUnit] = useState<string>("pcs");
   // Completed order ready for delivery note printing
   const [completedOrderForPrint, setCompletedOrderForPrint] = useState<CkPendingRequest | null>(null);
   // IDs of orders completed this session (hidden from pending list)
@@ -897,6 +901,14 @@ ${pages}
       const key = draftOutputKey(id, unit);
       toAdd.push({ key, item_id: id, item_name: product.name, sku: product.sku, quantity: qty, unit, unit_cost: product.cost, storage_unit: product.storage_unit });
     }
+    // Include free-text item if filled in
+    const freeName = freeItemName.trim();
+    const freeQty = parseFloat(freeItemQty);
+    if (freeName && freeQty > 0) {
+      const unit = normalizeProductionOutputUnit(freeItemUnit);
+      const key = `free::${freeName}::${unit}`;
+      toAdd.push({ key, item_id: "", item_name: freeName, sku: "", quantity: freeQty, unit, unit_cost: 0, storage_unit: unit });
+    }
     if (toAdd.length === 0) { setError("Please enter a quantity for at least one item."); return; }
     setDraftOutputs((prev) => {
       const merged = [...prev];
@@ -909,6 +921,9 @@ ${pages}
     });
     setStockQtys({});
     setStockUnits({});
+    setFreeItemName("");
+    setFreeItemQty("");
+    setFreeItemUnit("pcs");
     setSuccess(`${toAdd.length} item${toAdd.length !== 1 ? "s" : ""} added to production draft.`);
   }
 
@@ -1416,11 +1431,48 @@ ${pages}
                       </div>
                     );
                   })}
+                {/* Free-text "other" item row */}
+                <div className="grid grid-cols-[1fr_140px_110px] items-center border-t border-dashed border-neutral-700 bg-neutral-900/30 px-4 py-2.5">
+                  <div>
+                    <input
+                      type="text"
+                      placeholder="Other item name..."
+                      value={freeItemName}
+                      onChange={(e) => setFreeItemName(e.target.value)}
+                      className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-200 placeholder:text-neutral-600 focus:border-sky-500/50 focus:ring-2 focus:ring-sky-500/20 focus:outline-none"
+                    />
+                  </div>
+                  <div className="pr-2 text-right">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.001"
+                      inputMode="decimal"
+                      placeholder="0"
+                      value={freeItemQty}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setFreeItemQty(e.target.value)}
+                      className="w-28 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-right text-sm text-white focus:border-sky-500/50 focus:ring-2 focus:ring-sky-500/20 focus:outline-none"
+                    />
+                  </div>
+                  <div className="pl-2">
+                    <select
+                      value={freeItemUnit}
+                      onChange={(e) => setFreeItemUnit(e.target.value)}
+                      className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-200 focus:border-sky-500/50 focus:ring-2 focus:ring-sky-500/20 focus:outline-none"
+                    >
+                      {PRODUCTION_OUTPUT_UNITS.map((u) => (
+                        <option key={u} value={u}>{u}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </div>
 
               {/* Summary + Add button */}
               {(() => {
-                const nonZeroCount = Object.values(stockQtys).filter((v) => parseFloat(v) > 0).length;
+                const freeReady = freeItemName.trim() !== "" && parseFloat(freeItemQty) > 0;
+                const nonZeroCount = Object.values(stockQtys).filter((v) => parseFloat(v) > 0).length + (freeReady ? 1 : 0);
                 return (
                   <div className="mt-4 flex items-center justify-between">
                     <div className="text-sm text-neutral-400">
