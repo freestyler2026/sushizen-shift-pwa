@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -17,6 +17,12 @@ import {
   CheckCircle2,
   Clock,
   RotateCcw,
+  X,
+  Package,
+  FileText,
+  User,
+  CalendarDays,
+  Hash,
 } from "lucide-react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
@@ -55,6 +61,36 @@ type RequestRow = {
   current_approval_level: number;
 };
 
+type RequestItem = {
+  id: string;
+  item_name: string;
+  category: string;
+  spec: string;
+  qty: number;
+  unit: string;
+  unit_price: number;
+  line_total: number;
+  vendor_name: string;
+  needed_by_date: string;
+};
+
+type RequestDetail = {
+  id: string;
+  request_no: string;
+  store_code: string;
+  request_date: string;
+  total_amount: number;
+  status: string;
+  current_approval_level: number;
+  currency: string;
+  requested_by: string;
+  urgent_flag: boolean;
+  notes: string;
+  items: RequestItem[];
+  receivings?: { id: string; receiving_no: string; status: string }[];
+  claims?: { id: string; claim_no: string; status: string }[];
+};
+
 type RecentActivityItem = {
   kind: "request" | "receiving" | "claim";
   id: string;
@@ -69,6 +105,262 @@ type TimelineAction = {
   href: string;
 };
 
+
+function RequestDetailDrawer({
+  requestId,
+  city,
+  requestedBy,
+  pin,
+  currencyCode,
+  onClose,
+}: {
+  requestId: string;
+  city: string;
+  requestedBy: string;
+  pin: string;
+  currencyCode: string;
+  onClose: () => void;
+}) {
+  const [detail, setDetail] = useState<RequestDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    setLoading(true);
+    setError("");
+    setDetail(null);
+    procurementJson<{ ok: boolean; request: RequestDetail }>(
+      `/api/admin/procurement/requests/${encodeURIComponent(requestId)}`,
+      { method: "GET" },
+      requestedBy,
+      pin,
+    )
+      .then((data) => {
+        setDetail(data?.request ?? null);
+      })
+      .catch((e: unknown) => {
+        setError(String((e as Error)?.message || e));
+      })
+      .finally(() => setLoading(false));
+  }, [requestId, requestedBy, pin]);
+
+  const statusBadge = (status: string) => {
+    const s = String(status || "").toUpperCase();
+    if (s === "APPROVED") return <span className="rounded-full bg-emerald-900/40 border border-emerald-700/50 px-2.5 py-0.5 text-xs font-semibold text-emerald-300">APPROVED</span>;
+    if (s === "RETURNED") return <span className="rounded-full bg-red-900/40 border border-red-700/50 px-2.5 py-0.5 text-xs font-semibold text-red-300">RETURNED</span>;
+    if (s === "IN_REVIEW" || s === "SUBMITTED") return <span className="rounded-full bg-blue-900/40 border border-blue-700/50 px-2.5 py-0.5 text-xs font-semibold text-blue-300">IN REVIEW</span>;
+    if (s === "DRAFT") return <span className="rounded-full bg-amber-900/40 border border-amber-700/50 px-2.5 py-0.5 text-xs font-semibold text-amber-300">DRAFT</span>;
+    return <span className="rounded-full bg-zinc-800 border border-zinc-700 px-2.5 py-0.5 text-xs text-zinc-400">{status}</span>;
+  };
+
+  return (
+    <>
+      {/* Backdrop */}
+      <motion.div
+        className="fixed inset-0 z-[200] bg-black/60 backdrop-blur-sm"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      />
+      {/* Drawer */}
+      <motion.div
+        className="fixed bottom-0 left-0 right-0 z-[210] flex max-h-[90vh] flex-col rounded-t-2xl border-t border-white/10 bg-[#0f0f1a] shadow-2xl md:bottom-auto md:right-0 md:top-0 md:w-[480px] md:max-h-screen md:rounded-none md:rounded-l-2xl md:border-l md:border-t-0"
+        initial={{ y: "100%", x: 0 }}
+        animate={{ y: 0, x: 0 }}
+        exit={{ y: "100%", x: 0 }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        style={{ WebkitOverflowScrolling: "touch" }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+          <div className="flex items-center gap-3">
+            <FileText className="h-5 w-5 text-violet-400" />
+            <span className="font-mono text-base font-semibold text-white">
+              {detail?.request_no || "Loading..."}
+            </span>
+            {detail ? statusBadge(detail.status) : null}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-zinc-400 transition hover:bg-white/10 hover:text-white"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+          {loading && (
+            <div className="flex items-center justify-center py-16 text-zinc-400 text-sm">
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              Loading...
+            </div>
+          )}
+          {error && (
+            <div className="rounded-xl border border-red-700/40 bg-red-900/20 px-4 py-3 text-sm text-red-300">
+              {error}
+            </div>
+          )}
+          {detail && (
+            <>
+              {/* Meta info */}
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-xl border border-white/8 bg-white/4 px-3 py-2.5">
+                  <div className="flex items-center gap-1.5 mb-1 text-xs text-zinc-500">
+                    <Hash className="h-3 w-3" /> Branch
+                  </div>
+                  <div className="font-semibold text-white">{detail.store_code || "-"}</div>
+                </div>
+                <div className="rounded-xl border border-white/8 bg-white/4 px-3 py-2.5">
+                  <div className="flex items-center gap-1.5 mb-1 text-xs text-zinc-500">
+                    <CalendarDays className="h-3 w-3" /> Date
+                  </div>
+                  <div className="font-semibold text-white">{detail.request_date || "-"}</div>
+                </div>
+                <div className="rounded-xl border border-white/8 bg-white/4 px-3 py-2.5">
+                  <div className="flex items-center gap-1.5 mb-1 text-xs text-zinc-500">
+                    <User className="h-3 w-3" /> Requested By
+                  </div>
+                  <div className="font-semibold text-white">{detail.requested_by || "-"}</div>
+                </div>
+                <div className="rounded-xl border border-white/8 bg-white/4 px-3 py-2.5">
+                  <div className="flex items-center gap-1.5 mb-1 text-xs text-zinc-500">
+                    <Package className="h-3 w-3" /> Total
+                  </div>
+                  <div className="font-semibold text-violet-300">
+                    {Number(detail.total_amount || 0).toFixed(2)} {currencyCode}
+                  </div>
+                </div>
+              </div>
+
+              {detail.urgent_flag && (
+                <div className="rounded-xl border border-red-700/40 bg-red-900/20 px-3 py-2 text-xs font-semibold text-red-300">
+                  ⚡ URGENT REQUEST
+                </div>
+              )}
+
+              {detail.notes && (
+                <div className="rounded-xl border border-white/8 bg-white/4 px-3 py-2.5 text-sm text-zinc-300">
+                  <div className="mb-1 text-xs text-zinc-500">Notes</div>
+                  {detail.notes}
+                </div>
+              )}
+
+              {/* Items */}
+              <div>
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-300">
+                  <Package className="h-4 w-4 text-violet-400" />
+                  Items ({detail.items?.length ?? 0})
+                </h3>
+                {!detail.items?.length ? (
+                  <p className="text-xs text-zinc-500 py-4 text-center">No items</p>
+                ) : (
+                  <div className="space-y-2">
+                    {detail.items.map((item, idx) => (
+                      <div
+                        key={item.id || idx}
+                        className="rounded-xl border border-white/8 bg-white/4 px-3 py-3"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold text-white text-sm leading-tight">{item.item_name}</div>
+                            {item.category && (
+                              <div className="mt-0.5 text-xs text-violet-400">{item.category}</div>
+                            )}
+                            {item.spec && (
+                              <div className="mt-0.5 text-xs text-zinc-500">{item.spec}</div>
+                            )}
+                            {item.vendor_name && (
+                              <div className="mt-0.5 text-xs text-zinc-500">Vendor: {item.vendor_name}</div>
+                            )}
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="text-sm font-semibold text-white">
+                              {Number(item.qty || 0).toLocaleString()} {item.unit}
+                            </div>
+                            {item.unit_price > 0 && (
+                              <div className="text-xs text-zinc-400">
+                                @ {Number(item.unit_price).toFixed(2)}
+                              </div>
+                            )}
+                            {item.line_total > 0 && (
+                              <div className="text-xs font-semibold text-violet-300 mt-0.5">
+                                {Number(item.line_total).toFixed(2)} {currencyCode}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {item.needed_by_date && (
+                          <div className="mt-1.5 text-xs text-amber-400">
+                            Needed by: {item.needed_by_date}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Receivings */}
+              {detail.receivings && detail.receivings.length > 0 && (
+                <div>
+                  <h3 className="mb-2 text-sm font-semibold text-zinc-300">
+                    Receivings ({detail.receivings.length})
+                  </h3>
+                  <div className="space-y-1.5">
+                    {detail.receivings.map((r) => (
+                      <div key={r.id} className="flex items-center justify-between rounded-lg border border-white/8 bg-white/4 px-3 py-2 text-sm">
+                        <span className="font-mono text-xs text-zinc-300">{r.receiving_no || r.id}</span>
+                        <span className="text-xs text-zinc-500">{r.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Claims */}
+              {detail.claims && detail.claims.length > 0 && (
+                <div>
+                  <h3 className="mb-2 text-sm font-semibold text-zinc-300">
+                    Claims ({detail.claims.length})
+                  </h3>
+                  <div className="space-y-1.5">
+                    {detail.claims.map((c) => (
+                      <div key={c.id} className="flex items-center justify-between rounded-lg border border-white/8 bg-white/4 px-3 py-2 text-sm">
+                        <span className="font-mono text-xs text-zinc-300">{c.claim_no || c.id}</span>
+                        <span className="text-xs text-zinc-500">{c.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer actions */}
+        {detail && (
+          <div className="border-t border-white/10 px-5 py-4 flex gap-3">
+            <Link
+              href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(requestId)}`}
+              className="flex-1 rounded-xl border border-violet-500/30 bg-violet-950/40 py-2.5 text-center text-sm font-semibold text-violet-300 transition hover:bg-violet-900/40"
+            >
+              Receiving
+            </Link>
+            <Link
+              href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(requestId)}`}
+              className="flex-1 rounded-xl border border-red-500/30 bg-red-950/40 py-2.5 text-center text-sm font-semibold text-red-300 transition hover:bg-red-900/40"
+            >
+              Claim
+            </Link>
+          </div>
+        )}
+      </motion.div>
+    </>
+  );
+}
 
 export default function StoreProcurementHomePage() {
   const PAGE_BG = "min-h-screen text-white";
@@ -113,6 +405,7 @@ export default function StoreProcurementHomePage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [canOpenAdminCase, setCanOpenAdminCase] = useState(false);
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const initRef = useRef(false);
   const cityLabel = city === "dubai" ? "Dubai" : "Manila";
   const currencyCode = city === "dubai" ? "AED" : "PHP";
@@ -681,22 +974,28 @@ export default function StoreProcurementHomePage() {
           {rows.map((row) => (
             <div
               key={row.id}
-              className={`rounded-xl border px-4 py-3 transition-all duration-150 hover:border-white/15 hover:bg-white/8 ${
+              className={`rounded-xl border px-4 py-3 transition-all duration-150 cursor-pointer hover:border-violet-500/40 hover:bg-violet-950/20 ${
                 row.id === lastCreatedRequestId
                   ? "border-emerald-700/60 bg-emerald-900/20"
-                  : "border-white/8 bg-white/4"
+                  : selectedRequestId === row.id
+                    ? "border-violet-500/50 bg-violet-950/25"
+                    : "border-white/8 bg-white/4"
               }`}
+              onClick={() => setSelectedRequestId(row.id)}
             >
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div className="min-w-0 flex-1">
-                  <p className="break-words text-base font-semibold leading-tight text-white">{row.request_no}</p>
+                  <p className="break-words text-base font-semibold leading-tight text-white flex items-center gap-2">
+                    {row.request_no}
+                    <ChevronRight className="h-4 w-4 text-zinc-500" />
+                  </p>
                   <div className="mt-2 grid gap-1 text-xs text-zinc-400 sm:grid-cols-3">
                     <span>{row.store_code || "-"}</span>
                     <span>{row.request_date || "-"}</span>
                     <span>{Number(row.total_amount || 0).toFixed(2)} {currencyCode}</span>
                   </div>
                 </div>
-                <div className="flex flex-col gap-2 md:items-end">
+                <div className="flex flex-col gap-2 md:items-end" onClick={(e) => e.stopPropagation()}>
                   <div className="flex flex-wrap gap-2">
                     {String(row.status || "").toUpperCase() === "DRAFT" ? (
                       <span className={BADGE_WARNING}>DRAFT | Level {row.current_approval_level || 0}</span>
@@ -726,6 +1025,21 @@ export default function StoreProcurementHomePage() {
         )}
       </div>
       </motion.div>
+
+      {/* Request detail drawer */}
+      <AnimatePresence>
+        {selectedRequestId && (
+          <RequestDetailDrawer
+            key={selectedRequestId}
+            requestId={selectedRequestId}
+            city={city}
+            requestedBy={requestedBy}
+            pin={pin}
+            currencyCode={currencyCode}
+            onClose={() => setSelectedRequestId(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
