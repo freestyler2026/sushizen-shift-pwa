@@ -107,7 +107,7 @@ type ProductionItem = {
   entry_type: string;
 };
 
-const PRODUCTION_OUTPUT_UNITS = ["kg", "g", "pcs", "pkt", "bag", "box", "ml", "L"] as const;
+const PRODUCTION_OUTPUT_UNITS = ["pcs", "g", "kg", "L", "ml", "set"] as const;
 
 function normalizeProductionOutputUnit(value: string) {
   const unit = String(value || "").trim();
@@ -196,8 +196,9 @@ export default function InventoryProductionsPage() {
   const [productionPurpose, setProductionPurpose] = useState<"STOCK" | "STORE_ORDER">("STOCK");
   const [activeTab, setActiveTab] = useState<"STOCK" | "PENDING" | "BUILD">("STOCK");
   const [destinationBranchCode, setDestinationBranchCode] = useState("");
-  // Stock quick-entry: productId → qty string
+  // Stock quick-entry: productId → qty string, productId → unit override
   const [stockQtys, setStockQtys] = useState<Record<string, string>>({});
+  const [stockUnits, setStockUnits] = useState<Record<string, string>>({});
   const [stockSearch, setStockSearch] = useState("");
   // CK-produced product IDs (from production recipes); empty = no recipes defined yet
   const [ckProductIds, setCkProductIds] = useState<Set<string>>(new Set());
@@ -892,7 +893,7 @@ ${pages}
       if (!qty || qty <= 0) continue;
       const product = productOptions.find((p) => p.id === id);
       if (!product) continue;
-      const unit = normalizeProductionOutputUnit(product.storage_unit || "pcs");
+      const unit = normalizeProductionOutputUnit(stockUnits[id] || product.storage_unit || "pcs");
       const key = draftOutputKey(id, unit);
       toAdd.push({ key, item_id: id, item_name: product.name, sku: product.sku, quantity: qty, unit, unit_cost: product.cost, storage_unit: product.storage_unit });
     }
@@ -907,6 +908,7 @@ ${pages}
       return merged;
     });
     setStockQtys({});
+    setStockUnits({});
     setSuccess(`${toAdd.length} item${toAdd.length !== 1 ? "s" : ""} added to production draft.`);
   }
 
@@ -1354,10 +1356,10 @@ ${pages}
             <>
               <div className="overflow-hidden rounded-xl border border-neutral-800">
                 {/* Header */}
-                <div className="grid grid-cols-[1fr_140px_80px] border-b border-neutral-800 bg-black/20 px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
+                <div className="grid grid-cols-[1fr_140px_110px] border-b border-neutral-800 bg-black/20 px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
                   <div>Item</div>
                   <div className="text-right">Qty Produced</div>
-                  <div className="pl-3">Unit</div>
+                  <div className="pl-2">Unit</div>
                 </div>
                 {/* Product rows — filtered to CK-produced items (those with a production recipe) */}
                 {productOptions
@@ -1370,11 +1372,12 @@ ${pages}
                   .map((product) => {
                     const qty = stockQtys[product.id] || "";
                     const hasQty = parseFloat(qty) > 0;
+                    const unit = stockUnits[product.id] || normalizeProductionOutputUnit(product.storage_unit || "pcs");
                     return (
                       <div
                         key={product.id}
                         className={[
-                          "grid grid-cols-[1fr_140px_80px] items-center border-b border-neutral-800/60 px-4 py-2.5 last:border-0 transition-colors",
+                          "grid grid-cols-[1fr_140px_110px] items-center border-b border-neutral-800/60 px-4 py-2.5 last:border-0 transition-colors",
                           hasQty ? "bg-sky-900/10" : "",
                         ].join(" ")}
                       >
@@ -1397,7 +1400,19 @@ ${pages}
                             className="w-28 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-right text-sm text-white focus:border-sky-500/50 focus:ring-2 focus:ring-sky-500/20 focus:outline-none"
                           />
                         </div>
-                        <div className="pl-2 text-sm text-neutral-400">{product.storage_unit || "pcs"}</div>
+                        <div className="pl-2">
+                          <select
+                            value={unit}
+                            onChange={(e) =>
+                              setStockUnits((prev) => ({ ...prev, [product.id]: e.target.value }))
+                            }
+                            className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-200 focus:border-sky-500/50 focus:ring-2 focus:ring-sky-500/20 focus:outline-none"
+                          >
+                            {PRODUCTION_OUTPUT_UNITS.map((u) => (
+                              <option key={u} value={u}>{u}</option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                     );
                   })}
