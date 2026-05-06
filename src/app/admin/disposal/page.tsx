@@ -265,7 +265,7 @@ function InlineItemSearch({
         <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">…</div>
       )}
       {open && results.length > 0 && (
-        <div className="absolute z-[200] mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 shadow-2xl overflow-hidden">
+        <div className="absolute z-[200] mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 shadow-2xl overflow-y-auto" style={{ maxHeight: "min(60vh, calc(100vh - 160px))" }}>
           {results.map((item) => (
             <button key={`${item.item_type}_${item.id}`} type="button"
               onMouseDown={() => handleSelect(item)}
