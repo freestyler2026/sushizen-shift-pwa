@@ -792,7 +792,7 @@ export default function DisposalPage() {
                   setLines((prev) => [...prev, line]);
                 }}
               />
-              <p className="mt-1.5 text-xs text-zinc-600">選んだアイテムがリストに追加されます。何度でも検索して複数追加できます。</p>
+              <p className="mt-1.5 text-xs text-zinc-600">Select an item to add it to the list. Search as many times as needed to add multiple items.</p>
             </div>
 
             {/* Line cards */}
@@ -812,12 +812,12 @@ export default function DisposalPage() {
             )}
 
             {lines.length === 0 && (
-              <p className="text-sm text-zinc-600 text-center py-4">上の検索からアイテムを追加してください</p>
+              <p className="text-sm text-zinc-600 text-center py-4">Search above to add items</p>
             )}
 
             {/* Manual add for free-text items */}
             <button type="button" onClick={() => setLines((prev) => [...prev, emptyLine()])}
-              className={`${SMALL_BUTTON} mt-2`}>+ 手入力で追加</button>
+              className={`${SMALL_BUTTON} mt-2`}>+ Add manually</button>
           </div>
 
           {/* Past Reports — all branches for selected city */}
