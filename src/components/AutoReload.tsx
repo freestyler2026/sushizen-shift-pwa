@@ -3,8 +3,8 @@
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 
-// Poll every 5 seconds — fast enough to feel near-instant without hammering the server.
-const POLL_INTERVAL_MS = 5 * 1000;
+// Poll every 3 seconds — fast enough to feel near-instant without hammering the server.
+const POLL_INTERVAL_MS = 3 * 1000;
 
 // Baked into the JavaScript bundle at build time by next.config.ts.
 // If a PWA is running an old cached bundle, this will differ from what
@@ -53,14 +53,26 @@ export default function AutoReload() {
       if (reloading.current) return;
       fetchFrontendVersion().then((v) => {
         if (reloading.current) return;
-        if (v && frontendBaseline.current && v !== frontendBaseline.current) {
+        if (!v) return; // fetch failed — skip this tick
+        if (!frontendBaseline.current) {
+          // Initial startup fetch failed but this poll succeeded — set baseline now
+          // so subsequent polls can detect changes.
+          frontendBaseline.current = v;
+          return;
+        }
+        if (v !== frontendBaseline.current) {
           reloading.current = true;
           hardReload();
         }
       });
       fetchBackendVersion().then((v) => {
         if (reloading.current) return;
-        if (v && backendBaseline.current && v !== backendBaseline.current) {
+        if (!v) return;
+        if (!backendBaseline.current) {
+          backendBaseline.current = v;
+          return;
+        }
+        if (v !== backendBaseline.current) {
           reloading.current = true;
           hardReload();
         }
@@ -70,23 +82,27 @@ export default function AutoReload() {
     // On startup: detect stale bundle immediately (before React hydration delays).
     fetchFrontendVersion().then((serverV) => {
       if (reloading.current) return;
-      if (serverV && BUNDLE_BUILD_ID !== "dev" && serverV !== BUNDLE_BUILD_ID) {
+      // Skip comparison if either side is "dev" (local environment — no stable ID).
+      if (serverV && serverV !== "dev" && BUNDLE_BUILD_ID !== "dev" && serverV !== BUNDLE_BUILD_ID) {
         // Old cached bundle — reload now.
         reloading.current = true;
         hardReload();
         return;
       }
-      frontendBaseline.current = serverV;
+      // IMPORTANT: only set baseline if we got a valid value.
+      // If serverV is null (network error), leave baseline as null so the
+      // first successful poll can set it — do NOT permanently disable polling.
+      if (serverV) frontendBaseline.current = serverV;
 
       // Early follow-up: if a new deploy went live in the moments between the
       // browser loading the page and this fetch completing, catch it fast
       // instead of waiting for the first poll interval.
-      earlyTimerRef.current = setTimeout(() => check(), 3000);
+      earlyTimerRef.current = setTimeout(() => check(), 2000);
     });
 
-    fetchBackendVersion().then((v) => { backendBaseline.current = v; });
+    fetchBackendVersion().then((v) => { if (v) backendBaseline.current = v; });
 
-    // Periodic poll — 5 s feels near-instant to the user.
+    // Periodic poll.
     const timer = setInterval(check, POLL_INTERVAL_MS);
 
     // Check when app comes back to foreground.

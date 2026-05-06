@@ -24,8 +24,9 @@ npm run build
 # Lint
 npm run lint
 
-# Deploy frontend to Vercel
-vercel --prod
+# Deploy frontend to Vercel (GitHub連携 — git push のみ使用すること)
+# ⚠️ vercel --prod (CLI) は使用禁止：20秒で終わる偽ビルドになり /week 等が404になる
+git push origin main
 
 # Deploy backend to Heroku
 cd ../sushizen_shift_app_clean
@@ -113,6 +114,37 @@ This is the largest and most complex page (2524 lines). Its key structural secti
 
 ---
 
+## Heroku デプロイ手順と注意事項
+
+### `git push heroku HEAD:master --force` が "Everything up-to-date" になる場合
+
+このメッセージは **エラーではなく正常**。Heroku の remote がすでに最新 commit を持っているため push 不要の状態。
+
+**考えられる原因：**
+- Claude（Cowork）がサンドボックス内で commit を作成したが、Heroku remote は別途同じ内容をすでに持っている
+- 過去に同じ commit を別のターミナルセッションで push 済み
+
+**対処法 — 変更が Heroku に反映されているか確認する：**
+```bash
+# Heroku の現在のリリース情報を確認
+heroku releases -a sushizen-shift-app -n 5
+
+# ログで起動・変更を確認
+heroku logs -a sushizen-shift-app -n 50
+```
+
+**強制的に再デプロイしたい場合（空コミットで push を強制）：**
+```bash
+git commit --allow-empty -m "force redeploy"
+git push heroku HEAD:master --force
+```
+
+### Claude（Cowork）からのデプロイについて
+- Cowork のサンドボックスは Heroku git への HTTPS 接続がブロックされているため、`git push heroku` はユーザーのローカルターミナルから実行する必要がある
+- Vercel へのデプロイ（`vercel --prod`）も同様にローカルターミナルから実行すること
+
+---
+
 ## ⚠️ Lessons Learned — DO NOT REPEAT
 
 ### 1. Never use regex scripts to remove JSX blocks
@@ -130,6 +162,24 @@ When using the `Edit` tool with string content containing `"`, the editor may in
 
 ### 4. `/admin/draft` auth guard must include role check
 `canAccessAdminNav()` checks permissions only — it returns `false` for `role === "HQ"` users who lack explicit permissions. Always add `|| role === "HQ"` to avoid incorrectly redirecting HQ users to `/week`.
+
+### 5. AutoReload must always work — never break it
+
+**This is a persistent user requirement that has been raised repeatedly.**
+
+After a deploy, the app must automatically reload in the browser **without requiring a manual hard reload**. The mechanism is:
+
+- `src/components/AutoReload.tsx` — polls `/api/version` every 3 seconds
+- `next.config.ts` bakes `NEXT_PUBLIC_BUILD_ID = VERCEL_URL` into the client bundle at build time
+- `/api/version/route.ts` returns the current `VERCEL_URL` at runtime
+- When the two values differ → `hardReload()` fires → page refreshes automatically
+
+**Rules:**
+- Never remove or disable `<AutoReload />` from `LayoutShell.tsx`
+- Never set `frontendBaseline.current = null` after a failed fetch — null baseline disables all poll comparisons. Only set baseline when the fetched value is non-null.
+- In `check()`, if baseline is null and a poll succeeds, SET the baseline (don't compare) — this handles the case where the startup fetch failed
+- Both `frontendBaseline` and `backendBaseline` must follow the same null-guard pattern
+- Do not introduce ESLint errors or build failures — they result in Vercel deploying a broken build that returns 404 on all routes
 
 ---
 
