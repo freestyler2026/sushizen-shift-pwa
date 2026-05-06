@@ -236,8 +236,6 @@ function sortBranchName(a: string, b: string) {
 // timeline renderer (bar-only + text)
 // -----------------------------
 function Timeline2Rows({ rows }: { rows: ShiftRow[] }) {
-  const ticks = [8, 12, 16, 20, 24, 30];
-
   const label = rows
     .slice()
     .sort((a, b) => (a.start_hour ?? 0) - (b.start_hour ?? 0))
@@ -503,7 +501,14 @@ export default function WeekPage() {
           {absence ? (
             <div className="mt-0.5 text-[10px] text-neutral-400">{absNote || absLabel}</div>
           ) : (
-            <Timeline2Rows rows={rows} />
+            <>
+              <Timeline2Rows rows={rows} />
+              {rows.some((r) => r.note) && (
+                <div className="mt-0.5 truncate text-[10px] italic text-neutral-500">
+                  {rows.filter((r) => r.note).map((r) => r.note).join(" · ")}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

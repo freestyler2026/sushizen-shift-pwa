@@ -738,12 +738,11 @@ export default function ManualShiftPage() {
   }
 
   const buildRows = useCallback(() => {
-    const rows: { work_date: string; staff_name: string; role: string; start_hour: number; end_hour: number }[] = [];
+    const rows: { work_date: string; staff_name: string; role: string; start_hour: number; end_hour: number; note: string }[] = [];
     for (const [staffName, days] of Object.entries(gridData)) {
       for (const [dateStr, cell] of Object.entries(days)) {
         if (cell && cell.role) {
-          // note is intentionally excluded — backend doesn't store it
-          rows.push({ work_date: dateStr, staff_name: staffName, role: cell.role, start_hour: cell.start_hour, end_hour: cell.end_hour });
+          rows.push({ work_date: dateStr, staff_name: staffName, role: cell.role, start_hour: cell.start_hour, end_hour: cell.end_hour, note: cell.note || "" });
         }
       }
     }

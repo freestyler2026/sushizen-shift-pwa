@@ -12,6 +12,7 @@ export type ShiftRow = {
   is_exception: boolean;
   override: any | null;
   applied: any | null;
+  note?: string;
 };
 
 export type DayView = {
