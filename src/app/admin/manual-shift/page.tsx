@@ -23,6 +23,26 @@ type GridData = Record<string, Record<string, ShiftCell | null>>; // staffName �
 type EditTarget = { staffName: string; dateStr: string } | null;
 type PageView = "edit" | "published";
 
+type BayzatRow = {
+  work_date: string;
+  bayzat_name: string;
+  staff_name: string;
+  branch_code: string;
+  start_hour: number;
+  end_hour: number;
+  role: string;
+  type: "shift" | "day_off";
+  matched: boolean;
+};
+type BayzatResult = {
+  ok: boolean;
+  city: string;
+  total_rows: number;
+  unmatched_count: number;
+  unmatched_names: string[];
+  rows: BayzatRow[];
+};
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const ROLE_OPTIONS_DUBAI = ["CK", "SV", "BA", "HK", "SC", "MGR", "ADMIN", "DRIVER", "TRAINEE", "STAFF", "PIC", "CDP", "DCDP", "Area Manager"];
@@ -374,6 +394,8 @@ export default function ManualShiftPage() {
   const [editSpecialType, setEditSpecialType] = useState<SpecialRole>("DAY_OFF");
   const [editNote, setEditNote] = useState("");
   const [timeError, setTimeError] = useState("");
+  const [bayzatResult, setBayzatResult] = useState<BayzatResult | null>(null);
+  const [bayzatImporting, setBayzatImporting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -385,6 +407,7 @@ export default function ManualShiftPage() {
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
   const branchButtonRef = useRef<HTMLButtonElement>(null);
+  const bayzatFileRef = useRef<HTMLInputElement>(null);
   const branchListRef = useRef<HTMLDivElement>(null);
   const controlsCardRef = useRef<HTMLDivElement>(null);
   const staffListRef = useRef<string[]>([]);
@@ -642,6 +665,78 @@ export default function ManualShiftPage() {
     setGridData((prev) => ({ ...prev, [n]: prev[n] ?? {} }));
   }
 
+  // ─── Bayzat Import ───────────────────────────────────────────────────────────
+
+  async function handleBayzatFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBayzatImporting(true);
+    setError("");
+    try {
+      const form = new FormData();
+      form.append("city", city);
+      form.append("file", file);
+      const auth = getAuth();
+      const res = await fetch("/api/admin/shifts/bayzat_parse", {
+        method: "POST",
+        body: form,
+        headers: getAuthHeaders(auth) ?? {},
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Parse failed" }));
+        setError((err as { detail?: string }).detail || "Bayzat parse failed");
+        return;
+      }
+      const data = (await res.json()) as BayzatResult;
+      setBayzatResult(data);
+    } catch (ex: unknown) {
+      setError(ex instanceof Error ? ex.message : "Upload failed");
+    } finally {
+      setBayzatImporting(false);
+      e.target.value = ""; // allow re-selecting the same file
+    }
+  }
+
+  function applyBayzatToGrid(rows: BayzatRow[], targetBranch: string, targetWeekStart: string) {
+    const weekEnd = addDays(targetWeekStart, 6);
+    const filtered = rows.filter(
+      (r) =>
+        r.branch_code === targetBranch &&
+        r.work_date >= targetWeekStart &&
+        r.work_date <= weekEnd
+    );
+
+    // Add staff names not yet in the grid
+    const newNames = [...new Set(filtered.map((r) => r.staff_name).filter(Boolean))].filter(
+      (n) => !staffList.includes(n)
+    );
+    if (newNames.length > 0) {
+      setStaffList((prev) => [...new Set([...prev, ...newNames])].sort((a, b) => a.localeCompare(b)));
+      setGridData((prev) => {
+        const next = { ...prev };
+        for (const n of newNames) if (!next[n]) next[n] = {};
+        return next;
+      });
+    }
+
+    // Apply cells
+    setGridData((prev) => {
+      const next = { ...prev };
+      for (const r of filtered) {
+        if (!r.staff_name) continue;
+        if (!next[r.staff_name]) next[r.staff_name] = {};
+        next[r.staff_name][r.work_date] = {
+          start_hour: r.start_hour,
+          end_hour: r.end_hour,
+          role: r.role || "STAFF",
+        };
+      }
+      return next;
+    });
+    setHasDraft(true);
+    setBayzatResult(null);
+  }
+
   const buildRows = useCallback(() => {
     const rows: { work_date: string; staff_name: string; role: string; start_hour: number; end_hour: number }[] = [];
     for (const [staffName, days] of Object.entries(gridData)) {
@@ -811,6 +906,14 @@ export default function ManualShiftPage() {
               />
             </div>
             <div className="flex items-end gap-2 flex-wrap">
+              {/* Hidden file input for Bayzat xlsx */}
+              <input
+                ref={bayzatFileRef}
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={handleBayzatFile}
+              />
               <button
                 type="button"
                 onClick={async () => {
@@ -852,6 +955,15 @@ export default function ManualShiftPage() {
                   ↺ Reload from Server
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => bayzatFileRef.current?.click()}
+                disabled={bayzatImporting}
+                title="Import shift schedule from a Bayzat Excel export"
+                className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-medium text-sky-700 transition hover:bg-sky-100 disabled:opacity-50"
+              >
+                {bayzatImporting ? "Parsing…" : "📥 Bayzat Import"}
+              </button>
             </div>
           </div>
           {staffList.length > 0 && (
@@ -1251,6 +1363,198 @@ export default function ManualShiftPage() {
             </div>
           </div>
         </>,
+        document.body
+      )}
+
+      {/* ── Bayzat Import Preview Modal ─────────────────────────────────────── */}
+      {bayzatResult && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
+          <div className="flex w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl" style={{ maxHeight: "90vh" }}>
+
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-6 py-4 rounded-t-2xl shrink-0">
+              <div>
+                <p className="font-semibold text-gray-900">📥 Bayzat Import — Preview</p>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  {bayzatResult.total_rows} rows parsed · {city === "dubai" ? "🇦🇪 Dubai" : "🇵🇭 Manila"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBayzatResult(null)}
+                className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100 transition"
+              >✕ Close</button>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-3 divide-x divide-gray-100 border-b border-gray-100 shrink-0">
+              {[
+                { value: bayzatResult.total_rows, label: "Total rows in file", color: "text-gray-900" },
+                {
+                  value: bayzatResult.rows.filter(
+                    (r) => r.branch_code === branchCode &&
+                      r.work_date >= weekStart && r.work_date <= addDays(weekStart, 6)
+                  ).length,
+                  label: `${labelOf(city, branchCode)} · this week`,
+                  color: "text-indigo-600",
+                },
+                {
+                  value: bayzatResult.unmatched_count,
+                  label: "Unmatched staff names",
+                  color: bayzatResult.unmatched_count > 0 ? "text-amber-600" : "text-gray-900",
+                },
+              ].map((s) => (
+                <div key={s.label} className="px-6 py-4 text-center">
+                  <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+                  <p className="mt-0.5 text-[11px] text-gray-500">{s.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Scrollable body */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+
+              {/* Unmatched names warning */}
+              {bayzatResult.unmatched_names.length > 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="mb-2 text-xs font-semibold text-amber-700">
+                    ⚠ Staff names not found in Staff Master — will be added as-is
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {bayzatResult.unmatched_names.map((n) => (
+                      <span key={n} className="rounded-lg bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">{n}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Preview for current branch + week */}
+              {(() => {
+                const weekEnd = addDays(weekStart, 6);
+                const preview = bayzatResult.rows.filter(
+                  (r) => r.branch_code === branchCode && r.work_date >= weekStart && r.work_date <= weekEnd
+                );
+                const previewStaff = [...new Set(preview.map((r) => r.staff_name))].sort();
+
+                return (
+                  <div>
+                    <p className="mb-2 text-xs font-semibold text-gray-700">
+                      Shifts to apply: {labelOf(city, branchCode)} · Week of {weekStart}
+                    </p>
+                    {preview.length === 0 ? (
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-6 text-center text-sm text-gray-400">
+                        No data for this branch + week in the file.<br />
+                        <span className="text-xs">Check that the correct city and branch are selected, or choose a different week.</span>
+                      </div>
+                    ) : (
+                      <div className="overflow-hidden rounded-xl border border-gray-200">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-gray-100 bg-gray-50">
+                              <th className="px-3 py-2 text-left font-semibold text-gray-500">Staff</th>
+                              {weekDates.map((d) => (
+                                <th key={d} className="px-2 py-2 text-center font-semibold text-gray-500">{formatDate(d)}</th>
+                              ))}
+                              <th className="px-3 py-2 text-center font-semibold text-gray-500">Role</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {previewStaff.map((name, i) => {
+                              const staffRows = preview.filter((r) => r.staff_name === name);
+                              const role = staffRows.find((r) => r.type === "shift")?.role || "";
+                              return (
+                                <tr key={name} className={`border-b border-gray-100 ${i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}`}>
+                                  <td className="px-3 py-2 font-medium text-gray-800 whitespace-nowrap">
+                                    {stripRoleSuffix(name)}
+                                    {!bayzatResult.rows.find((r) => r.staff_name === name)?.matched && (
+                                      <span className="ml-1 text-[9px] text-amber-600">●new</span>
+                                    )}
+                                  </td>
+                                  {weekDates.map((d) => {
+                                    const r = staffRows.find((x) => x.work_date === d);
+                                    if (!r) return <td key={d} className="px-2 py-2 text-center text-gray-300">—</td>;
+                                    if (r.type === "day_off") {
+                                      return (
+                                        <td key={d} className="px-2 py-2 text-center">
+                                          <span className="rounded-lg bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500">
+                                            Day Off
+                                          </span>
+                                        </td>
+                                      );
+                                    }
+                                    const tc = timeColor(r.start_hour);
+                                    return (
+                                      <td key={d} className="px-1.5 py-1.5 text-center">
+                                        <div className={`rounded-lg border px-1.5 py-1 ${tc.cell.split(" ").filter((c) => !c.startsWith("hover:")).join(" ")}`}>
+                                          <div className={`text-[10px] font-semibold leading-tight ${tc.time}`}>
+                                            {fmtHour(r.start_hour)}–{fmtHour(r.end_hour)}
+                                          </div>
+                                        </div>
+                                      </td>
+                                    );
+                                  })}
+                                  <td className="px-3 py-2 text-center">
+                                    <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700 border border-indigo-100">
+                                      {role || "—"}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Other branches/weeks in the file */}
+              {(() => {
+                const branches = [...new Set(bayzatResult.rows.map((r) => r.branch_code).filter(Boolean))].sort();
+                const weeks = [...new Set(bayzatResult.rows.map((r) => {
+                  const d = new Date(r.work_date + "T00:00:00");
+                  const day = d.getDay();
+                  const diff = day === 0 ? -6 : 1 - day;
+                  d.setDate(d.getDate() + diff);
+                  return d.toISOString().slice(0, 10);
+                }))].sort();
+                return (
+                  <div className="text-[11px] text-gray-500">
+                    <span className="font-semibold text-gray-600">File contains: </span>
+                    {branches.join(", ")} · {weeks.length} week{weeks.length !== 1 ? "s" : ""} ({weeks[0]} → {weeks[weeks.length - 1]})
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Footer actions */}
+            <div className="shrink-0 flex items-center gap-3 border-t border-gray-100 px-6 py-4 rounded-b-2xl bg-gray-50">
+              <button
+                type="button"
+                onClick={() => applyBayzatToGrid(bayzatResult.rows, branchCode, weekStart)}
+                disabled={bayzatResult.rows.filter(
+                  (r) => r.branch_code === branchCode &&
+                    r.work_date >= weekStart && r.work_date <= addDays(weekStart, 6)
+                ).length === 0}
+                className={`${PRIMARY_BUTTON} flex-1 disabled:opacity-40 disabled:cursor-not-allowed`}
+              >
+                ✅ Apply to Grid ({bayzatResult.rows.filter(
+                  (r) => r.branch_code === branchCode &&
+                    r.work_date >= weekStart && r.work_date <= addDays(weekStart, 6)
+                ).length} rows)
+              </button>
+              <button
+                type="button"
+                onClick={() => setBayzatResult(null)}
+                className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+            </div>
+
+          </div>
+        </div>,
         document.body
       )}
     </div>
