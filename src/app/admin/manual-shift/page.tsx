@@ -18,7 +18,7 @@ const W_CTRL = "rounded-2xl border border-gray-200 bg-white shadow-sm p-5";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type ShiftCell = { start_hour: number; end_hour: number; role: string };
+type ShiftCell = { start_hour: number; end_hour: number; role: string; note?: string };
 type GridData = Record<string, Record<string, ShiftCell | null>>; // staffName → dateStr → cell
 type EditTarget = { staffName: string; dateStr: string } | null;
 type PageView = "edit" | "published";
@@ -109,6 +109,21 @@ function fmtHour(h: number): string {
   if (base === 0 && mins === "00") return "0:00";
   if (base >= 24) return `+${base - 24}:${mins}`;
   return `${base}:${mins}`;
+}
+
+/** Position the edit modal near the clicked cell, keeping it within the viewport. */
+function getModalStyle(rect: DOMRect, modalW = 340): React.CSSProperties {
+  const vW = typeof window !== "undefined" ? window.innerWidth : 1200;
+  const vH = typeof window !== "undefined" ? window.innerHeight : 800;
+  // Prefer right of cell; fall back to left; then centre
+  let left = rect.right + 8;
+  if (left + modalW > vW - 16) {
+    left = rect.left - modalW - 8;
+    if (left < 16) left = Math.max(16, Math.min(rect.left - modalW / 2 + rect.width / 2, vW - modalW - 16));
+  }
+  // Clamp top so the modal doesn't overflow the bottom
+  const top = Math.max(16, Math.min(rect.top, vH - 480));
+  return { position: "fixed", top, left, width: modalW, zIndex: 9999 };
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -350,12 +365,14 @@ export default function ManualShiftPage() {
   const [staffList, setStaffList] = useState<string[]>([]);
   const [gridData, setGridData] = useState<GridData>({});
   const [editTarget, setEditTarget] = useState<EditTarget>(null);
+  const [editCellRect, setEditCellRect] = useState<DOMRect | null>(null);
   const [editMode, setEditMode] = useState<"shift" | "special">("shift");
   const [editStart, setEditStart] = useState(9);
   const [editEnd, setEditEnd] = useState(17);
   const [editRole, setEditRole] = useState("CK");
   const [editCustomRole, setEditCustomRole] = useState("");
   const [editSpecialType, setEditSpecialType] = useState<SpecialRole>("DAY_OFF");
+  const [editNote, setEditNote] = useState("");
   const [timeError, setTimeError] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -505,9 +522,18 @@ export default function ManualShiftPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStart, branchCode]);
 
-  function openEdit(staffName: string, dateStr: string) {
+  function closeEdit() {
+    setEditTarget(null);
+    setEditCellRect(null);
+    setTimeError("");
+  }
+
+  function openEdit(staffName: string, dateStr: string, e: React.MouseEvent) {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setEditCellRect(rect);
     const existing = gridData[staffName]?.[dateStr];
     setTimeError("");
+    setEditNote(existing?.note ?? "");
     if (existing && isSpecialRole(existing.role)) {
       setEditMode("special");
       setEditSpecialType(existing.role as SpecialRole);
@@ -531,14 +557,15 @@ export default function ManualShiftPage() {
     if (!editTarget) return;
     const { staffName, dateStr } = editTarget;
     setTimeError("");
+    const note = editNote.trim() || undefined;
 
     if (editMode === "special") {
       setGridData((prev) => ({
         ...prev,
-        [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: { start_hour: 0, end_hour: 0, role: editSpecialType } },
+        [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: { start_hour: 0, end_hour: 0, role: editSpecialType, note } },
       }));
       setHasDraft(true);
-      setEditTarget(null);
+      closeEdit();
       return;
     }
 
@@ -550,10 +577,10 @@ export default function ManualShiftPage() {
     if (!role) return;
     setGridData((prev) => ({
       ...prev,
-      [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: { start_hour: editStart, end_hour: editEnd, role } },
+      [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: { start_hour: editStart, end_hour: editEnd, role, note } },
     }));
     setHasDraft(true);
-    setEditTarget(null);
+    closeEdit();
   }
 
   function clearCell(staffName: string, dateStr: string) {
@@ -561,7 +588,7 @@ export default function ManualShiftPage() {
       ...prev,
       [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: null },
     }));
-    setEditTarget(null);
+    closeEdit();
   }
 
   async function deletePublishedShift(staffName: string, dateStr: string) {
@@ -604,7 +631,7 @@ export default function ManualShiftPage() {
       delete next[staffName];
       return next;
     });
-    if (editTarget?.staffName === staffName) setEditTarget(null);
+    if (editTarget?.staffName === staffName) closeEdit();
   }
 
   function addStaffRow() {
@@ -620,6 +647,7 @@ export default function ManualShiftPage() {
     for (const [staffName, days] of Object.entries(gridData)) {
       for (const [dateStr, cell] of Object.entries(days)) {
         if (cell && cell.role) {
+          // note is intentionally excluded — backend doesn't store it
           rows.push({ work_date: dateStr, staff_name: staffName, role: cell.role, start_hour: cell.start_hour, end_hour: cell.end_hour });
         }
       }
@@ -697,6 +725,9 @@ export default function ManualShiftPage() {
   // ─── White-mode input overrides ───────────────────────────────────────────
   const W_INPUT = "w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100";
   const W_SELECT = "w-full appearance-none cursor-pointer rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100";
+
+  // Derive the cell currently being edited (for delete button in modal)
+  const editingCell = editTarget ? (gridData[editTarget.staffName]?.[editTarget.dateStr] ?? null) : null;
 
   return (
     // White background — this page only
@@ -916,139 +947,20 @@ export default function ManualShiftPage() {
                         </td>
                         {weekDates.map((d) => {
                           const cell = gridData[name]?.[d] ?? null;
-                          const isEditing = editTarget?.staffName === name && editTarget?.dateStr === d;
                           return (
                             <td key={d} className="px-1 py-1 text-center align-top">
-                              {isEditing ? (
-                                // Edit popup — keep dark for contrast
-                                <div className="rounded-xl border border-violet-500/40 bg-violet-950/90 p-2 text-left text-xs shadow-xl" style={{ minWidth: 170 }}>
-                                  {/* Mode tabs */}
-                                  <div className="mb-2 flex rounded-lg border border-white/10 bg-white/5 p-0.5">
-                                    <button
-                                      type="button"
-                                      onClick={() => { setEditMode("shift"); setTimeError(""); }}
-                                      className={`flex-1 rounded-md py-1 text-[10px] font-semibold transition ${editMode === "shift" ? "bg-violet-600 text-white" : "text-neutral-400 hover:text-white"}`}
-                                    >
-                                      Shift
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => { setEditMode("special"); setTimeError(""); }}
-                                      className={`flex-1 rounded-md py-1 text-[10px] font-semibold transition ${editMode === "special" ? "bg-violet-600 text-white" : "text-neutral-400 hover:text-white"}`}
-                                    >
-                                      Day Off / Absent
-                                    </button>
-                                  </div>
-
-                                  {editMode === "shift" ? (
-                                    <>
-                                      <div className="mb-1.5 flex items-center gap-1">
-                                        <label className="w-10 shrink-0 text-neutral-400">Start</label>
-                                        <select
-                                          className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
-                                          value={editStart}
-                                          onChange={(e) => { setEditStart(Number(e.target.value)); setTimeError(""); }}
-                                        >
-                                          {START_HOUR_OPTIONS.map((h) => (
-                                            <option key={h} value={h}>{fmtHour(h)}</option>
-                                          ))}
-                                        </select>
-                                      </div>
-                                      <div className="mb-1.5 flex items-center gap-1">
-                                        <label className="w-10 shrink-0 text-neutral-400">End</label>
-                                        <select
-                                          className={`flex-1 rounded-lg border px-1.5 py-1 text-xs text-white ${editStart >= editEnd ? "border-rose-500/70 bg-rose-950/60" : "border-neutral-700 bg-neutral-900"}`}
-                                          value={editEnd}
-                                          onChange={(e) => { setEditEnd(Number(e.target.value)); setTimeError(""); }}
-                                        >
-                                          {END_HOUR_OPTIONS.map((h) => (
-                                            <option key={h} value={h}>{fmtHour(h)}</option>
-                                          ))}
-                                        </select>
-                                      </div>
-                                      {timeError && (
-                                        <div className="mb-1.5 rounded-lg bg-rose-900/40 px-2 py-1 text-[10px] text-rose-300">
-                                          ⚠ {timeError}
-                                        </div>
-                                      )}
-                                      <div className="mb-2 flex items-center gap-1">
-                                        <label className="w-10 shrink-0 text-neutral-400">Role</label>
-                                        <select
-                                          className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
-                                          value={editRole}
-                                          onChange={(e) => setEditRole(e.target.value)}
-                                        >
-                                          {getRoleOptions(city).map((r) => (
-                                            <option key={r} value={r}>{r}</option>
-                                          ))}
-                                          <option value="OTHER">Other...</option>
-                                        </select>
-                                      </div>
-                                      {editRole === "OTHER" && (
-                                        <input
-                                          className="mb-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
-                                          placeholder="Role name"
-                                          value={editCustomRole}
-                                          onChange={(e) => setEditCustomRole(e.target.value)}
-                                        />
-                                      )}
-                                    </>
-                                  ) : (
-                                    <div className="mb-2 flex flex-col gap-1">
-                                      {SPECIAL_TYPES.map((sp) => (
-                                        <button
-                                          key={sp.role}
-                                          type="button"
-                                          onClick={() => setEditSpecialType(sp.role)}
-                                          className={`w-full rounded-lg border px-2 py-1.5 text-left text-[11px] font-semibold transition ${editSpecialType === sp.role ? sp.style + " ring-1 ring-white/20" : "border-white/8 bg-white/4 text-neutral-400 hover:bg-white/8"}`}
-                                        >
-                                          {sp.label}
-                                        </button>
-                                      ))}
-                                    </div>
-                                  )}
-
-                                  <div className="flex gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={saveEdit}
-                                      disabled={editMode === "shift" && editStart >= editEnd}
-                                      className="flex-1 rounded-lg bg-violet-600 py-1 text-xs font-semibold text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-40"
-                                    >
-                                      Save
-                                    </button>
-                                    {cell && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          if (!window.confirm(`Delete shift for ${name} on ${formatDate(d)}?`)) return;
-                                          void deletePublishedShift(name, d);
-                                        }}
-                                        disabled={deletingCell?.staffName === name && deletingCell?.dateStr === d}
-                                        className="rounded-lg border border-rose-500/30 bg-rose-950/20 px-2 py-1 text-xs text-rose-400 hover:bg-rose-900/30 disabled:opacity-40"
-                                        title="Delete this shift (removes from server)"
-                                      >
-                                        {deletingCell?.staffName === name && deletingCell?.dateStr === d ? "…" : "🗑"}
-                                      </button>
-                                    )}
-                                    <button
-                                      type="button"
-                                      onClick={() => { setEditTarget(null); setTimeError(""); }}
-                                      className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-neutral-400 hover:bg-white/10"
-                                    >
-                                      ✕
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : cell ? (
+                              {cell ? (
                                 isSpecialRole(cell.role) ? (
                                   <div className="group relative">
                                     <button
                                       type="button"
-                                      onClick={() => openEdit(name, d)}
+                                      onClick={(e) => openEdit(name, d, e)}
                                       className={`w-full rounded-lg border px-1.5 py-2 text-center text-[11px] font-semibold hover:opacity-80 transition ${specialStyle(cell.role)}`}
                                     >
                                       {specialLabel(cell.role)}
+                                      {cell.note && (
+                                        <span className="block truncate text-[9px] opacity-60">{cell.note}</span>
+                                      )}
                                     </button>
                                     <button
                                       type="button"
@@ -1070,13 +982,16 @@ export default function ManualShiftPage() {
                                     <div className="group relative">
                                       <button
                                         type="button"
-                                        onClick={() => openEdit(name, d)}
+                                        onClick={(e) => openEdit(name, d, e)}
                                         className={`w-full rounded-lg border px-1.5 py-1.5 text-center transition ${tc.cell}`}
                                       >
                                         <div className={`text-xs leading-tight ${tc.time}`}>
                                           {fmtHour(cell.start_hour)}–{fmtHour(cell.end_hour)}
                                         </div>
                                         <div className={`text-[10px] ${tc.role}`}>{cell.role}</div>
+                                        {cell.note && (
+                                          <div className="mt-0.5 truncate text-[9px] opacity-50">{cell.note}</div>
+                                        )}
                                       </button>
                                       <button
                                         type="button"
@@ -1097,7 +1012,7 @@ export default function ManualShiftPage() {
                               ) : (
                                 <button
                                   type="button"
-                                  onClick={() => openEdit(name, d)}
+                                  onClick={(e) => openEdit(name, d, e)}
                                   className="h-10 w-full rounded-lg border border-dashed border-gray-200 text-gray-300 hover:border-indigo-300 hover:text-indigo-400 transition"
                                 >
                                   +
@@ -1164,6 +1079,180 @@ export default function ManualShiftPage() {
         )}
 
       </div>
+
+      {/* ── Edit Modal (portal) ─────────────────────────────────────────────── */}
+      {editTarget && editCellRect && typeof document !== "undefined" && createPortal(
+        <>
+          {/* Transparent backdrop — click to close */}
+          <div
+            className="fixed inset-0 z-[9998]"
+            onClick={closeEdit}
+          />
+
+          {/* Modal */}
+          <div
+            className="fixed z-[9999] rounded-2xl border border-violet-500/40 bg-[#1e1730] shadow-2xl"
+            style={getModalStyle(editCellRect)}
+          >
+            {/* Inner scroll container in case viewport is very short */}
+            <div className="max-h-[90vh] overflow-y-auto p-5">
+
+              {/* Header */}
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold leading-tight text-white">
+                    {stripRoleSuffix(editTarget.staffName)}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-neutral-400">{formatDate(editTarget.dateStr)}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeEdit}
+                  className="shrink-0 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-neutral-400 hover:bg-white/10 transition"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Mode tabs */}
+              <div className="mb-4 flex rounded-xl border border-white/10 bg-white/5 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => { setEditMode("shift"); setTimeError(""); }}
+                  className={`flex-1 rounded-lg py-1.5 text-[11px] font-semibold transition ${editMode === "shift" ? "bg-violet-600 text-white" : "text-neutral-400 hover:text-white"}`}
+                >
+                  Shift
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setEditMode("special"); setTimeError(""); }}
+                  className={`flex-1 rounded-lg py-1.5 text-[11px] font-semibold transition ${editMode === "special" ? "bg-violet-600 text-white" : "text-neutral-400 hover:text-white"}`}
+                >
+                  Day Off / Absent
+                </button>
+              </div>
+
+              {/* Shift fields */}
+              {editMode === "shift" ? (
+                <>
+                  <div className="mb-2.5 flex items-center gap-3">
+                    <label className="w-12 shrink-0 text-[11px] font-medium text-neutral-400">Start</label>
+                    <select
+                      className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-xs text-white focus:border-violet-500 focus:outline-none"
+                      value={editStart}
+                      onChange={(e) => { setEditStart(Number(e.target.value)); setTimeError(""); }}
+                    >
+                      {START_HOUR_OPTIONS.map((h) => (
+                        <option key={h} value={h}>{fmtHour(h)}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="mb-2.5 flex items-center gap-3">
+                    <label className="w-12 shrink-0 text-[11px] font-medium text-neutral-400">End</label>
+                    <select
+                      className={`flex-1 rounded-lg border px-2.5 py-2 text-xs text-white focus:outline-none ${editStart >= editEnd ? "border-rose-500/70 bg-rose-950/60" : "border-neutral-700 bg-neutral-900 focus:border-violet-500"}`}
+                      value={editEnd}
+                      onChange={(e) => { setEditEnd(Number(e.target.value)); setTimeError(""); }}
+                    >
+                      {END_HOUR_OPTIONS.map((h) => (
+                        <option key={h} value={h}>{fmtHour(h)}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {timeError && (
+                    <div className="mb-2.5 rounded-lg bg-rose-900/40 px-3 py-2 text-[11px] text-rose-300">
+                      ⚠ {timeError}
+                    </div>
+                  )}
+                  <div className="mb-2.5 flex items-center gap-3">
+                    <label className="w-12 shrink-0 text-[11px] font-medium text-neutral-400">Role</label>
+                    <select
+                      className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-xs text-white focus:border-violet-500 focus:outline-none"
+                      value={editRole}
+                      onChange={(e) => setEditRole(e.target.value)}
+                    >
+                      {getRoleOptions(city).map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                      <option value="OTHER">Other...</option>
+                    </select>
+                  </div>
+                  {editRole === "OTHER" && (
+                    <input
+                      className="mb-2.5 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-xs text-white placeholder:text-neutral-600 focus:border-violet-500 focus:outline-none"
+                      placeholder="Role name"
+                      value={editCustomRole}
+                      onChange={(e) => setEditCustomRole(e.target.value)}
+                    />
+                  )}
+                </>
+              ) : (
+                <div className="mb-2.5 flex flex-col gap-2">
+                  {SPECIAL_TYPES.map((sp) => (
+                    <button
+                      key={sp.role}
+                      type="button"
+                      onClick={() => setEditSpecialType(sp.role)}
+                      className={`w-full rounded-xl border px-3 py-2.5 text-left text-[11px] font-semibold transition ${editSpecialType === sp.role ? sp.style + " ring-1 ring-white/20" : "border-white/10 bg-white/5 text-neutral-400 hover:bg-white/10"}`}
+                    >
+                      {sp.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Note field */}
+              <div className="mb-4 mt-1">
+                <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+                  Note
+                </label>
+                <textarea
+                  className="w-full resize-none rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-2.5 text-xs text-white placeholder:text-neutral-600 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500/40 transition"
+                  rows={3}
+                  placeholder="Add a note for this shift…"
+                  value={editNote}
+                  onChange={(e) => setEditNote(e.target.value)}
+                />
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={saveEdit}
+                  disabled={editMode === "shift" && editStart >= editEnd}
+                  className="flex-1 rounded-xl bg-violet-600 py-2.5 text-xs font-semibold text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-40 transition"
+                >
+                  Save
+                </button>
+                {editingCell && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!window.confirm(`Delete shift for ${editTarget.staffName} on ${formatDate(editTarget.dateStr)}?`)) return;
+                      void deletePublishedShift(editTarget.staffName, editTarget.dateStr);
+                    }}
+                    disabled={!!(deletingCell?.staffName === editTarget.staffName && deletingCell?.dateStr === editTarget.dateStr)}
+                    className="rounded-xl border border-rose-500/30 bg-rose-950/20 px-3 py-2.5 text-xs text-rose-400 hover:bg-rose-900/30 disabled:opacity-40 transition"
+                    title="Delete this shift"
+                  >
+                    {deletingCell?.staffName === editTarget.staffName && deletingCell?.dateStr === editTarget.dateStr ? "…" : "🗑"}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={closeEdit}
+                  className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-xs text-neutral-400 hover:bg-white/10 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </>,
+        document.body
+      )}
     </div>
   );
 }
