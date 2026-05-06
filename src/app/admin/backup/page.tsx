@@ -229,10 +229,46 @@ function ItemSearch({ city, onSelect }: { city: City; onSelect: (item: SearchIte
   const [results, setResults] = useState<SearchItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const debRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Compute dropdown position inline during render (avoids 2-render flash)
+  // backdrop-blur on parent creates a stacking context, so we use position:fixed
+  // relative to the nearest backdrop-filter ancestor (the card itself).
+  // We measure the card instead to get relative coordinates.
+  const dropdownStyle = React.useMemo((): React.CSSProperties => {
+    if (!open || typeof window === "undefined") return { display: "none" };
+    // Get the input's bounding rect relative to viewport
+    const inputEl = inputRef.current;
+    if (!inputEl) return { display: "none" };
+    const rect = inputEl.getBoundingClientRect();
+    // Find the nearest ancestor that has backdrop-filter (the GLASS_CARD)
+    // and compute position relative to it instead of viewport.
+    let parent = inputEl.parentElement;
+    let offsetParentRect = { top: 0, left: 0 };
+    while (parent) {
+      const style = window.getComputedStyle(parent);
+      if (style.backdropFilter && style.backdropFilter !== "none") {
+        const pr = parent.getBoundingClientRect();
+        offsetParentRect = { top: pr.top, left: pr.left };
+        break;
+      }
+      parent = parent.parentElement;
+    }
+    const FOOTER_H = 110;
+    const GAP = 4;
+    const available = window.innerHeight - rect.bottom - FOOTER_H - GAP;
+    return {
+      position: "absolute",
+      top: rect.bottom - offsetParentRect.top + GAP,
+      left: rect.left - offsetParentRect.left,
+      width: rect.width,
+      maxHeight: Math.max(180, available),
+      zIndex: 9999,
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, results]);
 
   const search = useCallback(async (q: string) => {
     if (!q.trim()) { setResults([]); setOpen(false); return; }
@@ -247,23 +283,6 @@ function ItemSearch({ city, onSelect }: { city: City; onSelect: (item: SearchIte
     finally { setLoading(false); }
   }, [city]);
 
-  // Recalculate dropdown position/size whenever it opens or results change
-  useEffect(() => {
-    if (!open || !inputRef.current) return;
-    const rect = inputRef.current.getBoundingClientRect();
-    const FOOTER_H = 100; // sticky footer approx height (px)
-    const GAP = 6;
-    const available = window.innerHeight - rect.bottom - FOOTER_H - GAP;
-    setDropdownStyle({
-      position: "fixed",
-      top: rect.bottom + GAP,
-      left: rect.left,
-      width: rect.width,
-      maxHeight: Math.max(180, available),
-      zIndex: 9999,
-    });
-  }, [open, results]);
-
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
@@ -273,7 +292,7 @@ function ItemSearch({ city, onSelect }: { city: City; onSelect: (item: SearchIte
   }, []);
 
   return (
-    <div ref={wrapRef} className="relative">
+    <div ref={wrapRef}>
       <input
         ref={inputRef}
         className={`${INPUT_CLASS} py-3 text-base`}
@@ -303,7 +322,7 @@ function ItemSearch({ city, onSelect }: { city: City; onSelect: (item: SearchIte
         </div>
       )}
       {open && !loading && results.length === 0 && query.trim() && (
-        <div className="absolute z-[9999] mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-zinc-500 shadow-2xl">
+        <div className="mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-zinc-500 shadow-2xl" style={dropdownStyle}>
           No items found
         </div>
       )}

@@ -217,10 +217,39 @@ function InlineItemSearch({
   const [results, setResults] = useState<SearchItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const dropdownStyle = React.useMemo((): React.CSSProperties => {
+    if (!open || typeof window === "undefined") return { display: "none" };
+    const inputEl = inputRef.current;
+    if (!inputEl) return { display: "none" };
+    const rect = inputEl.getBoundingClientRect();
+    let parent = inputEl.parentElement;
+    let offsetParentRect = { top: 0, left: 0 };
+    while (parent) {
+      const style = window.getComputedStyle(parent);
+      if (style.backdropFilter && style.backdropFilter !== "none") {
+        const pr = parent.getBoundingClientRect();
+        offsetParentRect = { top: pr.top, left: pr.left };
+        break;
+      }
+      parent = parent.parentElement;
+    }
+    const FOOTER_H = 110;
+    const GAP = 4;
+    const available = window.innerHeight - rect.bottom - FOOTER_H - GAP;
+    return {
+      position: "absolute",
+      top: rect.bottom - offsetParentRect.top + GAP,
+      left: rect.left - offsetParentRect.left,
+      width: rect.width,
+      maxHeight: Math.max(180, available),
+      zIndex: 9999,
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, results]);
 
   const search = useCallback(async (q: string) => {
     if (!q.trim()) { setResults([]); setOpen(false); return; }
@@ -234,22 +263,6 @@ function InlineItemSearch({
     } catch { setResults([]); }
     finally { setLoading(false); }
   }, [city]);
-
-  useEffect(() => {
-    if (!open || !inputRef.current) return;
-    const rect = inputRef.current.getBoundingClientRect();
-    const FOOTER_H = 100;
-    const GAP = 6;
-    const available = window.innerHeight - rect.bottom - FOOTER_H - GAP;
-    setDropdownStyle({
-      position: "fixed",
-      top: rect.bottom + GAP,
-      left: rect.left,
-      width: rect.width,
-      maxHeight: Math.max(180, available),
-      zIndex: 9999,
-    });
-  }, [open, results]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -267,7 +280,7 @@ function InlineItemSearch({
   };
 
   return (
-    <div ref={wrapRef} className="relative">
+    <div ref={wrapRef}>
       <input
         ref={inputRef}
         className="w-full rounded-lg border border-violet-500/40 bg-violet-500/8 px-3 py-2.5 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-violet-400"
@@ -281,7 +294,7 @@ function InlineItemSearch({
         autoComplete="off"
       />
       {loading && (
-        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">…</div>
+        <div className="text-xs text-zinc-500 mt-1">…</div>
       )}
       {open && results.length > 0 && (
         <div className="rounded-xl border border-white/10 bg-zinc-900 shadow-2xl overflow-y-auto" style={dropdownStyle}>
@@ -299,7 +312,7 @@ function InlineItemSearch({
         </div>
       )}
       {open && !loading && results.length === 0 && query.trim() && (
-        <div className="absolute z-[9999] mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-zinc-500 shadow-2xl">
+        <div className="mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-zinc-500 shadow-2xl" style={dropdownStyle}>
           No items found
         </div>
       )}
