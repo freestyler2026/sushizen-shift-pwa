@@ -268,7 +268,7 @@ function ItemSearch({ city, onSelect }: { city: City; onSelect: (item: SearchIte
       />
       {loading && <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">searching...</div>}
       {open && results.length > 0 && (
-        <div className="absolute z-50 mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 shadow-2xl overflow-hidden">
+        <div className="absolute z-[200] mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 shadow-2xl overflow-hidden">
           {results.map((item) => (
             <button key={`${item.item_type}_${item.id}`} type="button"
               onMouseDown={() => { onSelect(item); setQuery(""); setResults([]); setOpen(false); }}
@@ -283,7 +283,7 @@ function ItemSearch({ city, onSelect }: { city: City; onSelect: (item: SearchIte
         </div>
       )}
       {open && !loading && results.length === 0 && query.trim() && (
-        <div className="absolute z-50 mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-zinc-500 shadow-2xl">
+        <div className="absolute z-[200] mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-zinc-500 shadow-2xl">
           No items found
         </div>
       )}
@@ -739,7 +739,7 @@ export default function BackupReportPage() {
           </div>
 
           {/* Free-form Extra Section */}
-          <div className={`${GLASS_CARD} p-4 sm:p-6`}>
+          <div className={`${GLASS_CARD} p-4 sm:p-6 relative z-20`}>
             <div className="flex items-center justify-between mb-4">
               <h2 className={T_CARD_TITLE}>Extra Items</h2>
               <span className={BADGE_WARNING}>Free Entry</span>
