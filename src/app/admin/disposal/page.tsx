@@ -332,77 +332,49 @@ function UnitSelector({ value, onChange }: { value: string; onChange: (v: string
 
 function DisposalLineCard({
   line,
-  city,
   onUpdate,
   onRemove,
+  index,
 }: {
   line: DisposalLine;
   city: City;
   onUpdate: (patch: Partial<DisposalLine>) => void;
   onRemove: () => void;
+  index: number;
 }) {
-  const handleItemSelect = (item: SearchItem) => {
-    onUpdate({
-      item_type: item.item_type,
-      item_id: item.id,
-      item_name_snapshot: item.name,
-      item_category: item.category,
-      unit: item.default_unit || "pcs",
-    });
-  };
-
   return (
     <div className="rounded-xl border border-white/10 bg-white/4 p-3 space-y-2">
-      {/* Search field — always visible */}
-      <div className="space-y-1">
-        <InlineItemSearch city={city} onSelect={handleItemSelect} placeholder="Search item name to link…" />
-        {/* Show current item name or free-text input */}
+      {/* Item name row */}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-zinc-500 shrink-0 w-5 text-right">{index + 1}.</span>
         {line.item_id ? (
-          <div className="flex items-center gap-2 px-1">
-            <span className="text-sm font-medium text-white flex-1">{line.item_name_snapshot}</span>
-            {line.item_category && (
-              <span className="text-xs text-zinc-500 shrink-0">{normaliseCategory(line.item_category)}</span>
-            )}
-            <button type="button" onClick={() => onUpdate({ item_id: null, item_name_snapshot: "", item_category: "" })}
-              className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors shrink-0">clear</button>
-          </div>
+          <span className="text-sm font-medium text-white flex-1">{line.item_name_snapshot}</span>
         ) : (
           <input type="text"
-            className="w-full rounded-lg border border-white/10 bg-white/6 px-3 py-2 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-violet-500/50"
+            className="flex-1 rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-violet-500/50"
             value={line.item_name_snapshot}
             onChange={(e) => onUpdate({ item_name_snapshot: e.target.value })}
-            placeholder="Or type item name manually" />
+            placeholder="Type item name…" />
         )}
-      </div>
-
-      {/* Remove button row */}
-      <div className="flex items-center justify-end">
+        {line.item_category && (
+          <span className="text-xs text-zinc-500 shrink-0">{normaliseCategory(line.item_category)}</span>
+        )}
         <button type="button" onClick={onRemove}
-          className="text-xs text-zinc-600 hover:text-red-400 hover:bg-red-500/10 px-2 py-1 rounded transition-colors">
-          Remove
+          className="text-xs text-zinc-600 hover:text-red-400 hover:bg-red-500/10 px-2 py-1 rounded transition-colors shrink-0">
+          ✕
         </button>
       </div>
 
-      {/* Qty + Unit row */}
-      <div className="flex items-start gap-2">
-        <div className="flex-1">
-          <label className="block mb-1 text-xs text-zinc-500">Qty</label>
-          <input type="number" inputMode="numeric" min="0" step="0.5"
-            className="w-full rounded-lg border border-white/10 bg-white/6 px-3 py-3 text-base text-white text-right outline-none focus:border-violet-500/50"
-            value={line.quantity}
-            onChange={(e) => onUpdate({ quantity: e.target.value })} />
-        </div>
-        <div className="w-28">
-          <label className="block mb-1 text-xs text-zinc-500">Unit</label>
-          <UnitSelector value={line.unit} onChange={(v) => onUpdate({ unit: v })} />
-        </div>
-      </div>
-
-      {/* Reason */}
-      <div>
-        <label className="block mb-1 text-xs text-zinc-500">Reason</label>
+      {/* Qty + Unit + Reason row */}
+      <div className="flex items-center gap-2 pl-7">
+        <input type="number" inputMode="numeric" min="0" step="0.5"
+          className="w-24 rounded-lg border border-white/10 bg-white/6 px-3 py-2 text-sm text-white text-right outline-none focus:border-violet-500/50"
+          value={line.quantity}
+          onChange={(e) => onUpdate({ quantity: e.target.value })}
+          placeholder="Qty" />
+        <UnitSelector value={line.unit} onChange={(v) => onUpdate({ unit: v })} />
         <select
-          className="w-full appearance-none cursor-pointer rounded-lg border border-white/10 bg-white/6 px-3 py-3 text-base text-white outline-none focus:border-violet-500/50"
+          className="flex-1 appearance-none cursor-pointer rounded-lg border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
           value={line.disposal_reason}
           onChange={(e) => onUpdate({ disposal_reason: e.target.value as DisposalReason })}>
           {(Object.keys(REASON_LABELS) as DisposalReason[]).map((r) => (
@@ -412,11 +384,13 @@ function DisposalLineCard({
       </div>
 
       {/* Notes */}
-      <input type="text"
-        className="w-full rounded-lg border border-white/10 bg-white/6 px-3 py-2 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-violet-500/50"
-        value={line.notes}
-        onChange={(e) => onUpdate({ notes: e.target.value })}
-        placeholder="Notes (optional)" />
+      <div className="pl-7">
+        <input type="text"
+          className="w-full rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-sm text-white placeholder:text-zinc-600 outline-none focus:border-violet-500/50"
+          value={line.notes}
+          onChange={(e) => onUpdate({ notes: e.target.value })}
+          placeholder="Notes (optional)" />
+      </div>
     </div>
   );
 }
@@ -670,7 +644,7 @@ export default function DisposalPage() {
   }, []);
 
   const handleClear = useCallback(() => {
-    setLines([emptyLine()]); setHeaderNotes("");
+    setLines([]); setHeaderNotes("");
     setSubmitSuccess(""); setSubmitError("");
     setDraftRestored(false);
     clearDraft();
@@ -701,7 +675,7 @@ export default function DisposalPage() {
         }
       );
       setSubmitSuccess(`Report #${result.report_id} submitted.`);
-      setLines([emptyLine()]); setHeaderNotes("");
+      setLines([]); setHeaderNotes("");
       setDraftRestored(false);
       clearDraft();
     } catch (e: unknown) {
@@ -803,14 +777,33 @@ export default function DisposalPage() {
               <span className="text-xs text-zinc-500">{itemCount} item{itemCount !== 1 ? "s" : ""}</span>
             </div>
 
-            {/* Line cards — each has its own search field */}
+            {/* Global search — selecting an item adds it to the list */}
+            <div className="mb-4">
+              <InlineItemSearch
+                city={city}
+                placeholder="Search item to add…"
+                onSelect={(item) => {
+                  const line = emptyLine();
+                  line.item_type = item.item_type;
+                  line.item_id = item.id;
+                  line.item_name_snapshot = item.name;
+                  line.item_category = item.category;
+                  line.unit = item.default_unit || "pcs";
+                  setLines((prev) => [...prev, line]);
+                }}
+              />
+              <p className="mt-1.5 text-xs text-zinc-600">選んだアイテムがリストに追加されます。何度でも検索して複数追加できます。</p>
+            </div>
+
+            {/* Line cards */}
             {lines.length > 0 && (
               <div className="space-y-3 mb-3">
-                {lines.map((line) => (
+                {lines.map((line, idx) => (
                   <DisposalLineCard
                     key={line._key}
                     line={line}
                     city={city}
+                    index={idx}
                     onUpdate={(patch) => updateLine(line._key, patch)}
                     onRemove={() => removeLine(line._key)}
                   />
@@ -818,8 +811,13 @@ export default function DisposalPage() {
               </div>
             )}
 
+            {lines.length === 0 && (
+              <p className="text-sm text-zinc-600 text-center py-4">上の検索からアイテムを追加してください</p>
+            )}
+
+            {/* Manual add for free-text items */}
             <button type="button" onClick={() => setLines((prev) => [...prev, emptyLine()])}
-              className={SMALL_BUTTON}>+ Add item</button>
+              className={`${SMALL_BUTTON} mt-2`}>+ 手入力で追加</button>
           </div>
 
           {/* Past Reports — all branches for selected city */}
