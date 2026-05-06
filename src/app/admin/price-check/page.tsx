@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { dispatchBadgeRefresh } from "@/lib/badgeEvents";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -544,6 +545,7 @@ export default function PriceCheckPage() {
       if (!res.ok) throw new Error(text || `Failed (${res.status})`);
       const j = JSON.parse(text);
       setSuccess(`Check complete — ${j.items_checked} item${j.items_checked !== 1 ? "s" : ""} checked, ${j.items_flagged} flagged`);
+      dispatchBadgeRefresh("priceCheck");
       await loadStatus();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
@@ -594,6 +596,7 @@ export default function PriceCheckPage() {
       const text = await res.text();
       if (!res.ok) throw new Error(text || `Failed (${res.status})`);
       setSuccess(`"${row.product_name}" marked as confirmed`);
+      dispatchBadgeRefresh("priceCheck");
       await loadStatus();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
@@ -810,7 +813,7 @@ export default function PriceCheckPage() {
 
               {!isParanaque && (
                 <p className={`mt-2 ${T_CAPTION}`}>
-                  Auto-check runs every 3 hours. Use &ldquo;Run Check Now&rdquo; to trigger a manual run.
+                  Auto-check runs daily at 12:00 PM (Philippine time). Use &ldquo;Run Check Now&rdquo; to trigger a manual run.
                 </p>
               )}
               {isParanaque && (
