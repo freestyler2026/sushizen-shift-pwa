@@ -6,17 +6,15 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
-import { BRANCHES, labelOf, normalizeBranchCode, type BranchCode, type City } from "@/lib/branches";
+import { BRANCHES, labelOf, type BranchCode, type City } from "@/lib/branches";
 import {
-  GLASS_CARD,
-  INPUT_CLASS,
   PRIMARY_BUTTON,
   SECONDARY_BUTTON,
-  SELECT_CLASS,
-  T_CAPTION,
-  T_LABEL,
-  T_PAGE_TITLE,
 } from "@/lib/ui-tokens";
+
+// ─── White-mode card (overrides global GLASS_CARD for this page only) ────────
+const W_CARD = "rounded-2xl border border-gray-200 bg-white shadow-sm";
+const W_CTRL = "rounded-2xl border border-gray-200 bg-white shadow-sm p-5";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -37,19 +35,34 @@ const START_HOUR_OPTIONS = Array.from({ length: 37 }, (_, i) => 6 + i * 0.5); //
 // 30-minute steps: 6:00, 6:30, … 29:00 (+5:00)
 const END_HOUR_OPTIONS = Array.from({ length: 47 }, (_, i) => 6 + i * 0.5);   // 6..29
 
-// Special (non-shift) types
+// ─── Time-based color (like Bayzat) ──────────────────────────────────────────
+type TimeColors = { cell: string; time: string; role: string; dot: string };
+
+function timeColor(startHour: number): TimeColors {
+  if (startHour < 11)
+    return { cell: "border-emerald-200 bg-emerald-50 hover:bg-emerald-100", time: "text-emerald-800 font-semibold", role: "text-emerald-600", dot: "bg-emerald-400" };
+  if (startHour < 15)
+    return { cell: "border-sky-200 bg-sky-50 hover:bg-sky-100", time: "text-sky-800 font-semibold", role: "text-sky-600", dot: "bg-sky-400" };
+  if (startHour < 19)
+    return { cell: "border-amber-200 bg-amber-50 hover:bg-amber-100", time: "text-amber-800 font-semibold", role: "text-amber-600", dot: "bg-amber-400" };
+  if (startHour < 24)
+    return { cell: "border-rose-200 bg-rose-50 hover:bg-rose-100", time: "text-rose-800 font-semibold", role: "text-rose-600", dot: "bg-rose-400" };
+  return { cell: "border-violet-200 bg-violet-50 hover:bg-violet-100", time: "text-violet-800 font-semibold", role: "text-violet-600", dot: "bg-violet-400" };
+}
+
+// ─── Special (non-shift) types ────────────────────────────────────────────────
 const SPECIAL_TYPES = [
-  { role: "DAY_OFF",  label: "Day Off",        style: "border-neutral-600/50 bg-neutral-700/30 text-neutral-300" },
-  { role: "ABSENT",   label: "Absent",          style: "border-rose-600/50 bg-rose-900/30 text-rose-300" },
-  { role: "VL",       label: "VL (Vacation)",   style: "border-sky-600/50 bg-sky-900/30 text-sky-300" },
-  { role: "ML",       label: "ML (Medical)",    style: "border-amber-600/50 bg-amber-900/30 text-amber-300" },
-  { role: "SL",       label: "SL (Sick)",       style: "border-orange-600/50 bg-orange-900/30 text-orange-300" },
+  { role: "DAY_OFF",  label: "Day Off",        style: "border-gray-300 bg-gray-100 text-gray-600" },
+  { role: "ABSENT",   label: "Absent",          style: "border-red-200 bg-red-50 text-red-700" },
+  { role: "VL",       label: "VL (Vacation)",   style: "border-sky-200 bg-sky-50 text-sky-700" },
+  { role: "ML",       label: "ML (Medical)",    style: "border-amber-200 bg-amber-50 text-amber-700" },
+  { role: "SL",       label: "SL (Sick)",       style: "border-orange-200 bg-orange-50 text-orange-700" },
 ] as const;
 type SpecialRole = (typeof SPECIAL_TYPES)[number]["role"];
 const SPECIAL_ROLE_SET = new Set<string>(SPECIAL_TYPES.map((s) => s.role));
 function isSpecialRole(role: string) { return SPECIAL_ROLE_SET.has(role); }
 function specialStyle(role: string) {
-  return SPECIAL_TYPES.find((s) => s.role === role)?.style ?? "border-neutral-600/50 bg-neutral-700/30 text-neutral-300";
+  return SPECIAL_TYPES.find((s) => s.role === role)?.style ?? "border-gray-300 bg-gray-100 text-gray-600";
 }
 function specialLabel(role: string) {
   return SPECIAL_TYPES.find((s) => s.role === role)?.label ?? role;
@@ -79,11 +92,6 @@ function addDays(dateStr: string, n: number): string {
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00");
   return d.toLocaleDateString("en-US", { weekday: "short", month: "numeric", day: "numeric" });
-}
-
-function formatDateFull(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
 }
 
 function todayMonday(): string {
@@ -121,6 +129,27 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   return (text ? JSON.parse(text) : {}) as T;
 }
 
+// ─── Color legend ─────────────────────────────────────────────────────────────
+function ColorLegend() {
+  const bands = [
+    { label: "Morning (6–11)", dot: "bg-emerald-400", text: "text-emerald-700" },
+    { label: "Midday (11–15)", dot: "bg-sky-400",     text: "text-sky-700" },
+    { label: "Afternoon (15–19)", dot: "bg-amber-400", text: "text-amber-700" },
+    { label: "Evening (19–24)", dot: "bg-rose-400",   text: "text-rose-700" },
+    { label: "Night (24+)", dot: "bg-violet-400",     text: "text-violet-700" },
+  ];
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      {bands.map((b) => (
+        <div key={b.label} className="flex items-center gap-1.5">
+          <span className={`h-2.5 w-2.5 rounded-full ${b.dot}`} />
+          <span className={`text-[11px] font-medium ${b.text}`}>{b.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Published View ───────────────────────────────────────────────────────────
 
 type PublishedRow = {
@@ -131,18 +160,6 @@ type PublishedRow = {
   start_hour: number;
   end_hour: number;
 };
-
-function roleColor(role: string) {
-  const map: Record<string, string> = {
-    CK: "bg-violet-500/20 text-violet-300 border-violet-500/30",
-    SV: "bg-sky-500/20 text-sky-300 border-sky-500/30",
-    MGR: "bg-amber-500/20 text-amber-300 border-amber-500/30",
-    DRIVER: "bg-orange-500/20 text-orange-300 border-orange-500/30",
-    TRAINEE: "bg-neutral-500/20 text-neutral-300 border-neutral-500/30",
-    PIC: "bg-indigo-500/20 text-indigo-300 border-indigo-500/30",
-  };
-  return map[role] ?? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30";
-}
 
 /** One branch section — fetches its own data with branch_code filter to avoid cross-branch contamination */
 function BranchSection({
@@ -185,41 +202,41 @@ function BranchSection({
 
   if (loading) {
     return (
-      <div className={`${GLASS_CARD} overflow-hidden p-0`}>
-        <div className="flex items-center gap-3 border-b border-white/10 bg-white/[0.04] px-5 py-3">
-          <span className="rounded-lg border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-xs font-bold text-violet-300 tracking-wide">{bc}</span>
-          <span className="text-sm font-semibold text-white">{labelOf(city as City, bc as BranchCode)}</span>
-          <span className="text-xs text-neutral-600">Loading…</span>
+      <div className={`${W_CARD} overflow-hidden p-0`}>
+        <div className="flex items-center gap-3 border-b border-gray-100 bg-gray-50 px-5 py-3">
+          <span className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-bold text-indigo-700 tracking-wide">{bc}</span>
+          <span className="text-sm font-semibold text-gray-700">{labelOf(city as City, bc as BranchCode)}</span>
+          <span className="text-xs text-gray-400">Loading…</span>
         </div>
       </div>
     );
   }
 
-  if (bRows.length === 0) return null; // hide branches with no published shifts
+  if (bRows.length === 0) return null;
 
   const staff = [...new Set(bRows.map((r) => r.staff_name))].sort((a, b) => a.localeCompare(b));
   const bDates = weekDates.filter((d) => bRows.some((r) => r.work_date === d));
   const lookup = (name: string, d: string) => bRows.find((r) => r.staff_name === name && r.work_date === d) ?? null;
 
   return (
-    <div className={`${GLASS_CARD} overflow-hidden p-0`}>
-      <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.04] px-5 py-3">
+    <div className={`${W_CARD} overflow-hidden p-0`}>
+      <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50 px-5 py-3">
         <div className="flex items-center gap-3">
-          <span className="rounded-lg border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-xs font-bold text-violet-300 tracking-wide">{bc}</span>
-          <span className="text-sm font-semibold text-white">{labelOf(city as City, bc as BranchCode)}</span>
+          <span className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-bold text-indigo-700 tracking-wide">{bc}</span>
+          <span className="text-sm font-semibold text-gray-800">{labelOf(city as City, bc as BranchCode)}</span>
         </div>
-        <span className="text-xs text-neutral-500">{bRows.length} shifts · {staff.length} staff</span>
+        <span className="text-xs text-gray-400">{bRows.length} shifts · {staff.length} staff</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-white/8 bg-white/[0.02]">
-              <th className="sticky left-0 bg-[#111827] px-4 py-2.5 text-left font-semibold text-neutral-400 whitespace-nowrap">Staff</th>
+            <tr className="border-b border-gray-100 bg-gray-50">
+              <th className="sticky left-0 bg-gray-50 px-4 py-2.5 text-left font-semibold text-gray-500 whitespace-nowrap">Staff</th>
               {bDates.map((d) => (
-                <th key={d} className="px-3 py-2.5 text-center font-semibold text-neutral-400 whitespace-nowrap">{formatDate(d)}</th>
+                <th key={d} className="px-3 py-2.5 text-center font-semibold text-gray-500 whitespace-nowrap">{formatDate(d)}</th>
               ))}
-              <th className="px-3 py-2.5 text-center font-semibold text-neutral-400">Days</th>
-              <th className="px-3 py-2.5 text-center font-semibold text-neutral-400"></th>
+              <th className="px-3 py-2.5 text-center font-semibold text-gray-500">Days</th>
+              <th className="px-3 py-2.5 text-center font-semibold text-gray-500"></th>
             </tr>
           </thead>
           <tbody>
@@ -227,11 +244,11 @@ function BranchSection({
               const dayCount = bDates.filter((d) => lookup(name, d)).length;
               const isDeleting = deletingStaff === name;
               return (
-                <tr key={name} className={`border-b border-white/5 ${i % 2 === 0 ? "bg-white/[0.015]" : ""}`}>
-                  <td className="sticky left-0 bg-[#111827] px-4 py-2 font-medium text-neutral-200 whitespace-nowrap">{stripRoleSuffix(name)}</td>
+                <tr key={name} className={`border-b border-gray-100 ${i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}`}>
+                  <td className="sticky left-0 bg-white px-4 py-2 font-medium text-gray-800 whitespace-nowrap">{stripRoleSuffix(name)}</td>
                   {bDates.map((d) => {
                     const row = lookup(name, d);
-                    if (!row) return <td key={d} className="px-2 py-2 text-center text-neutral-700">—</td>;
+                    if (!row) return <td key={d} className="px-2 py-2 text-center text-gray-300">—</td>;
                     if (isSpecialRole(row.role)) {
                       return (
                         <td key={d} className="px-2 py-2 text-center">
@@ -239,15 +256,18 @@ function BranchSection({
                         </td>
                       );
                     }
+                    const tc = timeColor(row.start_hour);
                     return (
-                      <td key={d} className="px-2 py-2 text-center">
-                        <div className="font-mono text-[11px] text-neutral-300 leading-tight">{fmtHour(row.start_hour)}–{fmtHour(row.end_hour)}</div>
-                        <div className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold border ${roleColor(row.role)}`}>{row.role}</div>
+                      <td key={d} className="px-2 py-1.5 text-center">
+                        <div className={`rounded-lg border px-2 py-1.5 ${tc.cell.split(" ").filter(c => !c.startsWith("hover:")).join(" ")}`}>
+                          <div className={`font-mono text-[11px] leading-tight ${tc.time}`}>{fmtHour(row.start_hour)}–{fmtHour(row.end_hour)}</div>
+                          <div className={`text-[10px] ${tc.role}`}>{row.role}</div>
+                        </div>
                       </td>
                     );
                   })}
                   <td className="px-3 py-2 text-center">
-                    <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-violet-300 font-semibold">{dayCount}d</span>
+                    <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-indigo-700 font-semibold text-[11px]">{dayCount}d</span>
                   </td>
                   <td className="px-3 py-2 text-center">
                     <button
@@ -255,7 +275,7 @@ function BranchSection({
                       title="Delete all shifts for this staff member"
                       disabled={isDeleting}
                       onClick={() => void deleteStaffRow(name)}
-                      className="rounded-lg border border-rose-500/30 bg-rose-950/20 px-2 py-0.5 text-[10px] text-rose-400 hover:bg-rose-900/30 disabled:opacity-40 transition"
+                      className="rounded-lg border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] text-red-600 hover:bg-red-100 disabled:opacity-40 transition"
                     >
                       {isDeleting ? "…" : "🗑 Delete"}
                     </button>
@@ -277,13 +297,13 @@ function PublishedView({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-950/20 px-5 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4">
         <div>
-          <p className="text-sm font-semibold text-emerald-300">📋 Published Schedule — Week of {weekStart}</p>
-          <p className="mt-0.5 text-xs text-emerald-400/60">All branches · {city === "dubai" ? "🇦🇪 Dubai" : "🇵🇭 Manila"}</p>
+          <p className="text-sm font-semibold text-emerald-700">📋 Published Schedule — Week of {weekStart}</p>
+          <p className="mt-0.5 text-xs text-emerald-600/70">All branches · {city === "dubai" ? "🇦🇪 Dubai" : "🇵🇭 Manila"}</p>
         </div>
         <button type="button" onClick={onBackToEdit}
-          className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-neutral-300 transition hover:bg-white/10">
+          className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50">
           ✏️ Back to Edit
         </button>
       </div>
@@ -301,7 +321,6 @@ function draftKey(city: string, branch: string, week: string) {
 }
 function saveDraft(city: string, branch: string, week: string, grid: GridData) {
   try {
-    // Only persist non-null cells to keep storage compact
     const compact: GridData = {};
     for (const [name, days] of Object.entries(grid)) {
       const filled = Object.fromEntries(Object.entries(days).filter(([, v]) => v != null));
@@ -343,40 +362,29 @@ export default function ManualShiftPage() {
   const [error, setError] = useState("");
   const [view, setView] = useState<PageView>("edit");
   const [publishedCount, setPublishedCount] = useState(0);
-  // True when the user has locally entered cells not yet published
   const [hasDraft, setHasDraft] = useState(false);
-  // Tracks which cell is being deleted from server (for loading state)
   const [deletingCell, setDeletingCell] = useState<{ staffName: string; dateStr: string } | null>(null);
-  // Tracks which staff row is being deleted in Edit Grid
   const [deletingStaffGrid, setDeletingStaffGrid] = useState<string | null>(null);
-  // Custom branch dropdown (replaces native <select> to avoid Edge autocomplete interference)
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
   const branchButtonRef = useRef<HTMLButtonElement>(null);
   const branchListRef = useRef<HTMLDivElement>(null);
   const controlsCardRef = useRef<HTMLDivElement>(null);
-  // Keep a ref to staffList so loadExistingShifts can always read the latest value
-  // without needing staffList in its dependency array (which causes stale-closure issues).
   const staffListRef = useRef<string[]>([]);
   const [branchDropdownRect, setBranchDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
 
-  // Week dates Mon–Sun
   const weekDates = useMemo(
     () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
     [weekStart]
   );
 
-  // Count locally-entered (non-null) cells so we know if there is unsaved data
   const localCellCount = useMemo(
     () => Object.values(gridData).reduce((sum, days) => sum + Object.values(days).filter(Boolean).length, 0),
     [gridData]
   );
 
-  // Keep staffListRef in sync so loadExistingShifts always reads current names.
   useEffect(() => { staffListRef.current = staffList; }, [staffList]);
 
-  // Auto-save draft to localStorage whenever the grid changes.
-  // Guard with !loading so we never overwrite the saved draft mid-load.
   useEffect(() => {
     if (staffList.length > 0 && !loading) {
       saveDraft(city, branchCode, weekStart, gridData);
@@ -384,7 +392,6 @@ export default function ManualShiftPage() {
     }
   }, [gridData, city, branchCode, weekStart, staffList.length, localCellCount, loading]);
 
-  // Reset branch when city changes
   useEffect(() => {
     setBranchCode(BRANCHES[city][0].code);
     setStaffList([]);
@@ -393,7 +400,6 @@ export default function ManualShiftPage() {
     setView("edit");
   }, [city]);
 
-  // Load staff list — filtered by branch so only this branch's staff appear
   const loadStaff = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -403,7 +409,7 @@ export default function ManualShiftPage() {
       );
       const names = (data.names || []).sort((a, b) => a.localeCompare(b));
       setStaffList(names);
-      staffListRef.current = names; // 次の loadExistingShifts で即座に参照できるよう同期更新
+      staffListRef.current = names;
       setGridData((prev) => {
         const next = { ...prev };
         for (const name of names) {
@@ -418,16 +424,10 @@ export default function ManualShiftPage() {
     }
   }, [city, branchCode]);
 
-  /**
-   * Merge server-published shifts into the local grid.
-   * NEVER overwrites a cell that already has local data.
-   * If forceOverwrite=true (user explicitly clicked reload), wipe local and reload.
-   */
   const loadExistingShifts = useCallback(async (forceOverwrite = false) => {
     setLoading(true);
     setError("");
     try {
-      // branch_code をAPIに渡してサーバー側でフィルタ → 他店データの混入を防ぐ
       const data = await apiFetch<{ rows?: any[] }>(
         `/api/published/week?city=${encodeURIComponent(city)}&week_start=${encodeURIComponent(weekStart)}&branch_code=${encodeURIComponent(branchCode)}`
       );
@@ -436,22 +436,18 @@ export default function ManualShiftPage() {
       setGridData((prev) => {
         const nextGrid: GridData = {};
 
-        // サフィックス除去後の名前で既存グリッドキーを検索するヘルパー
         const findKey = (serverName: string): string => {
           const stripped = stripRoleSuffix(serverName);
           return Object.keys(prev).find(k => stripRoleSuffix(k) === stripped) ?? serverName;
         };
 
-        // サーバー行の名前をグリッド既存キーに正規化したリストを作成
         const serverNames = rows.map((r: any) => findKey(r.staff_name as string));
-        // forceOverwrite 時は古い prev の名前を引き継がず、staff_master + サーバー行のみにリセット
         const baseNames = forceOverwrite
           ? Array.from(new Set([...staffListRef.current, ...serverNames]))
           : Array.from(new Set([...Object.keys(prev), ...serverNames]));
         for (const name of baseNames) {
           nextGrid[name] = forceOverwrite ? {} : { ...(prev[name] ?? {}) };
         }
-        // Merge server rows — only fill cells that are locally empty (unless forceOverwrite)
         for (let i = 0; i < rows.length; i++) {
           const r = rows[i];
           const key = serverNames[i];
@@ -468,7 +464,6 @@ export default function ManualShiftPage() {
       });
 
       const currentStaff = staffListRef.current;
-      // サフィックス除去後の名前で比較して重複追加を防ぐ
       const extraNames = rows
         .map((r: any) => r.staff_name as string)
         .filter((n: string) => {
@@ -484,22 +479,20 @@ export default function ManualShiftPage() {
     } finally {
       setLoading(false);
     }
-  }, [city, weekStart, branchCode]); // staffList removed — read via staffListRef to avoid stale closure
+  }, [city, weekStart, branchCode]);
 
-  // 支店・週が変わったら自動でスタッフ＋シフトを再ロード（古いスタッフを引き継がない）
   useEffect(() => {
-    if (staffList.length === 0) return; // 初回ロード前はスキップ
+    if (staffList.length === 0) return;
     const savedDraft = loadDraft(city, branchCode, weekStart);
     void (async () => {
       await loadStaff();
-      await loadExistingShifts(true); // 強制上書き
-      // 保存済みドラフトを現支店のスタッフにのみ適用
+      await loadExistingShifts(true);
       if (Object.keys(savedDraft).length > 0) {
         setGridData((prev) => {
           const next: GridData = {};
           for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
           for (const [name, days] of Object.entries(savedDraft)) {
-            if (!next[name]) continue; // 現支店にいないスタッフはスキップ
+            if (!next[name]) continue;
             for (const [date, cell] of Object.entries(days)) {
               if (cell != null) next[name][date] = cell;
             }
@@ -549,7 +542,6 @@ export default function ManualShiftPage() {
       return;
     }
 
-    // Shift mode — validate time
     if (editStart >= editEnd) {
       setTimeError(`Start (${fmtHour(editStart)}) must be earlier than End (${fmtHour(editEnd)})`);
       return;
@@ -572,7 +564,6 @@ export default function ManualShiftPage() {
     setEditTarget(null);
   }
 
-  /** Delete a shift from the server AND from local state. */
   async function deletePublishedShift(staffName: string, dateStr: string) {
     setDeletingCell({ staffName, dateStr });
     try {
@@ -588,7 +579,6 @@ export default function ManualShiftPage() {
     clearCell(staffName, dateStr);
   }
 
-  /** Delete all shifts for a staff member from Edit Grid (server + local state). */
   async function deleteStaffFromGrid(staffName: string) {
     const datesWithShifts = weekDates.filter((d) => gridData[staffName]?.[d]);
     const totalShifts = datesWithShifts.length;
@@ -664,7 +654,7 @@ export default function ManualShiftPage() {
         setError(`Sheet export error: ${result.export_result.error}`);
       }
       setPublishedCount(result.rows_copied);
-      clearDraft(city, branchCode, weekStart); // ← clear saved draft after successful publish
+      clearDraft(city, branchCode, weekStart);
       setHasDraft(false);
       setView("published");
     } catch (e: unknown) {
@@ -677,10 +667,6 @@ export default function ManualShiftPage() {
   const branches = BRANCHES[city];
   const shiftCount = buildRows().length;
 
-  /**
-   * Return to Edit view and re-merge any saved draft back into gridData.
-   * This ensures locally-entered changes are never lost when switching to/from Published View.
-   */
   const handleBackToEdit = useCallback(() => {
     setView("edit");
     setGridData((prev) => {
@@ -688,14 +674,12 @@ export default function ManualShiftPage() {
       if (!saved || Object.keys(saved).length === 0) return prev;
       const next = { ...prev };
       for (const [name, days] of Object.entries(saved)) {
-        // Merge saved cells on top of current state (saved draft wins for any cell it has)
         next[name] = { ...(next[name] ?? {}), ...days };
       }
       return next;
     });
   }, [city, branchCode, weekStart]);
 
-  // Close branch dropdown when clicking outside both the button AND the dropdown list
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       const inButton = branchButtonRef.current?.contains(e.target as Node);
@@ -710,461 +694,476 @@ export default function ManualShiftPage() {
     }
   }, [branchDropdownOpen]);
 
-  return (
-    <div className="mx-auto max-w-7xl space-y-6 px-4 py-8">
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className={T_PAGE_TITLE}>Manual Shift Entry</h1>
-          <p className={T_CAPTION}>Hand-enter shifts for a week, then publish to Week / My-Shift and export to Google Sheets.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/admin/draft" className={SECONDARY_BUTTON}>AI Draft</Link>
-          <Link href="/admin" className={SECONDARY_BUTTON}>Admin Dashboard</Link>
-        </div>
-      </div>
+  // ─── White-mode input overrides ───────────────────────────────────────────
+  const W_INPUT = "w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100";
+  const W_SELECT = "w-full appearance-none cursor-pointer rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100";
 
-      {/* Controls */}
-      <div ref={controlsCardRef} className={`${GLASS_CARD} p-5`}>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+  return (
+    // White background — this page only
+    <div className="min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-7xl space-y-6 px-4 py-8">
+
+        {/* Header */}
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <label className={`${T_LABEL} mb-1 block`}>City</label>
-            <select className={SELECT_CLASS} autoComplete="off" value={city} onChange={(e) => setCity(e.target.value as City)}>
-              <option value="dubai">Dubai</option>
-              <option value="manila">Manila</option>
-            </select>
+            <h1 className="text-3xl font-light tracking-tight text-gray-900">Manual Shift Entry</h1>
+            <p className="mt-1 text-xs text-gray-500">Hand-enter shifts for a week, then publish to Week / My-Shift and export to Google Sheets.</p>
           </div>
-          <div>
-            <label className={`${T_LABEL} mb-1 block`}>Branch</label>
-            {/* Custom dropdown — avoids Edge/Chrome autofill intercepting native <select> */}
-            <div ref={branchDropdownRef} className="relative">
-              <button
-                ref={branchButtonRef}
-                type="button"
-                onClick={() => {
-                  const rect = branchButtonRef.current?.getBoundingClientRect();
-                  if (rect) {
-                    // Portal renders at document.body, so fixed coords are truly viewport-relative
-                    setBranchDropdownRect({ top: rect.bottom + 4, left: rect.left, width: rect.width });
-                  }
-                  setBranchDropdownOpen((o) => !o);
-                }}
-                className={SELECT_CLASS + " flex items-center justify-between gap-2"}
-              >
-                <span>{branches.find((b) => b.code === branchCode)?.name ?? branchCode}</span>
-                <ChevronDown className={`h-4 w-4 shrink-0 text-neutral-400 transition-transform ${branchDropdownOpen ? "rotate-180" : ""}`} />
-              </button>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/admin/draft" className={SECONDARY_BUTTON}>AI Draft</Link>
+            <Link href="/admin" className={SECONDARY_BUTTON}>Admin Dashboard</Link>
+          </div>
+        </div>
+
+        {/* Color legend */}
+        <div className={`${W_CARD} px-5 py-3`}>
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Shift Color by Start Time</p>
+          <ColorLegend />
+        </div>
+
+        {/* Controls */}
+        <div ref={controlsCardRef} className={W_CTRL}>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">City</label>
+              <select className={W_SELECT} autoComplete="off" value={city} onChange={(e) => setCity(e.target.value as City)}>
+                <option value="dubai">Dubai</option>
+                <option value="manila">Manila</option>
+              </select>
             </div>
-            {/* Portal to document.body — escapes all backdrop-blur stacking contexts */}
-            {branchDropdownOpen && branchDropdownRect && typeof document !== "undefined" && createPortal(
-              <div
-                ref={branchListRef}
-                style={{ position: "fixed", top: branchDropdownRect.top, left: branchDropdownRect.left, width: branchDropdownRect.width, zIndex: 9999 }}
-                className="overflow-hidden rounded-xl border border-white/10 bg-neutral-900 shadow-2xl"
-              >
-                {branches.map((b) => (
-                  <button
-                    key={b.code}
-                    type="button"
-                    onClick={() => { setBranchCode(b.code as BranchCode); setBranchDropdownOpen(false); }}
-                    className={`w-full px-4 py-2.5 text-left text-sm transition hover:bg-white/10 ${b.code === branchCode ? "bg-violet-500/15 text-violet-200 font-medium" : "text-neutral-200"}`}
-                  >
-                    {b.name}
-                  </button>
-                ))}
-              </div>,
-              document.body
-            )}
-          </div>
-          <div>
-            <label className={`${T_LABEL} mb-1 block`}>Week (Monday)</label>
-            <input
-              type="date"
-              className={INPUT_CLASS}
-              value={weekStart}
-              onChange={(e) => setWeekStart(mondayOf(e.target.value || weekStart))}
-            />
-          </div>
-          <div className="flex items-end gap-2 flex-wrap">
-            <button
-              type="button"
-              onClick={async () => {
-                const savedDraft = loadDraft(city, branchCode, weekStart);
-                await loadStaff();
-                await loadExistingShifts(true); // 強制上書き（古いスタッフを排除）
-                // 保存済みドラフトを現支店のスタッフにのみ適用
-                if (Object.keys(savedDraft).length > 0) {
-                  setGridData((prev) => {
-                    const next: GridData = {};
-                    for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
-                    for (const [name, days] of Object.entries(savedDraft)) {
-                      if (!next[name]) continue; // 現支店にいないスタッフはスキップ
-                      for (const [date, cell] of Object.entries(days)) {
-                        if (cell != null) next[name][date] = cell;
-                      }
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Branch</label>
+              <div ref={branchDropdownRef} className="relative">
+                <button
+                  ref={branchButtonRef}
+                  type="button"
+                  onClick={() => {
+                    const rect = branchButtonRef.current?.getBoundingClientRect();
+                    if (rect) {
+                      setBranchDropdownRect({ top: rect.bottom + 4, left: rect.left, width: rect.width });
                     }
-                    return next;
-                  });
-                }
-              }}
-              disabled={loading}
-              className={SECONDARY_BUTTON}
-            >
-              {loading ? "Loading..." : "Load Staff & Shifts"}
-            </button>
-            {staffList.length > 0 && (
+                    setBranchDropdownOpen((o) => !o);
+                  }}
+                  className={W_SELECT + " flex items-center justify-between gap-2"}
+                >
+                  <span>{branches.find((b) => b.code === branchCode)?.name ?? branchCode}</span>
+                  <ChevronDown className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${branchDropdownOpen ? "rotate-180" : ""}`} />
+                </button>
+              </div>
+              {branchDropdownOpen && branchDropdownRect && typeof document !== "undefined" && createPortal(
+                <div
+                  ref={branchListRef}
+                  style={{ position: "fixed", top: branchDropdownRect.top, left: branchDropdownRect.left, width: branchDropdownRect.width, zIndex: 9999 }}
+                  className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
+                >
+                  {branches.map((b) => (
+                    <button
+                      key={b.code}
+                      type="button"
+                      onClick={() => { setBranchCode(b.code as BranchCode); setBranchDropdownOpen(false); }}
+                      className={`w-full px-4 py-2.5 text-left text-sm transition hover:bg-gray-50 ${b.code === branchCode ? "bg-indigo-50 text-indigo-700 font-medium" : "text-gray-700"}`}
+                    >
+                      {b.name}
+                    </button>
+                  ))}
+                </div>,
+                document.body
+              )}
+            </div>
+            <div>
+              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.15em] text-gray-500">Week (Monday)</label>
+              <input
+                type="date"
+                className={W_INPUT}
+                value={weekStart}
+                onChange={(e) => setWeekStart(mondayOf(e.target.value || weekStart))}
+              />
+            </div>
+            <div className="flex items-end gap-2 flex-wrap">
               <button
                 type="button"
                 onClick={async () => {
-                  if (!window.confirm("Reload from server? All locally entered shifts that have not been published will be lost.")) return;
-                  clearDraft(city, branchCode, weekStart);
-                  setHasDraft(false);
-                  await loadStaff(); // スタッフリストも最新化
-                  void loadExistingShifts(true);
+                  const savedDraft = loadDraft(city, branchCode, weekStart);
+                  await loadStaff();
+                  await loadExistingShifts(true);
+                  if (Object.keys(savedDraft).length > 0) {
+                    setGridData((prev) => {
+                      const next: GridData = {};
+                      for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
+                      for (const [name, days] of Object.entries(savedDraft)) {
+                        if (!next[name]) continue;
+                        for (const [date, cell] of Object.entries(days)) {
+                          if (cell != null) next[name][date] = cell;
+                        }
+                      }
+                      return next;
+                    });
+                  }
                 }}
                 disabled={loading}
-                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-neutral-400 transition hover:bg-white/10"
+                className={SECONDARY_BUTTON}
               >
-                ↺ Reload from Server
+                {loading ? "Loading..." : "Load Staff & Shifts"}
               </button>
-            )}
+              {staffList.length > 0 && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!window.confirm("Reload from server? All locally entered shifts that have not been published will be lost.")) return;
+                    clearDraft(city, branchCode, weekStart);
+                    setHasDraft(false);
+                    await loadStaff();
+                    void loadExistingShifts(true);
+                  }}
+                  disabled={loading}
+                  className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-500 transition hover:bg-gray-50"
+                >
+                  ↺ Reload from Server
+                </button>
+              )}
+            </div>
           </div>
+          {staffList.length > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <p className="text-xs text-gray-400">
+                {staffList.length} staff · {labelOf(city, branchCode)} · Week of {weekStart}
+              </p>
+              {hasDraft && (
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
+                  ● Unsaved draft
+                </span>
+              )}
+            </div>
+          )}
         </div>
-        {staffList.length > 0 && (
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            <p className="text-xs text-neutral-500">
-              {staffList.length} staff · {labelOf(city, branchCode)} · Week of {weekStart}
-            </p>
-            {hasDraft && (
-              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-amber-300">
-                ● Unsaved draft
-              </span>
-            )}
+
+        {/* Error */}
+        {error && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
           </div>
         )}
-      </div>
 
-      {/* Error / Success */}
-      {error && (
-        <div className="rounded-2xl border border-rose-900/50 bg-rose-950/20 px-4 py-3 text-sm text-rose-300">
-          {error}
-        </div>
-      )}
+        {/* View tabs */}
+        {staffList.length > 0 && (
+          <div className="flex items-center gap-1 border-b border-gray-200 pb-0">
+            <button
+              type="button"
+              onClick={() => setView("edit")}
+              className={[
+                "px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px",
+                view === "edit"
+                  ? "border-indigo-500 text-indigo-600"
+                  : "border-transparent text-gray-400 hover:text-gray-700",
+              ].join(" ")}
+            >
+              ✏️ Edit Grid
+            </button>
+            <button
+              type="button"
+              onClick={() => setView("published")}
+              className={[
+                "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px",
+                view === "published"
+                  ? "border-emerald-500 text-emerald-600"
+                  : "border-transparent text-gray-400 hover:text-gray-700",
+              ].join(" ")}
+            >
+              📋 Published View
+              {publishedCount > 0 && (
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                  {publishedCount}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
 
-      {/* View tabs (only when staff loaded) */}
-      {staffList.length > 0 && (
-        <div className="flex items-center gap-1 border-b border-white/10 pb-0">
-          <button
-            type="button"
-            onClick={() => setView("edit")}
-            className={[
-              "px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px",
-              view === "edit"
-                ? "border-violet-400 text-white"
-                : "border-transparent text-neutral-400 hover:text-white",
-            ].join(" ")}
-          >
-            ✏️ Edit Grid
-          </button>
-          <button
-            type="button"
-            onClick={() => setView("published")}
-            className={[
-              "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition border-b-2 -mb-px",
-              view === "published"
-                ? "border-emerald-400 text-white"
-                : "border-transparent text-neutral-400 hover:text-white",
-            ].join(" ")}
-          >
-            📋 Published View
-            {publishedCount > 0 && (
-              <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
-                {publishedCount}
-              </span>
-            )}
-          </button>
-        </div>
-      )}
-
-      {/* ── Edit view ── */}
-      {staffList.length > 0 && view === "edit" && (
-        <>
-          <div className={`${GLASS_CARD} overflow-hidden p-0`}>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 z-20">
-                  <tr className="border-b border-white/10 bg-[#111827]">
-                    <th className="w-40 bg-[#111827] px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-neutral-400">
-                      Staff
-                    </th>
-                    {weekDates.map((d) => (
-                      <th key={d} className="min-w-[100px] bg-[#111827] px-2 py-3 text-center text-xs font-semibold text-neutral-300">
-                        {formatDate(d)}
+        {/* ── Edit view ── */}
+        {staffList.length > 0 && view === "edit" && (
+          <>
+            <div className={`${W_CARD} overflow-hidden p-0`}>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 z-20">
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      <th className="w-40 bg-gray-50 px-4 py-3 text-left text-xs font-semibold uppercase tracking-widest text-gray-500">
+                        Staff
                       </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {staffList.map((name, idx) => (
-                    <tr key={name} className={`border-b border-white/5 ${idx % 2 === 0 ? "bg-white/[0.02]" : ""}`}>
-                      <td className="px-3 py-2 text-xs font-medium text-neutral-200">
-                        <div className="flex items-center justify-between gap-1">
-                          <span>{stripRoleSuffix(name)}</span>
-                          <button
-                            type="button"
-                            title="Delete all shifts for this staff member"
-                            disabled={deletingStaffGrid === name}
-                            onClick={() => void deleteStaffFromGrid(name)}
-                            className="shrink-0 rounded border border-rose-500/30 bg-rose-950/20 px-1.5 py-0.5 text-[10px] text-rose-400 hover:bg-rose-900/30 disabled:opacity-40 transition"
-                          >
-                            {deletingStaffGrid === name ? "…" : "🗑"}
-                          </button>
-                        </div>
-                      </td>
-                      {weekDates.map((d) => {
-                        const cell = gridData[name]?.[d] ?? null;
-                        const isEditing = editTarget?.staffName === name && editTarget?.dateStr === d;
-                        return (
-                          <td key={d} className="px-1 py-1 text-center align-top">
-                            {isEditing ? (
-                              <div className="rounded-xl border border-violet-500/40 bg-violet-950/40 p-2 text-left text-xs" style={{ minWidth: 170 }}>
-                                {/* Mode tabs */}
-                                <div className="mb-2 flex rounded-lg border border-white/10 bg-white/5 p-0.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => { setEditMode("shift"); setTimeError(""); }}
-                                    className={`flex-1 rounded-md py-1 text-[10px] font-semibold transition ${editMode === "shift" ? "bg-violet-600 text-white" : "text-neutral-400 hover:text-white"}`}
-                                  >
-                                    Shift
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => { setEditMode("special"); setTimeError(""); }}
-                                    className={`flex-1 rounded-md py-1 text-[10px] font-semibold transition ${editMode === "special" ? "bg-violet-600 text-white" : "text-neutral-400 hover:text-white"}`}
-                                  >
-                                    Day Off / Absent
-                                  </button>
-                                </div>
-
-                                {editMode === "shift" ? (
-                                  <>
-                                    <div className="mb-1.5 flex items-center gap-1">
-                                      <label className="w-10 shrink-0 text-neutral-400">Start</label>
-                                      <select
-                                        className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
-                                        value={editStart}
-                                        onChange={(e) => { setEditStart(Number(e.target.value)); setTimeError(""); }}
-                                      >
-                                        {START_HOUR_OPTIONS.map((h) => (
-                                          <option key={h} value={h}>{fmtHour(h)}</option>
-                                        ))}
-                                      </select>
-                                    </div>
-                                    <div className="mb-1.5 flex items-center gap-1">
-                                      <label className="w-10 shrink-0 text-neutral-400">End</label>
-                                      <select
-                                        className={`flex-1 rounded-lg border px-1.5 py-1 text-xs text-white ${editStart >= editEnd ? "border-rose-500/70 bg-rose-950/60" : "border-neutral-700 bg-neutral-900"}`}
-                                        value={editEnd}
-                                        onChange={(e) => { setEditEnd(Number(e.target.value)); setTimeError(""); }}
-                                      >
-                                        {END_HOUR_OPTIONS.map((h) => (
-                                          <option key={h} value={h}>{fmtHour(h)}</option>
-                                        ))}
-                                      </select>
-                                    </div>
-                                    {timeError && (
-                                      <div className="mb-1.5 rounded-lg bg-rose-900/40 px-2 py-1 text-[10px] text-rose-300">
-                                        ⚠ {timeError}
-                                      </div>
-                                    )}
-                                    <div className="mb-2 flex items-center gap-1">
-                                      <label className="w-10 shrink-0 text-neutral-400">Role</label>
-                                      <select
-                                        className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
-                                        value={editRole}
-                                        onChange={(e) => setEditRole(e.target.value)}
-                                      >
-                                        {getRoleOptions(city).map((r) => (
-                                          <option key={r} value={r}>{r}</option>
-                                        ))}
-                                        <option value="OTHER">Other...</option>
-                                      </select>
-                                    </div>
-                                    {editRole === "OTHER" && (
-                                      <input
-                                        className="mb-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
-                                        placeholder="Role name"
-                                        value={editCustomRole}
-                                        onChange={(e) => setEditCustomRole(e.target.value)}
-                                      />
-                                    )}
-                                  </>
-                                ) : (
-                                  <div className="mb-2 flex flex-col gap-1">
-                                    {SPECIAL_TYPES.map((sp) => (
-                                      <button
-                                        key={sp.role}
-                                        type="button"
-                                        onClick={() => setEditSpecialType(sp.role)}
-                                        className={`w-full rounded-lg border px-2 py-1.5 text-left text-[11px] font-semibold transition ${editSpecialType === sp.role ? sp.style + " ring-1 ring-white/20" : "border-white/8 bg-white/4 text-neutral-400 hover:bg-white/8"}`}
-                                      >
-                                        {sp.label}
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-
-                                <div className="flex gap-1">
-                                  <button
-                                    type="button"
-                                    onClick={saveEdit}
-                                    disabled={editMode === "shift" && editStart >= editEnd}
-                                    className="flex-1 rounded-lg bg-violet-600 py-1 text-xs font-semibold text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-40"
-                                  >
-                                    Save
-                                  </button>
-                                  {cell && (
+                      {weekDates.map((d) => (
+                        <th key={d} className="min-w-[110px] bg-gray-50 px-2 py-3 text-center text-xs font-semibold text-gray-600">
+                          {formatDate(d)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {staffList.map((name, idx) => (
+                      <tr key={name} className={`border-b border-gray-100 ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/40"}`}>
+                        <td className="px-3 py-2 text-xs font-medium text-gray-700">
+                          <div className="flex items-center justify-between gap-1">
+                            <span>{stripRoleSuffix(name)}</span>
+                            <button
+                              type="button"
+                              title="Delete all shifts for this staff member"
+                              disabled={deletingStaffGrid === name}
+                              onClick={() => void deleteStaffFromGrid(name)}
+                              className="shrink-0 rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] text-red-600 hover:bg-red-100 disabled:opacity-40 transition"
+                            >
+                              {deletingStaffGrid === name ? "…" : "🗑"}
+                            </button>
+                          </div>
+                        </td>
+                        {weekDates.map((d) => {
+                          const cell = gridData[name]?.[d] ?? null;
+                          const isEditing = editTarget?.staffName === name && editTarget?.dateStr === d;
+                          return (
+                            <td key={d} className="px-1 py-1 text-center align-top">
+                              {isEditing ? (
+                                // Edit popup — keep dark for contrast
+                                <div className="rounded-xl border border-violet-500/40 bg-violet-950/90 p-2 text-left text-xs shadow-xl" style={{ minWidth: 170 }}>
+                                  {/* Mode tabs */}
+                                  <div className="mb-2 flex rounded-lg border border-white/10 bg-white/5 p-0.5">
                                     <button
                                       type="button"
-                                      onClick={() => {
+                                      onClick={() => { setEditMode("shift"); setTimeError(""); }}
+                                      className={`flex-1 rounded-md py-1 text-[10px] font-semibold transition ${editMode === "shift" ? "bg-violet-600 text-white" : "text-neutral-400 hover:text-white"}`}
+                                    >
+                                      Shift
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => { setEditMode("special"); setTimeError(""); }}
+                                      className={`flex-1 rounded-md py-1 text-[10px] font-semibold transition ${editMode === "special" ? "bg-violet-600 text-white" : "text-neutral-400 hover:text-white"}`}
+                                    >
+                                      Day Off / Absent
+                                    </button>
+                                  </div>
+
+                                  {editMode === "shift" ? (
+                                    <>
+                                      <div className="mb-1.5 flex items-center gap-1">
+                                        <label className="w-10 shrink-0 text-neutral-400">Start</label>
+                                        <select
+                                          className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
+                                          value={editStart}
+                                          onChange={(e) => { setEditStart(Number(e.target.value)); setTimeError(""); }}
+                                        >
+                                          {START_HOUR_OPTIONS.map((h) => (
+                                            <option key={h} value={h}>{fmtHour(h)}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      <div className="mb-1.5 flex items-center gap-1">
+                                        <label className="w-10 shrink-0 text-neutral-400">End</label>
+                                        <select
+                                          className={`flex-1 rounded-lg border px-1.5 py-1 text-xs text-white ${editStart >= editEnd ? "border-rose-500/70 bg-rose-950/60" : "border-neutral-700 bg-neutral-900"}`}
+                                          value={editEnd}
+                                          onChange={(e) => { setEditEnd(Number(e.target.value)); setTimeError(""); }}
+                                        >
+                                          {END_HOUR_OPTIONS.map((h) => (
+                                            <option key={h} value={h}>{fmtHour(h)}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      {timeError && (
+                                        <div className="mb-1.5 rounded-lg bg-rose-900/40 px-2 py-1 text-[10px] text-rose-300">
+                                          ⚠ {timeError}
+                                        </div>
+                                      )}
+                                      <div className="mb-2 flex items-center gap-1">
+                                        <label className="w-10 shrink-0 text-neutral-400">Role</label>
+                                        <select
+                                          className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
+                                          value={editRole}
+                                          onChange={(e) => setEditRole(e.target.value)}
+                                        >
+                                          {getRoleOptions(city).map((r) => (
+                                            <option key={r} value={r}>{r}</option>
+                                          ))}
+                                          <option value="OTHER">Other...</option>
+                                        </select>
+                                      </div>
+                                      {editRole === "OTHER" && (
+                                        <input
+                                          className="mb-2 w-full rounded-lg border border-neutral-700 bg-neutral-900 px-1.5 py-1 text-xs text-white"
+                                          placeholder="Role name"
+                                          value={editCustomRole}
+                                          onChange={(e) => setEditCustomRole(e.target.value)}
+                                        />
+                                      )}
+                                    </>
+                                  ) : (
+                                    <div className="mb-2 flex flex-col gap-1">
+                                      {SPECIAL_TYPES.map((sp) => (
+                                        <button
+                                          key={sp.role}
+                                          type="button"
+                                          onClick={() => setEditSpecialType(sp.role)}
+                                          className={`w-full rounded-lg border px-2 py-1.5 text-left text-[11px] font-semibold transition ${editSpecialType === sp.role ? sp.style + " ring-1 ring-white/20" : "border-white/8 bg-white/4 text-neutral-400 hover:bg-white/8"}`}
+                                        >
+                                          {sp.label}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+
+                                  <div className="flex gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={saveEdit}
+                                      disabled={editMode === "shift" && editStart >= editEnd}
+                                      className="flex-1 rounded-lg bg-violet-600 py-1 text-xs font-semibold text-white hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                      Save
+                                    </button>
+                                    {cell && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (!window.confirm(`Delete shift for ${name} on ${formatDate(d)}?`)) return;
+                                          void deletePublishedShift(name, d);
+                                        }}
+                                        disabled={deletingCell?.staffName === name && deletingCell?.dateStr === d}
+                                        className="rounded-lg border border-rose-500/30 bg-rose-950/20 px-2 py-1 text-xs text-rose-400 hover:bg-rose-900/30 disabled:opacity-40"
+                                        title="Delete this shift (removes from server)"
+                                      >
+                                        {deletingCell?.staffName === name && deletingCell?.dateStr === d ? "…" : "🗑"}
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => { setEditTarget(null); setTimeError(""); }}
+                                      className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-neutral-400 hover:bg-white/10"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : cell ? (
+                                isSpecialRole(cell.role) ? (
+                                  <div className="group relative">
+                                    <button
+                                      type="button"
+                                      onClick={() => openEdit(name, d)}
+                                      className={`w-full rounded-lg border px-1.5 py-2 text-center text-[11px] font-semibold hover:opacity-80 transition ${specialStyle(cell.role)}`}
+                                    >
+                                      {specialLabel(cell.role)}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      title="Delete shift"
+                                      disabled={!!(deletingCell?.staffName === name && deletingCell?.dateStr === d)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
                                         if (!window.confirm(`Delete shift for ${name} on ${formatDate(d)}?`)) return;
                                         void deletePublishedShift(name, d);
                                       }}
-                                      disabled={deletingCell?.staffName === name && deletingCell?.dateStr === d}
-                                      className="rounded-lg border border-rose-500/30 bg-rose-950/20 px-2 py-1 text-xs text-rose-400 hover:bg-rose-900/30 disabled:opacity-40"
-                                      title="Delete this shift (removes from server)"
+                                      className="absolute right-0.5 top-0.5 hidden h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] text-white group-hover:flex"
                                     >
-                                      {deletingCell?.staffName === name && deletingCell?.dateStr === d ? "…" : "🗑"}
+                                      {deletingCell?.staffName === name && deletingCell?.dateStr === d ? "…" : "×"}
                                     </button>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => { setEditTarget(null); setTimeError(""); }}
-                                    className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-neutral-400 hover:bg-white/10"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              </div>
-                            ) : cell ? (
-                              isSpecialRole(cell.role) ? (
-                                <div className="group relative">
-                                  <button
-                                    type="button"
-                                    onClick={() => openEdit(name, d)}
-                                    className={`w-full rounded-lg border px-1.5 py-2 text-center text-[11px] font-semibold hover:opacity-80 ${specialStyle(cell.role)}`}
-                                  >
-                                    {specialLabel(cell.role)}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    title="Delete shift"
-                                    disabled={!!(deletingCell?.staffName === name && deletingCell?.dateStr === d)}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (!window.confirm(`Delete shift for ${name} on ${formatDate(d)}?`)) return;
-                                      void deletePublishedShift(name, d);
-                                    }}
-                                    className="absolute right-0.5 top-0.5 hidden h-4 w-4 items-center justify-center rounded-full bg-rose-600 text-[9px] text-white group-hover:flex"
-                                  >
-                                    {deletingCell?.staffName === name && deletingCell?.dateStr === d ? "…" : "×"}
-                                  </button>
-                                </div>
+                                  </div>
+                                ) : (() => {
+                                  const tc = timeColor(cell.start_hour);
+                                  return (
+                                    <div className="group relative">
+                                      <button
+                                        type="button"
+                                        onClick={() => openEdit(name, d)}
+                                        className={`w-full rounded-lg border px-1.5 py-1.5 text-center transition ${tc.cell}`}
+                                      >
+                                        <div className={`text-xs leading-tight ${tc.time}`}>
+                                          {fmtHour(cell.start_hour)}–{fmtHour(cell.end_hour)}
+                                        </div>
+                                        <div className={`text-[10px] ${tc.role}`}>{cell.role}</div>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        title="Delete shift"
+                                        disabled={!!(deletingCell?.staffName === name && deletingCell?.dateStr === d)}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (!window.confirm(`Delete shift for ${name} on ${formatDate(d)}?`)) return;
+                                          void deletePublishedShift(name, d);
+                                        }}
+                                        className="absolute right-0.5 top-0.5 hidden h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] text-white group-hover:flex"
+                                      >
+                                        {deletingCell?.staffName === name && deletingCell?.dateStr === d ? "…" : "×"}
+                                      </button>
+                                    </div>
+                                  );
+                                })()
                               ) : (
-                              <div className="group relative">
                                 <button
                                   type="button"
                                   onClick={() => openEdit(name, d)}
-                                  className="w-full rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-1.5 text-center hover:bg-emerald-500/20"
+                                  className="h-10 w-full rounded-lg border border-dashed border-gray-200 text-gray-300 hover:border-indigo-300 hover:text-indigo-400 transition"
                                 >
-                                  <div className="text-xs font-semibold text-emerald-300">
-                                    {fmtHour(cell.start_hour)}–{fmtHour(cell.end_hour)}
-                                  </div>
-                                  <div className="text-[10px] text-emerald-400/70">{cell.role}</div>
+                                  +
                                 </button>
-                                <button
-                                  type="button"
-                                  title="Delete shift"
-                                  disabled={!!(deletingCell?.staffName === name && deletingCell?.dateStr === d)}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (!window.confirm(`Delete shift for ${name} on ${formatDate(d)}?`)) return;
-                                    void deletePublishedShift(name, d);
-                                  }}
-                                  className="absolute right-0.5 top-0.5 hidden h-4 w-4 items-center justify-center rounded-full bg-rose-600 text-[9px] text-white group-hover:flex"
-                                >
-                                  {deletingCell?.staffName === name && deletingCell?.dateStr === d ? "…" : "×"}
-                                </button>
-                              </div>
-                              )
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => openEdit(name, d)}
-                                className="h-10 w-full rounded-lg border border-dashed border-white/10 text-neutral-600 hover:border-violet-500/40 hover:text-violet-400"
-                              >
-                                +
-                              </button>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="border-t border-gray-100 px-4 py-3">
+                <button type="button" onClick={addStaffRow} className="text-xs text-gray-400 hover:text-indigo-500 transition">
+                  + Add staff row manually
+                </button>
+              </div>
             </div>
-            <div className="border-t border-white/10 px-4 py-3">
-              <button type="button" onClick={addStaffRow} className="text-xs text-neutral-400 hover:text-violet-300">
-                + Add staff row manually
-              </button>
-            </div>
-          </div>
 
-          {/* Publish footer */}
-          <div className="flex flex-wrap items-center gap-4">
-            <button
-              type="button"
-              onClick={handlePublish}
-              disabled={saving}
-              className={`${PRIMARY_BUTTON} min-w-[200px]`}
-            >
-              {saving ? "Publishing..." : "💾 Save & Publish"}
-            </button>
-            <p className="text-xs text-neutral-500">
-              Publishes {shiftCount} shift{shiftCount !== 1 ? "s" : ""} to Week / My-Shift and exports to Google Sheets.
-            </p>
-            {shiftCount > 0 && (
+            {/* Publish footer */}
+            <div className="flex flex-wrap items-center gap-4">
               <button
                 type="button"
-                onClick={() => setView("published")}
-                className="text-xs text-emerald-400 hover:text-emerald-300 underline underline-offset-2"
+                onClick={handlePublish}
+                disabled={saving}
+                className={`${PRIMARY_BUTTON} min-w-[200px]`}
               >
-                Preview before publishing →
+                {saving ? "Publishing..." : "💾 Save & Publish"}
               </button>
-            )}
+              <p className="text-xs text-gray-400">
+                Publishes {shiftCount} shift{shiftCount !== 1 ? "s" : ""} to Week / My-Shift and exports to Google Sheets.
+              </p>
+              {shiftCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setView("published")}
+                  className="text-xs text-emerald-600 hover:text-emerald-500 underline underline-offset-2"
+                >
+                  Preview before publishing →
+                </button>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── Published View ── */}
+        {staffList.length > 0 && view === "published" && (
+          <PublishedView
+            city={city}
+            weekStart={weekStart}
+            weekDates={weekDates}
+            onBackToEdit={handleBackToEdit}
+          />
+        )}
+
+        {/* Empty state */}
+        {staffList.length === 0 && (
+          <div className={`${W_CARD} flex flex-col items-center justify-center py-16 text-center`}>
+            <div className="mb-3 text-4xl">📅</div>
+            <p className="text-sm font-medium text-gray-600">Select city, branch and week, then click &ldquo;Load Staff &amp; Shifts&rdquo;</p>
+            <p className="mt-1 text-xs text-gray-400">Existing published shifts for the selected week will be pre-loaded into the grid.</p>
           </div>
-        </>
-      )}
+        )}
 
-      {/* ── Published View ── */}
-      {staffList.length > 0 && view === "published" && (
-        <PublishedView
-          city={city}
-          weekStart={weekStart}
-          weekDates={weekDates}
-          onBackToEdit={handleBackToEdit}
-        />
-      )}
-
-      {/* Empty state */}
-      {staffList.length === 0 && (
-        <div className={`${GLASS_CARD} flex flex-col items-center justify-center py-16 text-center`}>
-          <div className="mb-3 text-4xl">📅</div>
-          <p className="text-sm font-medium text-neutral-300">Select city, branch and week, then click &ldquo;Load Staff &amp; Shifts&rdquo;</p>
-          <p className="mt-1 text-xs text-neutral-500">Existing published shifts for the selected week will be pre-loaded into the grid.</p>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
