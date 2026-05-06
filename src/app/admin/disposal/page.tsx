@@ -1,7 +1,7 @@
 // src/app/admin/disposal/page.tsx
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import { BRANCHES, type BranchCode, type City } from "@/lib/branches";
@@ -217,8 +217,10 @@ function InlineItemSearch({
   const [results, setResults] = useState<SearchItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const search = useCallback(async (q: string) => {
     if (!q.trim()) { setResults([]); setOpen(false); return; }
@@ -232,6 +234,22 @@ function InlineItemSearch({
     } catch { setResults([]); }
     finally { setLoading(false); }
   }, [city]);
+
+  useEffect(() => {
+    if (!open || !inputRef.current) return;
+    const rect = inputRef.current.getBoundingClientRect();
+    const FOOTER_H = 100;
+    const GAP = 6;
+    const available = window.innerHeight - rect.bottom - FOOTER_H - GAP;
+    setDropdownStyle({
+      position: "fixed",
+      top: rect.bottom + GAP,
+      left: rect.left,
+      width: rect.width,
+      maxHeight: Math.max(180, available),
+      zIndex: 9999,
+    });
+  }, [open, results]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -251,6 +269,7 @@ function InlineItemSearch({
   return (
     <div ref={wrapRef} className="relative">
       <input
+        ref={inputRef}
         className="w-full rounded-lg border border-violet-500/40 bg-violet-500/8 px-3 py-2.5 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-violet-400"
         value={query}
         onChange={(e) => {
@@ -265,7 +284,7 @@ function InlineItemSearch({
         <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">…</div>
       )}
       {open && results.length > 0 && (
-        <div className="absolute z-[200] mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 shadow-2xl overflow-y-auto" style={{ maxHeight: "min(60vh, calc(100vh - 160px))" }}>
+        <div className="rounded-xl border border-white/10 bg-zinc-900 shadow-2xl overflow-y-auto" style={dropdownStyle}>
           {results.map((item) => (
             <button key={`${item.item_type}_${item.id}`} type="button"
               onMouseDown={() => handleSelect(item)}
@@ -280,7 +299,7 @@ function InlineItemSearch({
         </div>
       )}
       {open && !loading && results.length === 0 && query.trim() && (
-        <div className="absolute z-[200] mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-zinc-500 shadow-2xl">
+        <div className="absolute z-[9999] mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-zinc-500 shadow-2xl">
           No items found
         </div>
       )}

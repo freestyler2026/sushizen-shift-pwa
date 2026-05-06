@@ -1,7 +1,7 @@
 // src/app/admin/backup/page.tsx
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import { BRANCHES, type BranchCode, type City } from "@/lib/branches";
@@ -229,21 +229,40 @@ function ItemSearch({ city, onSelect }: { city: City; onSelect: (item: SearchIte
   const [results, setResults] = useState<SearchItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const debRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const search = useCallback(async (q: string) => {
     if (!q.trim()) { setResults([]); setOpen(false); return; }
     setLoading(true);
     try {
       const data = await apiFetch<{ items: SearchItem[] }>(
-        `/api/admin/disposal/items/search?city=${city}&q=${encodeURIComponent(q)}&limit=20`
+        `/api/admin/disposal/items/search?city=${city}&q=${encodeURIComponent(q)}&limit=50`
       );
       setResults(data.items ?? []);
       setOpen(true);
     } catch { setResults([]); }
     finally { setLoading(false); }
   }, [city]);
+
+  // Recalculate dropdown position/size whenever it opens or results change
+  useEffect(() => {
+    if (!open || !inputRef.current) return;
+    const rect = inputRef.current.getBoundingClientRect();
+    const FOOTER_H = 100; // sticky footer approx height (px)
+    const GAP = 6;
+    const available = window.innerHeight - rect.bottom - FOOTER_H - GAP;
+    setDropdownStyle({
+      position: "fixed",
+      top: rect.bottom + GAP,
+      left: rect.left,
+      width: rect.width,
+      maxHeight: Math.max(180, available),
+      zIndex: 9999,
+    });
+  }, [open, results]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -256,6 +275,7 @@ function ItemSearch({ city, onSelect }: { city: City; onSelect: (item: SearchIte
   return (
     <div ref={wrapRef} className="relative">
       <input
+        ref={inputRef}
         className={`${INPUT_CLASS} py-3 text-base`}
         value={query}
         onChange={(e) => {
@@ -268,7 +288,7 @@ function ItemSearch({ city, onSelect }: { city: City; onSelect: (item: SearchIte
       />
       {loading && <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500">searching...</div>}
       {open && results.length > 0 && (
-        <div className="absolute z-[200] mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 shadow-2xl overflow-y-auto" style={{ maxHeight: "min(60vh, calc(100vh - 160px))" }}>
+        <div className="rounded-xl border border-white/10 bg-zinc-900 shadow-2xl overflow-y-auto" style={dropdownStyle}>
           {results.map((item) => (
             <button key={`${item.item_type}_${item.id}`} type="button"
               onMouseDown={() => { onSelect(item); setQuery(""); setResults([]); setOpen(false); }}
@@ -283,7 +303,7 @@ function ItemSearch({ city, onSelect }: { city: City; onSelect: (item: SearchIte
         </div>
       )}
       {open && !loading && results.length === 0 && query.trim() && (
-        <div className="absolute z-[200] mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-zinc-500 shadow-2xl">
+        <div className="absolute z-[9999] mt-1 w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-zinc-500 shadow-2xl">
           No items found
         </div>
       )}
