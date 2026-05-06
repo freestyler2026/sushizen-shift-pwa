@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { Field } from "@/components/Field";
 import DatePicker from "@/components/DatePicker";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { BRANCHES } from "@/lib/branches";
 import {
   GLASS_CARD,
   SMALL_BUTTON,
@@ -41,6 +42,7 @@ export default function RequestPage() {
   const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
   const [city, setCity] = useState<"dubai" | "manila">("dubai");
   const [branch, setBranch] = useState("BB");
+  const branchOptions = BRANCHES[city] ?? [];
   const [staffName, setStaffName] = useState("");
   const [workDate, setWorkDate] = useState(todayIso());
   const [requestType, setRequestType] = useState<ReqType>("time_change");
@@ -86,6 +88,12 @@ export default function RequestPage() {
     if (auth.staffName) setStaffName(auth.staffName);
   }, [auth, router]);
 
+  // Reset branch when city changes
+  useEffect(() => {
+    const first = BRANCHES[city]?.[0]?.code ?? "";
+    setBranch(first);
+  }, [city]);
+
   // Fetch staff names for dropdowns (manager selection + swap counterparty)
   useEffect(() => {
     const freshAuth = getAuth();
@@ -109,6 +117,9 @@ export default function RequestPage() {
       let currentAuth = getAuth();
       if (!currentAuth?.accessToken) {
         throw new Error("Please log in again before submitting a request.");
+      }
+      if (!branch.trim()) {
+        throw new Error("Branch is required.");
       }
       if (!workDate.trim()) {
         throw new Error("Work date is required.");
@@ -237,8 +248,17 @@ export default function RequestPage() {
             </select>
           </Field>
 
-          <Field label="Branch (optional)">
-            <input className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`} value={branch} onChange={(e) => setBranch(e.target.value)} />
+          <Field label="Branch">
+            <select
+              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
+              value={branch}
+              onChange={(e) => setBranch(e.target.value)}
+              required
+            >
+              {branchOptions.map((b) => (
+                <option key={b.code} value={b.code}>{b.name}</option>
+              ))}
+            </select>
           </Field>
 
           <Field label="Staff name" hint={canSubmitForOthers ? "Submit on behalf of this staff member" : "Locked to your login"}>
