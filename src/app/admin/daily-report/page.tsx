@@ -956,6 +956,44 @@ export default function DailyReportPage() {
 
   useEffect(() => { if (ready) void fetchReports(city); }, [ready, city, fetchReports]);
 
+  // Auto-refresh at 13:15 PHT and 15:15 PHT (= 05:15 UTC and 07:15 UTC)
+  useEffect(() => {
+    if (!ready) return;
+    // UTC hours/minutes for each auto-refresh target (PHT = UTC+8)
+    const TARGETS_UTC: { hour: number; minute: number }[] = [
+      { hour: 5, minute: 15 },  // 13:15 PHT
+      { hour: 7, minute: 15 },  // 15:15 PHT
+    ];
+    function msUntilNextTarget(): number {
+      const nowMs = Date.now();
+      // Express "now" as a PHT date to get today's calendar date in PHT
+      const phtOffsetMs = 8 * 60 * 60 * 1000;
+      const nowPht = new Date(nowMs + phtOffsetMs);
+      // Midnight of today (PHT) expressed in UTC ms
+      const todayMidnightUtcMs =
+        Date.UTC(nowPht.getUTCFullYear(), nowPht.getUTCMonth(), nowPht.getUTCDate()) - phtOffsetMs;
+      // Build absolute UTC ms for each target today
+      const todayTargets = TARGETS_UTC.map(({ hour, minute }) =>
+        todayMidnightUtcMs + (hour * 60 + minute) * 60 * 1000
+      );
+      // Next target strictly after now
+      const future = todayTargets.filter((t) => t > nowMs);
+      if (future.length > 0) return Math.min(...future) - nowMs;
+      // All today's targets are past → schedule tomorrow's first target
+      return todayTargets[0] + 24 * 60 * 60 * 1000 - nowMs;
+    }
+    let timer: ReturnType<typeof setTimeout>;
+    function scheduleNext() {
+      const ms = msUntilNextTarget();
+      timer = setTimeout(() => {
+        void fetchReports(city);
+        scheduleNext(); // schedule the following target
+      }, ms);
+    }
+    scheduleNext();
+    return () => clearTimeout(timer);
+  }, [ready, city, fetchReports]);
+
   const handleGenerate = async () => {
     const label = city === "dubai" ? "Dubai" : "Manila";
     if (!window.confirm(`Generate report for ${label} on ${generateDate}?`)) return;
