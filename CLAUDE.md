@@ -139,9 +139,19 @@ git commit --allow-empty -m "force redeploy"
 git push heroku HEAD:master --force
 ```
 
+### `git commit` が "Unable to create HEAD.lock" で失敗する場合
+
+前回の git プロセスがクラッシュしたときにロックファイルが残ることがある。
+
+```bash
+rm /Users/jaynishimura/Desktop/sushizen_shift_app_clean/.git/HEAD.lock
+# その後、通常通り git add / commit / push を実行
+```
+
 ### Claude（Cowork）からのデプロイについて
 - Cowork のサンドボックスは Heroku git への HTTPS 接続がブロックされているため、`git push heroku` はユーザーのローカルターミナルから実行する必要がある
 - Vercel へのデプロイ（`vercel --prod`）も同様にローカルターミナルから実行すること
+- また、サンドボックスからは `.git/HEAD.lock` の削除権限もないため、ロック解除もユーザー側で行う必要がある
 
 ---
 
