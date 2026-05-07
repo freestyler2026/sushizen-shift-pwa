@@ -217,11 +217,33 @@ interface BranchCard {
   disposalCount: number; backupCount: number;
 }
 
+// Manila branch code → canonical full name mapping.
+// Codes that are aliases of a POS full-name branch are merged; null = exclude entirely.
+const MANILA_BRANCH_NORM: Record<string, string | null> = {
+  par: "Paranaque",
+  paranaque: "Paranaque",
+  cub: "Cubao",
+  cubao: "Cubao",
+  taf: "Taft",
+  taft: "Taft",
+  ck: null,   // Cloud Kitchen — doesn't sell, exclude from cards
+};
+
 function buildBranchCards(data: ReportData, city: string): BranchCard[] {
   const map = new Map<string, BranchCard>();
   const key = (s: string) => (s || "").toLowerCase().trim();
 
-  const get = (name: string): BranchCard => {
+  // Returns canonical name (possibly remapped), or null to skip this branch entirely.
+  const norm = (rawName: string): string | null => {
+    if (city !== "manila") return rawName || null;
+    const k = key(rawName);
+    if (k in MANILA_BRANCH_NORM) return MANILA_BRANCH_NORM[k]; // explicit map (may be null)
+    return rawName || null;
+  };
+
+  const get = (rawName: string): BranchCard | null => {
+    const name = norm(rawName);
+    if (!name) return null; // excluded
     const k = key(name);
     if (!map.has(k)) map.set(k, { name, absences: 0, lateCount: 0, noShows: 0, otMinutes: 0, disposalCount: 0, backupCount: 0 });
     return map.get(k)!;
@@ -243,8 +265,7 @@ function buildBranchCards(data: ReportData, city: string): BranchCard[] {
       const actual = data.sales!.pos_sales!.rows.find(r => key(r.branch_name || r.branch_code || "") === k2);
       const name = actual?.branch_name || actual?.branch_code || k2;
       const card = get(name);
-      card.netSales = v.net;
-      card.orders = v.orders;
+      if (card) { card.netSales = v.net; card.orders = v.orders; }
     }
   }
   // Dubai fallback: populate per-branch orders from order_counts when POS has no rows
@@ -259,46 +280,51 @@ function buildBranchCards(data: ReportData, city: string): BranchCard[] {
       branchOrders.set(k2, cur);
     }
     for (const [, v] of branchOrders) {
-      get(v.name).orders = v.total;
+      const card = get(v.name);
+      if (card) card.orders = v.total;
     }
   }
   if (city === "manila" && data.sales?.daily_sales?.rows) {
     for (const r of data.sales.daily_sales.rows) {
       const card = get(r.branch || "Unknown");
-      card.totalAmount = r.total_amount ?? 0;
-      card.orders = r.total_orders ?? 0;
+      if (card) { card.totalAmount = r.total_amount ?? 0; card.orders = r.total_orders ?? 0; }
     }
   }
 
   // Absences by branch
   for (const r of data.attendance.absences) {
-    get(r.branch || "Unknown").absences++;
+    const card = get(r.branch || "Unknown");
+    if (card) card.absences++;
   }
   // Late by branch
   for (const r of data.attendance.late) {
-    get(r.branch || "Unknown").lateCount++;
+    const card = get(r.branch || "Unknown");
+    if (card) card.lateCount++;
   }
   // No-shows
   for (const r of data.attendance.no_show) {
-    get(r.scheduled_branch_code || "Unknown").noShows++;
+    const card = get(r.scheduled_branch_code || "Unknown");
+    if (card) card.noShows++;
   }
   // OT by branch
   for (const r of data.attendance.overtime_by_branch?.rows ?? []) {
     const card = get(r.branch_code || "Unknown");
-    card.otMinutes += r.total_overtime_minutes ?? 0;
+    if (card) card.otMinutes += r.total_overtime_minutes ?? 0;
   }
 
   // Adherence
   for (const r of data.adherence?.rows ?? []) {
     const card = get(r.branch_code || "Unknown");
-    card.adherenceRate = r.adherence_rate;
+    if (card) card.adherenceRate = r.adherence_rate;
   }
 
   // Ratings (avg per branch)
   const ratingsByBranch = new Map<string, number[]>();
   for (const r of data.ratings?.rows ?? []) {
     if (r.rating_score != null) {
-      const k2 = key(r.branch || "Unknown");
+      const normedBranch = norm(r.branch || "Unknown");
+      if (!normedBranch) continue;
+      const k2 = key(normedBranch);
       if (!ratingsByBranch.has(k2)) ratingsByBranch.set(k2, []);
       ratingsByBranch.get(k2)!.push(Number(r.rating_score));
     }
@@ -315,10 +341,12 @@ function buildBranchCards(data: ReportData, city: string): BranchCard[] {
 
   // Disposal / backup
   for (const r of data.disposal?.rows ?? []) {
-    get(r.branch_code || "Unknown").disposalCount++;
+    const card = get(r.branch_code || "Unknown");
+    if (card) card.disposalCount++;
   }
   for (const r of data.backup?.rows ?? []) {
-    get(r.branch_code || "Unknown").backupCount++;
+    const card = get(r.branch_code || "Unknown");
+    if (card) card.backupCount++;
   }
 
   return Array.from(map.values()).sort((a, b) => {
