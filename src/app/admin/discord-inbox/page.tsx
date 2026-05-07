@@ -6,10 +6,29 @@ import {
   MessageSquare, Send, CheckCircle, XCircle, Clock,
   RefreshCw, Bell, BellOff, Hash, User, ChevronDown, ChevronUp,
 } from "lucide-react";
-import { getAuth, canAccessAdminNav } from "@/lib/auth";
+import { getAuth, canAccessAdminNav, tryRefreshAccessToken } from "@/lib/auth";
 import { GLASS_CARD, PRIMARY_BUTTON, T_PAGE_TITLE, BADGE_SUCCESS, BADGE_WARNING } from "@/lib/ui-tokens";
+import { API_BASE } from "@/lib/api";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "";
+async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const doFetch = () => {
+    const auth = getAuth();
+    const token = auth?.accessToken || "";
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...(options.headers as Record<string, string> || {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  };
+  let res = await doFetch();
+  if (res.status === 401) {
+    const refreshed = await tryRefreshAccessToken();
+    if (refreshed) res = await doFetch();
+  }
+  return res;
+}
 
 // Management Discord User ID → display name mapping
 const MANAGEMENT_NAMES: Record<string, string> = {
@@ -200,10 +219,9 @@ export default function DiscordInboxPage() {
 
   const fetchMentions = useCallback(async (filter: StatusFilter = statusFilter) => {
     try {
-      const token = auth?.accessToken || "";
-      const res = await fetch(
+      const res = await authFetch(
         `${API_BASE}/api/admin/discord/mentions?status=${filter}&limit=100`,
-        { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
+        { cache: "no-store" }
       );
       if (res.status === 401) { router.replace("/week"); return; }
       if (res.status === 403) { setError("アクセス権限がありません。管理者にご連絡ください。"); setLoading(false); return; }
@@ -212,12 +230,12 @@ export default function DiscordInboxPage() {
         setMentions(data.items || []);
         setNewCount(data.new_count || 0);
       }
-    } catch (e) {
+    } catch {
       setError("Failed to load mentions.");
     } finally {
       setLoading(false);
     }
-  }, [auth?.accessToken, statusFilter, router]);
+  }, [statusFilter, router]);
 
   useEffect(() => {
     void fetchMentions(statusFilter);
@@ -248,10 +266,7 @@ export default function DiscordInboxPage() {
       await navigator.serviceWorker.ready;
 
       // Get VAPID public key
-      const token = auth?.accessToken || "";
-      const keyRes = await fetch(`${API_BASE}/api/admin/discord/vapid-public-key`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const keyRes = await authFetch(`${API_BASE}/api/admin/discord/vapid-public-key`);
       const keyData = await keyRes.json();
       if (!keyData.ok) throw new Error("VAPID key not available");
 
@@ -262,12 +277,9 @@ export default function DiscordInboxPage() {
       });
 
       const subJson = subscription.toJSON();
-      await fetch(`${API_BASE}/api/admin/discord/push-subscribe`, {
+      await authFetch(`${API_BASE}/api/admin/discord/push-subscribe`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           discord_user_id: discordUserId.trim(),
           staff_name: staffName,
@@ -293,17 +305,16 @@ export default function DiscordInboxPage() {
       if (reg) {
         const sub = await reg.pushManager.getSubscription();
         if (sub) {
-          const token = auth?.accessToken || "";
-          await fetch(`${API_BASE}/api/admin/discord/push-unsubscribe`, {
+          await authFetch(`${API_BASE}/api/admin/discord/push-unsubscribe`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ endpoint: sub.endpoint }),
           });
           await sub.unsubscribe();
         }
       }
       setPushEnabled(false);
-    } catch (e) {
+    } catch {
       alert("Failed to disable push.");
     } finally {
       setPushLoading(false);
@@ -311,10 +322,9 @@ export default function DiscordInboxPage() {
   };
 
   const handleReply = async (id: number, content: string, channelId: string) => {
-    const token = auth?.accessToken || "";
-    const res = await fetch(`${API_BASE}/api/admin/discord/mentions/${id}/reply`, {
+    const res = await authFetch(`${API_BASE}/api/admin/discord/mentions/${id}/reply`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content, channel_id: channelId }),
     });
     const data = await res.json();
@@ -323,10 +333,8 @@ export default function DiscordInboxPage() {
   };
 
   const handleDismiss = async (id: number) => {
-    const token = auth?.accessToken || "";
-    await fetch(`${API_BASE}/api/admin/discord/mentions/${id}/dismiss`, {
+    await authFetch(`${API_BASE}/api/admin/discord/mentions/${id}/dismiss`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
     });
     await fetchMentions(statusFilter);
   };

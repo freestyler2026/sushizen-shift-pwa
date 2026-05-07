@@ -247,6 +247,7 @@ export default function NavBar() {
     if (href === "/admin/price-check") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
     if (href === "/admin/baseroll-prep") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
     if (href === "/admin/daily-report") return canAccessAnalyticsAdmin(auth);
+    if (href === "/admin/discord-inbox") return canAccessAdminNav(auth);
     return false;
   }
 
