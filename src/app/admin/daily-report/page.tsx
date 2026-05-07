@@ -999,7 +999,21 @@ export default function DailyReportPage() {
     if (!window.confirm(`Generate report for ${label} on ${generateDate}?`)) return;
     setGenerating(true); setError("");
     try {
-      await apiPost(`/api/admin/daily-report/generate?report_date=${encodeURIComponent(generateDate)}`, {});
+      // Call per-city to avoid Heroku H12 30-second timeout (generating both at once is too slow)
+      const [dubaiRes, manilaRes] = await Promise.all([
+        apiPost<{ ok: boolean; results?: Record<string, { ok: boolean; error?: string }> }>(
+          `/api/admin/daily-report/generate?report_date=${encodeURIComponent(generateDate)}&city=dubai`, {}
+        ),
+        apiPost<{ ok: boolean; results?: Record<string, { ok: boolean; error?: string }> }>(
+          `/api/admin/daily-report/generate?report_date=${encodeURIComponent(generateDate)}&city=manila`, {}
+        ),
+      ]);
+      const errs: string[] = [];
+      for (const [cityKey, res] of Object.entries({ dubai: dubaiRes, manila: manilaRes })) {
+        const cityResult = res.results?.[cityKey];
+        if (cityResult && !cityResult.ok) errs.push(`${cityKey}: ${cityResult.error || "unknown error"}`);
+      }
+      if (errs.length) setError(errs.join(" | "));
       await fetchReports(city);
     } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setGenerating(false); }
