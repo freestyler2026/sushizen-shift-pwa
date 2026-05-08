@@ -236,8 +236,14 @@ export default function AttendancePage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [gpsPos, setGpsPos] = useState<GeolocationPosition | null>(null);
+  const [gpsAcquiredAt, setGpsAcquiredAt] = useState<number | null>(null); // ms epoch
+  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null); // metres
   const [gpsError, setGpsError] = useState("");
   const [gpsLoading, setGpsLoading] = useState(false);
+
+  // GPS TTL: auto-clear position after 5 minutes so stale data never keeps the button active
+  const GPS_TTL_MS = 5 * 60 * 1000;
+  const gpsValid = gpsPos !== null && gpsAcquiredAt !== null && Date.now() - gpsAcquiredAt < GPS_TTL_MS;
   const [visitBranch, setVisitBranch] = useState("");
   const [visitPickerOpen, setVisitPickerOpen] = useState(false);
   const [branchList, setBranchList] = useState<string[]>([]);
@@ -275,15 +281,24 @@ export default function AttendancePage() {
   useEffect(() => { if (auth) void fetchToday(); }, [auth, fetchToday]);
 
   // ─── GPS acquisition ──────────────────────────────────────────────────────
+  // maximumAge: 0  → always request a fresh fix; never accept a cached browser position.
+  // enableHighAccuracy: true → request best available fix (uses GPS chip on mobile).
+  // timeout: 15000 → allow up to 15 s for a high-accuracy indoor fix.
   const acquireGps = useCallback((): Promise<GeolocationPosition | null> => {
     return new Promise((resolve) => {
       if (typeof navigator === "undefined" || !navigator.geolocation) { resolve(null); return; }
       setGpsLoading(true);
       setGpsError("");
       navigator.geolocation.getCurrentPosition(
-        (pos) => { setGpsPos(pos); setGpsLoading(false); resolve(pos); },
-        (err) => { setGpsError(`GPS: ${err.message}`); setGpsLoading(false); resolve(null); },
-        { timeout: 10000, enableHighAccuracy: true },
+        (pos) => {
+          setGpsPos(pos);
+          setGpsAcquiredAt(Date.now());
+          setGpsAccuracy(pos.coords.accuracy);
+          setGpsLoading(false);
+          resolve(pos);
+        },
+        (err) => { setGpsError(`GPS error: ${err.message}`); setGpsLoading(false); resolve(null); },
+        { timeout: 15000, enableHighAccuracy: true, maximumAge: 0 },
       );
     });
   }, []);
@@ -314,6 +329,16 @@ export default function AttendancePage() {
     return () => clearTimeout(t);
   }, [error]);
 
+  // ─── GPS TTL checker — re-renders every 30 s to clear stale gpsPos ──────
+  useEffect(() => {
+    if (!gpsAcquiredAt) return;
+    const id = setInterval(() => {
+      // Force re-render; gpsValid is recomputed on each render
+      setElapsedTick((n) => n + 1);
+    }, 30_000);
+    return () => clearInterval(id);
+  }, [gpsAcquiredAt]);
+
   // ─── Live elapsed-time refresh while on shift ─────────────────────────────
   // Re-renders every 60 s so the Elapsed counter isn't frozen between actions.
   useEffect(() => {
@@ -337,7 +362,7 @@ export default function AttendancePage() {
 
         // GPS is required for clock-in and clock-out
         if ((action === "checkin" || action === "checkout") && !pos) {
-          throw new Error("GPS location is required to clock in/out. Please allow location access in your browser settings and try again.");
+          throw new Error("GPS location is required. Please tap 'Get my location' and ensure location access is allowed in your browser.");
         }
 
         const optRes = await fetch(`${API_BASE}/api/attendance/action/options`, {
@@ -550,16 +575,25 @@ export default function AttendancePage() {
           {/* GPS status */}
           {gpsLoading && <p className="text-xs text-zinc-500 animate-pulse">Getting GPS...</p>}
           {gpsError && <p className="text-xs text-amber-400">{gpsError}</p>}
-          {gpsPos && !isCheckedOut && (
-            <p className="text-xs text-emerald-400">📍 Location acquired — ready to clock in/out</p>
+          {gpsValid && !isCheckedOut && (
+            <div className="space-y-0.5">
+              <p className="text-xs text-emerald-400">
+                📍 Location acquired — ready to clock in/out
+              </p>
+              {gpsAccuracy !== null && gpsAccuracy > 100 && (
+                <p className="text-xs text-amber-400">
+                  ⚠️ GPS accuracy is low ({Math.round(gpsAccuracy)}m margin). Move outside or near a window and tap "Get my location" again for a better fix.
+                </p>
+              )}
+            </div>
           )}
 
           {/* Main actions */}
           {!isCheckedIn && !isCheckedOut && (
             <button
               onClick={() => doAction("checkin")}
-              disabled={busy || !gpsPos}
-              title={!gpsPos ? "GPS location required — tap 'Get my location' below" : undefined}
+              disabled={busy || !gpsValid}
+              title={!gpsValid ? "GPS location required — tap 'Get my location' below" : undefined}
               className="w-full rounded-xl bg-violet-600 py-4 text-base font-bold text-white disabled:opacity-40 hover:bg-violet-500 transition-colors flex items-center justify-center gap-2"
             >
               <LogIn size={18} />
@@ -569,8 +603,8 @@ export default function AttendancePage() {
           {isCheckedIn && !isCheckedOut && (
             <button
               onClick={() => doAction("checkout")}
-              disabled={busy || !gpsPos}
-              title={!gpsPos ? "GPS location required — tap 'Get my location' below" : undefined}
+              disabled={busy || !gpsValid}
+              title={!gpsValid ? "GPS location required — tap 'Get my location' below" : undefined}
               className="w-full rounded-xl bg-rose-700 py-4 text-base font-bold text-white disabled:opacity-40 hover:bg-rose-600 transition-colors flex items-center justify-center gap-2"
             >
               <LogOut size={18} />
@@ -644,10 +678,11 @@ export default function AttendancePage() {
               )}
               {visitBranch && (
                 <button
-                  onClick={() => {
-                    setVisitPickerOpen(false);
-                    void doAction("visit_start", { branch_code: visitBranch });
+                  onClick={async () => {
+                    const branch = visitBranch;
                     setVisitBranch("");
+                    setVisitPickerOpen(false);
+                    await doAction("visit_start", { branch_code: branch });
                   }}
                   disabled={busy}
                   className="w-full rounded-xl bg-violet-600 py-2.5 text-sm font-semibold text-white disabled:opacity-50 hover:bg-violet-500"
@@ -698,14 +733,16 @@ export default function AttendancePage() {
         </div>
       )}
 
-      {/* GPS required banner — shown before checkout when GPS not yet acquired */}
-      {!isCheckedOut && !gpsPos && (
+      {/* GPS required banner — shown to registered users before checkout when GPS not valid */}
+      {wauSupported && passkeyCount > 0 && !isCheckedOut && !gpsValid && (
         <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-3 py-3">
           <p className="text-xs font-semibold text-amber-400 mb-1.5">
             📍 GPS location required
           </p>
           <p className="text-xs text-amber-300/80 mb-2">
-            You must be within range of your branch to clock in or out.
+            {gpsPos && !gpsValid
+              ? "Location expired (5 min). Tap to refresh your position."
+              : "You must be within 50m of your branch to clock in or out."}
           </p>
           <button
             onClick={acquireGps}
