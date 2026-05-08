@@ -233,60 +233,97 @@ function sortBranchName(a: string, b: string) {
 }
 
 // -----------------------------
-// timeline renderer (bar-only + text)
+// Grid layout constants (must be identical for axis row + every staff row)
+// col1: name, col2: bar (stretchy), col3: badge+time label
 // -----------------------------
-function Timeline2Rows({ rows }: { rows: ShiftRow[] }) {
-  const label = rows
-    .slice()
-    .sort((a, b) => (a.start_hour ?? 0) - (b.start_hour ?? 0))
-    .map((r) => rangeText(Number(r.start_hour ?? 0), Number(r.end_hour ?? 0)))
-    .join(", ");
+const GRID_COLS = "grid grid-cols-[8rem_1fr_5rem]";
 
+// Axis tick positions: every 2 hours from TL_START to TL_END
+const AXIS_TICKS: number[] = [];
+for (let h = TL_START; h <= TL_END; h += 2) AXIS_TICKS.push(h);
+
+// -----------------------------
+// ShiftBar — pure bar, no label (used inside the grid bar column)
+// -----------------------------
+function ShiftBar({ rows }: { rows: ShiftRow[] }) {
   return (
-    <div className="mt-1 flex items-center gap-2">
-      {/* Compact bar — no tick labels, reduced height */}
-      <div className="relative h-5 flex-1 overflow-hidden rounded border border-neutral-800 bg-neutral-950/30">
-        <div className="absolute inset-0 flex">
-          {Array.from({ length: TL_TOTAL }).map((_, i) => (
-            <div key={i} className="flex-1 border-r border-neutral-900/40 last:border-r-0" />
-          ))}
-        </div>
+    <div className="relative h-5 overflow-hidden rounded border border-neutral-800 bg-neutral-950/30">
+      {/* per-hour dividers */}
+      <div className="pointer-events-none absolute inset-0 flex">
+        {Array.from({ length: TL_TOTAL }).map((_, i) => (
+          <div
+            key={i}
+            className="flex-1"
+            style={{
+              borderRight: i < TL_TOTAL - 1 ? "1px dashed rgba(255,255,255,0.07)" : "none",
+            }}
+          />
+        ))}
+      </div>
+      {rows.map((r, idx) => {
+        const st = Number(r.start_hour ?? 0);
+        const en = Number(r.end_hour ?? 0);
+        const stC = clamp(st, TL_START, TL_END);
+        const enC = clamp(en, TL_START, TL_END);
+        const left = ((stC - TL_START) / TL_TOTAL) * 100;
+        const width = Math.max(2, ((enC - stC) / TL_TOTAL) * 100);
+        const ov = (r as any)?.override;
+        const isFinal = ov?.status === "FINAL";
+        const isPending = ov?.status === "PENDING";
+        const barCls = isFinal
+          ? "bg-emerald-500/25 border-emerald-400/50"
+          : isPending
+          ? "bg-amber-500/25 border-amber-400/60"
+          : "bg-sky-500/20 border-sky-400/40";
+        return (
+          <div
+            key={`${r.staff_name}-${idx}-${st}-${en}`}
+            className={`absolute top-0.5 h-4 rounded border ${barCls}`}
+            style={{ left: `${left}%`, width: `${width}%` }}
+            title={`${(r.role || "").toString()} ${rangeText(st, en)}`}
+          />
+        );
+      })}
+    </div>
+  );
+}
 
-        {rows.map((r, idx) => {
-          const st = Number(r.start_hour ?? 0);
-          const en = Number(r.end_hour ?? 0);
-
-          const stC = clamp(st, TL_START, TL_END);
-          const enC = clamp(en, TL_START, TL_END);
-
-          const left = ((stC - TL_START) / TL_TOTAL) * 100;
-          const widthRaw = ((enC - stC) / TL_TOTAL) * 100;
-          const width = Math.max(2, widthRaw);
-
-          const ov = (r as any)?.override;
-          const isFinal = ov?.status === "FINAL";
-          const isPending = ov?.status === "PENDING";
-
-          const barCls = isFinal
-            ? "bg-emerald-500/25 border-emerald-400/50"
-            : isPending
-            ? "bg-amber-500/25 border-amber-400/60"
-            : "bg-sky-500/20 border-sky-400/40";
-
-          const full = rangeText(st, en);
-
+// -----------------------------
+// TimeAxisRow — hour label header, same GRID_COLS as staff rows
+// -----------------------------
+function TimeAxisRow() {
+  return (
+    <div className={`${GRID_COLS} items-end gap-x-2 px-3 pb-1`}>
+      {/* col1: empty (name placeholder) */}
+      <div />
+      {/* col2: axis labels */}
+      <div className="relative h-4 overflow-hidden">
+        {AXIS_TICKS.map((h, i) => {
+          const pct = ((h - TL_START) / TL_TOTAL) * 100;
+          const base = h >= 24 ? h - 24 : h;
+          const plus = h >= 24 ? "⁺" : "";
+          const isFirst = i === 0;
+          const isLast = i === AXIS_TICKS.length - 1;
           return (
-            <div
-              key={`${r.staff_name}-${idx}-${st}-${en}`}
-              className={`absolute top-0.5 h-4 rounded border ${barCls}`}
-              style={{ left: `${left}%`, width: `${width}%` }}
-              title={`${(r.role || "").toString()} ${full}`}
-            />
+            <span
+              key={h}
+              className="absolute select-none text-[8px] leading-none text-neutral-500"
+              style={{
+                left: `${pct}%`,
+                transform: isFirst
+                  ? "none"
+                  : isLast
+                  ? "translateX(-100%)"
+                  : "translateX(-50%)",
+              }}
+            >
+              {pad2(base)}{plus}
+            </span>
           );
         })}
       </div>
-      {/* Time range label inline with bar */}
-      <span className="shrink-0 text-[10px] text-neutral-300">{label || <span className="text-neutral-600">—</span>}</span>
+      {/* col3: empty (badge placeholder) */}
+      <div />
     </div>
   );
 }
@@ -476,6 +513,17 @@ export default function WeekPage() {
     const badge = badgeForRow(rows[0]);
     const roleText = absence ? absLabel : (rows[0]?.role || "");
 
+    const timeLabel = rows
+      .slice()
+      .sort((a, b) => (a.start_hour ?? 0) - (b.start_hour ?? 0))
+      .map((r) => rangeText(Number(r.start_hour ?? 0), Number(r.end_hour ?? 0)))
+      .join(", ");
+
+    const noteText = rows
+      .filter((r) => r.note)
+      .map((r) => r.note)
+      .join(" · ");
+
     return (
       <div
         key={staff}
@@ -484,32 +532,39 @@ export default function WeekPage() {
         }`}
       >
         {isMe ? <div className="absolute left-0 top-0 h-full w-0.5 bg-amber-500" /> : null}
-        <div className={`px-3 py-1.5 ${isMe ? "pl-4" : ""}`}>
-          {/* Name + role + badge all on one line */}
-          <div className="flex items-center gap-2">
-            <div className="flex min-w-0 flex-1 items-center gap-1">
+        {/* Grid: [name 8rem] [bar 1fr] [badge+time 5rem] */}
+        <div className={`${GRID_COLS} items-center gap-x-2 px-3 py-1.5`}>
+          {/* col1: Name + role */}
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-1">
               <span className="truncate text-xs font-semibold text-white">{name}</span>
               {isMe ? <span className="shrink-0 text-[9px] font-medium text-amber-300">YOU</span> : null}
               {containsJP(staff) ? <span className="shrink-0 text-[9px] text-red-300">JP</span> : null}
-              <span className="truncate text-[10px] text-neutral-500 ml-1">{roleText}</span>
             </div>
+            <div className="truncate text-[10px] text-neutral-500">{roleText}</div>
+          </div>
+
+          {/* col2: ShiftBar or absence text */}
+          {absence ? (
+            <div className="text-[10px] text-neutral-400">{absNote || absLabel}</div>
+          ) : (
+            <div>
+              <ShiftBar rows={rows} />
+              {noteText && (
+                <div className="mt-0.5 truncate text-[10px] italic text-neutral-500">{noteText}</div>
+              )}
+            </div>
+          )}
+
+          {/* col3: Badge + time range (right-aligned, stacked) */}
+          <div className="flex flex-col items-end gap-0.5">
             <span className={`shrink-0 rounded border px-1 py-0 text-[9px] leading-4 ${badge.cls}`}>
               {badge.label}
             </span>
+            {!absence && (
+              <span className="text-right text-[9px] leading-tight text-neutral-400">{timeLabel}</span>
+            )}
           </div>
-
-          {absence ? (
-            <div className="mt-0.5 text-[10px] text-neutral-400">{absNote || absLabel}</div>
-          ) : (
-            <>
-              <Timeline2Rows rows={rows} />
-              {rows.some((r) => r.note) && (
-                <div className="mt-0.5 truncate text-[10px] italic text-neutral-500">
-                  {rows.filter((r) => r.note).map((r) => r.note).join(" · ")}
-                </div>
-              )}
-            </>
-          )}
         </div>
       </div>
     );
@@ -768,8 +823,11 @@ export default function WeekPage() {
                           </span>
                         </div>
 
-                        <div className="space-y-1">
-                          {staffEntries.map(([staff, rows]) => renderStaffRow(staff, rows))}
+                        <div>
+                          <TimeAxisRow />
+                          <div className="space-y-1">
+                            {staffEntries.map(([staff, rows]) => renderStaffRow(staff, rows))}
+                          </div>
                         </div>
                       </div>
                     );
