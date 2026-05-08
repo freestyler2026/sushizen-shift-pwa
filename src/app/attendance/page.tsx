@@ -340,7 +340,12 @@ export default function AttendancePage() {
         await fetchToday();
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
-        if (!msg.includes("AbortError") && !msg.includes("User cancelled") && !msg.includes("NotAllowedError")) {
+        // DOMException has .name ("NotAllowedError", "AbortError"); check both name and message
+        const eName = e instanceof DOMException ? e.name : "";
+        const isUserCancelled =
+          eName === "NotAllowedError" || eName === "AbortError" ||
+          msg.includes("AbortError") || msg.includes("User cancelled") || msg.includes("NotAllowedError");
+        if (!isUserCancelled) {
           setError(msg);
         }
       } finally {
@@ -381,7 +386,11 @@ export default function AttendancePage() {
       await fetchToday();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (!msg.includes("AbortError") && !msg.includes("NotAllowedError")) setError(msg);
+      const eName = e instanceof DOMException ? e.name : "";
+      const isUserCancelled =
+        eName === "NotAllowedError" || eName === "AbortError" ||
+        msg.includes("AbortError") || msg.includes("NotAllowedError");
+      if (!isUserCancelled) setError(msg);
     } finally {
       setBusy(false);
     }
@@ -536,6 +545,18 @@ export default function AttendancePage() {
               You&apos;ve clocked out for today. Great work!
             </div>
           )}
+
+          {/* Register this device — shown when passkeys exist but this device may not be enrolled */}
+          <div className="border-t border-zinc-700/40 pt-3">
+            <button
+              onClick={doRegister}
+              disabled={busy}
+              className="flex w-full items-center justify-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 disabled:opacity-40 transition-colors"
+            >
+              <Fingerprint size={12} />
+              Register this device (add / replace passkey)
+            </button>
+          </div>
         </div>
       )}
 
