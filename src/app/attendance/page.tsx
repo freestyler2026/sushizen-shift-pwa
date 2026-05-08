@@ -241,17 +241,21 @@ export default function AttendancePage() {
   const [visitBranch, setVisitBranch] = useState("");
   const [visitPickerOpen, setVisitPickerOpen] = useState(false);
   const [branchList, setBranchList] = useState<string[]>([]);
+  // Triggers elapsed-time re-render every minute while on shift
+  const [, setElapsedTick] = useState(0);
 
   // ─── Auth guard ───────────────────────────────────────────────────────────
   useEffect(() => {
     const a = getAuth();
-    if (!a) { router.replace("/login?next=%2Fattendance"); return; }
-    if (!canAccessAttendancePage(a)) { router.replace("/request"); return; }
+    if (!a) { setLoading(false); router.replace("/login?next=%2Fattendance"); return; }
+    if (!canAccessAttendancePage(a)) { setLoading(false); router.replace("/request"); return; }
     setAuth(a);
   }, [router]);
 
   // ─── Load today's status ──────────────────────────────────────────────────
-  const fetchToday = useCallback(async () => {
+  // silent=true: swallows errors (used after a successful action so the action
+  // success message is not overwritten by a transient network hiccup)
+  const fetchToday = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     const a = getAuth();
     if (!a) return;
     try {
@@ -262,7 +266,7 @@ export default function AttendancePage() {
       if (!res.ok) throw new Error(await res.text());
       setData(await res.json());
     } catch (e) {
-      setError(String(e));
+      if (!silent) setError(String(e));
     } finally {
       setLoading(false);
     }
@@ -296,6 +300,29 @@ export default function AttendancePage() {
       .then((j) => setBranchList((j.branches || []).map((b: { branch_code: string }) => b.branch_code)))
       .catch(() => {});
   }, [auth]);
+
+  // ─── Auto-dismiss success/error messages after 5 s ───────────────────────
+  useEffect(() => {
+    if (!success) return;
+    const t = setTimeout(() => setSuccess(""), 5000);
+    return () => clearTimeout(t);
+  }, [success]);
+
+  useEffect(() => {
+    if (!error) return;
+    const t = setTimeout(() => setError(""), 8000);
+    return () => clearTimeout(t);
+  }, [error]);
+
+  // ─── Live elapsed-time refresh while on shift ─────────────────────────────
+  // Re-renders every 60 s so the Elapsed counter isn't frozen between actions.
+  useEffect(() => {
+    const checkedIn = !!data?.session?.check_in_at;
+    const checkedOut = !!data?.session?.check_out_at;
+    if (!checkedIn || checkedOut) return;
+    const id = setInterval(() => setElapsedTick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, [data?.session?.check_in_at, data?.session?.check_out_at]);
 
   // ─── WebAuthn action ──────────────────────────────────────────────────────
   const doAction = useCallback(
@@ -337,7 +364,7 @@ export default function AttendancePage() {
         };
         setSuccess(labels[action] ?? "Done ✓");
         if (action === "checkout") setVisitPickerOpen(false);
-        await fetchToday();
+        await fetchToday({ silent: true });
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         // DOMException has .name ("NotAllowedError", "AbortError"); check both name and message
@@ -383,7 +410,7 @@ export default function AttendancePage() {
         throw new Error(e.detail || "Registration failed");
       }
       setSuccess("Device registered! You can now clock in.");
-      await fetchToday();
+      await fetchToday({ silent: true });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       const eName = e instanceof DOMException ? e.name : "";
@@ -567,7 +594,12 @@ export default function AttendancePage() {
             <span className="text-sm font-medium text-white">Branch Visits</span>
             {!isCheckedOut && (
               <button
-                onClick={() => setVisitPickerOpen((o) => !o)}
+                onClick={() => {
+                  setVisitPickerOpen((o) => {
+                    if (o) setVisitBranch(""); // clear selection when closing
+                    return !o;
+                  });
+                }}
                 className="flex items-center gap-1 rounded-lg bg-violet-700/30 px-2.5 py-1 text-xs text-violet-300 hover:bg-violet-700/50"
               >
                 <Plus size={12} /> Start Visit
@@ -656,8 +688,8 @@ export default function AttendancePage() {
         </div>
       )}
 
-      {/* GPS nudge */}
-      {wauSupported && passkeyCount > 0 && !gpsPos && (
+      {/* GPS nudge — only shown before checkout (no value after clocking out) */}
+      {wauSupported && passkeyCount > 0 && !isCheckedOut && !gpsPos && (
         <div className="rounded-xl bg-zinc-800/40 px-3 py-2.5">
           <button
             onClick={acquireGps}
