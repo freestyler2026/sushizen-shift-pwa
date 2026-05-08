@@ -760,6 +760,20 @@ export default function ManualShiftPage() {
       });
     }
     // Apply cells (sorted by start_hour; single-shift stays as ShiftCell, multi as array)
+    // Also compute projected gridData and save to draft immediately — this protects against
+    // a race condition where loadExistingShifts(forceOverwrite=true) completes after this
+    // and wipes newly-applied Bayzat rows before the auto-save effect runs.
+    const projectedGrid: GridData = { ...gridData };
+    for (const n of newNames) if (!projectedGrid[n]) projectedGrid[n] = {};
+    for (const [name, days] of Object.entries(grouped)) {
+      if (!projectedGrid[name]) projectedGrid[name] = {};
+      for (const [date, shifts] of Object.entries(days)) {
+        const sorted = shifts.slice().sort((a, b) => a.start_hour - b.start_hour);
+        projectedGrid[name][date] = sorted.length === 1 ? sorted[0] : sorted;
+      }
+    }
+    saveDraft(city, branchCode, weekStart, projectedGrid);
+
     setGridData((prev) => {
       const next = { ...prev };
       for (const [name, days] of Object.entries(grouped)) {
@@ -1577,16 +1591,16 @@ export default function ManualShiftPage() {
               <button
                 type="button"
                 onClick={() => applyBayzatToGrid(bayzatResult.rows, branchCode, weekStart)}
-                disabled={bayzatResult.rows.filter(
+                disabled={loading || bayzatResult.rows.filter(
                   (r) => r.branch_code === branchCode &&
                     r.work_date >= weekStart && r.work_date <= addDays(weekStart, 6)
                 ).length === 0}
                 className={`${PRIMARY_BUTTON} flex-1 disabled:opacity-40 disabled:cursor-not-allowed`}
               >
-                ✅ Apply to Grid ({bayzatResult.rows.filter(
+                {loading ? "⏳ Loading..." : `✅ Apply to Grid (${bayzatResult.rows.filter(
                   (r) => r.branch_code === branchCode &&
                     r.work_date >= weekStart && r.work_date <= addDays(weekStart, 6)
-                ).length} rows)
+                ).length} rows)`}
               </button>
               <button
                 type="button"
