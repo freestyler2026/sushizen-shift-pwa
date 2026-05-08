@@ -411,6 +411,7 @@ export default function ManualShiftPage() {
   const [timeError, setTimeError] = useState("");
   const [bayzatResult, setBayzatResult] = useState<BayzatResult | null>(null);
   const [bayzatImporting, setBayzatImporting] = useState(false);
+  const [bayzatAllApplied, setBayzatAllApplied] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -717,6 +718,7 @@ export default function ManualShiftPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     setBayzatImporting(true);
+    setBayzatAllApplied(null);
     setError("");
     try {
       const form = new FormData();
@@ -749,6 +751,56 @@ export default function ManualShiftPage() {
       setBayzatImporting(false);
       e.target.value = ""; // allow re-selecting the same file
     }
+  }
+
+  // ─── Apply Bayzat rows for ALL branches in the file at once ─────────────────
+  // Saves each branch's Bayzat data to localStorage (draft). When the user
+  // switches to any branch that branch's draft will be auto-loaded, so they
+  // never need to re-upload the file. The current branch is also applied live.
+  function applyBayzatToAllBranches(rows: BayzatRow[]) {
+    const weekEnd = addDays(weekStart, 6);
+    const weekRows = rows.filter(
+      (r) => r.work_date >= weekStart && r.work_date <= weekEnd
+    );
+
+    // Group rows by branch_code
+    const byBranch: Record<string, BayzatRow[]> = {};
+    for (const r of weekRows) {
+      if (!r.branch_code) continue;
+      if (!byBranch[r.branch_code]) byBranch[r.branch_code] = [];
+      byBranch[r.branch_code].push(r);
+    }
+
+    const summary: string[] = [];
+
+    for (const [bc, bRows] of Object.entries(byBranch)) {
+      // Build a GridData from Bayzat rows for this branch
+      const grid: GridData = {};
+      for (const r of bRows) {
+        const staffName =
+          BAYZAT_NAME_MAP[r.bayzat_name] ?? BAYZAT_NAME_MAP[r.staff_name] ?? r.staff_name;
+        if (!staffName) continue;
+        if (!grid[staffName]) grid[staffName] = {};
+        const cell: ShiftCell = { start_hour: r.start_hour, end_hour: r.end_hour, role: r.role || "STAFF" };
+        const existing = grid[staffName][r.work_date];
+        if (existing == null) {
+          grid[staffName][r.work_date] = cell;
+        } else {
+          const arr = Array.isArray(existing) ? existing : [existing];
+          const merged = [...arr, cell].sort((a, b) => a.start_hour - b.start_hour);
+          grid[staffName][r.work_date] = merged.length === 1 ? merged[0] : merged;
+        }
+      }
+      // Persist to this branch's localStorage draft
+      saveDraft(city, bc, weekStart, grid);
+      const shiftCount = bRows.filter((r) => r.type === "shift").length;
+      summary.push(`${bc}: ${shiftCount}件`);
+    }
+
+    setBayzatAllApplied(summary);
+
+    // Also apply to the currently-viewed branch immediately (live grid update)
+    applyBayzatToGrid(rows, branchCode, weekStart);
   }
 
   function applyBayzatToGrid(rows: BayzatRow[], targetBranch: string, targetWeekStart: string) {
@@ -1618,28 +1670,61 @@ export default function ManualShiftPage() {
             </div>
 
             {/* Footer actions */}
-            <div className="shrink-0 flex items-center gap-3 border-t border-gray-100 px-6 py-4 rounded-b-2xl bg-gray-50">
-              <button
-                type="button"
-                onClick={() => applyBayzatToGrid(bayzatResult.rows, branchCode, weekStart)}
-                disabled={loading || bayzatResult.rows.filter(
-                  (r) => r.branch_code === branchCode &&
-                    r.work_date >= weekStart && r.work_date <= addDays(weekStart, 6)
-                ).length === 0}
-                className={`${PRIMARY_BUTTON} flex-1 disabled:opacity-40 disabled:cursor-not-allowed`}
-              >
-                {loading ? "⏳ Loading..." : `✅ Apply to Grid (${bayzatResult.rows.filter(
-                  (r) => r.branch_code === branchCode &&
-                    r.work_date >= weekStart && r.work_date <= addDays(weekStart, 6)
-                ).length} rows)`}
-              </button>
-              <button
-                type="button"
-                onClick={() => setBayzatResult(null)}
-                className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
-              >
-                Cancel
-              </button>
+            <div className="shrink-0 border-t border-gray-100 px-6 py-4 rounded-b-2xl bg-gray-50 space-y-3">
+
+              {/* Success message after Apply All */}
+              {bayzatAllApplied && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs text-emerald-800">
+                  <span className="font-semibold">✅ 全ブランチに保存済み：</span>{" "}
+                  {bayzatAllApplied.join(" · ")}
+                  <br />
+                  <span className="text-emerald-700">ブランチを切り替えると自動的にデータが反映されます。</span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3">
+                {/* Apply All Branches — saves every branch's data to draft at once */}
+                {(() => {
+                  const allWeekRows = bayzatResult.rows.filter(
+                    (r) => r.work_date >= weekStart && r.work_date <= addDays(weekStart, 6)
+                  );
+                  const branchesInFile = [...new Set(allWeekRows.map((r) => r.branch_code).filter(Boolean))];
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => applyBayzatToAllBranches(bayzatResult.rows)}
+                      disabled={loading || allWeekRows.length === 0}
+                      className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                    >
+                      🌐 全ブランチ一括保存 ({branchesInFile.length}ブランチ)
+                    </button>
+                  );
+                })()}
+
+                {/* Apply current branch only */}
+                <button
+                  type="button"
+                  onClick={() => applyBayzatToGrid(bayzatResult.rows, branchCode, weekStart)}
+                  disabled={loading || bayzatResult.rows.filter(
+                    (r) => r.branch_code === branchCode &&
+                      r.work_date >= weekStart && r.work_date <= addDays(weekStart, 6)
+                  ).length === 0}
+                  className={`${PRIMARY_BUTTON} flex-1 disabled:opacity-40 disabled:cursor-not-allowed`}
+                >
+                  {loading ? "⏳ Loading..." : `✅ このブランチに適用 (${bayzatResult.rows.filter(
+                    (r) => r.branch_code === branchCode &&
+                      r.work_date >= weekStart && r.work_date <= addDays(weekStart, 6)
+                  ).length} rows)`}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setBayzatResult(null); setBayzatAllApplied(null); }}
+                  className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
+                >
+                  閉じる
+                </button>
+              </div>
             </div>
 
           </div>
