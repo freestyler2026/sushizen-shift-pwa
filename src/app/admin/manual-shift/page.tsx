@@ -87,6 +87,15 @@ const SPECIAL_TYPES = [
 type SpecialRole = (typeof SPECIAL_TYPES)[number]["role"];
 const SPECIAL_ROLE_SET = new Set<string>(SPECIAL_TYPES.map((s) => s.role));
 function isSpecialRole(role: string) { return SPECIAL_ROLE_SET.has(role); }
+
+// ─── Bayzat → Staff Master name corrections ───────────────────────────────────
+// Bayzat names that don't fuzzy-match the staff master get added as new rows.
+// Map the raw Bayzat name (key) to the correct staff master name (value).
+const BAYZAT_NAME_MAP: Record<string, string> = {
+  "Puker KC":   "Pukar K C",
+  "Raj Deeban": "Raj Deeban Jegan",
+  "Ashik Khan": "Ashik Kahn",
+};
 function specialStyle(role: string) {
   return SPECIAL_TYPES.find((s) => s.role === role)?.style ?? "border-gray-300 bg-gray-100 text-gray-600";
 }
@@ -417,6 +426,9 @@ export default function ManualShiftPage() {
   const branchListRef = useRef<HTMLDivElement>(null);
   const controlsCardRef = useRef<HTMLDivElement>(null);
   const staffListRef = useRef<string[]>([]);
+  // Tracks all Bayzat-applied shifts so loadExistingShifts can restore them
+  // after a server reload (which only knows about published/server data).
+  const bayzatAppliedRef = useRef<GridData>({});
   const [branchDropdownRect, setBranchDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const weekDates = useMemo(
@@ -444,6 +456,7 @@ export default function ManualShiftPage() {
     setBranchCode(BRANCHES[city][0].code);
     setStaffList([]);
     setGridData({});
+    bayzatAppliedRef.current = {};
     setEditTarget(null);
     setView("edit");
   }, [city]);
@@ -519,6 +532,18 @@ export default function ManualShiftPage() {
             nextGrid[staffKey][workDate] = sorted.length === 1 ? sorted[0] : sorted;
           }
         }
+
+        // Restore any Bayzat-applied shifts for dates the server doesn't know about yet
+        // (e.g. Sunday 5/10 that hasn't been published). Server data always takes priority.
+        for (const [name, days] of Object.entries(bayzatAppliedRef.current)) {
+          if (!nextGrid[name]) nextGrid[name] = {};
+          for (const [date, shift] of Object.entries(days)) {
+            if (nextGrid[name][date] == null) {
+              nextGrid[name][date] = shift;
+            }
+          }
+        }
+
         return nextGrid;
       });
 
@@ -543,6 +568,7 @@ export default function ManualShiftPage() {
   useEffect(() => {
     if (staffList.length === 0) return;
     const savedDraft = loadDraft(city, branchCode, weekStart);
+    bayzatAppliedRef.current = {};
     void (async () => {
       await loadStaff();
       await loadExistingShifts(true);
@@ -734,8 +760,14 @@ export default function ManualShiftPage() {
         r.work_date <= weekEnd
     );
 
+    // Resolve the final staff name: apply BAYZAT_NAME_MAP override first,
+    // then fall back to the backend-matched staff_name.
+    function resolveStaffName(r: BayzatRow): string {
+      return BAYZAT_NAME_MAP[r.bayzat_name] ?? BAYZAT_NAME_MAP[r.staff_name] ?? r.staff_name;
+    }
+
     // Add staff names not yet in the grid
-    const newNames = [...new Set(filtered.map((r) => r.staff_name).filter(Boolean))].filter(
+    const newNames = [...new Set(filtered.map(resolveStaffName).filter(Boolean))].filter(
       (n) => !staffList.includes(n)
     );
     if (newNames.length > 0) {
@@ -750,30 +782,29 @@ export default function ManualShiftPage() {
     // Group filtered rows by staff+date to support split shifts
     const grouped: Record<string, Record<string, ShiftCell[]>> = {};
     for (const r of filtered) {
-      if (!r.staff_name) continue;
-      if (!grouped[r.staff_name]) grouped[r.staff_name] = {};
-      if (!grouped[r.staff_name][r.work_date]) grouped[r.staff_name][r.work_date] = [];
-      grouped[r.staff_name][r.work_date].push({
+      const staffName = resolveStaffName(r);
+      if (!staffName) continue;
+      if (!grouped[staffName]) grouped[staffName] = {};
+      if (!grouped[staffName][r.work_date]) grouped[staffName][r.work_date] = [];
+      grouped[staffName][r.work_date].push({
         start_hour: r.start_hour,
         end_hour: r.end_hour,
         role: r.role || "STAFF",
       });
     }
-    // Apply cells (sorted by start_hour; single-shift stays as ShiftCell, multi as array)
-    // Also compute projected gridData and save to draft immediately — this protects against
-    // a race condition where loadExistingShifts(forceOverwrite=true) completes after this
-    // and wipes newly-applied Bayzat rows before the auto-save effect runs.
-    const projectedGrid: GridData = { ...gridData };
-    for (const n of newNames) if (!projectedGrid[n]) projectedGrid[n] = {};
+
+    // Save the computed shifts to bayzatAppliedRef so that subsequent calls to
+    // loadExistingShifts can restore them — this is the primary guard against
+    // server reloads wiping data for unpublished dates (e.g. Sunday 5/10).
     for (const [name, days] of Object.entries(grouped)) {
-      if (!projectedGrid[name]) projectedGrid[name] = {};
+      if (!bayzatAppliedRef.current[name]) bayzatAppliedRef.current[name] = {};
       for (const [date, shifts] of Object.entries(days)) {
         const sorted = shifts.slice().sort((a, b) => a.start_hour - b.start_hour);
-        projectedGrid[name][date] = sorted.length === 1 ? sorted[0] : sorted;
+        bayzatAppliedRef.current[name][date] = sorted.length === 1 ? sorted[0] : sorted;
       }
     }
-    saveDraft(city, branchCode, weekStart, projectedGrid);
 
+    // Apply to React state
     setGridData((prev) => {
       const next = { ...prev };
       for (const [name, days] of Object.entries(grouped)) {
