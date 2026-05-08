@@ -584,6 +584,12 @@ export function ManilaSalesSection({
     void loadAll();
   }, [loadAll]);
 
+  // Clear stale error when step-up expires so stale "Internal Server Error"
+  // banners don't persist after the security token lapses.
+  useEffect(() => {
+    if (!canLoad) setError("");
+  }, [canLoad]);
+
   useEffect(() => {
     const productName = selectedProduct.trim();
     if (!canLoad || !productName) {
