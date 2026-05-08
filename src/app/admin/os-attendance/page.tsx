@@ -65,11 +65,20 @@ type SessionMeta = { staff_names: string[]; branch_codes: string[] };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmtTime(iso: string | null) {
+// City → IANA timezone. Dubai = UTC+4 (no DST), Manila = UTC+8 (no DST).
+function cityTz(city: string): string {
+  return city === "dubai" ? "Asia/Dubai" : "Asia/Manila";
+}
+function cityOffset(city: string): string {
+  return city === "dubai" ? "+04:00" : "+08:00";
+}
+
+// Format ISO → local time string for display (e.g. "09:30 AM")
+function fmtTime(iso: string | null, tz = "Asia/Manila") {
   if (!iso) return "—";
   try {
     return new Date(iso).toLocaleTimeString("en-PH", {
-      hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Manila",
+      hour: "2-digit", minute: "2-digit", hour12: true, timeZone: tz,
     });
   } catch { return "—"; }
 }
@@ -81,13 +90,13 @@ function fmtDuration(inAt: string | null, outAt: string | null): string {
   return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, "0")}m`;
 }
 
-// Convert ISO to Manila "HH:MM" for time input — uses formatToParts for cross-browser leading-zero safety
-function isoToManilaTm(iso: string | null): string {
+// ISO → "HH:MM" in local timezone for time input — formatToParts for cross-browser leading-zero safety
+function isoToLocalTm(iso: string | null, tz = "Asia/Manila"): string {
   if (!iso) return "";
   try {
     const d = new Date(iso);
     const parts = new Intl.DateTimeFormat("en-PH", {
-      hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Manila",
+      hour: "2-digit", minute: "2-digit", hour12: false, timeZone: tz,
     }).formatToParts(d);
     const h = parts.find(p => p.type === "hour")?.value ?? "00";
     const m = parts.find(p => p.type === "minute")?.value ?? "00";
@@ -95,10 +104,10 @@ function isoToManilaTm(iso: string | null): string {
   } catch { return ""; }
 }
 
-// Combine work_date (YYYY-MM-DD) + HH:MM (Manila) → UTC ISO
-function manilaTimeToIso(date: string, hhmm: string): string {
+// Combine work_date (YYYY-MM-DD) + HH:MM in city local time → UTC ISO
+function localTimeToIso(date: string, hhmm: string, city = "manila"): string {
   if (!hhmm) return "";
-  return new Date(`${date}T${hhmm}:00+08:00`).toISOString();
+  return new Date(`${date}T${hhmm}:00${cityOffset(city)}`).toISOString();
 }
 
 function sessionStatus(s: AttendanceSession): "clocked_out" | "on_shift" | "not_clocked_in" {
@@ -148,6 +157,16 @@ function GpsTab({ city }: { city: string }) {
   }, [city]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Reset UI state when city changes to prevent stale edit/add forms from old city
+  useEffect(() => {
+    setEditing(null);
+    setAdding(false);
+    setErr("");
+    setList([]);
+    setForm({ lat: "", lng: "", radius_m: "100", label: "" });
+    setNewBranch("");
+  }, [city]);
 
   function startEdit(g: BranchGps) {
     setAdding(false);
@@ -351,9 +370,11 @@ function EditModal({
   onClose: () => void;
   onSaved: (updated: AttendanceSession) => void;
 }) {
+  const tz = cityTz(session.city);
+  const cityLabel = session.city === "dubai" ? "Dubai" : "Manila";
   const [form, setForm] = useState<EditForm>({
-    check_in_time: isoToManilaTm(session.check_in_at),
-    check_out_time: isoToManilaTm(session.check_out_at),
+    check_in_time: isoToLocalTm(session.check_in_at, tz),
+    check_out_time: isoToLocalTm(session.check_out_at, tz),
     note: session.note || "",
   });
   const [busy, setBusy] = useState(false);
@@ -364,12 +385,12 @@ function EditModal({
     try {
       const body: Record<string, string> = { note: form.note };
       if (form.check_in_time) {
-        body.check_in_at = manilaTimeToIso(session.work_date, form.check_in_time);
+        body.check_in_at = localTimeToIso(session.work_date, form.check_in_time, session.city);
       } else {
         body.check_in_at = "";
       }
       if (form.check_out_time) {
-        body.check_out_at = manilaTimeToIso(session.work_date, form.check_out_time);
+        body.check_out_at = localTimeToIso(session.work_date, form.check_out_time, session.city);
       } else {
         body.check_out_at = "";
       }
@@ -399,13 +420,13 @@ function EditModal({
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="text-xs text-white/50 mb-1 block">Clock In (Manila time)</label>
+            <label className="text-xs text-white/50 mb-1 block">Clock In ({cityLabel} time)</label>
             <input type="time" value={form.check_in_time}
               onChange={e => setForm(f => ({ ...f, check_in_time: e.target.value }))}
               className={inp} />
           </div>
           <div>
-            <label className="text-xs text-white/50 mb-1 block">Clock Out (Manila time)</label>
+            <label className="text-xs text-white/50 mb-1 block">Clock Out ({cityLabel} time)</label>
             <input type="time" value={form.check_out_time}
               onChange={e => setForm(f => ({ ...f, check_out_time: e.target.value }))}
               className={inp} />
@@ -438,9 +459,10 @@ function EditModal({
 const SELECT_CLS = "rounded-lg border border-white/10 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-violet-500/50 focus:outline-none cursor-pointer";
 
 function DailyReportTab({ city }: { city: string }) {
-  // Use Manila timezone for "today" — toISOString() gives UTC which is off by a day between midnight–8am Manila
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
-  const [date, setDate] = useState(today);
+  // Initialize to today in the city's local timezone
+  const [date, setDate] = useState(() =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: cityTz(city) }).format(new Date())
+  );
   const [staffFilter, setStaffFilter] = useState("");
   const [branchFilter, setBranchFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<"" | "on_shift" | "clocked_out">("");
@@ -453,8 +475,9 @@ function DailyReportTab({ city }: { city: string }) {
   const [editingSession, setEditingSession] = useState<AttendanceSession | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Reset per-city filters when city switches
+  // Reset per-city state when city switches
   useEffect(() => {
+    setDate(new Intl.DateTimeFormat("en-CA", { timeZone: cityTz(city) }).format(new Date()));
     setStaffFilter("");
     setBranchFilter("");
     setStatusFilter("");
@@ -530,8 +553,8 @@ function DailyReportTab({ city }: { city: string }) {
       s.branch_code || "",
       s.work_date,
       sessionStatus(s).replaceAll("_", " "),
-      fmtTime(s.check_in_at),
-      fmtTime(s.check_out_at),
+      fmtTime(s.check_in_at, cityTz(city)),
+      fmtTime(s.check_out_at, cityTz(city)),
       fmtDuration(s.check_in_at, s.check_out_at),
       s.check_in_gps_ok === null ? "" : s.check_in_gps_ok ? "In Range" : "Out of Range",
       s.check_out_gps_ok === null ? "" : s.check_out_gps_ok ? "In Range" : "Out of Range",
@@ -639,9 +662,9 @@ function DailyReportTab({ city }: { city: string }) {
                       <td className={`${cellCls} font-medium text-white`}>{s.staff_name}</td>
                       <td className={`${cellCls} text-white/50`}>{s.branch_code || "—"}</td>
                       <td className={`${cellCls}`}><StatusBadge s={s} /></td>
-                      <td className={`${cellCls} text-white/80`}>{fmtTime(s.check_in_at)}</td>
+                      <td className={`${cellCls} text-white/80`}>{fmtTime(s.check_in_at, cityTz(city))}</td>
                       <td className={`${cellCls}`}><GpsBadge ok={s.check_in_gps_ok} /></td>
-                      <td className={`${cellCls} text-white/80`}>{fmtTime(s.check_out_at)}</td>
+                      <td className={`${cellCls} text-white/80`}>{fmtTime(s.check_out_at, cityTz(city))}</td>
                       <td className={`${cellCls}`}><GpsBadge ok={s.check_out_gps_ok} /></td>
                       <td className={`${cellCls} text-white/60`}>{fmtDuration(s.check_in_at, s.check_out_at)}</td>
                       <td className={`${cellCls}`}>
@@ -691,8 +714,8 @@ function DailyReportTab({ city }: { city: string }) {
                                   {s.visits.map(v => (
                                     <tr key={v.id}>
                                       <td className="py-1.5 pl-3 text-white/70 font-medium">{v.branch_code || "—"}</td>
-                                      <td className="py-1.5 pr-3 text-white/60">{fmtTime(v.visit_start)}</td>
-                                      <td className="py-1.5 pr-3 text-white/60">{fmtTime(v.visit_end)}</td>
+                                      <td className="py-1.5 pr-3 text-white/60">{fmtTime(v.visit_start, cityTz(city))}</td>
+                                      <td className="py-1.5 pr-3 text-white/60">{fmtTime(v.visit_end, cityTz(city))}</td>
                                       <td className="py-1.5 pr-3 text-white/50">{fmtDuration(v.visit_start, v.visit_end)}</td>
                                       <td className="py-1.5 pr-3"><GpsBadge ok={v.gps_ok} /></td>
                                     </tr>
