@@ -70,7 +70,7 @@ function GpsTab({ city }: { city: string }) {
   const [err, setErr] = useState("");
 
   const load = useCallback(async () => {
-    setBusy(true);
+    setBusy(true); setErr("");
     try {
       const r = await apiFetch(`${API}/branch-gps?city=${city}`);
       if (!r.ok) { setErr("Failed to load GPS settings"); return; }
@@ -110,9 +110,10 @@ function GpsTab({ city }: { city: string }) {
 
   async function del(branch_code: string) {
     if (!confirm(`Delete GPS settings for ${branch_code}? This cannot be undone.`)) return;
-    setBusy(true);
+    setBusy(true); setErr("");
     try {
-      await apiFetch(`${API}/branch-gps/${city}/${branch_code}`, { method: "DELETE" });
+      const r = await apiFetch(`${API}/branch-gps/${city}/${branch_code}`, { method: "DELETE" });
+      if (!r.ok) { setErr("Failed to delete GPS settings"); return; }
       await load();
     } finally { setBusy(false); }
   }
