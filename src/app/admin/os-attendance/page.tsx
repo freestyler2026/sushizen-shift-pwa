@@ -452,6 +452,14 @@ function DailyReportTab({ city }: { city: string }) {
   const [editingSession, setEditingSession] = useState<AttendanceSession | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Reset per-city filters when city switches
+  useEffect(() => {
+    setStaffFilter("");
+    setBranchFilter("");
+    setStatusFilter("");
+    setExpandedIds(new Set());
+  }, [city]);
+
   // Load dropdown options
   useEffect(() => {
     setMetaBusy(true);
@@ -518,7 +526,7 @@ function DailyReportTab({ city }: { city: string }) {
       s.staff_name,
       s.branch_code || "",
       s.work_date,
-      sessionStatus(s).replace("_", " "),
+      sessionStatus(s).replaceAll("_", " "),
       fmtTime(s.check_in_at),
       fmtTime(s.check_out_at),
       fmtDuration(s.check_in_at, s.check_out_at),
