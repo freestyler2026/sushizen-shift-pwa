@@ -229,9 +229,19 @@ const MANILA_TEMPLATE_SECTIONS: TemplateSection[] = [
   },
 ];
 
+// ─── Unit Options ────────────────────────────────────────────────────────────
+
+const UNIT_OPTIONS = ["kg", "g", "pcs", "box", "bag"] as const;
+
+function unitOptionsFor(defaultUnit: string): string[] {
+  const base = [...UNIT_OPTIONS] as string[];
+  return base.includes(defaultUnit) ? base : [defaultUnit, ...base];
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type TemplateQty = Record<string, string>; // key → qty string
+type TemplateUnits = Record<string, string>; // key → unit override
 
 interface FreeLineItem {
   _key: string;
@@ -563,11 +573,15 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
 function TemplateSectionBlock({
   section,
   qty,
+  unitOverrides,
   onChange,
+  onUnitChange,
 }: {
   section: TemplateSection;
   qty: TemplateQty;
+  unitOverrides: TemplateUnits;
   onChange: (key: string, val: string) => void;
+  onUnitChange: (key: string, unit: string) => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const filledCount = section.items.filter((i) => (qty[i.key] ?? "") !== "").length;
@@ -611,7 +625,15 @@ function TemplateSectionBlock({
                     placeholder="—"
                     onChange={(e) => onChange(item.key, e.target.value)}
                   />
-                  <span className="shrink-0 text-[10px] text-zinc-500 w-9 truncate text-center">{item.unit}</span>
+                  <select
+                    className="shrink-0 w-12 rounded-lg border border-white/10 bg-zinc-900 px-0.5 py-3 text-[10px] text-zinc-400 outline-none focus:border-violet-500/50 cursor-pointer text-center appearance-none"
+                    value={unitOverrides[item.key] ?? item.unit}
+                    onChange={(e) => onUnitChange(item.key, e.target.value)}
+                  >
+                    {unitOptionsFor(item.unit).map((u) => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
             ))}
@@ -688,6 +710,9 @@ export default function BackupReportPage() {
   // Template quantities: key → qty
   const [templateQty, setTemplateQty] = useState<TemplateQty>({});
 
+  // Template unit overrides: key → unit (defaults to template default)
+  const [templateUnitOverrides, setTemplateUnitOverrides] = useState<TemplateUnits>({});
+
   // Free-form extra lines
   const [freeLines, setFreeLines] = useState<FreeLineItem[]>([]);
 
@@ -701,13 +726,17 @@ export default function BackupReportPage() {
     if (branches.length > 0) setBranchCode(branches[0].code);
   }, [city]);
 
-  // Clear template quantities when switching city to avoid stale keys
-  useEffect(() => { setTemplateQty({}); }, [city]);
+  // Clear template quantities and unit overrides when switching city to avoid stale keys
+  useEffect(() => { setTemplateQty({}); setTemplateUnitOverrides({}); }, [city]);
 
   const activeSections = city === "manila" ? MANILA_TEMPLATE_SECTIONS : DUBAI_TEMPLATE_SECTIONS;
 
   const handleQtyChange = useCallback((key: string, val: string) => {
     setTemplateQty((prev) => ({ ...prev, [key]: val }));
+  }, []);
+
+  const handleUnitChange = useCallback((key: string, unit: string) => {
+    setTemplateUnitOverrides((prev) => ({ ...prev, [key]: unit }));
   }, []);
 
   const addFreeItem = useCallback((item: SearchItem) => {
@@ -729,6 +758,7 @@ export default function BackupReportPage() {
 
   const handleClear = useCallback(() => {
     setTemplateQty({});
+    setTemplateUnitOverrides({});
     setFreeLines([]);
     setHeaderNotes("");
     setSubmitSuccess("");
@@ -753,7 +783,7 @@ export default function BackupReportPage() {
           item_name_snapshot: item.label,
           item_category: item.item_category,
           quantity: qty,
-          unit: item.unit,
+          unit: templateUnitOverrides[item.key] ?? item.unit,
           notes: "",
         });
       }
@@ -879,7 +909,9 @@ export default function BackupReportPage() {
                   key={sec.id}
                   section={sec}
                   qty={templateQty}
+                  unitOverrides={templateUnitOverrides}
                   onChange={handleQtyChange}
+                  onUnitChange={handleUnitChange}
                 />
               ))}
             </div>
