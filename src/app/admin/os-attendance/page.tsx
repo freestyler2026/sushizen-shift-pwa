@@ -4,7 +4,7 @@ import {
   CheckCircle, ChevronDown, ChevronRight, Download, Fingerprint,
   Loader2, MapPin, Pencil, Plus, RefreshCw, Trash2, XCircle,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { canAccessOsAttendanceAdmin, getAuth } from "@/lib/auth";
 import {
@@ -81,12 +81,17 @@ function fmtDuration(inAt: string | null, outAt: string | null): string {
   return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, "0")}m`;
 }
 
-// Convert ISO to Manila "HH:MM" for time input
+// Convert ISO to Manila "HH:MM" for time input — uses formatToParts for cross-browser leading-zero safety
 function isoToManilaTm(iso: string | null): string {
   if (!iso) return "";
   try {
     const d = new Date(iso);
-    return d.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Manila" }).slice(0, 5);
+    const parts = new Intl.DateTimeFormat("en-PH", {
+      hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Manila",
+    }).formatToParts(d);
+    const h = parts.find(p => p.type === "hour")?.value ?? "00";
+    const m = parts.find(p => p.type === "minute")?.value ?? "00";
+    return `${h.padStart(2, "0")}:${m.padStart(2, "0")}`;
   } catch { return ""; }
 }
 
@@ -105,7 +110,7 @@ function sessionStatus(s: AttendanceSession): "clocked_out" | "on_shift" | "not_
 function StatusBadge({ s }: { s: AttendanceSession }) {
   const st = sessionStatus(s);
   if (st === "clocked_out") return <span className={BADGE_SUCCESS}><CheckCircle size={10} />Clocked Out</span>;
-  if (st === "on_shift") return <span className={BADGE_WARNING}><Loader2 size={10} />On Shift</span>;
+  if (st === "on_shift") return <span className={BADGE_WARNING}><Loader2 size={10} className="animate-spin" />On Shift</span>;
   return <span className="inline-flex items-center gap-1 rounded-full bg-white/5 border border-white/10 px-2 py-0.5 text-xs text-white/40">Not Clocked In</span>;
 }
 
@@ -373,7 +378,8 @@ function EditModal({
       });
       if (!r.ok) { setErr("Failed to save changes"); return; }
       const d = await r.json();
-      onSaved({ ...session, ...d.session, visits: session.visits });
+      // Merge: d.session has updated times, keep visits from local state, carry note from form
+      onSaved({ ...session, ...d.session, visits: session.visits, note: form.note });
     } catch {
       setErr("Failed to save changes");
     } finally { setBusy(false); }
@@ -493,6 +499,7 @@ function DailyReportTab({ city }: { city: string }) {
       const r = await apiFetch(`${API}/sessions/${s.id}`, { method: "DELETE" });
       if (!r.ok) { alert("Failed to delete record"); return; }
       setSessions(prev => prev.filter(x => x.id !== s.id));
+      setExpandedIds(prev => { const n = new Set(prev); n.delete(s.id); return n; });
     } catch {
       alert("Failed to delete record");
     } finally { setDeletingId(null); }
@@ -605,8 +612,8 @@ function DailyReportTab({ city }: { city: string }) {
                 const deleting = deletingId === s.id;
                 const visitCount = s.visits?.length ?? 0;
                 return (
-                  <>
-                    <tr key={s.id} className="hover:bg-white/3 transition-colors group">
+                  <Fragment key={s.id}>
+                    <tr className="hover:bg-white/3 transition-colors group">
                       {/* Expand toggle */}
                       <td className={`${cellCls} pl-3 text-white/30`}>
                         {visitCount > 0 && (
@@ -679,7 +686,7 @@ function DailyReportTab({ city }: { city: string }) {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>
