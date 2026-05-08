@@ -852,19 +852,9 @@ export function ManilaSalesSection({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
         <KpiCard title="Total Sales" value={Number(overview?.summary.total_sales || 0)} hint="Gross sales across the selected Manila store scope." />
         <KpiCard title="Net Sales" value={Number(overview?.summary.total_net_sales || 0)} hint="Net sales currently available from Manila files." />
-        <KpiCard
-          title="Gross Profit"
-          value={isGrabOnlyScope ? "—" : Number(overview?.summary.total_gross_profit || 0)}
-          hint={isGrabOnlyScope ? "Not available from Grab export." : "Derived from the imported Manila sales datasets."}
-        />
-        <KpiCard
-          title="Gross Profit %"
-          value={isGrabOnlyScope ? "—" : formatPct(Number(overview?.summary.avg_gross_profit_pct || 0))}
-          hint={isGrabOnlyScope ? "Not available from Grab export." : "Average gross-profit ratio across the selected range."}
-        />
         <KpiCard title="Transactions" value={Number(overview?.summary.total_transactions || 0)} hint="Transaction count from the Manila channel exports." />
       </div>
 
@@ -1150,7 +1140,6 @@ export function ManilaSalesSection({
                   <th className="px-3 py-2">Qty</th>
                   <th className="px-3 py-2">Sales</th>
                   <th className="px-3 py-2">Net</th>
-                  <th className="px-3 py-2">GP %</th>
                 </tr>
               </thead>
               <tbody>
@@ -1163,12 +1152,11 @@ export function ManilaSalesSection({
                     <td className="px-3 py-2 tabular-nums">{formatCount(Number(row.total_items_sold || 0))}</td>
                     <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.total_sales || 0))}</td>
                     <td className="px-3 py-2 tabular-nums">{isGrabOnlyScope ? "—" : formatMoney(Number(row.item_net_sales || 0))}</td>
-                    <td className="px-3 py-2 tabular-nums">{isGrabOnlyScope ? "—" : formatPct(Number(row.gross_profit_pct || 0))}</td>
                   </tr>
                 ))}
                 {!productRows.length ? (
                   <tr>
-                    <td colSpan={5} className="px-3 py-6 text-center text-neutral-500">
+                    <td colSpan={4} className="px-3 py-6 text-center text-neutral-500">
                       Product data will appear after Manila sales files are synced.
                     </td>
                   </tr>
@@ -1189,8 +1177,7 @@ export function ManilaSalesSection({
                   <div className="text-sm font-medium tabular-nums">{formatMoney(Number(row.total_sales || 0))}</div>
                 </div>
                 <div className="mt-1 text-xs text-neutral-500">
-                  Qty {formatCount(Number(row.total_items_sold || 0))} · Net {formatMoney(Number(row.item_net_sales || 0))} · GP{" "}
-                  {formatPct(Number(row.gross_profit_pct || 0))}
+                  Qty {formatCount(Number(row.total_items_sold || 0))} · Net {formatMoney(Number(row.item_net_sales || 0))}
                 </div>
               </div>
             ))}
