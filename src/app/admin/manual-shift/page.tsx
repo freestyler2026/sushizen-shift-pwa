@@ -89,12 +89,24 @@ const SPECIAL_ROLE_SET = new Set<string>(SPECIAL_TYPES.map((s) => s.role));
 function isSpecialRole(role: string) { return SPECIAL_ROLE_SET.has(role); }
 
 // ─── Bayzat → Staff Master name corrections ───────────────────────────────────
-// Bayzat names that don't fuzzy-match the staff master get added as new rows.
-// Map the raw Bayzat name (key) to the correct staff master name (value).
+// Maps raw Bayzat file name (key) → staff master base name (value).
+// Backend now handles suffix differences (e.g. "Chandra Gurung" ↔ "Chandra Gurung (AL)"),
+// contains matches ("Kapil Bahadur Khati" → "Kapil Bahadur"), and
+// token-subset matches ("Udaya Mohan Singh Gurung" → "Udaya Gurung").
+// Only cases backend CANNOT resolve (spelling differences) are listed here.
 const BAYZAT_NAME_MAP: Record<string, string> = {
-  "Puker KC":   "Pukar K C",
-  "Raj Deeban": "Raj Deeban Jegan",
-  "Ashik Khan": "Ashik Kahn",
+  // ── JLT ──────────────────────────────────────────────────────────────────
+  "Pukar K C":                    "Puker KC",            // DB has old spelling "Puker"
+  "Ashik Khan":                   "Ashik Kahn",          // "Khan" → "Kahn" spelling
+  "Ma Rosario Sandoval Paguyan":  "Ma. Rosario Paguyan", // extra middle name + "Ma."
+  // ── Al Mina (Bayzat office: "Al Hudaiba") ────────────────────────────────
+  "Aris Jhon De Ocampo":          "Aris John De Ocampo", // "Jhon" → "John"
+  "Bijen Mijar":                  "Bijien Mijar",         // "Bijen" → "Bijien"
+  // ── Al Barsha ─────────────────────────────────────────────────────────────
+  "Padam Bahadur K C":            "Padam",               // DB stores short name
+  // ── Business Bay ──────────────────────────────────────────────────────────
+  "Sandesh Pun Magar":            "Sandesh",             // DB stores short name
+  "Sita Gurmachhan":              "Gumachhan Sita",      // spelling diff + word order
 };
 function specialStyle(role: string) {
   return SPECIAL_TYPES.find((s) => s.role === role)?.style ?? "border-gray-300 bg-gray-100 text-gray-600";
@@ -773,12 +785,21 @@ export default function ManualShiftPage() {
 
     const summary: string[] = [];
 
+    // Suffix-strip resolver (same logic as resolveStaffName in applyBayzatToGrid)
+    const stripSuffix = (s: string) => s.replace(/(\s*\([^)]+\))+\s*$/, "").trim().toLowerCase();
+    const resolveNameForBranch = (r: BayzatRow): string => {
+      const mapped = BAYZAT_NAME_MAP[r.bayzat_name] ?? BAYZAT_NAME_MAP[r.staff_name] ?? r.staff_name;
+      if (staffListRef.current.includes(mapped)) return mapped;
+      const mappedBase = stripSuffix(mapped);
+      const hit = staffListRef.current.find((s) => stripSuffix(s) === mappedBase);
+      return hit ?? mapped;
+    };
+
     for (const [bc, bRows] of Object.entries(byBranch)) {
       // Build a GridData from Bayzat rows for this branch
       const grid: GridData = {};
       for (const r of bRows) {
-        const staffName =
-          BAYZAT_NAME_MAP[r.bayzat_name] ?? BAYZAT_NAME_MAP[r.staff_name] ?? r.staff_name;
+        const staffName = resolveNameForBranch(r);
         if (!staffName) continue;
         if (!grid[staffName]) grid[staffName] = {};
         const cell: ShiftCell = { start_hour: r.start_hour, end_hour: r.end_hour, role: r.role || "STAFF" };
@@ -812,10 +833,20 @@ export default function ManualShiftPage() {
         r.work_date <= weekEnd
     );
 
-    // Resolve the final staff name: apply BAYZAT_NAME_MAP override first,
-    // then fall back to the backend-matched staff_name.
+    // Resolve the final staff name:
+    // 1. Apply BAYZAT_NAME_MAP override (key = Bayzat name, value = base staff name)
+    // 2. Exact match against current staffList
+    // 3. Suffix-stripped match: "Ashik Kahn" matches "Ashik Kahn (AL)" in staffList
     function resolveStaffName(r: BayzatRow): string {
-      return BAYZAT_NAME_MAP[r.bayzat_name] ?? BAYZAT_NAME_MAP[r.staff_name] ?? r.staff_name;
+      const mapped = BAYZAT_NAME_MAP[r.bayzat_name] ?? BAYZAT_NAME_MAP[r.staff_name] ?? r.staff_name;
+      // Exact match — already correct
+      if (staffListRef.current.includes(mapped)) return mapped;
+      // Suffix-strip: normalize by removing trailing (XX)(YY) role codes
+      const stripSuffix = (s: string) => s.replace(/(\s*\([^)]+\))+\s*$/, "").trim().toLowerCase();
+      const mappedBase = stripSuffix(mapped);
+      const hit = staffListRef.current.find((s) => stripSuffix(s) === mappedBase);
+      if (hit) return hit;
+      return mapped; // fall through — creates new row (name truly not in master)
     }
 
     // Add staff names not yet in the grid
