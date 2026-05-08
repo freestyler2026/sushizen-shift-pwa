@@ -466,9 +466,6 @@ function _canAccessStaffChannel(channelKey: string, a?: Auth | null): boolean {
   if (role === "HQ" || role === "ADMIN") return true;
   const perms = x.permissions || [];
   if (perms.includes("*")) return true;
-  // Dubai: hidden until Bayzat API integration is available
-  const city = (x.city || "").toLowerCase();
-  if (city === "dubai") return false;
   // New-system token: enforce channel permission
   if (perms.some((p) => p.startsWith("channel."))) {
     return perms.includes(`channel.${channelKey}.view`);
