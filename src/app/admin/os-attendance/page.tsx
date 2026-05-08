@@ -1,10 +1,16 @@
 "use client";
 
-import { CheckCircle, Fingerprint, Loader2, MapPin, Pencil, Plus, RefreshCw, Trash2, XCircle } from "lucide-react";
+import {
+  CheckCircle, ChevronDown, ChevronRight, Download, Fingerprint,
+  Loader2, MapPin, Pencil, Plus, RefreshCw, Trash2, XCircle,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { canAccessOsAttendanceAdmin, getAuth } from "@/lib/auth";
-import { GLASS_CARD, PRIMARY_BUTTON, T_PAGE_TITLE, TAB_ACTIVE, TAB_INACTIVE, BADGE_SUCCESS, BADGE_ERROR, BADGE_WARNING } from "@/lib/ui-tokens";
+import {
+  GLASS_CARD, PRIMARY_BUTTON, T_PAGE_TITLE,
+  TAB_ACTIVE, TAB_INACTIVE, BADGE_SUCCESS, BADGE_ERROR, BADGE_WARNING,
+} from "@/lib/ui-tokens";
 
 const API = "/api/admin/attendance";
 
@@ -12,8 +18,13 @@ function apiFetch(path: string, opts?: RequestInit) {
   const auth = getAuth();
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (auth?.accessToken) headers["Authorization"] = `Bearer ${auth.accessToken}`;
-  return fetch(path, { ...opts, headers: { ...headers, ...(opts?.headers as Record<string, string> | undefined ?? {}) } });
+  return fetch(path, {
+    ...opts,
+    headers: { ...headers, ...(opts?.headers as Record<string, string> | undefined ?? {}) },
+  });
 }
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type BranchGps = {
   city: string;
@@ -23,6 +34,15 @@ type BranchGps = {
   radius_m: number;
   label: string;
   updated_at: string;
+};
+
+type Visit = {
+  id: string;
+  branch_code: string | null;
+  visit_start: string | null;
+  visit_end: string | null;
+  gps_ok: boolean | null;
+  distance_m: number | null;
 };
 
 type AttendanceSession = {
@@ -37,7 +57,13 @@ type AttendanceSession = {
   check_out_gps_ok: boolean | null;
   check_in_distance_m: number | null;
   check_out_distance_m: number | null;
+  note: string;
+  visits: Visit[];
 };
+
+type SessionMeta = { staff_names: string[]; branch_codes: string[] };
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmtTime(iso: string | null) {
   if (!iso) return "—";
@@ -45,9 +71,42 @@ function fmtTime(iso: string | null) {
     return new Date(iso).toLocaleTimeString("en-PH", {
       hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Manila",
     });
-  } catch {
-    return "—";
-  }
+  } catch { return "—"; }
+}
+
+function fmtDuration(inAt: string | null, outAt: string | null): string {
+  if (!inAt || !outAt) return "—";
+  const mins = Math.round((new Date(outAt).getTime() - new Date(inAt).getTime()) / 60000);
+  if (mins < 0) return "—";
+  return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, "0")}m`;
+}
+
+// Convert ISO to Manila "HH:MM" for time input
+function isoToManilaTm(iso: string | null): string {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Manila" }).slice(0, 5);
+  } catch { return ""; }
+}
+
+// Combine work_date (YYYY-MM-DD) + HH:MM (Manila) → UTC ISO
+function manilaTimeToIso(date: string, hhmm: string): string {
+  if (!hhmm) return "";
+  return new Date(`${date}T${hhmm}:00+08:00`).toISOString();
+}
+
+function sessionStatus(s: AttendanceSession): "clocked_out" | "on_shift" | "not_clocked_in" {
+  if (s.check_out_at) return "clocked_out";
+  if (s.check_in_at) return "on_shift";
+  return "not_clocked_in";
+}
+
+function StatusBadge({ s }: { s: AttendanceSession }) {
+  const st = sessionStatus(s);
+  if (st === "clocked_out") return <span className={BADGE_SUCCESS}><CheckCircle size={10} />Clocked Out</span>;
+  if (st === "on_shift") return <span className={BADGE_WARNING}><Loader2 size={10} />On Shift</span>;
+  return <span className="inline-flex items-center gap-1 rounded-full bg-white/5 border border-white/10 px-2 py-0.5 text-xs text-white/40">Not Clocked In</span>;
 }
 
 function GpsBadge({ ok }: { ok: boolean | null }) {
@@ -95,7 +154,9 @@ function GpsTab({ city }: { city: string }) {
     const lat = parseFloat(form.lat);
     const lng = parseFloat(form.lng);
     const radius_m = parseInt(form.radius_m);
-    if (isNaN(lat) || isNaN(lng) || isNaN(radius_m)) { setErr("Please enter valid numbers for latitude, longitude, and radius"); return; }
+    if (isNaN(lat) || isNaN(lng) || isNaN(radius_m)) {
+      setErr("Please enter valid numbers for latitude, longitude, and radius"); return;
+    }
     setBusy(true); setErr("");
     try {
       const r = await apiFetch(`${API}/branch-gps/${city}/${branch_code}`, {
@@ -123,7 +184,9 @@ function GpsTab({ city }: { city: string }) {
     const lat = parseFloat(form.lat);
     const lng = parseFloat(form.lng);
     const radius_m = parseInt(form.radius_m);
-    if (isNaN(lat) || isNaN(lng) || isNaN(radius_m)) { setErr("Please enter valid numbers for latitude, longitude, and radius"); return; }
+    if (isNaN(lat) || isNaN(lng) || isNaN(radius_m)) {
+      setErr("Please enter valid numbers for latitude, longitude, and radius"); return;
+    }
     setBusy(true); setErr("");
     try {
       const r = await apiFetch(`${API}/branch-gps/${city}/${newBranch.trim().toUpperCase()}`, {
@@ -269,88 +332,367 @@ function GpsTab({ city }: { city: string }) {
   );
 }
 
-// ── Attendance Log Tab ────────────────────────────────────────────────────────
+// ── Edit Session Modal ────────────────────────────────────────────────────────
 
-function LogTab({ city }: { city: string }) {
-  const [sessions, setSessions] = useState<AttendanceSession[]>([]);
+type EditForm = { check_in_time: string; check_out_time: string; note: string };
+
+function EditModal({
+  session,
+  onClose,
+  onSaved,
+}: {
+  session: AttendanceSession;
+  onClose: () => void;
+  onSaved: (updated: AttendanceSession) => void;
+}) {
+  const [form, setForm] = useState<EditForm>({
+    check_in_time: isoToManilaTm(session.check_in_at),
+    check_out_time: isoToManilaTm(session.check_out_at),
+    note: session.note || "",
+  });
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function handleSave() {
+    setBusy(true); setErr("");
+    try {
+      const body: Record<string, string> = { note: form.note };
+      if (form.check_in_time) {
+        body.check_in_at = manilaTimeToIso(session.work_date, form.check_in_time);
+      } else {
+        body.check_in_at = "";
+      }
+      if (form.check_out_time) {
+        body.check_out_at = manilaTimeToIso(session.work_date, form.check_out_time);
+      } else {
+        body.check_out_at = "";
+      }
+      const r = await apiFetch(`${API}/sessions/${session.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) { setErr("Failed to save changes"); return; }
+      const d = await r.json();
+      onSaved({ ...session, ...d.session, visits: session.visits });
+    } catch {
+      setErr("Failed to save changes");
+    } finally { setBusy(false); }
+  }
+
+  const inp = "w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:border-violet-500/50 focus:outline-none";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+      <div className={`${GLASS_CARD} w-full max-w-md p-6 space-y-5`}>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-violet-400">Edit Attendance Record</p>
+          <p className="text-white font-semibold mt-1">{session.staff_name}</p>
+          <p className="text-xs text-white/40">{session.work_date} · {session.branch_code || "—"}</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs text-white/50 mb-1 block">Clock In (Manila time)</label>
+            <input type="time" value={form.check_in_time}
+              onChange={e => setForm(f => ({ ...f, check_in_time: e.target.value }))}
+              className={inp} />
+          </div>
+          <div>
+            <label className="text-xs text-white/50 mb-1 block">Clock Out (Manila time)</label>
+            <input type="time" value={form.check_out_time}
+              onChange={e => setForm(f => ({ ...f, check_out_time: e.target.value }))}
+              className={inp} />
+          </div>
+        </div>
+
+        <div>
+          <label className="text-xs text-white/50 mb-1 block">Reason / Note (optional)</label>
+          <textarea value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
+            rows={2}
+            className={inp + " resize-none"}
+            placeholder="e.g. System error, manual correction" />
+        </div>
+
+        {err && <p className="text-xs text-red-400">{err}</p>}
+
+        <div className="flex gap-2 justify-end">
+          <button onClick={onClose} className="rounded-lg border border-white/10 px-4 py-1.5 text-sm text-white/60 hover:text-white transition-colors">Cancel</button>
+          <button onClick={handleSave} disabled={busy} className={PRIMARY_BUTTON + " text-sm py-1.5 px-4"}>
+            {busy ? <Loader2 size={14} className="animate-spin" /> : "Save"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Daily Report Tab ──────────────────────────────────────────────────────────
+
+const SELECT_CLS = "rounded-lg border border-white/10 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-violet-500/50 focus:outline-none cursor-pointer";
+
+function DailyReportTab({ city }: { city: string }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [date, setDate] = useState(today);
+  const [staffFilter, setStaffFilter] = useState("");
+  const [branchFilter, setBranchFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"" | "on_shift" | "clocked_out">("");
+  const [sessions, setSessions] = useState<AttendanceSession[]>([]);
+  const [meta, setMeta] = useState<SessionMeta>({ staff_names: [], branch_codes: [] });
+  const [busy, setBusy] = useState(false);
+  const [metaBusy, setMetaBusy] = useState(false);
   const [loadErr, setLoadErr] = useState("");
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [editingSession, setEditingSession] = useState<AttendanceSession | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Load dropdown options
+  useEffect(() => {
+    setMetaBusy(true);
+    apiFetch(`${API}/session-meta?city=${city}`)
+      .then(r => r.json())
+      .then(d => { if (d.ok) setMeta({ staff_names: d.staff_names ?? [], branch_codes: d.branch_codes ?? [] }); })
+      .catch(() => {})
+      .finally(() => setMetaBusy(false));
+  }, [city]);
 
   const load = useCallback(async () => {
     setBusy(true); setLoadErr("");
     try {
-      const r = await apiFetch(`${API}/sessions?city=${city}&date=${date}&limit=100`);
+      const params = new URLSearchParams({ city, work_date: date, limit: "500" });
+      if (staffFilter) params.set("staff_name", staffFilter);
+      if (branchFilter) params.set("branch_code", branchFilter);
+      const r = await apiFetch(`${API}/daily-report?${params}`);
       if (!r.ok) { setLoadErr("Failed to load attendance records"); return; }
       const d = await r.json();
       setSessions(d.sessions ?? []);
     } catch {
       setLoadErr("Failed to load attendance records");
     } finally { setBusy(false); }
-  }, [city, date]);
+  }, [city, date, staffFilter, branchFilter]);
 
   useEffect(() => { void load(); }, [load]);
 
+  // Client-side status filter
+  const filtered = useMemo(() => {
+    if (!statusFilter) return sessions;
+    return sessions.filter(s => sessionStatus(s) === statusFilter);
+  }, [sessions, statusFilter]);
+
+  function toggleExpand(id: string) {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  async function handleDelete(s: AttendanceSession) {
+    if (!confirm(`Delete attendance record for ${s.staff_name} on ${s.work_date}? This cannot be undone.`)) return;
+    setDeletingId(s.id);
+    try {
+      const r = await apiFetch(`${API}/sessions/${s.id}`, { method: "DELETE" });
+      if (!r.ok) { alert("Failed to delete record"); return; }
+      setSessions(prev => prev.filter(x => x.id !== s.id));
+    } catch {
+      alert("Failed to delete record");
+    } finally { setDeletingId(null); }
+  }
+
+  function handleSaved(updated: AttendanceSession) {
+    setSessions(prev => prev.map(s => s.id === updated.id ? updated : s));
+    setEditingSession(null);
+  }
+
+  // CSV export
+  function downloadCsv() {
+    const cols = ["Staff Name", "Branch", "Date", "Status", "Clock In", "Clock Out", "Hours Worked", "GPS In", "GPS Out", "Branch Visits", "Note"];
+    const rows = filtered.map(s => [
+      s.staff_name,
+      s.branch_code || "",
+      s.work_date,
+      sessionStatus(s).replace("_", " "),
+      fmtTime(s.check_in_at),
+      fmtTime(s.check_out_at),
+      fmtDuration(s.check_in_at, s.check_out_at),
+      s.check_in_gps_ok === null ? "" : s.check_in_gps_ok ? "In Range" : "Out of Range",
+      s.check_out_gps_ok === null ? "" : s.check_out_gps_ok ? "In Range" : "Out of Range",
+      String(s.visits?.length ?? 0),
+      s.note || "",
+    ]);
+    const csv = [cols, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `attendance_${city}_${date}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const cellCls = "py-3 pr-3 text-sm align-middle";
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Date */}
         <input type="date" value={date} onChange={e => setDate(e.target.value)}
-          className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:border-violet-500/50 focus:outline-none" />
+          className="rounded-lg border border-white/10 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-violet-500/50 focus:outline-none" />
+
+        {/* Staff name dropdown */}
+        <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)} className={SELECT_CLS} disabled={metaBusy}>
+          <option value="">All Staff</option>
+          {meta.staff_names.map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
+
+        {/* Branch dropdown */}
+        <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)} className={SELECT_CLS} disabled={metaBusy}>
+          <option value="">All Branches</option>
+          {meta.branch_codes.map(b => <option key={b} value={b}>{b}</option>)}
+        </select>
+
+        {/* Status dropdown */}
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)} className={SELECT_CLS}>
+          <option value="">All Status</option>
+          <option value="on_shift">On Shift</option>
+          <option value="clocked_out">Clocked Out</option>
+        </select>
+
         <button onClick={load} className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:text-white hover:border-white/20 transition-colors">
           <RefreshCw size={12} />Refresh
         </button>
-        <span className="text-xs text-white/30">{sessions.length} records</span>
+
+        <button onClick={downloadCsv} disabled={filtered.length === 0}
+          className="ml-auto flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:text-white hover:border-white/20 transition-colors disabled:opacity-40">
+          <Download size={12} />Download CSV
+        </button>
       </div>
+
+      <p className="text-xs text-white/30">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</p>
 
       {loadErr && <p className="text-xs text-red-400">{loadErr}</p>}
 
-      {busy && <div className="flex justify-center py-8"><Loader2 className="animate-spin text-white/30" size={24} /></div>}
+      {busy && (
+        <div className="flex justify-center py-10"><Loader2 className="animate-spin text-white/30" size={24} /></div>
+      )}
 
-      {!busy && !loadErr && sessions.length === 0 && (
-        <div className="flex flex-col items-center gap-2 py-10 text-white/30">
+      {!busy && !loadErr && filtered.length === 0 && (
+        <div className="flex flex-col items-center gap-2 py-12 text-white/30">
           <Fingerprint size={32} />
           <p className="text-sm">No attendance records for this date</p>
         </div>
       )}
 
-      {!loadErr && sessions.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+      {!busy && !loadErr && filtered.length > 0 && (
+        <div className="overflow-x-auto rounded-xl border border-white/8">
+          <table className="w-full text-sm min-w-[900px]">
             <thead>
-              <tr className="border-b border-white/10 text-xs text-white/40">
-                <th className="pb-2 text-left font-medium">Staff</th>
-                <th className="pb-2 text-left font-medium">Branch</th>
-                <th className="pb-2 text-left font-medium">Clock In</th>
-                <th className="pb-2 text-left font-medium">GPS</th>
-                <th className="pb-2 text-left font-medium">Clock Out</th>
-                <th className="pb-2 text-left font-medium">GPS</th>
-                <th className="pb-2 text-left font-medium">Duration</th>
+              <tr className="border-b border-white/10 bg-white/3 text-xs text-white/40">
+                <th className="pb-2.5 pt-2.5 pl-3 text-left font-medium w-6"></th>
+                <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Staff</th>
+                <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Branch</th>
+                <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Status</th>
+                <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Clock In</th>
+                <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">GPS</th>
+                <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Clock Out</th>
+                <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">GPS</th>
+                <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Hours</th>
+                <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Visits</th>
+                <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {sessions.map(s => {
-                const workedMin = s.check_in_at && s.check_out_at
-                  ? Math.round((new Date(s.check_out_at).getTime() - new Date(s.check_in_at).getTime()) / 60000)
-                  : null;
+              {filtered.map(s => {
+                const expanded = expandedIds.has(s.id);
+                const deleting = deletingId === s.id;
+                const visitCount = s.visits?.length ?? 0;
                 return (
-                  <tr key={s.id} className="hover:bg-white/3 transition-colors">
-                    <td className="py-2.5 pr-4 font-medium text-white">{s.staff_name}</td>
-                    <td className="py-2.5 pr-4 text-white/60">{s.branch_code || "—"}</td>
-                    <td className="py-2.5 pr-4 text-white/80">{fmtTime(s.check_in_at)}</td>
-                    <td className="py-2.5 pr-4"><GpsBadge ok={s.check_in_gps_ok} /></td>
-                    <td className="py-2.5 pr-4 text-white/80">{fmtTime(s.check_out_at)}</td>
-                    <td className="py-2.5 pr-4"><GpsBadge ok={s.check_out_gps_ok} /></td>
-                    <td className="py-2.5 text-white/60">
-                      {workedMin !== null
-                        ? `${Math.floor(workedMin / 60)}h ${String(workedMin % 60).padStart(2, "0")}m`
-                        : s.check_in_at ? <span className={BADGE_WARNING}>On Shift</span> : "—"}
-                    </td>
-                  </tr>
+                  <>
+                    <tr key={s.id} className="hover:bg-white/3 transition-colors group">
+                      {/* Expand toggle */}
+                      <td className={`${cellCls} pl-3 text-white/30`}>
+                        {visitCount > 0 && (
+                          <button onClick={() => toggleExpand(s.id)} className="hover:text-white transition-colors">
+                            {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                          </button>
+                        )}
+                      </td>
+                      <td className={`${cellCls} font-medium text-white`}>{s.staff_name}</td>
+                      <td className={`${cellCls} text-white/50`}>{s.branch_code || "—"}</td>
+                      <td className={`${cellCls}`}><StatusBadge s={s} /></td>
+                      <td className={`${cellCls} text-white/80`}>{fmtTime(s.check_in_at)}</td>
+                      <td className={`${cellCls}`}><GpsBadge ok={s.check_in_gps_ok} /></td>
+                      <td className={`${cellCls} text-white/80`}>{fmtTime(s.check_out_at)}</td>
+                      <td className={`${cellCls}`}><GpsBadge ok={s.check_out_gps_ok} /></td>
+                      <td className={`${cellCls} text-white/60`}>{fmtDuration(s.check_in_at, s.check_out_at)}</td>
+                      <td className={`${cellCls}`}>
+                        {visitCount > 0 ? (
+                          <button onClick={() => toggleExpand(s.id)}
+                            className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 border border-violet-500/25 px-2 py-0.5 text-xs text-violet-300 hover:bg-violet-500/25 transition-colors">
+                            {visitCount} visit{visitCount !== 1 ? "s" : ""}
+                          </button>
+                        ) : <span className="text-white/20 text-xs">—</span>}
+                      </td>
+                      <td className={`${cellCls} pr-3`}>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => setEditingSession(s)}
+                            className="rounded-lg border border-white/10 p-1.5 text-white/40 hover:text-white hover:border-white/20 transition-colors">
+                            <Pencil size={12} />
+                          </button>
+                          <button onClick={() => handleDelete(s)} disabled={deleting}
+                            className="rounded-lg border border-red-500/20 p-1.5 text-red-400/50 hover:text-red-400 hover:border-red-500/40 transition-colors">
+                            {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Expanded visits */}
+                    {expanded && visitCount > 0 && (
+                      <tr key={`${s.id}-visits`} className="bg-white/2">
+                        <td colSpan={11} className="pl-10 pr-3 pb-3 pt-1">
+                          <div className="rounded-lg border border-white/8 overflow-hidden">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="bg-white/3 border-b border-white/8 text-white/30">
+                                  <th className="py-1.5 pl-3 text-left font-medium">Visit Branch</th>
+                                  <th className="py-1.5 pr-3 text-left font-medium">Start</th>
+                                  <th className="py-1.5 pr-3 text-left font-medium">End</th>
+                                  <th className="py-1.5 pr-3 text-left font-medium">Duration</th>
+                                  <th className="py-1.5 pr-3 text-left font-medium">GPS</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/5">
+                                {s.visits.map(v => (
+                                  <tr key={v.id}>
+                                    <td className="py-1.5 pl-3 text-white/70 font-medium">{v.branch_code || "—"}</td>
+                                    <td className="py-1.5 pr-3 text-white/60">{fmtTime(v.visit_start)}</td>
+                                    <td className="py-1.5 pr-3 text-white/60">{fmtTime(v.visit_end)}</td>
+                                    <td className="py-1.5 pr-3 text-white/50">{fmtDuration(v.visit_start, v.visit_end)}</td>
+                                    <td className="py-1.5 pr-3"><GpsBadge ok={v.gps_ok} /></td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          {s.note && (
+                            <p className="mt-2 text-xs text-white/40 italic">Note: {s.note}</p>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 );
               })}
             </tbody>
           </table>
         </div>
+      )}
+
+      {editingSession && (
+        <EditModal
+          session={editingSession}
+          onClose={() => setEditingSession(null)}
+          onSaved={handleSaved}
+        />
       )}
     </div>
   );
@@ -358,12 +700,12 @@ function LogTab({ city }: { city: string }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-type Tab = "gps" | "log";
+type Tab = "report" | "gps";
 
 export default function OsAttendanceAdminPage() {
   const router = useRouter();
   const auth = useMemo(() => getAuth(), []);
-  const [tab, setTab] = useState<Tab>("log");
+  const [tab, setTab] = useState<Tab>("report");
   const [city, setCity] = useState<"dubai" | "manila">("manila");
 
   useEffect(() => {
@@ -376,14 +718,14 @@ export default function OsAttendanceAdminPage() {
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-4 py-8">
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="mx-auto max-w-6xl space-y-6">
 
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-violet-400 mb-1">OS ATTENDANCE ADMIN</p>
             <h1 className={T_PAGE_TITLE}>OS Attendance</h1>
-            <p className="text-sm text-white/40 mt-1">WebAuthn + GPS clock-in/out logs · Branch GPS configuration</p>
+            <p className="text-sm text-white/40 mt-1">WebAuthn + GPS clock-in/out management · Branch GPS configuration</p>
           </div>
           <div className="flex gap-2">
             {(["manila", "dubai"] as const).map(c => (
@@ -399,8 +741,8 @@ export default function OsAttendanceAdminPage() {
 
         {/* Tabs */}
         <div className="flex gap-2">
-          <button onClick={() => setTab("log")} className={tab === "log" ? TAB_ACTIVE : TAB_INACTIVE}>
-            Attendance Log
+          <button onClick={() => setTab("report")} className={tab === "report" ? TAB_ACTIVE : TAB_INACTIVE}>
+            Daily Report
           </button>
           <button onClick={() => setTab("gps")} className={tab === "gps" ? TAB_ACTIVE : TAB_INACTIVE}>
             GPS Settings
@@ -409,7 +751,7 @@ export default function OsAttendanceAdminPage() {
 
         {/* Content */}
         <div className={GLASS_CARD + " p-6"}>
-          {tab === "log" && <LogTab city={city} />}
+          {tab === "report" && <DailyReportTab city={city} />}
           {tab === "gps" && <GpsTab city={city} />}
         </div>
       </div>
