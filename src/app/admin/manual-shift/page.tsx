@@ -677,14 +677,22 @@ export default function ManualShiftPage() {
       form.append("city", city);
       form.append("file", file);
       const auth = getAuth();
+      // Strip Content-Type from headers — FormData requires the browser to set
+      // multipart/form-data with the boundary automatically. If we pass
+      // Content-Type: application/json (from getAuthHeaders), the server
+      // receives the wrong content type and returns 422.
+      const allHeaders = getAuthHeaders(auth) as Record<string, string>;
+      const { "Content-Type": _ignored, ...formHeaders } = allHeaders;
+      void _ignored;
       const res = await fetch("/api/admin/shifts/bayzat_parse", {
         method: "POST",
         body: form,
-        headers: getAuthHeaders(auth) ?? {},
+        headers: formHeaders,
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "Parse failed" }));
-        setError((err as { detail?: string }).detail || "Bayzat parse failed");
+        const detail = err?.detail;
+        setError(typeof detail === "string" ? detail : Array.isArray(detail) ? "Bayzat parse failed (422)" : "Bayzat parse failed");
         return;
       }
       const data = (await res.json()) as BayzatResult;
