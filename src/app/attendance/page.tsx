@@ -336,6 +336,7 @@ export default function AttendancePage() {
           visit_end: "Visit ended ✓",
         };
         setSuccess(labels[action] ?? "Done ✓");
+        if (action === "checkout") setVisitPickerOpen(false);
         await fetchToday();
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -353,7 +354,7 @@ export default function AttendancePage() {
   const doRegister = useCallback(async () => {
     const a = getAuth();
     if (!a) return;
-    setBusy(true); setError(""); setSuccess("");
+    setBusy(true); setError(""); setSuccess(""); setGpsError("");
     try {
       const optRes = await fetch(`${API_BASE}/api/auth/webauthn/register/options`, {
         method: "POST",
@@ -398,6 +399,10 @@ export default function AttendancePage() {
   const isCheckedOut = !!session?.check_out_at;
   const openVisits = visits.filter((v) => !v.visit_end);
   const closedVisits = visits.filter((v) => v.visit_end);
+  // Branches already being visited (open visit) are excluded from picker to avoid duplicates
+  const availableBranches = branchList.filter(
+    (b) => !openVisits.some((v) => v.branch_code.toUpperCase() === b.toUpperCase()),
+  );
   // Math.max(0, ...) guards against client/server clock skew producing negative elapsed time
   const workedMinutes = isCheckedIn
     ? Math.max(0, minutesBetween(session!.check_in_at!, isCheckedOut ? session!.check_out_at! : new Date().toISOString()))
@@ -534,28 +539,34 @@ export default function AttendancePage() {
         </div>
       )}
 
-      {/* Visits */}
-      {wauSupported && passkeyCount > 0 && isCheckedIn && !isCheckedOut && (
+      {/* Visits — shown when checked in (read-only after checkout) */}
+      {wauSupported && passkeyCount > 0 && isCheckedIn && (
         <div className={`${GLASS_CARD} rounded-2xl p-5 space-y-3`}>
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-white">Branch Visits</span>
-            <button
-              onClick={() => setVisitPickerOpen((o) => !o)}
-              className="flex items-center gap-1 rounded-lg bg-violet-700/30 px-2.5 py-1 text-xs text-violet-300 hover:bg-violet-700/50"
-            >
-              <Plus size={12} /> Start Visit
-              {visitPickerOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-            </button>
+            {!isCheckedOut && (
+              <button
+                onClick={() => setVisitPickerOpen((o) => !o)}
+                className="flex items-center gap-1 rounded-lg bg-violet-700/30 px-2.5 py-1 text-xs text-violet-300 hover:bg-violet-700/50"
+              >
+                <Plus size={12} /> Start Visit
+                {visitPickerOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+              </button>
+            )}
           </div>
 
-          {visitPickerOpen && (
+          {!isCheckedOut && visitPickerOpen && (
             <div className="rounded-xl bg-zinc-900/60 p-3 space-y-2">
               <p className="text-xs text-zinc-400">Select a branch to visit</p>
-              {branchList.length === 0 ? (
-                <p className="text-xs text-zinc-500">No branches configured. Set up GPS in Admin first.</p>
+              {availableBranches.length === 0 ? (
+                <p className="text-xs text-zinc-500">
+                  {branchList.length === 0
+                    ? "No branches configured. Set up GPS in Admin first."
+                    : "All configured branches already have an open visit."}
+                </p>
               ) : (
                 <div className="flex flex-wrap gap-2">
-                  {branchList.map((b) => (
+                  {availableBranches.map((b) => (
                     <button
                       key={b}
                       onClick={() => setVisitBranch(b)}
@@ -594,13 +605,15 @@ export default function AttendancePage() {
                 <span>Started {fmtTime(v.visit_start, tz)}</span>
                 <GpsIndicator ok={v.gps_ok} distM={v.distance_m} />
               </div>
-              <button
-                onClick={() => doAction("visit_end", { visit_id: v.id })}
-                disabled={busy}
-                className="flex items-center gap-1 rounded-lg bg-rose-800/40 px-2.5 py-1 text-xs text-rose-300 hover:bg-rose-800/60 disabled:opacity-50"
-              >
-                <Square size={10} /> End Visit
-              </button>
+              {!isCheckedOut && (
+                <button
+                  onClick={() => doAction("visit_end", { visit_id: v.id })}
+                  disabled={busy}
+                  className="flex items-center gap-1 rounded-lg bg-rose-800/40 px-2.5 py-1 text-xs text-rose-300 hover:bg-rose-800/60 disabled:opacity-50"
+                >
+                  <Square size={10} /> End Visit
+                </button>
+              )}
             </div>
           ))}
 
