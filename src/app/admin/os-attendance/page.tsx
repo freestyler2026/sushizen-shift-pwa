@@ -42,27 +42,25 @@ type AttendanceSession = {
 
 function fmtTime(iso: string | null) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
-}
-
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("ja-JP", { month: "2-digit", day: "2-digit" });
+  return new Date(iso).toLocaleTimeString("en-PH", {
+    hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Manila",
+  });
 }
 
 function GpsBadge({ ok }: { ok: boolean | null }) {
   if (ok === null) return <span className="text-white/30 text-xs">—</span>;
-  if (ok) return <span className={BADGE_SUCCESS}><CheckCircle size={10} />範囲内</span>;
-  return <span className={BADGE_ERROR}><XCircle size={10} />範囲外</span>;
+  if (ok) return <span className={BADGE_SUCCESS}><CheckCircle size={10} />In Range</span>;
+  return <span className={BADGE_ERROR}><XCircle size={10} />Out of Range</span>;
 }
 
-// ── GPS設定タブ ─────────────────────────────────────────────
+// ── GPS Settings Tab ──────────────────────────────────────────────────────────
 
 type GpsEditState = { lat: string; lng: string; radius_m: string; label: string };
 
 function GpsTab({ city }: { city: string }) {
   const [list, setList] = useState<BranchGps[]>([]);
   const [busy, setBusy] = useState(false);
-  const [editing, setEditing] = useState<string | null>(null); // branch_code
+  const [editing, setEditing] = useState<string | null>(null);
   const [form, setForm] = useState<GpsEditState>({ lat: "", lng: "", radius_m: "100", label: "" });
   const [adding, setAdding] = useState(false);
   const [newBranch, setNewBranch] = useState("");
@@ -73,7 +71,7 @@ function GpsTab({ city }: { city: string }) {
     try {
       const r = await apiFetch(`${API}/branch-gps?city=${city}`);
       const d = await r.json();
-      setList(d.gps ?? []);
+      setList(d.branches ?? []);
     } finally {
       setBusy(false);
     }
@@ -91,21 +89,21 @@ function GpsTab({ city }: { city: string }) {
     const lat = parseFloat(form.lat);
     const lng = parseFloat(form.lng);
     const radius_m = parseInt(form.radius_m);
-    if (isNaN(lat) || isNaN(lng) || isNaN(radius_m)) { setErr("緯度・経度・半径は数値で入力してください"); return; }
+    if (isNaN(lat) || isNaN(lng) || isNaN(radius_m)) { setErr("Please enter valid numbers for latitude, longitude, and radius"); return; }
     setBusy(true); setErr("");
     try {
       const r = await apiFetch(`${API}/branch-gps/${city}/${branch_code}`, {
         method: "PUT",
         body: JSON.stringify({ lat, lng, radius_m, label: form.label }),
       });
-      if (!r.ok) { setErr("保存に失敗しました"); return; }
+      if (!r.ok) { setErr("Failed to save"); return; }
       setEditing(null);
       await load();
     } finally { setBusy(false); }
   }
 
   async function del(branch_code: string) {
-    if (!confirm(`${branch_code} のGPS設定を削除しますか？`)) return;
+    if (!confirm(`Delete GPS settings for ${branch_code}? This cannot be undone.`)) return;
     setBusy(true);
     try {
       await apiFetch(`${API}/branch-gps/${city}/${branch_code}`, { method: "DELETE" });
@@ -114,18 +112,18 @@ function GpsTab({ city }: { city: string }) {
   }
 
   async function addNew() {
-    if (!newBranch.trim()) { setErr("ブランチコードを入力してください"); return; }
+    if (!newBranch.trim()) { setErr("Enter a branch code"); return; }
     const lat = parseFloat(form.lat);
     const lng = parseFloat(form.lng);
     const radius_m = parseInt(form.radius_m);
-    if (isNaN(lat) || isNaN(lng) || isNaN(radius_m)) { setErr("緯度・経度・半径は数値で入力してください"); return; }
+    if (isNaN(lat) || isNaN(lng) || isNaN(radius_m)) { setErr("Please enter valid numbers for latitude, longitude, and radius"); return; }
     setBusy(true); setErr("");
     try {
       const r = await apiFetch(`${API}/branch-gps/${city}/${newBranch.trim().toUpperCase()}`, {
         method: "PUT",
         body: JSON.stringify({ lat, lng, radius_m, label: form.label }),
       });
-      if (!r.ok) { setErr("追加に失敗しました"); return; }
+      if (!r.ok) { setErr("Failed to add"); return; }
       setAdding(false); setNewBranch(""); setForm({ lat: "", lng: "", radius_m: "100", label: "" });
       await load();
     } finally { setBusy(false); }
@@ -134,14 +132,14 @@ function GpsTab({ city }: { city: string }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-white/50">ブランチのGPS座標とジオフェンス半径を設定します。未設定のブランチはGPSチェックをスキップします。</p>
+        <p className="text-sm text-white/50">Set GPS coordinates and geofence radius per branch. Branches without GPS configured skip the location check.</p>
         <div className="flex gap-2">
           <button onClick={() => load()} className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:text-white hover:border-white/20 transition-colors">
-            <RefreshCw size={12} />更新
+            <RefreshCw size={12} />Refresh
           </button>
           <button onClick={() => { setAdding(true); setForm({ lat: "", lng: "", radius_m: "100", label: "" }); setNewBranch(""); setErr(""); }}
             className="flex items-center gap-1.5 rounded-lg bg-violet-500/20 border border-violet-500/30 px-3 py-1.5 text-xs text-violet-300 hover:bg-violet-500/30 transition-colors">
-            <Plus size={12} />ブランチ追加
+            <Plus size={12} />Add Branch
           </button>
         </div>
       </div>
@@ -150,42 +148,42 @@ function GpsTab({ city }: { city: string }) {
 
       {adding && (
         <div className={`${GLASS_CARD} p-4 border-violet-500/30 space-y-3`}>
-          <p className="text-xs font-semibold text-violet-300 uppercase tracking-wider">新規ブランチGPS設定</p>
+          <p className="text-xs font-semibold text-violet-300 uppercase tracking-wider">New Branch GPS</p>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-white/50 mb-1 block">ブランチコード</label>
+              <label className="text-xs text-white/50 mb-1 block">Branch Code</label>
               <input value={newBranch} onChange={e => setNewBranch(e.target.value.toUpperCase())}
                 className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white placeholder-white/30 focus:border-violet-500/50 focus:outline-none"
-                placeholder="例: MNL-01" />
+                placeholder="e.g. MNL-01" />
             </div>
             <div>
-              <label className="text-xs text-white/50 mb-1 block">ラベル（任意）</label>
+              <label className="text-xs text-white/50 mb-1 block">Label (optional)</label>
               <input value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))}
                 className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white placeholder-white/30 focus:border-violet-500/50 focus:outline-none"
-                placeholder="例: マニラ本店" />
+                placeholder="e.g. Manila Main" />
             </div>
             <div>
-              <label className="text-xs text-white/50 mb-1 block">緯度</label>
+              <label className="text-xs text-white/50 mb-1 block">Latitude</label>
               <input value={form.lat} onChange={e => setForm(f => ({ ...f, lat: e.target.value }))}
                 className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white placeholder-white/30 focus:border-violet-500/50 focus:outline-none"
                 placeholder="14.5995" />
             </div>
             <div>
-              <label className="text-xs text-white/50 mb-1 block">経度</label>
+              <label className="text-xs text-white/50 mb-1 block">Longitude</label>
               <input value={form.lng} onChange={e => setForm(f => ({ ...f, lng: e.target.value }))}
                 className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white placeholder-white/30 focus:border-violet-500/50 focus:outline-none"
                 placeholder="120.9842" />
             </div>
             <div>
-              <label className="text-xs text-white/50 mb-1 block">ジオフェンス半径 (m)</label>
+              <label className="text-xs text-white/50 mb-1 block">Geofence Radius (m)</label>
               <input value={form.radius_m} onChange={e => setForm(f => ({ ...f, radius_m: e.target.value }))}
                 className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white placeholder-white/30 focus:border-violet-500/50 focus:outline-none"
                 placeholder="100" />
             </div>
           </div>
           <div className="flex gap-2 justify-end">
-            <button onClick={() => setAdding(false)} className="rounded-lg border border-white/10 px-4 py-1.5 text-sm text-white/60 hover:text-white transition-colors">キャンセル</button>
-            <button onClick={addNew} disabled={busy} className={PRIMARY_BUTTON + " text-sm py-1.5 px-4"}>保存</button>
+            <button onClick={() => setAdding(false)} className="rounded-lg border border-white/10 px-4 py-1.5 text-sm text-white/60 hover:text-white transition-colors">Cancel</button>
+            <button onClick={addNew} disabled={busy} className={PRIMARY_BUTTON + " text-sm py-1.5 px-4"}>Save</button>
           </div>
         </div>
       )}
@@ -200,30 +198,30 @@ function GpsTab({ city }: { city: string }) {
                 <p className="text-sm font-semibold text-white">{g.branch_code}</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-white/50 mb-1 block">ラベル</label>
+                    <label className="text-xs text-white/50 mb-1 block">Label</label>
                     <input value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))}
                       className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:border-violet-500/50 focus:outline-none" />
                   </div>
                   <div>
-                    <label className="text-xs text-white/50 mb-1 block">半径 (m)</label>
+                    <label className="text-xs text-white/50 mb-1 block">Radius (m)</label>
                     <input value={form.radius_m} onChange={e => setForm(f => ({ ...f, radius_m: e.target.value }))}
                       className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:border-violet-500/50 focus:outline-none" />
                   </div>
                   <div>
-                    <label className="text-xs text-white/50 mb-1 block">緯度</label>
+                    <label className="text-xs text-white/50 mb-1 block">Latitude</label>
                     <input value={form.lat} onChange={e => setForm(f => ({ ...f, lat: e.target.value }))}
                       className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:border-violet-500/50 focus:outline-none" />
                   </div>
                   <div>
-                    <label className="text-xs text-white/50 mb-1 block">経度</label>
+                    <label className="text-xs text-white/50 mb-1 block">Longitude</label>
                     <input value={form.lng} onChange={e => setForm(f => ({ ...f, lng: e.target.value }))}
                       className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:border-violet-500/50 focus:outline-none" />
                   </div>
                 </div>
                 {err && <p className="text-xs text-red-400">{err}</p>}
                 <div className="flex gap-2 justify-end">
-                  <button onClick={() => setEditing(null)} className="rounded-lg border border-white/10 px-4 py-1.5 text-sm text-white/60 hover:text-white transition-colors">キャンセル</button>
-                  <button onClick={() => save(g.branch_code)} disabled={busy} className={PRIMARY_BUTTON + " text-sm py-1.5 px-4"}>保存</button>
+                  <button onClick={() => setEditing(null)} className="rounded-lg border border-white/10 px-4 py-1.5 text-sm text-white/60 hover:text-white transition-colors">Cancel</button>
+                  <button onClick={() => save(g.branch_code)} disabled={busy} className={PRIMARY_BUTTON + " text-sm py-1.5 px-4"}>Save</button>
                 </div>
               </div>
             ) : (
@@ -236,7 +234,7 @@ function GpsTab({ city }: { city: string }) {
                       {g.label && <span className="text-xs text-white/50">{g.label}</span>}
                     </div>
                     <p className="text-xs text-white/40 mt-0.5">
-                      {g.lat.toFixed(6)}, {g.lng.toFixed(6)} · 半径 {g.radius_m}m
+                      {g.lat.toFixed(6)}, {g.lng.toFixed(6)} · Radius {g.radius_m}m
                     </p>
                   </div>
                 </div>
@@ -255,8 +253,8 @@ function GpsTab({ city }: { city: string }) {
         {!busy && list.length === 0 && (
           <div className="flex flex-col items-center gap-2 py-10 text-white/30">
             <MapPin size={32} />
-            <p className="text-sm">GPS設定がありません</p>
-            <p className="text-xs">「ブランチ追加」から設定してください</p>
+            <p className="text-sm">No GPS settings configured</p>
+            <p className="text-xs">Use &quot;Add Branch&quot; to get started</p>
           </div>
         )}
       </div>
@@ -264,7 +262,7 @@ function GpsTab({ city }: { city: string }) {
   );
 }
 
-// ── 出勤ログタブ ────────────────────────────────────────────
+// ── Attendance Log Tab ────────────────────────────────────────────────────────
 
 function LogTab({ city }: { city: string }) {
   const [sessions, setSessions] = useState<AttendanceSession[]>([]);
@@ -288,9 +286,9 @@ function LogTab({ city }: { city: string }) {
         <input type="date" value={date} onChange={e => setDate(e.target.value)}
           className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:border-violet-500/50 focus:outline-none" />
         <button onClick={load} className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:text-white hover:border-white/20 transition-colors">
-          <RefreshCw size={12} />更新
+          <RefreshCw size={12} />Refresh
         </button>
-        <span className="text-xs text-white/30">{sessions.length}件</span>
+        <span className="text-xs text-white/30">{sessions.length} records</span>
       </div>
 
       {busy && <div className="flex justify-center py-8"><Loader2 className="animate-spin text-white/30" size={24} /></div>}
@@ -298,7 +296,7 @@ function LogTab({ city }: { city: string }) {
       {!busy && sessions.length === 0 && (
         <div className="flex flex-col items-center gap-2 py-10 text-white/30">
           <Fingerprint size={32} />
-          <p className="text-sm">この日の出勤記録はありません</p>
+          <p className="text-sm">No attendance records for this date</p>
         </div>
       )}
 
@@ -307,13 +305,13 @@ function LogTab({ city }: { city: string }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/10 text-xs text-white/40">
-                <th className="pb-2 text-left font-medium">スタッフ</th>
-                <th className="pb-2 text-left font-medium">ブランチ</th>
-                <th className="pb-2 text-left font-medium">タイムイン</th>
+                <th className="pb-2 text-left font-medium">Staff</th>
+                <th className="pb-2 text-left font-medium">Branch</th>
+                <th className="pb-2 text-left font-medium">Clock In</th>
                 <th className="pb-2 text-left font-medium">GPS</th>
-                <th className="pb-2 text-left font-medium">タイムアウト</th>
+                <th className="pb-2 text-left font-medium">Clock Out</th>
                 <th className="pb-2 text-left font-medium">GPS</th>
-                <th className="pb-2 text-left font-medium">勤務時間</th>
+                <th className="pb-2 text-left font-medium">Duration</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
@@ -331,8 +329,8 @@ function LogTab({ city }: { city: string }) {
                     <td className="py-2.5 pr-4"><GpsBadge ok={s.check_out_gps_ok} /></td>
                     <td className="py-2.5 text-white/60">
                       {workedMin !== null
-                        ? `${Math.floor(workedMin / 60)}h${String(workedMin % 60).padStart(2, "0")}m`
-                        : s.check_in_at ? <span className={BADGE_WARNING}>出勤中</span> : "—"}
+                        ? `${Math.floor(workedMin / 60)}h ${String(workedMin % 60).padStart(2, "0")}m`
+                        : s.check_in_at ? <span className={BADGE_WARNING}>On Shift</span> : "—"}
                     </td>
                   </tr>
                 );
@@ -345,7 +343,7 @@ function LogTab({ city }: { city: string }) {
   );
 }
 
-// ── メインページ ────────────────────────────────────────────
+// ── Main Page ─────────────────────────────────────────────────────────────────
 
 type Tab = "gps" | "log";
 
@@ -367,12 +365,12 @@ export default function OsAttendanceAdminPage() {
     <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-4 py-8">
       <div className="mx-auto max-w-5xl space-y-6">
 
-        {/* ヘッダー */}
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-violet-400 mb-1">OS ATTENDANCE ADMIN</p>
-            <h1 className={T_PAGE_TITLE}>OS出勤管理</h1>
-            <p className="text-sm text-white/40 mt-1">WebAuthn + GPS 出勤ログ · ブランチGPS設定</p>
+            <h1 className={T_PAGE_TITLE}>OS Attendance</h1>
+            <p className="text-sm text-white/40 mt-1">WebAuthn + GPS clock-in/out logs · Branch GPS configuration</p>
           </div>
           <div className="flex gap-2">
             {(["manila", "dubai"] as const).map(c => (
@@ -386,17 +384,17 @@ export default function OsAttendanceAdminPage() {
           </div>
         </div>
 
-        {/* タブ */}
+        {/* Tabs */}
         <div className="flex gap-2">
           <button onClick={() => setTab("log")} className={tab === "log" ? TAB_ACTIVE : TAB_INACTIVE}>
-            出勤ログ
+            Attendance Log
           </button>
           <button onClick={() => setTab("gps")} className={tab === "gps" ? TAB_ACTIVE : TAB_INACTIVE}>
-            GPS設定
+            GPS Settings
           </button>
         </div>
 
-        {/* コンテンツ */}
+        {/* Content */}
         <div className={GLASS_CARD + " p-6"}>
           {tab === "log" && <LogTab city={city} />}
           {tab === "gps" && <GpsTab city={city} />}

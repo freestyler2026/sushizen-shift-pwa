@@ -200,20 +200,20 @@ function GpsIndicator({ ok, distM }: { ok: boolean | null; distM: number | null 
   if (ok === null) {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-zinc-700/50 px-2 py-0.5 text-[10px] text-zinc-400">
-        <MapPinOff size={10} /> GPS 未取得
+        <MapPinOff size={10} /> No GPS
       </span>
     );
   }
   if (ok) {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-900/40 px-2 py-0.5 text-[10px] text-emerald-400">
-        <MapPin size={10} /> {distM != null ? `${distM}m` : "範囲内"}
+        <MapPin size={10} /> {distM != null ? `${distM}m` : "In Range"}
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-amber-900/40 px-2 py-0.5 text-[10px] text-amber-400">
-      <Navigation size={10} /> {distM != null ? `${distM}m (範囲外)` : "範囲外"}
+      <Navigation size={10} /> {distM != null ? `${distM}m (Out of Range)` : "Out of Range"}
     </span>
   );
 }
@@ -308,8 +308,8 @@ export default function AttendancePage() {
           body: JSON.stringify({ action, ...extra }),
         });
         if (!optRes.ok) {
-          const e = await optRes.json().catch(() => ({ detail: "エラー" }));
-          throw new Error(e.detail || "オプション取得失敗");
+          const e = await optRes.json().catch(() => ({ detail: "Error" }));
+          throw new Error(e.detail || "Failed to get options");
         }
         const { state_token, options } = await optRes.json();
         const credential = await webauthnAuthenticate(options as Record<string, unknown>);
@@ -320,16 +320,16 @@ export default function AttendancePage() {
           body: JSON.stringify({ state_token, credential, action, lat, lng, ...extra }),
         });
         if (!verRes.ok) {
-          const e = await verRes.json().catch(() => ({ detail: "エラー" }));
-          throw new Error(e.detail || "認証失敗");
+          const e = await verRes.json().catch(() => ({ detail: "Error" }));
+          throw new Error(e.detail || "Authentication failed");
         }
         const labels: Record<string, string> = {
-          checkin: "タイムインしました ✓",
-          checkout: "タイムアウトしました ✓",
-          visit_start: "訪問を開始しました ✓",
-          visit_end: "訪問を終了しました ✓",
+          checkin: "Clocked in ✓",
+          checkout: "Clocked out ✓",
+          visit_start: "Visit started ✓",
+          visit_end: "Visit ended ✓",
         };
-        setSuccess(labels[action] ?? "完了しました ✓");
+        setSuccess(labels[action] ?? "Done ✓");
         await fetchToday();
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -355,8 +355,8 @@ export default function AttendancePage() {
         body: JSON.stringify({ friendly_name: "My Device" }),
       });
       if (!optRes.ok) {
-        const e = await optRes.json().catch(() => ({ detail: "エラー" }));
-        throw new Error(e.detail || "取得失敗");
+        const e = await optRes.json().catch(() => ({ detail: "Error" }));
+        throw new Error(e.detail || "Failed to get options");
       }
       const { state_token, options } = await optRes.json();
       const credential = await webauthnRegister(options as Record<string, unknown>);
@@ -367,10 +367,10 @@ export default function AttendancePage() {
         body: JSON.stringify({ state_token, credential, friendly_name: "My Device" }),
       });
       if (!verRes.ok) {
-        const e = await verRes.json().catch(() => ({ detail: "エラー" }));
-        throw new Error(e.detail || "登録失敗");
+        const e = await verRes.json().catch(() => ({ detail: "Error" }));
+        throw new Error(e.detail || "Registration failed");
       }
-      setSuccess("デバイスを登録しました！タイムインができます。");
+      setSuccess("Device registered! You can now clock in.");
       await fetchToday();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -430,7 +430,7 @@ export default function AttendancePage() {
       {/* WebAuthn not supported */}
       {!wauSupported && (
         <div className={`${GLASS_CARD} rounded-2xl p-4 text-sm text-amber-300`}>
-          このブラウザはパスキーに対応していません。Chrome または Safari をお使いください。
+          This browser does not support passkeys. Please use Chrome or Safari.
         </div>
       )}
 
@@ -439,17 +439,17 @@ export default function AttendancePage() {
         <div className={`${GLASS_CARD} rounded-2xl p-5 space-y-3`}>
           <div className="flex items-center gap-2">
             <Fingerprint size={18} className="text-violet-400" />
-            <p className="text-sm font-medium text-white">デバイスを登録してください</p>
+            <p className="text-sm font-medium text-white">Register Your Device</p>
           </div>
           <p className="text-xs text-zinc-400 leading-relaxed">
-            このデバイスの顔認証または指紋認証を使って、タイムイン/アウトができます。まず一度だけ登録してください。
+            Use this device&apos;s face or fingerprint recognition to clock in and out. Register once to get started.
           </p>
           <button
             onClick={doRegister}
             disabled={busy}
             className="w-full rounded-xl bg-violet-600 py-3 text-sm font-semibold text-white disabled:opacity-50 hover:bg-violet-500 transition-colors"
           >
-            {busy ? "登録中…" : "このデバイスを登録する"}
+            {busy ? "Registering..." : "Register This Device"}
           </button>
         </div>
       )}
@@ -459,25 +459,25 @@ export default function AttendancePage() {
         <div className={`${GLASS_CARD} rounded-2xl p-5 space-y-4`}>
           {/* Status badge */}
           <div className="flex items-center justify-between">
-            <span className="text-xs text-zinc-500 uppercase tracking-wide">本日の状態</span>
+            <span className="text-xs text-zinc-500 uppercase tracking-wide">Today&apos;s Status</span>
             {isCheckedOut ? (
-              <span className="rounded-full bg-zinc-700/60 px-2.5 py-0.5 text-[11px] font-medium text-zinc-300">退勤済み</span>
+              <span className="rounded-full bg-zinc-700/60 px-2.5 py-0.5 text-[11px] font-medium text-zinc-300">Clocked Out</span>
             ) : isCheckedIn ? (
-              <span className="rounded-full bg-emerald-900/50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-400">勤務中</span>
+              <span className="rounded-full bg-emerald-900/50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-400">On Shift</span>
             ) : (
-              <span className="rounded-full bg-zinc-700/60 px-2.5 py-0.5 text-[11px] font-medium text-zinc-400">未出勤</span>
+              <span className="rounded-full bg-zinc-700/60 px-2.5 py-0.5 text-[11px] font-medium text-zinc-400">Not Clocked In</span>
             )}
           </div>
 
           {/* Times */}
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl bg-zinc-900/50 p-3 space-y-1">
-              <div className="flex items-center gap-1.5 text-[10px] text-zinc-500"><LogIn size={10} /> タイムイン</div>
+              <div className="flex items-center gap-1.5 text-[10px] text-zinc-500"><LogIn size={10} /> Clock In</div>
               <div className="text-xl font-bold text-white tabular-nums">{fmtTime(session?.check_in_at ?? null)}</div>
               {session?.check_in_at && <GpsIndicator ok={session.check_in_gps_ok} distM={session.check_in_distance_m} />}
             </div>
             <div className="rounded-xl bg-zinc-900/50 p-3 space-y-1">
-              <div className="flex items-center gap-1.5 text-[10px] text-zinc-500"><LogOut size={10} /> タイムアウト</div>
+              <div className="flex items-center gap-1.5 text-[10px] text-zinc-500"><LogOut size={10} /> Clock Out</div>
               <div className="text-xl font-bold text-white tabular-nums">{fmtTime(session?.check_out_at ?? null)}</div>
               {session?.check_out_at && <GpsIndicator ok={session.check_out_gps_ok} distM={session.check_out_distance_m} />}
             </div>
@@ -487,14 +487,14 @@ export default function AttendancePage() {
           {isCheckedIn && (
             <div className="flex items-center justify-between rounded-xl bg-zinc-900/50 px-3 py-2">
               <div className="flex items-center gap-1.5 text-xs text-zinc-400">
-                <Clock size={12} /> {isCheckedOut ? "勤務時間" : "経過時間"}
+                <Clock size={12} /> {isCheckedOut ? "Duration" : "Elapsed"}
               </div>
               <span className="text-sm font-semibold text-white tabular-nums">{fmtDuration(workedMinutes)}</span>
             </div>
           )}
 
           {/* GPS status */}
-          {gpsLoading && <p className="text-xs text-zinc-500 animate-pulse">GPS 取得中…</p>}
+          {gpsLoading && <p className="text-xs text-zinc-500 animate-pulse">Getting GPS...</p>}
           {gpsError && <p className="text-xs text-amber-400">{gpsError}</p>}
 
           {/* Main actions */}
@@ -505,7 +505,7 @@ export default function AttendancePage() {
               className="w-full rounded-xl bg-violet-600 py-4 text-base font-bold text-white disabled:opacity-50 hover:bg-violet-500 transition-colors flex items-center justify-center gap-2"
             >
               <LogIn size={18} />
-              {busy ? "認証中…" : "タイムイン"}
+              {busy ? "Authenticating..." : "Clock In"}
             </button>
           )}
           {isCheckedIn && !isCheckedOut && (
@@ -515,12 +515,12 @@ export default function AttendancePage() {
               className="w-full rounded-xl bg-rose-700 py-4 text-base font-bold text-white disabled:opacity-50 hover:bg-rose-600 transition-colors flex items-center justify-center gap-2"
             >
               <LogOut size={18} />
-              {busy ? "認証中…" : "タイムアウト"}
+              {busy ? "Authenticating..." : "Clock Out"}
             </button>
           )}
           {isCheckedOut && (
             <div className="rounded-xl bg-zinc-800/50 px-3 py-3 text-center text-sm text-zinc-400">
-              本日は退勤済みです。お疲れ様でした！
+              You&apos;ve clocked out for today. Great work!
             </div>
           )}
         </div>
@@ -530,21 +530,21 @@ export default function AttendancePage() {
       {wauSupported && passkeyCount > 0 && isCheckedIn && !isCheckedOut && (
         <div className={`${GLASS_CARD} rounded-2xl p-5 space-y-3`}>
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-white">訪問記録</span>
+            <span className="text-sm font-medium text-white">Branch Visits</span>
             <button
               onClick={() => setVisitPickerOpen((o) => !o)}
               className="flex items-center gap-1 rounded-lg bg-violet-700/30 px-2.5 py-1 text-xs text-violet-300 hover:bg-violet-700/50"
             >
-              <Plus size={12} /> 訪問開始
+              <Plus size={12} /> Start Visit
               {visitPickerOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
             </button>
           </div>
 
           {visitPickerOpen && (
             <div className="rounded-xl bg-zinc-900/60 p-3 space-y-2">
-              <p className="text-xs text-zinc-400">訪問先店舗を選択してください</p>
+              <p className="text-xs text-zinc-400">Select a branch to visit</p>
               {branchList.length === 0 ? (
-                <p className="text-xs text-zinc-500">店舗GPS未設定。Admin で設定後に利用できます。</p>
+                <p className="text-xs text-zinc-500">No branches configured. Set up GPS in Admin first.</p>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {branchList.map((b) => (
@@ -570,7 +570,7 @@ export default function AttendancePage() {
                   disabled={busy}
                   className="w-full rounded-xl bg-violet-600 py-2.5 text-sm font-semibold text-white disabled:opacity-50 hover:bg-violet-500"
                 >
-                  {busy ? "開始中…" : `${visitBranch} への訪問を開始`}
+                  {busy ? "Starting..." : `Start visit to ${visitBranch}`}
                 </button>
               )}
             </div>
@@ -580,10 +580,10 @@ export default function AttendancePage() {
             <div key={v.id} className="rounded-xl bg-emerald-900/20 border border-emerald-800/30 px-3 py-2.5 space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-emerald-300">{v.branch_code}</span>
-                <span className="rounded-full bg-emerald-800/40 px-2 py-0.5 text-[10px] text-emerald-400">訪問中</span>
+                <span className="rounded-full bg-emerald-800/40 px-2 py-0.5 text-[10px] text-emerald-400">Visiting</span>
               </div>
               <div className="flex items-center justify-between text-xs text-zinc-400">
-                <span>開始 {fmtTime(v.visit_start)}</span>
+                <span>Started {fmtTime(v.visit_start)}</span>
                 <GpsIndicator ok={v.gps_ok} distM={v.distance_m} />
               </div>
               <button
@@ -591,7 +591,7 @@ export default function AttendancePage() {
                 disabled={busy}
                 className="flex items-center gap-1 rounded-lg bg-rose-800/40 px-2.5 py-1 text-xs text-rose-300 hover:bg-rose-800/60 disabled:opacity-50"
               >
-                <Square size={10} /> 訪問終了
+                <Square size={10} /> End Visit
               </button>
             </div>
           ))}
@@ -609,7 +609,7 @@ export default function AttendancePage() {
           ))}
 
           {visits.length === 0 && !visitPickerOpen && (
-            <p className="text-xs text-zinc-500">訪問記録なし</p>
+            <p className="text-xs text-zinc-500">No visits recorded</p>
           )}
         </div>
       )}
@@ -623,7 +623,7 @@ export default function AttendancePage() {
             className="flex items-center gap-2 text-xs text-zinc-400 hover:text-zinc-200"
           >
             <Navigation size={12} />
-            {gpsLoading ? "GPS 取得中…" : "GPS を取得する（任意・精度向上）"}
+            {gpsLoading ? "Getting GPS..." : "Get GPS location (optional, improves accuracy)"}
           </button>
         </div>
       )}
