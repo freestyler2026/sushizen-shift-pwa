@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Bell, MailOpen, ClipboardList } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { dispatchBadgeRefresh } from "@/lib/badgeEvents";
 import {
   GLASS_CARD,
   SMALL_BUTTON,
@@ -122,6 +123,7 @@ export default function InboxPage() {
       });
       const text = await res.text();
       if (!res.ok) throw new Error(text || `Failed (${res.status})`);
+      dispatchBadgeRefresh("inbox");
       await loadInbox();
     } catch (e: any) {
       setError(e?.message || String(e));

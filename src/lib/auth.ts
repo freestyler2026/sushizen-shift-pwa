@@ -474,6 +474,11 @@ function _canAccessStaffChannel(channelKey: string, a?: Auth | null): boolean {
   return true;
 }
 
+/** Attendance page — matches `attendance` channel in `app/access_control.py`. */
+export function canAccessAttendancePage(a?: Auth | null): boolean {
+  return _canAccessStaffChannel("attendance", a);
+}
+
 /** Week page — matches `week` channel in `app/access_control.py`. */
 export function canAccessWeekPage(a?: Auth | null): boolean {
   return _canAccessStaffChannel("week", a);

@@ -22,11 +22,19 @@ if (!IS_DEV) {
   SECURITY_HEADERS.push({ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains; preload" });
 }
 
-// Bake the deployment SHA into the client bundle so AutoReload can detect
+// Bake a unique deployment ID into the client bundle so AutoReload can detect
 // when the PWA is running stale cached JavaScript and force a reload.
+// VERCEL_URL is unique per deployment (e.g. "my-site-abc123.vercel.app") and
+// is a real Vercel system env var available at both build time and runtime.
+// VERCEL_GIT_COMMIT_SHA works for git-connected deployments.
+// Date.now() is the local-dev fallback.
+// VERCEL_URL is unique per deployment (e.g. "my-site-abc123.vercel.app"),
+// even when the same git commit is deployed multiple times via CLI.
+// It must come BEFORE VERCEL_GIT_COMMIT_SHA so that repeated `vercel --prod`
+// runs with unchanged code still produce a fresh ID and trigger AutoReload.
 const BUILD_ID =
+  process.env.VERCEL_URL ||
   process.env.VERCEL_GIT_COMMIT_SHA ||
-  process.env.VERCEL_DEPLOYMENT_ID ||
   String(Date.now());
 
 const nextConfig: NextConfig = {

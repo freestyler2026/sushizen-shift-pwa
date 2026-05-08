@@ -813,7 +813,7 @@ export default function PriceCheckPage() {
 
               {!isParanaque && (
                 <p className={`mt-2 ${T_CAPTION}`}>
-                  Auto-check runs daily at 12:00 PM (Philippine time). Use &ldquo;Run Check Now&rdquo; to trigger a manual run.
+                  Auto-check runs every 3 hours. Use &ldquo;Run Check Now&rdquo; to trigger a manual run.
                 </p>
               )}
               {isParanaque && (

@@ -17,6 +17,7 @@ import {
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import { BRANCHES, type City } from "@/lib/branches";
 import { API_BASE } from "@/lib/api";
+import { dispatchBadgeRefresh } from "@/lib/badgeEvents";
 import {
   BADGE_ERROR,
   BADGE_INFO,
@@ -144,6 +145,7 @@ export default function IncidentsPage() {
           method: "POST", headers: getAuthHeaders(a),
           body: JSON.stringify({ report_id: id }),
         });
+        dispatchBadgeRefresh("incidents");
       } catch {}
     }
   };

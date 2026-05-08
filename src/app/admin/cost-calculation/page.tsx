@@ -1,7 +1,9 @@
 "use client";
 
-import { AlertTriangle, Calculator, ChevronDown, ChevronRight, Clock, Database, ExternalLink, History, LayoutGrid, Loader2, Percent, Pencil, Plus, RotateCcw, Save, Search, SkipForward, Trash2, User, X } from "lucide-react";
+import { AlertTriangle, Calculator, ChevronDown, ChevronRight, Clock, Database, ExternalLink, History, LayoutGrid, Loader2, Percent, Pencil, Plus, RotateCcw, Save, Search, ShieldCheck, SkipForward, Trash2, User, X } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { canAccessCostAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { costJson } from "@/lib/costClient";
 
@@ -761,6 +763,7 @@ function recipeGroupStats(rows: RecipeRow[]) {
 }
 
 export default function CostCalculationPage() {
+  const pathname = usePathname();
   const auth = useMemo(() => getAuth(), []);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const searchRef = useRef<HTMLDivElement | null>(null);
@@ -1634,6 +1637,25 @@ export default function CostCalculationPage() {
     if (!allowed || !isRatioSection) return;
     void loadMasterItems("product");
   }, [allowed, isRatioSection, loadMasterItems]);
+
+  // 仕入連動チェックページの「商品マスタで編集」ボタンから飛んできた場合、
+  // sessionStorage に保存された商品IDを読み取って自動でその商品を開く。
+  useEffect(() => {
+    if (!allowed) return;
+    try {
+      const raw = sessionStorage.getItem("costcheck_goto");
+      if (!raw) return;
+      sessionStorage.removeItem("costcheck_goto");
+      const { itemId, itemCity } = JSON.parse(raw) as { itemId?: string; itemCity?: string };
+      if (!itemId) return;
+      if (itemCity === "dubai" || itemCity === "manila") {
+        setCity(itemCity);
+      }
+      setActiveSection("product");
+      void loadMasterDetail(itemId);
+    } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allowed]);
 
   useEffect(() => {
     if (!isMasterSection || showLegacyRecipeSection) return;
@@ -3447,6 +3469,18 @@ export default function CostCalculationPage() {
                 {section.label}
               </button>
             ))}
+            <Link
+              href={`/admin/cost-calculation/cost-check?city=${city}`}
+              className={cx(
+                "rounded-t-xl border border-b-0 px-4 py-2.5 text-sm font-medium transition flex items-center gap-1.5",
+                pathname === "/admin/cost-calculation/cost-check"
+                  ? "border-white/15 bg-[#111827] text-white"
+                  : "border-transparent bg-transparent text-zinc-500 hover:text-zinc-300",
+              )}
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              連動チェック
+            </Link>
           </div>
         </div>
 

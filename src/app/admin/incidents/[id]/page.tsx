@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
+import { dispatchBadgeRefresh } from "@/lib/badgeEvents";
 import {
   BADGE_ERROR, BADGE_INFO, BADGE_SUCCESS, BADGE_WARNING,
   GLASS_CARD, PRIMARY_BUTTON, SMALL_BUTTON, T_LABEL, T_SECTION, TEXTAREA_CLASS,
@@ -112,6 +113,7 @@ export default function AdminIncidentDetailPage() {
       });
       if (!res.ok) throw new Error(await res.text());
       setItem((prev) => prev ? { ...prev, status: newStatus } : prev);
+      dispatchBadgeRefresh("adminIncidents");
     } catch (e: unknown) {
       setStatusError(e instanceof Error ? e.message : "Failed to update");
     } finally { setStatusUpdating(false); }

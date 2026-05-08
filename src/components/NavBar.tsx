@@ -15,6 +15,7 @@ import {
   MessageSquare,
   Calendar,
   CalendarClock,
+  Fingerprint,
   CalendarDays,
   CalendarPlus,
   ClipboardCheck,
@@ -64,6 +65,7 @@ import {
   canAccessRenewalsAdmin,
   canAccessRoleManagement,
   canAccessStaffAdmin,
+  canAccessAttendancePage,
   canAccessWeekPage,
   canAccessMyShiftPage,
   canAccessCalendarPage,
@@ -91,6 +93,7 @@ type NavItem = {
 };
 
 const PRIMARY: NavItem[] = [
+  { href: "/attendance", label: "Attendance", icon: Fingerprint, match: "exact" },
   { href: "/my-shift", label: "My Shift", icon: CalendarClock, match: "exact" },
   { href: "/week", label: "Week", icon: CalendarDays, match: "exact" },
   { href: "/request", label: "Request", icon: ClipboardList, match: "exact" },
@@ -556,6 +559,7 @@ export default function NavBar() {
   const staffItems = useMemo(() => {
     return [...PRIMARY, ...SECONDARY_BASE]
       .filter((item) => {
+        if (item.href === "/attendance") return canAccessAttendancePage(resolvedAuth);
         if (item.href === "/my-shift") return canAccessMyShiftPage(resolvedAuth);
         if (item.href === "/week") return canAccessWeekPage(resolvedAuth);
         if (item.href === "/calendar") return canAccessCalendarPage(resolvedAuth);
@@ -593,7 +597,7 @@ export default function NavBar() {
   const navItems = useMemo(() => [...staffItems, ...adminItems], [staffItems, adminItems]);
 
   // Mobile bottom nav: show these 4 items as primary tabs
-  const MOBILE_PRIMARY_HREFS = ["/my-shift", "/week", "/request", "/inbox"];
+  const MOBILE_PRIMARY_HREFS = ["/attendance", "/my-shift", "/request", "/inbox"];
   const mobilePrimaryItems = useMemo(
     () => MOBILE_PRIMARY_HREFS.map((h) => navItems.find((i) => i.href === h)).filter(Boolean) as NavItem[],
     [navItems],

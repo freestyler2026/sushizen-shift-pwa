@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { RefreshCw, ShieldAlert } from "lucide-react";
 import { canAccessPrivateReportAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { dispatchBadgeRefresh } from "@/lib/badgeEvents";
 import {
   GLASS_CARD,
   SMALL_BUTTON,
@@ -178,6 +179,7 @@ export default function AdminPrivateReportsPage() {
       const text = await res.text();
       if (!res.ok) throw new Error(text || `Failed (${res.status})`);
       setReplyText("");
+      dispatchBadgeRefresh("privateReports");
       await loadDetail(selectedId);
       await loadList();
     } catch (e: any) {

@@ -152,7 +152,6 @@ function MenuProductsPageInner() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkAction, setBulkAction] = useState("DEACTIVATE");
   const [sortDrafts, setSortDrafts] = useState<Record<string, string>>({});
-  const [editingId, setEditingId] = useState("");
   const [suggestedSku, setSuggestedSku] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
   const [selectedIngredient, setSelectedIngredient] = useState<IngredientItemOption | null>(null);
@@ -255,13 +254,13 @@ function MenuProductsPageInner() {
         if (!cancelled) {
           const nextSku = res.sku || "";
           setSuggestedSku(nextSku);
-          if (!editingId) setForm((current) => ({ ...current, sku: current.sku || nextSku }));
+          setForm((current) => ({ ...current, sku: current.sku || nextSku }));
         }
       } catch { if (!cancelled) setSuggestedSku(""); }
     }
     void loadSuggestedSku();
     return () => { cancelled = true; };
-  }, [allowed, city, editingId, ready]);
+  }, [allowed, city, ready]);
 
   const ingredientUnitOptions = Array.from(
     new Set([selectedIngredient?.ingredient_unit || "", selectedIngredient?.storage_unit || "", ingredientUnit || "", ...BASE_INGREDIENT_UNITS].map((v) => v.trim()).filter(Boolean)),
@@ -290,7 +289,6 @@ function MenuProductsPageInner() {
   }
 
   function resetForm() {
-    setEditingId("");
     setForm({ ...EMPTY_FORM, category_id: categories[0]?.id || "", sku: suggestedSku });
     setSelectedIngredient(null);
     setIngredientQty("1");
@@ -315,29 +313,22 @@ function MenuProductsPageInner() {
         calories: Number(form.calories || 0), description: form.description,
         sort_order: Number(form.sort_order || 0), high_salt_content: form.high_salt_content,
       };
-      if (editingId) {
-        const res = await menuPatch<{ row?: MenuProductRow }>(`/api/admin/menu/products/${encodeURIComponent(editingId)}?city=${encodeURIComponent(city)}`, payload);
-        setSuccess(`Product updated. SKU: ${res.row?.sku || form.sku || "-"}.`);
-        resetForm();
-      } else {
-        const res = await menuPost<{ row?: MenuProductRow }>("/api/admin/menu/products", payload);
-        const createdId = String(res.row?.id || "");
-        for (const line of draftIngredients) {
-          await menuPost(`/api/admin/menu/products/${encodeURIComponent(createdId)}/ingredients?city=${encodeURIComponent(city)}`, {
-            ingredient_item_id: line.ingredient_item_id, quantity: Number(line.quantity || 0), ingredient_unit: line.ingredient_unit,
-          });
-        }
-        setSuccess(`Product created. SKU: ${res.row?.sku || "-"}.`);
-        const nextSkuRes = await menuGet<{ sku?: string }>(`/api/admin/menu/sku/next?city=${encodeURIComponent(city)}`);
-        const nextSku = nextSkuRes.sku || "";
-        setSuggestedSku(nextSku);
-        setEditingId("");
-        setForm({ ...EMPTY_FORM, category_id: categories[0]?.id || "", sku: nextSku });
-        setSelectedIngredient(null);
-        setIngredientQty("1");
-        setIngredientUnit(BASE_INGREDIENT_UNITS[0]);
-        setDraftIngredients([]);
+      const res = await menuPost<{ row?: MenuProductRow }>("/api/admin/menu/products", payload);
+      const createdId = String(res.row?.id || "");
+      for (const line of draftIngredients) {
+        await menuPost(`/api/admin/menu/products/${encodeURIComponent(createdId)}/ingredients?city=${encodeURIComponent(city)}`, {
+          ingredient_item_id: line.ingredient_item_id, quantity: Number(line.quantity || 0), ingredient_unit: line.ingredient_unit,
+        });
       }
+      setSuccess(`Product created. SKU: ${res.row?.sku || "-"}.`);
+      const nextSkuRes = await menuGet<{ sku?: string }>(`/api/admin/menu/sku/next?city=${encodeURIComponent(city)}`);
+      const nextSku = nextSkuRes.sku || "";
+      setSuggestedSku(nextSku);
+      setForm({ ...EMPTY_FORM, category_id: categories[0]?.id || "", sku: nextSku });
+      setSelectedIngredient(null);
+      setIngredientQty("1");
+      setIngredientUnit(BASE_INGREDIENT_UNITS[0]);
+      setDraftIngredients([]);
       await loadAll(city, tab, q, categoryFilter, page, pageSize);
     } catch (e: any) { setError(e?.message || String(e)); }
     finally { setSaving(false); }
@@ -357,7 +348,6 @@ function MenuProductsPageInner() {
     setError(""); setSuccess("");
     try {
       await menuPost(`/api/admin/menu/products/${encodeURIComponent(productId)}/delete?city=${encodeURIComponent(city)}`, {});
-      if (editingId === productId) resetForm();
       setSuccess("Product deleted.");
       await loadAll(city, tab, q, categoryFilter, page, pageSize);
     } catch (e: any) { setError(e?.message || String(e)); }
@@ -575,24 +565,11 @@ function MenuProductsPageInner() {
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
-                <span className={`h-2 w-2 rounded-full ${editingId ? "bg-amber-400" : "bg-violet-400"}`} />
-                <h2 className="text-sm font-semibold text-white">
-                  {editingId ? "Edit Product" : "New Product"}
-                </h2>
+                <span className="h-2 w-2 rounded-full bg-violet-400" />
+                <h2 className="text-sm font-semibold text-white">New Product</h2>
               </div>
-              <p className="mt-0.5 text-xs text-zinc-500">
-                {editingId ? "Editing existing item" : "Fill in the fields below"}
-              </p>
+              <p className="mt-0.5 text-xs text-zinc-500">Fill in the fields below</p>
             </div>
-            {editingId && (
-              <button
-                type="button"
-                onClick={resetForm}
-                className="rounded-xl border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-zinc-300 transition hover:border-violet-500/30 hover:text-violet-200"
-              >
-                + New
-              </button>
-            )}
           </div>
 
           <div className="space-y-4">
@@ -620,9 +597,8 @@ function MenuProductsPageInner() {
               </div>
             </FormSection>
 
-            {/* Ingredients (create only) */}
-            {!editingId && (
-              <FormSection title="Ingredients" dot="bg-emerald-400">
+            {/* Ingredients */}
+            <FormSection title="Ingredients" dot="bg-emerald-400">
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr,80px,90px]">
                   <Field label="Ingredient Item">
                     <IngredientItemSearch
@@ -670,7 +646,6 @@ function MenuProductsPageInner() {
                 )}
                 {!draftIngredients.length && <p className="text-xs text-zinc-600">No ingredients added yet.</p>}
               </FormSection>
-            )}
 
             {/* Pricing */}
             <FormSection title="Pricing & Costing" dot="bg-amber-400">
@@ -748,7 +723,7 @@ function MenuProductsPageInner() {
               disabled={saving}
               className="w-full rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition hover:from-violet-400 hover:to-purple-400 disabled:opacity-50"
             >
-              {saving ? "Saving…" : editingId ? "Save Changes" : "Create Product"}
+              {saving ? "Saving…" : "Create Product"}
             </button>
           </div>
         </div>
@@ -874,19 +849,7 @@ function MenuProductsPageInner() {
                         <div className="flex items-center gap-1.5">
                           <button
                             type="button"
-                            onClick={() => {
-                              setEditingId(row.id);
-                              setForm({
-                                category_id: row.category_id || "", name: row.name || "", name_localized: row.name_localized || "",
-                                sku: row.sku || "", barcode: row.barcode || "", image_url: row.image_url || "",
-                                tax_group_id: row.tax_group_id || "", description: row.description || "",
-                                price: String(row.price ?? 0), pricing_method: row.pricing_method || "FIXED_PRICE",
-                                selling_method: row.selling_method || "UNIT", costing_method: row.costing_method || "FROM_INGREDIENTS",
-                                fixed_cost: String(row.fixed_cost ?? 0), preparation_time: String(row.preparation_time ?? 0),
-                                walk_time: String(row.walk_time ?? 0), calories: String(row.calories ?? 0),
-                                sort_order: String(row.sort_order ?? 0), high_salt_content: Boolean(row.high_salt_content),
-                              });
-                            }}
+                            onClick={() => router.push(`/admin/menu/products/${encodeURIComponent(row.id)}?city=${encodeURIComponent(city)}`)}
                             className="rounded-lg border border-white/10 bg-white/6 px-2.5 py-1 text-xs font-medium text-zinc-200 transition hover:border-violet-500/30 hover:bg-violet-500/10 hover:text-violet-200"
                           >
                             Edit

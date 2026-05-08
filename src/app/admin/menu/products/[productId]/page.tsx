@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import IngredientItemSearch, { type IngredientItemOption } from "@/components/menu/IngredientItemSearch";
 import { canAccessMenuAdmin, getAuth, refreshAuthFromApi, type City } from "@/lib/auth";
 import { menuGet, menuPatch, menuPost } from "@/lib/menuClient";
+import { costJson } from "@/lib/costClient";
 
 type MenuCategoryRow = {
   id: string;
@@ -132,6 +133,14 @@ type ProductRow = {
 
 const BASE_INGREDIENT_UNITS = ["kg", "g", "pcs", "pkt", "ml"];
 
+type CostLink = {
+  unit_price: number;
+  unit_price_formula: string;
+  unit_price_formula_note: string;
+  cost_unit_price_formula: string;
+  supplier_prices: { supplier_name: string; purchase_unit: string; purchase_qty: number; purchase_price: number; unit_price: number }[];
+};
+
 export default function MenuProductDetailPage() {
   const params = useParams<{ productId: string }>();
   const searchParams = useSearchParams();
@@ -169,6 +178,8 @@ export default function MenuProductDetailPage() {
   const [priceCurrency, setPriceCurrency] = useState("");
   const [priceEffectiveFrom, setPriceEffectiveFrom] = useState("");
   const [priceEffectiveTo, setPriceEffectiveTo] = useState("");
+  // ingredient_item_id → cost linkage details from Cost Calculation
+  const [costLinkMap, setCostLinkMap] = useState<Record<string, CostLink | null>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -228,6 +239,43 @@ export default function MenuProductDetailPage() {
       setIngredientUnit(selectedIngredient.ingredient_unit || selectedIngredient.storage_unit || "");
     }
   }, [editingIngredientId, selectedIngredient]);
+
+  // Fetch cost linkage info for each ingredient (silently — errors just show no badge)
+  useEffect(() => {
+    const ingredients = product?.ingredients;
+    if (!ingredients?.length) return;
+    let cancelled = false;
+    const uniqueIds = Array.from(new Set(ingredients.map((r) => r.ingredient_item_id).filter(Boolean)));
+    for (const id of uniqueIds) {
+      costJson<{ item?: any }>(`/api/cost/ingredients/${encodeURIComponent(id)}`)
+        .then((res) => {
+          if (cancelled || !res?.item) return;
+          const item = res.item;
+          setCostLinkMap((prev) => ({
+            ...prev,
+            [id]: {
+              unit_price: Number(item.unit_price || 0),
+              unit_price_formula: String(item.unit_price_formula || ""),
+              unit_price_formula_note: String(item.unit_price_formula_note || ""),
+              cost_unit_price_formula: String(item.cost_unit_price_formula || ""),
+              supplier_prices: Array.isArray(item.supplier_prices)
+                ? item.supplier_prices.map((s: any) => ({
+                    supplier_name: String(s.supplier_name || ""),
+                    purchase_unit: String(s.purchase_unit || ""),
+                    purchase_qty: Number(s.purchase_qty || 0),
+                    purchase_price: Number(s.purchase_price || 0),
+                    unit_price: Number(s.unit_price || 0),
+                  }))
+                : [],
+            },
+          }));
+        })
+        .catch(() => {
+          // silently ignore — cost linkage is informational only
+        });
+    }
+    return () => { cancelled = true; };
+  }, [product?.ingredients]);
 
   async function saveBasicInfo() {
     if (!product) return;
@@ -1064,11 +1112,17 @@ export default function MenuProductDetailPage() {
                 <th className="pb-2 pr-4">Quantity</th>
                 <th className="pb-2 pr-4">Unit Cost</th>
                 <th className="pb-2 pr-4">Total Cost</th>
+                <th className="pb-2 pr-4">仕入連動</th>
                 <th className="pb-2">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {ingredients.length ? ingredients.map((row) => (
+              {ingredients.length ? ingredients.map((row) => {
+                const link = costLinkMap[row.ingredient_item_id];
+                const hasSupplier = (link?.supplier_prices?.length ?? 0) > 0;
+                const hasFormula = !!(link?.unit_price_formula?.trim() || link?.cost_unit_price_formula?.trim());
+                const topSupplier = hasSupplier ? link!.supplier_prices[0] : null;
+                return (
                 <tr key={row.id} className="border-t border-neutral-800/80 align-top">
                   <td className="py-3 pr-4">
                     <div className="flex items-center gap-2">
@@ -1083,6 +1137,41 @@ export default function MenuProductDetailPage() {
                   <td className="py-3 pr-4 text-neutral-300">{Number(row.quantity || 0).toFixed(3)} {row.ingredient_unit || row.item_ingredient_unit || row.storage_unit}</td>
                   <td className="py-3 pr-4 text-neutral-300">{Number(row.unit_cost || 0).toFixed(3)}</td>
                   <td className="py-3 pr-4 text-neutral-300">{Number(row.total_cost || 0).toFixed(3)}</td>
+                  <td className="py-3 pr-4">
+                    {link === undefined ? (
+                      <span className="text-xs text-neutral-600">…</span>
+                    ) : hasSupplier ? (
+                      <div className="space-y-1">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-700/60 bg-emerald-950/40 px-2 py-0.5 text-[11px] font-medium text-emerald-300">
+                          ✓ 仕入連動
+                        </span>
+                        <div className="text-[11px] text-neutral-400 leading-snug">
+                          {topSupplier!.supplier_name}
+                        </div>
+                        <div className="text-[11px] text-neutral-500">
+                          {topSupplier!.purchase_price.toFixed(2)} / {topSupplier!.purchase_qty}{topSupplier!.purchase_unit}
+                          {link!.supplier_prices.length > 1 && (
+                            <span className="ml-1 text-neutral-600">+{link!.supplier_prices.length - 1}件</span>
+                          )}
+                        </div>
+                      </div>
+                    ) : hasFormula ? (
+                      <div className="space-y-1">
+                        <span className="inline-flex items-center gap-1 rounded-full border border-blue-700/60 bg-blue-950/40 px-2 py-0.5 text-[11px] font-medium text-blue-300">
+                          ƒ 計算式
+                        </span>
+                        <div className="max-w-[160px] truncate text-[11px] text-neutral-400" title={link!.unit_price_formula || link!.cost_unit_price_formula}>
+                          {link!.unit_price_formula || link!.cost_unit_price_formula}
+                        </div>
+                      </div>
+                    ) : link !== null ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-neutral-700 bg-neutral-800/40 px-2 py-0.5 text-[11px] text-neutral-400">
+                        手動価格
+                      </span>
+                    ) : (
+                      <span className="text-xs text-neutral-600">—</span>
+                    )}
+                  </td>
                   <td className="py-3">
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -1115,8 +1204,9 @@ export default function MenuProductDetailPage() {
                     </div>
                   </td>
                 </tr>
-              )) : (
-                <tr><td className="py-4 text-neutral-500" colSpan={6}>No ingredient lines yet.</td></tr>
+                );
+              }) : (
+                <tr><td className="py-4 text-neutral-500" colSpan={7}>No ingredient lines yet.</td></tr>
               )}
             </tbody>
           </table>
