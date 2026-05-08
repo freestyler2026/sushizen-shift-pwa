@@ -37,14 +37,17 @@ type AttendanceSession = {
   check_out_gps_ok: boolean | null;
   check_in_distance_m: number | null;
   check_out_distance_m: number | null;
-  note: string;
 };
 
 function fmtTime(iso: string | null) {
   if (!iso) return "—";
-  return new Date(iso).toLocaleTimeString("en-PH", {
-    hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Manila",
-  });
+  try {
+    return new Date(iso).toLocaleTimeString("en-PH", {
+      hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Manila",
+    });
+  } catch {
+    return "—";
+  }
 }
 
 function GpsBadge({ ok }: { ok: boolean | null }) {
@@ -70,8 +73,11 @@ function GpsTab({ city }: { city: string }) {
     setBusy(true);
     try {
       const r = await apiFetch(`${API}/branch-gps?city=${city}`);
+      if (!r.ok) { setErr("Failed to load GPS settings"); return; }
       const d = await r.json();
       setList(d.branches ?? []);
+    } catch {
+      setErr("Failed to load GPS settings");
     } finally {
       setBusy(false);
     }
@@ -267,14 +273,18 @@ function GpsTab({ city }: { city: string }) {
 function LogTab({ city }: { city: string }) {
   const [sessions, setSessions] = useState<AttendanceSession[]>([]);
   const [busy, setBusy] = useState(false);
+  const [loadErr, setLoadErr] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   const load = useCallback(async () => {
-    setBusy(true);
+    setBusy(true); setLoadErr("");
     try {
       const r = await apiFetch(`${API}/sessions?city=${city}&date=${date}&limit=100`);
+      if (!r.ok) { setLoadErr("Failed to load attendance records"); return; }
       const d = await r.json();
       setSessions(d.sessions ?? []);
+    } catch {
+      setLoadErr("Failed to load attendance records");
     } finally { setBusy(false); }
   }, [city, date]);
 
@@ -291,16 +301,18 @@ function LogTab({ city }: { city: string }) {
         <span className="text-xs text-white/30">{sessions.length} records</span>
       </div>
 
+      {loadErr && <p className="text-xs text-red-400">{loadErr}</p>}
+
       {busy && <div className="flex justify-center py-8"><Loader2 className="animate-spin text-white/30" size={24} /></div>}
 
-      {!busy && sessions.length === 0 && (
+      {!busy && !loadErr && sessions.length === 0 && (
         <div className="flex flex-col items-center gap-2 py-10 text-white/30">
           <Fingerprint size={32} />
           <p className="text-sm">No attendance records for this date</p>
         </div>
       )}
 
-      {sessions.length > 0 && (
+      {!loadErr && sessions.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

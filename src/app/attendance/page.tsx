@@ -1,7 +1,7 @@
 // src/app/attendance/page.tsx
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Fingerprint,
@@ -234,7 +234,6 @@ export default function AttendancePage() {
   const [visitBranch, setVisitBranch] = useState("");
   const [visitPickerOpen, setVisitPickerOpen] = useState(false);
   const [branchList, setBranchList] = useState<string[]>([]);
-  const gpsRef = useRef<GeolocationPosition | null>(null);
 
   // ─── Auth guard ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -271,7 +270,7 @@ export default function AttendancePage() {
       setGpsLoading(true);
       setGpsError("");
       navigator.geolocation.getCurrentPosition(
-        (pos) => { setGpsPos(pos); gpsRef.current = pos; setGpsLoading(false); resolve(pos); },
+        (pos) => { setGpsPos(pos); setGpsLoading(false); resolve(pos); },
         (err) => { setGpsError(`GPS: ${err.message}`); setGpsLoading(false); resolve(null); },
         { timeout: 10000, enableHighAccuracy: true },
       );
