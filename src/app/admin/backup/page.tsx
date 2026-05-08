@@ -39,7 +39,7 @@ type TemplateSection = {
   items: TemplateItem[];
 };
 
-const TEMPLATE_SECTIONS: TemplateSection[] = [
+const DUBAI_TEMPLATE_SECTIONS: TemplateSection[] = [
   {
     id: "supplies",
     label: "Condiments & Supplies",
@@ -128,6 +128,107 @@ const TEMPLATE_SECTIONS: TemplateSection[] = [
   },
 ];
 
+const MANILA_TEMPLATE_SECTIONS: TemplateSection[] = [
+  {
+    id: "supplies",
+    label: "Condiments & Supplies",
+    items: [
+      { key: "m_soy_sauce",       label: "Soy Sauce",                  unit: "pcs", section: "supplies", item_type: "ingredient", item_category: "調味料" },
+      { key: "m_wasabi",          label: "Wasabi",                     unit: "pcs", section: "supplies", item_type: "ingredient", item_category: "調味料" },
+      { key: "m_ginger",          label: "Ginger",                     unit: "pcs", section: "supplies", item_type: "ingredient", item_category: "野菜" },
+      { key: "m_swg_set",         label: "Soy Sauce, Wasabi, Ginger Set", unit: "set", section: "supplies", item_type: "ingredient", item_category: "調味料" },
+      { key: "m_miso_soup",       label: "Miso Soup",                  unit: "pcs", section: "supplies", item_type: "menu_item",  item_category: "Hot Menu原価" },
+      { key: "m_sweet_sauce",     label: "Sweet Sauce",                unit: "pcs", section: "supplies", item_type: "menu_item",  item_category: "Original Sushi Sauce" },
+      { key: "m_dumpling_sauce",  label: "Dumpling Sauce",             unit: "pcs", section: "supplies", item_type: "ingredient", item_category: "調味料" },
+    ],
+  },
+  {
+    id: "packaging",
+    label: "Packaging",
+    items: [
+      { key: "m_ice_pack",  label: "Ice Pack",  unit: "pcs", section: "packaging", item_type: "ingredient", item_category: "包材" },
+      { key: "m_box_12",    label: "Box12 Set", unit: "pcs", section: "packaging", item_type: "ingredient", item_category: "包材" },
+      { key: "m_box_16",    label: "Box16 Set", unit: "pcs", section: "packaging", item_type: "ingredient", item_category: "包材" },
+      { key: "m_box_24",    label: "Box24 Set", unit: "pcs", section: "packaging", item_type: "ingredient", item_category: "包材" },
+    ],
+  },
+  {
+    id: "prep",
+    label: "Prepared Ingredients",
+    items: [
+      { key: "m_quezo_cheese",   label: "Quezo Cheese Cut",        unit: "kg",        section: "prep", item_type: "ingredient", item_category: "調味料" },
+      { key: "m_crabstick_cut",  label: "Crabstick Cut",           unit: "kg",        section: "prep", item_type: "ingredient", item_category: "加工肉・卵" },
+      { key: "m_cucumber_cut",   label: "Cucumber Cut",            unit: "kg",        section: "prep", item_type: "ingredient", item_category: "野菜" },
+      { key: "m_seasoned_upo",   label: "Seasoned Upo",            unit: "container", section: "prep", item_type: "ingredient", item_category: "野菜" },
+      { key: "m_crabstick_mayo", label: "Crabstick Mayo",          unit: "container", section: "prep", item_type: "ingredient", item_category: "Processed Ingredients" },
+      { key: "m_spicy_tuna_chunk",label: "Spicy Tuna Chunk",       unit: "container", section: "prep", item_type: "ingredient", item_category: "Processed Ingredients" },
+      { key: "m_mango_base",     label: "Mango Cut (For Base Roll)",unit: "container", section: "prep", item_type: "ingredient", item_category: "野菜" },
+      { key: "m_pickled_papaya", label: "Pickled Papaya",          unit: "container", section: "prep", item_type: "ingredient", item_category: "Processed Ingredients" },
+      { key: "m_salmon_skin_mix",label: "Salmon Skin Mix",         unit: "container", section: "prep", item_type: "ingredient", item_category: "Processed Ingredients" },
+    ],
+  },
+  {
+    id: "toppings",
+    label: "Toppings & Flakes",
+    items: [
+      { key: "m_spring_onion_top",   label: "Spring Onion",                unit: "container", section: "toppings", item_type: "ingredient", item_category: "野菜" },
+      { key: "m_crabmayo_top",       label: "Crabstick Mayo for Topping",  unit: "container", section: "toppings", item_type: "ingredient", item_category: "Processed Ingredients" },
+      { key: "m_salmon_skin_top",    label: "Salmon Skin Mix for Topping", unit: "container", section: "toppings", item_type: "ingredient", item_category: "Processed Ingredients" },
+      { key: "m_cheese_dice",        label: "Cheese Dice Cut",             unit: "container", section: "toppings", item_type: "ingredient", item_category: "調味料" },
+      { key: "m_mango_cube",         label: "Mango Cube",                  unit: "container", section: "toppings", item_type: "ingredient", item_category: "野菜" },
+      { key: "m_spicy_tuna_mix",     label: "Spicy Tuna Mix",              unit: "container", section: "toppings", item_type: "ingredient", item_category: "Processed Ingredients" },
+      { key: "m_red_chili",          label: "Red Chili Cut",               unit: "container", section: "toppings", item_type: "ingredient", item_category: "野菜" },
+      { key: "m_mint_leaves",        label: "Mint Leaves",                 unit: "container", section: "toppings", item_type: "ingredient", item_category: "野菜" },
+      { key: "m_onion_leeks",        label: "Onion Leeks",                 unit: "container", section: "toppings", item_type: "ingredient", item_category: "野菜" },
+      { key: "m_tf_white",           label: "Tempura Flakes White",        unit: "container", section: "toppings", item_type: "menu_item",  item_category: "CK加工品" },
+      { key: "m_tf_orange",          label: "Tempura Flakes Orange",       unit: "container", section: "toppings", item_type: "menu_item",  item_category: "CK加工品" },
+      { key: "m_tf_red",             label: "Tempura Flakes Red",          unit: "container", section: "toppings", item_type: "menu_item",  item_category: "CK加工品" },
+      { key: "m_tf_yellow",          label: "Tempura Flakes Yellow",       unit: "container", section: "toppings", item_type: "menu_item",  item_category: "加工品マスタ" },
+      { key: "m_tf_pink",            label: "Tempura Flakes Pink",         unit: "container", section: "toppings", item_type: "menu_item",  item_category: "加工品マスタ" },
+      { key: "m_fried_dumplings",    label: "Fried Dumplings",             unit: "container", section: "toppings", item_type: "menu_item",  item_category: "CK加工品" },
+      { key: "m_shichimi",           label: "Shichimi Powder",             unit: "container", section: "toppings", item_type: "ingredient", item_category: "調味料" },
+      { key: "m_all_sauces",         label: "All Sauces",                  unit: "container", section: "toppings", item_type: "ingredient", item_category: "調味料" },
+    ],
+  },
+  {
+    id: "hot_section",
+    label: "Hot Section",
+    items: [
+      { key: "m_spring_onion_hot",   label: "Spring Onion",               unit: "container", section: "hot_section", item_type: "ingredient", item_category: "野菜" },
+      { key: "m_seasoned_egg",       label: "Seasoned Egg",               unit: "pcs",       section: "hot_section", item_type: "ingredient", item_category: "加工肉・卵" },
+      { key: "m_kikurage",           label: "Kikurage",                   unit: "container", section: "hot_section", item_type: "ingredient", item_category: "乾物・他" },
+      { key: "m_fried_camote",       label: "Fried Camote",               unit: "container", section: "hot_section", item_type: "ingredient", item_category: "野菜" },
+      { key: "m_boiled_cabbage",     label: "Boiled Cabbage",             unit: "container", section: "hot_section", item_type: "ingredient", item_category: "野菜" },
+      { key: "m_boiled_beansprout",  label: "Boiled Beansprout",          unit: "container", section: "hot_section", item_type: "ingredient", item_category: "野菜" },
+      { key: "m_boiled_carrot",      label: "Boiled Carrot",              unit: "container", section: "hot_section", item_type: "ingredient", item_category: "野菜" },
+      { key: "m_sliced_onion",       label: "Sliced Onion",               unit: "container", section: "hot_section", item_type: "ingredient", item_category: "野菜" },
+      { key: "m_bok_choy",           label: "Bok Choy",                   unit: "container", section: "hot_section", item_type: "ingredient", item_category: "野菜" },
+      { key: "m_bamboo_shoot",       label: "Bamboo Shoot",               unit: "container", section: "hot_section", item_type: "ingredient", item_category: "乾物・他" },
+      { key: "m_sweet_corn",         label: "Sweet Corn",                 unit: "container", section: "hot_section", item_type: "ingredient", item_category: "野菜" },
+      { key: "m_kurodama",           label: "Kurodama (Black Mince)",     unit: "container", section: "hot_section", item_type: "ingredient", item_category: "Processed Ingredients" },
+      { key: "m_akadama",            label: "Akadama (Red Mince)",        unit: "container", section: "hot_section", item_type: "ingredient", item_category: "Processed Ingredients" },
+      { key: "m_shredded_cabbage",   label: "Shredded Cabbage for Bento", unit: "container", section: "hot_section", item_type: "ingredient", item_category: "野菜" },
+      { key: "m_chopped_leeks",      label: "Chopped Leeks",              unit: "container", section: "hot_section", item_type: "ingredient", item_category: "野菜" },
+      { key: "m_baguio_beans",       label: "Baguio Beans",               unit: "container", section: "hot_section", item_type: "ingredient", item_category: "野菜" },
+      { key: "m_benishoga",          label: "Benishoga (Red Ginger)",     unit: "container", section: "hot_section", item_type: "ingredient", item_category: "調味料" },
+      { key: "m_wakame",             label: "Wakame",                     unit: "container", section: "hot_section", item_type: "ingredient", item_category: "乾物・他" },
+    ],
+  },
+  {
+    id: "base_roll",
+    label: "Base Roll",
+    items: [
+      { key: "m_br1", label: "Base Roll 1 (California Base Roll)",             unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
+      { key: "m_br2", label: "Base Roll 2 (Cucumber Crabstick Mayo Roll)",     unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
+      { key: "m_br3", label: "Base Roll 3 (Spicy Tuna & Quezo Base Roll)",     unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
+      { key: "m_br4", label: "Base Roll 4 (Cucumber Crabstick & Mango Base Roll)", unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
+      { key: "m_br6", label: "Base Roll 6 (Shrimp Tempura Base Roll)",         unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
+      { key: "m_br7", label: "Base Roll 7 (Crunchy Fish Base Roll)",           unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
+      { key: "m_br8", label: "Base Roll 8 (Crunchy Salmon Base Roll)",         unit: "pcs", section: "base_roll", item_type: "menu_item", item_category: "Base Roll" },
+    ],
+  },
+];
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type TemplateQty = Record<string, string>; // key → qty string
@@ -185,12 +286,14 @@ const SHIFT_LABELS: Record<Shift, string> = {
 };
 
 const SECTION_LABELS: Record<string, string> = {
-  supplies:  "Condiments & Supplies",
-  packaging: "Packaging",
-  prep:      "Prepared Ingredients",
-  toppings:  "Toppings & Flakes",
-  rolls:     "Sushi Rolls",
-  extra:     "Extra Items",
+  supplies:    "Condiments & Supplies",
+  packaging:   "Packaging",
+  prep:        "Prepared Ingredients",
+  toppings:    "Toppings & Flakes",
+  rolls:       "Sushi Rolls",
+  hot_section: "Hot Section",
+  base_roll:   "Base Roll",
+  extra:       "Extra Items",
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -598,6 +701,11 @@ export default function BackupReportPage() {
     if (branches.length > 0) setBranchCode(branches[0].code);
   }, [city]);
 
+  // Clear template quantities when switching city to avoid stale keys
+  useEffect(() => { setTemplateQty({}); }, [city]);
+
+  const activeSections = city === "manila" ? MANILA_TEMPLATE_SECTIONS : DUBAI_TEMPLATE_SECTIONS;
+
   const handleQtyChange = useCallback((key: string, val: string) => {
     setTemplateQty((prev) => ({ ...prev, [key]: val }));
   }, []);
@@ -632,7 +740,7 @@ export default function BackupReportPage() {
 
     const lines: object[] = [];
 
-    for (const sec of TEMPLATE_SECTIONS) {
+    for (const sec of activeSections) {
       for (const item of sec.items) {
         const rawQty = templateQty[item.key] ?? "";
         if (rawQty === "") continue;
@@ -693,7 +801,7 @@ export default function BackupReportPage() {
   };
 
   // Count filled items for the submit bar
-  const filledCount = TEMPLATE_SECTIONS.reduce(
+  const filledCount = activeSections.reduce(
     (n, sec) => n + sec.items.filter((i) => (templateQty[i.key] ?? "") !== "").length,
     freeLines.filter((fl) => fl.item_name_snapshot.trim() && parseFloat(fl.quantity) > 0).length
   );
@@ -766,7 +874,7 @@ export default function BackupReportPage() {
               </span>
             </div>
             <div className="space-y-3">
-              {TEMPLATE_SECTIONS.map((sec) => (
+              {activeSections.map((sec) => (
                 <TemplateSectionBlock
                   key={sec.id}
                   section={sec}
