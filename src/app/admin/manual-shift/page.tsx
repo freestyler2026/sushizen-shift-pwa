@@ -19,7 +19,13 @@ const W_CTRL = "rounded-2xl border border-gray-200 bg-white shadow-sm p-5";
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type ShiftCell = { start_hour: number; end_hour: number; role: string; note?: string };
-type GridData = Record<string, Record<string, ShiftCell | null>>; // staffName → dateStr → cell
+type GridData = Record<string, Record<string, ShiftCell | ShiftCell[] | null>>; // staffName → dateStr → cell(s)
+
+/** Normalise a grid cell to an array (empty for null/undefined). */
+function cellsOf(c: ShiftCell | ShiftCell[] | null | undefined): ShiftCell[] {
+  if (!c) return [];
+  return Array.isArray(c) ? c : [c];
+}
 type EditTarget = { staffName: string; dateStr: string } | null;
 type PageView = "edit" | "published";
 
@@ -359,7 +365,7 @@ function saveDraft(city: string, branch: string, week: string, grid: GridData) {
     const compact: GridData = {};
     for (const [name, days] of Object.entries(grid)) {
       const filled = Object.fromEntries(Object.entries(days).filter(([, v]) => v != null));
-      if (Object.keys(filled).length > 0) compact[name] = filled as Record<string, ShiftCell>;
+      if (Object.keys(filled).length > 0) compact[name] = filled as Record<string, ShiftCell | ShiftCell[]>;
     }
     localStorage.setItem(draftKey(city, branch, week), JSON.stringify(compact));
   } catch { /* quota exceeded — silently ignore */ }
@@ -419,7 +425,9 @@ export default function ManualShiftPage() {
   );
 
   const localCellCount = useMemo(
-    () => Object.values(gridData).reduce((sum, days) => sum + Object.values(days).filter(Boolean).length, 0),
+    () => Object.values(gridData).reduce(
+      (sum, days) => sum + Object.values(days).reduce((s, c) => s + cellsOf(c).length, 0), 0
+    ),
     [gridData]
   );
 
@@ -488,16 +496,27 @@ export default function ManualShiftPage() {
         for (const name of baseNames) {
           nextGrid[name] = forceOverwrite ? {} : { ...(prev[name] ?? {}) };
         }
+        // Group rows by staff+date to support split shifts
+        const grouped: Record<string, ShiftCell[]> = {};
         for (let i = 0; i < rows.length; i++) {
           const r = rows[i];
-          const key = serverNames[i];
-          if (!nextGrid[key]) nextGrid[key] = {};
-          if (forceOverwrite || nextGrid[key][r.work_date] == null) {
-            nextGrid[key][r.work_date] = {
-              start_hour: Number(r.start_hour),
-              end_hour: Number(r.end_hour),
-              role: String(r.role || ""),
-            };
+          const key = `${serverNames[i]}|${r.work_date}`;
+          if (!grouped[key]) grouped[key] = [];
+          grouped[key].push({
+            start_hour: Number(r.start_hour),
+            end_hour: Number(r.end_hour),
+            role: String(r.role || ""),
+            note: r.note ? String(r.note) : undefined,
+          });
+        }
+        for (const [key, shifts] of Object.entries(grouped)) {
+          const sepIdx = key.lastIndexOf("|");
+          const staffKey = key.slice(0, sepIdx);
+          const workDate = key.slice(sepIdx + 1);
+          if (!nextGrid[staffKey]) nextGrid[staffKey] = {};
+          if (forceOverwrite || nextGrid[staffKey][workDate] == null) {
+            const sorted = shifts.slice().sort((a, b) => a.start_hour - b.start_hour);
+            nextGrid[staffKey][workDate] = sorted.length === 1 ? sorted[0] : sorted;
           }
         }
         return nextGrid;
@@ -554,7 +573,8 @@ export default function ManualShiftPage() {
   function openEdit(staffName: string, dateStr: string, e: React.MouseEvent) {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setEditCellRect(rect);
-    const existing = gridData[staffName]?.[dateStr];
+    const raw = gridData[staffName]?.[dateStr];
+    const existing = Array.isArray(raw) ? raw[0] : raw;
     setTimeError("");
     setEditNote(existing?.note ?? "");
     if (existing && isSpecialRole(existing.role)) {
@@ -727,17 +747,27 @@ export default function ManualShiftPage() {
       });
     }
 
-    // Apply cells
+    // Group filtered rows by staff+date to support split shifts
+    const grouped: Record<string, Record<string, ShiftCell[]>> = {};
+    for (const r of filtered) {
+      if (!r.staff_name) continue;
+      if (!grouped[r.staff_name]) grouped[r.staff_name] = {};
+      if (!grouped[r.staff_name][r.work_date]) grouped[r.staff_name][r.work_date] = [];
+      grouped[r.staff_name][r.work_date].push({
+        start_hour: r.start_hour,
+        end_hour: r.end_hour,
+        role: r.role || "STAFF",
+      });
+    }
+    // Apply cells (sorted by start_hour; single-shift stays as ShiftCell, multi as array)
     setGridData((prev) => {
       const next = { ...prev };
-      for (const r of filtered) {
-        if (!r.staff_name) continue;
-        if (!next[r.staff_name]) next[r.staff_name] = {};
-        next[r.staff_name][r.work_date] = {
-          start_hour: r.start_hour,
-          end_hour: r.end_hour,
-          role: r.role || "STAFF",
-        };
+      for (const [name, days] of Object.entries(grouped)) {
+        if (!next[name]) next[name] = {};
+        for (const [date, shifts] of Object.entries(days)) {
+          const sorted = shifts.slice().sort((a, b) => a.start_hour - b.start_hour);
+          next[name][date] = sorted.length === 1 ? sorted[0] : sorted;
+        }
       }
       return next;
     });
@@ -749,8 +779,10 @@ export default function ManualShiftPage() {
     const rows: { work_date: string; staff_name: string; role: string; start_hour: number; end_hour: number; note: string }[] = [];
     for (const [staffName, days] of Object.entries(gridData)) {
       for (const [dateStr, cell] of Object.entries(days)) {
-        if (cell && cell.role) {
-          rows.push({ work_date: dateStr, staff_name: staffName, role: cell.role, start_hour: cell.start_hour, end_hour: cell.end_hour, note: cell.note || "" });
+        for (const c of cellsOf(cell)) {
+          if (c.role) {
+            rows.push({ work_date: dateStr, staff_name: staffName, role: c.role, start_hour: c.start_hour, end_hour: c.end_hour, note: c.note || "" });
+          }
         }
       }
     }
@@ -829,7 +861,8 @@ export default function ManualShiftPage() {
   const W_SELECT = "w-full appearance-none cursor-pointer rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100";
 
   // Derive the cell currently being edited (for delete button in modal)
-  const editingCell = editTarget ? (gridData[editTarget.staffName]?.[editTarget.dateStr] ?? null) : null;
+  const editingCellRaw = editTarget ? (gridData[editTarget.staffName]?.[editTarget.dateStr] ?? null) : null;
+  const editingCell = Array.isArray(editingCellRaw) ? editingCellRaw[0] : editingCellRaw;
 
   return (
     // White background — this page only
@@ -1065,20 +1098,21 @@ export default function ManualShiftPage() {
                           </div>
                         </td>
                         {weekDates.map((d) => {
-                          const cell = gridData[name]?.[d] ?? null;
+                          const cellRaw = gridData[name]?.[d] ?? null;
+                          const shifts = cellsOf(cellRaw);
                           return (
                             <td key={d} className="px-1 py-1 text-center align-top">
-                              {cell ? (
-                                isSpecialRole(cell.role) ? (
+                              {shifts.length > 0 ? (
+                                shifts.length === 1 && isSpecialRole(shifts[0].role) ? (
                                   <div className="group relative">
                                     <button
                                       type="button"
                                       onClick={(e) => openEdit(name, d, e)}
-                                      className={`w-full rounded-lg border px-1.5 py-2 text-center text-[11px] font-semibold hover:opacity-80 transition ${specialStyle(cell.role)}`}
+                                      className={`w-full rounded-lg border px-1.5 py-2 text-center text-[11px] font-semibold hover:opacity-80 transition ${specialStyle(shifts[0].role)}`}
                                     >
-                                      {specialLabel(cell.role)}
-                                      {cell.note && (
-                                        <span className="block truncate text-[9px] opacity-60">{cell.note}</span>
+                                      {specialLabel(shifts[0].role)}
+                                      {shifts[0].note && (
+                                        <span className="block truncate text-[9px] opacity-60">{shifts[0].note}</span>
                                       )}
                                     </button>
                                     <button
@@ -1095,39 +1129,42 @@ export default function ManualShiftPage() {
                                       {deletingCell?.staffName === name && deletingCell?.dateStr === d ? "…" : "×"}
                                     </button>
                                   </div>
-                                ) : (() => {
-                                  const tc = timeColor(cell.start_hour);
-                                  return (
-                                    <div className="group relative">
-                                      <button
-                                        type="button"
-                                        onClick={(e) => openEdit(name, d, e)}
-                                        className={`w-full rounded-lg border px-1.5 py-1.5 text-center transition ${tc.cell}`}
-                                      >
-                                        <div className={`text-xs leading-tight ${tc.time}`}>
-                                          {fmtHour(cell.start_hour)}–{fmtHour(cell.end_hour)}
-                                        </div>
-                                        <div className={`text-[10px] ${tc.role}`}>{cell.role}</div>
-                                        {cell.note && (
-                                          <div className="mt-0.5 truncate text-[9px] opacity-50">{cell.note}</div>
-                                        )}
-                                      </button>
-                                      <button
-                                        type="button"
-                                        title="Delete shift"
-                                        disabled={!!(deletingCell?.staffName === name && deletingCell?.dateStr === d)}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          if (!window.confirm(`Delete shift for ${name} on ${formatDate(d)}?`)) return;
-                                          void deletePublishedShift(name, d);
-                                        }}
-                                        className="absolute right-0.5 top-0.5 hidden h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] text-white group-hover:flex"
-                                      >
-                                        {deletingCell?.staffName === name && deletingCell?.dateStr === d ? "…" : "×"}
-                                      </button>
-                                    </div>
-                                  );
-                                })()
+                                ) : (
+                                  <div className="group relative flex flex-col gap-0.5">
+                                    {shifts.map((c, idx) => {
+                                      const tc = timeColor(c.start_hour);
+                                      return (
+                                        <button
+                                          key={idx}
+                                          type="button"
+                                          onClick={(e) => openEdit(name, d, e)}
+                                          className={`w-full rounded-lg border px-1.5 py-1.5 text-center transition ${tc.cell}`}
+                                        >
+                                          <div className={`text-xs leading-tight ${tc.time}`}>
+                                            {fmtHour(c.start_hour)}–{fmtHour(c.end_hour)}
+                                          </div>
+                                          <div className={`text-[10px] ${tc.role}`}>{c.role}</div>
+                                          {c.note && (
+                                            <div className="mt-0.5 truncate text-[9px] opacity-50">{c.note}</div>
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                    <button
+                                      type="button"
+                                      title="Delete shift"
+                                      disabled={!!(deletingCell?.staffName === name && deletingCell?.dateStr === d)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (!window.confirm(`Delete shift for ${name} on ${formatDate(d)}?`)) return;
+                                        void deletePublishedShift(name, d);
+                                      }}
+                                      className="absolute right-0.5 top-0.5 hidden h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] text-white group-hover:flex"
+                                    >
+                                      {deletingCell?.staffName === name && deletingCell?.dateStr === d ? "…" : "×"}
+                                    </button>
+                                  </div>
+                                )
                               ) : (
                                 <button
                                   type="button"
