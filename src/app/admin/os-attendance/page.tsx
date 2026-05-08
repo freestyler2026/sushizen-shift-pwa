@@ -437,7 +437,8 @@ function EditModal({
 const SELECT_CLS = "rounded-lg border border-white/10 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-violet-500/50 focus:outline-none cursor-pointer";
 
 function DailyReportTab({ city }: { city: string }) {
-  const today = new Date().toISOString().slice(0, 10);
+  // Use Manila timezone for "today" — toISOString() gives UTC which is off by a day between midnight–8am Manila
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date());
   const [date, setDate] = useState(today);
   const [staffFilter, setStaffFilter] = useState("");
   const [branchFilter, setBranchFilter] = useState("");
@@ -611,12 +612,14 @@ function DailyReportTab({ city }: { city: string }) {
                 const expanded = expandedIds.has(s.id);
                 const deleting = deletingId === s.id;
                 const visitCount = s.visits?.length ?? 0;
+                const hasNote = !!s.note;
+                const expandable = visitCount > 0 || hasNote;
                 return (
                   <Fragment key={s.id}>
                     <tr className="hover:bg-white/3 transition-colors group">
-                      {/* Expand toggle */}
+                      {/* Expand toggle — show when visits OR note present */}
                       <td className={`${cellCls} pl-3 text-white/30`}>
-                        {visitCount > 0 && (
+                        {expandable && (
                           <button onClick={() => toggleExpand(s.id)} className="hover:text-white transition-colors">
                             {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                           </button>
@@ -636,6 +639,11 @@ function DailyReportTab({ city }: { city: string }) {
                             className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 border border-violet-500/25 px-2 py-0.5 text-xs text-violet-300 hover:bg-violet-500/25 transition-colors">
                             {visitCount} visit{visitCount !== 1 ? "s" : ""}
                           </button>
+                        ) : hasNote ? (
+                          <button onClick={() => toggleExpand(s.id)}
+                            className="inline-flex items-center gap-1 rounded-full bg-white/5 border border-white/10 px-2 py-0.5 text-xs text-white/40 hover:bg-white/10 transition-colors">
+                            note
+                          </button>
                         ) : <span className="text-white/20 text-xs">—</span>}
                       </td>
                       <td className={`${cellCls} pr-3`}>
@@ -652,36 +660,38 @@ function DailyReportTab({ city }: { city: string }) {
                       </td>
                     </tr>
 
-                    {/* Expanded visits */}
-                    {expanded && visitCount > 0 && (
+                    {/* Expanded detail: visits table + note */}
+                    {expanded && expandable && (
                       <tr key={`${s.id}-visits`} className="bg-white/2">
                         <td colSpan={11} className="pl-10 pr-3 pb-3 pt-1">
-                          <div className="rounded-lg border border-white/8 overflow-hidden">
-                            <table className="w-full text-xs">
-                              <thead>
-                                <tr className="bg-white/3 border-b border-white/8 text-white/30">
-                                  <th className="py-1.5 pl-3 text-left font-medium">Visit Branch</th>
-                                  <th className="py-1.5 pr-3 text-left font-medium">Start</th>
-                                  <th className="py-1.5 pr-3 text-left font-medium">End</th>
-                                  <th className="py-1.5 pr-3 text-left font-medium">Duration</th>
-                                  <th className="py-1.5 pr-3 text-left font-medium">GPS</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-white/5">
-                                {s.visits.map(v => (
-                                  <tr key={v.id}>
-                                    <td className="py-1.5 pl-3 text-white/70 font-medium">{v.branch_code || "—"}</td>
-                                    <td className="py-1.5 pr-3 text-white/60">{fmtTime(v.visit_start)}</td>
-                                    <td className="py-1.5 pr-3 text-white/60">{fmtTime(v.visit_end)}</td>
-                                    <td className="py-1.5 pr-3 text-white/50">{fmtDuration(v.visit_start, v.visit_end)}</td>
-                                    <td className="py-1.5 pr-3"><GpsBadge ok={v.gps_ok} /></td>
+                          {visitCount > 0 && (
+                            <div className="rounded-lg border border-white/8 overflow-hidden">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="bg-white/3 border-b border-white/8 text-white/30">
+                                    <th className="py-1.5 pl-3 text-left font-medium">Visit Branch</th>
+                                    <th className="py-1.5 pr-3 text-left font-medium">Start</th>
+                                    <th className="py-1.5 pr-3 text-left font-medium">End</th>
+                                    <th className="py-1.5 pr-3 text-left font-medium">Duration</th>
+                                    <th className="py-1.5 pr-3 text-left font-medium">GPS</th>
                                   </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                  {s.visits.map(v => (
+                                    <tr key={v.id}>
+                                      <td className="py-1.5 pl-3 text-white/70 font-medium">{v.branch_code || "—"}</td>
+                                      <td className="py-1.5 pr-3 text-white/60">{fmtTime(v.visit_start)}</td>
+                                      <td className="py-1.5 pr-3 text-white/60">{fmtTime(v.visit_end)}</td>
+                                      <td className="py-1.5 pr-3 text-white/50">{fmtDuration(v.visit_start, v.visit_end)}</td>
+                                      <td className="py-1.5 pr-3"><GpsBadge ok={v.gps_ok} /></td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
                           {s.note && (
-                            <p className="mt-2 text-xs text-white/40 italic">Note: {s.note}</p>
+                            <p className={`${visitCount > 0 ? "mt-2" : ""} text-xs text-white/40 italic`}>Note: {s.note}</p>
                           )}
                         </td>
                       </tr>
