@@ -451,6 +451,44 @@ export function canAccessIncidentReport(a?: Auth | null): boolean {
   return hasAnyPermission(["channel.incident_report.view", "incident_report.submit.self", "incident_report.inbox.read"], a);
 }
 
+/**
+ * Staff-facing channel guards for Week, My Shift, and Calendar.
+ * Logic:
+ *  - HQ / ADMIN always allowed.
+ *  - If the token contains ANY channel.* permission, enforce the specific channel permission.
+ *  - If the token has NO channel.* permissions (legacy pre-channel-system token), allow
+ *    access as a fallback so existing sessions are not broken before re-login.
+ */
+function _canAccessStaffChannel(channelKey: string, a?: Auth | null): boolean {
+  const x = a ?? getAuth();
+  if (!x) return false;
+  const role = (x.role || "").toUpperCase();
+  if (role === "HQ" || role === "ADMIN") return true;
+  const perms = x.permissions || [];
+  if (perms.includes("*")) return true;
+  // New-system token: enforce channel permission
+  if (perms.some((p) => p.startsWith("channel."))) {
+    return perms.includes(`channel.${channelKey}.view`);
+  }
+  // Legacy token (no channel.* perms): allow until re-login issues new token
+  return true;
+}
+
+/** Week page — matches `week` channel in `app/access_control.py`. */
+export function canAccessWeekPage(a?: Auth | null): boolean {
+  return _canAccessStaffChannel("week", a);
+}
+
+/** My Shift page — matches `my_shift` channel in `app/access_control.py`. */
+export function canAccessMyShiftPage(a?: Auth | null): boolean {
+  return _canAccessStaffChannel("my_shift", a);
+}
+
+/** Calendar page — matches `calendar` channel in `app/access_control.py`. */
+export function canAccessCalendarPage(a?: Auth | null): boolean {
+  return _canAccessStaffChannel("calendar", a);
+}
+
 export function stepUpSatisfies(required: StepUpLevel, a?: Auth | null): boolean {
   const x = a ?? getAuth();
   const current = x?.stepUpLevel || "aal1";

@@ -64,6 +64,9 @@ import {
   canAccessRenewalsAdmin,
   canAccessRoleManagement,
   canAccessStaffAdmin,
+  canAccessWeekPage,
+  canAccessMyShiftPage,
+  canAccessCalendarPage,
   clearAuth,
   getAuth,
   getAuthHeaders,
@@ -551,14 +554,21 @@ export default function NavBar() {
   }, []);
 
   const staffItems = useMemo(() => {
-    return [...PRIMARY, ...SECONDARY_BASE].map((item) =>
-      item.href === "/incidents"
-        ? { ...item, badgeCount: incidentBadge, badgeWarning: incidentBadge > 0 }
-        : item.href === "/inbox"
-        ? { ...item, badgeCount: inboxBadge, badgeWarning: inboxBadge > 0 }
-        : item,
-    );
-  }, [incidentBadge, inboxBadge]);
+    return [...PRIMARY, ...SECONDARY_BASE]
+      .filter((item) => {
+        if (item.href === "/my-shift") return canAccessMyShiftPage(resolvedAuth);
+        if (item.href === "/week") return canAccessWeekPage(resolvedAuth);
+        if (item.href === "/calendar") return canAccessCalendarPage(resolvedAuth);
+        return true;
+      })
+      .map((item) =>
+        item.href === "/incidents"
+          ? { ...item, badgeCount: incidentBadge, badgeWarning: incidentBadge > 0 }
+          : item.href === "/inbox"
+          ? { ...item, badgeCount: inboxBadge, badgeWarning: inboxBadge > 0 }
+          : item,
+      );
+  }, [resolvedAuth, incidentBadge, inboxBadge]);
 
   const adminItems = useMemo(() => {
     return ADMIN_ITEMS

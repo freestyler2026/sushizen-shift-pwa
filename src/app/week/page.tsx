@@ -7,7 +7,7 @@ import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { apiGet, qs, type WeekView, type ShiftRow } from "@/lib/api";
 import { mondayOf, isoToday } from "@/lib/date";
-import { getAuth, type City } from "@/lib/auth";
+import { getAuth, canAccessWeekPage, type City } from "@/lib/auth";
 import {
   GLASS_CARD,
   SELECT_CLASS,
@@ -355,6 +355,10 @@ export default function WeekPage() {
     const a = getAuth();
     if (!a) {
       router.replace("/login?next=%2Fweek");
+      return;
+    }
+    if (!canAccessWeekPage(a)) {
+      router.replace("/my-shift");
       return;
     }
     setAuthed(a);

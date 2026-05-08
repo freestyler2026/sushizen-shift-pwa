@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { CalendarCheck, CalendarOff, ChevronLeft, ChevronRight, Clock3, MapPin, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { apiGet, qs, type ShiftRow } from "@/lib/api";
-import { getAuth, type City } from "@/lib/auth";
+import { getAuth, canAccessMyShiftPage, type City } from "@/lib/auth";
 import {
   GLASS_CARD,
   SELECT_CLASS,
@@ -128,6 +128,10 @@ export default function MyShiftPage() {
     const auth = getAuth();
     if (!auth) {
       router.replace("/login?next=%2Fmy-shift");
+      return;
+    }
+    if (!canAccessMyShiftPage(auth)) {
+      router.replace("/request");
       return;
     }
     setAuthed(auth);

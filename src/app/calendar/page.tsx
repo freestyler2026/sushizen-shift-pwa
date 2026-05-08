@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { CalendarDays, RefreshCcw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { apiGet, qs, type ShiftRow, type DayView } from "@/lib/api";
-import { getAuth, type City } from "@/lib/auth";
+import { getAuth, canAccessCalendarPage, type City } from "@/lib/auth";
 import MonthPicker from "@/components/MonthPicker";
 import DateRangePicker from "@/components/DateRangePicker";
 import {
@@ -207,6 +207,10 @@ export default function CalendarPage() {
     const auth = getAuth();
     if (!auth) {
       router.replace("/login?next=%2Fcalendar");
+      return;
+    }
+    if (!canAccessCalendarPage(auth)) {
+      router.replace("/request");
       return;
     }
     setAuthed(auth);
