@@ -396,6 +396,11 @@ export function canAccessAttendanceAdmin(a?: Auth | null): boolean {
   return hasAnyPermission(["channel.admin.attendance.view"], a);
 }
 
+/** OS Attendance admin nav — GPS config + session log viewer */
+export function canAccessOsAttendanceAdmin(a?: Auth | null): boolean {
+  return hasAnyPermission(["channel.admin.os_attendance.view"], a);
+}
+
 /** Absences admin nav — requires explicit absences permission */
 export function canAccessAbsencesAdmin(a?: Auth | null): boolean {
   return hasAnyPermission(["channel.admin.absences.view"], a);

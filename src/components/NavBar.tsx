@@ -52,6 +52,7 @@ import {
   canAccessAiAnalyticsProAdmin,
   canAccessAnalyticsAdmin,
   canAccessAttendanceAdmin,
+  canAccessOsAttendanceAdmin,
   canAccessBackofficeEvaluationAdmin,
   canAccessCostAdmin,
   canAccessDailyInventoryAdmin,
@@ -124,6 +125,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/private-reports", label: "Private Reports", icon: FileBarChart, adminOnly: true, match: "exact" },
   { href: "/admin/ai-analytics-pro", label: "AI Analytics Pro", icon: Bot, adminOnly: true, match: "exact" },
   { href: "/admin/attendance", label: "Attendance", icon: UserCheck, adminOnly: true, match: "prefix" },
+  { href: "/admin/os-attendance", label: "OS Attendance", icon: Fingerprint, adminOnly: true, match: "prefix" },
   { href: "/admin/absences", label: "Absences", icon: UserX, adminOnly: true, match: "exact" },
   { href: "/admin/renewals", label: "Renewals", icon: ScrollText, adminOnly: true, match: "prefix" },
   { href: "/admin/staff", label: "Staff", icon: Users, adminOnly: true, match: "prefix" },
@@ -242,6 +244,7 @@ export default function NavBar() {
     if (href === "/admin/cost-calculation") return canAccessCostAdmin(auth);
     if (href === "/admin/analytics") return canAccessAnalyticsAdmin(auth);
     if (href === "/admin/attendance") return canAccessAttendanceAdmin(auth);
+    if (href === "/admin/os-attendance") return canAccessOsAttendanceAdmin(auth);
     if (href === "/admin/absences") return canAccessAbsencesAdmin(auth);
     if (href === "/admin/renewals") return canAccessRenewalsAdmin(auth);
     if (href === "/admin/staff") return canAccessStaffAdmin(auth);
