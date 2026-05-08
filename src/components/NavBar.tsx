@@ -94,7 +94,7 @@ type NavItem = {
 };
 
 const PRIMARY: NavItem[] = [
-  { href: "/attendance", label: "Attendance", icon: Fingerprint, match: "exact" },
+  { href: "/attendance", label: "Time-in / Time-out", icon: Fingerprint, match: "exact" },
   { href: "/my-shift", label: "My Shift", icon: CalendarClock, match: "exact" },
   { href: "/week", label: "Week", icon: CalendarDays, match: "exact" },
   { href: "/request", label: "Request", icon: ClipboardList, match: "exact" },

@@ -172,14 +172,20 @@ type PublicKeyCredentialRequestOptionsJSON = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function fmtTime(iso: string | null): string {
+// City → IANA timezone (no DST in either location)
+function cityTz(city?: string | null): string {
+  return (city ?? "manila").toLowerCase() === "dubai" ? "Asia/Dubai" : "Asia/Manila";
+}
+
+// Format ISO → local time string. tz defaults to Asia/Manila but accepts city-derived tz.
+function fmtTime(iso: string | null, tz = "Asia/Manila"): string {
   if (!iso) return "--:--";
   try {
     return new Date(iso).toLocaleTimeString("en-PH", {
       hour: "2-digit",
       minute: "2-digit",
       hour12: true,
-      timeZone: "Asia/Manila",
+      timeZone: tz,
     });
   } catch {
     return "--:--";
@@ -191,6 +197,7 @@ function minutesBetween(a: string, b: string): number {
 }
 
 function fmtDuration(minutes: number): string {
+  if (minutes <= 0) return "0m";
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
@@ -384,15 +391,17 @@ export default function AttendancePage() {
   const session = data?.session ?? null;
   const visits = data?.visits ?? [];
   const passkeyCount = data?.passkey_count ?? 0;
-  const today = data?.today ?? new Date().toISOString().slice(0, 10);
+  // Fallback uses city-aware local date so Manila/Dubai midnight never shows yesterday
+  const tz = cityTz(auth?.city);
+  const today = data?.today ?? new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
   const isCheckedIn = !!session?.check_in_at;
   const isCheckedOut = !!session?.check_out_at;
   const openVisits = visits.filter((v) => !v.visit_end);
   const closedVisits = visits.filter((v) => v.visit_end);
-  const workedMinutes =
-    isCheckedIn
-      ? minutesBetween(session!.check_in_at!, isCheckedOut ? session!.check_out_at! : new Date().toISOString())
-      : 0;
+  // Math.max(0, ...) guards against client/server clock skew producing negative elapsed time
+  const workedMinutes = isCheckedIn
+    ? Math.max(0, minutesBetween(session!.check_in_at!, isCheckedOut ? session!.check_out_at! : new Date().toISOString()))
+    : 0;
   const wauSupported = typeof window !== "undefined" && !!window.PublicKeyCredential;
 
   if (loading) {
@@ -472,12 +481,12 @@ export default function AttendancePage() {
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl bg-zinc-900/50 p-3 space-y-1">
               <div className="flex items-center gap-1.5 text-[10px] text-zinc-500"><LogIn size={10} /> Clock In</div>
-              <div className="text-xl font-bold text-white tabular-nums">{fmtTime(session?.check_in_at ?? null)}</div>
+              <div className="text-xl font-bold text-white tabular-nums">{fmtTime(session?.check_in_at ?? null, tz)}</div>
               {session?.check_in_at && <GpsIndicator ok={session.check_in_gps_ok} distM={session.check_in_distance_m} />}
             </div>
             <div className="rounded-xl bg-zinc-900/50 p-3 space-y-1">
               <div className="flex items-center gap-1.5 text-[10px] text-zinc-500"><LogOut size={10} /> Clock Out</div>
-              <div className="text-xl font-bold text-white tabular-nums">{fmtTime(session?.check_out_at ?? null)}</div>
+              <div className="text-xl font-bold text-white tabular-nums">{fmtTime(session?.check_out_at ?? null, tz)}</div>
               {session?.check_out_at && <GpsIndicator ok={session.check_out_gps_ok} distM={session.check_out_distance_m} />}
             </div>
           </div>
@@ -582,7 +591,7 @@ export default function AttendancePage() {
                 <span className="rounded-full bg-emerald-800/40 px-2 py-0.5 text-[10px] text-emerald-400">Visiting</span>
               </div>
               <div className="flex items-center justify-between text-xs text-zinc-400">
-                <span>Started {fmtTime(v.visit_start)}</span>
+                <span>Started {fmtTime(v.visit_start, tz)}</span>
                 <GpsIndicator ok={v.gps_ok} distM={v.distance_m} />
               </div>
               <button
@@ -599,7 +608,7 @@ export default function AttendancePage() {
             <div key={v.id} className="rounded-xl bg-zinc-800/40 px-3 py-2.5 space-y-1">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-zinc-300">{v.branch_code}</span>
-                <span className="text-xs text-zinc-500">{fmtTime(v.visit_start)} → {fmtTime(v.visit_end)}</span>
+                <span className="text-xs text-zinc-500">{fmtTime(v.visit_start, tz)} → {fmtTime(v.visit_end, tz)}</span>
               </div>
               {v.visit_start && v.visit_end && (
                 <p className="text-xs text-zinc-500">{fmtDuration(minutesBetween(v.visit_start, v.visit_end))}</p>
