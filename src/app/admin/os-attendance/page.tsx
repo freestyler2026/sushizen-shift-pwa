@@ -150,6 +150,7 @@ function GpsTab({ city }: { city: string }) {
   useEffect(() => { void load(); }, [load]);
 
   function startEdit(g: BranchGps) {
+    setAdding(false);
     setEditing(g.branch_code);
     setForm({ lat: String(g.lat), lng: String(g.lng), radius_m: String(g.radius_m), label: g.label });
     setErr("");
@@ -212,7 +213,7 @@ function GpsTab({ city }: { city: string }) {
           <button onClick={() => load()} className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:text-white hover:border-white/20 transition-colors">
             <RefreshCw size={12} />Refresh
           </button>
-          <button onClick={() => { setAdding(true); setForm({ lat: "", lng: "", radius_m: "100", label: "" }); setNewBranch(""); setErr(""); }}
+          <button onClick={() => { setAdding(true); setEditing(null); setForm({ lat: "", lng: "", radius_m: "100", label: "" }); setNewBranch(""); setErr(""); }}
             className="flex items-center gap-1.5 rounded-lg bg-violet-500/20 border border-violet-500/30 px-3 py-1.5 text-xs text-violet-300 hover:bg-violet-500/30 transition-colors">
             <Plus size={12} />Add Branch
           </button>
@@ -458,6 +459,8 @@ function DailyReportTab({ city }: { city: string }) {
     setBranchFilter("");
     setStatusFilter("");
     setExpandedIds(new Set());
+    setEditingSession(null);
+    setSessions([]);
   }, [city]);
 
   // Load dropdown options
