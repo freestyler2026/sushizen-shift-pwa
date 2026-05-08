@@ -307,7 +307,7 @@ function TimeAxisRow() {
           return (
             <span
               key={h}
-              className="absolute select-none text-[8px] leading-none text-neutral-500"
+              className="absolute select-none text-[8px] leading-none text-white"
               style={{
                 left: `${pct}%`,
                 transform: isFirst
