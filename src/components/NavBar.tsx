@@ -140,6 +140,10 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/discord-inbox", label: "Discord Inbox", icon: MessageSquare, adminOnly: true, match: "prefix" },
 ];
 
+// Primary bottom-tab hrefs — these 4 always appear in the bottom nav bar.
+// Defined at module scope so useMemo hooks get a stable reference.
+const MOBILE_PRIMARY_HREFS = ["/attendance", "/my-shift", "/request", "/inbox"];
+
 function isActive(pathname: string, item: NavItem) {
   const mode = item.match || "exact";
   if (mode === "prefix") return pathname === item.href || pathname.startsWith(item.href + "/");
@@ -550,8 +554,8 @@ export default function NavBar() {
       }
     }
 
-    loadAuth();
-    const onStorage = () => loadAuth();
+    void loadAuth();
+    const onStorage = () => void loadAuth();
     window.addEventListener("storage", onStorage);
     return () => {
       cancelled = true;
@@ -600,13 +604,20 @@ export default function NavBar() {
   const navItems = useMemo(() => [...staffItems, ...adminItems], [staffItems, adminItems]);
 
   // Mobile bottom nav: show these 4 items as primary tabs
-  const MOBILE_PRIMARY_HREFS = ["/attendance", "/my-shift", "/request", "/inbox"];
   const mobilePrimaryItems = useMemo(
     () => MOBILE_PRIMARY_HREFS.map((h) => navItems.find((i) => i.href === h)).filter(Boolean) as NavItem[],
     [navItems],
   );
-  const mobileMoreItems = useMemo(
-    () => navItems.filter((i) => !MOBILE_PRIMARY_HREFS.includes(i.href)),
+  // "All pages" grid shows EVERY accessible page so users can always find anything.
+  // Primary tab items are intentionally included here too — the bottom tabs are just
+  // convenience shortcuts, not the only way to reach those pages.
+  const mobileMoreItems = useMemo(() => navItems, [navItems]);
+  // "More" red dot only watches non-primary-tab items; primary tabs already show
+  // their own badges in the bottom nav so we avoid a misleading double-signal.
+  const moreHasBadge = useMemo(
+    () => navItems
+      .filter((i) => !MOBILE_PRIMARY_HREFS.includes(i.href))
+      .some((i) => (i.badgeCount || 0) > 0 || i.badgeCritical),
     [navItems],
   );
 
@@ -731,8 +742,8 @@ export default function NavBar() {
           >
             <MoreHorizontal className="h-5 w-5" />
             <span className="text-[10px] leading-none">More</span>
-            {/* Red dot if any "more" item has a badge */}
-            {mobileMoreItems.some((i) => (i.badgeCount || 0) > 0 || i.badgeCritical) && (
+            {/* Red dot if any non-primary-tab item has a badge */}
+            {moreHasBadge && (
               <span className="absolute right-[22%] top-2.5 h-2 w-2 rounded-full bg-rose-500" />
             )}
           </button>
