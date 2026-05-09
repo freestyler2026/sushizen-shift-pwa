@@ -581,7 +581,7 @@ export default function LoansPage() {
             </div>
           </div>
           <p className={`${T_CAPTION} mt-2`}>
-            Adds a <strong>Loan Installment</strong> recurring deduction to each active employee's payroll adjustments for the selected cycle. Idempotent — safe to run multiple times.
+            Adds a <strong>Loan Installment</strong> recurring deduction to each active employee&apos;s payroll adjustments for the selected cycle. Idempotent — safe to run multiple times.
           </p>
           {applyResult && (
             <div className="mt-3 rounded-xl bg-emerald-500/8 border border-emerald-500/15 p-3 text-sm space-y-1">
