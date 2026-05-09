@@ -341,7 +341,8 @@ function PayrollTransactionsInner() {
   const [batchPaidAt, setBatchPaidAt] = useState(new Date().toISOString().slice(0, 10));
   const [batchRefNo, setBatchRefNo] = useState("");
   const [batchSaving, setBatchSaving] = useState(false);
-  const loadRef = useRef(0);
+  const cycleLoadRef = useRef(0);
+  const dataLoadRef = useRef(0);
 
   // Auth guard
   useEffect(() => {
@@ -352,33 +353,34 @@ function PayrollTransactionsInner() {
     }
   }, []);
 
-  // Load cycles — use loadRef for stale-fetch guard
+  // Load cycles — use cycleLoadRef for stale-fetch guard (separate from dataLoadRef)
   useEffect(() => {
     if (!auth) return;
-    const token = ++loadRef.current;
+    const token = ++cycleLoadRef.current;
     void (async () => {
       try {
         const r = await fetch(`${API_BASE}/api/admin/payroll/cycles?city=${city}`, { headers: getAuthHeaders(auth) });
-        if (!r.ok || token !== loadRef.current) return;
+        if (token !== cycleLoadRef.current) return;
+        if (!r.ok) { setErr(await extractApiError(r, "Failed to load cycles")); return; }
         const j = await r.json();
         setCycles(j.cycles || []);
         // Only auto-select first cycle if none is set yet
         if (j.cycles?.[0]) setCycleId(prev => prev ?? j.cycles[0].id);
-      } catch {}
+      } catch { if (token === cycleLoadRef.current) setErr("Failed to load cycles"); }
     })();
   }, [city]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load run + records + payments when cycleId changes
   const loadData = useCallback(async () => {
     if (!auth || !cycleId) return;
-    const token = ++loadRef.current;
+    const token = ++dataLoadRef.current;
     setLoading(true); setErr("");
     try {
       const [runRes, pmtRes] = await Promise.all([
         fetch(`${API_BASE}/api/admin/payroll/runs?city=${city}&cycle_id=${cycleId}`, { headers: getAuthHeaders(auth) }),
         fetch(`${API_BASE}/api/admin/payroll/payments?city=${city}&cycle_id=${cycleId}`, { headers: getAuthHeaders(auth) }),
       ]);
-      if (token !== loadRef.current) return;
+      if (token !== dataLoadRef.current) return;
 
       if (runRes.ok) {
         const j = await runRes.json();
@@ -386,14 +388,14 @@ function PayrollTransactionsInner() {
         setRun(fetchedRun);
         if (fetchedRun) {
           const recRes = await fetch(`${API_BASE}/api/admin/payroll/runs/${fetchedRun.id}/records?city=${city}`, { headers: getAuthHeaders(auth) });
-          if (recRes.ok) { const rj = await recRes.json(); if (token === loadRef.current) setRecords(rj.records || []); }
+          if (recRes.ok) { const rj = await recRes.json(); if (token === dataLoadRef.current) setRecords(rj.records || []); }
         } else {
           setRecords([]);
         }
       }
-      if (pmtRes.ok) { const j = await pmtRes.json(); if (token === loadRef.current) setPayments(j.payments || []); }
-    } catch { if (token === loadRef.current) setErr("Failed to load data"); }
-    finally { if (token === loadRef.current) setLoading(false); }
+      if (pmtRes.ok) { const j = await pmtRes.json(); if (token === dataLoadRef.current) setPayments(j.payments || []); }
+    } catch { if (token === dataLoadRef.current) setErr("Failed to load data"); }
+    finally { if (token === dataLoadRef.current) setLoading(false); }
   }, [city, cycleId]);
 
   useEffect(() => { void loadData(); }, [loadData]);
@@ -444,7 +446,7 @@ function PayrollTransactionsInner() {
 
   async function doBatchMarkPaid() {
     if (!auth || !cycleId || selectedRows.size === 0) return;
-    setBatchSaving(true);
+    setBatchSaving(true); setErr("");
     try {
       const r = await fetch(`${API_BASE}/api/admin/payroll/payments/batch?city=${city}&cycle_id=${cycleId}`, {
         method: "POST",
@@ -466,15 +468,22 @@ function PayrollTransactionsInner() {
     } finally { setBatchSaving(false); }
   }
 
+  function csvField(v: string | number): string {
+    const s = String(v ?? "");
+    // If the field contains a comma, double-quote, or newline — wrap in quotes and escape inner quotes
+    if (s.includes(",") || s.includes('"') || s.includes("\n")) return `"${s.replace(/"/g, '""')}"`;
+    return s;
+  }
+
   function downloadCSV() {
     if (!records.length || !selectedCycle) return;
     const header = "Staff Name,Role,Branch,Currency,Gross Pay,Additions,Deductions,Net Pay,Payment Method,Payment Status";
     const rows = records.map(r => {
       const pmt = paymentByName[r.staff_name];
       return [
-        r.staff_name, r.role_title, r.branch_code, r.currency,
+        csvField(r.staff_name), csvField(r.role_title), csvField(r.branch_code), csvField(r.currency),
         r.gross_pay, r.net_additions, r.net_deductions, r.net_pay,
-        r.paid_via, pmt?.status || "pending",
+        csvField(r.paid_via), csvField(pmt?.status || "pending"),
       ].join(",");
     });
     const csv = "﻿" + [header, ...rows].join("\r\n");

@@ -542,7 +542,7 @@ export default function LoansPage() {
           </div>
           <div className="flex items-center gap-2">
             {["dubai", "manila"].map(c => (
-              <button key={c} onClick={() => { setCity(c); setLoans([]); setApplyResult(null); setApplyCycleId(""); }}
+              <button key={c} onClick={() => { setCity(c); setLoans([]); setCycles([]); setApplyResult(null); setApplyCycleId(""); }}
                 className={city === c ? TAB_ACTIVE : TAB_INACTIVE}>
                 {c.charAt(0).toUpperCase() + c.slice(1)}
               </button>

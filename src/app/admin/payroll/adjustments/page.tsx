@@ -240,7 +240,10 @@ export default function AdjustmentsPage() {
     if (!ok) router.replace("/week");
   }, [role, router]);
 
-  const [city, setCity] = useState<"dubai" | "manila">("dubai");
+  const [city, setCity] = useState<"dubai" | "manila">(() => {
+    const a = getAuth();
+    return (a as { city?: string } | null)?.city?.toLowerCase() === "dubai" ? "dubai" : "manila";
+  });
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [selectedCycle, setSelectedCycle] = useState<Cycle | null>(null);
   const [adjustments, setAdjustments] = useState<Adjustment[]>([]);

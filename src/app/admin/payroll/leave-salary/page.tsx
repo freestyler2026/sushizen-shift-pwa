@@ -150,7 +150,7 @@ function CreateModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className={`${GLASS_CARD} w-full max-w-lg space-y-4`}>
+      <div className={`${GLASS_CARD} w-full max-w-lg p-6 space-y-4`}>
         <p className={T_SECTION}>New Leave Salary Request</p>
 
         <div className="grid grid-cols-2 gap-3">
@@ -625,7 +625,7 @@ export default function LeaveSalaryPage() {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {(["dubai","manila"] as const).map(c => (
-              <button key={c} onClick={() => { setCity(c); setRequests([]); }}
+              <button key={c} onClick={() => { setCity(c); setRequests([]); setCycles([]); }}
                 className={city === c ? TAB_ACTIVE : TAB_INACTIVE}>
                 {c === "dubai" ? "Dubai 🇦🇪" : "Manila 🇵🇭"}
               </button>

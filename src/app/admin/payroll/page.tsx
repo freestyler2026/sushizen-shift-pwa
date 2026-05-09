@@ -305,7 +305,10 @@ export default function PayrollPage() {
     if (!ok) router.replace("/week");
   }, [role, router]);
 
-  const [city, setCity] = useState<"dubai" | "manila">("dubai");
+  const [city, setCity] = useState<"dubai" | "manila">(() => {
+    const a = getAuth();
+    return (a as { city?: string } | null)?.city?.toLowerCase() === "dubai" ? "dubai" : "manila";
+  });
   const [tab, setTab] = useState<Tab>("table");
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [selectedCycle, setSelectedCycle] = useState<Cycle | null>(null);
