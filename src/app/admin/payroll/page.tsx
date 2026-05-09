@@ -1,8 +1,9 @@
 "use client";
 
 import {
-  AlertCircle, ArrowRight, ChevronRight, Download, DollarSign,
-  Loader2, Pencil, Plus, RefreshCw, Settings, TrendingUp, Users, X,
+  AlertCircle, ArrowRight, ChevronDown, ChevronRight, ChevronUp,
+  Download, DollarSign, Filter, Loader2, Pencil, Plus, RefreshCw,
+  Settings, Users, X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -356,8 +357,8 @@ export default function PayrollPage() {
         setErr(await extractApiError(r, "Failed to load payroll table")); return;
       }
       const data = await r.json() as { rows: PayrollRow[]; total_net_pay: number };
-      setRows(data.rows);
-      setTotalNetPay(data.total_net_pay);
+      setRows(Array.isArray(data.rows) ? data.rows : []);
+      setTotalNetPay(data.total_net_pay ?? 0);
     } catch {
       if (id === tableLoadRef.current) setErr("Network error — please try again");
     } finally {
@@ -395,9 +396,9 @@ export default function PayrollPage() {
     void loadCycles(city);
   }, [city]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // On cycle change
+  // On cycle change — guard city match to prevent stale cross-city load when city switches
   useEffect(() => {
-    if (selectedCycle && tab === "table") void loadTable(selectedCycle.id, city);
+    if (selectedCycle && selectedCycle.city === city && tab === "table") void loadTable(selectedCycle.id, city);
   }, [selectedCycle, tab, city]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // On tab change to configs
@@ -487,285 +488,430 @@ export default function PayrollPage() {
 
   const currency = city === "manila" ? "PHP" : "AED";
 
+  // ── Column selector state ─────────────────────────────────────────────────
+  type ColKey = "basic" | "allowances" | "gross" | "workExp" | "netAdd" | "netDed" | "arrears";
+  const [visibleCols, setVisibleCols] = useState<Record<ColKey, boolean>>({
+    basic: true, allowances: true, gross: true,
+    workExp: false, netAdd: true, netDed: true, arrears: false,
+  });
+  const [showColSelector, setShowColSelector] = useState(true);
+  const [filterMissing, setFilterMissing] = useState(false);
+
+  function toggleCol(k: ColKey) { setVisibleCols(p => ({ ...p, [k]: !p[k] })); }
+
+  // ── Computed totals ───────────────────────────────────────────────────────
+  const totalBasic      = rows.reduce((s, r) => s + r.basic_salary, 0);
+  const totalAllowances = rows.reduce((s, r) => s + r.allowances, 0);
+  const totalGross      = rows.reduce((s, r) => s + r.gross_pay, 0);
+  const totalNetAdd     = rows.reduce((s, r) => s + r.net_additions, 0);
+  const totalNetDed     = rows.reduce((s, r) => s + r.net_deductions, 0);
+  const missingRows     = rows.filter(r => r.basic_salary === 0);
+  const displayRows     = filterMissing ? missingRows : rows;
+
+  const cycleName = selectedCycle
+    ? `${MONTHS[selectedCycle.month - 1]} ${selectedCycle.year}`
+    : "—";
+
+  function n(v: number) { return v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+  const COL_DEFS: { key: ColKey; label: string; total: number }[] = [
+    { key: "basic",      label: "Basic Salary",               total: totalBasic },
+    { key: "allowances", label: "Allowances",                 total: totalAllowances },
+    { key: "gross",      label: "Gross Pay",                  total: totalGross },
+    { key: "workExp",    label: "Work Expenses",              total: 0 },
+    { key: "netAdd",     label: "Net Additions",              total: totalNetAdd },
+    { key: "netDed",     label: "Net Deductions",             total: totalNetDed },
+    { key: "arrears",    label: "Arrears from Previous Months", total: 0 },
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-slate-900 to-zinc-900 p-4 md:p-8">
-      {/* Header */}
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className={T_PAGE_TITLE}>Payroll</h1>
-          <p className="mt-1 text-sm text-zinc-400">Monthly salary processing and adjustments</p>
+    <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-slate-900 to-zinc-900">
+
+      {/* ── Top nav bar ─────────────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-white/8">
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-bold text-white">Payroll</h1>
+          {/* City toggle */}
+          <div className="flex rounded-xl overflow-hidden border border-white/10">
+            {(["dubai","manila"] as const).map(c => (
+              <button key={c} onClick={() => setCity(c)}
+                className={`px-4 py-1.5 text-sm font-medium transition ${
+                  city === c
+                    ? "bg-violet-600 text-white"
+                    : "text-zinc-400 hover:text-white hover:bg-white/5"
+                }`}>
+                {c === "dubai" ? "Dubai" : "Manila"}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="flex items-center gap-2">
-          {/* City toggle */}
-          {(["dubai","manila"] as const).map(c => (
-            <button key={c} onClick={() => setCity(c)}
-              className={city === c ? TAB_ACTIVE : TAB_INACTIVE}>
-              {c === "dubai" ? "Dubai" : "Manila"}
-            </button>
-          ))}
-          <Link
-            href={`/admin/payroll/loans?city=${city}`}
-            className="flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-300 transition hover:bg-amber-500/20"
-          >
-            Loans <ArrowRight className="h-3.5 w-3.5" />
+          <Link href={`/admin/payroll/loans?city=${city}`}
+            className="flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-sm font-medium text-amber-300 hover:bg-amber-500/20 transition">
+            Loans <ArrowRight size={13} />
           </Link>
-          <Link
-            href={`/admin/payroll/leave-salary?city=${city}`}
-            className="flex items-center gap-1.5 rounded-xl border border-teal-500/30 bg-teal-500/10 px-3 py-2 text-sm font-medium text-teal-300 transition hover:bg-teal-500/20"
-          >
-            Leave Salary <ArrowRight className="h-3.5 w-3.5" />
+          <Link href={`/admin/payroll/leave-salary?city=${city}`}
+            className="flex items-center gap-1.5 rounded-xl border border-teal-500/30 bg-teal-500/10 px-3 py-1.5 text-sm font-medium text-teal-300 hover:bg-teal-500/20 transition">
+            Leave Salary <ArrowRight size={13} />
           </Link>
           {selectedCycle && (
-            <Link
-              href={`/admin/payroll/transactions?city=${city}&cycle_id=${selectedCycle.id}`}
-              className="flex items-center gap-1.5 rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-sm font-medium text-violet-300 transition hover:bg-violet-500/20"
-            >
-              Transactions <ArrowRight className="h-3.5 w-3.5" />
+            <Link href={`/admin/payroll/transactions?city=${city}&cycle_id=${selectedCycle.id}`}
+              className="flex items-center gap-1.5 rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 text-sm font-medium text-violet-300 hover:bg-violet-500/20 transition">
+              Transactions <ArrowRight size={13} />
             </Link>
           )}
         </div>
       </div>
 
       {err && (
-        <div className={`${BADGE_ERROR} mb-4 w-full justify-center py-3 rounded-xl text-sm`}>
+        <div className="mx-6 mt-4 flex items-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-300">
           <AlertCircle size={14} />{err}
         </div>
       )}
 
-      {/* Cycle Picker + Status */}
-      <div className={`${GLASS_CARD} p-4 mb-6`}>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-400">Payroll Cycle</label>
-            <select
-              className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
-              value={selectedCycle?.id ?? ""}
-              onChange={e => {
-                const c = cycles.find(x => x.id === Number(e.target.value));
-                if (c) setSelectedCycle(c);
-              }}
-            >
-              {cycles.length === 0 && <option value="">No cycles</option>}
-              {cycles.map(c => (
-                <option key={c.id} value={c.id}>
-                  {MONTHS[c.month - 1]} {c.year} — {c.status === "open" ? "Open" : "Closed"}
-                </option>
-              ))}
-            </select>
+      {/* ── Summary header (Bayzat-style) ────────────────────────────────────── */}
+      <div className="grid grid-cols-3 gap-px bg-white/5 border-b border-white/8">
+        <div className="bg-zinc-900/60 px-6 py-5">
+          <p className="text-xs text-zinc-400 mb-1">Total net pay for {cycleName}</p>
+          <p className="text-2xl font-bold text-white tabular-nums">{currency} {n(totalNetPay)}</p>
+        </div>
+        <div className="bg-zinc-900/60 px-6 py-5">
+          <p className="text-xs text-zinc-400 mb-1">Processed till date for {cycleName}</p>
+          <p className="text-2xl font-bold text-emerald-400 tabular-nums">
+            {selectedCycle?.status === "closed" ? `${currency} ${n(totalNetPay)}` : `${currency} 0.00`}
+          </p>
+        </div>
+        <div className="bg-zinc-900/60 px-6 py-5 flex items-start justify-between">
+          <div>
+            <p className="text-xs text-zinc-400 mb-1">Total unpaid</p>
+            <p className="text-2xl font-bold text-red-400 tabular-nums">
+              {selectedCycle?.status === "closed" ? `${currency} 0.00` : `${currency} ${n(totalNetPay)}`}
+            </p>
+            {rows.length > 0 && (
+              <p className="text-xs text-zinc-500 mt-1">{rows.length} employees</p>
+            )}
           </div>
-
-          {selectedCycle && (
-            <span className={selectedCycle.status === "open" ? BADGE_SUCCESS : BADGE_INFO}>
-              {selectedCycle.status === "open" ? "Open" : "Closed"}
-            </span>
-          )}
-
-          <div className="ml-auto flex gap-2">
-            <button className={SMALL_BUTTON} onClick={() => { void ensureCurrentCycle(); }} disabled={busy || closingCycle}>
-              <Plus size={12} /> New Cycle
-            </button>
-            <button className={SMALL_BUTTON} onClick={() => {
-              if (tab === "configs") void loadConfigs(city);
-              else if (selectedCycle) void loadTable(selectedCycle.id, city);
-            }} disabled={busy}>
-              <RefreshCw size={12} className={busy ? "animate-spin" : ""} /> Refresh
-            </button>
-            {tab === "table" && rows.length > 0 && (
-              <button className={SMALL_BUTTON} onClick={downloadCSV}>
-                <Download size={12} /> Download
+          {/* Cycle controls */}
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2">
+              <select
+                className="rounded-lg border border-white/10 bg-zinc-800 px-2 py-1.5 text-xs text-white outline-none"
+                value={selectedCycle?.id ?? ""}
+                onChange={e => {
+                  const c = cycles.find(x => x.id === Number(e.target.value));
+                  if (c) setSelectedCycle(c);
+                }}
+              >
+                {cycles.length === 0 && <option value="">No cycles</option>}
+                {cycles.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {MONTHS[c.month - 1]} {c.year} — {c.status === "open" ? "Open" : "Closed"}
+                  </option>
+                ))}
+              </select>
+              {selectedCycle && (
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  selectedCycle.status === "open"
+                    ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
+                    : "bg-zinc-500/15 text-zinc-300 border border-zinc-500/20"
+                }`}>
+                  {selectedCycle.status === "open" ? "Open" : "Closed"}
+                </span>
+              )}
+            </div>
+            <div className="flex gap-1.5">
+              <button className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 hover:bg-white/10 transition"
+                onClick={() => { void ensureCurrentCycle(); }} disabled={busy}>
+                <Plus size={11} /> New Cycle
               </button>
-            )}
-            {selectedCycle?.status === "open" && tab === "table" && (
-              <button className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-500 disabled:opacity-50"
-                onClick={() => { void closeCycle(); }} disabled={closingCycle}>
-                {closingCycle ? <Loader2 size={12} className="animate-spin" /> : "Close Cycle"}
+              <button className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 hover:bg-white/10 transition"
+                onClick={() => {
+                  if (tab === "configs") void loadConfigs(city);
+                  else if (selectedCycle) void loadTable(selectedCycle.id, city);
+                }} disabled={busy}>
+                <RefreshCw size={11} className={busy ? "animate-spin" : ""} /> Refresh
               </button>
-            )}
-            {selectedCycle?.status === "closed" && (
-              <button className={SMALL_BUTTON} onClick={() => { void reopenCycle(); }} disabled={closingCycle}>
-                {closingCycle ? <Loader2 size={12} className="animate-spin" /> : "Reopen"}
-              </button>
-            )}
+              {rows.length > 0 && (
+                <button className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 hover:bg-white/10 transition"
+                  onClick={downloadCSV}>
+                  <Download size={11} /> Download
+                </button>
+              )}
+              {selectedCycle?.status === "open" && (
+                <button className="flex items-center gap-1 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-500 transition disabled:opacity-50"
+                  onClick={() => { void closeCycle(); }} disabled={closingCycle}>
+                  {closingCycle ? <Loader2 size={11} className="animate-spin" /> : "Close Cycle"}
+                </button>
+              )}
+              {selectedCycle?.status === "closed" && (
+                <button className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-zinc-300 hover:bg-white/10 transition"
+                  onClick={() => { void reopenCycle(); }} disabled={closingCycle}>
+                  {closingCycle ? <Loader2 size={11} className="animate-spin" /> : "Reopen"}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      {tab === "table" && (
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className={KPI_CARD}>
-            <div className="flex items-center gap-2 mb-1">
-              <DollarSign size={14} className="text-violet-400" />
-              <p className={KPI_LABEL}>Total Net Pay</p>
-            </div>
-            <p className={KPI_VALUE}>{fmt(totalNetPay, currency)}</p>
-          </div>
-          <div className={KPI_CARD}>
-            <div className="flex items-center gap-2 mb-1">
-              <Users size={14} className="text-violet-400" />
-              <p className={KPI_LABEL}>Employees</p>
-            </div>
-            <p className={KPI_VALUE}>{rows.length}</p>
-          </div>
-          <div className={KPI_CARD}>
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingUp size={14} className="text-violet-400" />
-              <p className={KPI_LABEL}>Avg Net Pay</p>
-            </div>
-            <p className={KPI_VALUE}>{fmt(rows.length ? totalNetPay / rows.length : 0, currency)}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div className="flex gap-1 mb-4">
-        <button className={tab === "table" ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => setTab("table")}>
+      {/* ── Tab bar ─────────────────────────────────────────────────────────── */}
+      <div className="flex gap-0 border-b border-white/8 px-6">
+        <button
+          onClick={() => setTab("table")}
+          className={`px-4 py-3 text-sm font-medium border-b-2 transition ${
+            tab === "table"
+              ? "border-violet-400 text-violet-300"
+              : "border-transparent text-zinc-400 hover:text-white"
+          }`}>
           Payroll Table
         </button>
-        <button className={tab === "configs" ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => setTab("configs")}>
-          <Settings size={14} />Salary Configs
+        <button
+          onClick={() => setTab("configs")}
+          className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition ${
+            tab === "configs"
+              ? "border-violet-400 text-violet-300"
+              : "border-transparent text-zinc-400 hover:text-white"
+          }`}>
+          <Settings size={13} /> Salary Configs
         </button>
       </div>
 
-      {/* ── Payroll Table Tab ── */}
-      {tab === "table" && (
-        <div className={GLASS_CARD}>
-          {busy && rows.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-16 text-white/30">
-              <Loader2 size={28} className="animate-spin" />
-              <p className="text-sm">Loading payroll data…</p>
-            </div>
-          ) : rows.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-16 text-white/30">
-              <DollarSign size={32} />
-              <p className="text-sm">No salary configs for this cycle.</p>
-              <p className="text-xs">Add employees in the Salary Configs tab first.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px]">
-                <thead>
-                  <tr>
-                    <th className="w-6" />
-                    <th className={`${TABLE_HEADER} text-left px-3 py-3`}>Employee</th>
-                    <th className={`${TABLE_HEADER} text-right px-3 py-3`}>Basic Salary</th>
-                    <th className={`${TABLE_HEADER} text-right px-3 py-3`}>Allowances</th>
-                    <th className={`${TABLE_HEADER} text-right px-3 py-3`}>Gross Pay</th>
-                    <th className={`${TABLE_HEADER} text-right px-3 py-3`}>Net Add.</th>
-                    <th className={`${TABLE_HEADER} text-right px-3 py-3`}>Net Ded.</th>
-                    <th className={`${TABLE_HEADER} text-right px-3 py-3`}>Net Pay</th>
-                    <th className={`${TABLE_HEADER} text-right px-3 py-3`}>Paid Via</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map(row => (
-                    <tr key={row.staff_name} className={TABLE_ROW}>
-                      <td className="pl-3">
-                        <button className="text-zinc-500 hover:text-violet-300"
-                          onClick={() => setDetailRow(row)}>
-                          <ChevronRight size={14} />
-                        </button>
-                      </td>
-                      <td className={`${TABLE_CELL} px-3`}>
-                        <p className="font-medium text-white">{row.staff_name}</p>
-                        <p className="text-xs text-zinc-500">{row.role_title || "—"} · {row.branch_code || "—"}</p>
-                      </td>
-                      <td className={`${TABLE_CELL} px-3 text-right tabular-nums`}>{row.basic_salary.toFixed(2)}</td>
-                      <td className={`${TABLE_CELL} px-3 text-right tabular-nums`}>{((row.accommodation ?? 0) + (row.transportation ?? 0) + (row.other_allowances ?? 0)).toFixed(2)}</td>
-                      <td className={`${TABLE_CELL} px-3 text-right tabular-nums`}>{row.gross_pay.toFixed(2)}</td>
-                      <td className={`${TABLE_CELL} px-3 text-right tabular-nums text-emerald-400`}>
-                        {row.net_additions > 0 ? `+${row.net_additions.toFixed(2)}` : "—"}
-                      </td>
-                      <td className={`${TABLE_CELL} px-3 text-right tabular-nums text-red-400`}>
-                        {row.net_deductions > 0 ? `-${row.net_deductions.toFixed(2)}` : "—"}
-                      </td>
-                      <td className={`${TABLE_CELL} px-3 text-right tabular-nums font-semibold text-violet-300`}>
-                        {row.net_pay.toFixed(2)}
-                      </td>
-                      <td className={`${TABLE_CELL} px-3 text-right`}>
-                        <span className="text-xs capitalize text-zinc-400">{row.paid_via}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t border-white/10">
-                    <td colSpan={7} className="px-3 py-3 text-right text-sm font-semibold text-zinc-400">Total Net Pay</td>
-                    <td className="px-3 py-3 text-right text-base font-bold tabular-nums text-white">
-                      {fmt(totalNetPay, currency)}
-                    </td>
-                    <td />
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
+      <div className="px-6 py-4">
 
-      {/* ── Salary Configs Tab ── */}
-      {tab === "configs" && (
-        <div className={GLASS_CARD}>
-          <div className="flex items-center justify-between px-4 py-3 border-b border-white/8">
-            <p className="text-sm font-semibold text-white">{configs.length} employees configured</p>
-            <button className={PRIMARY_BUTTON + " text-sm py-2 px-4 flex items-center gap-1.5"}
-              onClick={() => { setEditingConfig(null); setShowConfigModal(true); }}>
-              <Plus size={14} /> Add Employee
-            </button>
+        {/* ── Payroll Table Tab ─────────────────────────────────────────────── */}
+        {tab === "table" && (
+          <>
+            {/* Column selector */}
+            {rows.length > 0 && (
+              <div className="mb-4 rounded-xl border border-white/8 bg-white/3">
+                <button
+                  className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-zinc-300"
+                  onClick={() => setShowColSelector(p => !p)}>
+                  <span>Selected columns on the payroll table</span>
+                  {showColSelector ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+                {showColSelector && (
+                  <div className="border-t border-white/8 px-4 py-3 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-2">
+                    {COL_DEFS.map(({ key, label, total }) => (
+                      <label key={key} className="flex items-center gap-2 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={visibleCols[key]}
+                          onChange={() => toggleCol(key)}
+                          className="accent-violet-500 w-4 h-4 rounded"
+                        />
+                        <span className="text-xs text-zinc-300 group-hover:text-white transition">
+                          {label}
+                          <span className="text-zinc-500 ml-1">({currency} {n(total)})</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Missing info warning */}
+            {missingRows.length > 0 && (
+              <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-500/20 bg-amber-500/8 px-4 py-3">
+                <AlertCircle size={15} className="text-amber-400 shrink-0" />
+                <span className="text-sm text-amber-300">
+                  {missingRows.length} {missingRows.length === 1 ? "employee is" : "employees are"} missing basic salary information.
+                </span>
+                <button
+                  onClick={() => setFilterMissing(p => !p)}
+                  className="ml-auto flex items-center gap-1.5 rounded-lg border border-amber-500/30 px-3 py-1 text-xs font-medium text-amber-300 hover:bg-amber-500/15 transition">
+                  <Filter size={11} />
+                  {filterMissing ? "Show All" : `Filter ${missingRows.length} employees`}
+                </button>
+              </div>
+            )}
+
+            {/* Table */}
+            <div className="rounded-xl border border-white/8 bg-zinc-900/40 overflow-hidden">
+              {busy && rows.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-16 text-white/30">
+                  <Loader2 size={28} className="animate-spin" />
+                  <p className="text-sm">Loading payroll data…</p>
+                </div>
+              ) : rows.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-16 text-white/30">
+                  <DollarSign size={32} />
+                  <p className="text-sm">No salary configs for this cycle.</p>
+                  <p className="text-xs">Add employees in the Salary Configs tab first.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm" style={{ minWidth: "800px" }}>
+                    <thead>
+                      <tr className="border-b border-white/8 bg-white/3">
+                        <th className="w-10 px-3 py-3 text-left">
+                          <input type="checkbox" className="accent-violet-500 w-4 h-4 rounded" readOnly />
+                        </th>
+                        <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-400">ID</th>
+                        <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-400">Name</th>
+                        {visibleCols.basic      && <th className="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wider text-zinc-400">Basic Salary</th>}
+                        {visibleCols.allowances && <th className="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wider text-zinc-400">Allowances</th>}
+                        {visibleCols.gross      && <th className="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wider text-zinc-400">Gross Pay</th>}
+                        {visibleCols.workExp    && <th className="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wider text-zinc-400">Work Exp.</th>}
+                        {visibleCols.netAdd     && <th className="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wider text-zinc-400">Net Add.</th>}
+                        {visibleCols.netDed     && <th className="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wider text-zinc-400">Net Ded.</th>}
+                        {visibleCols.arrears    && <th className="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wider text-zinc-400">Arrears</th>}
+                        <th className="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wider text-zinc-400">Net Pay</th>
+                        <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-400">Paid Via</th>
+                        <th className="w-8" />
+                      </tr>
+                      {/* Column totals row */}
+                      <tr className="border-b border-white/5 bg-white/2 text-xs text-zinc-500">
+                        <td colSpan={3} className="px-3 py-2 text-right font-medium text-zinc-400">Totals</td>
+                        {visibleCols.basic      && <td className="px-3 py-2 text-right tabular-nums">{n(totalBasic)}</td>}
+                        {visibleCols.allowances && <td className="px-3 py-2 text-right tabular-nums">{n(totalAllowances)}</td>}
+                        {visibleCols.gross      && <td className="px-3 py-2 text-right tabular-nums">{n(totalGross)}</td>}
+                        {visibleCols.workExp    && <td className="px-3 py-2 text-right tabular-nums">0.00</td>}
+                        {visibleCols.netAdd     && <td className="px-3 py-2 text-right tabular-nums text-emerald-500">{n(totalNetAdd)}</td>}
+                        {visibleCols.netDed     && <td className="px-3 py-2 text-right tabular-nums text-red-500">{n(totalNetDed)}</td>}
+                        {visibleCols.arrears    && <td className="px-3 py-2 text-right tabular-nums">0.00</td>}
+                        <td className="px-3 py-2 text-right tabular-nums font-semibold text-white">{n(totalNetPay)}</td>
+                        <td colSpan={2} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {displayRows.map((row, idx) => {
+                        const isMissing = row.basic_salary === 0;
+                        return (
+                          <tr key={row.staff_name}
+                            className={`border-b border-white/5 transition hover:bg-white/4 ${idx % 2 === 0 ? "" : "bg-white/[0.02]"}`}>
+                            <td className="px-3 py-3">
+                              <input type="checkbox" className="accent-violet-500 w-4 h-4 rounded" readOnly />
+                            </td>
+                            <td className="px-3 py-3 text-xs font-mono text-zinc-400">{row.bayzat_id || "—"}</td>
+                            <td className="px-3 py-3">
+                              <p className={`font-medium ${isMissing ? "text-zinc-300" : "text-white"}`}>{row.staff_name}</p>
+                              <p className="text-xs text-zinc-500">{row.role_title || ""}{row.role_title && row.branch_code ? " · " : ""}{row.branch_code || ""}</p>
+                              {isMissing && (
+                                <p className="text-xs text-red-400 mt-0.5">Missing Basic Salary and Allowances</p>
+                              )}
+                            </td>
+                            {visibleCols.basic      && <td className="px-3 py-3 text-right tabular-nums text-zinc-200">{row.basic_salary.toFixed(2)}</td>}
+                            {visibleCols.allowances && <td className="px-3 py-3 text-right tabular-nums text-zinc-200">{row.allowances.toFixed(2)}</td>}
+                            {visibleCols.gross      && <td className="px-3 py-3 text-right tabular-nums text-zinc-200">{row.gross_pay.toFixed(2)}</td>}
+                            {visibleCols.workExp    && <td className="px-3 py-3 text-right tabular-nums text-zinc-500">0.00</td>}
+                            {visibleCols.netAdd     && (
+                              <td className="px-3 py-3 text-right tabular-nums">
+                                {row.net_additions > 0
+                                  ? <span className="text-emerald-400">{row.net_additions.toFixed(2)}</span>
+                                  : <span className="text-zinc-600">0.00</span>}
+                              </td>
+                            )}
+                            {visibleCols.netDed     && (
+                              <td className="px-3 py-3 text-right tabular-nums">
+                                {row.net_deductions > 0
+                                  ? <span className="text-red-400">-{row.net_deductions.toFixed(2)}</span>
+                                  : <span className="text-zinc-600">0.00</span>}
+                              </td>
+                            )}
+                            {visibleCols.arrears    && <td className="px-3 py-3 text-right tabular-nums text-zinc-600">0.00</td>}
+                            <td className="px-3 py-3 text-right tabular-nums font-semibold text-violet-300">
+                              {row.net_pay.toFixed(2)}
+                            </td>
+                            <td className="px-3 py-3">
+                              <span className={`text-xs font-medium capitalize px-2 py-0.5 rounded-full ${
+                                row.paid_via === "bank"
+                                  ? "bg-blue-500/15 text-blue-300 border border-blue-500/20"
+                                  : "bg-zinc-500/15 text-zinc-400 border border-zinc-500/20"
+                              }`}>
+                                {row.paid_via === "bank" ? "Bank" : "Cash"}
+                              </span>
+                            </td>
+                            <td className="pr-2">
+                              <button className="text-zinc-600 hover:text-violet-300 transition"
+                                onClick={() => setDetailRow(row)}>
+                                <ChevronRight size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── Salary Configs Tab ──────────────────────────────────────────────── */}
+        {tab === "configs" && (
+          <div className="rounded-xl border border-white/8 bg-zinc-900/40 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/8">
+              <p className="text-sm font-semibold text-white">{configs.length} employees configured</p>
+              <button
+                className="flex items-center gap-1.5 rounded-xl bg-violet-600 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-500 transition"
+                onClick={() => { setEditingConfig(null); setShowConfigModal(true); }}>
+                <Plus size={13} /> Add Employee
+              </button>
+            </div>
+
+            {busy && configs.length === 0 ? (
+              <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-violet-400" /></div>
+            ) : configs.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-16 text-white/30">
+                <Users size={32} />
+                <p className="text-sm">No salary configs yet.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm" style={{ minWidth: "700px" }}>
+                  <thead>
+                    <tr className="border-b border-white/8 bg-white/3">
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-zinc-400">Employee</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-zinc-400">Basic</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-zinc-400">Accomm.</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-zinc-400">Transport</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-zinc-400">Other</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-zinc-400">Currency</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-zinc-400">Paid Via</th>
+                      <th className="w-10" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {configs.map((cfg, idx) => (
+                      <tr key={cfg.staff_name}
+                        className={`border-b border-white/5 hover:bg-white/4 transition ${idx % 2 === 0 ? "" : "bg-white/[0.02]"}`}>
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-white">{cfg.staff_name}</p>
+                          <p className="text-xs text-zinc-500">{cfg.bayzat_id || ""}{cfg.bayzat_id && cfg.role_title ? " · " : ""}{cfg.role_title || ""}</p>
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-zinc-200">{cfg.basic_salary.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-zinc-200">{cfg.accommodation.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-zinc-200">{cfg.transportation.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-zinc-200">{cfg.other_allowances.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-center text-xs text-zinc-400">{cfg.currency}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`text-xs font-medium capitalize px-2 py-0.5 rounded-full ${
+                            cfg.paid_via === "bank"
+                              ? "bg-blue-500/15 text-blue-300 border border-blue-500/20"
+                              : "bg-zinc-500/15 text-zinc-400 border border-zinc-500/20"
+                          }`}>
+                            {cfg.paid_via === "bank" ? "Bank" : "Cash"}
+                          </span>
+                        </td>
+                        <td className="py-3 pr-3">
+                          <button
+                            className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-zinc-300 hover:bg-white/10 transition"
+                            onClick={() => { setEditingConfig(cfg); setShowConfigModal(true); }}>
+                            <Pencil size={11} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-
-          {busy && configs.length === 0 ? (
-            <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-violet-400" /></div>
-          ) : configs.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-16 text-white/30">
-              <Users size={32} />
-              <p className="text-sm">No salary configs yet.</p>
-              <p className="text-xs">Add an employee to get started.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[700px]">
-                <thead>
-                  <tr>
-                    <th className={`${TABLE_HEADER} text-left px-4 py-3`}>Employee</th>
-                    <th className={`${TABLE_HEADER} text-right px-4 py-3`}>Basic</th>
-                    <th className={`${TABLE_HEADER} text-right px-4 py-3`}>Accomm.</th>
-                    <th className={`${TABLE_HEADER} text-right px-4 py-3`}>Transport</th>
-                    <th className={`${TABLE_HEADER} text-right px-4 py-3`}>Other</th>
-                    <th className={`${TABLE_HEADER} text-center px-4 py-3`}>Currency</th>
-                    <th className={`${TABLE_HEADER} text-center px-4 py-3`}>Paid Via</th>
-                    <th className="w-10" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {configs.map(cfg => (
-                    <tr key={cfg.staff_name} className={TABLE_ROW}>
-                      <td className={`${TABLE_CELL} px-4`}>
-                        <p className="font-medium text-white">{cfg.staff_name}</p>
-                        <p className="text-xs text-zinc-500">{cfg.role_title || "—"} · {cfg.branch_code || "—"}</p>
-                      </td>
-                      <td className={`${TABLE_CELL} px-4 text-right tabular-nums`}>{cfg.basic_salary.toFixed(2)}</td>
-                      <td className={`${TABLE_CELL} px-4 text-right tabular-nums`}>{cfg.accommodation.toFixed(2)}</td>
-                      <td className={`${TABLE_CELL} px-4 text-right tabular-nums`}>{cfg.transportation.toFixed(2)}</td>
-                      <td className={`${TABLE_CELL} px-4 text-right tabular-nums`}>{cfg.other_allowances.toFixed(2)}</td>
-                      <td className={`${TABLE_CELL} px-4 text-center text-xs`}>{cfg.currency}</td>
-                      <td className={`${TABLE_CELL} px-4 text-center`}>
-                        <span className="text-xs capitalize text-zinc-400">{cfg.paid_via}</span>
-                      </td>
-                      <td className="py-3 pr-3">
-                        <button className={SMALL_BUTTON + " p-1.5"}
-                          onClick={() => { setEditingConfig(cfg); setShowConfigModal(true); }}>
-                          <Pencil size={12} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Employee Detail Side Panel */}
       {detailRow && (
