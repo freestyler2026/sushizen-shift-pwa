@@ -37,28 +37,36 @@ interface Payslip {
   id: string;
   cycle_id: number;
   cycle_label: string;
-  period_start: string | null;
-  period_end: string | null;
+  cycle_year: number;
+  cycle_month: number;
   pay_date: string | null;
-  base_salary: number;
+  basic_salary: number;
   total_adjustments: number;
-  loan_deduction: number;
+  net_additions: number;
+  net_deductions: number;
+  gross_pay: number;
   net_pay: number;
   currency: string;
-  snapshot_at: string;
+  role_title: string;
+  branch_code: string;
+  paid_via: string;
 }
 
 interface Adjustment {
   id: string;
   cycle_id: number;
   cycle_label: string | null;
-  period_start: string | null;
-  period_end: string | null;
+  cycle_year: number | null;
+  cycle_month: number | null;
   pay_date: string | null;
-  kind: string;
+  adj_type: string;
+  subtype: string;
   amount: number;
-  currency: string;
-  reason: string;
+  vat: number;
+  incurred_at: string | null;
+  reference_no: string;
+  note: string;
+  source: string;
   created_by: string;
   created_at: string;
 }
@@ -66,9 +74,9 @@ interface Adjustment {
 interface Loan {
   id: string;
   amount: number;
-  currency: string;
   installment_amount: number;
   total_installments: number;
+  remaining_installments: number;
   paid_installments: number;
   remaining_balance: number;
   total_repaid: number;
@@ -78,6 +86,7 @@ interface Loan {
   approved_by: string;
   approved_at: string | null;
   disbursed_at: string | null;
+  start_cycle_id: number | null;
   created_at: string;
 }
 
@@ -150,10 +159,8 @@ function PayslipModal({ slip, onClose }: { slip: Payslip; onClose: () => void })
           <div>
             <p className="text-xs font-medium uppercase tracking-widest text-violet-400 mb-1">Pay Slip</p>
             <h2 className="text-xl font-semibold text-white">{slip.cycle_label || "—"}</h2>
-            {slip.period_start && slip.period_end && (
-              <p className="text-sm text-zinc-400 mt-0.5">
-                {fmtDate(slip.period_start)} – {fmtDate(slip.period_end)}
-              </p>
+            {slip.role_title && (
+              <p className="text-sm text-zinc-400 mt-0.5">{slip.role_title}</p>
             )}
             {slip.pay_date && (
               <p className="text-xs text-zinc-500 mt-0.5">Pay date: {fmtDate(slip.pay_date)}</p>
@@ -167,25 +174,28 @@ function PayslipModal({ slip, onClose }: { slip: Payslip; onClose: () => void })
         {/* Breakdown */}
         <div className="p-6 space-y-3">
           <div className="flex justify-between text-sm">
-            <span className="text-zinc-400">Base Salary</span>
-            <span className="text-white font-medium">{fmt(slip.base_salary, slip.currency)}</span>
+            <span className="text-zinc-400">Basic Salary</span>
+            <span className="text-white font-medium">{fmt(slip.basic_salary, slip.currency)}</span>
           </div>
 
-          {slip.total_adjustments !== 0 && (
+          {slip.net_additions > 0 && (
             <div className="flex justify-between text-sm">
-              <span className="text-zinc-400">Adjustments</span>
-              <span className={slip.total_adjustments >= 0 ? "text-emerald-400 font-medium" : "text-red-400 font-medium"}>
-                {slip.total_adjustments >= 0 ? "+" : ""}{fmt(slip.total_adjustments, slip.currency)}
-              </span>
+              <span className="text-zinc-400">Additions</span>
+              <span className="text-emerald-400 font-medium">+{fmt(slip.net_additions, slip.currency)}</span>
             </div>
           )}
 
-          {slip.loan_deduction > 0 && (
+          {slip.net_deductions > 0 && (
             <div className="flex justify-between text-sm">
-              <span className="text-zinc-400">Loan Deduction</span>
-              <span className="text-amber-400 font-medium">−{fmt(slip.loan_deduction, slip.currency)}</span>
+              <span className="text-zinc-400">Deductions</span>
+              <span className="text-red-400 font-medium">−{fmt(slip.net_deductions, slip.currency)}</span>
             </div>
           )}
+
+          <div className="flex justify-between text-sm text-zinc-500">
+            <span>Gross Pay</span>
+            <span>{fmt(slip.gross_pay, slip.currency)}</span>
+          </div>
 
           <div className="border-t border-white/10 pt-3 mt-3 flex justify-between items-end">
             <span className="font-semibold text-white">Net Pay</span>
@@ -215,7 +225,7 @@ function PayslipModal({ slip, onClose }: { slip: Payslip; onClose: () => void })
 
 // ─── Loan Card ────────────────────────────────────────────────────────────────
 
-function LoanCard({ loan }: { loan: Loan }) {
+function LoanCard({ loan, currency }: { loan: Loan; currency: string }) {
   const pct = loan.total_installments > 0
     ? Math.round((loan.paid_installments / loan.total_installments) * 100)
     : 0;
@@ -224,7 +234,7 @@ function LoanCard({ loan }: { loan: Loan }) {
     <div className={`${GLASS_CARD} p-5`}>
       <div className="flex items-start justify-between mb-3">
         <div>
-          <p className="text-sm font-semibold text-white">{fmt(loan.amount, loan.currency)}</p>
+          <p className="text-sm font-semibold text-white">{fmt(loan.amount, currency)}</p>
           <p className="text-xs text-zinc-400 mt-0.5">{loan.purpose || "No purpose specified"}</p>
         </div>
         {loanStatusBadge(loan.status)}
@@ -245,11 +255,11 @@ function LoanCard({ loan }: { loan: Loan }) {
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
             <div>
               <p className="text-zinc-500">Remaining balance</p>
-              <p className="font-semibold text-amber-400 mt-0.5">{fmt(loan.remaining_balance, loan.currency)}</p>
+              <p className="font-semibold text-amber-400 mt-0.5">{fmt(loan.remaining_balance, currency)}</p>
             </div>
             <div className="text-right">
               <p className="text-zinc-500">Monthly installment</p>
-              <p className="font-medium text-zinc-300 mt-0.5">{fmt(loan.installment_amount, loan.currency)}</p>
+              <p className="font-medium text-zinc-300 mt-0.5">{fmt(loan.installment_amount, currency)}</p>
             </div>
           </div>
         </>
@@ -542,10 +552,8 @@ export default function MyPayPage() {
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-white text-sm">{slip.cycle_label}</p>
-                          {slip.period_start && slip.period_end && (
-                            <p className="text-xs text-zinc-400 mt-0.5">
-                              {fmtDate(slip.period_start)} – {fmtDate(slip.period_end)}
-                            </p>
+                          {slip.role_title && (
+                            <p className="text-xs text-zinc-400 mt-0.5">{slip.role_title}</p>
                           )}
                           {slip.pay_date && (
                             <p className="text-xs text-zinc-500 mt-0.5">Paid: {fmtDate(slip.pay_date)}</p>
@@ -553,8 +561,8 @@ export default function MyPayPage() {
                         </div>
                         <div className="text-right ml-4 shrink-0">
                           <p className="text-lg font-bold text-emerald-400">{fmt(slip.net_pay, slip.currency)}</p>
-                          {slip.loan_deduction > 0 && (
-                            <p className="text-xs text-amber-400">−{fmt(slip.loan_deduction, slip.currency)} loan</p>
+                          {slip.net_deductions > 0 && (
+                            <p className="text-xs text-red-400">−{fmt(slip.net_deductions, slip.currency)} deducted</p>
                           )}
                         </div>
                         <ChevronRight className="h-4 w-4 text-zinc-600 ml-3 group-hover:text-violet-400 transition shrink-0" />
@@ -576,7 +584,7 @@ export default function MyPayPage() {
                   </div>
                 ) : (
                   adjustments.map((adj) => {
-                    const isPositive = ["bonus", "allowance", "overtime"].includes(adj.kind);
+                    const isPositive = adj.adj_type === "addition";
                     return (
                       <div key={adj.id} className={`${GLASS_CARD} p-4`}>
                         <div className="flex items-start justify-between">
@@ -585,18 +593,20 @@ export default function MyPayPage() {
                               {isPositive
                                 ? <TrendingUp className="h-4 w-4 text-emerald-400 shrink-0" />
                                 : <TrendingDown className="h-4 w-4 text-red-400 shrink-0" />}
-                              <span className="text-sm font-medium text-white capitalize">{adj.kind}</span>
+                              <span className="text-sm font-medium text-white capitalize">
+                                {adj.subtype || adj.adj_type}
+                              </span>
                               {adj.cycle_label && (
                                 <span className="text-xs text-zinc-500">· {adj.cycle_label}</span>
                               )}
                             </div>
-                            <p className="text-xs text-zinc-400">{adj.reason || "No reason provided"}</p>
+                            <p className="text-xs text-zinc-400">{adj.note || "No note provided"}</p>
                             <p className="text-xs text-zinc-600 mt-1">
                               Added by {adj.created_by} · {fmtDate(adj.created_at)}
                             </p>
                           </div>
                           <p className={`text-base font-bold ml-4 shrink-0 ${isPositive ? "text-emerald-400" : "text-red-400"}`}>
-                            {isPositive ? "+" : "−"}{fmt(adj.amount, adj.currency)}
+                            {isPositive ? "+" : "−"}{fmt(adj.amount, defaultCurrency)}
                           </p>
                         </div>
                       </div>
@@ -616,7 +626,7 @@ export default function MyPayPage() {
                     <p className="text-xs text-zinc-600 mt-1">Your loans and repayment progress will appear here</p>
                   </div>
                 ) : (
-                  loans.map((loan) => <LoanCard key={loan.id} loan={loan} />)
+                  loans.map((loan) => <LoanCard key={loan.id} loan={loan} currency={defaultCurrency} />)
                 )}
               </div>
             )}

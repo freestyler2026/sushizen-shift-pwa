@@ -326,15 +326,15 @@ export default function PayrollPage() {
       if (!r.ok) { setErr(await extractApiError(r, "Failed to load cycles")); return; }
       const data = await r.json() as { cycles: Cycle[] };
       setCycles(data.cycles);
-      if (data.cycles.length > 0 && !selectedCycle) {
-        setSelectedCycle(data.cycles[0]);
+      if (data.cycles.length > 0) {
+        setSelectedCycle(prev => prev ?? data.cycles[0]);
       }
     } catch {
       if (id === loadCountRef.current) setErr("Network error — please try again");
     } finally {
       if (id === loadCountRef.current) setBusy(false);
     }
-  }, [selectedCycle]);
+  }, []);
 
   const loadTable = useCallback(async (cycleId: number, c: string) => {
     const id = ++loadCountRef.current;

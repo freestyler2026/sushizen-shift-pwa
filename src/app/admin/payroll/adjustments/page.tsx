@@ -4,7 +4,7 @@ import {
   AlertCircle, ChevronDown, ChevronRight, Download, Loader2,
   Pencil, Plus, RefreshCw, Trash2, X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import {
@@ -450,8 +450,8 @@ export default function AdjustmentsPage() {
             </thead>
             <tbody>
               {filtered.map(adj => (
-                <>
-                  <tr key={adj.id} className={TABLE_ROW}>
+                <Fragment key={adj.id}>
+                  <tr className={TABLE_ROW}>
                     <td className="pl-3">
                       <button className="text-zinc-500 hover:text-violet-300 transition-colors"
                         onClick={() => setExpandedId(expandedId === adj.id ? null : adj.id)}>
@@ -506,7 +506,7 @@ export default function AdjustmentsPage() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>
