@@ -9,6 +9,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
   ArrowLeftRight,
+  Banknote,
   BarChart3,
   Bot,
   Calculator,
@@ -138,6 +139,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/baseroll-prep", label: "Base Roll Prep", icon: UtensilsCrossed, adminOnly: true, match: "prefix" },
   { href: "/admin/daily-report", label: "Daily Report", icon: CalendarDays, adminOnly: true, match: "prefix" },
   { href: "/admin/discord-inbox", label: "Discord Inbox", icon: MessageSquare, adminOnly: true, match: "prefix" },
+  { href: "/admin/payroll", label: "Payroll", icon: Banknote, adminOnly: true, match: "prefix" },
 ];
 
 // Primary bottom-tab hrefs — these 4 always appear in the bottom nav bar.
@@ -261,6 +263,7 @@ export default function NavBar() {
     if (href === "/admin/baseroll-prep") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
     if (href === "/admin/daily-report") return canAccessAnalyticsAdmin(auth);
     if (href === "/admin/discord-inbox") return canAccessAdminNav(auth);
+    if (href === "/admin/payroll") return ["HQ", "ADMIN", "MANILA_MANAGEMENT", "MANAGEMENT", "HR_MANAGER"].includes(role);
     return false;
   }
 
