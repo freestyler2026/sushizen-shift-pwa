@@ -671,7 +671,7 @@ export default function PayrollPage() {
                         <p className="text-xs text-zinc-500">{row.role_title || "—"} · {row.branch_code || "—"}</p>
                       </td>
                       <td className={`${TABLE_CELL} px-3 text-right tabular-nums`}>{row.basic_salary.toFixed(2)}</td>
-                      <td className={`${TABLE_CELL} px-3 text-right tabular-nums`}>{row.allowances.toFixed(2)}</td>
+                      <td className={`${TABLE_CELL} px-3 text-right tabular-nums`}>{((row.accommodation ?? 0) + (row.transportation ?? 0) + (row.other_allowances ?? 0)).toFixed(2)}</td>
                       <td className={`${TABLE_CELL} px-3 text-right tabular-nums`}>{row.gross_pay.toFixed(2)}</td>
                       <td className={`${TABLE_CELL} px-3 text-right tabular-nums text-emerald-400`}>
                         {row.net_additions > 0 ? `+${row.net_additions.toFixed(2)}` : "—"}
