@@ -95,7 +95,7 @@ function CreateModal({
   useEffect(() => {
     const rate = parseFloat(dailyRate);
     if (rate > 0 && leaveDays > 0) {
-      setAdvanceAmount(String(Math.round(rate * leaveDays * 100) / 100));
+      setAdvanceAmount((Math.round(rate * leaveDays * 100) / 100).toFixed(2));
     }
   }, [dailyRate, leaveDays]);
 
@@ -113,6 +113,8 @@ function CreateModal({
       setDailyRate(String(j.daily_rate));
       setCurrency(j.currency || "AED");
       setRateErr(`Monthly total: ${j.currency} ${fmt(j.monthly_total)} → ${fmt(j.daily_rate)}/day`);
+    } catch {
+      setRateErr("Network error — please try again");
     } finally { setFetchingRate(false); }
   }
 
@@ -141,6 +143,8 @@ function CreateModal({
       if (!r.ok) { setErr(await extractApiError(r, "Failed to create")); return; }
       const j = await r.json();
       onCreated(j.request);
+    } catch {
+      setErr("Network error — please try again");
     } finally { setSaving(false); }
   }
 
@@ -260,8 +264,9 @@ function DetailPanel({
   const [payCycleId, setPayCycleId] = useState<string>("");
   const [payNote, setPayNote]     = useState("");
 
-  async function action(endpoint: string, body?: object) {
-    if (!auth) return;
+  // Returns true on success so callers can conditionally close their form
+  async function action(endpoint: string, body?: object): Promise<boolean> {
+    if (!auth) return false;
     setBusy(true); setErr("");
     try {
       const r = await fetch(`${API_BASE}/api/admin/payroll/leave-salary/${req.id}/${endpoint}`, {
@@ -269,22 +274,28 @@ function DetailPanel({
         headers: { ...getAuthHeaders(auth), "Content-Type": "application/json" },
         body: body ? JSON.stringify(body) : undefined,
       });
-      if (!r.ok) { setErr(await extractApiError(r, `${endpoint} failed`)); return; }
+      if (!r.ok) { setErr(await extractApiError(r, `${endpoint} failed`)); return false; }
       const j = await r.json();
       onUpdated(j.request);
+      return true;
+    } catch {
+      setErr("Network error — please try again");
+      return false;
     } finally { setBusy(false); }
   }
 
   function approve() { void action("approve"); }
   function cancel()  { void action("cancel"); }
-  function reject()  { void action("reject", { rejection_note: rejNote }); setShowReject(false); }
-  function pay() {
+  // Only close the form if the action succeeded
+  async function reject() {
+    if (await action("reject", { rejection_note: rejNote })) setShowReject(false);
+  }
+  async function pay() {
     if (!payDate) { setErr("Payment date is required"); return; }
-    void action("pay", {
+    if (await action("pay", {
       paid_via: payVia, paid_at: payDate, reference_no: payRef,
       cycle_id: payCycleId ? parseInt(payCycleId) : null, note: payNote,
-    });
-    setShowPay(false);
+    })) setShowPay(false);
   }
 
   const statusBadge = STATUS_BADGE[req.status] ?? BADGE_INFO;
@@ -450,7 +461,7 @@ function DetailPanel({
                   <textarea className={TEXTAREA_CLASS} rows={2} value={rejNote}
                     onChange={e => setRejNote(e.target.value)} placeholder="Reason (optional)" />
                   <div className="flex gap-2">
-                    <button onClick={reject} disabled={busy} className={`${DANGER_BUTTON} flex-1`}>
+                    <button onClick={() => void reject()} disabled={busy} className={`${DANGER_BUTTON} flex-1`}>
                       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm Reject"}
                     </button>
                     <button onClick={() => setShowReject(false)} className={`${SECONDARY_BUTTON} flex-1`}>
@@ -502,7 +513,7 @@ function DetailPanel({
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={pay} disabled={busy}
+                    <button onClick={() => void pay()} disabled={busy}
                       className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-3 py-2 text-sm font-medium text-white transition disabled:opacity-50">
                       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm Payment"}
                     </button>
@@ -546,7 +557,7 @@ export default function LeaveSalaryPage() {
 
   // Auth guard
   useEffect(() => {
-    if (!auth) { router.replace("/login"); return; }
+    if (!auth) { router.replace("/"); return; }
     const role = String((auth as { role?: string }).role || "").toUpperCase();
     if (!["HQ","ADMIN","MANILA_MANAGEMENT","MANAGEMENT","HR_MANAGER"].includes(role)) {
       router.replace("/week");
@@ -557,11 +568,13 @@ export default function LeaveSalaryPage() {
   // Load cycles for city
   useEffect(() => {
     if (!auth) return;
-    (async () => {
-      const r = await fetch(`${API_BASE}/api/admin/payroll/cycles?city=${city}&limit=24`, {
-        headers: getAuthHeaders(auth),
-      });
-      if (r.ok) { const j = await r.json(); setCycles(j.cycles || []); }
+    void (async () => {
+      try {
+        const r = await fetch(`${API_BASE}/api/admin/payroll/cycles?city=${city}`, {
+          headers: getAuthHeaders(auth),
+        });
+        if (r.ok) { const j = await r.json(); setCycles(j.cycles || []); }
+      } catch { /* cycles failure is non-critical */ }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city]);
@@ -578,6 +591,8 @@ export default function LeaveSalaryPage() {
       if (token !== loadRef.current) return;
       if (r.ok) { const j = await r.json(); setRequests(j.requests || []); }
       else setErr(await extractApiError(r, "Failed to load"));
+    } catch {
+      if (token === loadRef.current) setErr("Network error — please try again");
     } finally { if (token === loadRef.current) setLoading(false); }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city, statusFilter]);
@@ -592,10 +607,11 @@ export default function LeaveSalaryPage() {
   const pendingCount  = requests.filter(r => r.status === "pending").length;
   const approvedCount = requests.filter(r => r.status === "approved").length;
   const totalPaid     = requests.filter(r => r.status === "paid").reduce((s, r) => s + r.advance_amount, 0);
-  const totalRequested = requests.reduce((s, r) => s + r.advance_amount, 0);
   const currency      = city === "dubai" ? "AED" : "PHP";
 
   const filtered = statusFilter === "all" ? requests : requests.filter(r => r.status === statusFilter);
+  // Reflect the currently-filtered view so Total KPI matches the visible rows
+  const totalRequested = filtered.reduce((s, r) => s + r.advance_amount, 0);
 
   return (
     <div className="min-h-screen bg-[#0a0b0f] px-4 py-8">
