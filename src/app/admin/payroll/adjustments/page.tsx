@@ -167,7 +167,7 @@ function AdjModal({
               <div>
                 <label className={labelCls}>Type</label>
                 <select className={SELECT_CLASS} value={form.adj_type}
-                  onChange={e => set("adj_type", e.target.value as Adjustment["adj_type"])}>
+                  onChange={e => setForm(f => ({ ...f, adj_type: e.target.value as Adjustment["adj_type"], subtype: "" }))}>
                   <option value="addition">Addition</option>
                   <option value="deduction">Deduction</option>
                   <option value="recurring_deduction">Recurring Deduction</option>
@@ -254,16 +254,21 @@ export default function AdjustmentsPage() {
   const [editingAdj, setEditingAdj] = useState<Adjustment | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  const cycleLoadRef = useRef(0);
   const loadCountRef = useRef(0);
 
   const loadCycles = useCallback(async (c: string) => {
+    const id = ++cycleLoadRef.current;
     try {
       const r = await apiFetch(`${API}/cycles?city=${encodeURIComponent(c)}`);
-      if (!r.ok) return;
+      if (id !== cycleLoadRef.current) return;
+      if (!r.ok) { setErr(await extractApiError(r, "Failed to load cycles")); return; }
       const data = await r.json() as { cycles: Cycle[] };
       setCycles(data.cycles);
       if (data.cycles.length > 0) setSelectedCycle(prev => prev ?? data.cycles[0]);
-    } catch { /* ignore */ }
+    } catch {
+      if (id === cycleLoadRef.current) setErr("Network error — please try again");
+    }
   }, []);
 
   const loadAdjustments = useCallback(async (cycleId: number, c: string) => {

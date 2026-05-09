@@ -315,14 +315,16 @@ export default function PayrollPage() {
   const [editingConfig, setEditingConfig] = useState<SalaryConfig | null>(null);
   const [closingCycle, setClosingCycle] = useState(false);
 
-  const loadCountRef = useRef(0);
+  const cycleLoadRef = useRef(0);
+  const tableLoadRef = useRef(0);
+  const configLoadRef = useRef(0);
 
   const loadCycles = useCallback(async (c: string) => {
-    const id = ++loadCountRef.current;
+    const id = ++cycleLoadRef.current;
     setBusy(true); setErr("");
     try {
       const r = await apiFetch(`${API}/cycles?city=${encodeURIComponent(c)}`);
-      if (id !== loadCountRef.current) return;
+      if (id !== cycleLoadRef.current) return;
       if (!r.ok) { setErr(await extractApiError(r, "Failed to load cycles")); return; }
       const data = await r.json() as { cycles: Cycle[] };
       setCycles(data.cycles);
@@ -330,42 +332,42 @@ export default function PayrollPage() {
         setSelectedCycle(prev => prev ?? data.cycles[0]);
       }
     } catch {
-      if (id === loadCountRef.current) setErr("Network error — please try again");
+      if (id === cycleLoadRef.current) setErr("Network error — please try again");
     } finally {
-      if (id === loadCountRef.current) setBusy(false);
+      if (id === cycleLoadRef.current) setBusy(false);
     }
   }, []);
 
   const loadTable = useCallback(async (cycleId: number, c: string) => {
-    const id = ++loadCountRef.current;
+    const id = ++tableLoadRef.current;
     setBusy(true); setErr("");
     try {
       const r = await apiFetch(`${API}/table?city=${encodeURIComponent(c)}&cycle_id=${cycleId}`);
-      if (id !== loadCountRef.current) return;
+      if (id !== tableLoadRef.current) return;
       if (!r.ok) { setErr(await extractApiError(r, "Failed to load payroll table")); return; }
       const data = await r.json() as { rows: PayrollRow[]; total_net_pay: number };
       setRows(data.rows);
       setTotalNetPay(data.total_net_pay);
     } catch {
-      if (id === loadCountRef.current) setErr("Network error — please try again");
+      if (id === tableLoadRef.current) setErr("Network error — please try again");
     } finally {
-      if (id === loadCountRef.current) setBusy(false);
+      if (id === tableLoadRef.current) setBusy(false);
     }
   }, []);
 
   const loadConfigs = useCallback(async (c: string) => {
-    const id = ++loadCountRef.current;
+    const id = ++configLoadRef.current;
     setBusy(true); setErr("");
     try {
       const r = await apiFetch(`${API}/salary-configs?city=${encodeURIComponent(c)}`);
-      if (id !== loadCountRef.current) return;
+      if (id !== configLoadRef.current) return;
       if (!r.ok) { setErr(await extractApiError(r, "Failed to load configs")); return; }
       const data = await r.json() as { configs: SalaryConfig[] };
       setConfigs(data.configs);
     } catch {
-      if (id === loadCountRef.current) setErr("Network error — please try again");
+      if (id === configLoadRef.current) setErr("Network error — please try again");
     } finally {
-      if (id === loadCountRef.current) setBusy(false);
+      if (id === configLoadRef.current) setBusy(false);
     }
   }, []);
 
@@ -388,14 +390,17 @@ export default function PayrollPage() {
   }, [tab, city]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function ensureCurrentCycle() {
-    const now = new Date();
-    const r = await apiFetch(`${API}/cycles?city=${encodeURIComponent(city)}`, {
-      method: "POST",
-      body: JSON.stringify(null),
-    });
-    if (!r.ok) return;
-    // Reload cycles
-    await loadCycles(city);
+    setBusy(true); setErr("");
+    try {
+      const r = await apiFetch(`${API}/cycles?city=${encodeURIComponent(city)}`, {
+        method: "POST",
+        body: JSON.stringify(null),
+      });
+      if (!r.ok) { setErr(await extractApiError(r, "Failed to create cycle")); return; }
+      await loadCycles(city);
+    } catch {
+      setErr("Network error — please try again");
+    } finally { setBusy(false); }
   }
 
   async function closeCycle() {
@@ -415,11 +420,16 @@ export default function PayrollPage() {
 
   async function reopenCycle() {
     if (!selectedCycle) return;
-    const r = await apiFetch(`${API}/cycles/${selectedCycle.id}/reopen`, { method: "PATCH" });
-    if (!r.ok) { setErr(await extractApiError(r, "Failed to reopen cycle")); return; }
-    const data = await r.json() as { cycle: Cycle };
-    setSelectedCycle(data.cycle);
-    setCycles(prev => prev.map(c => c.id === data.cycle.id ? data.cycle : c));
+    setClosingCycle(true); setErr("");
+    try {
+      const r = await apiFetch(`${API}/cycles/${selectedCycle.id}/reopen`, { method: "PATCH" });
+      if (!r.ok) { setErr(await extractApiError(r, "Failed to reopen cycle")); return; }
+      const data = await r.json() as { cycle: Cycle };
+      setSelectedCycle(data.cycle);
+      setCycles(prev => prev.map(c => c.id === data.cycle.id ? data.cycle : c));
+    } catch {
+      setErr("Network error — please try again");
+    } finally { setClosingCycle(false); }
   }
 
   function downloadCSV() {
