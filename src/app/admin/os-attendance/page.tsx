@@ -531,6 +531,8 @@ function DailyReportTab({ city }: { city: string }) {
     setExpandedIds(new Set());
     setEditingSession(null);
     setSessions([]);
+    // Clear meta so old city's staff/branch names don't linger in dropdowns during the new fetch
+    setMeta({ staff_names: [], branch_codes: [] });
   }, [city]);
 
   // Load dropdown options (staff names + branch codes for filter selects)
@@ -620,12 +622,19 @@ function DailyReportTab({ city }: { city: string }) {
       String(s.visits?.length ?? 0),
       s.note || "",
     ]);
-    const csv = [cols, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
+    // Use \r\n (RFC 4180) so Windows Excel parses rows correctly.
+    // Prepend UTF-8 BOM (﻿) so Excel opens Japanese staff names without garbling.
+    const csv = [cols, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `attendance_${city}_${date}.csv`; a.click();
-    URL.revokeObjectURL(url);
+    a.href = url; a.download = `attendance_${city}_${date}.csv`;
+    // Must append to DOM before click — Firefox ignores click() on detached elements
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // Defer revoke to ensure the browser has queued the download before the URL is freed
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   }
 
   const cellCls = "py-3 pr-3 text-sm align-middle";
