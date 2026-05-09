@@ -80,7 +80,7 @@ function CreateLoanModal({
   useEffect(() => {
     const a = parseFloat(amount);
     const n = parseInt(installments);
-    if (a > 0 && n > 0) setInstallmentAmount(String(Math.ceil((a / n) * 100) / 100));
+    if (a > 0 && n > 0) setInstallmentAmount((Math.ceil((a / n) * 100) / 100).toFixed(2));
   }, [amount, installments]);
 
   async function save() {
@@ -102,6 +102,8 @@ function CreateLoanModal({
       if (!r.ok) { setErr(await extractApiError(r, "Failed to create loan")); return; }
       const j = await r.json();
       onCreated(j.loan);
+    } catch {
+      setErr("Network error — please try again");
     } finally { setSaving(false); }
   }
 
@@ -195,14 +197,17 @@ function LoanDetailPanel({
 
   useEffect(() => {
     if (!auth) return;
-    (async () => {
+    void (async () => {
       setLoadingRep(true);
       try {
         const r = await fetch(`${API_BASE}/api/admin/payroll/loans/${loan.id}/repayments?city=${city}`, { headers: getAuthHeaders(auth) });
         if (r.ok) { const j = await r.json(); setRepayments(j.repayments || []); }
+        else setErr(await extractApiError(r, "Failed to load repayments"));
+      } catch {
+        setErr("Network error — please try again");
       } finally { setLoadingRep(false); }
     })();
-  }, [loan.id]);
+  }, [loan.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function act(action: string, body?: object) {
     if (!auth) return;
@@ -216,6 +221,8 @@ function LoanDetailPanel({
       if (!r.ok) { setErr(await extractApiError(r, `${action} failed`)); return; }
       const j = await r.json();
       onUpdated(j.loan);
+    } catch {
+      setErr("Network error — please try again");
     } finally { setActing(null); }
   }
 
@@ -459,7 +466,7 @@ export default function LoansPage() {
 
   // Auth guard
   useEffect(() => {
-    if (!auth) { router.replace("/login"); return; }
+    if (!auth) { router.replace("/"); return; }
     const role = String((auth as { role?: string }).role || "").toUpperCase();
     if (!["HQ", "ADMIN", "MANILA_MANAGEMENT", "MANAGEMENT", "HR_MANAGER"].includes(role)) {
       router.replace("/week");
@@ -475,16 +482,23 @@ export default function LoansPage() {
       if (token !== loadRef.current) return;
       if (r.ok) { const j = await r.json(); setLoans(j.loans || []); }
       else setErr(await extractApiError(r, "Failed to load loans"));
+    } catch {
+      if (token === loadRef.current) setErr("Network error — please try again");
     } finally { if (token === loadRef.current) setLoading(false); }
-  }, [city, statusFilter]);
+  }, [city, statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!auth) return;
-    (async () => {
-      const r = await fetch(`${API_BASE}/api/admin/payroll/cycles?city=${city}&limit=24`, { headers: getAuthHeaders(auth) });
-      if (r.ok) { const j = await r.json(); setCycles(j.cycles || []); if (j.cycles?.[0]) setApplyCycleId(String(j.cycles[0].id)); }
+    void (async () => {
+      try {
+        const r = await fetch(`${API_BASE}/api/admin/payroll/cycles?city=${city}`, { headers: getAuthHeaders(auth) });
+        if (!r.ok) return;
+        const j = await r.json();
+        setCycles(j.cycles || []);
+        if (j.cycles?.[0]) setApplyCycleId(prev => prev || String(j.cycles[0].id));
+      } catch { /* cycles failure is non-critical */ }
     })();
-  }, [city]);
+  }, [city]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { void loadLoans(); }, [loadLoans]);
 
@@ -499,6 +513,8 @@ export default function LoansPage() {
       const j = await r.json();
       setApplyResult(j);
       await loadLoans();
+    } catch {
+      setErr("Network error — please try again");
     } finally { setApplying(false); }
   }
 
@@ -509,7 +525,8 @@ export default function LoansPage() {
 
   const activeLoanCount = loans.filter(l => l.status === "active").length;
   const pendingCount = loans.filter(l => l.status === "pending").length;
-  const totalActive = loans.filter(l => l.status === "active").reduce((s, l) => s + l.amount, 0);
+  // Remaining balance: remaining_installments × installment_amount (not original amount)
+  const totalActive = loans.filter(l => l.status === "active").reduce((s, l) => s + l.remaining_installments * l.installment_amount, 0);
 
   const filtered = statusFilter === "all" ? loans : loans.filter(l => l.status === statusFilter);
 
@@ -525,7 +542,7 @@ export default function LoansPage() {
           </div>
           <div className="flex items-center gap-2">
             {["dubai", "manila"].map(c => (
-              <button key={c} onClick={() => { setCity(c); setLoans([]); setApplyResult(null); }}
+              <button key={c} onClick={() => { setCity(c); setLoans([]); setApplyResult(null); setApplyCycleId(""); }}
                 className={city === c ? TAB_ACTIVE : TAB_INACTIVE}>
                 {c.charAt(0).toUpperCase() + c.slice(1)}
               </button>
@@ -571,7 +588,7 @@ export default function LoansPage() {
                 <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
               </div>
               <button
-                onClick={applyToCycle}
+                onClick={() => void applyToCycle()}
                 disabled={applying || !applyCycleId || activeLoanCount === 0}
                 className={`${PRIMARY_BUTTON} flex items-center gap-2 shrink-0`}
               >
