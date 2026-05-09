@@ -582,7 +582,7 @@ export default function AttendancePage() {
               </p>
               {gpsAccuracy !== null && gpsAccuracy > 100 && (
                 <p className="text-xs text-amber-400">
-                  ⚠️ GPS accuracy is low ({Math.round(gpsAccuracy)}m margin). Move outside or near a window and tap "Get my location" again for a better fix.
+                  ⚠️ GPS accuracy is low ({Math.round(gpsAccuracy)}m margin). Move outside or near a window and tap &quot;Get my location&quot; again for a better fix.
                 </p>
               )}
             </div>
