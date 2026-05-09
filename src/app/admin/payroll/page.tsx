@@ -473,6 +473,12 @@ export default function PayrollPage() {
           >
             Loans <ArrowRight className="h-3.5 w-3.5" />
           </Link>
+          <Link
+            href={`/admin/payroll/leave-salary?city=${city}`}
+            className="flex items-center gap-1.5 rounded-xl border border-teal-500/30 bg-teal-500/10 px-3 py-2 text-sm font-medium text-teal-300 transition hover:bg-teal-500/20"
+          >
+            Leave Salary <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
           {selectedCycle && (
             <Link
               href={`/admin/payroll/transactions?city=${city}&cycle_id=${selectedCycle.id}`}
