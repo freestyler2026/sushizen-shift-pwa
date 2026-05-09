@@ -221,6 +221,8 @@ function GpsTab({ city }: { city: string }) {
       if (!r.ok) { setErr(await extractApiError(r, "Failed to save GPS settings")); return; }
       setEditing(null);
       await load();
+    } catch {
+      setErr("Network error — please check your connection and try again");
     } finally { setBusy(false); }
   }
 
@@ -232,6 +234,8 @@ function GpsTab({ city }: { city: string }) {
       const r = await apiFetch(`${API}/branch-gps/${city}/${branch_code}`, { method: "DELETE" });
       if (!r.ok) { setErr(await extractApiError(r, "Failed to delete GPS settings")); return; }
       await load();
+    } catch {
+      setErr("Network error — please check your connection and try again");
     } finally { setBusy(false); setDeletingBranch(null); }
   }
 
@@ -255,6 +259,8 @@ function GpsTab({ city }: { city: string }) {
       if (!r.ok) { setErr(await extractApiError(r, "Failed to add branch GPS")); return; }
       setAdding(false); setNewBranch(""); setForm({ lat: "", lng: "", radius_m: "100", label: "" });
       await load();
+    } catch {
+      setErr("Network error — please check your connection and try again");
     } finally { setBusy(false); }
   }
 
@@ -263,7 +269,7 @@ function GpsTab({ city }: { city: string }) {
       <div className="flex items-center justify-between">
         <p className="text-sm text-white/50">Set GPS coordinates and geofence radius per branch. Branches without GPS configured skip the location check.</p>
         <div className="flex gap-2">
-          <button onClick={() => { void load(); }} className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:text-white hover:border-white/20 transition-colors">
+          <button onClick={() => { void load(); }} disabled={busy} className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:text-white hover:border-white/20 transition-colors disabled:opacity-40">
             <RefreshCw size={12} />Refresh
           </button>
           <button onClick={() => { setAdding(true); setEditing(null); setForm({ lat: "", lng: "", radius_m: "100", label: "" }); setNewBranch(""); setErr(""); }}
@@ -311,7 +317,7 @@ function GpsTab({ city }: { city: string }) {
             </div>
           </div>
           <div className="flex gap-2 justify-end">
-            <button onClick={() => setAdding(false)} className="rounded-lg border border-white/10 px-4 py-1.5 text-sm text-white/60 hover:text-white transition-colors">Cancel</button>
+            <button onClick={() => { setAdding(false); setErr(""); }} className="rounded-lg border border-white/10 px-4 py-1.5 text-sm text-white/60 hover:text-white transition-colors">Cancel</button>
             <button onClick={() => { void addNew(); }} disabled={busy} className={PRIMARY_BUTTON + " text-sm py-1.5 px-4"}>Save</button>
           </div>
         </div>
@@ -349,7 +355,7 @@ function GpsTab({ city }: { city: string }) {
                 </div>
                 {err && <p className="text-xs text-red-400">{err}</p>}
                 <div className="flex gap-2 justify-end">
-                  <button onClick={() => setEditing(null)} className="rounded-lg border border-white/10 px-4 py-1.5 text-sm text-white/60 hover:text-white transition-colors">Cancel</button>
+                  <button onClick={() => { setEditing(null); setErr(""); }} className="rounded-lg border border-white/10 px-4 py-1.5 text-sm text-white/60 hover:text-white transition-colors">Cancel</button>
                   <button onClick={() => { void save(g.branch_code); }} disabled={busy} className={PRIMARY_BUTTON + " text-sm py-1.5 px-4"}>Save</button>
                 </div>
               </div>
@@ -674,7 +680,7 @@ function DailyReportTab({ city }: { city: string }) {
           <option value="not_clocked_in">Not Clocked In</option>
         </select>
 
-        <button onClick={() => { void load(); }} className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:text-white hover:border-white/20 transition-colors">
+        <button onClick={() => { void load(); }} disabled={busy} className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:text-white hover:border-white/20 transition-colors disabled:opacity-40">
           <RefreshCw size={12} />Refresh
         </button>
 
