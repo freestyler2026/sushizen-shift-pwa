@@ -594,9 +594,38 @@ export default function AttendancePage() {
             </div>
           )}
 
-          {/* GPS status */}
-          {gpsLoading && <p className="text-xs text-zinc-500 animate-pulse">Getting GPS...</p>}
-          {gpsError && <p className="text-xs text-amber-400">{gpsError}</p>}
+          {/* GPS required — prominent call-to-action shown BEFORE the clock button */}
+          {!isCheckedOut && !gpsValid && (
+            <div className="rounded-2xl border-2 border-violet-500 bg-violet-950/60 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Navigation size={18} className="text-violet-300 shrink-0" />
+                <p className="text-sm font-bold text-violet-200">
+                  {gpsPos ? "Location expired — refresh required" : "Location required to clock in"}
+                </p>
+              </div>
+              <p className="text-xs text-violet-300/80 leading-relaxed">
+                {gpsPos
+                  ? "Your GPS fix expired (5 min). Tap below to get a fresh position before clocking in/out."
+                  : "You must be within 50m of your branch. Tap the button below — this is required before Clock In becomes active."}
+              </p>
+              <button
+                onClick={acquireGps}
+                disabled={gpsLoading}
+                className="w-full rounded-xl bg-violet-600 py-4 text-base font-bold text-white disabled:opacity-50 hover:bg-violet-500 active:bg-violet-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-violet-900/40"
+              >
+                <Navigation size={18} />
+                {gpsLoading ? "Getting GPS..." : "Get My Location"}
+              </button>
+              {gpsLoading && (
+                <p className="text-center text-xs text-violet-400 animate-pulse">Detecting your position...</p>
+              )}
+              {gpsError && (
+                <p className="rounded-lg bg-amber-900/30 px-3 py-2 text-xs text-amber-300">{gpsError}</p>
+              )}
+            </div>
+          )}
+
+          {/* GPS acquired confirmation */}
           {gpsValid && !isCheckedOut && (
             <div className="space-y-0.5">
               <p className="text-xs text-emerald-400">
@@ -604,7 +633,7 @@ export default function AttendancePage() {
               </p>
               {gpsAccuracy !== null && gpsAccuracy > 100 && (
                 <p className="text-xs text-amber-400">
-                  ⚠️ GPS accuracy is low ({Math.round(gpsAccuracy)}m margin). Move outside or near a window and tap &quot;Get my location&quot; again for a better fix.
+                  ⚠️ GPS accuracy is low ({Math.round(gpsAccuracy)}m margin). Move outside or near a window and tap &quot;Get My Location&quot; again for a better fix.
                 </p>
               )}
             </div>
@@ -615,8 +644,7 @@ export default function AttendancePage() {
             <button
               onClick={() => doAction("checkin")}
               disabled={busy || !gpsValid}
-              title={!gpsValid ? "GPS location required — tap 'Get my location' below" : undefined}
-              className="w-full rounded-xl bg-violet-600 py-4 text-base font-bold text-white disabled:opacity-40 hover:bg-violet-500 transition-colors flex items-center justify-center gap-2"
+              className="w-full rounded-xl bg-violet-600 py-4 text-base font-bold text-white disabled:opacity-30 hover:bg-violet-500 transition-colors flex items-center justify-center gap-2"
             >
               <LogIn size={18} />
               {busy ? "Authenticating..." : "Clock In"}
@@ -626,8 +654,7 @@ export default function AttendancePage() {
             <button
               onClick={() => doAction("checkout")}
               disabled={busy || !gpsValid}
-              title={!gpsValid ? "GPS location required — tap 'Get my location' below" : undefined}
-              className="w-full rounded-xl bg-rose-700 py-4 text-base font-bold text-white disabled:opacity-40 hover:bg-rose-600 transition-colors flex items-center justify-center gap-2"
+              className="w-full rounded-xl bg-rose-700 py-4 text-base font-bold text-white disabled:opacity-30 hover:bg-rose-600 transition-colors flex items-center justify-center gap-2"
             >
               <LogOut size={18} />
               {busy ? "Authenticating..." : "Clock Out"}
@@ -755,27 +782,6 @@ export default function AttendancePage() {
         </div>
       )}
 
-      {/* GPS required banner — shown to registered users before checkout when GPS not valid */}
-      {wauSupported && passkeyCount > 0 && !isCheckedOut && !gpsValid && (
-        <div className="rounded-xl border border-violet-500/30 bg-violet-950/20 px-3 py-3">
-          <p className="text-xs font-semibold text-violet-300 mb-1.5">
-            📍 GPS location required
-          </p>
-          <p className="text-xs text-zinc-400 mb-2">
-            {gpsPos && !gpsValid
-              ? "Location expired (5 min). Tap to refresh your position."
-              : "You must be within 50m of your branch to clock in or out."}
-          </p>
-          <button
-            onClick={acquireGps}
-            disabled={gpsLoading}
-            className="flex items-center gap-2 text-xs font-medium text-violet-400 hover:text-violet-200 disabled:opacity-50"
-          >
-            <Navigation size={12} />
-            {gpsLoading ? "Getting GPS..." : "Get my location"}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
