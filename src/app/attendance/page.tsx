@@ -1,7 +1,7 @@
 // src/app/attendance/page.tsx
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Fingerprint,
@@ -225,6 +225,12 @@ function GpsIndicator({ ok, distM }: { ok: boolean | null; distM: number | null 
   );
 }
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+// GPS positions are considered fresh for 5 minutes after acquisition.
+// Defined outside the component so it is never re-created on every render.
+const GPS_TTL_MS = 5 * 60 * 1000;
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function AttendancePage() {
@@ -241,8 +247,12 @@ export default function AttendancePage() {
   const [gpsError, setGpsError] = useState("");
   const [gpsLoading, setGpsLoading] = useState(false);
 
-  // GPS TTL: auto-clear position after 5 minutes so stale data never keeps the button active
-  const GPS_TTL_MS = 5 * 60 * 1000;
+  // Refs for GPS state — let doAction read the current GPS without a stale closure.
+  // Without refs, doAction (which is memoised) would capture the initial null values.
+  const gpsPosRef = useRef<GeolocationPosition | null>(null);
+  const gpsAcquiredAtRef = useRef<number | null>(null);
+
+  // GPS TTL: position valid for 5 minutes (GPS_TTL_MS is defined outside the component)
   const gpsValid = gpsPos !== null && gpsAcquiredAt !== null && Date.now() - gpsAcquiredAt < GPS_TTL_MS;
   const [visitBranch, setVisitBranch] = useState("");
   const [visitPickerOpen, setVisitPickerOpen] = useState(false);
@@ -329,6 +339,11 @@ export default function AttendancePage() {
     return () => clearTimeout(t);
   }, [error]);
 
+  // ─── Keep GPS refs in sync with state ────────────────────────────────────
+  // doAction is memoised and would otherwise capture stale null values via closure.
+  useEffect(() => { gpsPosRef.current = gpsPos; }, [gpsPos]);
+  useEffect(() => { gpsAcquiredAtRef.current = gpsAcquiredAt; }, [gpsAcquiredAt]);
+
   // ─── GPS TTL checker — re-renders every 30 s to clear stale gpsPos ──────
   useEffect(() => {
     if (!gpsAcquiredAt) return;
@@ -356,7 +371,14 @@ export default function AttendancePage() {
       if (!a) return;
       setBusy(true); setError(""); setSuccess("");
       try {
-        const pos = await acquireGps();
+        // Use the cached GPS fix if it is still within the 5-minute TTL.
+        // Only call acquireGps() when the cached position has expired or was never obtained.
+        // This eliminates the 0–15 s re-acquisition wait every time the user taps Clock In/Out.
+        const cachedPos = gpsPosRef.current;
+        const cachedAt = gpsAcquiredAtRef.current;
+        const cacheStillValid =
+          cachedPos !== null && cachedAt !== null && Date.now() - cachedAt < GPS_TTL_MS;
+        const pos = cacheStillValid ? cachedPos : await acquireGps();
         const lat = pos?.coords.latitude ?? null;
         const lng = pos?.coords.longitude ?? null;
 
@@ -735,11 +757,11 @@ export default function AttendancePage() {
 
       {/* GPS required banner — shown to registered users before checkout when GPS not valid */}
       {wauSupported && passkeyCount > 0 && !isCheckedOut && !gpsValid && (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-3 py-3">
-          <p className="text-xs font-semibold text-amber-400 mb-1.5">
+        <div className="rounded-xl border border-violet-500/30 bg-violet-950/20 px-3 py-3">
+          <p className="text-xs font-semibold text-violet-300 mb-1.5">
             📍 GPS location required
           </p>
-          <p className="text-xs text-amber-300/80 mb-2">
+          <p className="text-xs text-zinc-400 mb-2">
             {gpsPos && !gpsValid
               ? "Location expired (5 min). Tap to refresh your position."
               : "You must be within 50m of your branch to clock in or out."}
@@ -747,7 +769,7 @@ export default function AttendancePage() {
           <button
             onClick={acquireGps}
             disabled={gpsLoading}
-            className="flex items-center gap-2 text-xs font-medium text-amber-300 hover:text-amber-100 disabled:opacity-50"
+            className="flex items-center gap-2 text-xs font-medium text-violet-400 hover:text-violet-200 disabled:opacity-50"
           >
             <Navigation size={12} />
             {gpsLoading ? "Getting GPS..." : "Get my location"}
