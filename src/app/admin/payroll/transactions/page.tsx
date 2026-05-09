@@ -102,6 +102,8 @@ function PaymentModal({
       if (!r.ok) { setErr(await extractApiError(r, "Save failed")); return; }
       const j = await r.json();
       onSaved(j.payment);
+    } catch {
+      setErr("Network error — please try again");
     } finally { setSaving(false); }
   }
 
@@ -306,8 +308,11 @@ function PayrollTransactionsInner() {
   const searchParams = useSearchParams();
   const auth = getAuth();
 
-  // City / Cycle state
-  const [city, setCity] = useState(searchParams.get("city") || (auth as { city?: string } | null)?.city?.toLowerCase() === "dubai" ? "dubai" : "manila");
+  // City / Cycle state — use ?? so a valid URL param ("manila") isn't overridden by ternary
+  const [city, setCity] = useState<string>(
+    searchParams.get("city") ??
+    ((auth as { city?: string } | null)?.city?.toLowerCase() === "dubai" ? "dubai" : "manila")
+  );
   const [cycles, setCycles] = useState<Cycle[]>([]);
   const [cycleId, setCycleId] = useState<number | null>(searchParams.get("cycle_id") ? parseInt(searchParams.get("cycle_id")!) : null);
   const selectedCycle = cycles.find(c => c.id === cycleId) || null;
@@ -340,27 +345,28 @@ function PayrollTransactionsInner() {
 
   // Auth guard
   useEffect(() => {
-    if (!auth) { router.replace("/login"); return; }
+    if (!auth) { router.replace("/"); return; }
     const role = String((auth as { role?: string }).role || "").toUpperCase();
     if (!["HQ", "ADMIN", "MANILA_MANAGEMENT", "MANAGEMENT", "HR_MANAGER"].includes(role)) {
       router.replace("/week");
     }
   }, []);
 
-  // Load cycles
+  // Load cycles — use loadRef for stale-fetch guard
   useEffect(() => {
     if (!auth) return;
-    (async () => {
+    const token = ++loadRef.current;
+    void (async () => {
       try {
-        const r = await fetch(`${API_BASE}/api/admin/payroll/cycles?city=${city}&limit=24`, { headers: getAuthHeaders(auth) });
-        if (r.ok) {
-          const j = await r.json();
-          setCycles(j.cycles || []);
-          if (!cycleId && j.cycles?.[0]) setCycleId(j.cycles[0].id);
-        }
+        const r = await fetch(`${API_BASE}/api/admin/payroll/cycles?city=${city}`, { headers: getAuthHeaders(auth) });
+        if (!r.ok || token !== loadRef.current) return;
+        const j = await r.json();
+        setCycles(j.cycles || []);
+        // Only auto-select first cycle if none is set yet
+        if (j.cycles?.[0]) setCycleId(prev => prev ?? j.cycles[0].id);
       } catch {}
     })();
-  }, [city]);
+  }, [city]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load run + records + payments when cycleId changes
   const loadData = useCallback(async () => {
@@ -401,6 +407,8 @@ function PayrollTransactionsInner() {
       });
       if (!r.ok) { setErr(await extractApiError(r, "Failed to generate run")); return; }
       await loadData();
+    } catch {
+      setErr("Network error — please try again");
     } finally { setRunLoading(false); }
   }
 
@@ -414,6 +422,8 @@ function PayrollTransactionsInner() {
       });
       if (!r.ok) { setErr(await extractApiError(r, "Failed to finalise")); return; }
       await loadData();
+    } catch {
+      setErr("Network error — please try again");
     } finally { setRunLoading(false); }
   }
 
@@ -426,7 +436,9 @@ function PayrollTransactionsInner() {
         { headers: getAuthHeaders(auth) },
       );
       if (r.ok) setPayslipData(await r.json());
-      else setErr("Failed to load payslip");
+      else setErr(await extractApiError(r, "Failed to load payslip"));
+    } catch {
+      setErr("Network error — please try again");
     } finally { setPayslipLoading(null); }
   }
 
@@ -449,6 +461,8 @@ function PayrollTransactionsInner() {
       setBatchModal(false);
       setSelectedRows(new Set());
       await loadData();
+    } catch {
+      setErr("Network error — please try again");
     } finally { setBatchSaving(false); }
   }
 
@@ -549,7 +563,7 @@ function PayrollTransactionsInner() {
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {[
                   { label: "Employees", value: String(records.length) },
-                  { label: "Total Net Pay", value: run ? `${records[0]?.currency} ${run.total_net.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "—" },
+                  { label: "Total Net Pay", value: run ? fmt(run.total_net, records[0]?.currency || (city === "manila" ? "PHP" : "AED")) : "—" },
                   { label: "Paid", value: `${paidCount} / ${records.length}` },
                   { label: "Pending", value: String(unpaidCount) },
                 ].map(kpi => (
