@@ -279,7 +279,10 @@ type Tab = "payslips" | "adjustments" | "loans" | "leave";
 
 export default function MyPayPage() {
   const router = useRouter();
-  const [city, setCity] = useState<City>("dubai");
+  const [city, setCity] = useState<City>(() => {
+    const a = getAuth();
+    return a?.city?.toLowerCase() === "manila" ? "manila" : "dubai";
+  });
   const [tab, setTab] = useState<Tab>("payslips");
 
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -293,7 +296,9 @@ export default function MyPayPage() {
   const [error, setError] = useState("");
   const [selectedSlip, setSelectedSlip] = useState<Payslip | null>(null);
 
-  const loadRef = useRef(0);
+  const summaryLoadRef = useRef(0);
+  const tabLoadRef = useRef(0);
+  const tabMountedRef = useRef(false);
   const authRef = useRef(getAuth());
 
   // Auth guard — redirect if not logged in
@@ -321,57 +326,60 @@ export default function MyPayPage() {
 
   // Load summary cards
   const loadSummary = useCallback(async (c: City) => {
-    const id = ++loadRef.current;
+    const id = ++summaryLoadRef.current;
     setLoading(true);
     setError("");
     try {
       const data = await doFetch(`/api/admin/payroll/my-pay/summary?city=${c}`);
-      if (loadRef.current !== id) return;
+      if (summaryLoadRef.current !== id) return;
       setSummary(data);
     } catch {
-      if (loadRef.current !== id) return;
+      if (summaryLoadRef.current !== id) return;
       setError("Failed to load pay summary. Please try again.");
     } finally {
-      if (loadRef.current === id) setLoading(false);
+      if (summaryLoadRef.current === id) setLoading(false);
     }
   }, [doFetch]);
 
   // Load current tab
   const loadTab = useCallback(async (t: Tab, c: City) => {
-    const id = ++loadRef.current;
+    const id = ++tabLoadRef.current;
     setTabLoading(true);
+    setError("");
     try {
       if (t === "payslips") {
         const data = await doFetch(`/api/admin/payroll/my-pay/payslips?city=${c}`);
-        if (loadRef.current !== id) return;
+        if (tabLoadRef.current !== id) return;
         setPayslips(data.payslips ?? []);
       } else if (t === "adjustments") {
         const data = await doFetch(`/api/admin/payroll/my-pay/adjustments?city=${c}`);
-        if (loadRef.current !== id) return;
+        if (tabLoadRef.current !== id) return;
         setAdjustments(data.adjustments ?? []);
       } else if (t === "loans") {
         const data = await doFetch(`/api/admin/payroll/my-pay/loans?city=${c}`);
-        if (loadRef.current !== id) return;
+        if (tabLoadRef.current !== id) return;
         setLoans(data.loans ?? []);
       } else if (t === "leave") {
         const data = await doFetch(`/api/admin/payroll/my-pay/leave-salary?city=${c}`);
-        if (loadRef.current !== id) return;
+        if (tabLoadRef.current !== id) return;
         setLeaveReqs(data.requests ?? []);
       }
     } catch {
-      // non-critical — show empty state
+      if (tabLoadRef.current !== id) return;
+      setError("Failed to load tab data. Please try again.");
     } finally {
-      if (loadRef.current === id) setTabLoading(false);
+      if (tabLoadRef.current === id) setTabLoading(false);
     }
   }, [doFetch]);
 
   useEffect(() => {
-    loadSummary(city);
-    loadTab(tab, city);
+    void loadSummary(city);
+    void loadTab(tab, city);
   }, [city]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    loadTab(tab, city);
+    if (!tabMountedRef.current) { tabMountedRef.current = true; return; }
+    void loadTab(tab, city);
   }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCityChange = (c: City) => {
@@ -381,8 +389,7 @@ export default function MyPayPage() {
     setAdjustments([]);
     setLoans([]);
     setLeaveReqs([]);
-    loadSummary(c);
-    loadTab(tab, c);
+    // loadSummary and loadTab are triggered by useEffect([city])
   };
 
   const defaultCurrency = city === "dubai" ? "AED" : "PHP";
