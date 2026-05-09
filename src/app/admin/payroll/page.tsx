@@ -391,6 +391,7 @@ export default function PayrollPage() {
     setRows([]);
     setTotalNetPay(0);
     setConfigs([]);
+    setDetailRow(null);
     void loadCycles(city);
   }, [city]); // eslint-disable-line react-hooks/exhaustive-deps
 
