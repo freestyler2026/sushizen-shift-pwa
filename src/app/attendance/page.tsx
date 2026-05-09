@@ -246,6 +246,8 @@ export default function AttendancePage() {
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null); // metres
   const [gpsError, setGpsError] = useState("");
   const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsPermissionDenied, setGpsPermissionDenied] = useState(false);
+  const [gpsGuideTab, setGpsGuideTab] = useState<"ios" | "android">("ios");
 
   // Refs for GPS state — let doAction read the current GPS without a stale closure.
   // Without refs, doAction (which is memoised) would capture the initial null values.
@@ -279,7 +281,12 @@ export default function AttendancePage() {
         headers: getAuthHeaders(a),
         cache: "no-store",
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) {
+        const text = await res.text();
+        let msg = text;
+        try { const j = JSON.parse(text) as { detail?: string; message?: string }; msg = j.detail || j.message || text; } catch { /* non-JSON */ }
+        throw new Error(msg);
+      }
       setData(await res.json());
     } catch (e) {
       if (!silent) setError(String(e));
@@ -296,18 +303,40 @@ export default function AttendancePage() {
   // timeout: 15000 → allow up to 15 s for a high-accuracy indoor fix.
   const acquireGps = useCallback((): Promise<GeolocationPosition | null> => {
     return new Promise((resolve) => {
-      if (typeof navigator === "undefined" || !navigator.geolocation) { resolve(null); return; }
+      if (typeof navigator === "undefined" || !navigator.geolocation) {
+        setGpsError("GPS is not available on this device.");
+        resolve(null);
+        return;
+      }
       setGpsLoading(true);
       setGpsError("");
+      setGpsPermissionDenied(false);
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           setGpsPos(pos);
           setGpsAcquiredAt(Date.now());
           setGpsAccuracy(pos.coords.accuracy);
+          setGpsPermissionDenied(false);
           setGpsLoading(false);
           resolve(pos);
         },
-        (err) => { setGpsError(`GPS error: ${err.message}`); setGpsLoading(false); resolve(null); },
+        (err) => {
+          if (err.code === 1) {
+            // GeolocationPositionError.PERMISSION_DENIED
+            setGpsPermissionDenied(true);
+            setGpsError("Location access is blocked. Please enable it in your device settings (see guide below).");
+          } else if (err.code === 2) {
+            // GeolocationPositionError.POSITION_UNAVAILABLE
+            setGpsError("Your location could not be determined. Move to an area with better GPS signal and try again.");
+          } else if (err.code === 3) {
+            // GeolocationPositionError.TIMEOUT
+            setGpsError("Location request timed out. Move outside or near a window, then try again.");
+          } else {
+            setGpsError(`Location error: ${err.message}`);
+          }
+          setGpsLoading(false);
+          resolve(null);
+        },
         { timeout: 15000, enableHighAccuracy: true, maximumAge: 0 },
       );
     });
@@ -384,7 +413,7 @@ export default function AttendancePage() {
 
         // GPS is required for clock-in and clock-out
         if ((action === "checkin" || action === "checkout") && !pos) {
-          throw new Error("GPS location is required. Please tap 'Get my location' and ensure location access is allowed in your browser.");
+          throw new Error("GPS location is required. Please tap 'Get My Location' and ensure location access is allowed in your device settings.");
         }
 
         const optRes = await fetch(`${API_BASE}/api/attendance/action/options`, {
@@ -600,27 +629,107 @@ export default function AttendancePage() {
               <div className="flex items-center gap-2">
                 <Navigation size={18} className="text-violet-300 shrink-0" />
                 <p className="text-sm font-bold text-violet-200">
-                  {gpsPos ? "Location expired — refresh required" : "Location required to clock in"}
+                  {gpsPos ? "Location expired — refresh required" : "Step 1: Get Your Location"}
                 </p>
               </div>
               <p className="text-xs text-violet-300/80 leading-relaxed">
                 {gpsPos
                   ? "Your GPS fix expired (5 min). Tap below to get a fresh position before clocking in/out."
-                  : "You must be within 50m of your branch. Tap the button below — this is required before Clock In becomes active."}
+                  : "You must be within 50m of your branch. Tap the button below first — Clock In will become available once your location is confirmed."}
               </p>
               <button
-                onClick={acquireGps}
+                onClick={() => { void acquireGps(); }}
                 disabled={gpsLoading}
                 className="w-full rounded-xl bg-violet-600 py-4 text-base font-bold text-white disabled:opacity-50 hover:bg-violet-500 active:bg-violet-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-violet-900/40"
               >
                 <Navigation size={18} />
-                {gpsLoading ? "Getting GPS..." : "Get My Location"}
+                {gpsLoading ? "Detecting Location..." : "Get My Location"}
               </button>
               {gpsLoading && (
-                <p className="text-center text-xs text-violet-400 animate-pulse">Detecting your position...</p>
+                <p className="text-center text-xs text-violet-400 animate-pulse">Please wait — detecting your position...</p>
               )}
-              {gpsError && (
-                <p className="rounded-lg bg-amber-900/30 px-3 py-2 text-xs text-amber-300">{gpsError}</p>
+              {gpsError && !gpsLoading && (
+                <p className="rounded-lg bg-amber-900/30 border border-amber-700/40 px-3 py-2 text-xs text-amber-300">
+                  ⚠️ {gpsError}
+                </p>
+              )}
+
+              {/* Device settings guide — shown when location permission is denied */}
+              {gpsPermissionDenied && (
+                <div className="rounded-xl bg-zinc-900/80 border border-zinc-700/50 p-3 space-y-3">
+                  <p className="text-xs font-semibold text-zinc-200">
+                    📱 How to Enable Location Access
+                  </p>
+                  {/* Device tab selector */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => setGpsGuideTab("ios")}
+                      className={`rounded-lg py-2 text-xs font-semibold transition-colors ${
+                        gpsGuideTab === "ios"
+                          ? "bg-violet-600 text-white"
+                          : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                      }`}
+                    >
+                      🍎 iPhone
+                    </button>
+                    <button
+                      onClick={() => setGpsGuideTab("android")}
+                      className={`rounded-lg py-2 text-xs font-semibold transition-colors ${
+                        gpsGuideTab === "android"
+                          ? "bg-violet-600 text-white"
+                          : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
+                      }`}
+                    >
+                      🤖 Android
+                    </button>
+                  </div>
+
+                  {/* iPhone steps */}
+                  {gpsGuideTab === "ios" && (
+                    <ol className="space-y-2.5">
+                      {[
+                        { n: 1, text: "Open the iPhone Settings app (⚙️)." },
+                        { n: 2, text: 'Tap "Privacy & Security".' },
+                        { n: 3, text: 'Tap "Location Services" and make sure it is turned ON.' },
+                        { n: 4, text: "Scroll down and find your browser (Safari or Chrome) in the list." },
+                        { n: 5, text: 'Set it to "While Using the App" or "Always".' },
+                        { n: 6, text: 'Return here and tap "Get My Location" again.' },
+                      ].map(({ n, text }) => (
+                        <li key={n} className="flex items-start gap-2.5">
+                          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-700/60 text-[10px] font-bold text-violet-200">
+                            {n}
+                          </span>
+                          <span className="text-xs text-zinc-300 leading-relaxed">{text}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+
+                  {/* Android steps */}
+                  {gpsGuideTab === "android" && (
+                    <ol className="space-y-2.5">
+                      {[
+                        { n: 1, text: "Open the Settings app on your Android phone." },
+                        { n: 2, text: 'Tap "Apps" (or "Applications").' },
+                        { n: 3, text: "Find and tap your browser (Chrome, Samsung Internet, etc.)." },
+                        { n: 4, text: 'Tap "Permissions" → then tap "Location".' },
+                        { n: 5, text: 'Select "Allow only while using the app" or "Ask every time".' },
+                        { n: 6, text: 'Return here and tap "Get My Location" again.' },
+                      ].map(({ n, text }) => (
+                        <li key={n} className="flex items-start gap-2.5">
+                          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-700/60 text-[10px] font-bold text-violet-200">
+                            {n}
+                          </span>
+                          <span className="text-xs text-zinc-300 leading-relaxed">{text}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+
+                  <p className="text-[10px] text-zinc-500 leading-relaxed">
+                    If the steps above don&apos;t match your device, search for &quot;enable location permission&quot; in your phone&apos;s settings or ask your manager for help.
+                  </p>
+                </div>
               )}
             </div>
           )}
@@ -754,7 +863,7 @@ export default function AttendancePage() {
               </div>
               {!isCheckedOut && (
                 <button
-                  onClick={() => doAction("visit_end", { visit_id: v.id })}
+                  onClick={() => { void doAction("visit_end", { visit_id: v.id }); }}
                   disabled={busy}
                   className="flex items-center gap-1 rounded-lg bg-rose-800/40 px-2.5 py-1 text-xs text-rose-300 hover:bg-rose-800/60 disabled:opacity-50"
                 >
