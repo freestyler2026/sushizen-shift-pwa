@@ -467,6 +467,12 @@ export default function PayrollPage() {
               {c === "dubai" ? "Dubai" : "Manila"}
             </button>
           ))}
+          <Link
+            href={`/admin/payroll/loans?city=${city}`}
+            className="flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-300 transition hover:bg-amber-500/20"
+          >
+            Loans <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
           {selectedCycle && (
             <Link
               href={`/admin/payroll/transactions?city=${city}&cycle_id=${selectedCycle.id}`}
