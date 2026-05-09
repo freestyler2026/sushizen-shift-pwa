@@ -31,6 +31,7 @@ import {
   MoreHorizontal,
   Package,
   PenLine,
+  Receipt,
   ScrollText,
   ShoppingCart,
   Shield,
@@ -99,6 +100,7 @@ const PRIMARY: NavItem[] = [
   { href: "/my-shift", label: "My Shift", icon: CalendarClock, match: "exact" },
   { href: "/week", label: "Week", icon: CalendarDays, match: "exact" },
   { href: "/request", label: "Request", icon: ClipboardList, match: "exact" },
+  { href: "/my-pay", label: "My Pay", icon: Receipt, match: "prefix" },
   { href: "/private-report", label: "Private Report", icon: FileText, match: "exact" },
 ];
 
