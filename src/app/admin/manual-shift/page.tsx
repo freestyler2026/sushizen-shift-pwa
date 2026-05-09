@@ -185,10 +185,15 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   });
   const text = await res.text();
   if (!res.ok) {
-    const j = text ? JSON.parse(text) : {};
-    throw new Error(j?.detail || j?.message || text || `HTTP ${res.status}`);
+    let j: Record<string, unknown> = {};
+    try { j = text ? (JSON.parse(text) as Record<string, unknown>) : {}; } catch { /* non-JSON body (e.g. 502 HTML) */ }
+    throw new Error((j?.detail as string) || (j?.message as string) || text || `HTTP ${res.status}`);
   }
-  return (text ? JSON.parse(text) : {}) as T;
+  try {
+    return (text ? JSON.parse(text) : {}) as T;
+  } catch {
+    return {} as T;
+  }
 }
 
 // ─── Color legend ─────────────────────────────────────────────────────────────
@@ -442,6 +447,9 @@ export default function ManualShiftPage() {
   // Tracks all Bayzat-applied shifts so loadExistingShifts can restore them
   // after a server reload (which only knows about published/server data).
   const bayzatAppliedRef = useRef<GridData>({});
+  // Tracks the current draft key so the auto-save effect can skip writes
+  // when week/branch just changed (prevents old grid data corrupting the new key).
+  const draftKeyRef = useRef(draftKey(city, branchCode, weekStart));
   const [branchDropdownRect, setBranchDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
 
   const weekDates = useMemo(
@@ -459,10 +467,15 @@ export default function ManualShiftPage() {
   useEffect(() => { staffListRef.current = staffList; }, [staffList]);
 
   useEffect(() => {
-    if (staffList.length > 0 && !loading) {
+    const key = draftKey(city, branchCode, weekStart);
+    // Only write the draft when the key matches what was active on the previous render.
+    // When week/branch changes, the key differs → skip to avoid writing the old grid
+    // into the new week/branch's slot before the reload effect loads its correct data.
+    if (staffList.length > 0 && !loading && key === draftKeyRef.current) {
       saveDraft(city, branchCode, weekStart, gridData);
       setHasDraft(localCellCount > 0);
     }
+    draftKeyRef.current = key;
   }, [gridData, city, branchCode, weekStart, staffList.length, localCellCount, loading]);
 
   useEffect(() => {
@@ -580,11 +593,17 @@ export default function ManualShiftPage() {
 
   useEffect(() => {
     if (staffList.length === 0) return;
+    // Cancellation flag: if week/branch changes again before this async sequence
+    // completes, the cleanup sets cancelled=true and state updates are suppressed
+    // so stale data from a superseded load never overwrites newer results.
+    let cancelled = false;
     const savedDraft = loadDraft(city, branchCode, weekStart);
     bayzatAppliedRef.current = {};
     void (async () => {
       await loadStaff();
+      if (cancelled) return;
       await loadExistingShifts(true);
+      if (cancelled) return;
       if (Object.keys(savedDraft).length > 0) {
         setGridData((prev) => {
           const next: GridData = {};
@@ -598,8 +617,9 @@ export default function ManualShiftPage() {
           return next;
         });
       }
-      setView("edit");
+      if (!cancelled) setView("edit");
     })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStart, branchCode]);
 
@@ -955,7 +975,7 @@ export default function ManualShiftPage() {
   }
 
   const branches = BRANCHES[city];
-  const shiftCount = buildRows().length;
+  const shiftCount = useMemo(() => buildRows().length, [buildRows]);
 
   const handleBackToEdit = useCallback(() => {
     setView("edit");
