@@ -4,7 +4,7 @@ import {
   CheckCircle, ChevronDown, ChevronRight, Download, Fingerprint,
   Loader2, MapPin, Pencil, Plus, RefreshCw, Trash2, XCircle,
 } from "lucide-react";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { canAccessOsAttendanceAdmin, getAuth } from "@/lib/auth";
 import {
@@ -16,12 +16,25 @@ const API = "/api/admin/attendance";
 
 function apiFetch(path: string, opts?: RequestInit) {
   const auth = getAuth();
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const method = (opts?.method ?? "GET").toUpperCase();
+  const headers: Record<string, string> = {};
+  // Only set Content-Type for requests that carry a body
+  if (method !== "GET" && method !== "HEAD") headers["Content-Type"] = "application/json";
   if (auth?.accessToken) headers["Authorization"] = `Bearer ${auth.accessToken}`;
   return fetch(path, {
     ...opts,
     headers: { ...headers, ...(opts?.headers as Record<string, string> | undefined ?? {}) },
   });
+}
+
+// Extract a human-readable error message from a non-ok API response
+async function extractApiError(r: Response, fallback: string): Promise<string> {
+  try {
+    const j = await r.json() as { detail?: string; message?: string };
+    return j.detail || j.message || fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -141,18 +154,24 @@ function GpsTab({ city }: { city: string }) {
   const [adding, setAdding] = useState(false);
   const [newBranch, setNewBranch] = useState("");
   const [err, setErr] = useState("");
+  // Stale-fetch guard: increment on each load, discard results from older calls
+  const loadCountRef = useRef(0);
 
   const load = useCallback(async () => {
+    const id = ++loadCountRef.current;
     setBusy(true); setErr("");
     try {
       const r = await apiFetch(`${API}/branch-gps?city=${city}`);
-      if (!r.ok) { setErr("Failed to load GPS settings"); return; }
-      const d = await r.json();
+      if (id !== loadCountRef.current) return;
+      if (!r.ok) { setErr(await extractApiError(r, "Failed to load GPS settings")); return; }
+      const d = await r.json() as { branches?: BranchGps[] };
+      if (id !== loadCountRef.current) return;
       setList(d.branches ?? []);
     } catch {
+      if (id !== loadCountRef.current) return;
       setErr("Failed to load GPS settings");
     } finally {
-      setBusy(false);
+      if (id === loadCountRef.current) setBusy(false);
     }
   }, [city]);
 
@@ -188,7 +207,7 @@ function GpsTab({ city }: { city: string }) {
         method: "PUT",
         body: JSON.stringify({ lat, lng, radius_m, label: form.label }),
       });
-      if (!r.ok) { setErr("Failed to save"); return; }
+      if (!r.ok) { setErr(await extractApiError(r, "Failed to save GPS settings")); return; }
       setEditing(null);
       await load();
     } finally { setBusy(false); }
@@ -199,7 +218,7 @@ function GpsTab({ city }: { city: string }) {
     setBusy(true); setErr("");
     try {
       const r = await apiFetch(`${API}/branch-gps/${city}/${branch_code}`, { method: "DELETE" });
-      if (!r.ok) { setErr("Failed to delete GPS settings"); return; }
+      if (!r.ok) { setErr(await extractApiError(r, "Failed to delete GPS settings")); return; }
       await load();
     } finally { setBusy(false); }
   }
@@ -218,7 +237,7 @@ function GpsTab({ city }: { city: string }) {
         method: "PUT",
         body: JSON.stringify({ lat, lng, radius_m, label: form.label }),
       });
-      if (!r.ok) { setErr("Failed to add"); return; }
+      if (!r.ok) { setErr(await extractApiError(r, "Failed to add branch GPS")); return; }
       setAdding(false); setNewBranch(""); setForm({ lat: "", lng: "", radius_m: "100", label: "" });
       await load();
     } finally { setBusy(false); }
@@ -229,7 +248,7 @@ function GpsTab({ city }: { city: string }) {
       <div className="flex items-center justify-between">
         <p className="text-sm text-white/50">Set GPS coordinates and geofence radius per branch. Branches without GPS configured skip the location check.</p>
         <div className="flex gap-2">
-          <button onClick={() => load()} className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:text-white hover:border-white/20 transition-colors">
+          <button onClick={() => { void load(); }} className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:text-white hover:border-white/20 transition-colors">
             <RefreshCw size={12} />Refresh
           </button>
           <button onClick={() => { setAdding(true); setEditing(null); setForm({ lat: "", lng: "", radius_m: "100", label: "" }); setNewBranch(""); setErr(""); }}
@@ -380,7 +399,18 @@ function EditModal({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
+  // Close on Escape key
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   async function handleSave() {
+    // Frontend validation: clock-out cannot be before clock-in (same work_date)
+    if (form.check_in_time && form.check_out_time && form.check_out_time < form.check_in_time) {
+      setErr("Clock-out time cannot be earlier than clock-in time"); return;
+    }
     setBusy(true); setErr("");
     try {
       const body: Record<string, string> = { note: form.note };
@@ -398,20 +428,23 @@ function EditModal({
         method: "PATCH",
         body: JSON.stringify(body),
       });
-      if (!r.ok) { setErr("Failed to save changes"); return; }
-      const d = await r.json();
+      if (!r.ok) { setErr(await extractApiError(r, "Failed to save changes")); return; }
+      const d = await r.json() as { session?: Partial<AttendanceSession> };
       // Merge: d.session has updated times, keep visits from local state, carry note from form
-      onSaved({ ...session, ...d.session, visits: session.visits, note: form.note });
+      onSaved({ ...session, ...(d.session ?? {}), visits: session.visits, note: form.note });
     } catch {
-      setErr("Failed to save changes");
+      setErr("Failed to save changes — please try again");
     } finally { setBusy(false); }
   }
 
   const inp = "w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white focus:border-violet-500/50 focus:outline-none";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-      <div className={`${GLASS_CARD} w-full max-w-md p-6 space-y-5`}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4"
+      onClick={onClose}
+    >
+      <div className={`${GLASS_CARD} w-full max-w-md p-6 space-y-5`} onClick={e => e.stopPropagation()}>
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-violet-400">Edit Attendance Record</p>
           <p className="text-white font-semibold mt-1">{session.staff_name}</p>
@@ -465,7 +498,7 @@ function DailyReportTab({ city }: { city: string }) {
   );
   const [staffFilter, setStaffFilter] = useState("");
   const [branchFilter, setBranchFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"" | "on_shift" | "clocked_out">("");
+  const [statusFilter, setStatusFilter] = useState<"" | "on_shift" | "clocked_out" | "not_clocked_in">("");
   const [sessions, setSessions] = useState<AttendanceSession[]>([]);
   const [meta, setMeta] = useState<SessionMeta>({ staff_names: [], branch_codes: [] });
   const [busy, setBusy] = useState(false);
@@ -474,6 +507,8 @@ function DailyReportTab({ city }: { city: string }) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [editingSession, setEditingSession] = useState<AttendanceSession | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Stale-fetch guard: increment on each load, discard results from older calls
+  const loadCountRef = useRef(0);
 
   // Reset per-city state when city switches
   useEffect(() => {
@@ -497,18 +532,27 @@ function DailyReportTab({ city }: { city: string }) {
   }, [city]);
 
   const load = useCallback(async () => {
+    const id = ++loadCountRef.current;
     setBusy(true); setLoadErr("");
+    // Clear stale results immediately so old data doesn't linger during load
+    setSessions([]);
+    setExpandedIds(new Set());
     try {
       const params = new URLSearchParams({ city, work_date: date, limit: "500" });
       if (staffFilter) params.set("staff_name", staffFilter);
       if (branchFilter) params.set("branch_code", branchFilter);
       const r = await apiFetch(`${API}/daily-report?${params}`);
-      if (!r.ok) { setLoadErr("Failed to load attendance records"); return; }
-      const d = await r.json();
+      if (id !== loadCountRef.current) return;
+      if (!r.ok) { setLoadErr(await extractApiError(r, "Failed to load attendance records")); return; }
+      const d = await r.json() as { sessions?: AttendanceSession[] };
+      if (id !== loadCountRef.current) return;
       setSessions(d.sessions ?? []);
     } catch {
+      if (id !== loadCountRef.current) return;
       setLoadErr("Failed to load attendance records");
-    } finally { setBusy(false); }
+    } finally {
+      if (id === loadCountRef.current) setBusy(false);
+    }
   }, [city, date, staffFilter, branchFilter]);
 
   useEffect(() => { void load(); }, [load]);
@@ -529,14 +573,14 @@ function DailyReportTab({ city }: { city: string }) {
 
   async function handleDelete(s: AttendanceSession) {
     if (!confirm(`Delete attendance record for ${s.staff_name} on ${s.work_date}? This cannot be undone.`)) return;
-    setDeletingId(s.id);
+    setDeletingId(s.id); setLoadErr("");
     try {
       const r = await apiFetch(`${API}/sessions/${s.id}`, { method: "DELETE" });
-      if (!r.ok) { alert("Failed to delete record"); return; }
+      if (!r.ok) { setLoadErr(await extractApiError(r, "Failed to delete record")); return; }
       setSessions(prev => prev.filter(x => x.id !== s.id));
       setExpandedIds(prev => { const n = new Set(prev); n.delete(s.id); return n; });
     } catch {
-      alert("Failed to delete record");
+      setLoadErr("Failed to delete record — please try again");
     } finally { setDeletingId(null); }
   }
 
@@ -596,9 +640,10 @@ function DailyReportTab({ city }: { city: string }) {
           <option value="">All Status</option>
           <option value="on_shift">On Shift</option>
           <option value="clocked_out">Clocked Out</option>
+          <option value="not_clocked_in">Not Clocked In</option>
         </select>
 
-        <button onClick={load} className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:text-white hover:border-white/20 transition-colors">
+        <button onClick={() => { void load(); }} className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:text-white hover:border-white/20 transition-colors">
           <RefreshCw size={12} />Refresh
         </button>
 
