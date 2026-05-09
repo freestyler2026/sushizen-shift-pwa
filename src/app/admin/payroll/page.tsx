@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  AlertCircle, ArrowRight, ChevronDown, ChevronRight, Download, DollarSign,
+  AlertCircle, ArrowRight, ChevronRight, Download, DollarSign,
   Loader2, Pencil, Plus, RefreshCw, Settings, TrendingUp, Users, X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -118,6 +118,11 @@ function ConfigModal({
 
   async function save() {
     if (!form.staff_name.trim()) { setErr("Staff name is required"); return; }
+    const numericFields = [form.basic_salary, form.accommodation, form.transportation, form.other_allowances];
+    const parsed = numericFields.map(v => parseFloat(v));
+    if (parsed.some(v => isNaN(v) || v < 0)) {
+      setErr("Salary and allowance values must be non-negative numbers"); return;
+    }
     setBusy(true); setErr("");
     try {
       const r = await apiFetch(`${API}/salary-configs?city=${encodeURIComponent(city)}`, {
@@ -309,7 +314,6 @@ export default function PayrollPage() {
   const [configs, setConfigs] = useState<SalaryConfig[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [detailRow, setDetailRow] = useState<PayrollRow | null>(null);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [editingConfig, setEditingConfig] = useState<SalaryConfig | null>(null);
@@ -397,7 +401,15 @@ export default function PayrollPage() {
         body: JSON.stringify(null),
       });
       if (!r.ok) { setErr(await extractApiError(r, "Failed to create cycle")); return; }
-      await loadCycles(city);
+      const data = await r.json() as { cycle: Cycle };
+      // Upsert the returned cycle into the list, then force-select it
+      setCycles(prev => {
+        const exists = prev.find(c => c.id === data.cycle.id);
+        return exists
+          ? prev.map(c => (c.id === data.cycle.id ? data.cycle : c))
+          : [data.cycle, ...prev];
+      });
+      setSelectedCycle(data.cycle);
     } catch {
       setErr("Network error — please try again");
     } finally { setBusy(false); }
@@ -406,7 +418,7 @@ export default function PayrollPage() {
   async function closeCycle() {
     if (!selectedCycle) return;
     if (!confirm(`Close ${MONTHS[selectedCycle.month - 1]} ${selectedCycle.year} payroll? This cannot be easily undone.`)) return;
-    setClosingCycle(true);
+    setClosingCycle(true); setErr("");
     try {
       const r = await apiFetch(`${API}/cycles/${selectedCycle.id}/close`, { method: "PATCH" });
       if (!r.ok) { setErr(await extractApiError(r, "Failed to close cycle")); return; }
@@ -539,7 +551,8 @@ export default function PayrollPage() {
               <Plus size={12} /> New Cycle
             </button>
             <button className={SMALL_BUTTON} onClick={() => {
-              if (selectedCycle) void loadTable(selectedCycle.id, city);
+              if (tab === "configs") void loadConfigs(city);
+              else if (selectedCycle) void loadTable(selectedCycle.id, city);
             }} disabled={busy}>
               <RefreshCw size={12} className={busy ? "animate-spin" : ""} /> Refresh
             </button>
@@ -555,7 +568,9 @@ export default function PayrollPage() {
               </button>
             )}
             {selectedCycle?.status === "closed" && (
-              <button className={SMALL_BUTTON} onClick={() => { void reopenCycle(); }}>Reopen</button>
+              <button className={SMALL_BUTTON} onClick={() => { void reopenCycle(); }} disabled={closingCycle}>
+                {closingCycle ? <Loader2 size={12} className="animate-spin" /> : "Reopen"}
+              </button>
             )}
           </div>
         </div>

@@ -289,6 +289,7 @@ export default function AdjustmentsPage() {
 
   useEffect(() => {
     setSelectedCycle(null);
+    setCycles([]);
     setAdjustments([]);
     void loadCycles(city);
   }, [city]); // eslint-disable-line react-hooks/exhaustive-deps
