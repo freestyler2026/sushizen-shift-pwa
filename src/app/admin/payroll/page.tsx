@@ -1,11 +1,12 @@
 "use client";
 
 import {
-  AlertCircle, ChevronDown, ChevronRight, Download, DollarSign,
+  AlertCircle, ArrowRight, ChevronDown, ChevronRight, Download, DollarSign,
   Loader2, Pencil, Plus, RefreshCw, Settings, TrendingUp, Users, X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { getAuth } from "@/lib/auth";
 import {
   BADGE_ERROR, BADGE_INFO, BADGE_SUCCESS, BADGE_WARNING,
@@ -466,6 +467,14 @@ export default function PayrollPage() {
               {c === "dubai" ? "Dubai" : "Manila"}
             </button>
           ))}
+          {selectedCycle && (
+            <Link
+              href={`/admin/payroll/transactions?city=${city}&cycle_id=${selectedCycle.id}`}
+              className="flex items-center gap-1.5 rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-sm font-medium text-violet-300 transition hover:bg-violet-500/20"
+            >
+              Transactions <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          )}
         </div>
       </div>
 
