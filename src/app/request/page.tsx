@@ -1,48 +1,356 @@
 // src/app/request/page.tsx
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
-import { CalendarDays, FileText } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  AlertCircle, Bell, BellRing, CalendarDays, CheckCircle2,
+  ClipboardList, Clock, FileText, Loader2, RefreshCw,
+  Send, XCircle,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Field } from "@/components/Field";
 import DatePicker from "@/components/DatePicker";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
-import {
-  GLASS_CARD,
-  SMALL_BUTTON,
-  INPUT_CLASS,
-  SELECT_CLASS,
-  T_PAGE_TITLE,
-  T_SECTION,
-  T_BODY,
-  T_CAPTION,
-  BADGE_SUCCESS,
-  BADGE_WARNING,
-} from "@/lib/ui-tokens";
 
-type ReqType = "time_change" | "day_off" | "absence" | "swap" | "paid_leave" | "vacation" | "other";
+// ── Light theme styles ────────────────────────────────────────────────────────
+const PAGE_BG   = "min-h-screen bg-gray-50";
+const CARD      = "rounded-2xl border border-gray-200 bg-white shadow-sm";
+const SECTION   = "text-base font-semibold text-gray-900";
+const CAPTION   = "text-xs text-gray-500";
+const BTN_PRIM  = "rounded-xl bg-teal-600 px-5 py-2.5 font-semibold text-white transition hover:bg-teal-500 disabled:opacity-50";
+const BTN_SEC   = "rounded-xl border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50";
+const INPUT     = "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20";
+const SELECT    = "w-full appearance-none rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20";
+const TAB_A     = "flex items-center gap-2 border-b-2 border-teal-500 px-4 py-3 text-sm font-semibold text-teal-600";
+const TAB_I     = "flex items-center gap-2 border-b-2 border-transparent px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-900 transition";
+const LABEL     = "block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1";
 
-const PAGE_BG = "min-h-screen text-white";
-const BLUSH_GLASS = `${GLASS_CARD} bg-violet-950/30`;
-const BLUSH_HIGHLIGHT = "rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/18 to-purple-500/10";
-const BLUSH_PRIMARY =
-  "rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 px-5 py-2.5 font-semibold text-white transition-all duration-200 shadow-lg shadow-violet-500/25 hover:scale-[1.02] hover:from-violet-400 hover:to-purple-400 hover:shadow-violet-500/40 active:scale-[0.98] disabled:opacity-60";
-const BLUSH_SECONDARY =
-  "rounded-xl border border-violet-400/15 bg-violet-950/30 px-5 py-2.5 text-white transition-all duration-200 hover:border-violet-500/25 hover:bg-violet-950/45 disabled:opacity-60";
-const BLUSH_SMALL = `${SMALL_BUTTON} bg-violet-950/30 hover:bg-violet-950/45`;
+type Tab = "form" | "history" | "inbox";
+type ReqType = "time_change" | "day_off" | "absence" | "swap" | "paid_leave" | "vacation" | "overtime_request" | "other";
 
-function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+const LEAVE_TYPES: { value: ReqType; label: string }[] = [
+  { value: "time_change",      label: "Time Change" },
+  { value: "day_off",          label: "Day Off" },
+  { value: "absence",          label: "Absence" },
+  { value: "paid_leave",       label: "Paid Leave" },
+  { value: "vacation",         label: "Vacation" },
+  { value: "overtime_request", label: "Overtime Request" },
+  { value: "other",            label: "Other" },
+  { value: "swap",             label: "Swap" },
+];
+
+type LeaveBalance = {
+  id: number;
+  leave_type: string;
+  entitled_days: number;
+  used_days: number;
+  remaining_days: number;
+};
+
+type Notification = {
+  id: string;
+  sender_name: string;
+  sender_city: string;
+  notification_type: string;
+  request_date: string;
+  target_date: string;
+  leave_type: string | null;
+  leave_days: number | null;
+  overtime_hours: number | null;
+  reason: string;
+  status: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  created_at: string;
+};
+
+function todayIso() { return new Date().toISOString().slice(0, 10); }
+
+function StatusBadge({ status }: { status: string }) {
+  const cls = status === "approved"
+    ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+    : status === "rejected"
+    ? "bg-red-100 text-red-700 border border-red-200"
+    : "bg-amber-100 text-amber-700 border border-amber-200";
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${cls}`}>
+      {status === "approved" ? <CheckCircle2 size={11} /> : status === "rejected" ? <XCircle size={11} /> : <Clock size={11} />}
+      {status}
+    </span>
+  );
 }
+
+function apiFetch(path: string, opts?: RequestInit) {
+  const auth = getAuth();
+  const method = (opts?.method ?? "GET").toUpperCase();
+  const headers: Record<string, string> = {};
+  if (method !== "GET" && !(opts?.body instanceof FormData)) headers["Content-Type"] = "application/json";
+  if (auth?.accessToken) headers["Authorization"] = `Bearer ${auth.accessToken}`;
+  return fetch(path, { ...opts, headers: { ...headers, ...(opts?.headers as Record<string, string> ?? {}) } });
+}
+
+// ── Tab 2: History ─────────────────────────────────────────────────────────────
+
+function HistoryTab({ staffName, city }: { staffName: string; city: string }) {
+  const [items, setItems] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const loadRef = useRef(0);
+
+  const load = useCallback(async () => {
+    if (!staffName || !city) return;
+    const seq = ++loadRef.current;
+    setLoading(true); setError("");
+    try {
+      const r = await apiFetch(`/api/request/notifications/history?staff_name=${encodeURIComponent(staffName)}&city=${encodeURIComponent(city)}&limit=50`);
+      if (seq !== loadRef.current) return;
+      if (!r.ok) throw new Error(await r.text());
+      const d = await r.json() as { items: Notification[] };
+      setItems(d.items ?? []);
+    } catch (e) {
+      if (seq === loadRef.current) setError(String(e));
+    } finally {
+      if (seq === loadRef.current) setLoading(false);
+    }
+  }, [staffName, city]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className={SECTION}>My Request History</h2>
+        <button onClick={load} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition">
+          <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> Refresh
+        </button>
+      </div>
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+          <AlertCircle size={14} /> {error}
+        </div>
+      )}
+      {loading && items.length === 0 ? (
+        <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-teal-500" /></div>
+      ) : items.length === 0 ? (
+        <div className={CARD + " p-10 text-center"}>
+          <ClipboardList size={36} className="mx-auto mb-2 text-gray-300" />
+          <p className="text-sm text-gray-400">No requests submitted yet.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {items.map(n => (
+            <div key={n.id} className={CARD + " p-4"}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-medium text-teal-700 capitalize">
+                      {n.notification_type.replace(/_/g, " ")}
+                    </span>
+                    <StatusBadge status={n.status} />
+                  </div>
+                  <p className="mt-1.5 text-sm text-gray-700">{n.reason}</p>
+                  {n.leave_days && (
+                    <p className="text-xs text-gray-500 mt-0.5">{n.leave_days} day(s) — {n.leave_type}</p>
+                  )}
+                  {n.overtime_hours && (
+                    <p className="text-xs text-gray-500 mt-0.5">{n.overtime_hours} OT hour(s)</p>
+                  )}
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-xs text-gray-400">{n.target_date}</p>
+                  {n.review_note && (
+                    <p className="mt-1 text-xs text-gray-500 max-w-[160px]">{n.review_note}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Tab 3: Inbox ───────────────────────────────────────────────────────────────
+
+function InboxTab({ city }: { city: string }) {
+  const [items, setItems] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [reviewNote, setReviewNote] = useState("");
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [lastLoaded, setLastLoaded] = useState<Date | null>(null);
+  const loadRef = useRef(0);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const load = useCallback(async () => {
+    const seq = ++loadRef.current;
+    setLoading(true); setError("");
+    try {
+      const r = await apiFetch(`/api/request/notifications/inbox?city=${encodeURIComponent(city)}&status=pending&limit=100`);
+      if (seq !== loadRef.current) return;
+      if (!r.ok) throw new Error(await r.text());
+      const d = await r.json() as { items: Notification[] };
+      setItems(d.items ?? []);
+      setLastLoaded(new Date());
+    } catch (e) {
+      if (seq === loadRef.current) setError(String(e));
+    } finally {
+      if (seq === loadRef.current) setLoading(false);
+    }
+  }, [city]);
+
+  // 30-second polling
+  useEffect(() => {
+    void load();
+    pollingRef.current = setInterval(() => { void load(); }, 30_000);
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [load]);
+
+  async function review(id: string, action: "approved" | "rejected") {
+    setReviewBusy(true);
+    try {
+      const auth = getAuth();
+      const r = await apiFetch(`/api/request/notifications/${id}/review`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: action,
+          review_note: reviewNote.trim(),
+          reviewed_by: auth?.staffName ?? "manager",
+        }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      setItems(prev => prev.filter(i => i.id !== id));
+      setReviewingId(null);
+      setReviewNote("");
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setReviewBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className={SECTION + " flex items-center gap-2"}>
+            <BellRing size={18} className="text-amber-500" /> Pending Inbox
+            {items.length > 0 && (
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">{items.length}</span>
+            )}
+          </h2>
+          {lastLoaded && (
+            <p className="text-xs text-gray-400 mt-0.5">
+              Last updated: {lastLoaded.toLocaleTimeString()} · auto-refresh every 30s
+            </p>
+          )}
+        </div>
+        <button onClick={load} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition">
+          <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> Refresh
+        </button>
+      </div>
+
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+          <AlertCircle size={14} /> {error}
+        </div>
+      )}
+
+      {loading && items.length === 0 ? (
+        <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-teal-500" /></div>
+      ) : items.length === 0 ? (
+        <div className={CARD + " p-10 text-center"}>
+          <Bell size={36} className="mx-auto mb-2 text-gray-300" />
+          <p className="text-sm text-gray-400">No pending requests.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {items.map(n => (
+            <div key={n.id} className={CARD + " p-4"}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-gray-900 text-sm">{n.sender_name}</span>
+                    <span className="rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-medium text-teal-700 capitalize">
+                      {n.notification_type.replace(/_/g, " ")}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-gray-700">{n.reason}</p>
+                  <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-400">
+                    <span>Date: {n.target_date}</span>
+                    {n.leave_type && <span>Type: {n.leave_type}</span>}
+                    {n.leave_days != null && <span>{n.leave_days} day(s)</span>}
+                    {n.overtime_hours != null && <span>{n.overtime_hours} OT hr(s)</span>}
+                    <span className="font-mono text-gray-300">{String(n.id).slice(0, 8)}…</span>
+                  </div>
+
+                  {reviewingId === n.id ? (
+                    <div className="mt-3 space-y-2">
+                      <label className={LABEL}>Review note (optional)</label>
+                      <textarea
+                        className={INPUT + " resize-none"}
+                        rows={2}
+                        value={reviewNote}
+                        onChange={e => setReviewNote(e.target.value)}
+                        placeholder="Add a note for the staff member…"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => { void review(n.id, "approved"); }}
+                          disabled={reviewBusy}
+                          className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50 transition">
+                          {reviewBusy ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => { void review(n.id, "rejected"); }}
+                          disabled={reviewBusy}
+                          className="flex items-center gap-1 rounded-lg bg-red-100 border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-200 disabled:opacity-50 transition">
+                          <XCircle size={12} /> Reject
+                        </button>
+                        <button
+                          onClick={() => { setReviewingId(null); setReviewNote(""); }}
+                          className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 transition">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setReviewingId(n.id)}
+                      className="mt-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition">
+                      Review
+                    </button>
+                  )}
+                </div>
+                <div className="shrink-0 text-right text-xs text-gray-400">
+                  {new Date(n.created_at).toLocaleDateString()}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main Page ──────────────────────────────────────────────────────────────────
 
 export default function RequestPage() {
   const router = useRouter();
-  const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
-  const [city, setCity] = useState<"dubai" | "manila">("dubai");
-  const [branch, setBranch] = useState("BB");
-  const branchOptions = BRANCHES[city] ?? [];
+  const [auth, setAuth] = useState(() => getAuth());
+  const [activeTab, setActiveTab] = useState<Tab>("form");
+
+  // Form state
+  const [city, setCity] = useState<"dubai" | "manila">("manila");
+  const [branch, setBranch] = useState("");
   const [staffName, setStaffName] = useState("");
   const [workDate, setWorkDate] = useState(todayIso());
   const [requestType, setRequestType] = useState<ReqType>("time_change");
@@ -51,30 +359,33 @@ export default function RequestPage() {
   const [medicalDocumentFile, setMedicalDocumentFile] = useState<File | null>(null);
   const medicalFileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // payload fields
+  // Type-specific fields
   const [from, setFrom] = useState("9-16");
   const [to, setTo] = useState("10-18");
-
   const [withStaff, setWithStaff] = useState("");
   const [myTo, setMyTo] = useState("9-16");
   const [theirTo, setTheirTo] = useState("18-25");
+  const [leaveDays, setLeaveDays] = useState("1");
+  const [leaveSubType, setLeaveSubType] = useState("annual_leave");
+  const [otHours, setOtHours] = useState("2");
 
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState("");
   const [staffNames, setStaffNames] = useState<string[]>([]);
-  const [auth, setAuth] = useState(() => getAuth());
-  const MANAGER_ROLES = ["HQ", "ADMIN", "MANAGER", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT"];
-  const canSubmitForOthers = MANAGER_ROLES.includes(auth?.role ?? "");
+  const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
 
-  // Re-read auth on focus and visibility change (handles back-navigation without hard reload)
+  const MANAGER_ROLES = ["HQ", "ADMIN", "MANAGER", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT", "HR_MANAGER"];
+  const canSubmitForOthers = MANAGER_ROLES.includes(auth?.role ?? "");
+  const isInbox = canSubmitForOthers;
+
+  // Auth refresh on focus
   useEffect(() => {
     const refresh = () => setAuth(getAuth());
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
     return () => {
       window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", refresh);
     };
   }, []);
 
@@ -83,18 +394,17 @@ export default function RequestPage() {
       router.replace("/login?next=%2Frequest");
       return;
     }
-    if (!auth) return;
-    if (auth.city) setCity(auth.city);
+    if (auth.city) setCity(auth.city as "dubai" | "manila");
     if (auth.staffName) setStaffName(auth.staffName);
   }, [auth, router]);
 
-  // Reset branch when city changes
+  // Default branch
   useEffect(() => {
     const first = BRANCHES[city]?.[0]?.code ?? "";
     setBranch(first);
   }, [city]);
 
-  // Fetch staff names for dropdowns (manager selection + swap counterparty)
+  // Fetch staff names
   useEffect(() => {
     const freshAuth = getAuth();
     if (!freshAuth?.accessToken) return;
@@ -102,53 +412,75 @@ export default function RequestPage() {
     fetch(`${apiBase}/api/admin/staff_master/names?city=${encodeURIComponent(city)}&status=ACTIVE&limit=500`, {
       headers: { Authorization: `Bearer ${freshAuth.accessToken}` },
     })
-      .then((r) => r.json())
-      .then((d) => { if (Array.isArray(d.names)) setStaffNames(d.names); })
+      .then(r => r.json())
+      .then((d: { names?: string[] }) => { if (Array.isArray(d.names)) setStaffNames(d.names); })
       .catch(() => setStaffNames([]));
   }, [city]);
 
+  // Fetch leave balances for badge display
+  useEffect(() => {
+    const freshAuth = getAuth();
+    if (!freshAuth?.accessToken || !staffName || !city) return;
+    apiFetch(`/api/request/leave-balance?staff_name=${encodeURIComponent(staffName)}&city=${encodeURIComponent(city)}&year=${new Date().getFullYear()}`)
+      .then(r => r.ok ? r.json() as Promise<{ balances: LeaveBalance[] }> : Promise.resolve({ balances: [] }))
+      .then(d => setLeaveBalances(d.balances ?? []))
+      .catch(() => setLeaveBalances([]));
+  }, [staffName, city]);
+
+  const branchOptions = BRANCHES[city] ?? [];
+
   const submit = async () => {
-    setLoading(true);
-    setError("");
-    setResult(null);
-
+    setLoading(true); setError(""); setResult(null);
     try {
-      // Always read auth fresh at submit time to avoid using an expired token
       let currentAuth = getAuth();
-      if (!currentAuth?.accessToken) {
-        throw new Error("Please log in again before submitting a request.");
-      }
-      if (!branch.trim()) {
-        throw new Error("Branch is required.");
-      }
-      if (!workDate.trim()) {
-        throw new Error("Work date is required.");
-      }
-      if (!reason.trim()) {
-        throw new Error("Reason is required.");
-      }
-      if (requestType === "swap" && !withStaff.trim()) {
-        throw new Error("Counterparty staff name is required for swap requests.");
-      }
-      if (requestType === "swap" && (!myTo.trim() || !theirTo.trim())) {
-        throw new Error("Both swap time fields are required.");
-      }
-      if (requestType === "time_change" && !to.trim()) {
-        throw new Error("Requested time is required.");
-      }
-      if (reason.trim().length < 10) {
-        throw new Error("Reason must be at least 10 characters.");
-      }
-      let payload: any = {};
-      if (requestType === "time_change") {
-        payload = { from, to };
-      } else if (requestType === "swap") {
-        payload = { with_staff: withStaff, my_to: myTo, their_to: theirTo };
+      if (!currentAuth?.accessToken) throw new Error("Please log in again.");
+      if (!branch.trim()) throw new Error("Branch is required.");
+      if (!workDate.trim()) throw new Error("Work date is required.");
+      if (!reason.trim() || reason.trim().length < 5) throw new Error("Reason must be at least 5 characters.");
+      if (requestType === "swap" && !withStaff.trim()) throw new Error("Counterparty staff name is required.");
+      if (requestType === "swap" && (!myTo.trim() || !theirTo.trim())) throw new Error("Both swap time fields are required.");
+      if (requestType === "time_change" && !to.trim()) throw new Error("Requested time is required.");
+      if (medicalDoc && !medicalDocumentFile) throw new Error("Please attach your medical document file.");
+
+      // For overtime_request, use the new /api/request/notify endpoint
+      if (requestType === "overtime_request") {
+        const r = await apiFetch("/api/request/notify", {
+          method: "POST",
+          body: JSON.stringify({
+            sender_name: staffName,
+            sender_city: city,
+            notification_type: "overtime",
+            target_date: workDate,
+            overtime_hours: parseFloat(otHours) || 0,
+            reason: reason.trim(),
+          }),
+        });
+        if (!r.ok) throw new Error(await r.text());
+        const d = await r.json() as Record<string, unknown>;
+        setResult(d);
+        return;
       }
 
-      if (medicalDoc && !medicalDocumentFile) {
-        throw new Error("Please attach your medical document file.");
+      // For leave types, also send to new notification endpoint in addition to legacy
+      const isLeaveType = ["paid_leave", "vacation", "absence", "day_off"].includes(requestType);
+      if (isLeaveType) {
+        await apiFetch("/api/request/notify", {
+          method: "POST",
+          body: JSON.stringify({
+            sender_name: staffName,
+            sender_city: city,
+            notification_type: "leave",
+            target_date: workDate,
+            leave_type: leaveSubType,
+            leave_days: parseFloat(leaveDays) || 1,
+            reason: reason.trim(),
+          }),
+        }).catch(() => {}); // non-blocking
       }
+
+      let payload: Record<string, string> = {};
+      if (requestType === "time_change") payload = { from, to };
+      else if (requestType === "swap") payload = { with_staff: withStaff, my_to: myTo, their_to: theirTo };
 
       const form = new FormData();
       form.set("city", city);
@@ -159,12 +491,10 @@ export default function RequestPage() {
       form.set("branch", branch);
       form.set("medical_doc", String(medicalDoc));
       form.set("payload_json", JSON.stringify(payload));
-      if (medicalDocumentFile) {
-        form.set("medical_document_file", medicalDocumentFile);
-      }
+      if (medicalDocumentFile) form.set("medical_document_file", medicalDocumentFile);
 
-      const url = `/api/shift_change/submit`;
-      let res = await fetch(`${apiBase}${url}`, {
+      const apiBase = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
+      let res = await fetch(`${apiBase}/api/shift_change/submit`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${currentAuth.accessToken}`,
@@ -172,32 +502,24 @@ export default function RequestPage() {
         },
         body: form,
       });
-
-      // If 401, try refreshing the token once and retry
       if (res.status === 401) {
         const refreshed = await refreshAuthFromApi(currentAuth);
         if (refreshed?.accessToken && refreshed.accessToken !== currentAuth.accessToken) {
           currentAuth = refreshed;
-          // Rebuild form for retry (FormData can't be reused after sending)
           const form2 = new FormData();
           form.forEach((v, k) => form2.set(k, v));
-          res = await fetch(`${apiBase}${url}`, {
+          res = await fetch(`${apiBase}/api/shift_change/submit`, {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${currentAuth.accessToken}`,
-              ...(currentAuth.stepUpToken ? { "X-Step-Up-Token": currentAuth.stepUpToken } : {}),
-            },
+            headers: { Authorization: `Bearer ${currentAuth.accessToken}` },
             body: form2,
           });
         }
       }
-
       const text = await res.text();
       if (!res.ok) throw new Error(`Submit failed: ${res.status} ${text}`);
-
-      setResult(JSON.parse(text));
-    } catch (e: any) {
-      setError(e.message || String(e));
+      setResult(JSON.parse(text) as Record<string, unknown>);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
@@ -205,288 +527,232 @@ export default function RequestPage() {
 
   return (
     <div className={PAGE_BG}>
-      <motion.div
-        className="mx-auto max-w-5xl space-y-6 px-4 py-8"
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, ease: "easeOut" }}
-      >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className={T_PAGE_TITLE}>Request</h1>
-          <p className={T_BODY}>Submit shift changes, day off, absence, vacation, or swap requests from your phone.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={BADGE_SUCCESS}>
-            <CalendarDays className="h-3 w-3" />
-            {workDate || todayIso()}
-          </span>
-        </div>
-      </div>
+      <div className="mx-auto max-w-3xl space-y-0 px-4 pb-10 pt-6">
 
-      <div className={`${BLUSH_GLASS} p-4 sm:p-5`}>
-        <div className="mb-4 flex items-start justify-between gap-3">
+        {/* Header */}
+        <div className="mb-5 flex items-start justify-between gap-4">
           <div>
-            <div className={T_SECTION}>Request Form</div>
-            <div className={T_CAPTION}>Your login is used for secure submission and approval routing.</div>
+            <h1 className="text-2xl font-bold text-gray-900">Request</h1>
+            <p className="mt-0.5 text-sm text-gray-500">Submit shift changes, leave, or overtime requests.</p>
           </div>
-          <span className={canSubmitForOthers ? BADGE_WARNING : BADGE_SUCCESS}>
-            <FileText className="h-3 w-3" />
-            {canSubmitForOthers ? "Manager / Admin mode" : "Self submit"}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="City">
-            <select
-              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-              value={city}
-              onChange={(e) => setCity(e.target.value as any)}
-            >
-              <option value="dubai">Dubai</option>
-              <option value="manila">Manila</option>
-            </select>
-          </Field>
-
-          <Field label="Branch">
-            <select
-              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-              value={branch}
-              onChange={(e) => setBranch(e.target.value)}
-              required
-            >
-              {branchOptions.map((b) => (
-                <option key={b.code} value={b.code}>{b.name}</option>
+          {leaveBalances.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {leaveBalances.slice(0, 3).map(b => (
+                <div key={b.id} className="rounded-xl border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs">
+                  <span className="text-teal-600 font-medium capitalize">{b.leave_type.replace(/_/g, " ")}</span>
+                  <span className="ml-1 font-bold text-teal-800">{b.remaining_days}</span>
+                  <span className="text-teal-500">/{b.entitled_days}d</span>
+                </div>
               ))}
-            </select>
-          </Field>
-
-          <Field label="Staff name" hint={canSubmitForOthers ? "Submit on behalf of this staff member" : "Locked to your login"}>
-            {canSubmitForOthers && staffNames.length > 0 ? (
-              <select
-                className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-                value={staffName}
-                onChange={(e) => setStaffName(e.target.value)}
-              >
-                <option value="">— Select staff member —</option>
-                {staffNames.map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                className={`${INPUT_CLASS} disabled:opacity-70 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-                value={staffName}
-                onChange={(e) => setStaffName(e.target.value)}
-                readOnly={!canSubmitForOthers}
-                disabled={!canSubmitForOthers}
-                placeholder={canSubmitForOthers ? "Loading staff list..." : undefined}
-              />
-            )}
-          </Field>
-
-          <Field label="Work date">
-            <DatePicker value={workDate} onChange={setWorkDate} />
-          </Field>
-
-          <Field label="Request type">
-            <select
-              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-              value={requestType}
-              onChange={(e) => setRequestType(e.target.value as ReqType)}
-            >
-              <option value="time_change">Time Change</option>
-              <option value="day_off">Day Off</option>
-              <option value="absence">Absence</option>
-              <option value="paid_leave">Paid Leave</option>
-              <option value="vacation">Vacation</option>
-              <option value="other">Other</option>
-              <option value="swap">Swap</option>
-            </select>
-          </Field>
-
-          <Field label="Medical doc (RED recommended)">
-            <label className={`flex min-h-10 items-center gap-2 ${BLUSH_GLASS} px-3 py-2 text-sm text-neutral-200`}>
-              <input type="checkbox" checked={medicalDoc} onChange={(e) => setMedicalDoc(e.target.checked)} />
-              I have medical document
-            </label>
-            <div className="mt-2 text-xs text-neutral-400">
-              Note: If attached, medical documents are automatically uploaded to Discord channel{" "}
-              <span className="font-semibold text-neutral-300">medical_document</span>.
             </div>
-            {!canSubmitForOthers ? (
-              <div className="mt-2 text-xs text-neutral-500">Your name is locked to your current login to prevent impersonation.</div>
-            ) : null}
-            <input
-              type="file"
-              accept=".pdf,.jpg,.jpeg,.png,.webp"
-              ref={medicalFileInputRef}
-              onChange={(e) => setMedicalDocumentFile(e.target.files?.[0] || null)}
-              hidden
-              aria-hidden="true"
-              tabIndex={-1}
-              className="hidden"
-            />
-            <div className={`mt-2 flex flex-wrap items-center gap-2 ${BLUSH_GLASS} px-3 py-2 text-sm text-neutral-200`}>
-              <button
-                type="button"
-                onClick={() => medicalFileInputRef.current?.click()}
-                className={BLUSH_SMALL}
-                aria-label="Choose medical document"
-              >
-                Choose File
-              </button>
-              <span className="text-xs text-neutral-400">
-                {medicalDocumentFile ? medicalDocumentFile.name : "No file selected"}
-              </span>
-              <span className="w-full text-[11px] text-neutral-500">
-                Accepted files: PDF, JPG, JPEG, PNG, WEBP
-              </span>
-            </div>
-          </Field>
-
-          <div className="sm:col-span-2">
-            <Field label="Reason (RED requires 10+ chars)">
-              <textarea
-                className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-                rows={3}
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-              />
-            </Field>
-          </div>
+          )}
         </div>
 
-        {/* Type-specific */}
-        <div className={`mt-5 p-4 ${BLUSH_HIGHLIGHT}`}>
-          <div className="mb-3">
-            <div className={T_SECTION}>Details</div>
-            <div className={T_CAPTION}>Only the fields relevant to the selected request type are shown below.</div>
-          </div>
+        {/* Tab bar */}
+        <div className="flex border-b border-gray-200 bg-white">
+          <button className={activeTab === "form" ? TAB_A : TAB_I} onClick={() => setActiveTab("form")}>
+            <FileText size={14} /> Form
+          </button>
+          <button className={activeTab === "history" ? TAB_A : TAB_I} onClick={() => setActiveTab("history")}>
+            <ClipboardList size={14} /> My History
+          </button>
+          {isInbox && (
+            <button className={activeTab === "inbox" ? TAB_A : TAB_I} onClick={() => setActiveTab("inbox")}>
+              <BellRing size={14} /> Inbox
+            </button>
+          )}
+        </div>
 
-          {requestType === "time_change" ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="From (optional)">
-                <input className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`} value={from} onChange={(e) => setFrom(e.target.value)} />
-              </Field>
-              <Field label="To (required)">
-                <input className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`} value={to} onChange={(e) => setTo(e.target.value)} />
-              </Field>
-            </div>
-          ) : null}
+        <div className={CARD + " p-5 mt-0 rounded-t-none border-t-0"}>
 
-          {requestType === "swap" ? (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="With staff (counterparty)">
-                {staffNames.length > 0 ? (
-                  <select
-                    className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-                    value={withStaff}
-                    onChange={(e) => setWithStaff(e.target.value)}
-                  >
-                    <option value="">— Select staff member —</option>
-                    {staffNames
-                      .filter((n) => n !== staffName)
-                      .map((n) => (
-                        <option key={n} value={n}>{n}</option>
-                      ))}
+          {/* ── Tab 1: Form ────────────────────────────────────────────── */}
+          {activeTab === "form" && (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between">
+                <div className={SECTION}>Request Form</div>
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                  canSubmitForOthers
+                    ? "bg-amber-100 text-amber-700 border border-amber-200"
+                    : "bg-teal-100 text-teal-700 border border-teal-200"
+                }`}>
+                  {canSubmitForOthers ? "Manager mode" : "Self submit"}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="City">
+                  <select className={SELECT} value={city} onChange={e => setCity(e.target.value as "dubai" | "manila")}>
+                    <option value="dubai">Dubai</option>
+                    <option value="manila">Manila</option>
                   </select>
-                ) : (
-                  <input
-                    className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-                    value={withStaff}
-                    onChange={(e) => setWithStaff(e.target.value)}
-                    placeholder="Staff name"
-                  />
+                </Field>
+                <Field label="Branch">
+                  <select className={SELECT} value={branch} onChange={e => setBranch(e.target.value)}>
+                    {branchOptions.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}
+                  </select>
+                </Field>
+
+                <Field label="Staff name" hint={canSubmitForOthers ? "Submit on behalf of staff" : "Locked to login"}>
+                  {canSubmitForOthers && staffNames.length > 0 ? (
+                    <select className={SELECT} value={staffName} onChange={e => setStaffName(e.target.value)}>
+                      <option value="">— Select —</option>
+                      {staffNames.map(n => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  ) : (
+                    <input className={INPUT} value={staffName} readOnly={!canSubmitForOthers}
+                      onChange={e => setStaffName(e.target.value)} />
+                  )}
+                </Field>
+                <Field label="Work date">
+                  <DatePicker value={workDate} onChange={setWorkDate} />
+                </Field>
+
+                <Field label="Request type">
+                  <select className={SELECT} value={requestType}
+                    onChange={e => setRequestType(e.target.value as ReqType)}>
+                    {LEAVE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                </Field>
+
+                {/* Type-specific extras */}
+                {requestType === "time_change" && (
+                  <>
+                    <Field label="From (current)">
+                      <input className={INPUT} value={from} onChange={e => setFrom(e.target.value)} placeholder="e.g. 9-16" />
+                    </Field>
+                    <Field label="To (requested)">
+                      <input className={INPUT} value={to} onChange={e => setTo(e.target.value)} placeholder="e.g. 10-18" />
+                    </Field>
+                  </>
                 )}
-              </Field>
-              <div />
 
-              <Field label="My new time (my_to)">
-                <input className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`} value={myTo} onChange={(e) => setMyTo(e.target.value)} />
-              </Field>
+                {["paid_leave", "vacation", "absence", "day_off"].includes(requestType) && (
+                  <>
+                    <Field label="Leave sub-type">
+                      <select className={SELECT} value={leaveSubType} onChange={e => setLeaveSubType(e.target.value)}>
+                        <option value="annual_leave">Annual Leave</option>
+                        <option value="sick_leave">Sick Leave</option>
+                        <option value="emergency_leave">Emergency Leave</option>
+                        <option value="unpaid_leave">Unpaid Leave</option>
+                        <option value="maternity_leave">Maternity Leave</option>
+                        <option value="paternity_leave">Paternity Leave</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </Field>
+                    <Field label="Days">
+                      <input className={INPUT} type="number" min="0.5" step="0.5" value={leaveDays}
+                        onChange={e => setLeaveDays(e.target.value)} />
+                    </Field>
+                  </>
+                )}
 
-              <Field label="Their new time (their_to)">
-                <input className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`} value={theirTo} onChange={(e) => setTheirTo(e.target.value)} />
-              </Field>
+                {requestType === "overtime_request" && (
+                  <Field label="Overtime hours">
+                    <input className={INPUT} type="number" min="0.5" step="0.5" value={otHours}
+                      onChange={e => setOtHours(e.target.value)} placeholder="e.g. 2.5" />
+                  </Field>
+                )}
 
-              <div className="sm:col-span-2 text-xs text-neutral-400">
-                After submit: counterparty must approve with PIN in “Swap Approve” page.
+                {requestType === "swap" && (
+                  <>
+                    <Field label="Counterparty staff">
+                      {staffNames.length > 0 ? (
+                        <select className={SELECT} value={withStaff} onChange={e => setWithStaff(e.target.value)}>
+                          <option value="">— Select —</option>
+                          {staffNames.filter(n => n !== staffName).map(n => <option key={n} value={n}>{n}</option>)}
+                        </select>
+                      ) : (
+                        <input className={INPUT} value={withStaff} onChange={e => setWithStaff(e.target.value)} />
+                      )}
+                    </Field>
+                    <div />
+                    <Field label="My new time">
+                      <input className={INPUT} value={myTo} onChange={e => setMyTo(e.target.value)} />
+                    </Field>
+                    <Field label="Their new time">
+                      <input className={INPUT} value={theirTo} onChange={e => setTheirTo(e.target.value)} />
+                    </Field>
+                  </>
+                )}
+
+                <div className="col-span-2">
+                  <label className={LABEL}>Reason</label>
+                  <textarea className={INPUT + " resize-none"} rows={3} value={reason}
+                    onChange={e => setReason(e.target.value)} placeholder="At least 5 characters…" />
+                </div>
+
+                {/* Medical doc */}
+                {requestType !== "overtime_request" && (
+                  <div className="col-span-2">
+                    <label className={LABEL}>Medical document</label>
+                    <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                      <input type="checkbox" checked={medicalDoc} onChange={e => setMedicalDoc(e.target.checked)}
+                        className="h-4 w-4 accent-teal-600 rounded" />
+                      <span className="text-sm text-gray-700">I have a medical document</span>
+                      <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp"
+                        ref={medicalFileInputRef}
+                        onChange={e => setMedicalDocumentFile(e.target.files?.[0] ?? null)}
+                        className="hidden" aria-hidden tabIndex={-1} />
+                      {medicalDoc && (
+                        <button type="button" onClick={() => medicalFileInputRef.current?.click()}
+                          className="ml-auto rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 transition">
+                          {medicalDocumentFile ? medicalDocumentFile.name : "Choose file"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ) : null}
 
-          {requestType === "day_off" || requestType === "absence" || requestType === "paid_leave" || requestType === "vacation" || requestType === "other" ? (
-            <div className="text-sm text-neutral-400">No extra fields needed. Please write the reason.</div>
-          ) : null}
-        </div>
-
-        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-          <button
-            onClick={submit}
-            disabled={loading}
-            className={`${BLUSH_PRIMARY} min-h-10 w-full sm:w-auto`}
-          >
-            {loading ? "Submitting..." : "Submit"}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setReason("");
-              setError("");
-              setResult(null);
-            }}
-            className={`${BLUSH_SECONDARY} min-h-10 w-full sm:w-auto`}
-          >
-            Clear message
-          </button>
-          {error ? <div className="w-full text-sm text-red-300 sm:w-auto">{error}</div> : null}
-        </div>
-
-        {result ? (
-          <div className={`mt-4 ${BLUSH_HIGHLIGHT} p-5`}>
-            <div className="mb-4 flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 text-lg">✓</span>
-              <div>
-                <div className="font-semibold text-emerald-300 text-sm">Request Submitted</div>
-                <div className="text-xs text-neutral-400">Your request has been received and is pending review.</div>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              <div className="rounded-lg bg-violet-950/40 p-3">
-                <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1">Request ID</div>
-                <div className="font-mono text-xs text-neutral-300 break-all">{String(result.request_id || "—").slice(0, 8)}…</div>
-              </div>
-              <div className="rounded-lg bg-violet-950/40 p-3">
-                <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1">Urgency</div>
-                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
-                  result.urgency_status === "RED" ? "bg-rose-500/20 text-rose-300" :
-                  result.urgency_status === "YELLOW" ? "bg-amber-500/20 text-amber-300" :
-                  "bg-emerald-500/20 text-emerald-300"
-                }`}>{result.urgency_status || "—"}</span>
-              </div>
-              <div className="rounded-lg bg-violet-950/40 p-3">
-                <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1">Days Before</div>
-                <div className="text-sm font-semibold text-white">{result.days_before ?? "—"} <span className="text-xs text-neutral-400 font-normal">days</span></div>
-              </div>
-              {result.counterparty_status && result.counterparty_status !== "NOT_REQUIRED" && (
-                <div className="rounded-lg bg-violet-950/40 p-3">
-                  <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1">Counterparty</div>
-                  <div className="text-xs text-neutral-300">{result.counterparty_status}</div>
+              {error && (
+                <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                  <AlertCircle size={14} /> {error}
                 </div>
               )}
-              {result.medical_upload_status && result.medical_upload_status !== "not_uploaded" && (
-                <div className="rounded-lg bg-violet-950/40 p-3">
-                  <div className="text-[10px] uppercase tracking-wider text-neutral-500 mb-1">Medical Doc</div>
-                  <div className="text-xs text-neutral-300">{result.medical_upload_status}</div>
+
+              <div className="flex items-center gap-3">
+                <button onClick={() => { void submit(); }} disabled={loading} className={BTN_PRIM + " flex items-center gap-2"}>
+                  {loading ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+                  {loading ? "Submitting…" : "Submit"}
+                </button>
+                <button type="button" onClick={() => { setReason(""); setError(""); setResult(null); }}
+                  className={BTN_SEC}>Clear</button>
+              </div>
+
+              {result && (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle2 size={18} className="text-emerald-500" />
+                    <span className="font-semibold text-emerald-700 text-sm">Request submitted</span>
+                  </div>
+                  {(result.request_id || result.ok) && (
+                    <p className="text-xs text-emerald-600 font-mono">
+                      {result.request_id ? `ID: ${String(result.request_id).slice(0, 8)}…` : "Notification sent."}
+                    </p>
+                  )}
+                  {result.urgency_status && (
+                    <p className="mt-1 text-xs text-emerald-600">
+                      Urgency: <span className="font-semibold">{String(result.urgency_status)}</span>
+                      {" · "}Days before: <span className="font-semibold">{String(result.days_before)}</span>
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs text-emerald-500">Your manager has been notified and will review shortly.</p>
                 </div>
               )}
             </div>
-            <div className="mt-3 text-xs text-neutral-500">Your manager will be notified and will review the request shortly.</div>
-          </div>
-        ) : null}
+          )}
+
+          {/* ── Tab 2: History ─────────────────────────────────────────── */}
+          {activeTab === "history" && (
+            <HistoryTab staffName={staffName} city={city} />
+          )}
+
+          {/* ── Tab 3: Inbox ───────────────────────────────────────────── */}
+          {activeTab === "inbox" && isInbox && (
+            <InboxTab city={city} />
+          )}
+        </div>
       </div>
-      </motion.div>
     </div>
   );
 }

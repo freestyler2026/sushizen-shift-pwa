@@ -72,6 +72,8 @@ import {
   canAccessWeekPage,
   canAccessMyShiftPage,
   canAccessCalendarPage,
+  canAccessMyPay,
+  canAccessPayrollAdmin,
   clearAuth,
   getAuth,
   getAuthHeaders,
@@ -265,7 +267,7 @@ export default function NavBar() {
     if (href === "/admin/baseroll-prep") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
     if (href === "/admin/daily-report") return canAccessAnalyticsAdmin(auth);
     if (href === "/admin/discord-inbox") return canAccessAdminNav(auth);
-    if (href === "/admin/payroll") return ["HQ", "ADMIN", "MANILA_MANAGEMENT", "MANAGEMENT", "HR_MANAGER"].includes(role);
+    if (href === "/admin/payroll") return canAccessPayrollAdmin(auth);
     return false;
   }
 
@@ -575,6 +577,7 @@ export default function NavBar() {
         if (item.href === "/my-shift") return canAccessMyShiftPage(resolvedAuth);
         if (item.href === "/week") return canAccessWeekPage(resolvedAuth);
         if (item.href === "/calendar") return canAccessCalendarPage(resolvedAuth);
+        if (item.href === "/my-pay") return canAccessMyPay(resolvedAuth);
         return true;
       })
       .map((item) =>

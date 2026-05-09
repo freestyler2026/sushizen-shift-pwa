@@ -313,6 +313,8 @@ export function canAccessAdminNav(a?: Auth | null): boolean {
       "channel.admin.staff.manage_roles",
       "channel.admin.draft.view",
       "channel.admin.backoffice_evaluation.view",
+      "channel.admin.payroll.view",
+      "channel.admin.payroll.manage",
     ],
     a,
   );
@@ -497,6 +499,16 @@ export function canAccessMyShiftPage(a?: Auth | null): boolean {
 /** Calendar page — matches `calendar` channel in `app/access_control.py`. */
 export function canAccessCalendarPage(a?: Auth | null): boolean {
   return _canAccessStaffChannel("calendar", a);
+}
+
+/** Payroll admin — matches `admin.payroll` channel in `app/access_control.py`. */
+export function canAccessPayrollAdmin(a?: Auth | null): boolean {
+  return hasAnyPermission(["channel.admin.payroll.view", "channel.admin.payroll.manage"], a);
+}
+
+/** My Pay staff channel — matches `my_pay` channel in `app/access_control.py`. */
+export function canAccessMyPay(a?: Auth | null): boolean {
+  return _canAccessStaffChannel("my_pay", a);
 }
 
 export function stepUpSatisfies(required: StepUpLevel, a?: Auth | null): boolean {

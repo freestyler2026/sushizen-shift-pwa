@@ -2,37 +2,25 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import { ArrowRightLeft, ShieldCheck } from "lucide-react";
+import { ArrowRightLeft, CheckCircle2, ShieldCheck, XCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Field } from "@/components/Field";
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
-import {
-  GLASS_CARD,
-  INPUT_CLASS,
-  T_PAGE_TITLE,
-  T_SECTION,
-  T_BODY,
-  T_CAPTION,
-  BADGE_SUCCESS,
-} from "@/lib/ui-tokens";
 
-const PAGE_BG = "min-h-screen text-white";
-const BLUSH_GLASS = `${GLASS_CARD} bg-violet-950/30`;
-const BLUSH_HIGHLIGHT = "rounded-2xl border border-violet-500/20 bg-gradient-to-br from-violet-500/18 to-purple-500/10";
-const BLUSH_PRIMARY =
-  "rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 px-5 py-2.5 font-semibold text-white transition-all duration-200 shadow-lg shadow-violet-500/25 hover:scale-[1.02] hover:from-violet-400 hover:to-purple-400 hover:shadow-violet-500/40 active:scale-[0.98] disabled:opacity-60";
-const BLUSH_SECONDARY =
-  "rounded-xl border border-violet-400/15 bg-violet-950/30 px-5 py-2.5 text-white transition-all duration-200 hover:border-violet-500/25 hover:bg-violet-950/45 disabled:opacity-60";
+// ── Light theme ────────────────────────────────────────────────────────────────
+const PAGE_BG  = "min-h-screen bg-gray-50";
+const CARD     = "rounded-2xl border border-gray-200 bg-white shadow-sm";
+const SECTION  = "text-base font-semibold text-gray-900";
+const CAPTION  = "text-xs text-gray-500";
+const INPUT    = "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20";
+const BTN_APPROVE = "rounded-xl bg-teal-600 px-6 py-2.5 font-semibold text-white transition hover:bg-teal-500 disabled:opacity-50";
+const BTN_REJECT  = "rounded-xl border border-red-300 bg-white px-6 py-2.5 font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50";
 
 // ✅ api.ts と同じ方針：ENVが空なら同一オリジン（相対URL）
 const RAW_API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").trim();
 const API_BASE = RAW_API_BASE ? RAW_API_BASE.replace(/\/+$/, "") : "";
 
-// --------------------
-// helpers
-// --------------------
-function qs(params: Record<string, any>) {
+function qs(params: Record<string, unknown>) {
   const sp = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => {
     if (v === undefined || v === null) return;
@@ -44,13 +32,12 @@ function qs(params: Record<string, any>) {
   return s ? `?${s}` : "";
 }
 
-async function postJson<T = any>(path: string, headers?: HeadersInit): Promise<T> {
+async function postJson<T = unknown>(path: string, headers?: HeadersInit): Promise<T> {
   const url = `${API_BASE}${path}`;
   const res = await fetch(url, { method: "POST", headers });
   const text = await res.text();
 
   if (!res.ok) {
-    // FastAPIの {detail: "..."} も拾う
     try {
       const j = JSON.parse(text);
       throw new Error(j?.detail || j?.message || text || `HTTP ${res.status}`);
@@ -62,26 +49,22 @@ async function postJson<T = any>(path: string, headers?: HeadersInit): Promise<T
   try {
     return (text ? JSON.parse(text) : {}) as T;
   } catch {
-    // JSONで返らない場合でも落とさない
     return ({ ok: true, raw: text } as unknown) as T;
   }
 }
 
-// --------------------
-// component
-// --------------------
 export default function SwapApprovePage() {
   const router = useRouter();
-  const [reqId, setReqId] = useState("");
+  const [reqId, setReqId]       = useState("");
   const [staffName, setStaffName] = useState("");
-  const [pin, setPin] = useState("");
-  const [note, setNote] = useState("ok");
+  const [pin, setPin]           = useState("");
+  const [note, setNote]         = useState("ok");
 
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
-  const [error, setError] = useState("");
+  const [loading, setLoading]   = useState(false);
+  const [result, setResult]     = useState<unknown>(null);
+  const [error, setError]       = useState("");
+  const [done, setDone]         = useState<"approved" | "rejected" | null>(null);
 
-  // auth から名前を補完（pinは保存してない運用が多いので基本は入れない）
   useEffect(() => {
     let cancelled = false;
     async function init() {
@@ -95,34 +78,28 @@ export default function SwapApprovePage() {
       setStaffName(refreshed.staffName);
     }
     void init();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [router]);
 
-  const canSubmit = useMemo(() => {
-    return reqId.trim() && staffName.trim() && pin.trim() && note.trim();
-  }, [reqId, staffName, pin, note]);
+  const canSubmit = useMemo(
+    () => !!(reqId.trim() && staffName.trim() && pin.trim() && note.trim()),
+    [reqId, staffName, pin, note]
+  );
 
   const call = async (action: "APPROVED" | "REJECTED") => {
     if (!window.confirm(`Are you sure you want to ${action.toLowerCase()} this swap request?`)) return;
     setLoading(true);
     setError("");
     setResult(null);
+    setDone(null);
 
     try {
-      const q = qs({
-        req_id: reqId,
-        staff_name: staffName,
-        action,
-        note,
-        pin,
-      });
-
+      const q = qs({ req_id: reqId, staff_name: staffName, action, note, pin });
       const r = await postJson(`/api/shift_change/counterparty/respond${q}`, getAuthHeaders(getAuth()));
       setResult(r);
-    } catch (e: any) {
-      setError(e?.message || String(e));
+      setDone(action === "APPROVED" ? "approved" : "rejected");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
@@ -130,117 +107,147 @@ export default function SwapApprovePage() {
 
   return (
     <div className={PAGE_BG}>
-      <motion.div
-        className="mx-auto max-w-5xl space-y-6 px-4 py-8"
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, ease: "easeOut" }}
-      >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className={T_PAGE_TITLE}>Swap Approve</h1>
-          <p className={T_BODY}>Approve or reject a swap request as the designated counterparty.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={BADGE_SUCCESS}>
-            <ShieldCheck className="h-3 w-3" />
+      <div className="mx-auto max-w-lg space-y-5 px-4 py-10">
+
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">Swap Approve</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              Approve or reject a swap request as the designated counterparty.
+            </p>
+          </div>
+          <span className="flex items-center gap-1.5 rounded-full bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-700 border border-teal-200">
+            <ShieldCheck className="h-3.5 w-3.5" />
             Counterparty approval
           </span>
         </div>
-      </div>
 
-      <div className={`${BLUSH_GLASS} p-4 sm:p-5`}>
-        <div className="mb-4">
-          <div className={T_SECTION}>Approval Form</div>
-          <div className={T_CAPTION}>Your name must match the counterparty assigned to the swap request.</div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Request ID (req_id)">
-            <input
-              className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-              value={reqId}
-              onChange={(e) => setReqId(e.target.value)}
-              placeholder="e.g. 119ab8b2-..."
-              autoComplete="off"
-            />
-          </Field>
-
-          <Field label="Your name (must match counterparty)">
-            <input
-              className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-              value={staffName}
-              onChange={(e) => setStaffName(e.target.value)}
-              placeholder="e.g. Muskan Tamang"
-              autoComplete="name"
-            />
-          </Field>
-
-          <Field label="PIN">
-            <input
-              className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-              value={pin}
-              onChange={(e) => setPin(e.target.value)}
-              placeholder="PIN"
-              type="password"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-            />
-          </Field>
-
-          <Field label="Note (required)">
-            <input
-              className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="e.g. I agree / I decline"
-              autoComplete="off"
-            />
-          </Field>
-        </div>
-
-        <div className={`mt-5 p-4 ${BLUSH_HIGHLIGHT}`}>
-          <div className="mb-3 flex items-center gap-2">
-            <ArrowRightLeft className="h-4 w-4 text-amber-300" />
-            <div className={T_CAPTION}>Review the request carefully before confirming. This action affects both staff schedules.</div>
+        {/* Form card */}
+        <div className={`${CARD} p-5`}>
+          <div className="mb-4">
+            <div className={SECTION}>Approval Form</div>
+            <div className={`${CAPTION} mt-0.5`}>
+              Your name must match the counterparty assigned to the swap request.
+            </div>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-          <button
-            disabled={loading || !canSubmit}
-            onClick={() => call("APPROVED")}
-            className={`${BLUSH_PRIMARY} min-h-10 w-full sm:w-auto`}
-            type="button"
-          >
-            Approve
-          </button>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Request ID">
+              <input
+                className={INPUT}
+                value={reqId}
+                onChange={e => setReqId(e.target.value)}
+                placeholder="e.g. 119ab8b2-..."
+                autoComplete="off"
+              />
+            </Field>
 
-          <button
-            disabled={loading || !canSubmit}
-            onClick={() => call("REJECTED")}
-            className={`${BLUSH_SECONDARY} min-h-10 w-full sm:w-auto`}
-            type="button"
-          >
-            Reject
-          </button>
+            <Field label="Your name (must match counterparty)">
+              <input
+                className={INPUT}
+                value={staffName}
+                onChange={e => setStaffName(e.target.value)}
+                placeholder="e.g. Muskan Tamang"
+                autoComplete="name"
+              />
+            </Field>
 
-          {loading ? <div className="text-sm text-neutral-400">Working...</div> : null}
-          {error ? <div className="w-full text-sm text-red-300">{error}</div> : null}
-        </div>
-        </div>
+            <Field label="PIN">
+              <input
+                className={INPUT}
+                value={pin}
+                onChange={e => setPin(e.target.value)}
+                placeholder="PIN"
+                type="password"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+              />
+            </Field>
 
-        {result ? (
-          <div className={`mt-4 p-4 ${BLUSH_GLASS}`}>
-            <div className={T_SECTION}>Result</div>
-            <pre className="mt-2 overflow-auto text-xs text-neutral-300">{JSON.stringify(result, null, 2)}</pre>
+            <Field label="Note (required)">
+              <input
+                className={INPUT}
+                value={note}
+                onChange={e => setNote(e.target.value)}
+                placeholder="e.g. I agree / I decline"
+                autoComplete="off"
+              />
+            </Field>
           </div>
-        ) : null}
 
-        <div className="mt-3 text-xs text-neutral-500">
-          API base: {API_BASE ? API_BASE : "(same origin)"}
+          {/* Warning banner */}
+          <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <ArrowRightLeft className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
+            <p className="text-xs text-amber-700">
+              Review the request carefully before confirming. This action affects both staff schedules.
+            </p>
+          </div>
+
+          {/* Action buttons */}
+          <div className="mt-4 flex flex-wrap gap-3">
+            <button
+              disabled={loading || !canSubmit}
+              onClick={() => call("APPROVED")}
+              className={BTN_APPROVE}
+              type="button"
+            >
+              {loading ? "Working…" : "Approve"}
+            </button>
+
+            <button
+              disabled={loading || !canSubmit}
+              onClick={() => call("REJECTED")}
+              className={BTN_REJECT}
+              type="button"
+            >
+              Reject
+            </button>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="mt-3 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <XCircle className="h-4 w-4 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+        </div>
+
+        {/* Success */}
+        {done && (
+          <div className={`${CARD} p-5`}>
+            <div className={`flex items-center gap-3 ${done === "approved" ? "text-teal-700" : "text-red-600"}`}>
+              {done === "approved"
+                ? <CheckCircle2 className="h-6 w-6" />
+                : <XCircle className="h-6 w-6" />}
+              <div>
+                <div className="font-semibold">
+                  {done === "approved" ? "Swap approved" : "Swap rejected"}
+                </div>
+                <div className="mt-0.5 text-xs text-gray-500">
+                  The system has recorded your response. Both parties will be notified.
+                </div>
+              </div>
+            </div>
+
+            {result && (
+              <details className="mt-4">
+                <summary className="cursor-pointer text-xs text-gray-400 hover:text-gray-600">
+                  View API response
+                </summary>
+                <pre className="mt-2 overflow-auto rounded-lg bg-gray-100 p-3 text-xs text-gray-600">
+                  {JSON.stringify(result, null, 2)}
+                </pre>
+              </details>
+            )}
+          </div>
+        )}
+
+        <div className="text-center text-xs text-gray-400">
+          API: {API_BASE ? API_BASE : "(same origin)"}
         </div>
       </div>
-      </motion.div>
     </div>
   );
 }
