@@ -553,6 +553,10 @@ export default function PayrollPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Link href="/admin/payroll/manila"
+            className="flex items-center gap-1.5 rounded-lg border border-violet-400 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-100 transition">
+            Manila Payroll <ArrowRight size={13} />
+          </Link>
           <Link href={`/admin/payroll/loans?city=${city}`}
             className="flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-100 transition">
             Loans <ArrowRight size={13} />
