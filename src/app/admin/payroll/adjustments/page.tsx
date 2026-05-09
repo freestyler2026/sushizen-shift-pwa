@@ -259,6 +259,7 @@ export default function AdjustmentsPage() {
 
   const loadCycles = useCallback(async (c: string) => {
     const id = ++cycleLoadRef.current;
+    setBusy(true);
     try {
       const r = await apiFetch(`${API}/cycles?city=${encodeURIComponent(c)}`);
       if (id !== cycleLoadRef.current) return;
@@ -268,6 +269,8 @@ export default function AdjustmentsPage() {
       if (data.cycles.length > 0) setSelectedCycle(prev => prev ?? data.cycles[0]);
     } catch {
       if (id === cycleLoadRef.current) setErr("Network error — please try again");
+    } finally {
+      if (id === cycleLoadRef.current) setBusy(false);
     }
   }, []);
 
@@ -300,7 +303,7 @@ export default function AdjustmentsPage() {
 
   async function deleteAdj(id: string) {
     if (!confirm("Delete this adjustment? This cannot be undone.")) return;
-    setDeletingId(id);
+    setErr(""); setDeletingId(id);
     try {
       const r = await apiFetch(`${API}/adjustments/${id}?city=${encodeURIComponent(city)}`, { method: "DELETE" });
       if (!r.ok) { setErr(await extractApiError(r, "Failed to delete adjustment")); return; }
@@ -404,14 +407,17 @@ export default function AdjustmentsPage() {
             )}
             {/* New Adjustment group */}
             <button className={`${PRIMARY_BUTTON} text-sm py-2 px-3 flex items-center gap-1`}
+              disabled={!selectedCycle}
               onClick={() => { setModalType("addition"); setEditingAdj(null); setShowModal(true); }}>
               <Plus size={14} />Addition
             </button>
-            <button className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 flex items-center gap-1"
+            <button className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300 hover:bg-red-500/20 flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={!selectedCycle}
               onClick={() => { setModalType("deduction"); setEditingAdj(null); setShowModal(true); }}>
               <Plus size={14} />Deduction
             </button>
-            <button className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300 hover:bg-amber-500/20 flex items-center gap-1"
+            <button className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-300 hover:bg-amber-500/20 flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={!selectedCycle}
               onClick={() => { setModalType("recurring_deduction"); setEditingAdj(null); setShowModal(true); }}>
               <Plus size={14} />Recurring
             </button>

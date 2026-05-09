@@ -9,8 +9,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getAuth } from "@/lib/auth";
 import {
-  BADGE_ERROR, BADGE_INFO, BADGE_SUCCESS, BADGE_WARNING,
-  DANGER_BUTTON, GLASS_CARD, INPUT_CLASS, KPI_CARD, KPI_LABEL, KPI_VALUE,
+  BADGE_ERROR, BADGE_INFO, BADGE_SUCCESS,
+  GLASS_CARD, INPUT_CLASS, KPI_CARD, KPI_LABEL, KPI_VALUE,
   PRIMARY_BUTTON, SECONDARY_BUTTON, SELECT_CLASS, SMALL_BUTTON,
   T_PAGE_TITLE, TAB_ACTIVE, TAB_INACTIVE, TABLE_CELL, TABLE_HEADER, TABLE_ROW,
 } from "@/lib/ui-tokens";
@@ -244,7 +244,7 @@ function EmployeeDetailPanel({
     { label: "Other Allowances", value: row.other_allowances, section: "Base" },
     { label: "Gross Pay", value: row.gross_pay, section: "Subtotal", bold: true },
     { label: "Net Additions", value: row.net_additions, section: "Adjustments", positive: true },
-    { label: "Net Deductions", value: -row.net_deductions, section: "Adjustments", negative: true },
+    { label: "Net Deductions", value: row.net_deductions, section: "Adjustments", negative: true },
     { label: "Net Pay", value: row.net_pay, section: "Total", bold: true },
   ];
   const sections = ["Base", "Subtotal", "Adjustments", "Total"];
@@ -348,7 +348,10 @@ export default function PayrollPage() {
     try {
       const r = await apiFetch(`${API}/table?city=${encodeURIComponent(c)}&cycle_id=${cycleId}`);
       if (id !== tableLoadRef.current) return;
-      if (!r.ok) { setErr(await extractApiError(r, "Failed to load payroll table")); return; }
+      if (!r.ok) {
+        setRows([]); setTotalNetPay(0);
+        setErr(await extractApiError(r, "Failed to load payroll table")); return;
+      }
       const data = await r.json() as { rows: PayrollRow[]; total_net_pay: number };
       setRows(data.rows);
       setTotalNetPay(data.total_net_pay);
@@ -365,7 +368,10 @@ export default function PayrollPage() {
     try {
       const r = await apiFetch(`${API}/salary-configs?city=${encodeURIComponent(c)}`);
       if (id !== configLoadRef.current) return;
-      if (!r.ok) { setErr(await extractApiError(r, "Failed to load configs")); return; }
+      if (!r.ok) {
+        setConfigs([]);
+        setErr(await extractApiError(r, "Failed to load configs")); return;
+      }
       const data = await r.json() as { configs: SalaryConfig[] };
       setConfigs(data.configs);
     } catch {
@@ -378,7 +384,9 @@ export default function PayrollPage() {
   // On city change
   useEffect(() => {
     setSelectedCycle(null);
+    setCycles([]);
     setRows([]);
+    setTotalNetPay(0);
     setConfigs([]);
     void loadCycles(city);
   }, [city]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -462,13 +470,15 @@ export default function PayrollPage() {
   }
 
   function onConfigSaved(c: SalaryConfig) {
+    setShowConfigModal(false);
+    setEditingConfig(null);
+    // Guard: if city was switched while modal was open, discard the result and reload
+    if (c.city !== city) { void loadConfigs(city); return; }
     setConfigs(prev => {
       const idx = prev.findIndex(x => x.staff_name === c.staff_name);
       if (idx >= 0) { const next = [...prev]; next[idx] = c; return next; }
       return [...prev, c].sort((a, b) => a.staff_name.localeCompare(b.staff_name));
     });
-    setShowConfigModal(false);
-    setEditingConfig(null);
   }
 
   const currency = city === "manila" ? "PHP" : "AED";
@@ -547,7 +557,7 @@ export default function PayrollPage() {
           )}
 
           <div className="ml-auto flex gap-2">
-            <button className={SMALL_BUTTON} onClick={() => { void ensureCurrentCycle(); }}>
+            <button className={SMALL_BUTTON} onClick={() => { void ensureCurrentCycle(); }} disabled={busy || closingCycle}>
               <Plus size={12} /> New Cycle
             </button>
             <button className={SMALL_BUTTON} onClick={() => {
