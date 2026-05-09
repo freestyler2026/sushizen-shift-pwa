@@ -160,6 +160,8 @@ function GpsTab({ city }: { city: string }) {
   const [adding, setAdding] = useState(false);
   const [newBranch, setNewBranch] = useState("");
   const [err, setErr] = useState("");
+  // Tracks which branch_code is mid-delete so only that row shows a spinner
+  const [deletingBranch, setDeletingBranch] = useState<string | null>(null);
   // Stale-fetch guard: increment on each load, discard results from older calls
   const loadCountRef = useRef(0);
 
@@ -224,12 +226,13 @@ function GpsTab({ city }: { city: string }) {
 
   async function del(branch_code: string) {
     if (!confirm(`Delete GPS settings for ${branch_code}? This cannot be undone.`)) return;
+    setDeletingBranch(branch_code);
     setBusy(true); setErr("");
     try {
       const r = await apiFetch(`${API}/branch-gps/${city}/${branch_code}`, { method: "DELETE" });
       if (!r.ok) { setErr(await extractApiError(r, "Failed to delete GPS settings")); return; }
       await load();
-    } finally { setBusy(false); }
+    } finally { setBusy(false); setDeletingBranch(null); }
   }
 
   async function addNew() {
@@ -369,7 +372,7 @@ function GpsTab({ city }: { city: string }) {
                     <Pencil size={13} />
                   </button>
                   <button onClick={() => { void del(g.branch_code); }} disabled={busy} className="rounded-lg border border-red-500/20 p-1.5 text-red-400/60 hover:text-red-400 hover:border-red-500/40 transition-colors disabled:opacity-40">
-                    {busy ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                    {deletingBranch === g.branch_code ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
                   </button>
                 </div>
               </div>
@@ -427,12 +430,16 @@ function EditModal({
     try {
       const body: Record<string, string> = { note: form.note };
       if (form.check_in_time) {
-        body.check_in_at = localTimeToIso(session.work_date, form.check_in_time, session.city);
+        const iso = localTimeToIso(session.work_date, form.check_in_time, session.city);
+        if (!iso) { setErr("Invalid clock-in time — please re-enter"); setBusy(false); return; }
+        body.check_in_at = iso;
       } else {
         body.check_in_at = "";
       }
       if (form.check_out_time) {
-        body.check_out_at = localTimeToIso(session.work_date, form.check_out_time, session.city);
+        const iso = localTimeToIso(session.work_date, form.check_out_time, session.city);
+        if (!iso) { setErr("Invalid clock-out time — please re-enter"); setBusy(false); return; }
+        body.check_out_at = iso;
       } else {
         body.check_out_at = "";
       }
@@ -688,7 +695,10 @@ function DailyReportTab({ city }: { city: string }) {
       {!busy && !loadErr && filtered.length === 0 && (
         <div className="flex flex-col items-center gap-2 py-12 text-white/30">
           <Fingerprint size={32} />
-          <p className="text-sm">No attendance records for this date</p>
+          {sessions.length > 0
+            ? <p className="text-sm">No records match the selected filter</p>
+            : <p className="text-sm">No attendance records for this date</p>
+          }
         </div>
       )}
 
@@ -825,16 +835,21 @@ type Tab = "report" | "gps";
 export default function OsAttendanceAdminPage() {
   const router = useRouter();
   const auth = useMemo(() => getAuth(), []);
+  const role = auth?.role ?? "";
   const [tab, setTab] = useState<Tab>("report");
   const [city, setCity] = useState<"dubai" | "manila">("manila");
 
+  // Per CLAUDE.md: always include role checks to avoid locking out HQ/ADMIN users
+  // who may not have explicit channel permissions but still need full access.
+  const hasAccess = canAccessOsAttendanceAdmin(auth) || role === "HQ" || role === "ADMIN";
+
   useEffect(() => {
-    if (!canAccessOsAttendanceAdmin(auth)) {
+    if (!hasAccess) {
       router.replace("/week");
     }
-  }, [auth, router]);
+  }, [hasAccess, router]);
 
-  if (!canAccessOsAttendanceAdmin(auth)) return null;
+  if (!hasAccess) return null;
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-4 py-8">
