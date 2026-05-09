@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   CheckCircle2, ChevronDown, Download, FileText,
@@ -9,14 +9,13 @@ import {
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
-  GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, SMALL_BUTTON, DANGER_BUTTON,
+  GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, SMALL_BUTTON,
   KPI_CARD, KPI_LABEL, KPI_VALUE,
   TAB_CONTAINER, TAB_ACTIVE, TAB_INACTIVE,
   INPUT_CLASS, SELECT_CLASS,
   TABLE_HEADER, TABLE_ROW, TABLE_CELL,
   T_PAGE_TITLE, T_SECTION, T_LABEL, T_BODY, T_CAPTION,
-  BADGE_SUCCESS, BADGE_WARNING, BADGE_ERROR, BADGE_INFO,
-  DIVIDER,
+  BADGE_SUCCESS, BADGE_WARNING, BADGE_INFO,
 } from "@/lib/ui-tokens";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -302,7 +301,7 @@ function PayslipModal({ data, onClose }: { data: PayslipData; onClose: () => voi
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-export default function PayrollTransactionsPage() {
+function PayrollTransactionsInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const auth = getAuth();
@@ -850,5 +849,18 @@ export default function PayrollTransactionsPage() {
 
       {payslipData && <PayslipModal data={payslipData} onClose={() => setPayslipData(null)} />}
     </div>
+  );
+}
+
+// Next.js 15 requires useSearchParams() to be inside a Suspense boundary
+export default function PayrollTransactionsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0a0b0f] flex items-center justify-center">
+        <Loader2 className="h-7 w-7 animate-spin text-violet-400" />
+      </div>
+    }>
+      <PayrollTransactionsInner />
+    </Suspense>
   );
 }
