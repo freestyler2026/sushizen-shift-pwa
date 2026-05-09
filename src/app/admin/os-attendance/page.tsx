@@ -113,14 +113,20 @@ function isoToLocalTm(iso: string | null, tz = "Asia/Manila"): string {
     }).formatToParts(d);
     const h = parts.find(p => p.type === "hour")?.value ?? "00";
     const m = parts.find(p => p.type === "minute")?.value ?? "00";
-    return `${h.padStart(2, "0")}:${m.padStart(2, "0")}`;
+    // Some browsers (iOS Safari) return "24" for midnight with hour12:false — normalize to "00"
+    const hNum = parseInt(h, 10);
+    return `${String(hNum >= 24 ? hNum - 24 : hNum).padStart(2, "0")}:${m.padStart(2, "0")}`;
   } catch { return ""; }
 }
 
 // Combine work_date (YYYY-MM-DD) + HH:MM in city local time → UTC ISO
 function localTimeToIso(date: string, hhmm: string, city = "manila"): string {
-  if (!hhmm) return "";
-  return new Date(`${date}T${hhmm}:00${cityOffset(city)}`).toISOString();
+  if (!hhmm || !date) return "";
+  try {
+    const d = new Date(`${date}T${hhmm}:00${cityOffset(city)}`);
+    if (isNaN(d.getTime())) return "";
+    return d.toISOString();
+  } catch { return ""; }
 }
 
 function sessionStatus(s: AttendanceSession): "clocked_out" | "on_shift" | "not_clocked_in" {
@@ -201,6 +207,9 @@ function GpsTab({ city }: { city: string }) {
     if (isNaN(lat) || isNaN(lng) || isNaN(radius_m)) {
       setErr("Please enter valid numbers for latitude, longitude, and radius"); return;
     }
+    if (lat < -90 || lat > 90) { setErr("Latitude must be between −90 and 90"); return; }
+    if (lng < -180 || lng > 180) { setErr("Longitude must be between −180 and 180"); return; }
+    if (radius_m <= 0 || radius_m > 10000) { setErr("Radius must be between 1 and 10,000 metres"); return; }
     setBusy(true); setErr("");
     try {
       const r = await apiFetch(`${API}/branch-gps/${city}/${branch_code}`, {
@@ -231,6 +240,9 @@ function GpsTab({ city }: { city: string }) {
     if (isNaN(lat) || isNaN(lng) || isNaN(radius_m)) {
       setErr("Please enter valid numbers for latitude, longitude, and radius"); return;
     }
+    if (lat < -90 || lat > 90) { setErr("Latitude must be between −90 and 90"); return; }
+    if (lng < -180 || lng > 180) { setErr("Longitude must be between −180 and 180"); return; }
+    if (radius_m <= 0 || radius_m > 10000) { setErr("Radius must be between 1 and 10,000 metres"); return; }
     setBusy(true); setErr("");
     try {
       const r = await apiFetch(`${API}/branch-gps/${city}/${newBranch.trim().toUpperCase()}`, {
@@ -297,7 +309,7 @@ function GpsTab({ city }: { city: string }) {
           </div>
           <div className="flex gap-2 justify-end">
             <button onClick={() => setAdding(false)} className="rounded-lg border border-white/10 px-4 py-1.5 text-sm text-white/60 hover:text-white transition-colors">Cancel</button>
-            <button onClick={addNew} disabled={busy} className={PRIMARY_BUTTON + " text-sm py-1.5 px-4"}>Save</button>
+            <button onClick={() => { void addNew(); }} disabled={busy} className={PRIMARY_BUTTON + " text-sm py-1.5 px-4"}>Save</button>
           </div>
         </div>
       )}
@@ -335,7 +347,7 @@ function GpsTab({ city }: { city: string }) {
                 {err && <p className="text-xs text-red-400">{err}</p>}
                 <div className="flex gap-2 justify-end">
                   <button onClick={() => setEditing(null)} className="rounded-lg border border-white/10 px-4 py-1.5 text-sm text-white/60 hover:text-white transition-colors">Cancel</button>
-                  <button onClick={() => save(g.branch_code)} disabled={busy} className={PRIMARY_BUTTON + " text-sm py-1.5 px-4"}>Save</button>
+                  <button onClick={() => { void save(g.branch_code); }} disabled={busy} className={PRIMARY_BUTTON + " text-sm py-1.5 px-4"}>Save</button>
                 </div>
               </div>
             ) : (
@@ -353,11 +365,11 @@ function GpsTab({ city }: { city: string }) {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => startEdit(g)} className="rounded-lg border border-white/10 p-1.5 text-white/40 hover:text-white hover:border-white/20 transition-colors">
+                  <button onClick={() => startEdit(g)} disabled={busy} className="rounded-lg border border-white/10 p-1.5 text-white/40 hover:text-white hover:border-white/20 transition-colors disabled:opacity-40">
                     <Pencil size={13} />
                   </button>
-                  <button onClick={() => del(g.branch_code)} className="rounded-lg border border-red-500/20 p-1.5 text-red-400/60 hover:text-red-400 hover:border-red-500/40 transition-colors">
-                    <Trash2 size={13} />
+                  <button onClick={() => { void del(g.branch_code); }} disabled={busy} className="rounded-lg border border-red-500/20 p-1.5 text-red-400/60 hover:text-red-400 hover:border-red-500/40 transition-colors disabled:opacity-40">
+                    {busy ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
                   </button>
                 </div>
               </div>
@@ -478,7 +490,7 @@ function EditModal({
 
         <div className="flex gap-2 justify-end">
           <button onClick={onClose} className="rounded-lg border border-white/10 px-4 py-1.5 text-sm text-white/60 hover:text-white transition-colors">Cancel</button>
-          <button onClick={handleSave} disabled={busy} className={PRIMARY_BUTTON + " text-sm py-1.5 px-4"}>
+          <button onClick={() => { void handleSave(); }} disabled={busy} className={PRIMARY_BUTTON + " text-sm py-1.5 px-4"}>
             {busy ? <Loader2 size={14} className="animate-spin" /> : "Save"}
           </button>
         </div>
@@ -521,12 +533,15 @@ function DailyReportTab({ city }: { city: string }) {
     setSessions([]);
   }, [city]);
 
-  // Load dropdown options
+  // Load dropdown options (staff names + branch codes for filter selects)
   useEffect(() => {
     setMetaBusy(true);
     apiFetch(`${API}/session-meta?city=${city}`)
-      .then(r => r.json())
-      .then(d => { if (d.ok) setMeta({ staff_names: d.staff_names ?? [], branch_codes: d.branch_codes ?? [] }); })
+      .then(async r => {
+        if (!r.ok) return;
+        const d = await r.json() as { staff_names?: string[]; branch_codes?: string[] };
+        setMeta({ staff_names: d.staff_names ?? [], branch_codes: d.branch_codes ?? [] });
+      })
       .catch(() => {})
       .finally(() => setMetaBusy(false));
   }, [city]);
@@ -731,7 +746,7 @@ function DailyReportTab({ city }: { city: string }) {
                             className="rounded-lg border border-white/10 p-1.5 text-white/40 hover:text-white hover:border-white/20 transition-colors">
                             <Pencil size={12} />
                           </button>
-                          <button onClick={() => handleDelete(s)} disabled={deleting}
+                          <button onClick={() => { void handleDelete(s); }} disabled={deleting}
                             className="rounded-lg border border-red-500/20 p-1.5 text-red-400/50 hover:text-red-400 hover:border-red-500/40 transition-colors">
                             {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
                           </button>
