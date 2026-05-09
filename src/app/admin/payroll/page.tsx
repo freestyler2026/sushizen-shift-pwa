@@ -576,7 +576,7 @@ export default function PayrollPage() {
         </div>
       )}
 
-      {/* ── Summary header (Bayzat-style) ────────────────────────────────────── */}
+      {/* ── Summary header ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 divide-x divide-gray-200 bg-white border-b border-gray-200">
         <div className="px-6 py-5">
           <p className="text-xs text-gray-500 mb-1">Total net pay for {cycleName}</p>
@@ -588,76 +588,75 @@ export default function PayrollPage() {
             {selectedCycle?.status === "closed" ? `${currency} ${n(totalNetPay)}` : `${currency} 0.00`}
           </p>
         </div>
-        <div className="px-6 py-5 flex items-start justify-between">
-          <div>
-            <p className="text-xs text-gray-500 mb-1">Total unpaid</p>
-            <p className="text-2xl font-bold text-red-500 tabular-nums">
-              {selectedCycle?.status === "closed" ? `${currency} 0.00` : `${currency} ${n(totalNetPay)}`}
-            </p>
-            {rows.length > 0 && (
-              <p className="text-xs text-gray-400 mt-1">{rows.length} employees</p>
-            )}
-          </div>
-          {/* Cycle controls */}
-          <div className="flex flex-col items-end gap-2">
-            <div className="flex items-center gap-2">
-              <select
-                className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs text-gray-700 outline-none focus:border-teal-500"
-                value={selectedCycle?.id ?? ""}
-                onChange={e => {
-                  const c = cycles.find(x => x.id === Number(e.target.value));
-                  if (c) setSelectedCycle(c);
-                }}
-              >
-                {cycles.length === 0 && <option value="">No cycles</option>}
-                {cycles.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {MONTHS[c.month - 1]} {c.year} — {c.status === "open" ? "Open" : "Closed"}
-                  </option>
-                ))}
-              </select>
-              {selectedCycle && (
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                  selectedCycle.status === "open"
-                    ? "bg-green-100 text-green-700 border border-green-200"
-                    : "bg-gray-100 text-gray-600 border border-gray-200"
-                }`}>
-                  {selectedCycle.status === "open" ? "Open" : "Closed"}
-                </span>
-              )}
-            </div>
-            <div className="flex gap-1.5">
-              <button className="flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
-                onClick={() => { void ensureCurrentCycle(); }} disabled={busy}>
-                <Plus size={11} /> New Cycle
-              </button>
-              <button className="flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
-                onClick={() => {
-                  if (tab === "configs") void loadConfigs(city);
-                  else if (selectedCycle) void loadTable(selectedCycle.id, city);
-                }} disabled={busy}>
-                <RefreshCw size={11} className={busy ? "animate-spin" : ""} /> Refresh
-              </button>
-              {rows.length > 0 && (
-                <button className="flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
-                  onClick={downloadCSV}>
-                  <Download size={11} /> Download
-                </button>
-              )}
-              {selectedCycle?.status === "open" && (
-                <button className="flex items-center gap-1 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-500 transition disabled:opacity-50"
-                  onClick={() => { void closeCycle(); }} disabled={closingCycle}>
-                  {closingCycle ? <Loader2 size={11} className="animate-spin" /> : "Close Cycle"}
-                </button>
-              )}
-              {selectedCycle?.status === "closed" && (
-                <button className="flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
-                  onClick={() => { void reopenCycle(); }} disabled={closingCycle}>
-                  {closingCycle ? <Loader2 size={11} className="animate-spin" /> : "Reopen"}
-                </button>
-              )}
-            </div>
-          </div>
+        <div className="px-6 py-5">
+          <p className="text-xs text-gray-500 mb-1">Total unpaid</p>
+          <p className="text-2xl font-bold text-red-500 tabular-nums">
+            {selectedCycle?.status === "closed" ? `${currency} 0.00` : `${currency} ${n(totalNetPay)}`}
+          </p>
+          {rows.length > 0 && (
+            <p className="text-xs text-gray-400 mt-1">{rows.length} employees</p>
+          )}
+        </div>
+      </div>
+
+      {/* ── Cycle controls toolbar ────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-white border-b border-gray-200 px-6 py-2">
+        <div className="flex items-center gap-2">
+          <select
+            className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs text-gray-700 outline-none focus:border-teal-500"
+            value={selectedCycle?.id ?? ""}
+            onChange={e => {
+              const c = cycles.find(x => x.id === Number(e.target.value));
+              if (c) setSelectedCycle(c);
+            }}
+          >
+            {cycles.length === 0 && <option value="">No cycles</option>}
+            {cycles.map(c => (
+              <option key={c.id} value={c.id}>
+                {MONTHS[c.month - 1]} {c.year} — {c.status === "open" ? "Open" : "Closed"}
+              </option>
+            ))}
+          </select>
+          {selectedCycle && (
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+              selectedCycle.status === "open"
+                ? "bg-green-100 text-green-700 border border-green-200"
+                : "bg-gray-100 text-gray-600 border border-gray-200"
+            }`}>
+              {selectedCycle.status === "open" ? "Open" : "Closed"}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <button className="flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
+            onClick={() => { void ensureCurrentCycle(); }} disabled={busy}>
+            <Plus size={11} /> New Cycle
+          </button>
+          <button className="flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
+            onClick={() => {
+              if (tab === "configs") void loadConfigs(city);
+              else if (selectedCycle) void loadTable(selectedCycle.id, city);
+            }} disabled={busy}>
+            <RefreshCw size={11} className={busy ? "animate-spin" : ""} /> Refresh
+          </button>
+          {rows.length > 0 && (
+            <button className="flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
+              onClick={downloadCSV}>
+              <Download size={11} /> Download
+            </button>
+          )}
+          {selectedCycle?.status === "open" && (
+            <button className="flex items-center gap-1 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-teal-500 transition disabled:opacity-50"
+              onClick={() => { void closeCycle(); }} disabled={closingCycle}>
+              {closingCycle ? <Loader2 size={11} className="animate-spin" /> : "Close Cycle"}
+            </button>
+          )}
+          {selectedCycle?.status === "closed" && (
+            <button className="flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition"
+              onClick={() => { void reopenCycle(); }} disabled={closingCycle}>
+              {closingCycle ? <Loader2 size={11} className="animate-spin" /> : "Reopen"}
+            </button>
+          )}
         </div>
       </div>
 
