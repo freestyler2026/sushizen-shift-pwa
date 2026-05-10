@@ -123,6 +123,11 @@ function PayslipDetail({
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-lg font-semibold text-white">{run.staff_name}</h2>
+            {period && (
+              <p className="text-xs text-violet-300/80 font-medium mt-0.5">
+                {period.period_label} &nbsp;·&nbsp; {period.start_date} → {period.end_date}
+              </p>
+            )}
             <p className="text-xs text-slate-400 mt-0.5">
               {run.salary_type === "monthly" ? "Monthly" : "Daily"}
               &nbsp;·&nbsp;Monthly Rate: {fmtPHP(run.monthly_rate)}

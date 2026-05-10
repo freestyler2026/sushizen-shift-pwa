@@ -2,7 +2,7 @@
 
 import {
   AlertCircle, ArrowRight, ChevronDown, ChevronRight, ChevronUp,
-  Download, DollarSign, Eye, EyeOff, Filter, Loader2, Pencil, Plus, RefreshCw,
+  Download, DollarSign, EyeOff, Filter, Loader2, Pencil, Plus, RefreshCw,
   Send, Settings, Users, X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
