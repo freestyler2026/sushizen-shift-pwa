@@ -24,12 +24,15 @@ npm run build
 # Lint
 npm run lint
 
-# Deploy frontend to Vercel (GitHub連携 — git push のみ使用すること)
-# ⚠️ vercel --prod (CLI) は使用禁止：20秒で終わる偽ビルドになり /week 等が404になる
-git push origin main
+# ✅ Deploy frontend to Vercel — ローカルターミナルから直接実行
+# ⚠️ GitHub連携は現在無効（2026-05 時点、再接続待ち）
+# ⚠️ Cowork サンドボックスから vercel コマンドは実行不可。必ずユーザーのローカルターミナルで実行すること
+git add -A && git commit -m "your message"
+vercel --prod
 
-# Deploy backend to Heroku
+# Deploy backend to Heroku — ローカルターミナルから実行（Cowork サンドボックス不可）
 cd ../sushizen_shift_app_clean
+git add -A && git commit -m "your message"
 git push heroku HEAD:master --force
 
 # Heroku logs
@@ -91,11 +94,23 @@ All Tailwind class constants are defined here: `GLASS_CARD`, `PRIMARY_BUTTON`, `
 
 ## Critical State: Git & Vercel
 
-**Correct production commit: `a5c28d2`** ("Late Analysis: visual overhaul with bar charts, severity heatmap, rank badges")
+**Vercel デプロイ方式（2026-05 現在）**
+- **GitHub連携は無効**（Vercel ↔ GitHub の接続が切れている。再接続依頼中）
+- **代替方式: `vercel --prod` をローカルターミナルから直接実行**
+- `git push origin main` だけではデプロイされない。必ず `vercel --prod` も実行すること
+- Cowork（Claude サンドボックス）からは `vercel` コマンドを実行できない。ユーザーが手動で実行する
 
-- This is the 2524-line version of `admin/draft/page.tsx` and represents the full-featured state of the app.
-- Vercel production was restored to this commit via "Promote to Production" on deployment `4q5uWAHuo`.
-- If the git branch diverges from `a5c28d2`, sync it with: `git reset --hard a5c28d2 && git push origin main --force`
+```bash
+# フロントエンドデプロイ手順（毎回この手順）
+cd /Users/jaynishimura/Desktop/sushizen-shift-pwa
+git add -A
+git commit -m "your message"
+vercel --prod
+```
+
+**過去の正常 commit: `a5c28d2`** ("Late Analysis: visual overhaul with bar charts, severity heatmap, rank badges")
+- `admin/draft/page.tsx` の 2524 行版がこの commit。
+- 問題発生時は Vercel Dashboard → Deployments → 該当 deployment → "Promote to Production" で即時ロールバック可能。
 
 ---
 
@@ -114,44 +129,69 @@ This is the largest and most complex page (2524 lines). Its key structural secti
 
 ---
 
-## Heroku デプロイ手順と注意事項
+## デプロイ手順と注意事項（繰り返し確認用）
 
-### `git push heroku HEAD:master --force` が "Everything up-to-date" になる場合
+### ⚠️ Cowork（Claude サンドボックス）からできないこと
+以下は必ずユーザーのローカルターミナルで実行すること：
+- `git push heroku HEAD:master --force` — Heroku git への HTTPS 接続がブロックされている
+- `vercel --prod` — Vercel CLI もサンドボックスから実行不可
+- `.git/*.lock` ファイルの削除 — サンドボックスに削除権限がない
 
-このメッセージは **エラーではなく正常**。Heroku の remote がすでに最新 commit を持っているため push 不要の状態。
-
-**考えられる原因：**
-- Claude（Cowork）がサンドボックス内で commit を作成したが、Heroku remote は別途同じ内容をすでに持っている
-- 過去に同じ commit を別のターミナルセッションで push 済み
-
-**対処法 — 変更が Heroku に反映されているか確認する：**
+### フロントエンド（Vercel）デプロイ手順
 ```bash
-# Heroku の現在のリリース情報を確認
-heroku releases -a sushizen-shift-app -n 5
-
-# ログで起動・変更を確認
-heroku logs -a sushizen-shift-app -n 50
+cd /Users/jaynishimura/Desktop/sushizen-shift-pwa
+git add -A
+git commit -m "your message"
+vercel --prod
+# ※ GitHub連携無効のため git push origin main だけではデプロイされない
 ```
 
-**強制的に再デプロイしたい場合（空コミットで push を強制）：**
+### バックエンド（Heroku）デプロイ手順
+```bash
+cd /Users/jaynishimura/Desktop/sushizen_shift_app_clean
+git add -A
+git commit -m "your message"
+git push heroku HEAD:master --force
+```
+
+### git index.lock エラーが出たとき
+Cowork セッションがクラッシュすると lock ファイルが残る。ユーザーが手動で削除：
+```bash
+rm /Users/jaynishimura/Desktop/sushizen-shift-pwa/.git/index.lock
+rm /Users/jaynishimura/Desktop/sushizen_shift_app_clean/.git/index.lock
+# HEAD.lock の場合も同様
+rm /Users/jaynishimura/Desktop/sushizen_shift_app_clean/.git/HEAD.lock
+```
+
+### `git push heroku` が "Everything up-to-date" になる場合
+エラーではなく正常。既に最新 commit が Heroku にある状態。確認：
+```bash
+heroku releases -a sushizen-shift-app -n 5
+heroku logs -a sushizen-shift-app -n 50
+```
+強制再デプロイしたい場合：
 ```bash
 git commit --allow-empty -m "force redeploy"
 git push heroku HEAD:master --force
 ```
 
-### `git commit` が "Unable to create HEAD.lock" で失敗する場合
-
-前回の git プロセスがクラッシュしたときにロックファイルが残ることがある。
-
+### Heroku ログ確認（よく使う）
 ```bash
-rm /Users/jaynishimura/Desktop/sushizen_shift_app_clean/.git/HEAD.lock
-# その後、通常通り git add / commit / push を実行
+heroku logs -a sushizen-shift-app -n 100
+heroku logs -a sushizen-shift-app --tail   # リアルタイム
+heroku logs -a sushizen-shift-app -n 100 | grep -E "attendance|sync|error" -i
 ```
 
-### Claude（Cowork）からのデプロイについて
-- Cowork のサンドボックスは Heroku git への HTTPS 接続がブロックされているため、`git push heroku` はユーザーのローカルターミナルから実行する必要がある
-- Vercel へのデプロイ（`vercel --prod`）も同様にローカルターミナルから実行すること
-- また、サンドボックスからは `.git/HEAD.lock` の削除権限もないため、ロック解除もユーザー側で行う必要がある
+### DB 確認（よく使うクエリ）
+```bash
+heroku pg:psql -a sushizen-shift-app
+
+# actual_attendance の最新データ確認
+SELECT attendance_date, COUNT(*) FROM actual_attendance GROUP BY attendance_date ORDER BY attendance_date DESC LIMIT 10;
+
+# attendance_drive_sources の状態確認
+SELECT id, folder_id, city_hint, is_enabled, last_synced_at, last_sync_status FROM attendance_drive_sources;
+```
 
 ---
 
@@ -190,6 +230,34 @@ After a deploy, the app must automatically reload in the browser **without requi
 - In `check()`, if baseline is null and a poll succeeds, SET the baseline (don't compare) — this handles the case where the startup fetch failed
 - Both `frontendBaseline` and `backendBaseline` must follow the same null-guard pattern
 - Do not introduce ESLint errors or build failures — they result in Vercel deploying a broken build that returns 404 on all routes
+
+---
+
+## Bayzat 勤怠同期 — 運用知識
+
+### 仕組み
+- Bayzat が勤怠 xlsx を Google Drive フォルダ（`0AJRy_FdAYDp2Uk9PVA`）に出力
+- バックエンドが Drive API でファイルを取得し `actual_attendance` テーブルに格納
+- OS Attendance の `daily-report` エンドポイントが `actual_attendance` と WebAuthn セッションをマージして返す
+- APScheduler が 05:18 UTC・07:18 UTC に自動同期（`_run_attendance_auto_sync_background`）
+
+### 手動同期ページ
+`/admin/attendance/import` — Approver Name + PIN を入力して以下のボタンが使える：
+- **Sync All（全件取り込み）** → Drive フォルダ内の全ファイルをスキャンし未取得を全件インポート（推奨）
+- **個別ファイルをSync** → 特定ファイルIDを指定して1件だけインポート
+- **Drive ファイル一覧** → サービスアカウントが見えているファイルを確認（診断用）
+
+### `attendance_drive_sources` テーブル
+- `folder_id` = `0AJRy_FdAYDp2Uk9PVA`（Shared Drive ルート）
+- `city_hint` = 空（DubaiとManilaが同じファイルに混在するため空にする）
+- `last_sync_status` が `DUPLICATE_HASH` になっていると自動同期がスキップされる
+  → リセット: `UPDATE attendance_drive_sources SET last_sync_status = '' WHERE id = 1;`
+
+### sync が動かないときの診断手順
+1. `heroku logs --tail` でリアルタイムログを確認しながら sync ボタンを押す
+2. `actual_attendance` の `attendance_date` 最大値を確認
+3. `attendance_drive_sources` の `last_sync_status` を確認
+4. `/admin/attendance/import` の「Drive ファイル一覧」でサービスアカウントがファイルを見えているか確認
 
 ---
 

@@ -57,7 +57,8 @@ type DriveFileItem = {
   webViewLink?: string;
 };
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
+// Always route through Next.js proxy (/api/admin/...) to avoid cross-origin issues
+const API_BASE = "";
 const DEFAULT_FOLDER_ID = "0AJRy_FdAYDp2Uk9PVA";
 
 function normalizeError(raw: string) {
@@ -75,12 +76,14 @@ async function apiFetch<T = any>(path: string, options?: RequestInit): Promise<T
   const res = await fetch(`${API_BASE}${path}`, options);
   const text = await res.text();
   if (!res.ok) {
+    let detail = text;
     try {
       const j = JSON.parse(text);
-      throw new Error(j?.detail || text || `Request failed`);
-    } catch {
-      throw new Error(text || `Request failed`);
-    }
+      const d = j?.detail;
+      if (typeof d === "string") detail = d;
+      else if (Array.isArray(d)) detail = d.map((e: any) => e?.msg || JSON.stringify(e)).join("; ");
+    } catch { /* keep detail = text */ }
+    throw new Error(detail || `Request failed`);
   }
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
