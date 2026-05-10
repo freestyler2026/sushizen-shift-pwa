@@ -50,6 +50,8 @@ interface Payslip {
   role_title: string;
   branch_code: string;
   paid_via: string;
+  staff_name: string;
+  city: string;
 }
 
 interface Adjustment {
@@ -132,6 +134,15 @@ function fmtDate(s: string | null | undefined) {
   return new Date(s).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
+function formatCycleLabel(year: number | null | undefined, month: number | null | undefined, fallback: string) {
+  if (year && month) {
+    try {
+      return new Date(year, month - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    } catch { /* fall through */ }
+  }
+  return fallback || "—";
+}
+
 function loanStatusBadge(status: string) {
   if (status === "active") return <span className={BADGE_INFO}>Active</span>;
   if (status === "completed") return <span className={BADGE_SUCCESS}>Completed</span>;
@@ -151,75 +162,150 @@ function leaveSalaryBadge(status: string) {
 // ─── Payslip Detail Modal ─────────────────────────────────────────────────────
 
 function PayslipModal({ slip, onClose }: { slip: Payslip; onClose: () => void }) {
+  const cycleDisplay = formatCycleLabel(slip.cycle_year, slip.cycle_month, slip.cycle_label);
+  const isManila = (slip.city || slip.currency === "PHP" ? "manila" : "dubai") === "manila"
+    || slip.currency === "PHP";
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className={`${GLASS_CARD} w-full max-w-md`}>
-        {/* Header */}
-        <div className="flex items-start justify-between p-6 border-b border-white/10">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-widest text-violet-400 mb-1">Pay Slip</p>
-            <h2 className="text-xl font-semibold text-white">{slip.cycle_label || "—"}</h2>
-            {slip.role_title && (
-              <p className="text-sm text-zinc-400 mt-0.5">{slip.role_title}</p>
-            )}
-            {slip.pay_date && (
-              <p className="text-xs text-zinc-500 mt-0.5">Pay date: {fmtDate(slip.pay_date)}</p>
-            )}
-          </div>
-          <button onClick={onClose} className="text-zinc-400 hover:text-white transition">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+    <>
+      {/* Print styles — shows only the payslip, white background */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          body * { visibility: hidden !important; }
+          #payslip-print, #payslip-print * { visibility: visible !important; }
+          #payslip-print {
+            position: fixed !important;
+            inset: 0 !important;
+            padding: 40px !important;
+            background: #ffffff !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+          }
+          .payslip-no-print { display: none !important; }
+        }
+      `}} />
 
-        {/* Breakdown */}
-        <div className="p-6 space-y-3">
-          <div className="flex justify-between text-sm">
-            <span className="text-zinc-400">Basic Salary</span>
-            <span className="text-white font-medium">{fmt(slip.basic_salary, slip.currency)}</span>
-          </div>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
+        <div className="w-full max-w-lg my-4">
+          {/* Payslip document */}
+          <div id="payslip-print" className="bg-white rounded-2xl overflow-hidden shadow-2xl">
 
-          {slip.net_additions > 0 && (
-            <div className="flex justify-between text-sm">
-              <span className="text-zinc-400">Additions</span>
-              <span className="text-emerald-400 font-medium">+{fmt(slip.net_additions, slip.currency)}</span>
+            {/* ── Document Header ── */}
+            <div className="bg-slate-900 px-6 py-5 flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-8 h-8 rounded-lg bg-violet-600 flex items-center justify-center shrink-0">
+                    <span className="text-white text-xs font-black tracking-tight">SZ</span>
+                  </div>
+                  <span className="text-white font-bold text-lg tracking-wide">Sushi ZEN</span>
+                </div>
+                <p className="text-slate-400 text-xs pl-10">
+                  {isManila ? "Manila Operations · Philippines" : "Dubai Operations · UAE"}
+                </p>
+              </div>
+              <div className="text-right ml-4">
+                <p className="text-xs font-semibold uppercase tracking-widest text-violet-400">Pay Slip</p>
+                <p className="text-white font-bold text-base mt-0.5">{cycleDisplay}</p>
+                {slip.pay_date && (
+                  <p className="text-slate-400 text-xs mt-0.5">Paid: {fmtDate(slip.pay_date)}</p>
+                )}
+              </div>
+              <button
+                onClick={onClose}
+                className="payslip-no-print ml-4 mt-0.5 text-slate-400 hover:text-white transition shrink-0"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-          )}
 
-          {slip.net_deductions > 0 && (
-            <div className="flex justify-between text-sm">
-              <span className="text-zinc-400">Deductions</span>
-              <span className="text-red-400 font-medium">−{fmt(slip.net_deductions, slip.currency)}</span>
+            {/* ── Employee Details ── */}
+            <div className="bg-slate-50 px-6 py-4 grid grid-cols-2 gap-x-6 gap-y-3 border-b border-slate-200">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-0.5">Employee</p>
+                <p className="text-sm font-semibold text-slate-800">{slip.staff_name || "—"}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-0.5">Position</p>
+                <p className="text-sm font-medium text-slate-700">{slip.role_title || "—"}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-0.5">Branch</p>
+                <p className="text-sm font-medium text-slate-700">{slip.branch_code || "—"}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-0.5">Payment Method</p>
+                <p className="text-sm font-medium text-slate-700 capitalize">{slip.paid_via || "—"}</p>
+              </div>
             </div>
-          )}
 
-          <div className="flex justify-between text-sm text-zinc-500">
-            <span>Gross Pay</span>
-            <span>{fmt(slip.gross_pay, slip.currency)}</span>
+            {/* ── Earnings & Deductions ── */}
+            <div className="px-6 py-5 bg-white space-y-1">
+              {/* Section label */}
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2">Earnings</p>
+
+              <div className="flex justify-between items-center py-2 border-b border-slate-100">
+                <span className="text-sm text-slate-600">Basic Salary</span>
+                <span className="text-sm font-medium text-slate-900 tabular-nums">{fmt(slip.basic_salary, slip.currency)}</span>
+              </div>
+
+              {slip.net_additions > 0 && (
+                <div className="flex justify-between items-center py-2 border-b border-slate-100">
+                  <span className="text-sm text-slate-600">Allowances & Additions</span>
+                  <span className="text-sm font-medium text-emerald-600 tabular-nums">+{fmt(slip.net_additions, slip.currency)}</span>
+                </div>
+              )}
+
+              {/* Gross pay subtotal */}
+              <div className="flex justify-between items-center py-2.5 px-3 -mx-3 bg-slate-50 rounded-lg mt-1">
+                <span className="text-sm font-semibold text-slate-700">Gross Pay</span>
+                <span className="text-sm font-bold text-slate-900 tabular-nums">{fmt(slip.gross_pay, slip.currency)}</span>
+              </div>
+
+              {slip.net_deductions > 0 && (
+                <>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 pt-3 mb-1">Deductions</p>
+                  <div className="flex justify-between items-center py-2 border-b border-slate-100">
+                    <span className="text-sm text-slate-600">Total Deductions</span>
+                    <span className="text-sm font-medium text-red-500 tabular-nums">−{fmt(slip.net_deductions, slip.currency)}</span>
+                  </div>
+                </>
+              )}
+
+              {/* Net pay highlight */}
+              <div className="mt-4 rounded-xl bg-gradient-to-r from-violet-600 to-purple-700 px-5 py-4 flex justify-between items-center">
+                <span className="text-white font-bold text-sm uppercase tracking-wide">Net Pay</span>
+                <span className="text-white font-black text-2xl tabular-nums">{fmt(slip.net_pay, slip.currency)}</span>
+              </div>
+            </div>
+
+            {/* ── Document Footer ── */}
+            <div className="px-6 pb-5 bg-white">
+              <p className="text-[11px] text-slate-400 text-center border-t border-slate-100 pt-4 leading-relaxed">
+                This is a system-generated payslip and does not require a signature.<br />
+                For queries, please contact your HR department.
+              </p>
+            </div>
+
+            {/* ── Action Buttons (hidden on print) ── */}
+            <div className="payslip-no-print px-6 pb-6 flex gap-3 bg-white border-t border-slate-100 pt-4">
+              <button
+                onClick={() => window.print()}
+                className="flex-1 rounded-xl border border-violet-200 bg-violet-50 py-2.5 text-sm font-semibold text-violet-700 transition hover:bg-violet-100 flex items-center justify-center gap-2"
+              >
+                <FileText className="h-4 w-4" />
+                Print / Save PDF
+              </button>
+              <button
+                onClick={onClose}
+                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100"
+              >
+                Close
+              </button>
+            </div>
           </div>
-
-          <div className="border-t border-white/10 pt-3 mt-3 flex justify-between items-end">
-            <span className="font-semibold text-white">Net Pay</span>
-            <span className="text-2xl font-bold text-emerald-400">{fmt(slip.net_pay, slip.currency)}</span>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="px-6 pb-6 flex gap-3">
-          <button
-            onClick={() => window.print()}
-            className="flex-1 rounded-xl border border-violet-400/20 bg-violet-500/10 py-2.5 text-sm font-medium text-violet-300 transition hover:bg-violet-500/20"
-          >
-            Print / Save PDF
-          </button>
-          <button
-            onClick={onClose}
-            className="flex-1 rounded-xl border border-white/10 bg-white/5 py-2.5 text-sm font-medium text-zinc-300 transition hover:bg-white/10"
-          >
-            Close
-          </button>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -319,7 +405,14 @@ export default function MyPayPage() {
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new Error(text || `HTTP ${res.status}`);
+      let detail = text;
+      try {
+        const j = JSON.parse(text);
+        const d = j?.detail;
+        if (typeof d === "string") detail = d;
+        else if (Array.isArray(d)) detail = d.map((e: any) => e?.msg || JSON.stringify(e)).join("; ");
+      } catch { /* keep detail = text */ }
+      throw new Error(detail || `HTTP ${res.status}`);
     }
     return res.json();
   }, []);
@@ -457,7 +550,9 @@ export default function MyPayPage() {
                   <p className="text-base font-bold text-emerald-400 leading-tight">
                     {fmt(summary.latest_payslip.net_pay, summary.latest_payslip.currency)}
                   </p>
-                  <p className="text-xs text-zinc-500 mt-0.5 truncate">{summary.latest_payslip.cycle_label}</p>
+                  <p className="text-xs text-zinc-500 mt-0.5 truncate">
+                    {summary.latest_payslip.cycle_label}
+                  </p>
                 </>
               ) : (
                 <p className="text-sm text-zinc-500">No records yet</p>
@@ -558,7 +653,9 @@ export default function MyPayPage() {
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-white text-sm">{slip.cycle_label}</p>
+                          <p className="font-semibold text-white text-sm">
+                            {formatCycleLabel(slip.cycle_year, slip.cycle_month, slip.cycle_label)}
+                          </p>
                           {slip.role_title && (
                             <p className="text-xs text-zinc-400 mt-0.5">{slip.role_title}</p>
                           )}
