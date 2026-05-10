@@ -2,7 +2,7 @@
 
 import {
   AlertCircle, Calculator, CalendarDays, CheckCircle2,
-  ChevronRight, Clock, Loader2, Plus, RefreshCw, AlertTriangle,
+  ChevronRight, Clock, Loader2, Plus, RefreshCw,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";

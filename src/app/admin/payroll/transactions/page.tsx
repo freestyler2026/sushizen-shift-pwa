@@ -344,13 +344,14 @@ function PayrollTransactionsInner() {
   const cycleLoadRef = useRef(0);
   const dataLoadRef = useRef(0);
 
-  // Auth guard
+  // Auth guard — intentionally runs once on mount
   useEffect(() => {
     if (!auth) { router.replace("/"); return; }
     const role = String((auth as { role?: string }).role || "").toUpperCase();
     if (!["HQ", "ADMIN", "MANILA_MANAGEMENT", "MANAGEMENT", "HR_MANAGER"].includes(role)) {
       router.replace("/week");
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load cycles — use cycleLoadRef for stale-fetch guard (separate from dataLoadRef)
@@ -396,6 +397,7 @@ function PayrollTransactionsInner() {
       if (pmtRes.ok) { const j = await pmtRes.json(); if (token === dataLoadRef.current) setPayments(j.payments || []); }
     } catch { if (token === dataLoadRef.current) setErr("Failed to load data"); }
     finally { if (token === dataLoadRef.current) setLoading(false); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city, cycleId]);
 
   useEffect(() => { void loadData(); }, [loadData]);

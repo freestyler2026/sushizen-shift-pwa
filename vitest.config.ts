@@ -10,6 +10,7 @@ export default defineConfig({
     setupFiles: ["./tests/setup.ts"],
     include: ["tests/**/*.test.{ts,tsx}"],
     coverage: {
+      provider: "v8",
       reporter: ["text", "lcov"],
       include: ["src/app/admin/payroll/**"],
     },

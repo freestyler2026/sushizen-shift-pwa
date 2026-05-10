@@ -464,13 +464,14 @@ export default function LoansPage() {
 
   const loadRef = useRef(0);
 
-  // Auth guard
+  // Auth guard — intentionally runs once on mount
   useEffect(() => {
     if (!auth) { router.replace("/"); return; }
     const role = String((auth as { role?: string }).role || "").toUpperCase();
     if (!["HQ", "ADMIN", "MANILA_MANAGEMENT", "MANAGEMENT", "HR_MANAGER"].includes(role)) {
       router.replace("/week");
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadLoans = useCallback(async () => {

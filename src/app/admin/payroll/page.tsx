@@ -508,7 +508,7 @@ export default function PayrollPage() {
 
   // ── Computed totals ───────────────────────────────────────────────────────
   const totalBasic      = rows.reduce((s, r) => s + r.basic_salary, 0);
-  const totalAllowances = rows.reduce((s, r) => s + r.allowances, 0);
+  const totalAllowances = rows.reduce((s, r) => s + (r.allowances ?? 0), 0);
   const totalGross      = rows.reduce((s, r) => s + r.gross_pay, 0);
   const totalNetAdd     = rows.reduce((s, r) => s + r.net_additions, 0);
   const totalNetDed     = rows.reduce((s, r) => s + r.net_deductions, 0);
@@ -803,7 +803,7 @@ export default function PayrollPage() {
                               )}
                             </td>
                             {visibleCols.basic      && <td className="px-3 py-3 text-right tabular-nums text-gray-700">{row.basic_salary.toFixed(2)}</td>}
-                            {visibleCols.allowances && <td className="px-3 py-3 text-right tabular-nums text-gray-700">{row.allowances.toFixed(2)}</td>}
+                            {visibleCols.allowances && <td className="px-3 py-3 text-right tabular-nums text-gray-700">{(row.allowances ?? 0).toFixed(2)}</td>}
                             {visibleCols.gross      && <td className="px-3 py-3 text-right tabular-nums text-gray-700">{row.gross_pay.toFixed(2)}</td>}
                             {visibleCols.workExp    && <td className="px-3 py-3 text-right tabular-nums text-gray-400">0.00</td>}
                             {visibleCols.netAdd     && (

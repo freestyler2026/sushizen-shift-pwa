@@ -116,7 +116,6 @@ export default function AttendanceAdminPage() {
     }
     void init();
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [auth, router]);
 
   const loadStatus = async () => {

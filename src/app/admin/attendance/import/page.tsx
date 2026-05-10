@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { RefreshCw, Upload } from "lucide-react";
+import { FolderSearch, RefreshCw, Upload } from "lucide-react";
 import { getAuth } from "@/lib/auth";
 import {
   BADGE_ERROR,
@@ -32,6 +32,15 @@ type DriveSyncResponse = {
     webViewLink?: string;
   };
   items?: any[];
+};
+
+type DriveFileItem = {
+  id: string;
+  name: string;
+  mimeType?: string;
+  modifiedTime?: string;
+  size?: string;
+  webViewLink?: string;
 };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
@@ -80,8 +89,10 @@ export default function AttendanceImportPage() {
 
   const [loadingLatest, setLoadingLatest] = useState(false);
   const [loadingSelected, setLoadingSelected] = useState(false);
+  const [loadingFiles, setLoadingFiles] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<DriveSyncResponse | null>(null);
+  const [driveFiles, setDriveFiles] = useState<DriveFileItem[] | null>(null);
 
   const canSyncLatest = useMemo(() => {
     return !!approverName.trim() && !!pin.trim() && !!folderId.trim();
@@ -131,6 +142,33 @@ export default function AttendanceImportPage() {
       setError(normalizeAttendanceSyncError(String(err?.message || err || "Drive sync failed")));
     } finally {
       setLoadingSelected(false);
+    }
+  }
+
+  async function listFiles() {
+    if (!approverName.trim() || !pin.trim()) return;
+    setLoadingFiles(true);
+    setError("");
+    setDriveFiles(null);
+    try {
+      const params = new URLSearchParams({
+        approver_name: approverName.trim(),
+        pin: pin.trim(),
+        folder_id: folderId.trim(),
+        limit: "20",
+      });
+      const res = await fetch(`${API_BASE}/api/admin/attendance/drive/files?${params}`);
+      const text = await res.text();
+      if (!res.ok) {
+        const j = text ? JSON.parse(text) : {};
+        throw new Error(j?.detail || text || "Failed to list Drive files");
+      }
+      const data = JSON.parse(text);
+      setDriveFiles(data?.items || []);
+    } catch (err: any) {
+      setError(normalizeAttendanceSyncError(String(err?.message || err || "Failed to list Drive files")));
+    } finally {
+      setLoadingFiles(false);
     }
   }
 
@@ -233,6 +271,16 @@ export default function AttendanceImportPage() {
             <div className="mt-6 flex flex-wrap gap-3">
               <button
                 type="button"
+                onClick={listFiles}
+                disabled={!approverName.trim() || !pin.trim() || loadingFiles}
+                className={`${SECONDARY_BUTTON} flex items-center gap-2 disabled:opacity-50`}
+              >
+                <FolderSearch className="h-4 w-4" />
+                {loadingFiles ? "Checking..." : "Check Drive Files"}
+              </button>
+
+              <button
+                type="button"
                 onClick={syncSelected}
                 disabled={!canSyncSelected || loadingSelected}
                 className={`${SECONDARY_BUTTON} flex items-center gap-2 disabled:opacity-50`}
@@ -260,6 +308,47 @@ export default function AttendanceImportPage() {
             <div className={`mt-6 ${BADGE_ERROR} inline-flex`}>
               {error}
             </div>
+          ) : null}
+
+          {driveFiles !== null ? (
+            <section className={`${GLASS_CARD} mt-6 p-4 shadow-2xl sm:p-6`}>
+              <div className="mb-3 flex items-center gap-2">
+                <FolderSearch className="h-4 w-4 text-sky-400" />
+                <div>
+                  <h2 className={T_SECTION}>Drive Files Visible to Service Account</h2>
+                  <p className={T_CAPTION}>{driveFiles.length} file{driveFiles.length !== 1 ? "s" : ""} found in folder {DEFAULT_FOLDER_ID}.</p>
+                </div>
+              </div>
+              {driveFiles.length === 0 ? (
+                <p className="text-sm text-zinc-400">No attendance files found. The service account may not have access to this folder, or the folder is empty.</p>
+              ) : (
+                <div className="space-y-2">
+                  {driveFiles.map((f) => (
+                    <div key={f.id} className={`${GLASS_CARD} flex flex-wrap items-center justify-between gap-3 p-3`}>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-white">{f.name}</p>
+                        <p className={`${T_CAPTION} mt-0.5 break-all`}>ID: {f.id}</p>
+                        {f.modifiedTime ? <p className={`${T_CAPTION}`}>Modified: {f.modifiedTime}</p> : null}
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setDriveFileId(f.id)}
+                          className={`${SECONDARY_BUTTON} text-xs py-1 px-2`}
+                        >
+                          Use this ID
+                        </button>
+                        {f.webViewLink ? (
+                          <a href={f.webViewLink} target="_blank" rel="noreferrer" className={`${SECONDARY_BUTTON} text-xs py-1 px-2`}>
+                            Open
+                          </a>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
           ) : null}
 
           {result ? (

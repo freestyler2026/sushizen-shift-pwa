@@ -2,7 +2,7 @@
 
 import {
   AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, ChevronDown,
-  ChevronUp, Clock, Loader2, Play, RefreshCw, X,
+  ChevronUp, Loader2, Play, X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
@@ -39,9 +39,9 @@ type Run = {
   staff_name: string;
   salary_type: string;
   daily_rate: number;
-  monthly_rate: number;
-  salary_divisor: number;
-  days_worked: number;
+  monthly_rate: number | null;
+  salary_divisor: number | null;
+  days_worked: number | null;
   gross_pay: number;
   total_deductions: number;
   net_pay: number;
@@ -63,8 +63,8 @@ type PayrollItem = {
   note: string | null;
 };
 
-const fmtPHP = (v: number) =>
-  "₱" + v.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtPHP = (v: number | null | undefined) =>
+  v == null ? "—" : "₱" + v.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const STATUS_BADGE: Record<string, string> = {
   draft:    "bg-slate-700 text-slate-300",
@@ -73,11 +73,7 @@ const STATUS_BADGE: Record<string, string> = {
   paid:     "bg-violet-900/60 text-violet-300 border border-violet-500/30",
 };
 
-const ITEM_TYPE_COLOR = {
-  earning:       "text-emerald-300",
-  deduction:     "text-red-300",
-  employer_cost: "text-slate-400",
-};
+
 
 export default function ManilaPayrollPeriodPage() {
   const router   = useRouter();
@@ -171,8 +167,8 @@ export default function ManilaPayrollPeriodPage() {
 
   // Sort runs
   const sortedRuns = [...runs].sort((a, b) => {
-    let va: string|number = sortBy === "name" ? a.staff_name : a.net_pay;
-    let vb: string|number = sortBy === "name" ? b.staff_name : b.net_pay;
+    const va: string|number = sortBy === "name" ? a.staff_name : a.net_pay;
+    const vb: string|number = sortBy === "name" ? b.staff_name : b.net_pay;
     if (typeof va === "string") return sortDir === "asc" ? va.localeCompare(String(vb)) : String(vb).localeCompare(va);
     return sortDir === "asc" ? (va as number) - (vb as number) : (vb as number) - (va as number);
   });
@@ -273,7 +269,7 @@ export default function ManilaPayrollPeriodPage() {
               </div>
             ) : runs.length === 0 ? (
               <div className={GLASS_CARD + " p-8 text-center"}>
-                <p className="text-slate-400 text-sm">No runs yet. Click "Compute All" to generate payroll.</p>
+                <p className="text-slate-400 text-sm">No runs yet. Click &quot;Compute All&quot; to generate payroll.</p>
               </div>
             ) : (
               <table className="w-full text-sm">
@@ -342,9 +338,9 @@ export default function ManilaPayrollPeriodPage() {
                   <div>
                     <h2 className="text-lg font-semibold text-white">{selectedRun.staff_name}</h2>
                     <p className="text-xs text-slate-400">
-                      Monthly ₱{selectedRun.monthly_rate.toLocaleString()}
-                      &nbsp;·&nbsp; Divisor {selectedRun.salary_divisor}
-                      &nbsp;·&nbsp; Days worked: {selectedRun.days_worked}
+                      Monthly {fmtPHP(selectedRun.monthly_rate)}
+                      &nbsp;·&nbsp; Divisor {selectedRun.salary_divisor ?? "—"}
+                      &nbsp;·&nbsp; Days worked: {selectedRun.days_worked ?? "—"}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">

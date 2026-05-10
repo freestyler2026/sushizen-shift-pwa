@@ -35,7 +35,7 @@ if (!IS_DEV) {
 const BUILD_ID =
   process.env.VERCEL_URL ||
   process.env.VERCEL_GIT_COMMIT_SHA ||
-  String(Date.now());
+  "dev";  // local build fallback — AutoReload skips comparison when either side is "dev"
 
 const nextConfig: NextConfig = {
   reactStrictMode: false,

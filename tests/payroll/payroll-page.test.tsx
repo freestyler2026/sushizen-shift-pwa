@@ -19,6 +19,7 @@ const ROW_MANILA = {
   accommodation: 0,
   transportation: 1500,
   other_allowances: 0,
+  allowances: 1500,          // accommodation + transportation + other_allowances
   net_additions: 0,
   net_deductions: 0,
   gross_pay: 31500,

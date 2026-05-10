@@ -77,6 +77,8 @@ type AttendanceSession = {
   late_minutes?: number | null;
   // Feature 4: synthetic no-show rows (client-side only, no real session)
   is_no_show?: boolean;
+  // Feature 6: source of the attendance record
+  source?: "webauthn" | "bayzat";
 };
 
 type SessionMeta = { staff_names: string[]; branch_codes: string[] };
@@ -160,6 +162,15 @@ function StatusBadge({ s }: { s: AttendanceSession }) {
   if (st === "clocked_out") return <span className={BADGE_SUCCESS}><CheckCircle size={10} />Clocked Out</span>;
   if (st === "on_shift") return <span className={BADGE_WARNING}><Loader2 size={10} className="animate-spin" />On Shift</span>;
   return <span className="inline-flex items-center gap-1 rounded-full bg-white/5 border border-white/10 px-2 py-0.5 text-xs text-white/40">Not Clocked In</span>;
+}
+
+function SourceBadge({ source }: { source?: "webauthn" | "bayzat" }) {
+  if (!source || source === "webauthn") return null;
+  return (
+    <span className="ml-1 inline-flex items-center rounded-full bg-blue-500/10 border border-blue-500/20 px-1.5 py-0 text-xs text-blue-400">
+      Bayzat
+    </span>
+  );
 }
 
 function LateBadge({ mins }: { mins: number | null | undefined }) {
@@ -884,7 +895,10 @@ function DailyReportTab({ city }: { city: string }) {
                           </button>
                         )}
                       </td>
-                      <td className={`${cellCls} font-medium text-white`}>{s.staff_name}</td>
+                      <td className={`${cellCls} font-medium text-white`}>
+                        {s.staff_name}
+                        <SourceBadge source={s.source} />
+                      </td>
                       <td className={`${cellCls} text-white/50`}>{s.branch_code || "—"}</td>
                       {rangeMode && <td className={`${cellCls} text-white/40 text-xs`}>{s.work_date}</td>}
                       <td className={`${cellCls}`}><StatusBadge s={s} /></td>

@@ -12,10 +12,15 @@ const localStorageMock = {
 Object.defineProperty(window, "localStorage", { value: localStorageMock });
 
 // ── next/navigation mock ──────────────────────────────────────────────────────
+// Stable shared router mock — same object across all useRouter() calls.
+// Reset in beforeEach so each test starts clean.
+export const routerMock = { push: vi.fn(), replace: vi.fn(), back: vi.fn() };
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+  useRouter: () => routerMock,
   useSearchParams: () => new URLSearchParams(),
   usePathname: () => "/admin/payroll",
+  useParams: () => ({}),
 }));
 
 // ── Default ADMIN auth ────────────────────────────────────────────────────────
@@ -36,6 +41,9 @@ beforeEach(() => {
   localStorageMock.clear();
   setAdminAuth("manila");
   vi.restoreAllMocks();
+  routerMock.push.mockReset();
+  routerMock.replace.mockReset();
+  routerMock.back.mockReset();
 });
 
 afterEach(() => {

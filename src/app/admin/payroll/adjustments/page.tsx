@@ -8,8 +8,8 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useRouter } from "next/navigation";
 import { getAuth } from "@/lib/auth";
 import {
-  BADGE_ERROR, BADGE_INFO, BADGE_SUCCESS, BADGE_WARNING, BADGE_ACCENT,
-  DANGER_BUTTON, GLASS_CARD, INPUT_CLASS, PRIMARY_BUTTON,
+  BADGE_ERROR, BADGE_INFO, BADGE_SUCCESS, BADGE_WARNING,
+  GLASS_CARD, INPUT_CLASS, PRIMARY_BUTTON,
   SECONDARY_BUTTON, SELECT_CLASS, SMALL_BUTTON,
   T_PAGE_TITLE, TAB_ACTIVE, TAB_INACTIVE, TABLE_CELL, TABLE_HEADER, TABLE_ROW,
 } from "@/lib/ui-tokens";

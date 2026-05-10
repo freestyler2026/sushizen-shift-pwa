@@ -10,7 +10,7 @@ import Link from "next/link";
 import { getAuth } from "@/lib/auth";
 import {
   GLASS_CARD, TAB_CONTAINER, TAB_ACTIVE, TAB_INACTIVE,
-  TABLE_HEADER, TABLE_ROW, TABLE_CELL, PRIMARY_BUTTON,
+  TABLE_HEADER, TABLE_ROW, TABLE_CELL,
 } from "@/lib/ui-tokens";
 
 const API = "/api/admin/manila-payroll";
@@ -99,7 +99,6 @@ const DAY_TYPE_LABELS: Record<string, string> = {
   double_regular_holiday_and_rest_day:    "Double Regular Holiday + Rest Day",
 };
 
-function pct(v: string | number) { return `${(parseFloat(String(v)) * 100).toFixed(0)}%`; }
 function dec(v: string | number, dp = 2) { return parseFloat(String(v)).toFixed(dp); }
 function php(v: string | number) { return `₱${parseFloat(String(v)).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
 
