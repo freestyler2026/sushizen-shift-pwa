@@ -2,7 +2,7 @@
 
 import {
   AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, ChevronDown,
-  ChevronUp, Loader2, Play, Printer, X,
+  ChevronUp, Eye, EyeOff, Loader2, Play, Printer, Send, X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
@@ -48,6 +48,8 @@ type Run = {
   minimum_wage_compliant: boolean | null;
   status: string;
   computed_at: string | null;
+  published_at: string | null;
+  published_by: string | null;
 };
 
 type PayrollItem = {
@@ -83,6 +85,8 @@ function PayslipDetail({
   items,
   itemsLoading,
   onApprove,
+  onPublish,
+  onUnpublish,
   onClose,
   period,
 }: {
@@ -90,6 +94,8 @@ function PayslipDetail({
   items: PayrollItem[];
   itemsLoading: boolean;
   onApprove: (id: number) => void;
+  onPublish: (id: number) => void;
+  onUnpublish: (id: number) => void;
   onClose: () => void;
   period: Period | null;
 }) {
@@ -129,13 +135,32 @@ function PayslipDetail({
               </p>
             )}
           </div>
-          <div className="flex items-center gap-2 ml-2 shrink-0">
+          <div className="flex items-center gap-2 ml-2 shrink-0 flex-wrap justify-end">
             {run.status === "computed" && (
               <button
                 onClick={() => onApprove(run.id)}
                 className="flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-900/30 px-3 py-1.5 text-xs text-emerald-300 hover:bg-emerald-900/50"
               >
                 <CheckCircle2 size={12} /> 承認
+              </button>
+            )}
+            {/* Publish / Unpublish */}
+            {run.published_at ? (
+              <button
+                onClick={() => onUnpublish(run.id)}
+                className="flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-900/20 px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-900/40"
+                title="公開を取り消す"
+              >
+                <EyeOff size={12} /> 非公開に戻す
+              </button>
+            ) : (
+              <button
+                onClick={() => onPublish(run.id)}
+                disabled={!["approved","paid","computed"].includes(run.status)}
+                className="flex items-center gap-1 rounded-lg border border-violet-500/40 bg-violet-900/30 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-900/50 disabled:opacity-40 disabled:cursor-not-allowed"
+                title="スタッフの My Pay に公開する"
+              >
+                <Send size={12} /> スタッフに公開
               </button>
             )}
             <button
@@ -154,6 +179,15 @@ function PayslipDetail({
         {run.minimum_wage_compliant === false && (
           <div className="mt-2 flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-900/20 px-3 py-2 text-xs text-amber-300">
             <AlertTriangle size={12} /> 日額が最低賃金（₱695/日）を下回っています
+          </div>
+        )}
+
+        {/* Published badge */}
+        {run.published_at && (
+          <div className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-900/20 px-3 py-2 text-xs text-emerald-300">
+            <Eye size={12} />
+            スタッフに公開済み — {new Date(run.published_at).toLocaleString("ja-JP")}
+            {run.published_by && <span className="text-emerald-400/60 ml-1">by {run.published_by}</span>}
           </div>
         )}
 
@@ -423,6 +457,47 @@ export default function ManilaPayrollPeriodPage() {
     }
   };
 
+  const publishRun = async (runId: number) => {
+    try {
+      const r = await apiFetch(`${API}/runs/${runId}/publish`, { method: "POST" });
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json() as { run: Run };
+      setRuns(prev => prev.map(ru => ru.id === runId ? { ...ru, published_at: data.run.published_at, published_by: data.run.published_by } : ru));
+      if (selectedRun?.id === runId) {
+        setSelectedRun(prev => prev ? { ...prev, published_at: data.run.published_at, published_by: data.run.published_by } : null);
+      }
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const unpublishRun = async (runId: number) => {
+    try {
+      const r = await apiFetch(`${API}/runs/${runId}/unpublish`, { method: "POST" });
+      if (!r.ok) throw new Error(await r.text());
+      setRuns(prev => prev.map(ru => ru.id === runId ? { ...ru, published_at: null, published_by: null } : ru));
+      if (selectedRun?.id === runId) {
+        setSelectedRun(prev => prev ? { ...prev, published_at: null, published_by: null } : null);
+      }
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const publishAll = async () => {
+    if (!period) return;
+    if (!confirm(`この期間の全スタッフ（承認済み・計算済み）の給与明細をスタッフの My Pay に公開しますか？`)) return;
+    try {
+      const r = await apiFetch(`${API.replace("/runs", "")}/periods/${periodId}/publish-all`, { method: "POST" });
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json() as { published_count: number };
+      await loadPeriod();
+      alert(`${data.published_count}件の給与明細を公開しました。`);
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
   // Sort runs
   const sortedRuns = [...runs].sort((a, b) => {
     const va: string|number = sortBy === "name" ? a.staff_name : a.net_pay;
@@ -481,16 +556,26 @@ export default function ManilaPayrollPeriodPage() {
                       {period.period_half === 2 && " · 法定控除あり（SSS/PhilHealth/Pag-IBIG）"}
                     </p>
                   </div>
-                  <button
-                    onClick={computeAll}
-                    disabled={computing}
-                    className={PRIMARY_BUTTON + " flex items-center gap-2 text-sm"}
-                  >
-                    {computing
-                      ? <Loader2 size={14} className="animate-spin" />
-                      : <Play size={14} />}
-                    Compute All
-                  </button>
+                  <div className="flex gap-2">
+                    {runs.length > 0 && runs.some(r => !r.published_at && ["approved","paid","computed"].includes(r.status)) && (
+                      <button
+                        onClick={publishAll}
+                        className="flex items-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-900/30 px-3 py-1.5 text-sm text-violet-200 hover:bg-violet-900/50"
+                      >
+                        <Send size={14} /> 全員公開
+                      </button>
+                    )}
+                    <button
+                      onClick={computeAll}
+                      disabled={computing}
+                      className={PRIMARY_BUTTON + " flex items-center gap-2 text-sm"}
+                    >
+                      {computing
+                        ? <Loader2 size={14} className="animate-spin" />
+                        : <Play size={14} />}
+                      Compute All
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -572,6 +657,7 @@ export default function ManilaPayrollPeriodPage() {
                         </span>
                       </th>
                       <th className="py-2 text-center text-xs text-slate-500">状態</th>
+                      <th className="py-2 text-center text-xs text-violet-400/70">公開</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -600,6 +686,11 @@ export default function ManilaPayrollPeriodPage() {
                           <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_BADGE[run.status] ?? STATUS_BADGE.draft}`}>
                             {run.status}
                           </span>
+                        </td>
+                        <td className="py-2.5 text-center">
+                          {run.published_at
+                            ? <span title="公開済み"><Eye size={13} className="inline text-emerald-400" /></span>
+                            : <span title="未公開"><EyeOff size={13} className="inline text-slate-600" /></span>}
                         </td>
                       </tr>
                     ))}
@@ -637,6 +728,8 @@ export default function ManilaPayrollPeriodPage() {
                 items={items}
                 itemsLoading={itemsLoading}
                 onApprove={approveRun}
+                onPublish={publishRun}
+                onUnpublish={unpublishRun}
                 onClose={() => setSelectedRun(null)}
                 period={period}
               />

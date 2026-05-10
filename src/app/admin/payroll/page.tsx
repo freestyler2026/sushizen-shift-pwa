@@ -2,8 +2,8 @@
 
 import {
   AlertCircle, ArrowRight, ChevronDown, ChevronRight, ChevronUp,
-  Download, DollarSign, Filter, Loader2, Pencil, Plus, RefreshCw,
-  Settings, Users, X,
+  Download, DollarSign, Eye, EyeOff, Filter, Loader2, Pencil, Plus, RefreshCw,
+  Send, Settings, Users, X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -331,6 +331,8 @@ export default function PayrollPage() {
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [editingConfig, setEditingConfig] = useState<SalaryConfig | null>(null);
   const [closingCycle, setClosingCycle] = useState(false);
+  const [publishingCycle, setPublishingCycle] = useState(false);
+  const [cyclePublishedCount, setCyclePublishedCount] = useState<Record<number,number>>({});
 
   const cycleLoadRef = useRef(0);
   const tableLoadRef = useRef(0);
@@ -463,6 +465,34 @@ export default function PayrollPage() {
     } catch {
       setErr("Network error — please try again");
     } finally { setClosingCycle(false); }
+  }
+
+  async function publishCycle() {
+    if (!selectedCycle) return;
+    if (!confirm(`${MONTHS[selectedCycle.month - 1]} ${selectedCycle.year} の全スタッフの給与明細をスタッフの My Pay に公開しますか？`)) return;
+    setPublishingCycle(true); setErr("");
+    try {
+      const r = await apiFetch(`${API}/cycles/${selectedCycle.id}/publish-all`, { method: "POST" });
+      if (!r.ok) { setErr(await extractApiError(r, "Failed to publish")); return; }
+      const data = await r.json() as { published_count: number };
+      setCyclePublishedCount(prev => ({ ...prev, [selectedCycle.id]: data.published_count }));
+      alert(`${data.published_count}件の給与明細をスタッフに公開しました。`);
+    } catch {
+      setErr("Network error — please try again");
+    } finally { setPublishingCycle(false); }
+  }
+
+  async function unpublishCycle() {
+    if (!selectedCycle) return;
+    if (!confirm(`${MONTHS[selectedCycle.month - 1]} ${selectedCycle.year} の給与明細の公開を取り消しますか？スタッフの My Pay から非表示になります。`)) return;
+    setPublishingCycle(true); setErr("");
+    try {
+      const r = await apiFetch(`${API}/cycles/${selectedCycle.id}/unpublish-all`, { method: "POST" });
+      if (!r.ok) { setErr(await extractApiError(r, "Failed to unpublish")); return; }
+      setCyclePublishedCount(prev => ({ ...prev, [selectedCycle.id]: 0 }));
+    } catch {
+      setErr("Network error — please try again");
+    } finally { setPublishingCycle(false); }
   }
 
   function downloadCSV() {
@@ -660,6 +690,28 @@ export default function PayrollPage() {
               onClick={() => { void reopenCycle(); }} disabled={closingCycle}>
               {closingCycle ? <Loader2 size={11} className="animate-spin" /> : "Reopen"}
             </button>
+          )}
+          {selectedCycle?.status === "closed" && rows.length > 0 && (
+            <>
+              <button
+                className="flex items-center gap-1 rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 transition disabled:opacity-50"
+                onClick={() => { void publishCycle(); }}
+                disabled={publishingCycle}
+                title="スタッフの My Pay に給与明細を公開"
+              >
+                {publishingCycle ? <Loader2 size={11} className="animate-spin" /> : <><Send size={11} /> スタッフに公開</>}
+              </button>
+              {(cyclePublishedCount[selectedCycle.id] ?? 0) > 0 && (
+                <button
+                  className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition"
+                  onClick={() => { void unpublishCycle(); }}
+                  disabled={publishingCycle}
+                  title="公開を取り消す"
+                >
+                  <EyeOff size={11} /> 非公開に戻す
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
