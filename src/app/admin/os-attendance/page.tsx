@@ -72,6 +72,11 @@ type AttendanceSession = {
   check_out_distance_m: number | null;
   note: string;
   visits: Visit[];
+  // Feature 3: late arrival (populated by backend when schedule data is available)
+  scheduled_start_hour?: number | null;
+  late_minutes?: number | null;
+  // Feature 4: synthetic no-show rows (client-side only, no real session)
+  is_no_show?: boolean;
 };
 
 type SessionMeta = { staff_names: string[]; branch_codes: string[] };
@@ -101,6 +106,18 @@ function fmtDuration(inAt: string | null, outAt: string | null): string {
   const mins = Math.round((new Date(outAt).getTime() - new Date(inAt).getTime()) / 60000);
   if (mins < 0) return "—";
   return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, "0")}m`;
+}
+
+function minutesBetween(a: string | null, b: string | null): number {
+  if (!a || !b) return 0;
+  return Math.max(0, Math.round((new Date(b).getTime() - new Date(a).getTime()) / 60000));
+}
+
+function fmtTotalMins(m: number): string {
+  if (m === 0) return "—";
+  const h = Math.floor(m / 60);
+  const min = m % 60;
+  return h > 0 ? `${h}h ${min}m` : `${min}m`;
 }
 
 // ISO → "HH:MM" in local timezone for time input — formatToParts for cross-browser leading-zero safety
@@ -136,10 +153,22 @@ function sessionStatus(s: AttendanceSession): "clocked_out" | "on_shift" | "not_
 }
 
 function StatusBadge({ s }: { s: AttendanceSession }) {
+  if (s.is_no_show) {
+    return <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 border border-red-500/20 px-2 py-0.5 text-xs text-red-400">No Show</span>;
+  }
   const st = sessionStatus(s);
   if (st === "clocked_out") return <span className={BADGE_SUCCESS}><CheckCircle size={10} />Clocked Out</span>;
   if (st === "on_shift") return <span className={BADGE_WARNING}><Loader2 size={10} className="animate-spin" />On Shift</span>;
   return <span className="inline-flex items-center gap-1 rounded-full bg-white/5 border border-white/10 px-2 py-0.5 text-xs text-white/40">Not Clocked In</span>;
+}
+
+function LateBadge({ mins }: { mins: number | null | undefined }) {
+  if (!mins || mins < 5) return null;
+  return (
+    <span className="ml-1 inline-flex items-center rounded-full bg-amber-500/10 border border-amber-500/20 px-1.5 py-0 text-xs text-amber-400">
+      Late {mins}m
+    </span>
+  );
 }
 
 function GpsBadge({ ok }: { ok: boolean | null }) {
@@ -518,9 +547,10 @@ const SELECT_CLS = "rounded-lg border border-white/10 bg-slate-800 px-3 py-1.5 t
 
 function DailyReportTab({ city }: { city: string }) {
   // Initialize to today in the city's local timezone
-  const [date, setDate] = useState(() =>
-    new Intl.DateTimeFormat("en-CA", { timeZone: cityTz(city) }).format(new Date())
-  );
+  const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: cityTz(city) }).format(new Date());
+  const [date, setDate] = useState(() => todayStr);
+  const [rangeMode, setRangeMode] = useState(false);
+  const [dateTo, setDateTo] = useState(() => todayStr);
   const [staffFilter, setStaffFilter] = useState("");
   const [branchFilter, setBranchFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<"" | "on_shift" | "clocked_out" | "not_clocked_in">("");
@@ -535,9 +565,23 @@ function DailyReportTab({ city }: { city: string }) {
   // Stale-fetch guard: increment on each load, discard results from older calls
   const loadCountRef = useRef(0);
 
+  // KPI summary — computed from unfiltered sessions so totals always show the full-day picture
+  const kpis = useMemo(() => {
+    const onShift   = sessions.filter(s => !s.is_no_show && sessionStatus(s) === "on_shift").length;
+    const out       = sessions.filter(s => !s.is_no_show && sessionStatus(s) === "clocked_out").length;
+    const notIn     = sessions.filter(s => s.is_no_show || sessionStatus(s) === "not_clocked_in").length;
+    const totalMins = sessions
+      .filter(s => !s.is_no_show && s.check_in_at && s.check_out_at)
+      .reduce((acc, s) => acc + minutesBetween(s.check_in_at, s.check_out_at), 0);
+    return { onShift, out, notIn, totalMins };
+  }, [sessions]);
+
   // Reset per-city state when city switches
   useEffect(() => {
-    setDate(new Intl.DateTimeFormat("en-CA", { timeZone: cityTz(city) }).format(new Date()));
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: cityTz(city) }).format(new Date());
+    setDate(today);
+    setDateTo(today);
+    setRangeMode(false);
     setStaffFilter("");
     setBranchFilter("");
     setStatusFilter("");
@@ -568,35 +612,84 @@ function DailyReportTab({ city }: { city: string }) {
     setSessions([]);
     setExpandedIds(new Set());
     try {
-      const params = new URLSearchParams({ city, work_date: date, limit: "500" });
+      const params = new URLSearchParams({ city, limit: "500" });
+      if (rangeMode) {
+        params.set("date_from", date);
+        params.set("date_to", dateTo);
+      } else {
+        params.set("work_date", date);
+      }
       if (staffFilter) params.set("staff_name", staffFilter);
       if (branchFilter) params.set("branch_code", branchFilter);
-      const r = await apiFetch(`${API}/daily-report?${params}`);
+
+      // Fetch sessions + no-shows in parallel (no-shows only for single-day view)
+      const sessionsFetch = apiFetch(`${API}/daily-report?${params}`);
+      const noShowsFetch = !rangeMode
+        ? apiFetch(`${API}/no-shows?city=${city}&work_date=${date}`)
+        : Promise.resolve(null);
+
+      const [r, nsR] = await Promise.all([sessionsFetch, noShowsFetch]);
       if (id !== loadCountRef.current) return;
+
       if (!r.ok) { setLoadErr(await extractApiError(r, "Failed to load attendance records")); return; }
       const d = await r.json() as { sessions?: AttendanceSession[] };
       if (id !== loadCountRef.current) return;
-      setSessions(d.sessions ?? []);
+
+      const realSessions: AttendanceSession[] = d.sessions ?? [];
+
+      // Build synthetic no-show rows (only for single-day; range mode skips)
+      let noShowRows: AttendanceSession[] = [];
+      if (nsR?.ok) {
+        try {
+          const nsD = await nsR.json() as { no_shows?: { staff_name: string; branch_code: string; scheduled_start_hour: number }[] };
+          const existingNames = new Set(realSessions.map(s => s.staff_name.toLowerCase()));
+          noShowRows = (nsD.no_shows ?? [])
+            .filter(ns => !existingNames.has(ns.staff_name.toLowerCase()))
+            .map(ns => ({
+              id: `no-show-${ns.staff_name}`,
+              city,
+              branch_code: ns.branch_code ?? "",
+              staff_name: ns.staff_name,
+              work_date: date,
+              check_in_at: null,
+              check_out_at: null,
+              check_in_gps_ok: null,
+              check_out_gps_ok: null,
+              check_in_distance_m: null,
+              check_out_distance_m: null,
+              note: "",
+              visits: [],
+              scheduled_start_hour: ns.scheduled_start_hour,
+              late_minutes: null,
+              is_no_show: true,
+            }));
+        } catch { /* no-shows are best-effort — silently ignore parse errors */ }
+      }
+
+      setSessions([...realSessions, ...noShowRows]);
     } catch {
       if (id !== loadCountRef.current) return;
       setLoadErr("Failed to load attendance records");
     } finally {
       if (id === loadCountRef.current) setBusy(false);
     }
-  }, [city, date, staffFilter, branchFilter]);
+  }, [city, date, dateTo, rangeMode, staffFilter, branchFilter]);
 
   useEffect(() => { void load(); }, [load]);
 
-  // Client-side status filter
+  // Client-side status filter (no-show rows get treated as "not_clocked_in")
   const filtered = useMemo(() => {
     if (!statusFilter) return sessions;
-    return sessions.filter(s => sessionStatus(s) === statusFilter);
+    if (statusFilter === "not_clocked_in") {
+      return sessions.filter(s => s.is_no_show || sessionStatus(s) === "not_clocked_in");
+    }
+    return sessions.filter(s => !s.is_no_show && sessionStatus(s) === statusFilter);
   }, [sessions, statusFilter]);
 
   function toggleExpand(id: string) {
     setExpandedIds(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
       return next;
     });
   }
@@ -621,7 +714,7 @@ function DailyReportTab({ city }: { city: string }) {
 
   // CSV export
   function downloadCsv() {
-    const cols = ["Staff Name", "Branch", "Date", "Status", "Clock In", "Clock Out", "Hours Worked", "GPS In", "GPS Out", "Branch Visits", "Note"];
+    const cols = ["Staff Name", "Branch", "Date", "Status", "Clock In", "Clock Out", "Hours Worked", "GPS In", "GPS Out", "Branch Visits", "Note", ...(rangeMode ? [] : [])];
     const rows = filtered.map(s => [
       s.staff_name,
       s.branch_code || "",
@@ -654,11 +747,57 @@ function DailyReportTab({ city }: { city: string }) {
 
   return (
     <div className="space-y-4">
-      {/* Filter bar */}
+
+      {/* ── KPI Summary Cards ─────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="rounded-xl bg-white/5 border border-white/8 px-4 py-3">
+          <p className="text-xs text-white/40 mb-1">On Shift</p>
+          <p className="text-2xl font-medium text-amber-400">{busy ? "—" : kpis.onShift}</p>
+        </div>
+        <div className="rounded-xl bg-white/5 border border-white/8 px-4 py-3">
+          <p className="text-xs text-white/40 mb-1">Clocked Out</p>
+          <p className="text-2xl font-medium text-emerald-400">{busy ? "—" : kpis.out}</p>
+        </div>
+        <div className="rounded-xl bg-white/5 border border-white/8 px-4 py-3">
+          <p className="text-xs text-white/40 mb-1">Not Clocked In</p>
+          <p className="text-2xl font-medium text-white/50">{busy ? "—" : kpis.notIn}</p>
+        </div>
+        <div className="rounded-xl bg-white/5 border border-white/8 px-4 py-3">
+          <p className="text-xs text-white/40 mb-1">Total Hours</p>
+          <p className="text-2xl font-medium text-violet-300">{busy ? "—" : fmtTotalMins(kpis.totalMins)}</p>
+        </div>
+      </div>
+
+      {/* ── Filter bar ───────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-2">
-        {/* Date */}
-        <input type="date" value={date} onChange={e => setDate(e.target.value)}
-          className="rounded-lg border border-white/10 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-violet-500/50 focus:outline-none" />
+
+        {/* Date mode toggle */}
+        <div className="flex rounded-lg border border-white/10 overflow-hidden text-xs">
+          <button
+            onClick={() => setRangeMode(false)}
+            className={`px-3 py-1.5 transition-colors ${!rangeMode ? "bg-violet-500/20 text-violet-300" : "text-white/50 hover:text-white"}`}>
+            Single Day
+          </button>
+          <button
+            onClick={() => setRangeMode(true)}
+            className={`px-3 py-1.5 border-l border-white/10 transition-colors ${rangeMode ? "bg-violet-500/20 text-violet-300" : "text-white/50 hover:text-white"}`}>
+            Date Range
+          </button>
+        </div>
+
+        {/* Date picker(s) */}
+        {!rangeMode ? (
+          <input type="date" value={date} onChange={e => setDate(e.target.value)}
+            className="rounded-lg border border-white/10 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-violet-500/50 focus:outline-none" />
+        ) : (
+          <div className="flex items-center gap-1.5">
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              className="rounded-lg border border-white/10 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-violet-500/50 focus:outline-none" />
+            <span className="text-white/30 text-xs">to</span>
+            <input type="date" value={dateTo} min={date} onChange={e => setDateTo(e.target.value)}
+              className="rounded-lg border border-white/10 bg-slate-800 px-3 py-1.5 text-sm text-white focus:border-violet-500/50 focus:outline-none" />
+          </div>
+        )}
 
         {/* Staff name dropdown */}
         <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)} className={SELECT_CLS} disabled={metaBusy}>
@@ -716,6 +855,7 @@ function DailyReportTab({ city }: { city: string }) {
                 <th className="pb-2.5 pt-2.5 pl-3 text-left font-medium w-6"></th>
                 <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Staff</th>
                 <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Branch</th>
+                {rangeMode && <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Date</th>}
                 <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Status</th>
                 <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Clock In</th>
                 <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">GPS</th>
@@ -746,8 +886,12 @@ function DailyReportTab({ city }: { city: string }) {
                       </td>
                       <td className={`${cellCls} font-medium text-white`}>{s.staff_name}</td>
                       <td className={`${cellCls} text-white/50`}>{s.branch_code || "—"}</td>
+                      {rangeMode && <td className={`${cellCls} text-white/40 text-xs`}>{s.work_date}</td>}
                       <td className={`${cellCls}`}><StatusBadge s={s} /></td>
-                      <td className={`${cellCls} text-white/80`}>{fmtTime(s.check_in_at, cityTz(city))}</td>
+                      <td className={`${cellCls} text-white/80`}>
+                        {fmtTime(s.check_in_at, cityTz(city))}
+                        <LateBadge mins={s.late_minutes} />
+                      </td>
                       <td className={`${cellCls}`}><GpsBadge ok={s.check_in_gps_ok} /></td>
                       <td className={`${cellCls} text-white/80`}>{fmtTime(s.check_out_at, cityTz(city))}</td>
                       <td className={`${cellCls}`}><GpsBadge ok={s.check_out_gps_ok} /></td>
@@ -766,23 +910,25 @@ function DailyReportTab({ city }: { city: string }) {
                         ) : <span className="text-white/20 text-xs">—</span>}
                       </td>
                       <td className={`${cellCls} pr-3`}>
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => setEditingSession(s)}
-                            className="rounded-lg border border-white/10 p-1.5 text-white/40 hover:text-white hover:border-white/20 transition-colors">
-                            <Pencil size={12} />
-                          </button>
-                          <button onClick={() => { void handleDelete(s); }} disabled={deleting}
-                            className="rounded-lg border border-red-500/20 p-1.5 text-red-400/50 hover:text-red-400 hover:border-red-500/40 transition-colors">
-                            {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                          </button>
-                        </div>
+                        {!s.is_no_show && (
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => setEditingSession(s)}
+                              className="rounded-lg border border-white/10 p-1.5 text-white/40 hover:text-white hover:border-white/20 transition-colors">
+                              <Pencil size={12} />
+                            </button>
+                            <button onClick={() => { void handleDelete(s); }} disabled={deleting}
+                              className="rounded-lg border border-red-500/20 p-1.5 text-red-400/50 hover:text-red-400 hover:border-red-500/40 transition-colors">
+                              {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
 
                     {/* Expanded detail: visits table + note */}
                     {expanded && expandable && (
                       <tr key={`${s.id}-visits`} className="bg-white/2">
-                        <td colSpan={11} className="pl-10 pr-3 pb-3 pt-1">
+                        <td colSpan={rangeMode ? 12 : 11} className="pl-10 pr-3 pb-3 pt-1">
                           {visitCount > 0 && (
                             <div className="rounded-lg border border-white/8 overflow-hidden">
                               <table className="w-full text-xs">
@@ -834,9 +980,182 @@ function DailyReportTab({ city }: { city: string }) {
   );
 }
 
+// ── Corrections Tab ───────────────────────────────────────────────────────────
+
+type Correction = {
+  id: string;
+  city: string;
+  staff_name: string;
+  work_date: string;
+  session_id: string | null;
+  requested_check_in: string | null;
+  requested_check_out: string | null;
+  reason: string;
+  status: "pending" | "approved" | "rejected";
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+};
+
+function CorrectionsTab({ city }: { city: string }) {
+  const [corrections, setCorrections] = useState<Correction[]>([]);
+  const [historyItems, setHistoryItems] = useState<Correction[]>([]);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [err, setErr] = useState("");
+  const [showHistory, setShowHistory] = useState(false);
+
+  async function load() {
+    setBusy(true); setErr("");
+    try {
+      const [pendingR, historyR] = await Promise.all([
+        apiFetch(`${API}/corrections?city=${city}&status=pending&limit=100`),
+        apiFetch(`${API}/corrections?city=${city}&status=&limit=50`),
+      ]);
+      if (pendingR.ok) {
+        const d = await pendingR.json() as { corrections?: Correction[]; pending_count?: number };
+        setCorrections(d.corrections ?? []);
+        setPendingCount(d.pending_count ?? 0);
+      }
+      if (historyR.ok) {
+        const d = await historyR.json() as { corrections?: Correction[] };
+        setHistoryItems((d.corrections ?? []).filter(c => c.status !== "pending"));
+      }
+    } catch {
+      setErr("Failed to load corrections");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => { void load(); }, [city]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function review(id: string, status: "approved" | "rejected") {
+    setReviewingId(id); setErr("");
+    try {
+      const r = await apiFetch(`${API}/corrections/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status, apply: true }),
+      });
+      if (!r.ok) { setErr(await extractApiError(r, "Failed to update correction")); return; }
+      // Move from pending list to history
+      const updated = corrections.find(c => c.id === id);
+      if (updated) {
+        const updatedRow = { ...updated, status };
+        setCorrections(prev => prev.filter(c => c.id !== id));
+        setHistoryItems(prev => [updatedRow, ...prev]);
+        setPendingCount(prev => Math.max(0, prev - 1));
+      }
+    } catch {
+      setErr("Failed to update correction — please try again");
+    } finally {
+      setReviewingId(null);
+    }
+  }
+
+  function fmtRequestedTime(c: Correction): string {
+    const parts: string[] = [];
+    if (c.requested_check_in) parts.push(`In: ${c.requested_check_in}`);
+    if (c.requested_check_out) parts.push(`Out: ${c.requested_check_out}`);
+    return parts.join(" · ") || "—";
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-white/40">
+          {pendingCount > 0
+            ? <span className="text-amber-400 font-medium">{pendingCount} pending request{pendingCount !== 1 ? "s" : ""}</span>
+            : "No pending requests"}
+        </p>
+        <button onClick={() => { void load(); }} disabled={busy} className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:text-white hover:border-white/20 transition-colors disabled:opacity-40">
+          <RefreshCw size={12} />Refresh
+        </button>
+      </div>
+
+      {err && <p className="text-xs text-red-400">{err}</p>}
+
+      {busy && corrections.length === 0 && (
+        <div className="flex justify-center py-10"><Loader2 className="animate-spin text-white/30" size={24} /></div>
+      )}
+
+      {!busy && corrections.length === 0 && (
+        <div className="flex flex-col items-center gap-2 py-12 text-white/30">
+          <CheckCircle size={32} />
+          <p className="text-sm">No pending correction requests</p>
+        </div>
+      )}
+
+      {corrections.length > 0 && (
+        <div className="space-y-2">
+          {corrections.map(c => (
+            <div key={c.id} className={`${GLASS_CARD} p-4 space-y-2`}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">{c.staff_name}</p>
+                  <p className="text-xs text-white/40">{c.work_date}</p>
+                </div>
+                <span className="inline-flex items-center rounded-full bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-xs text-amber-400">Pending</span>
+              </div>
+              <div className="rounded-lg bg-white/5 px-3 py-2 space-y-1">
+                <p className="text-xs text-white/50">Requested times: <span className="text-white/80">{fmtRequestedTime(c)}</span></p>
+                {c.reason && <p className="text-xs text-white/50">Reason: <span className="text-white/70 italic">{c.reason}</span></p>}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { void review(c.id, "approved"); }}
+                  disabled={reviewingId === c.id}
+                  className="flex-1 rounded-lg bg-emerald-700/30 border border-emerald-500/20 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-700/50 transition-colors disabled:opacity-40">
+                  {reviewingId === c.id ? <Loader2 size={12} className="animate-spin mx-auto" /> : "Approve & Apply"}
+                </button>
+                <button
+                  onClick={() => { void review(c.id, "rejected"); }}
+                  disabled={reviewingId === c.id}
+                  className="flex-1 rounded-lg bg-red-900/20 border border-red-500/20 py-1.5 text-xs font-medium text-red-400 hover:bg-red-900/40 transition-colors disabled:opacity-40">
+                  Reject
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* History section */}
+      {historyItems.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowHistory(h => !h)}
+            className="flex items-center gap-1.5 text-xs text-white/30 hover:text-white/60 transition-colors mt-4"
+          >
+            {showHistory ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+            Review history ({historyItems.length})
+          </button>
+          {showHistory && (
+            <div className="mt-2 space-y-1.5">
+              {historyItems.map(c => (
+                <div key={c.id} className="rounded-lg bg-white/3 border border-white/5 px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-white/60">{c.staff_name} · {c.work_date}</p>
+                    <span className={`text-xs ${c.status === "approved" ? "text-emerald-400" : "text-red-400"}`}>
+                      {c.status === "approved" ? "Approved" : "Rejected"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-white/30 mt-0.5">{fmtRequestedTime(c)}</p>
+                  {c.reviewed_by && <p className="text-xs text-white/20 mt-0.5">By: {c.reviewed_by}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-type Tab = "report" | "gps";
+type Tab = "report" | "gps" | "corrections";
 
 export default function OsAttendanceAdminPage() {
   const router = useRouter();
@@ -844,6 +1163,21 @@ export default function OsAttendanceAdminPage() {
   const role = auth?.role ?? "";
   const [tab, setTab] = useState<Tab>("report");
   const [city, setCity] = useState<"dubai" | "manila">("manila");
+  const [pendingCorrections, setPendingCorrections] = useState(0);
+
+  // Poll pending correction count for badge
+  useEffect(() => {
+    async function fetchCount() {
+      try {
+        const r = await apiFetch(`${API}/corrections?city=${city}&status=pending&limit=1`);
+        if (r.ok) {
+          const d = await r.json() as { pending_count?: number };
+          setPendingCorrections(d.pending_count ?? 0);
+        }
+      } catch { /* badge is best-effort */ }
+    }
+    void fetchCount();
+  }, [city]);
 
   // Per CLAUDE.md: always include role checks to avoid locking out HQ/ADMIN users
   // who may not have explicit channel permissions but still need full access.
@@ -885,6 +1219,14 @@ export default function OsAttendanceAdminPage() {
           <button onClick={() => setTab("report")} className={tab === "report" ? TAB_ACTIVE : TAB_INACTIVE}>
             Daily Report
           </button>
+          <button onClick={() => setTab("corrections")} className={`${tab === "corrections" ? TAB_ACTIVE : TAB_INACTIVE} relative`}>
+            Corrections
+            {pendingCorrections > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-amber-500 text-xs font-semibold text-white min-w-[18px] h-[18px] px-1">
+                {pendingCorrections}
+              </span>
+            )}
+          </button>
           <button onClick={() => setTab("gps")} className={tab === "gps" ? TAB_ACTIVE : TAB_INACTIVE}>
             GPS Settings
           </button>
@@ -893,6 +1235,7 @@ export default function OsAttendanceAdminPage() {
         {/* Content */}
         <div className={GLASS_CARD + " p-6"}>
           {tab === "report" && <DailyReportTab city={city} />}
+          {tab === "corrections" && <CorrectionsTab city={city} />}
           {tab === "gps" && <GpsTab city={city} />}
         </div>
       </div>

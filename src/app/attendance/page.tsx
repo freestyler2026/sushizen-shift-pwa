@@ -17,6 +17,7 @@ import {
   ChevronUp,
   Plus,
   Square,
+  MessageSquare,
 } from "lucide-react";
 import { getAuth, getAuthHeaders, canAccessAttendancePage } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
@@ -261,6 +262,14 @@ export default function AttendancePage() {
   const [branchList, setBranchList] = useState<string[]>([]);
   // Triggers elapsed-time re-render every minute while on shift
   const [, setElapsedTick] = useState(0);
+  // Regularization / correction request form
+  const [correctionOpen, setCorrectionOpen] = useState(false);
+  const [correctionField, setCorrectionField] = useState<"check_in" | "check_out" | "both">("check_out");
+  const [correctionCheckIn, setCorrectionCheckIn] = useState("");
+  const [correctionCheckOut, setCorrectionCheckOut] = useState("");
+  const [correctionReason, setCorrectionReason] = useState("");
+  const [correctionBusy, setCorrectionBusy] = useState(false);
+  const [correctionDone, setCorrectionDone] = useState(false);
 
   // ─── Auth guard ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -526,6 +535,42 @@ export default function AttendancePage() {
     : 0;
   const wauSupported = typeof window !== "undefined" && !!window.PublicKeyCredential;
 
+  // ─── Correction submit ────────────────────────────────────────────────────
+  async function submitCorrection() {
+    if (!auth || !data) return;
+    if (!correctionReason.trim()) return;
+    setCorrectionBusy(true);
+    try {
+      const body: Record<string, string> = {
+        work_date: data.today,
+        reason: correctionReason.trim(),
+      };
+      if (session?.id) body.session_id = session.id;
+      if ((correctionField === "check_in" || correctionField === "both") && correctionCheckIn)
+        body.requested_check_in = correctionCheckIn;
+      if ((correctionField === "check_out" || correctionField === "both") && correctionCheckOut)
+        body.requested_check_out = correctionCheckOut;
+
+      const r = await fetch(`${API_BASE}/api/attendance/corrections`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) {
+        const j = await r.json() as { detail?: string };
+        setError(j.detail || "Failed to submit correction");
+        return;
+      }
+      setCorrectionDone(true);
+      setCorrectionOpen(false);
+      setCorrectionReason("");
+    } catch {
+      setError("Failed to submit correction — please try again");
+    } finally {
+      setCorrectionBusy(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -770,8 +815,88 @@ export default function AttendancePage() {
             </button>
           )}
           {isCheckedOut && (
-            <div className="rounded-xl bg-zinc-800/50 px-3 py-3 text-center text-sm text-zinc-400">
-              You&apos;ve clocked out for today. Great work!
+            <div className="space-y-2">
+              <div className="rounded-xl bg-zinc-800/50 px-3 py-3 text-center text-sm text-zinc-400">
+                You&apos;ve clocked out for today. Great work!
+              </div>
+
+              {/* Correction / regularization request */}
+              {correctionDone ? (
+                <div className="rounded-xl bg-violet-900/30 border border-violet-500/20 px-3 py-3 text-center text-xs text-violet-300">
+                  <CheckCircle2 size={14} className="inline mr-1 mb-0.5" />
+                  Correction request submitted — your admin will review it.
+                </div>
+              ) : (
+                <div>
+                  <button
+                    onClick={() => setCorrectionOpen(o => !o)}
+                    className="flex w-full items-center justify-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors pt-1"
+                  >
+                    <MessageSquare size={12} />
+                    {correctionOpen ? "Cancel correction request" : "Something wrong? Request a correction"}
+                    {correctionOpen ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                  </button>
+                  {correctionOpen && (
+                    <div className="mt-2 rounded-xl bg-zinc-900/60 border border-zinc-700/40 p-3 space-y-3">
+                      <p className="text-xs font-medium text-zinc-300">What needs correcting?</p>
+                      <div className="flex gap-2">
+                        {(["check_in", "check_out", "both"] as const).map(f => (
+                          <button
+                            key={f}
+                            onClick={() => setCorrectionField(f)}
+                            className={`flex-1 rounded-lg py-1.5 text-xs transition-colors border ${
+                              correctionField === f
+                                ? "bg-violet-500/20 border-violet-500/40 text-violet-300"
+                                : "border-zinc-700/40 text-zinc-500 hover:text-zinc-300"
+                            }`}
+                          >
+                            {f === "check_in" ? "Clock In" : f === "check_out" ? "Clock Out" : "Both"}
+                          </button>
+                        ))}
+                      </div>
+                      {(correctionField === "check_in" || correctionField === "both") && (
+                        <div>
+                          <label className="text-xs text-zinc-500 mb-1 block">Correct clock-in time</label>
+                          <input
+                            type="time"
+                            value={correctionCheckIn}
+                            onChange={e => setCorrectionCheckIn(e.target.value)}
+                            className="w-full rounded-lg border border-zinc-700/40 bg-zinc-800 px-3 py-1.5 text-sm text-white focus:border-violet-500/50 focus:outline-none"
+                          />
+                        </div>
+                      )}
+                      {(correctionField === "check_out" || correctionField === "both") && (
+                        <div>
+                          <label className="text-xs text-zinc-500 mb-1 block">Correct clock-out time</label>
+                          <input
+                            type="time"
+                            value={correctionCheckOut}
+                            onChange={e => setCorrectionCheckOut(e.target.value)}
+                            className="w-full rounded-lg border border-zinc-700/40 bg-zinc-800 px-3 py-1.5 text-sm text-white focus:border-violet-500/50 focus:outline-none"
+                          />
+                        </div>
+                      )}
+                      <div>
+                        <label className="text-xs text-zinc-500 mb-1 block">Reason (required)</label>
+                        <textarea
+                          value={correctionReason}
+                          onChange={e => setCorrectionReason(e.target.value)}
+                          rows={2}
+                          placeholder="e.g. Forgot to clock out, was still working until 6pm"
+                          className="w-full resize-none rounded-lg border border-zinc-700/40 bg-zinc-800 px-3 py-1.5 text-sm text-white placeholder-zinc-600 focus:border-violet-500/50 focus:outline-none"
+                        />
+                      </div>
+                      <button
+                        onClick={() => { void submitCorrection(); }}
+                        disabled={correctionBusy || !correctionReason.trim()}
+                        className="w-full rounded-xl bg-violet-700 py-2.5 text-sm font-semibold text-white disabled:opacity-30 hover:bg-violet-600 transition-colors"
+                      >
+                        {correctionBusy ? "Submitting..." : "Submit Request"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
