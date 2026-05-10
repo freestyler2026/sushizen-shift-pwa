@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { FolderSearch, RefreshCw, Upload } from "lucide-react";
+import { CheckCircle, FolderSearch, RefreshCw, Upload, XCircle } from "lucide-react";
 import { getAuth } from "@/lib/auth";
 import {
   BADGE_ERROR,
@@ -20,7 +20,22 @@ import {
   T_SECTION,
 } from "@/lib/ui-tokens";
 
-type DriveSyncResponse = {
+type SyncAllResponse = {
+  ok?: boolean;
+  files_checked?: number;
+  files_imported?: number;
+  files_skipped?: number;
+  items?: Array<{
+    file_id: string;
+    file_name: string;
+    duplicate?: boolean;
+    imported_count?: number;
+    message?: string;
+    error?: string;
+  }>;
+};
+
+type SingleSyncResponse = {
   ok?: boolean;
   duplicate?: boolean;
   message?: string;
@@ -31,7 +46,6 @@ type DriveSyncResponse = {
     modifiedTime?: string;
     webViewLink?: string;
   };
-  items?: any[];
 };
 
 type DriveFileItem = {
@@ -46,7 +60,7 @@ type DriveFileItem = {
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/+$/, "");
 const DEFAULT_FOLDER_ID = "0AJRy_FdAYDp2Uk9PVA";
 
-function normalizeAttendanceSyncError(raw: string) {
+function normalizeError(raw: string) {
   const text = String(raw || "").trim();
   const lower = text.toLowerCase();
   if (!text) return "同期に失敗しました。時間をおいて再試行してください。";
@@ -54,27 +68,20 @@ function normalizeAttendanceSyncError(raw: string) {
   if (lower.includes("permission") || lower.includes("forbidden")) return "同期権限がありません（HQ/ADMIN のPIN確認が必要です）。";
   if (lower.includes("attendance drive source not found")) return "同期元設定が見つかりません。";
   if (lower.includes("no attendance files found")) return "Driveフォルダに対象ファイルがありません。";
-  if (lower.includes("already imported") || lower.includes("duplicate")) return "最新ファイルは既に取り込み済みです。";
   return text;
 }
 
-async function apiPost<T = any>(path: string, body?: any): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
+async function apiFetch<T = any>(path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, options);
   const text = await res.text();
   if (!res.ok) {
     try {
       const j = JSON.parse(text);
-      throw new Error(j?.detail || text || `POST ${path} failed`);
+      throw new Error(j?.detail || text || `Request failed`);
     } catch {
-      throw new Error(text || `POST ${path} failed`);
+      throw new Error(text || `Request failed`);
     }
   }
-
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
 
@@ -87,39 +94,39 @@ export default function AttendanceImportPage() {
   const [cityHint, setCityHint] = useState<string>("");
   const [driveFileId, setDriveFileId] = useState<string>("");
 
-  const [loadingLatest, setLoadingLatest] = useState(false);
+  const [loadingAll, setLoadingAll] = useState(false);
   const [loadingSelected, setLoadingSelected] = useState(false);
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [error, setError] = useState("");
-  const [result, setResult] = useState<DriveSyncResponse | null>(null);
+  const [syncAllResult, setSyncAllResult] = useState<SyncAllResponse | null>(null);
+  const [singleResult, setSingleResult] = useState<SingleSyncResponse | null>(null);
   const [driveFiles, setDriveFiles] = useState<DriveFileItem[] | null>(null);
 
-  const canSyncLatest = useMemo(() => {
-    return !!approverName.trim() && !!pin.trim() && !!folderId.trim();
-  }, [approverName, pin, folderId]);
+  const canSync = useMemo(() => !!approverName.trim() && !!pin.trim(), [approverName, pin]);
+  const canSyncSelected = useMemo(() => canSync && !!driveFileId.trim(), [canSync, driveFileId]);
 
-  const canSyncSelected = useMemo(() => {
-    return !!approverName.trim() && !!pin.trim() && !!folderId.trim() && !!driveFileId.trim();
-  }, [approverName, pin, folderId, driveFileId]);
-
-  async function syncLatest() {
-    if (!canSyncLatest) return;
-    setLoadingLatest(true);
+  async function syncAll() {
+    if (!canSync) return;
+    setLoadingAll(true);
     setError("");
-    setResult(null);
-
+    setSyncAllResult(null);
+    setSingleResult(null);
     try {
-      const data = await apiPost<DriveSyncResponse>("/api/admin/attendance/drive/sync", {
-        approver_name: approverName.trim(),
-        pin: pin.trim(),
-        folder_id: folderId.trim(),
-        city_hint: cityHint.trim().toLowerCase(),
+      const data = await apiFetch<SyncAllResponse>("/api/admin/attendance/drive/sync-all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          approver_name: approverName.trim(),
+          pin: pin.trim(),
+          folder_id: folderId,
+          city_hint: cityHint.trim().toLowerCase(),
+        }),
       });
-      setResult(data);
+      setSyncAllResult(data);
     } catch (err: any) {
-      setError(normalizeAttendanceSyncError(String(err?.message || err || "Drive sync failed")));
+      setError(normalizeError(String(err?.message || err || "")));
     } finally {
-      setLoadingLatest(false);
+      setLoadingAll(false);
     }
   }
 
@@ -127,26 +134,30 @@ export default function AttendanceImportPage() {
     if (!canSyncSelected) return;
     setLoadingSelected(true);
     setError("");
-    setResult(null);
-
+    setSyncAllResult(null);
+    setSingleResult(null);
     try {
-      const data = await apiPost<DriveSyncResponse>("/api/admin/attendance/drive/sync", {
-        approver_name: approverName.trim(),
-        pin: pin.trim(),
-        folder_id: folderId.trim(),
-        city_hint: cityHint.trim().toLowerCase(),
-        drive_file_id: driveFileId.trim(),
+      const data = await apiFetch<SingleSyncResponse>("/api/admin/attendance/drive/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          approver_name: approverName.trim(),
+          pin: pin.trim(),
+          folder_id: folderId,
+          city_hint: cityHint.trim().toLowerCase(),
+          drive_file_id: driveFileId.trim(),
+        }),
       });
-      setResult(data);
+      setSingleResult(data);
     } catch (err: any) {
-      setError(normalizeAttendanceSyncError(String(err?.message || err || "Drive sync failed")));
+      setError(normalizeError(String(err?.message || err || "")));
     } finally {
       setLoadingSelected(false);
     }
   }
 
   async function listFiles() {
-    if (!approverName.trim() || !pin.trim()) return;
+    if (!canSync) return;
     setLoadingFiles(true);
     setError("");
     setDriveFiles(null);
@@ -154,19 +165,15 @@ export default function AttendanceImportPage() {
       const params = new URLSearchParams({
         approver_name: approverName.trim(),
         pin: pin.trim(),
-        folder_id: folderId.trim(),
+        folder_id: folderId,
         limit: "20",
       });
-      const res = await fetch(`${API_BASE}/api/admin/attendance/drive/files?${params}`);
-      const text = await res.text();
-      if (!res.ok) {
-        const j = text ? JSON.parse(text) : {};
-        throw new Error(j?.detail || text || "Failed to list Drive files");
-      }
-      const data = JSON.parse(text);
+      const data = await apiFetch<{ items: DriveFileItem[] }>(
+        `/api/admin/attendance/drive/files?${params}`
+      );
       setDriveFiles(data?.items || []);
     } catch (err: any) {
-      setError(normalizeAttendanceSyncError(String(err?.message || err || "Failed to list Drive files")));
+      setError(normalizeError(String(err?.message || err || "")));
     } finally {
       setLoadingFiles(false);
     }
@@ -184,7 +191,6 @@ export default function AttendanceImportPage() {
             <Link href="/admin/attendance" className={SECONDARY_BUTTON}>
               ← Back to Attendance
             </Link>
-
             <Link href="/admin/attendance/history" className={SECONDARY_BUTTON}>
               Import History
             </Link>
@@ -197,10 +203,11 @@ export default function AttendanceImportPage() {
             <div>
               <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-sky-500">ATTENDANCE ADMIN</p>
               <h1 className={T_PAGE_TITLE}>Attendance Drive Sync</h1>
-              <p className={T_CAPTION}>Sync the latest Bayzat attendance file from the configured Google Drive folder.</p>
+              <p className={T_CAPTION}>Google DriveのBayzat勤怠ファイルを一括取り込みします。未取得ファイルを全件インポートします。</p>
             </div>
           </div>
 
+          {/* Credentials + options */}
           <section className={`${GLASS_CARD} p-6 shadow-2xl`}>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="space-y-2">
@@ -225,7 +232,7 @@ export default function AttendanceImportPage() {
               </label>
 
               <label className="space-y-2">
-                <span className={T_LABEL}>City Hint (optional fallback)</span>
+                <span className={T_LABEL}>City Hint (optional)</span>
                 <select
                   className={SELECT_CLASS}
                   value={cityHint}
@@ -241,44 +248,37 @@ export default function AttendanceImportPage() {
                 <span className={T_LABEL}>Google Drive Folder ID</span>
                 <div
                   className={`${INPUT_CLASS} flex items-center text-zinc-400`}
-                  aria-label="Google Drive folder ID is fixed for attendance sync."
-                  title="Google Drive folder ID is fixed for attendance sync."
+                  title="Fixed Bayzat shared drive folder"
                 >
                   {folderId}
                 </div>
-                <p className={T_CAPTION}>Fixed Bayzat shared drive folder is used for latest sync.</p>
+                <p className={T_CAPTION}>Bayzat共有ドライブフォルダ（固定）</p>
               </label>
 
               <label className="space-y-2 md:col-span-2">
-                <span className={T_LABEL}>Specific Drive File ID (optional)</span>
+                <span className={T_LABEL}>Specific Drive File ID（個別指定・任意）</span>
                 <input
                   className={INPUT_CLASS}
                   value={driveFileId}
                   onChange={(e) => setDriveFileId(e.target.value)}
-                  placeholder="Leave blank to sync the latest file"
+                  placeholder="特定ファイルだけ取り込む場合はここにIDを入力"
                 />
               </label>
             </div>
 
-            <div className="mt-6">
-              <div className={`${GLASS_CARD} border-2 border-dashed border-white/15 p-6 text-center`}>
-                <Upload className="mx-auto mb-2 h-8 w-8 text-zinc-500" />
-                <p className="text-sm text-zinc-400">This page syncs from Google Drive. Local file upload is not supported here.</p>
-                <p className={`${T_CAPTION} mt-1`}>Use &quot;Sync Latest from Drive&quot; or specify a Drive file ID below.</p>
-              </div>
-            </div>
-
             <div className="mt-6 flex flex-wrap gap-3">
+              {/* Check files */}
               <button
                 type="button"
                 onClick={listFiles}
-                disabled={!approverName.trim() || !pin.trim() || loadingFiles}
+                disabled={!canSync || loadingFiles}
                 className={`${SECONDARY_BUTTON} flex items-center gap-2 disabled:opacity-50`}
               >
                 <FolderSearch className="h-4 w-4" />
-                {loadingFiles ? "Checking..." : "Check Drive Files"}
+                {loadingFiles ? "確認中..." : "Drive ファイル一覧"}
               </button>
 
+              {/* Sync specific file */}
               <button
                 type="button"
                 onClick={syncSelected}
@@ -286,41 +286,44 @@ export default function AttendanceImportPage() {
                 className={`${SECONDARY_BUTTON} flex items-center gap-2 disabled:opacity-50`}
               >
                 <RefreshCw className="h-4 w-4" />
-                {loadingSelected ? "Syncing..." : "Sync Specific File ID"}
+                {loadingSelected ? "Syncing..." : "個別ファイルをSync"}
               </button>
 
+              {/* Sync ALL unimported files */}
               <button
                 type="button"
-                onClick={syncLatest}
-                disabled={!canSyncLatest || loadingLatest}
+                onClick={syncAll}
+                disabled={!canSync || loadingAll}
                 className={`${PRIMARY_BUTTON} flex items-center gap-2 disabled:opacity-50`}
               >
                 <Upload className="h-4 w-4" />
-                {loadingLatest ? "Syncing..." : "Sync Latest from Drive"}
+                {loadingAll ? "Syncing..." : "Sync All（全件取り込み）"}
               </button>
             </div>
-            {!canSyncSelected ? (
-              <p className={`${T_CAPTION} mt-2`}>Sync Specific File ID requires approver name, PIN, and a Drive file ID.</p>
-            ) : null}
+            <p className={`${T_CAPTION} mt-2`}>
+              「Sync All」はDriveフォルダ内の全ファイルをスキャンし、未取得のものを全てインポートします。
+            </p>
           </section>
 
+          {/* Error */}
           {error ? (
             <div className={`mt-6 ${BADGE_ERROR} inline-flex`}>
               {error}
             </div>
           ) : null}
 
+          {/* Drive file list */}
           {driveFiles !== null ? (
             <section className={`${GLASS_CARD} mt-6 p-4 shadow-2xl sm:p-6`}>
               <div className="mb-3 flex items-center gap-2">
                 <FolderSearch className="h-4 w-4 text-sky-400" />
                 <div>
-                  <h2 className={T_SECTION}>Drive Files Visible to Service Account</h2>
-                  <p className={T_CAPTION}>{driveFiles.length} file{driveFiles.length !== 1 ? "s" : ""} found in folder {DEFAULT_FOLDER_ID}.</p>
+                  <h2 className={T_SECTION}>Drive ファイル一覧</h2>
+                  <p className={T_CAPTION}>{driveFiles.length} 件見つかりました（フォルダ: {DEFAULT_FOLDER_ID}）</p>
                 </div>
               </div>
               {driveFiles.length === 0 ? (
-                <p className="text-sm text-zinc-400">No attendance files found. The service account may not have access to this folder, or the folder is empty.</p>
+                <p className="text-sm text-zinc-400">ファイルが見つかりません。サービスアカウントのアクセス権限を確認してください。</p>
               ) : (
                 <div className="space-y-2">
                   {driveFiles.map((f) => (
@@ -328,18 +331,18 @@ export default function AttendanceImportPage() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-white">{f.name}</p>
                         <p className={`${T_CAPTION} mt-0.5 break-all`}>ID: {f.id}</p>
-                        {f.modifiedTime ? <p className={`${T_CAPTION}`}>Modified: {f.modifiedTime}</p> : null}
+                        {f.modifiedTime ? <p className={T_CAPTION}>Modified: {f.modifiedTime}</p> : null}
                       </div>
-                      <div className="flex gap-2 shrink-0">
+                      <div className="flex shrink-0 gap-2">
                         <button
                           type="button"
                           onClick={() => setDriveFileId(f.id)}
-                          className={`${SECONDARY_BUTTON} text-xs py-1 px-2`}
+                          className={`${SECONDARY_BUTTON} px-2 py-1 text-xs`}
                         >
-                          Use this ID
+                          このIDを使う
                         </button>
                         {f.webViewLink ? (
-                          <a href={f.webViewLink} target="_blank" rel="noreferrer" className={`${SECONDARY_BUTTON} text-xs py-1 px-2`}>
+                          <a href={f.webViewLink} target="_blank" rel="noreferrer" className={`${SECONDARY_BUTTON} px-2 py-1 text-xs`}>
                             Open
                           </a>
                         ) : null}
@@ -351,47 +354,82 @@ export default function AttendanceImportPage() {
             </section>
           ) : null}
 
-          {result ? (
+          {/* Sync All result */}
+          {syncAllResult ? (
+            <section className={`${GLASS_CARD} mt-6 p-4 shadow-2xl sm:p-6`}>
+              <div className="mb-4 flex items-center gap-2">
+                <Upload className="h-4 w-4 text-sky-400" />
+                <div>
+                  <h2 className={T_SECTION}>Sync All 結果</h2>
+                  <p className={T_CAPTION}>
+                    確認: {syncAllResult.files_checked ?? 0} 件 ／
+                    新規インポート: {syncAllResult.files_imported ?? 0} 件 ／
+                    スキップ（取得済み）: {syncAllResult.files_skipped ?? 0} 件
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {(syncAllResult.items || []).map((item) => (
+                  <div key={item.file_id} className={`${GLASS_CARD} flex flex-wrap items-start gap-3 p-3`}>
+                    <div className="mt-0.5 shrink-0">
+                      {item.error ? (
+                        <XCircle className="h-4 w-4 text-red-400" />
+                      ) : item.duplicate ? (
+                        <CheckCircle className="h-4 w-4 text-zinc-500" />
+                      ) : (
+                        <CheckCircle className="h-4 w-4 text-emerald-400" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-white">{item.file_name}</p>
+                      <p className={T_CAPTION}>
+                        {item.error
+                          ? `エラー: ${item.error}`
+                          : item.duplicate
+                          ? "取得済み（スキップ）"
+                          : `インポート完了 — ${item.imported_count ?? 0} 件`}
+                      </p>
+                    </div>
+                    {item.duplicate ? (
+                      <span className={`${BADGE_INFO} shrink-0 text-xs`}>Skip</span>
+                    ) : item.error ? (
+                      <span className={`${BADGE_ERROR} shrink-0 text-xs`}>Error</span>
+                    ) : (
+                      <span className={`${BADGE_SUCCESS} shrink-0 text-xs`}>Imported</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {/* Single file sync result */}
+          {singleResult ? (
             <section className={`${GLASS_CARD} mt-6 p-4 shadow-2xl sm:p-6`}>
               <div className="mb-3 flex items-center gap-2 sm:mb-4">
                 <Upload className="h-4 w-4 text-sky-400" />
                 <div>
-                  <h2 className={T_SECTION}>Sync Result</h2>
-                  <p className={T_CAPTION}>Latest status returned by the attendance import endpoint.</p>
+                  <h2 className={T_SECTION}>個別Sync 結果</h2>
                 </div>
               </div>
-
               <div className="mb-3 flex flex-wrap gap-2 sm:mb-4">
-                <span className={`${result.duplicate ? BADGE_INFO : BADGE_SUCCESS} text-xs`}>
-                  {result.message || (result.duplicate ? "Duplicate file" : "Sync completed")}
-                </span>
-                <span className={`${result.duplicate ? BADGE_INFO : BADGE_SUCCESS} text-xs`}>
-                  Duplicate: {result.duplicate ? "Yes" : "No"}
+                <span className={`${singleResult.duplicate ? BADGE_INFO : BADGE_SUCCESS} text-xs`}>
+                  {singleResult.message || (singleResult.duplicate ? "取得済み（スキップ）" : "インポート完了")}
                 </span>
               </div>
-
               <div className="grid gap-2 sm:gap-3 md:grid-cols-2">
                 <div className={`${GLASS_CARD} p-3 sm:p-4`}>
-                  <p className={T_LABEL}>Import Job ID</p>
-                  <p className="mt-1 break-all text-xs leading-relaxed text-zinc-200 sm:text-sm">{result.import_job?.id || "-"}</p>
-                </div>
-                <div className={`${GLASS_CARD} p-3 sm:p-4`}>
-                  <p className={T_LABEL}>Drive File ID</p>
-                  <p className="mt-1 break-all text-xs leading-relaxed text-zinc-200 sm:text-sm">{result.drive_file?.id || "-"}</p>
-                </div>
-                <div className={`${GLASS_CARD} p-3 sm:p-4`}>
                   <p className={T_LABEL}>Drive File Name</p>
-                  <p className="mt-1 break-all text-xs leading-relaxed text-zinc-200 sm:text-sm">{result.drive_file?.name || "-"}</p>
+                  <p className="mt-1 break-all text-xs leading-relaxed text-zinc-200 sm:text-sm">{singleResult.drive_file?.name || "-"}</p>
                 </div>
                 <div className={`${GLASS_CARD} p-3 sm:p-4`}>
-                  <p className={T_LABEL}>Modified Time</p>
-                  <p className="mt-1 break-all text-xs leading-relaxed text-zinc-200 sm:text-sm">{result.drive_file?.modifiedTime || "-"}</p>
+                  <p className={T_LABEL}>Import Job ID</p>
+                  <p className="mt-1 break-all text-xs leading-relaxed text-zinc-200 sm:text-sm">{singleResult.import_job?.id || "-"}</p>
                 </div>
               </div>
-
-              {result.drive_file?.webViewLink ? (
+              {singleResult.drive_file?.webViewLink ? (
                 <div className="mt-4">
-                  <a href={result.drive_file.webViewLink} target="_blank" rel="noreferrer" className={SECONDARY_BUTTON}>
+                  <a href={singleResult.drive_file.webViewLink} target="_blank" rel="noreferrer" className={SECONDARY_BUTTON}>
                     Open in Drive
                   </a>
                 </div>
