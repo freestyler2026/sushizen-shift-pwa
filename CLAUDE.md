@@ -10,6 +10,8 @@ This app is **"Sushi ZEN Workforce OS"** — an internal admin and analytics sys
 
 **Do not confuse this with a generic "Sushi ZEN Shift" branding.** The Workforce OS UI with its dark slate-lavender design is the correct and current design. The `/week` page shows a lighter-themed shift viewer — these are two different UI contexts within the same app.
 
+**UI Language Rule: All UI text must be in English.** Never use Japanese in labels, buttons, placeholders, tooltips, alerts, confirm dialogs, or any other user-facing text, unless the user explicitly requests it. This applies to every page and component in the app.
+
 ---
 
 ## Commands

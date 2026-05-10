@@ -469,14 +469,14 @@ export default function PayrollPage() {
 
   async function publishCycle() {
     if (!selectedCycle) return;
-    if (!confirm(`${MONTHS[selectedCycle.month - 1]} ${selectedCycle.year} の全スタッフの給与明細をスタッフの My Pay に公開しますか？`)) return;
+    if (!confirm(`Publish all payslips for ${MONTHS[selectedCycle.month - 1]} ${selectedCycle.year} to staff My Pay?`)) return;
     setPublishingCycle(true); setErr("");
     try {
       const r = await apiFetch(`${API}/cycles/${selectedCycle.id}/publish-all`, { method: "POST" });
       if (!r.ok) { setErr(await extractApiError(r, "Failed to publish")); return; }
       const data = await r.json() as { published_count: number };
       setCyclePublishedCount(prev => ({ ...prev, [selectedCycle.id]: data.published_count }));
-      alert(`${data.published_count}件の給与明細をスタッフに公開しました。`);
+      alert(`${data.published_count} payslip(s) published to staff My Pay.`);
     } catch {
       setErr("Network error — please try again");
     } finally { setPublishingCycle(false); }
@@ -484,7 +484,7 @@ export default function PayrollPage() {
 
   async function unpublishCycle() {
     if (!selectedCycle) return;
-    if (!confirm(`${MONTHS[selectedCycle.month - 1]} ${selectedCycle.year} の給与明細の公開を取り消しますか？スタッフの My Pay から非表示になります。`)) return;
+    if (!confirm(`Unpublish all payslips for ${MONTHS[selectedCycle.month - 1]} ${selectedCycle.year}? They will be hidden from staff My Pay.`)) return;
     setPublishingCycle(true); setErr("");
     try {
       const r = await apiFetch(`${API}/cycles/${selectedCycle.id}/unpublish-all`, { method: "POST" });
@@ -697,18 +697,18 @@ export default function PayrollPage() {
                 className="flex items-center gap-1 rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100 transition disabled:opacity-50"
                 onClick={() => { void publishCycle(); }}
                 disabled={publishingCycle}
-                title="スタッフの My Pay に給与明細を公開"
+                title="Publish payslips to staff My Pay"
               >
-                {publishingCycle ? <Loader2 size={11} className="animate-spin" /> : <><Send size={11} /> スタッフに公開</>}
+                {publishingCycle ? <Loader2 size={11} className="animate-spin" /> : <><Send size={11} /> Publish to Staff</>}
               </button>
               {(cyclePublishedCount[selectedCycle.id] ?? 0) > 0 && (
                 <button
                   className="flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 transition"
                   onClick={() => { void unpublishCycle(); }}
                   disabled={publishingCycle}
-                  title="公開を取り消す"
+                  title="Unpublish"
                 >
-                  <EyeOff size={11} /> 非公開に戻す
+                  <EyeOff size={11} /> Unpublish
                 </button>
               )}
             </>

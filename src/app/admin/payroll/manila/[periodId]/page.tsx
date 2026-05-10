@@ -110,10 +110,10 @@ function PayslipDetail({
   const basisParts: string[] = [];
   if (run.monthly_rate != null && run.salary_divisor != null && run.days_worked != null) {
     basisParts.push(
-      `₱${run.monthly_rate.toLocaleString("en-PH")} ÷ ${run.salary_divisor} × ${run.days_worked}日 = ₱${((run.monthly_rate / run.salary_divisor) * run.days_worked).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`
+      `₱${run.monthly_rate.toLocaleString("en-PH")} ÷ ${run.salary_divisor} × ${run.days_worked} day(s) = ₱${((run.monthly_rate / run.salary_divisor) * run.days_worked).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`
     );
   } else if (run.daily_rate && run.days_worked != null) {
-    basisParts.push(`₱${run.daily_rate.toLocaleString("en-PH")}/日 × ${run.days_worked}日`);
+    basisParts.push(`₱${run.daily_rate.toLocaleString("en-PH")}/day × ${run.days_worked} day(s)`);
   }
 
   return (
@@ -124,14 +124,14 @@ function PayslipDetail({
           <div>
             <h2 className="text-lg font-semibold text-white">{run.staff_name}</h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              {run.salary_type === "monthly" ? "月給制" : "日給制"}
-              &nbsp;·&nbsp;月額 {fmtPHP(run.monthly_rate)}
-              &nbsp;·&nbsp;除数 {run.salary_divisor ?? "—"}
-              &nbsp;·&nbsp;勤務 {run.days_worked ?? "—"} 日
+              {run.salary_type === "monthly" ? "Monthly" : "Daily"}
+              &nbsp;·&nbsp;Monthly Rate: {fmtPHP(run.monthly_rate)}
+              &nbsp;·&nbsp;Divisor: {run.salary_divisor ?? "—"}
+              &nbsp;·&nbsp;Days Worked: {run.days_worked ?? "—"}
             </p>
             {basisParts.length > 0 && (
               <p className="text-xs text-violet-300/70 mt-1 font-mono">
-                基本給計算: {basisParts.join(" + ")}
+                Basic Pay: {basisParts.join(" + ")}
               </p>
             )}
           </div>
@@ -141,7 +141,7 @@ function PayslipDetail({
                 onClick={() => onApprove(run.id)}
                 className="flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-900/30 px-3 py-1.5 text-xs text-emerald-300 hover:bg-emerald-900/50"
               >
-                <CheckCircle2 size={12} /> 承認
+                <CheckCircle2 size={12} /> Approve
               </button>
             )}
             {/* Publish / Unpublish */}
@@ -149,24 +149,24 @@ function PayslipDetail({
               <button
                 onClick={() => onUnpublish(run.id)}
                 className="flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-900/20 px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-900/40"
-                title="公開を取り消す"
+                title="Unpublish"
               >
-                <EyeOff size={12} /> 非公開に戻す
+                <EyeOff size={12} /> Unpublish
               </button>
             ) : (
               <button
                 onClick={() => onPublish(run.id)}
                 disabled={!["approved","paid","computed"].includes(run.status)}
                 className="flex items-center gap-1 rounded-lg border border-violet-500/40 bg-violet-900/30 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-900/50 disabled:opacity-40 disabled:cursor-not-allowed"
-                title="スタッフの My Pay に公開する"
+                title="Publish to staff My Pay"
               >
-                <Send size={12} /> スタッフに公開
+                <Send size={12} /> Publish to Staff
               </button>
             )}
             <button
               onClick={() => window.print()}
               className="flex items-center gap-1 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700"
-              title="印刷 / PDF保存"
+              title="Print / Save as PDF"
             >
               <Printer size={12} />
             </button>
@@ -178,7 +178,7 @@ function PayslipDetail({
 
         {run.minimum_wage_compliant === false && (
           <div className="mt-2 flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-900/20 px-3 py-2 text-xs text-amber-300">
-            <AlertTriangle size={12} /> 日額が最低賃金（₱695/日）を下回っています
+            <AlertTriangle size={12} /> Daily rate is below minimum wage (₱695/day)
           </div>
         )}
 
@@ -186,16 +186,16 @@ function PayslipDetail({
         {run.published_at && (
           <div className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-900/20 px-3 py-2 text-xs text-emerald-300">
             <Eye size={12} />
-            スタッフに公開済み — {new Date(run.published_at).toLocaleString("ja-JP")}
+            Published to staff — {new Date(run.published_at).toLocaleString("en-US")}
             {run.published_by && <span className="text-emerald-400/60 ml-1">by {run.published_by}</span>}
           </div>
         )}
 
-        {/* ── Formula banner: 総支給額 − 控除 = 手取り ── */}
+        {/* ── Formula banner: Gross Pay − Deductions = Net Pay ── */}
         <div className="mt-4 flex items-stretch gap-1 rounded-xl overflow-hidden border border-white/10 text-center">
           {/* Gross */}
           <div className="flex-1 bg-slate-800/80 px-3 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">総支給額</p>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">Gross Pay</p>
             <p className="text-base font-bold text-white tabular-nums">{fmtPHP(run.gross_pay)}</p>
           </div>
           {/* Minus sign */}
@@ -204,7 +204,7 @@ function PayslipDetail({
           </div>
           {/* Deductions */}
           <div className="flex-1 bg-slate-800/80 px-3 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">控除合計</p>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 mb-1">Total Deductions</p>
             <p className="text-base font-bold text-red-300 tabular-nums">{fmtPHPAbs(run.total_deductions)}</p>
           </div>
           {/* Equals sign */}
@@ -213,7 +213,7 @@ function PayslipDetail({
           </div>
           {/* Net pay */}
           <div className="flex-1 bg-gradient-to-br from-violet-900/70 to-purple-900/70 border-l border-violet-500/20 px-3 py-3">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-violet-300 mb-1">手取り給与</p>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-violet-300 mb-1">Net Pay</p>
             <p className="text-base font-bold text-emerald-300 tabular-nums">{fmtPHP(run.net_pay)}</p>
           </div>
         </div>
@@ -227,7 +227,7 @@ function PayslipDetail({
           </div>
         ) : items.length === 0 ? (
           <p className="text-center text-sm text-slate-500 py-8">
-            計算前です。「Compute All」を実行してください。
+            Not yet computed. Click &quot;Compute All&quot; to generate payroll.
           </p>
         ) : (
           <>
@@ -236,9 +236,9 @@ function PayslipDetail({
               <section>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[11px] font-bold uppercase tracking-widest text-emerald-400/80">
-                    支給項目
+                    Earnings
                   </p>
-                  <span className="text-xs text-slate-500">小計</span>
+                  <span className="text-xs text-slate-500">Subtotal</span>
                 </div>
                 <div className="rounded-xl border border-white/5 overflow-hidden">
                   {earnings.map((item, idx) => (
@@ -252,14 +252,14 @@ function PayslipDetail({
                         <p className="text-sm text-slate-200">{item.label}</p>
                         {item.quantity != null && item.unit_rate != null && (
                           <p className="text-xs text-slate-500 mt-0.5">
-                            {item.quantity}日 × ₱{item.unit_rate.toLocaleString("en-PH", { minimumFractionDigits: 4, maximumFractionDigits: 4 })}
+                            {item.quantity} day(s) × ₱{item.unit_rate.toLocaleString("en-PH", { minimumFractionDigits: 4, maximumFractionDigits: 4 })}
                           </p>
                         )}
                         {item.note && (
                           <p className="text-xs text-slate-500 mt-0.5">{item.note}</p>
                         )}
                         {item.is_taxable && (
-                          <span className="text-[10px] text-slate-600">課税対象</span>
+                          <span className="text-[10px] text-slate-600">Taxable</span>
                         )}
                       </div>
                       <span className="ml-4 tabular-nums text-sm font-semibold text-emerald-300">
@@ -269,7 +269,7 @@ function PayslipDetail({
                   ))}
                   {/* Earnings subtotal */}
                   <div className="flex items-center justify-between bg-emerald-900/20 border-t border-emerald-500/20 px-4 py-2.5">
-                    <p className="text-xs font-bold text-emerald-400/80 uppercase tracking-wide">総支給額合計</p>
+                    <p className="text-xs font-bold text-emerald-400/80 uppercase tracking-wide">Total Earnings</p>
                     <span className="tabular-nums text-sm font-bold text-emerald-300">{fmtPHP(earningsTotal)}</span>
                   </div>
                 </div>
@@ -281,9 +281,9 @@ function PayslipDetail({
               <section>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-[11px] font-bold uppercase tracking-widest text-red-400/80">
-                    控除項目
+                    Deductions
                   </p>
-                  <span className="text-xs text-slate-500">差し引き金額</span>
+                  <span className="text-xs text-slate-500">Amount Deducted</span>
                 </div>
                 <div className="rounded-xl border border-white/5 overflow-hidden">
                   {deductions.map((item, idx) => (
@@ -299,7 +299,7 @@ function PayslipDetail({
                           <p className="text-xs text-slate-500 mt-0.5">{item.note}</p>
                         )}
                         {item.source && item.source !== "computed" && (
-                          <p className="text-xs text-slate-600 mt-0.5">出典: {item.source}</p>
+                          <p className="text-xs text-slate-600 mt-0.5">Source: {item.source}</p>
                         )}
                       </div>
                       <span className="ml-4 tabular-nums text-sm font-semibold text-red-300">
@@ -309,7 +309,7 @@ function PayslipDetail({
                   ))}
                   {/* Deductions subtotal */}
                   <div className="flex items-center justify-between bg-red-900/20 border-t border-red-500/20 px-4 py-2.5">
-                    <p className="text-xs font-bold text-red-400/80 uppercase tracking-wide">控除合計</p>
+                    <p className="text-xs font-bold text-red-400/80 uppercase tracking-wide">Total Deductions</p>
                     <span className="tabular-nums text-sm font-bold text-red-300">({fmtPHP(deductionsTotal)})</span>
                   </div>
                 </div>
@@ -321,7 +321,7 @@ function PayslipDetail({
               <div className="rounded-xl border border-violet-500/30 bg-gradient-to-r from-violet-900/40 to-purple-900/40 px-5 py-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-violet-300/70 uppercase tracking-wide font-semibold mb-0.5">手取り給与</p>
+                    <p className="text-xs text-violet-300/70 uppercase tracking-wide font-semibold mb-0.5">Net Pay</p>
                     <p className="text-[11px] text-slate-500">
                       {fmtPHP(earningsTotal)} − {fmtPHP(deductionsTotal)}
                     </p>
@@ -335,7 +335,7 @@ function PayslipDetail({
             {employerCosts.length > 0 && (
               <section>
                 <p className="text-[11px] font-bold uppercase tracking-widest text-slate-600 mb-2">
-                  会社負担分（従業員の控除には含まない・参考）
+                  Employer Costs (not deducted from employee — reference only)
                 </p>
                 <div className="rounded-xl border border-white/5 overflow-hidden">
                   {employerCosts.map((item, idx) => (
@@ -350,7 +350,7 @@ function PayslipDetail({
                     </div>
                   ))}
                   <div className="flex items-center justify-between bg-slate-800/60 border-t border-white/5 px-4 py-2">
-                    <p className="text-xs text-slate-600 uppercase tracking-wide">会社負担合計</p>
+                    <p className="text-xs text-slate-600 uppercase tracking-wide">Total Employer Costs</p>
                     <span className="text-xs text-slate-500 tabular-nums">
                       {fmtPHP(employerCosts.reduce((s, i) => s + i.amount, 0))}
                     </span>
@@ -486,13 +486,13 @@ export default function ManilaPayrollPeriodPage() {
 
   const publishAll = async () => {
     if (!period) return;
-    if (!confirm(`この期間の全スタッフ（承認済み・計算済み）の給与明細をスタッフの My Pay に公開しますか？`)) return;
+    if (!confirm(`Publish all computed/approved payslips for this period to staff My Pay?`)) return;
     try {
       const r = await apiFetch(`${API.replace("/runs", "")}/periods/${periodId}/publish-all`, { method: "POST" });
       if (!r.ok) throw new Error(await r.text());
       const data = await r.json() as { published_count: number };
       await loadPeriod();
-      alert(`${data.published_count}件の給与明細を公開しました。`);
+      alert(`${data.published_count} payslip(s) published to staff.`);
     } catch (e) {
       setError(String(e));
     }
@@ -544,7 +544,7 @@ export default function ManilaPayrollPeriodPage() {
 
               {/* Nav */}
               <Link href="/admin/payroll/manila" className="flex items-center gap-2 text-sm text-slate-400 hover:text-white mb-4">
-                <ArrowLeft size={14} /> 期間一覧に戻る
+                <ArrowLeft size={14} /> Back to Periods
               </Link>
 
               {period && (
@@ -553,7 +553,7 @@ export default function ManilaPayrollPeriodPage() {
                     <h1 className="text-2xl font-light text-white">{period.period_label}</h1>
                     <p className="text-sm text-slate-400">
                       {period.start_date} → {period.end_date}
-                      {period.period_half === 2 && " · 法定控除あり（SSS/PhilHealth/Pag-IBIG）"}
+                      {period.period_half === 2 && " · Statutory deductions (SSS/PhilHealth/Pag-IBIG)"}
                     </p>
                   </div>
                   <div className="flex gap-2">
@@ -562,7 +562,7 @@ export default function ManilaPayrollPeriodPage() {
                         onClick={publishAll}
                         className="flex items-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-900/30 px-3 py-1.5 text-sm text-violet-200 hover:bg-violet-900/50"
                       >
-                        <Send size={14} /> 全員公開
+                        <Send size={14} /> Publish All
                       </button>
                     )}
                     <button
@@ -583,17 +583,17 @@ export default function ManilaPayrollPeriodPage() {
               {runs.length > 0 && (
                 <div className="mt-4 flex items-stretch gap-1 rounded-xl border border-white/5 overflow-hidden text-center">
                   <div className="flex-1 bg-slate-800/60 px-3 py-3">
-                    <p className="text-[10px] text-slate-500 uppercase tracking-wider">総支給額合計</p>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wider">Total Gross Pay</p>
                     <p className="text-sm font-bold text-white mt-1 tabular-nums">{fmtPHP(totals.gross)}</p>
                   </div>
                   <div className="flex items-center justify-center bg-slate-900/50 px-2 text-slate-600 font-light text-lg select-none">−</div>
                   <div className="flex-1 bg-slate-800/60 px-3 py-3">
-                    <p className="text-[10px] text-slate-500 uppercase tracking-wider">控除合計</p>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wider">Total Deductions</p>
                     <p className="text-sm font-bold text-red-300 mt-1 tabular-nums">{fmtPHPAbs(totals.ded)}</p>
                   </div>
                   <div className="flex items-center justify-center bg-slate-900/50 px-2 text-slate-600 font-light text-lg select-none">=</div>
                   <div className="flex-1 bg-violet-900/30 border-l border-violet-500/20 px-3 py-3">
-                    <p className="text-[10px] text-violet-400/70 uppercase tracking-wider">手取り合計</p>
+                    <p className="text-[10px] text-violet-400/70 uppercase tracking-wider">Total Net Pay</p>
                     <p className="text-sm font-bold text-emerald-300 mt-1 tabular-nums">{fmtPHP(totals.net)}</p>
                   </div>
                 </div>
@@ -602,10 +602,10 @@ export default function ManilaPayrollPeriodPage() {
               {/* Staff count */}
               {runs.length > 0 && (
                 <p className="mt-2 text-xs text-slate-600">
-                  対象スタッフ: {runs.length}名
+                  {runs.length} staff member(s)
                   {nonCompliant.length > 0 && (
                     <span className="text-amber-400 ml-2">
-                      ⚠ {nonCompliant.length}名が最低賃金以下
+                      ⚠ {nonCompliant.length} below minimum wage
                     </span>
                   )}
                 </p>
@@ -615,7 +615,7 @@ export default function ManilaPayrollPeriodPage() {
               {nonCompliant.length > 0 && (
                 <div className="mt-2 flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-900/20 px-3 py-2 text-xs text-amber-300">
                   <AlertTriangle size={14} />
-                  最低賃金未満（₱695/日）: {nonCompliant.map(r => r.staff_name).join(", ")}
+                  Below minimum wage (₱695/day): {nonCompliant.map(r => r.staff_name).join(", ")}
                 </div>
               )}
             </div>
@@ -636,7 +636,7 @@ export default function ManilaPayrollPeriodPage() {
                 </div>
               ) : runs.length === 0 ? (
                 <div className={GLASS_CARD + " p-8 text-center"}>
-                  <p className="text-slate-400 text-sm">まだ計算結果がありません。「Compute All」で給与を計算してください。</p>
+                  <p className="text-slate-400 text-sm">No results yet. Click &quot;Compute All&quot; to generate payroll.</p>
                 </div>
               ) : (
                 <table className="w-full text-sm">
@@ -645,19 +645,19 @@ export default function ManilaPayrollPeriodPage() {
                       <th className="py-2 text-left cursor-pointer select-none hover:text-white"
                           onClick={() => toggleSort("name")}>
                         <span className="flex items-center gap-1">
-                          スタッフ {sortBy==="name" && (sortDir==="asc"?<ChevronUp size={12}/>:<ChevronDown size={12}/>)}
+                          Staff {sortBy==="name" && (sortDir==="asc"?<ChevronUp size={12}/>:<ChevronDown size={12}/>)}
                         </span>
                       </th>
-                      <th className="py-2 text-right text-xs text-slate-500">総支給額</th>
-                      <th className="py-2 text-right text-xs text-red-400/70">控除</th>
+                      <th className="py-2 text-right text-xs text-slate-500">Gross</th>
+                      <th className="py-2 text-right text-xs text-red-400/70">Deductions</th>
                       <th className="py-2 text-right cursor-pointer select-none hover:text-white"
                           onClick={() => toggleSort("net")}>
                         <span className="flex items-center justify-end gap-1 text-emerald-400/70">
-                          手取り {sortBy==="net" && (sortDir==="asc"?<ChevronUp size={12}/>:<ChevronDown size={12}/>)}
+                          Net Pay {sortBy==="net" && (sortDir==="asc"?<ChevronUp size={12}/>:<ChevronDown size={12}/>)}
                         </span>
                       </th>
-                      <th className="py-2 text-center text-xs text-slate-500">状態</th>
-                      <th className="py-2 text-center text-xs text-violet-400/70">公開</th>
+                      <th className="py-2 text-center text-xs text-slate-500">Status</th>
+                      <th className="py-2 text-center text-xs text-violet-400/70">Published</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -689,8 +689,8 @@ export default function ManilaPayrollPeriodPage() {
                         </td>
                         <td className="py-2.5 text-center">
                           {run.published_at
-                            ? <span title="公開済み"><Eye size={13} className="inline text-emerald-400" /></span>
-                            : <span title="未公開"><EyeOff size={13} className="inline text-slate-600" /></span>}
+                            ? <span title="Published"><Eye size={13} className="inline text-emerald-400" /></span>
+                            : <span title="Unpublished"><EyeOff size={13} className="inline text-slate-600" /></span>}
                         </td>
                       </tr>
                     ))}
@@ -698,7 +698,7 @@ export default function ManilaPayrollPeriodPage() {
                   {/* Table footer totals */}
                   <tfoot>
                     <tr className="border-t-2 border-white/10">
-                      <td className="py-2.5 text-xs font-semibold text-slate-400">合計 ({runs.length}名)</td>
+                      <td className="py-2.5 text-xs font-semibold text-slate-400">Total ({runs.length})</td>
                       <td className="py-2.5 text-right text-sm font-bold text-white tabular-nums">{fmtPHP(totals.gross)}</td>
                       <td className="py-2.5 text-right text-sm font-bold text-red-300 tabular-nums">({fmtPHP(totals.ded)})</td>
                       <td className="py-2.5 text-right text-sm font-bold text-emerald-300 tabular-nums">{fmtPHP(totals.net)}</td>
@@ -715,10 +715,10 @@ export default function ManilaPayrollPeriodPage() {
             {!selectedRun ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center p-8">
                 <div className="rounded-xl border border-white/5 bg-white/5 p-6">
-                  <p className="text-sm text-slate-400 font-medium">スタッフを選択</p>
+                  <p className="text-sm text-slate-400 font-medium">Select a staff member</p>
                   <p className="text-xs text-slate-600 mt-1">
-                    左の一覧からスタッフをクリックすると<br />
-                    給与の計算内訳が表示されます
+                    Click a name from the list on the left<br />
+                    to view the payroll breakdown.
                   </p>
                 </div>
               </div>
