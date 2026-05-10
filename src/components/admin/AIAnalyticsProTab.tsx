@@ -73,44 +73,61 @@ function isHtmlErrorPayload(t: string) {
   return s.startsWith("<!DOCTYPE") || s.startsWith("<html");
 }
 
-/** Parse SSE / NDJSON-style lines; ignores `: ping` comments and partial chunks. */
-function parseSseLinesFromText(full: string): Record<string, unknown> | null {
-  let finalData: Record<string, unknown> | null = null;
-  for (const rawLine of full.split("\n")) {
-    const line = rawLine.replace(/\r$/, "").trimEnd();
-    if (!line) continue;
-    if (line.startsWith(":")) continue;
-    const lower = line.toLowerCase();
-    if (!lower.startsWith("data:")) continue;
-    const jsonStr = line.slice(line.indexOf(":") + 1).trim();
-    if (!jsonStr || !jsonStr.startsWith("{")) continue;
-    try {
-      const j = JSON.parse(jsonStr) as Record<string, unknown>;
-      if (typeof j.success === "boolean") finalData = j;
-    } catch {
-      /* incomplete JSON chunk */
-    }
-  }
-  return finalData;
-}
+type SseEvent = Record<string, unknown>;
+type OnEventCallback = (event: SseEvent) => void;
 
-/** Read SSE stream from chat-pro; final `data:` line has `{ success, ... }`. */
-async function readChatProSseBody(res: Response): Promise<Record<string, unknown>> {
+/**
+ * Read SSE stream from chat-pro, calling onEvent for each intermediate event
+ * (tool_start / tool_done / text_delta).
+ * Returns the final {success, ...} payload once received.
+ */
+async function readChatProSseBody(
+  res: Response,
+  onEvent?: OnEventCallback,
+): Promise<Record<string, unknown>> {
   const reader = res.body?.getReader();
   if (!reader) {
     const t = await res.text();
     if (isHtmlErrorPayload(t)) {
       throw new Error(
-        "サーバーが HTML エラーを返しました（タイムアウトや一時的な過負荷の可能性があります）。しばらくしてから再試行してください。",
+        "Server returned an HTML error (timeout or overload). Please try again shortly.",
       );
     }
-    const fromSse = parseSseLinesFromText(t);
-    if (fromSse) return fromSse;
+    // Try parsing SSE lines manually
+    let finalData: Record<string, unknown> | null = null;
+    for (const rawLine of t.split("\n")) {
+      const line = rawLine.replace(/\r$/, "").trimEnd();
+      if (!line || line.startsWith(":") || !line.toLowerCase().startsWith("data:")) continue;
+      const jsonStr = line.slice(line.indexOf(":") + 1).trim();
+      if (!jsonStr || !jsonStr.startsWith("{")) continue;
+      try {
+        const j = JSON.parse(jsonStr) as Record<string, unknown>;
+        if (typeof j.success === "boolean") finalData = j;
+        else if (j.type && onEvent) onEvent(j);
+      } catch { /* ignore */ }
+    }
+    if (finalData) return finalData;
     return t ? (JSON.parse(t) as Record<string, unknown>) : {};
   }
+
   const decoder = new TextDecoder();
   let buffer = "";
   let finalData: Record<string, unknown> | null = null;
+
+  const processLine = (rawLine: string) => {
+    const line = rawLine.replace(/\r$/, "").trimEnd();
+    if (!line || line.startsWith(":") || !line.toLowerCase().startsWith("data:")) return;
+    const jsonStr = line.slice(line.indexOf(":") + 1).trim();
+    if (!jsonStr || !jsonStr.startsWith("{")) return;
+    try {
+      const j = JSON.parse(jsonStr) as Record<string, unknown>;
+      if (typeof j.success === "boolean") {
+        finalData = j;
+      } else if (j.type && onEvent) {
+        onEvent(j);
+      }
+    } catch { /* incomplete chunk */ }
+  };
 
   for (;;) {
     const { done, value } = await reader.read();
@@ -118,48 +135,21 @@ async function readChatProSseBody(res: Response): Promise<Record<string, unknown
 
     const lines = buffer.split("\n");
     buffer = lines.pop() ?? "";
-
-    for (const rawLine of lines) {
-      const line = rawLine.replace(/\r$/, "").trimEnd();
-      if (!line) continue;
-      if (line.startsWith(":")) continue;
-      const lower = line.toLowerCase();
-      if (!lower.startsWith("data:")) continue;
-      const jsonStr = line.slice(line.indexOf(":") + 1).trim();
-      if (!jsonStr || !jsonStr.startsWith("{")) continue;
-      try {
-        const j = JSON.parse(jsonStr) as Record<string, unknown>;
-        if (typeof j.success === "boolean") finalData = j;
-      } catch {
-        /* ignore */
-      }
-    }
+    for (const line of lines) processLine(line);
 
     if (done) break;
   }
 
-  if (buffer.trim()) {
-    const line = buffer.replace(/\r$/, "").trimEnd();
-    if (line && !line.startsWith(":") && line.toLowerCase().startsWith("data:")) {
-      const jsonStr = line.slice(line.indexOf(":") + 1).trim();
-      if (jsonStr.startsWith("{")) {
-        try {
-          const j = JSON.parse(jsonStr) as Record<string, unknown>;
-          if (typeof j.success === "boolean") finalData = j;
-        } catch {
-          /* ignore */
-        }
-      }
-    }
-  }
+  // Flush any remaining buffer content
+  if (buffer.trim()) processLine(buffer);
 
   if (finalData) return finalData;
   if (isHtmlErrorPayload(buffer)) {
     throw new Error(
-      "サーバーが HTML エラーを返しました（タイムアウトや一時的な過負荷の可能性があります）。しばらくしてから再試行してください。",
+      "Server returned an HTML error (timeout or overload). Please try again shortly.",
     );
   }
-  throw new Error("AI の応答を解析できませんでした。管理者に連絡してください。");
+  throw new Error("Could not parse the AI response. Please contact the administrator.");
 }
 
 function ts() {
@@ -209,6 +199,10 @@ export default function AIAnalyticsProTab() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [thinking, setThinking] = useState("");
+  /** Tools currently in-progress shown as active badges during loading */
+  const [activeTools, setActiveTools] = useState<string[]>([]);
+  /** Streaming text accumulator — shown as a preview while the answer is being typed */
+  const [streamingText, setStreamingText] = useState("");
   const [savedOpen, setSavedOpen] = useState(true);
   const [savedRows, setSavedRows] = useState<SavedSnapshotRow[]>([]);
   const [savedLoading, setSavedLoading] = useState(false);
@@ -224,7 +218,7 @@ export default function AIAnalyticsProTab() {
 
   useEffect(() => {
     scrollBottom();
-  }, [messages, thinking, scrollBottom]);
+  }, [messages, thinking, streamingText, scrollBottom]);
 
   const loadSavedAnswers = useCallback(async () => {
     const auth = getAuth();
@@ -248,15 +242,13 @@ export default function AIAnalyticsProTab() {
         try {
           const j = JSON.parse(t) as { detail?: string };
           if (typeof j?.detail === "string") detail = j.detail;
-        } catch {
-          /* ignore */
-        }
+        } catch { /* ignore */ }
         throw new Error(detail || `HTTP ${res.status}`);
       }
       const data = (await res.json()) as { items?: SavedSnapshotRow[] };
       setSavedRows(Array.isArray(data.items) ? data.items : []);
     } catch (e: unknown) {
-      setSavedError(e instanceof Error ? e.message : "読み込みに失敗しました");
+      setSavedError(e instanceof Error ? e.message : "Failed to load saved answers");
     } finally {
       setSavedLoading(false);
     }
@@ -266,7 +258,10 @@ export default function AIAnalyticsProTab() {
     void loadSavedAnswers();
   }, [loadSavedAnswers]);
 
-  const postChat = async (body: Record<string, unknown>) => {
+  const postChat = async (
+    body: Record<string, unknown>,
+    onEvent?: OnEventCallback,
+  ) => {
     const base = getApiBase();
     const url = `${base}/api/ai/analytics/chat-pro`;
     const run = () =>
@@ -292,41 +287,37 @@ export default function AIAnalyticsProTab() {
       const text = await res.text();
       if (isHtmlErrorPayload(text)) {
         throw new Error(
-          "サーバーが HTML エラーを返しました（タイムアウトや一時的な過負荷の可能性があります）。しばらくしてから再試行してください。",
+          "Server returned an HTML error (timeout or overload). Please try again shortly.",
         );
       }
       let detail = text;
       try {
         const j = JSON.parse(text) as { detail?: unknown };
         if (typeof j?.detail === "string") detail = j.detail;
-      } catch {
-        /* ignore */
-      }
+      } catch { /* ignore */ }
       throw new Error(detail || "Request failed");
     }
     const ct = (res.headers.get("content-type") || "").toLowerCase();
     if (ct.includes("text/event-stream") || ct.includes("event-stream")) {
-      return readChatProSseBody(res);
+      return readChatProSseBody(res, onEvent);
     }
     const text = await res.text();
     if (isHtmlErrorPayload(text)) {
       throw new Error(
-        "サーバーが HTML エラーを返しました（タイムアウトや一時的な過負荷の可能性があります）。しばらくしてから再試行してください。",
+        "Server returned an HTML error (timeout or overload). Please try again shortly.",
       );
     }
     if (!text.trim()) return {};
     try {
       return JSON.parse(text) as Record<string, unknown>;
     } catch {
-      const fromSse = parseSseLinesFromText(text);
-      if (fromSse) return fromSse;
-      throw new Error("応答を解釈できませんでした（JSON でも SSE でもありません）。");
+      throw new Error("Could not parse the response (not JSON or SSE).");
     }
   };
 
   const saveAnswerSnapshot = async (pairedQuestion: string, answer: string, model?: string) => {
     const auth = getAuth();
-    if (!auth?.accessToken) throw new Error("ログインが必要です");
+    if (!auth?.accessToken) throw new Error("Login required");
     const city = String(auth.city || "dubai").toLowerCase() === "manila" ? "manila" : "dubai";
     const id = crypto.randomUUID();
     const run = () =>
@@ -357,10 +348,8 @@ export default function AIAnalyticsProTab() {
       try {
         const j = JSON.parse(t) as { detail?: string };
         if (typeof j?.detail === "string") detail = j.detail;
-      } catch {
-        /* ignore */
-      }
-      throw new Error(detail || "保存に失敗しました");
+      } catch { /* ignore */ }
+      throw new Error(detail || "Failed to save");
     }
     await loadSavedAnswers();
     return id;
@@ -382,7 +371,7 @@ export default function AIAnalyticsProTab() {
     }
     if (!res.ok) {
       const t = await res.text();
-      throw new Error(t || "削除に失敗しました");
+      throw new Error(t || "Delete failed");
     }
     setExpandedSavedId((cur) => (cur === id ? null : cur));
     await loadSavedAnswers();
@@ -397,23 +386,52 @@ export default function AIAnalyticsProTab() {
     setInput("");
     setLoading(true);
     setThinking("Analysing your question…");
+    setActiveTools([]);
+    setStreamingText("");
     const history = messages.slice(-6).map((m) => ({ role: m.role, content: m.content }));
     const city = String(auth?.city || "dubai").toLowerCase() === "manila" ? "manila" : "dubai";
+
+    const toolSummaryRef: ToolCallSummary[] = [];
+
+    const handleEvent = (event: SseEvent) => {
+      const type = String(event.type || "");
+      if (type === "tool_start") {
+        const tname = String(event.tool || "");
+        const label = TOOL_LABELS[tname] ?? tname;
+        setThinking(`Fetching ${label}…`);
+        setActiveTools((prev) => [...prev, tname]);
+      } else if (type === "tool_done") {
+        const tname = String(event.tool || "");
+        const rows = typeof event.rows === "number" ? event.rows : null;
+        toolSummaryRef.push({ tool: tname, rows });
+        setActiveTools((prev) => prev.filter((t) => t !== tname));
+        setThinking("Analysing data…");
+      } else if (type === "text_delta") {
+        const chunk = String(event.text || "");
+        setStreamingText((prev) => prev + chunk);
+        setThinking("");
+      }
+    };
+
     try {
-      setThinking("Querying live data…");
-      const json = await postChat({
-        approver_name: auth?.staffName || "",
-        pin: auth?.pin || "",
-        question: trimmed,
-        history,
-        date_from: dateFrom || undefined,
-        date_to: dateTo || undefined,
-        city,
-      });
+      const json = await postChat(
+        {
+          approver_name: auth?.staffName || "",
+          pin: auth?.pin || "",
+          question: trimmed,
+          history,
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined,
+          city,
+        },
+        handleEvent,
+      );
       if (json.success) {
         const summary = Array.isArray(json.tool_results_summary)
           ? (json.tool_results_summary as ToolCallSummary[])
-          : undefined;
+          : toolSummaryRef.length > 0
+            ? toolSummaryRef
+            : undefined;
         setMessages((prev) => [
           ...prev,
           {
@@ -426,7 +444,7 @@ export default function AIAnalyticsProTab() {
           },
         ]);
       } else {
-        const d = typeof json.detail === "string" ? json.detail : "AI がエラーを返しました";
+        const d = typeof json.detail === "string" ? json.detail : "AI returned an error";
         throw new Error(d);
       }
     } catch (e: unknown) {
@@ -435,6 +453,8 @@ export default function AIAnalyticsProTab() {
     } finally {
       setLoading(false);
       setThinking("");
+      setActiveTools([]);
+      setStreamingText("");
       setTimeout(() => inputRef.current?.focus(), 80);
     }
   };
@@ -473,19 +493,20 @@ export default function AIAnalyticsProTab() {
           ) : null}
         </div>
 
+        {/* Saved answers panel */}
         <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
           <button
             type="button"
             onClick={() => setSavedOpen((o) => !o)}
             className="flex w-full items-center justify-between text-left text-sm font-medium text-white/90"
           >
-            <span>保存した回答</span>
+            <span>Saved answers</span>
             <span className="text-white/40">{savedOpen ? "▼" : "▶"}</span>
           </button>
           {savedOpen ? (
             <div className="mt-3 space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs text-white/35">同じ権限で AI Analytics に保存した回答もここに表示されます。</p>
+                <p className="text-xs text-white/35">Answers saved in AI Analytics with the same access are shown here.</p>
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -493,19 +514,19 @@ export default function AIAnalyticsProTab() {
                     disabled={savedLoading}
                     className="rounded-lg border border-white/15 bg-white/5 px-2 py-1 text-xs text-white/60 hover:text-white/90 disabled:opacity-40"
                   >
-                    {savedLoading ? "更新中…" : "更新"}
+                    {savedLoading ? "Refreshing…" : "Refresh"}
                   </button>
                   <Link
                     href="/admin/analytics/ai-history"
                     className="rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-2 py-1 text-xs text-indigo-200 hover:bg-indigo-500/20"
                   >
-                    一覧ページ
+                    View all
                   </Link>
                 </div>
               </div>
               {savedError ? <p className="text-xs text-rose-400">{savedError}</p> : null}
               {!savedLoading && savedRows.length === 0 && !savedError ? (
-                <p className="text-xs text-white/30">まだ保存がありません。下のチャットで「この回答を保存」から追加できます。</p>
+                <p className="text-xs text-white/30">No saved answers yet. Use &ldquo;Save this answer&rdquo; below to add one.</p>
               ) : null}
               <ul className="max-h-48 space-y-1.5 overflow-y-auto text-xs">
                 {savedRows.map((row) => (
@@ -516,22 +537,22 @@ export default function AIAnalyticsProTab() {
                         onClick={() => setExpandedSavedId((id) => (id === row.id ? null : row.id))}
                         className="min-w-0 flex-1 text-left text-white/75 hover:text-white"
                       >
-                        <span className="line-clamp-2">{row.question || "(質問なし)"}</span>
+                        <span className="line-clamp-2">{row.question || "(no question)"}</span>
                         <span className="mt-0.5 block text-[10px] text-white/30">
-                          {row.created_at ? new Date(row.created_at).toLocaleString("ja-JP") : ""} · {row.city}
+                          {row.created_at ? new Date(row.created_at).toLocaleString("en-US") : ""} · {row.city}
                         </span>
                       </button>
                       <button
                         type="button"
                         onClick={() =>
                           void deleteSavedSnapshot(row.id).catch((e) =>
-                            window.alert(e instanceof Error ? e.message : "削除に失敗しました"),
+                            window.alert(e instanceof Error ? e.message : "Delete failed"),
                           )
                         }
                         className="shrink-0 rounded px-1.5 py-0.5 text-white/35 hover:bg-rose-500/20 hover:text-rose-300"
-                        title="削除"
+                        title="Delete"
                       >
-                        削除
+                        Delete
                       </button>
                     </div>
                     {expandedSavedId === row.id ? (
@@ -546,6 +567,7 @@ export default function AIAnalyticsProTab() {
           ) : null}
         </div>
 
+        {/* Date range filter */}
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="text-white/40">Date range (optional):</span>
           <input
@@ -568,6 +590,7 @@ export default function AIAnalyticsProTab() {
           ) : null}
         </div>
 
+        {/* Chat window */}
         <div className="max-h-[520px] min-h-[400px] flex-1 space-y-5 overflow-y-auto rounded-xl border border-white/10 bg-black/20 p-4">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center gap-5 py-6">
@@ -626,7 +649,7 @@ export default function AIAnalyticsProTab() {
                   <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
                     {msg.role === "assistant" && !msg.content.startsWith("⚠️") && msg.pairedQuestion ? (
                       msg.saved ? (
-                        <span className="text-xs text-emerald-400/90">保存済み</span>
+                        <span className="text-xs text-emerald-400/90">Saved ✓</span>
                       ) : (
                         <button
                           type="button"
@@ -642,7 +665,7 @@ export default function AIAnalyticsProTab() {
                                   ),
                                 );
                               } catch (err: unknown) {
-                                const t = err instanceof Error ? err.message : "保存に失敗しました";
+                                const t = err instanceof Error ? err.message : "Save failed";
                                 window.alert(t);
                               } finally {
                                 setSavingIdx(null);
@@ -651,7 +674,7 @@ export default function AIAnalyticsProTab() {
                           }}
                           className="rounded-lg border border-emerald-500/35 bg-emerald-600/20 px-2.5 py-1 text-xs text-emerald-200 transition hover:bg-emerald-600/35 disabled:opacity-40"
                         >
-                          {savingIdx === idx ? "保存中…" : "この回答を保存"}
+                          {savingIdx === idx ? "Saving…" : "Save this answer"}
                         </button>
                       )
                     ) : null}
@@ -670,26 +693,51 @@ export default function AIAnalyticsProTab() {
             </div>
           ))}
 
+          {/* Loading state — shows tool activity + streaming text preview */}
           {loading ? (
             <div className="flex justify-start gap-3">
               <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full border border-indigo-500/40 bg-indigo-600/40 text-base">
                 🤖
               </div>
-              <div className="rounded-2xl rounded-tl-sm border border-white/12 bg-white/[0.08] px-5 py-3">
-                <div className="flex items-center gap-2">
-                  <div className="flex gap-1">
-                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: "0ms" }} />
-                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: "150ms" }} />
-                    <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: "300ms" }} />
+              <div className="flex-1 rounded-2xl rounded-tl-sm border border-white/12 bg-white/[0.08] px-5 py-3">
+                {streamingText ? (
+                  /* Streaming answer preview */
+                  <div className="space-y-1">
+                    <AnswerText text={streamingText} />
+                    <span className="inline-block h-4 w-1.5 animate-pulse rounded-sm bg-indigo-400/70" />
                   </div>
-                  <span className="text-xs italic text-white/40">{thinking}</span>
-                </div>
+                ) : (
+                  /* Thinking / tool indicator */
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: "0ms" }} />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: "150ms" }} />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-indigo-400" style={{ animationDelay: "300ms" }} />
+                      </div>
+                      <span className="text-xs italic text-white/40">{thinking || "Thinking…"}</span>
+                    </div>
+                    {activeTools.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {activeTools.map((tool) => (
+                          <span
+                            key={tool}
+                            className="inline-flex animate-pulse items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-300"
+                          >
+                            {TOOL_LABELS[tool] ?? tool}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                )}
               </div>
             </div>
           ) : null}
           <div ref={bottomRef} />
         </div>
 
+        {/* Input area */}
         <div className="flex items-end gap-2">
           <div className="flex-1">
             <textarea
