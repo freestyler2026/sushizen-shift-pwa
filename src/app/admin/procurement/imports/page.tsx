@@ -171,7 +171,7 @@ export default function ProcurementImportsPage() {
   }, [allowed, load]);
 
   if (!allowed) {
-    return <div className="text-sm text-red-300">Procurement imports are available only to authorized Manila admin roles.</div>;
+    return <div className="text-sm text-red-300">Procurement imports are available only to authorized admin roles.</div>;
   }
 
   return (

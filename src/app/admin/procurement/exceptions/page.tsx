@@ -18,6 +18,9 @@ type ExceptionRow = {
 export default function ProcurementExceptionsPage() {
   const auth = getAuth();
   const [allowed, setAllowed] = useState(false);
+  const [city, setCity] = useState<"manila" | "dubai">(
+    String(auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila",
+  );
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
   const [rows, setRows] = useState<ExceptionRow[]>([]);
@@ -28,7 +31,7 @@ export default function ProcurementExceptionsPage() {
     setError("");
     try {
       const data = await procurementJson<{ rows: ExceptionRow[] }>(
-        "/api/admin/procurement/exceptions?city=manila&limit=200",
+        `/api/admin/procurement/exceptions?city=${encodeURIComponent(city)}&limit=200`,
         { method: "GET" },
         requestedBy,
         pin,
@@ -37,7 +40,7 @@ export default function ProcurementExceptionsPage() {
     } catch (e: any) {
       setError(e?.message || String(e));
     }
-  }, [pin, requestedBy]);
+  }, [city, pin, requestedBy]);
 
   const review = async (eventId: string, status: "REVIEWED" | "CLOSED") => {
     setBusyId(eventId + status);
@@ -70,9 +73,12 @@ export default function ProcurementExceptionsPage() {
   useEffect(() => {
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
+      const resolvedCity: "manila" | "dubai" =
+        String((refreshed || auth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
+      setCity(resolvedCity);
       const can = canAccessProcurementAdmin(
         String((refreshed || auth)?.role || ""),
-        String((refreshed || auth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
+        resolvedCity,
       );
       setAllowed(can);
       if (can) await load();
@@ -81,7 +87,7 @@ export default function ProcurementExceptionsPage() {
   }, [auth, load]);
 
   if (!allowed) {
-    return <div className="text-sm text-red-300">Procurement page is available only to authorized Manila admin roles.</div>;
+    return <div className="text-sm text-red-300">Procurement page is available only to authorized admin roles.</div>;
   }
 
   return (

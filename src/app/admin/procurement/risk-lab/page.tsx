@@ -263,6 +263,9 @@ export default function ProcurementRiskLabPage() {
   const auth = getAuth();
   const [allowed, setAllowed] = useState(false);
   const [canWriteSharedConfig, setCanWriteSharedConfig] = useState(false);
+  const [city, setCity] = useState<"manila" | "dubai">(
+    String(auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila",
+  );
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
   const [monthKey, setMonthKey] = useState(monthNow());
@@ -334,7 +337,7 @@ export default function ProcurementRiskLabPage() {
           pin,
         ),
         procurementJson<{ rows: ExceptionRow[] }>(
-          "/api/admin/procurement/exceptions?city=manila&status=OPEN&limit=500",
+          `/api/admin/procurement/exceptions?city=${encodeURIComponent(city)}&status=OPEN&limit=500`,
           { method: "GET" },
           requestedBy,
           pin,
@@ -376,14 +379,17 @@ export default function ProcurementRiskLabPage() {
     } finally {
       setLoading(false);
     }
-  }, [effectiveOwnerFilter, loadRiskLabAudit, monthKey, pin, requestedBy]);
+  }, [city, effectiveOwnerFilter, loadRiskLabAudit, monthKey, pin, requestedBy]);
 
   useEffect(() => {
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
+      const resolvedCity: "manila" | "dubai" =
+        String((refreshed || auth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
+      setCity(resolvedCity);
       const can = canAccessProcurementAdmin(
         String((refreshed || auth)?.role || ""),
-        String((refreshed || auth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
+        resolvedCity,
       );
       const canWrite = hasPermission("procurement.config.write", refreshed || auth);
       setAllowed(can);
@@ -795,7 +801,7 @@ export default function ProcurementRiskLabPage() {
   };
 
   if (!allowed) {
-    return <div className="text-sm text-red-300">Procurement page is available only to authorized Manila admin roles.</div>;
+    return <div className="text-sm text-red-300">Procurement page is available only to authorized admin roles.</div>;
   }
 
   return (

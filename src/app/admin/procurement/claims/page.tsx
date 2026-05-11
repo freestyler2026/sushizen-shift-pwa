@@ -213,7 +213,7 @@ export default function ProcurementClaimsPage() {
   }, [auth, load]);
 
   if (!allowed) {
-    return <div className="text-sm text-red-300">Procurement page is available only to authorized Manila admin roles.</div>;
+    return <div className="text-sm text-red-300">Procurement page is available only to authorized admin roles.</div>;
   }
 
   return (

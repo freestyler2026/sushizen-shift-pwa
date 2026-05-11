@@ -113,6 +113,14 @@ export async function procurementJson<T>(
     cache: "no-store",
   });
   const text = await res.text();
-  if (!res.ok) throw new Error(text || `Request failed (${res.status})`);
+  if (!res.ok) {
+    // Extract FastAPI-style { "detail": "..." } message so users see readable errors
+    let msg = text || `Request failed (${res.status})`;
+    try {
+      const j = JSON.parse(text);
+      if (typeof j?.detail === "string" && j.detail.trim()) msg = j.detail.trim();
+    } catch { /* not JSON — keep raw text */ }
+    throw new Error(msg);
+  }
   return JSON.parse(text || "{}") as T;
 }

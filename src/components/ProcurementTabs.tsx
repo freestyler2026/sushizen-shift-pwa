@@ -115,7 +115,12 @@ export default function ProcurementTabs() {
   const pathname = usePathname();
 
   const [summary, setSummary] = useState<BadgeSummary | null>(null);
-  const [accessLevel, setAccessLevel] = useState<AccessLevel>("full");
+  // Initialise synchronously from cached auth so tabs render with correct access
+  // from the very first paint (avoids a "full" flash before loadBadge resolves).
+  const [accessLevel, setAccessLevel] = useState<AccessLevel>(() => {
+    const auth = getAuth();
+    return roleToAccessLevel(String(auth?.role || "STAFF"));
+  });
 
   // Exactly one group is open at a time — default to active group or "operations"
   const [selectedGroup, setSelectedGroup] = useState<string>(
