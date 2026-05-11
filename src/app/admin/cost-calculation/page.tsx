@@ -995,10 +995,11 @@ export default function CostCalculationPage() {
       });
       setAllIngredientOptions(merged);
       ingredientsLoadedRef.current = true;
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to load ingredients:", e);
       setIngredients((prev) => prev.filter((row) => row._new)); // keep new rows on error
       setAllIngredientOptions([]);
+      setError(e?.message || String(e));
     } finally {
       setLoading(false);
     }
@@ -1678,7 +1679,7 @@ export default function CostCalculationPage() {
   }, [activeMasterType, isMasterSection, masterEditor, showLegacyRecipeSection]);
 
   useEffect(() => {
-    gridRef.current?.scrollTo({ top: 0, behavior: "auto" });
+    try { gridRef.current?.scrollTo({ top: 0, behavior: "auto" }); } catch { /* scrollTo not supported in all environments */ }
   }, [activeSection, showLegacyProductSheets]);
 
   const filteredIngredientRows = useMemo(() => {

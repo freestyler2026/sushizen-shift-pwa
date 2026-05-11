@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { canAccessCostAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { costJson } from "@/lib/costClient";
@@ -80,14 +80,11 @@ async function fetchItemsByType(
     return res.items || [];
   } catch {
     // show_inactive=true が通らない場合はアクティブのみにフォールバック
-    try {
-      const res = await costJson<{ items?: MasterItemSummary[] }>(
-        `/api/cost/master-items?city=${encodeURIComponent(city)}&type=${type}`,
-      );
-      return res.items || [];
-    } catch {
-      return [];
-    }
+    // （この呼び出しが失敗した場合はエラーを上位に伝播させる）
+    const res = await costJson<{ items?: MasterItemSummary[] }>(
+      `/api/cost/master-items?city=${encodeURIComponent(city)}&type=${type}`,
+    );
+    return res.items || [];
   }
 }
 
@@ -670,7 +667,7 @@ function CostCheckPageInner() {
                   const stat = stats.find((s) => s.item.id === item.id);
 
                   return (
-                    <>
+                    <React.Fragment key={item.id}>
                       {/* ── メイン行（クリックで展開） ── */}
                       <tr
                         key={item.id}
@@ -809,7 +806,7 @@ function CostCheckPageInner() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </React.Fragment>
                   );
                 })}
               </tbody>
