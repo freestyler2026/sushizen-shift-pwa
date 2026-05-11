@@ -304,7 +304,7 @@ export default function AttendanceImportPage() {
               </button>
             </div>
             <p className={`${T_CAPTION} mt-2`}>
-              "Sync All" scans all files in the Drive folder and imports any that have not been imported yet.
+              &quot;Sync All&quot; scans all files in the Drive folder and imports any that have not been imported yet.
             </p>
           </section>
 
