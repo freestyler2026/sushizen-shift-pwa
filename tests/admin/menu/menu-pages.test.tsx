@@ -580,11 +580,14 @@ describe("MenuModifierOptionsPage — form", () => {
   });
 
   it("shows group required error when no group is selected", async () => {
+    // Use empty groups mock so modifier_group_id stays "" and triggers the validation
+    mockMenuGet = vi.fn(async () => ({
+      rows: [], total: 0, page: 1, page_size: 50, has_next: false, has_prev: false,
+    }));
     render(<MenuModifierOptionsPage />);
     await screen.findByText("Create Modifier Option");
-    // Click save before groups load — modifier_group_id is empty → group required error
     fireEvent.click(screen.getByText("Create Modifier Option"));
-    await screen.findByText(/Please select modifier group/i);
+    await screen.findByText(/Please select modifier group/i, {}, { timeout: 3000 });
   });
 });
 
