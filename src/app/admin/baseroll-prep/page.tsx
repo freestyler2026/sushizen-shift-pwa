@@ -4,13 +4,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
+import { MANILA_STANDARDS, type StandardSpec } from "@/lib/backup-standards";
+import { BRANCHES } from "@/lib/branches";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
   SECONDARY_BUTTON,
   INPUT_CLASS,
+  SELECT_CLASS,
   TAB_ACTIVE,
   TAB_INACTIVE,
+  T_LABEL,
   T_PAGE_TITLE,
 } from "@/lib/ui-tokens";
 
@@ -574,152 +578,359 @@ function MappingSettings() {
   );
 }
 
-// ─── Other Items Backup Reference ────────────────────────────────────────────
+// ─── Other Items Backup Form ──────────────────────────────────────────────────
 
-type OtherItem = { name: string; unit: string; standard: string };
+type OtherItem = { key: string; name: string; unit: string; section: string };
 type OtherSection = { label: string; emoji: string; items: OtherItem[] };
 
 const OTHER_ITEMS_SECTIONS: OtherSection[] = [
   {
     label: "Condiments & Supplies", emoji: "🧴",
     items: [
-      { name: "Soy Sauce",                    unit: "PC",  standard: "150+" },
-      { name: "Wasabi",                        unit: "PC",  standard: "150+" },
-      { name: "Ginger",                        unit: "PC",  standard: "150+" },
-      { name: "Soy Sauce, Wasabi, Ginger Set", unit: "SET", standard: "30+" },
-      { name: "Miso Soup",                     unit: "PC",  standard: "10+" },
-      { name: "Sweet Sauce",                   unit: "PC",  standard: "10+" },
-      { name: "Dumpling Sauce",                unit: "PC",  standard: "10+" },
+      { key: "m_soy_sauce",    name: "Soy Sauce",                    unit: "PC",  section: "condiments_supplies" },
+      { key: "m_wasabi",       name: "Wasabi",                        unit: "PC",  section: "condiments_supplies" },
+      { key: "m_ginger",       name: "Ginger",                        unit: "PC",  section: "condiments_supplies" },
+      { key: "m_swg_set",      name: "Soy Sauce, Wasabi, Ginger Set", unit: "SET", section: "condiments_supplies" },
+      { key: "m_miso_soup",    name: "Miso Soup",                     unit: "PC",  section: "condiments_supplies" },
+      { key: "m_sweet_sauce",  name: "Sweet Sauce",                   unit: "PC",  section: "condiments_supplies" },
+      { key: "m_dumpling_sauce",name: "Dumpling Sauce",               unit: "PC",  section: "condiments_supplies" },
     ],
   },
   {
     label: "Packaging", emoji: "📦",
     items: [
-      { name: "Ice Pack",  unit: "PC", standard: "100+" },
-      { name: "Box12 Set", unit: "PC", standard: "30+" },
-      { name: "Box16 Set", unit: "PC", standard: "30+" },
-      { name: "Box24 Set", unit: "PC", standard: "30+" },
+      { key: "m_ice_pack", name: "Ice Pack",  unit: "PC", section: "packaging" },
+      { key: "m_box_12",   name: "Box12 Set", unit: "PC", section: "packaging" },
+      { key: "m_box_16",   name: "Box16 Set", unit: "PC", section: "packaging" },
+      { key: "m_box_24",   name: "Box24 Set", unit: "PC", section: "packaging" },
     ],
   },
   {
     label: "Prepared Ingredients", emoji: "🥒",
     items: [
-      { name: "Quezo Cheese Cut",          unit: "Container", standard: "50% of Container" },
-      { name: "Crabstick Cut",             unit: "KG",        standard: "500G" },
-      { name: "Cucumber Cut",              unit: "KG",        standard: "3KG" },
-      { name: "Seasoned Upo",             unit: "Container", standard: "50% of Container" },
-      { name: "Crabstick Mayo",            unit: "Container", standard: "75% of Container" },
-      { name: "Spicy Tuna Chunk",          unit: "Container", standard: "75% of Container" },
-      { name: "Mango Cut (For Base Roll)", unit: "Container", standard: "50% of Container" },
-      { name: "Pickled Papaya",            unit: "Container", standard: "75% of Container" },
-      { name: "Salmon Skin Mix",           unit: "Container", standard: "75% of Container" },
+      { key: "m_quezo_cheese",     name: "Quezo Cheese Cut",          unit: "Container", section: "prepared_ingredients" },
+      { key: "m_crabstick_cut",    name: "Crabstick Cut",             unit: "KG",        section: "prepared_ingredients" },
+      { key: "m_cucumber_cut",     name: "Cucumber Cut",              unit: "KG",        section: "prepared_ingredients" },
+      { key: "m_seasoned_upo",     name: "Seasoned Upo",              unit: "Container", section: "prepared_ingredients" },
+      { key: "m_crabstick_mayo",   name: "Crabstick Mayo",            unit: "Container", section: "prepared_ingredients" },
+      { key: "m_spicy_tuna_chunk", name: "Spicy Tuna Chunk",          unit: "Container", section: "prepared_ingredients" },
+      { key: "m_mango_base",       name: "Mango Cut (For Base Roll)", unit: "Container", section: "prepared_ingredients" },
+      { key: "m_pickled_papaya",   name: "Pickled Papaya",            unit: "Container", section: "prepared_ingredients" },
+      { key: "m_salmon_skin_mix",  name: "Salmon Skin Mix",           unit: "Container", section: "prepared_ingredients" },
     ],
   },
   {
     label: "Toppings & Flakes", emoji: "🌿",
     items: [
-      { name: "Spring Onion",               unit: "Container", standard: "75% of Container" },
-      { name: "Crabstick Mayo for Topping", unit: "Container", standard: "50% of Container" },
-      { name: "Salmon Skin Mix for Topping",unit: "Container", standard: "50% of Container" },
-      { name: "Cheese Dice Cut",            unit: "Container", standard: "25% of Container" },
-      { name: "Mango Cube",                 unit: "Container", standard: "25% of Container" },
-      { name: "Spicy Tuna Mix",             unit: "Container", standard: "25% of Container" },
-      { name: "Red Chili Cut",              unit: "Container", standard: "25% of Container" },
-      { name: "Mint Leaves",                unit: "Container", standard: "25% of Container" },
-      { name: "Onion Leeks",                unit: "Container", standard: "25% of Container" },
-      { name: "Tempura Flakes White",       unit: "Container", standard: "75% of Container" },
-      { name: "Tempura Flakes Orange",      unit: "Container", standard: "75% of Container" },
-      { name: "Tempura Flakes Red",         unit: "Container", standard: "75% of Container" },
-      { name: "Tempura Flakes Yellow",      unit: "Container", standard: "50% of Container" },
-      { name: "Tempura Flakes Pink",        unit: "Container", standard: "50% of Container" },
-      { name: "Fried Dumplings",            unit: "Container", standard: "75% of Container" },
-      { name: "Shichimi Powder",            unit: "Container", standard: "50% of Container" },
-      { name: "All Sauces",                 unit: "Container", standard: "75% of Squeeze Bottle" },
+      { key: "m_spring_onion_top", name: "Spring Onion",                unit: "Container", section: "toppings_flakes" },
+      { key: "m_crabmayo_top",     name: "Crabstick Mayo for Topping",  unit: "Container", section: "toppings_flakes" },
+      { key: "m_salmon_skin_top",  name: "Salmon Skin Mix for Topping", unit: "Container", section: "toppings_flakes" },
+      { key: "m_cheese_dice",      name: "Cheese Dice Cut",             unit: "Container", section: "toppings_flakes" },
+      { key: "m_mango_cube",       name: "Mango Cube",                  unit: "Container", section: "toppings_flakes" },
+      { key: "m_spicy_tuna_mix",   name: "Spicy Tuna Mix",              unit: "Container", section: "toppings_flakes" },
+      { key: "m_red_chili",        name: "Red Chili Cut",               unit: "Container", section: "toppings_flakes" },
+      { key: "m_mint_leaves",      name: "Mint Leaves",                 unit: "Container", section: "toppings_flakes" },
+      { key: "m_onion_leeks",      name: "Onion Leeks",                 unit: "Container", section: "toppings_flakes" },
+      { key: "m_tf_white",         name: "Tempura Flakes White",        unit: "Container", section: "toppings_flakes" },
+      { key: "m_tf_orange",        name: "Tempura Flakes Orange",       unit: "Container", section: "toppings_flakes" },
+      { key: "m_tf_red",           name: "Tempura Flakes Red",          unit: "Container", section: "toppings_flakes" },
+      { key: "m_tf_yellow",        name: "Tempura Flakes Yellow",       unit: "Container", section: "toppings_flakes" },
+      { key: "m_tf_pink",          name: "Tempura Flakes Pink",         unit: "Container", section: "toppings_flakes" },
+      { key: "m_fried_dumplings",  name: "Fried Dumplings",             unit: "Container", section: "toppings_flakes" },
+      { key: "m_shichimi",         name: "Shichimi Powder",             unit: "Container", section: "toppings_flakes" },
+      { key: "m_all_sauces",       name: "All Sauces",                  unit: "Container", section: "toppings_flakes" },
     ],
   },
   {
     label: "Hot Section", emoji: "🔥",
     items: [
-      { name: "Spring Onion",              unit: "Container",       standard: "50% of Container" },
-      { name: "Seasoned Egg",              unit: "PC",              standard: "10 PC" },
-      { name: "Kikurage",                  unit: "Container",       standard: "50% of Container" },
-      { name: "Fried Camote",              unit: "Container",       standard: "50% of Container" },
-      { name: "Boiled Cabbage",            unit: "Container",       standard: "50% of Container" },
-      { name: "Boiled Beansprout",         unit: "Container",       standard: "50% of Container" },
-      { name: "Boiled Carrot",             unit: "Container",       standard: "50% of Container" },
-      { name: "Sliced Onion",              unit: "Container",       standard: "50% of Container" },
-      { name: "Bok Choy",                  unit: "Container",       standard: "50% of Container" },
-      { name: "Bamboo Shoot",              unit: "Container",       standard: "50% of Container" },
-      { name: "Sweet Corn",                unit: "Container",       standard: "50% of Container" },
-      { name: "Kurodama (Black Mince)",    unit: "Container",       standard: "50% of Container" },
-      { name: "Akadama (Red Mince)",       unit: "Container",       standard: "50% of Container" },
-      { name: "Shredded Cabbage for Bento",unit: "Container",       standard: "75% of Container" },
-      { name: "Chopped Leeks",             unit: "Container",       standard: "25% of Container" },
-      { name: "Baguio Beans",              unit: "Container",       standard: "25% of Container" },
-      { name: "Benishoga (Red Ginger)",    unit: "Container",       standard: "25% of Container" },
-      { name: "Fried Garlic",              unit: "Small Container", standard: "25% of Container" },
-      { name: "Wakame",                    unit: "Container",       standard: "Small Container Half" },
+      { key: "m_spring_onion_hot",  name: "Spring Onion",               unit: "Container", section: "hot_section" },
+      { key: "m_seasoned_egg",      name: "Seasoned Egg",               unit: "PC",        section: "hot_section" },
+      { key: "m_kikurage",          name: "Kikurage",                   unit: "Container", section: "hot_section" },
+      { key: "m_fried_camote",      name: "Fried Camote",               unit: "Container", section: "hot_section" },
+      { key: "m_boiled_cabbage",    name: "Boiled Cabbage",             unit: "Container", section: "hot_section" },
+      { key: "m_boiled_beansprout", name: "Boiled Beansprout",          unit: "Container", section: "hot_section" },
+      { key: "m_boiled_carrot",     name: "Boiled Carrot",              unit: "Container", section: "hot_section" },
+      { key: "m_sliced_onion",      name: "Sliced Onion",               unit: "Container", section: "hot_section" },
+      { key: "m_bok_choy",          name: "Bok Choy",                   unit: "Container", section: "hot_section" },
+      { key: "m_bamboo_shoot",      name: "Bamboo Shoot",               unit: "Container", section: "hot_section" },
+      { key: "m_sweet_corn",        name: "Sweet Corn",                 unit: "Container", section: "hot_section" },
+      { key: "m_kurodama",          name: "Kurodama (Black Mince)",     unit: "Container", section: "hot_section" },
+      { key: "m_akadama",           name: "Akadama (Red Mince)",        unit: "Container", section: "hot_section" },
+      { key: "m_shredded_cabbage",  name: "Shredded Cabbage for Bento", unit: "Container", section: "hot_section" },
+      { key: "m_chopped_leeks",     name: "Chopped Leeks",              unit: "Container", section: "hot_section" },
+      { key: "m_baguio_beans",      name: "Baguio Beans",               unit: "Container", section: "hot_section" },
+      { key: "m_benishoga",         name: "Benishoga (Red Ginger)",     unit: "Container", section: "hot_section" },
+      { key: "m_fried_garlic",      name: "Fried Garlic",               unit: "Container", section: "hot_section" },
+      { key: "m_wakame",            name: "Wakame",                     unit: "Container", section: "hot_section" },
     ],
   },
 ];
 
-function OtherItemsSectionCard({ section }: { section: OtherSection }) {
-  const [open, setOpen] = useState(true);
+// ─── Shortage helpers ──────────────────────────────────────────────────────────
+
+function shortageColorOI(std: StandardSpec | undefined, rawVal: string): "ok" | "warn" | "low" | "none" {
+  if (!std || rawVal === "") return "none";
+  const val = parseFloat(rawVal);
+  if (isNaN(val)) return "none";
+  if (val >= std.min) return "ok";
+  if (val >= std.min * 0.7) return "warn";
+  return "low";
+}
+
+const QTY_COLOR: Record<"ok" | "warn" | "low" | "none", string> = {
+  ok:   "border-green-500/40 bg-green-500/8 text-green-200",
+  warn: "border-yellow-500/40 bg-yellow-500/8 text-yellow-200",
+  low:  "border-red-500/40 bg-red-500/8 text-red-200",
+  none: "border-white/10 bg-white/6 text-white",
+};
+
+const PCT_LEVELS = [0, 25, 50, 75, 100] as const;
+
+function PctSelectorOI({
+  value, standard, onChange,
+}: {
+  value: string; standard: number; onChange: (v: string) => void;
+}) {
+  const current = parseInt(value);
+  const hasVal = !isNaN(current);
   return (
-    <div className="rounded-xl border border-white/8 bg-white/[0.03] overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors"
-      >
-        <span className="text-sm font-semibold text-white">
-          {section.emoji} {section.label}
-        </span>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-neutral-500">{section.items.length} items</span>
-          <span className="text-neutral-600 text-xs">{open ? "▲" : "▼"}</span>
-        </div>
-      </button>
-      {open && (
-        <div className="border-t border-white/8 px-4 py-3">
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
-            {section.items.map((item) => (
-              <div key={item.name} className="flex items-center justify-between gap-2 rounded-lg bg-white/[0.03] px-2.5 py-1.5">
-                <span className="text-xs text-neutral-300 truncate flex-1" title={item.name}>{item.name}</span>
-                <span className="shrink-0 rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-violet-300 tabular-nums">
-                  {item.standard}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+    <div className="flex gap-0.5 w-full">
+      {PCT_LEVELS.map((pct) => {
+        const sel = hasVal && current === pct;
+        let cls = "flex-1 rounded-md py-2 text-[11px] font-bold transition-colors border ";
+        if (sel) {
+          if (pct >= standard) cls += "bg-green-500/25 text-green-300 border-green-500/50";
+          else if (pct >= standard - 25) cls += "bg-yellow-500/25 text-yellow-300 border-yellow-500/50";
+          else cls += "bg-red-500/25 text-red-300 border-red-500/50";
+        } else {
+          cls += "bg-white/4 text-zinc-500 border-white/8 hover:bg-white/10 hover:text-zinc-300";
+        }
+        return (
+          <button key={pct} type="button" onClick={() => onChange(sel ? "" : String(pct))} className={cls}>
+            {pct}%
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function OtherItemsChecklist() {
-  const [open, setOpen] = useState(true);
+// ─── Inline backup form ───────────────────────────────────────────────────────
+
+const MANILA_BRANCHES = BRANCHES.manila.filter((b) => b.code !== "CK" && b.code !== "BO");
+const SHIFT_OPTS = [
+  { value: "closing", label: "Closing" },
+  { value: "morning", label: "Morning" },
+  { value: "midday",  label: "Midday" },
+] as const;
+
+function OtherItemsBackupForm({ prepDate }: { prepDate: string }) {
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [branch, setBranch] = useState<string>(MANILA_BRANCHES[0]?.code ?? "PAR");
+  const [shift, setShift] = useState<"closing" | "morning" | "midday">("closing");
+  const [reportedBy, setReportedBy] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const auth = getAuth();
+    if (auth?.staffName) setReportedBy(auth.staffName);
+  }, []);
+
+  const setValue = useCallback((key: string, val: string) => {
+    setValues((prev) => ({ ...prev, [key]: val }));
+    setSuccess(false);
+  }, []);
+
+  const shortageCount = useMemo(() =>
+    OTHER_ITEMS_SECTIONS.flatMap((s) => s.items).filter((i) => {
+      const v = values[i.key] ?? "";
+      const std = MANILA_STANDARDS[i.key];
+      const c = shortageColorOI(std, v);
+      return v !== "" && (c === "warn" || c === "low");
+    }).length,
+  [values]);
+
+  const filledCount = useMemo(() =>
+    OTHER_ITEMS_SECTIONS.flatMap((s) => s.items).filter((i) => (values[i.key] ?? "") !== "").length,
+  [values]);
+
+  const handleSubmit = useCallback(async () => {
+    if (!reportedBy.trim()) { setSubmitError("Please enter your name"); return; }
+    setSubmitting(true); setSubmitError(""); setSuccess(false);
+    try {
+      const lines = OTHER_ITEMS_SECTIONS.flatMap((sec) =>
+        sec.items
+          .filter((i) => (values[i.key] ?? "") !== "")
+          .map((i) => ({
+            section: i.section,
+            item_type: "ingredient",
+            item_name_snapshot: i.name,
+            quantity: parseFloat(values[i.key] ?? "0") || 0,
+            unit: i.unit,
+            notes: "",
+          }))
+      );
+      if (lines.length === 0) { setSubmitError("Please fill in at least one item"); setSubmitting(false); return; }
+      const auth = getAuth();
+      const res = await fetch("/api/admin/backup/report", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(getAuthHeaders(auth) ?? {}) },
+        body: JSON.stringify({
+          city: "manila",
+          branch_code: branch,
+          report_date: prepDate,
+          reported_by: reportedBy.trim(),
+          shift,
+          notes: "",
+          lines,
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.detail || `HTTP ${res.status}`);
+      }
+      setSuccess(true);
+      setValues({});
+    } catch (e: unknown) {
+      setSubmitError(e instanceof Error ? e.message : "Submit failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [values, branch, shift, reportedBy, prepDate]);
+
+  const toggleSection = (label: string) =>
+    setCollapsed((prev) => ({ ...prev, [label]: !prev[label] }));
+
   return (
-    <div className="space-y-3">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-3"
-      >
-        <div className="flex items-center gap-2">
-          <h2 className="text-base font-bold text-white">📋 Other Items Backup</h2>
-          <span className="text-xs text-neutral-500">— minimum standards reference</span>
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-base font-bold text-white">📋 Other Items Backup</h2>
+        <div className="flex items-center gap-2 text-xs text-neutral-500">
+          {filledCount > 0 && <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-violet-300 font-semibold">{filledCount} filled</span>}
+          {shortageCount > 0 && <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-red-300 font-semibold">⚠ {shortageCount} below standard</span>}
         </div>
-        <span className="text-xs text-neutral-500">{open ? "Collapse ▲" : "Expand ▼"}</span>
-      </button>
-      {open && (
-        <div className="space-y-2">
-          {OTHER_ITEMS_SECTIONS.map((sec) => (
-            <OtherItemsSectionCard key={sec.label} section={sec} />
-          ))}
+      </div>
+
+      {/* Branch / Shift / Name */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div>
+          <label className={`${T_LABEL} mb-1 block`}>Branch</label>
+          <select value={branch} onChange={(e) => setBranch(e.target.value)} className={SELECT_CLASS}>
+            {MANILA_BRANCHES.map((b) => <option key={b.code} value={b.code}>{b.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className={`${T_LABEL} mb-1 block`}>Shift</label>
+          <select value={shift} onChange={(e) => setShift(e.target.value as typeof shift)} className={SELECT_CLASS}>
+            {SHIFT_OPTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+        </div>
+        <div className="col-span-2 sm:col-span-1">
+          <label className={`${T_LABEL} mb-1 block`}>Your Name</label>
+          <input
+            type="text"
+            value={reportedBy}
+            onChange={(e) => setReportedBy(e.target.value)}
+            placeholder="Staff name"
+            className={INPUT_CLASS}
+          />
+        </div>
+      </div>
+
+      {/* Sections */}
+      {OTHER_ITEMS_SECTIONS.map((sec) => {
+        const isOpen = !collapsed[sec.label];
+        const secFilled = sec.items.filter((i) => (values[i.key] ?? "") !== "").length;
+        const secShortage = sec.items.filter((i) => {
+          const v = values[i.key] ?? "";
+          const c = shortageColorOI(MANILA_STANDARDS[i.key], v);
+          return v !== "" && (c === "warn" || c === "low");
+        }).length;
+        return (
+          <div key={sec.label} className="rounded-xl border border-white/8 bg-white/[0.03] overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleSection(sec.label)}
+              className="flex w-full items-center justify-between px-4 py-3.5 hover:bg-white/5 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-white">{sec.emoji} {sec.label}</span>
+                {secFilled > 0 && <span className="text-[10px] font-semibold bg-violet-500/15 text-violet-300 px-1.5 py-0.5 rounded-full">{secFilled}</span>}
+                {secShortage > 0 && <span className="text-[10px] font-semibold bg-red-500/15 text-red-300 px-1.5 py-0.5 rounded-full">⚠ {secShortage}</span>}
+              </div>
+              <span className="text-neutral-600 text-xs">{isOpen ? "▲" : "▼"}</span>
+            </button>
+            {isOpen && (
+              <div className="border-t border-white/8 px-4 py-4">
+                <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3">
+                  {sec.items.map((item) => {
+                    const std = MANILA_STANDARDS[item.key];
+                    const isPct = std?.type === "pct";
+                    const color = shortageColorOI(std, values[item.key] ?? "");
+                    return (
+                      <div key={item.key}>
+                        <div className="flex items-center justify-between mb-1 gap-1">
+                          <label className="text-xs text-zinc-400 truncate flex-1" title={item.name}>{item.name}</label>
+                          {std && (
+                            <span className="shrink-0 text-[9px] font-semibold text-zinc-600 tabular-nums">{std.label}</span>
+                          )}
+                        </div>
+                        {isPct ? (
+                          <PctSelectorOI
+                            value={values[item.key] ?? ""}
+                            standard={(std as { type: "pct"; min: number; label: string }).min}
+                            onChange={(v) => setValue(item.key, v)}
+                          />
+                        ) : (
+                          <input
+                            type="number"
+                            inputMode="numeric"
+                            min="0"
+                            step="1"
+                            placeholder="—"
+                            className={`w-full rounded-lg border px-2 py-2.5 text-base text-right outline-none focus:ring-1 focus:ring-violet-500/20 transition-colors ${QTY_COLOR[color]}`}
+                            value={values[item.key] ?? ""}
+                            onChange={(e) => setValue(item.key, e.target.value)}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Submit */}
+      {submitError && (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-950/20 px-4 py-3 text-sm text-rose-300">⚠ {submitError}</div>
+      )}
+      {success && (
+        <div className="rounded-xl border border-green-500/30 bg-green-950/20 px-4 py-3 text-sm text-green-300">
+          ✅ Backup report submitted successfully!
         </div>
       )}
+      <div className="sticky bottom-4 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-zinc-900/90 px-4 py-3 backdrop-blur">
+        {shortageCount > 0
+          ? <span className="text-xs font-semibold text-red-400">⚠ {shortageCount} item{shortageCount > 1 ? "s" : ""} below standard</span>
+          : <span className="text-xs text-neutral-500">{filledCount} item{filledCount !== 1 ? "s" : ""} filled</span>
+        }
+        <button
+          type="button"
+          onClick={() => void handleSubmit()}
+          disabled={submitting || filledCount === 0}
+          className={`${PRIMARY_BUTTON} min-w-[140px]`}
+        >
+          {submitting ? "Submitting…" : "Submit Backup"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -855,7 +1066,7 @@ export default function BaserollPrepPage() {
             <div className="h-px flex-1 bg-white/8" />
           </div>
 
-          <OtherItemsChecklist />
+          <OtherItemsBackupForm prepDate={prepDate} />
         </div>
       )}
 
