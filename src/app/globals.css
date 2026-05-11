@@ -1,4 +1,5 @@
 @import "tailwindcss";
+/* cache-bust: force full Tailwind rebuild */
 
 html, body { overflow-x: hidden; overscroll-behavior-x: none; }
 
