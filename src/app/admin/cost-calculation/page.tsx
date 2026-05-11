@@ -769,7 +769,19 @@ export default function CostCalculationPage() {
   const searchRef = useRef<HTMLDivElement | null>(null);
 
   const [allowed, setAllowed] = useState(false);
-  const [city, setCity] = useState<"dubai" | "manila">(String(auth?.city || "dubai").toLowerCase() === "manila" ? "manila" : "dubai");
+  // Persist city selection across AutoReload page reloads (sessionStorage survives
+  // window.location.replace but is cleared when the tab/browser is closed).
+  const [city, setCity] = useState<"dubai" | "manila">(() => {
+    try {
+      const saved = sessionStorage.getItem("cost_city_selection");
+      if (saved === "manila" || saved === "dubai") return saved;
+    } catch { /* ignore */ }
+    return String(auth?.city || "dubai").toLowerCase() === "manila" ? "manila" : "dubai";
+  });
+  const setCityPersist = (next: "dubai" | "manila") => {
+    try { sessionStorage.setItem("cost_city_selection", next); } catch { /* ignore */ }
+    setCity(next);
+  };
   const [activeSection, setActiveSection] = useState<CostSection>("ingredient");
   const [showLegacyProductSheets, setShowLegacyProductSheets] = useState(false);
   const [activeSheet, setActiveSheet] = useState<SheetKey>(INGREDIENT_SHEET);
@@ -1649,7 +1661,7 @@ export default function CostCalculationPage() {
       const { itemId, itemCity } = JSON.parse(raw) as { itemId?: string; itemCity?: string };
       if (!itemId) return;
       if (itemCity === "dubai" || itemCity === "manila") {
-        setCity(itemCity);
+        setCityPersist(itemCity);
       }
       setActiveSection("product");
       void loadMasterDetail(itemId);
@@ -3640,7 +3652,7 @@ export default function CostCalculationPage() {
                 <span>{cityLabel}</span>
                 <select
                   value={city}
-                  onChange={(e) => setCity(e.target.value === "manila" ? "manila" : "dubai")}
+                  onChange={(e) => setCityPersist(e.target.value === "manila" ? "manila" : "dubai")}
                   className="rounded-md border border-white/10 bg-[#0c1322] px-2 py-1 text-sm text-zinc-200 outline-none"
                 >
                   <option value="dubai">Dubai</option>
@@ -3966,7 +3978,10 @@ export default function CostCalculationPage() {
                       {masterEditor.components.map((component) => {
                         const suggestions = getMasterComponentSuggestions(component);
                         const selectedOption = component.component_type === "ingredient"
-                          ? allIngredientOptions.find((option) => String(option.id) === String(component.ingredient_id))
+                          ? (allIngredientOptions.find((option) => String(option.id) === String(component.ingredient_id))
+                            ?? (component.ingredient_id && component.name
+                              ? { id: component.ingredient_id, name: component.name, category: component.category ?? "", unit: component.unit ?? "", unit_price: component.unit_cost ?? 0 } as unknown as IngredientRow
+                              : undefined))
                           : processedComponentOptions.find((option) => String(option.id) === String(component.component_menu_item_id));
                         return (
                           <div key={component.id} className="border-b border-white/5 px-3 py-3 last:border-b-0">
