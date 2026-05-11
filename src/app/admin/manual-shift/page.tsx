@@ -429,6 +429,7 @@ export default function ManualShiftPage() {
   const [bayzatResult, setBayzatResult] = useState<BayzatResult | null>(null);
   const [bayzatImporting, setBayzatImporting] = useState(false);
   const [bayzatAllApplied, setBayzatAllApplied] = useState<string[] | null>(null);
+  const [dbImporting, setDbImporting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -782,6 +783,39 @@ export default function ManualShiftPage() {
     } finally {
       setBayzatImporting(false);
       e.target.value = ""; // allow re-selecting the same file
+    }
+  }
+
+  // ─── Load from Bayzat DB (base_shift_normalized → published) ────────────────
+  async function handleLoadFromDb() {
+    if (!branchCode) { setError("Branch not selected"); return; }
+    if (!window.confirm(
+      `Load shifts from Bayzat DB for ${labelOf(city, branchCode)} — week of ${weekStart}?\n\n` +
+      `This will replace any existing published shifts for this branch+week.`
+    )) return;
+
+    setDbImporting(true);
+    setError("");
+    try {
+      const res = await apiFetch<{ ok: boolean; rows_copied: number }>(
+        "/api/admin/shifts/publish_from_base",
+        {
+          method: "POST",
+          body: JSON.stringify({ city, branch_code: branchCode, week_start: weekStart }),
+        }
+      );
+      if (!res.ok) { setError("Load from DB failed"); return; }
+      // Reload grid from newly published data
+      clearDraft(city, branchCode, weekStart);
+      setHasDraft(false);
+      await loadStaff();
+      await loadExistingShifts(true);
+      setError("");
+      alert(`Loaded ${res.rows_copied} shifts from Bayzat DB for ${labelOf(city, branchCode)}.`);
+    } catch (ex: unknown) {
+      setError(ex instanceof Error ? ex.message : "Load from DB failed");
+    } finally {
+      setDbImporting(false);
     }
   }
 
@@ -1152,6 +1186,17 @@ export default function ManualShiftPage() {
               >
                 {bayzatImporting ? "Parsing…" : "📥 Bayzat Import"}
               </button>
+              {staffList.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleLoadFromDb}
+                  disabled={dbImporting || loading}
+                  title="Load this week's shifts directly from the Bayzat schedule already in the database"
+                  className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-medium text-violet-700 transition hover:bg-violet-100 disabled:opacity-50"
+                >
+                  {dbImporting ? "Loading…" : "🗄️ Load from DB"}
+                </button>
+              )}
             </div>
           </div>
           {staffList.length > 0 && (
