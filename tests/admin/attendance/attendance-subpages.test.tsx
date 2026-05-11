@@ -504,11 +504,11 @@ describe("AttendanceImportPage — form and buttons", () => {
     const syncBtn = screen.getByRole("button", { name: /Sync All/i });
     fireEvent.click(syncBtn);
     await waitFor(() => {
-      const syncCall = mockFetchSpy.mock.calls.find(([url]: [string]) =>
-        String(url).includes("/drive/sync-all")
+      const syncCall = (mockFetchSpy.mock.calls as any[]).find(
+        ([url]: [string]) => String(url).includes("/drive/sync-all")
       );
       expect(syncCall).toBeDefined();
-      expect(syncCall![1].method).toBe("POST");
+      expect((syncCall as any[])[1]?.method).toBe("POST");
     });
   });
 
