@@ -295,7 +295,7 @@ function MappingSettings() {
     if (isNaN(coeff) || coeff < 0) { setError("Coefficient must be a number ≥ 0"); return; }
     setSaving(row.id);
     try {
-      const data = await apiFetch<{ ok: boolean; item: MapRow }>(
+      const data = await apiFetch<{ ok: boolean; item?: MapRow }>(
         "/api/admin/analytics/manila/baseroll-map",
         {
           method: "POST",
@@ -308,7 +308,11 @@ function MappingSettings() {
           }),
         }
       );
-      setRows((prev) => prev.map((r) => r.id === row.id ? data.item : r));
+      if (data?.item) {
+        setRows((prev) => prev.map((r) => r.id === row.id ? data.item! : r));
+      } else {
+        await loadRows();
+      }
       setEdits((prev) => { const n = { ...prev }; delete n[row.id]; return n; });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to save");
@@ -324,7 +328,7 @@ function MappingSettings() {
     if (isNaN(coeff) || coeff < 0) { setAddError("Coefficient must be a number ≥ 0"); return; }
     setSaving("new");
     try {
-      const data = await apiFetch<{ ok: boolean; item: MapRow }>(
+      const data = await apiFetch<{ ok: boolean; item?: MapRow }>(
         "/api/admin/analytics/manila/baseroll-map",
         {
           method: "POST",
@@ -337,17 +341,21 @@ function MappingSettings() {
           }),
         }
       );
-      setRows((prev) => {
-        const idx = prev.findIndex(
-          (r) => r.product_name === data.item.product_name && r.base_roll_name === data.item.base_roll_name
-        );
-        if (idx >= 0) {
-          const n = [...prev];
-          n[idx] = data.item;
-          return n;
-        }
-        return [...prev, data.item];
-      });
+      if (data?.item) {
+        setRows((prev) => {
+          const idx = prev.findIndex(
+            (r) => r.product_name === data.item!.product_name && r.base_roll_name === data.item!.base_roll_name
+          );
+          if (idx >= 0) {
+            const n = [...prev];
+            n[idx] = data.item!;
+            return n;
+          }
+          return [...prev, data.item!];
+        });
+      } else {
+        await loadRows();
+      }
       setAddForm(EMPTY_FORM);
       setShowAdd(false);
     } catch (e: unknown) {
@@ -775,6 +783,7 @@ function OtherItemsBackupForm({ prepDate }: { prepDate: string }) {
           }))
       );
       if (lines.length === 0) { setSubmitError("Please fill in at least one item"); setSubmitting(false); return; }
+      if (lines.some((l) => l.quantity < 0)) { setSubmitError("Quantity cannot be negative"); setSubmitting(false); return; }
       const auth = getAuth();
       const res = await fetch("/api/admin/backup/report", {
         method: "POST",

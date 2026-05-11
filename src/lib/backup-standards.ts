@@ -69,6 +69,7 @@ export const MANILA_STANDARDS: Record<string, StandardSpec> = {
   m_chopped_leeks:    { type: "pct", min: 25,  label: "25% of container" },
   m_baguio_beans:     { type: "pct", min: 25,  label: "25% of container" },
   m_benishoga:        { type: "pct", min: 25,  label: "25% of container" },
+  m_fried_garlic:     { type: "pct", min: 25,  label: "25% of container" },
   m_wakame:           { type: "pct", min: 50,  label: "50% of container" },
   // Base Roll — no standard (determined by baseroll-prep calculator)
 };
