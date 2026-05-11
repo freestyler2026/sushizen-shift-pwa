@@ -476,7 +476,7 @@ export default function MenuModifierGroupsPage() {
             disabled={saving}
             className="mt-4 w-full rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
           >
-            {saving ? "Saving..." : editingId ? "Save Changes" : "Create Group"}
+            {saving ? "Saving..." : editingId ? "Save Changes" : "Create Modifier Group"}
           </button>
         </div>
 
