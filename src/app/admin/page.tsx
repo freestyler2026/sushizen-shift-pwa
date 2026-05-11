@@ -117,12 +117,10 @@ async function apiGet<T = any>(path: string, headers?: HeadersInit): Promise<T> 
   const res = await fetch(`${API_BASE}${path}`, { headers });
   const text = await res.text();
   if (!res.ok) {
-    try {
-      const j = JSON.parse(text);
-      throw new Error(j?.detail || text || `GET ${path} failed`);
-    } catch {
-      throw new Error(text || `GET ${path} failed`);
-    }
+    // Extract FastAPI's { detail: "..." } field if present; fall back to raw text.
+    let msg = text || `GET ${path} failed`;
+    try { const j = JSON.parse(text); if (j?.detail) msg = j.detail; } catch { /* not JSON */ }
+    throw new Error(msg);
   }
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
@@ -135,12 +133,10 @@ async function apiPost<T = any>(path: string, body?: any, headers?: HeadersInit)
   });
   const text = await res.text();
   if (!res.ok) {
-    try {
-      const j = JSON.parse(text);
-      throw new Error(j?.detail || text || `POST ${path} failed`);
-    } catch {
-      throw new Error(text || `POST ${path} failed`);
-    }
+    // Extract FastAPI's { detail: "..." } field if present; fall back to raw text.
+    let msg = text || `POST ${path} failed`;
+    try { const j = JSON.parse(text); if (j?.detail) msg = j.detail; } catch { /* not JSON */ }
+    throw new Error(msg);
   }
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
@@ -541,7 +537,14 @@ function hydrateApproverFromAuth(
 
 function isHQOrAdmin(role: string) {
   const r = String(role || "").toUpperCase();
-  return r === "HQ" || r === "ADMIN" || r === "HR_MANAGER";
+  return (
+    r === "HQ" ||
+    r === "ADMIN" ||
+    r === "HR_MANAGER" ||
+    r === "MANAGEMENT" ||
+    r === "DUBAI_MANAGEMENT" ||
+    r === "MANILA_MANAGEMENT"
+  );
 }
 
 function needsManagerDecision(item: AdminItem | null) {
