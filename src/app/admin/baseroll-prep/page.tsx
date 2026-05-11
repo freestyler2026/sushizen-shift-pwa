@@ -574,6 +574,156 @@ function MappingSettings() {
   );
 }
 
+// ─── Other Items Backup Reference ────────────────────────────────────────────
+
+type OtherItem = { name: string; unit: string; standard: string };
+type OtherSection = { label: string; emoji: string; items: OtherItem[] };
+
+const OTHER_ITEMS_SECTIONS: OtherSection[] = [
+  {
+    label: "Condiments & Supplies", emoji: "🧴",
+    items: [
+      { name: "Soy Sauce",                    unit: "PC",  standard: "150+" },
+      { name: "Wasabi",                        unit: "PC",  standard: "150+" },
+      { name: "Ginger",                        unit: "PC",  standard: "150+" },
+      { name: "Soy Sauce, Wasabi, Ginger Set", unit: "SET", standard: "30+" },
+      { name: "Miso Soup",                     unit: "PC",  standard: "10+" },
+      { name: "Sweet Sauce",                   unit: "PC",  standard: "10+" },
+      { name: "Dumpling Sauce",                unit: "PC",  standard: "10+" },
+    ],
+  },
+  {
+    label: "Packaging", emoji: "📦",
+    items: [
+      { name: "Ice Pack",  unit: "PC", standard: "100+" },
+      { name: "Box12 Set", unit: "PC", standard: "30+" },
+      { name: "Box16 Set", unit: "PC", standard: "30+" },
+      { name: "Box24 Set", unit: "PC", standard: "30+" },
+    ],
+  },
+  {
+    label: "Prepared Ingredients", emoji: "🥒",
+    items: [
+      { name: "Quezo Cheese Cut",          unit: "Container", standard: "50% of Container" },
+      { name: "Crabstick Cut",             unit: "KG",        standard: "500G" },
+      { name: "Cucumber Cut",              unit: "KG",        standard: "3KG" },
+      { name: "Seasoned Upo",             unit: "Container", standard: "50% of Container" },
+      { name: "Crabstick Mayo",            unit: "Container", standard: "75% of Container" },
+      { name: "Spicy Tuna Chunk",          unit: "Container", standard: "75% of Container" },
+      { name: "Mango Cut (For Base Roll)", unit: "Container", standard: "50% of Container" },
+      { name: "Pickled Papaya",            unit: "Container", standard: "75% of Container" },
+      { name: "Salmon Skin Mix",           unit: "Container", standard: "75% of Container" },
+    ],
+  },
+  {
+    label: "Toppings & Flakes", emoji: "🌿",
+    items: [
+      { name: "Spring Onion",               unit: "Container", standard: "75% of Container" },
+      { name: "Crabstick Mayo for Topping", unit: "Container", standard: "50% of Container" },
+      { name: "Salmon Skin Mix for Topping",unit: "Container", standard: "50% of Container" },
+      { name: "Cheese Dice Cut",            unit: "Container", standard: "25% of Container" },
+      { name: "Mango Cube",                 unit: "Container", standard: "25% of Container" },
+      { name: "Spicy Tuna Mix",             unit: "Container", standard: "25% of Container" },
+      { name: "Red Chili Cut",              unit: "Container", standard: "25% of Container" },
+      { name: "Mint Leaves",                unit: "Container", standard: "25% of Container" },
+      { name: "Onion Leeks",                unit: "Container", standard: "25% of Container" },
+      { name: "Tempura Flakes White",       unit: "Container", standard: "75% of Container" },
+      { name: "Tempura Flakes Orange",      unit: "Container", standard: "75% of Container" },
+      { name: "Tempura Flakes Red",         unit: "Container", standard: "75% of Container" },
+      { name: "Tempura Flakes Yellow",      unit: "Container", standard: "50% of Container" },
+      { name: "Tempura Flakes Pink",        unit: "Container", standard: "50% of Container" },
+      { name: "Fried Dumplings",            unit: "Container", standard: "75% of Container" },
+      { name: "Shichimi Powder",            unit: "Container", standard: "50% of Container" },
+      { name: "All Sauces",                 unit: "Container", standard: "75% of Squeeze Bottle" },
+    ],
+  },
+  {
+    label: "Hot Section", emoji: "🔥",
+    items: [
+      { name: "Spring Onion",              unit: "Container",       standard: "50% of Container" },
+      { name: "Seasoned Egg",              unit: "PC",              standard: "10 PC" },
+      { name: "Kikurage",                  unit: "Container",       standard: "50% of Container" },
+      { name: "Fried Camote",              unit: "Container",       standard: "50% of Container" },
+      { name: "Boiled Cabbage",            unit: "Container",       standard: "50% of Container" },
+      { name: "Boiled Beansprout",         unit: "Container",       standard: "50% of Container" },
+      { name: "Boiled Carrot",             unit: "Container",       standard: "50% of Container" },
+      { name: "Sliced Onion",              unit: "Container",       standard: "50% of Container" },
+      { name: "Bok Choy",                  unit: "Container",       standard: "50% of Container" },
+      { name: "Bamboo Shoot",              unit: "Container",       standard: "50% of Container" },
+      { name: "Sweet Corn",                unit: "Container",       standard: "50% of Container" },
+      { name: "Kurodama (Black Mince)",    unit: "Container",       standard: "50% of Container" },
+      { name: "Akadama (Red Mince)",       unit: "Container",       standard: "50% of Container" },
+      { name: "Shredded Cabbage for Bento",unit: "Container",       standard: "75% of Container" },
+      { name: "Chopped Leeks",             unit: "Container",       standard: "25% of Container" },
+      { name: "Baguio Beans",              unit: "Container",       standard: "25% of Container" },
+      { name: "Benishoga (Red Ginger)",    unit: "Container",       standard: "25% of Container" },
+      { name: "Fried Garlic",              unit: "Small Container", standard: "25% of Container" },
+      { name: "Wakame",                    unit: "Container",       standard: "Small Container Half" },
+    ],
+  },
+];
+
+function OtherItemsSectionCard({ section }: { section: OtherSection }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="rounded-xl border border-white/8 bg-white/[0.03] overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors"
+      >
+        <span className="text-sm font-semibold text-white">
+          {section.emoji} {section.label}
+        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-neutral-500">{section.items.length} items</span>
+          <span className="text-neutral-600 text-xs">{open ? "▲" : "▼"}</span>
+        </div>
+      </button>
+      {open && (
+        <div className="border-t border-white/8 px-4 py-3">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
+            {section.items.map((item) => (
+              <div key={item.name} className="flex items-center justify-between gap-2 rounded-lg bg-white/[0.03] px-2.5 py-1.5">
+                <span className="text-xs text-neutral-300 truncate flex-1" title={item.name}>{item.name}</span>
+                <span className="shrink-0 rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-violet-300 tabular-nums">
+                  {item.standard}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OtherItemsChecklist() {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="space-y-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-3"
+      >
+        <div className="flex items-center gap-2">
+          <h2 className="text-base font-bold text-white">📋 Other Items Backup</h2>
+          <span className="text-xs text-neutral-500">— minimum standards reference</span>
+        </div>
+        <span className="text-xs text-neutral-500">{open ? "Collapse ▲" : "Expand ▼"}</span>
+      </button>
+      {open && (
+        <div className="space-y-2">
+          {OTHER_ITEMS_SECTIONS.map((sec) => (
+            <OtherItemsSectionCard key={sec.label} section={sec} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function BaserollPrepPage() {
@@ -697,6 +847,15 @@ export default function BaserollPrepPage() {
               ))}
             </div>
           )}
+
+          {/* Divider */}
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-white/8" />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-600">Other Items</span>
+            <div className="h-px flex-1 bg-white/8" />
+          </div>
+
+          <OtherItemsChecklist />
         </div>
       )}
 
