@@ -85,12 +85,6 @@ const MODULES: ModuleCard[] = [
     status: "Backend ready",
     href: "/admin/inventory/cost-adjustments",
   },
-  {
-    title: "Count Sheets / Order Consumptions",
-    description: "Reusable count templates and read-only order consumption records from POS sales.",
-    status: "Backend ready",
-    href: "/admin/inventory/count-sheets",
-  },
 ];
 
 export default function AdminInventoryPage() {

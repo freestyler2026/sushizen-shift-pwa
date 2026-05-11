@@ -20,7 +20,7 @@ import {
   Warehouse,
   Layers,
 } from "lucide-react";
-import { canAccessCountTemplatesAdmin, canAccessDailyInventoryAdmin, canAccessInventoryLimited, getAuth } from "@/lib/auth";
+import { canAccessCountTemplatesAdmin, canAccessDailyInventoryAdmin, canAccessInventoryAdmin, getAuth } from "@/lib/auth";
 
 // ── PRIMARY tabs — shown prominently at the top for staff ────────────────────
 const PRIMARY_ITEMS = [
@@ -49,7 +49,6 @@ export default function InventoryTabs() {
   const pathname = usePathname();
   const auth = getAuth();
   const canManageCountTemplates = canAccessCountTemplatesAdmin(auth);
-  const limitedInventoryUser = canAccessInventoryLimited(auth);
   const canDailyInv = canAccessDailyInventoryAdmin(auth);
 
   // Filter primary items
@@ -58,8 +57,10 @@ export default function InventoryTabs() {
     return true;
   });
 
-  // Filter secondary items (hidden entirely for limited users)
-  const secondaryItems = limitedInventoryUser
+  // Filter secondary items: only users with inventory.write (admin) see these tabs.
+  // Users with only inventory.read (limited) or no inventory permission see none.
+  const canSeeSecondary = canAccessInventoryAdmin(auth);
+  const secondaryItems = !canSeeSecondary
     ? []
     : SECONDARY_ITEMS.filter((item) => {
         if (item.href === "/admin/inventory/count-sheets") return canManageCountTemplates;
