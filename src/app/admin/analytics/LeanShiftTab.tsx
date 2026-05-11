@@ -569,7 +569,7 @@ export default function LeanShiftTab({
           {/* Branch cards */}
           {branchGroups.length === 0 ? (
             <div className={`${GLASS_CARD} py-10 text-center text-sm text-zinc-500`}>
-              選択期間内にデータが見つかりませんでした
+              No lean shift data found for the selected period.
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
