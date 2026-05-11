@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { AlertTriangle, Package, TrendingUp } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertTriangle, Package } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Cell,
 } from "recharts";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import { BRANCHES, type City } from "@/lib/branches";
+import { getLabelStandards, type StandardSpec } from "@/lib/backup-standards";
 import {
   BADGE_INFO, BADGE_WARNING,
   GLASS_CARD, INPUT_CLASS, SELECT_CLASS, SMALL_BUTTON,
@@ -44,28 +45,36 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   return (text ? JSON.parse(text) : {}) as T;
 }
 
+function isShortage(std: StandardSpec, quantity: number): boolean {
+  return quantity < std.min;
+}
+
 const SECTION_LABELS: Record<string, string> = {
-  supplies:  "Condiments & Supplies",
-  packaging: "Packaging",
-  prep:      "Prepared Ingredients",
-  toppings:  "Toppings & Flakes",
-  rolls:     "Sushi Rolls",
-  free:      "Free Entry",
+  supplies:     "Condiments & Supplies",
+  packaging:    "Packaging",
+  prep:         "Prepared Ingredients",
+  toppings:     "Toppings & Flakes",
+  hot_section:  "Hot Section",
+  rolls:        "Sushi Rolls",
+  base_roll:    "Base Roll",
+  free:         "Free Entry",
 };
 const SECTION_COLORS: Record<string, string> = {
-  supplies:  "#60a5fa",
-  packaging: "#a78bfa",
-  prep:      "#34d399",
-  toppings:  "#fb923c",
-  rolls:     "#f472b6",
-  free:      "#fbbf24",
+  supplies:     "#60a5fa",
+  packaging:    "#a78bfa",
+  prep:         "#34d399",
+  toppings:     "#fb923c",
+  hot_section:  "#f87171",
+  rolls:        "#f472b6",
+  base_roll:    "#c084fc",
+  free:         "#fbbf24",
 };
 
 function sectionBadge(s: string) {
   const label = SECTION_LABELS[s] ?? s;
   const color = SECTION_COLORS[s];
   if (s === "free") return <span className={BADGE_WARNING}>{label}</span>;
-  if (s === "rolls") return <span className={BADGE_INFO}>{label}</span>;
+  if (s === "rolls" || s === "base_roll") return <span className={BADGE_INFO}>{label}</span>;
   return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium border" style={{ backgroundColor: `${color}18`, borderColor: `${color}30`, color }}>{label}</span>;
 }
 
@@ -104,11 +113,18 @@ function EditLineForm({ line, onSave, onCancel }: { line: BackupLine; onSave: (u
   );
 }
 
-// ─── Summary Stats ────────────────────────────────────────────────────────────
-function SummaryStats({ reports }: { reports: BackupReport[] }) {
+// ─── KPI Cards ────────────────────────────────────────────────────────────────
+function KpiCards({ reports, city }: { reports: BackupReport[]; city: City }) {
   const allLines = reports.flatMap((r) => r.lines ?? []);
   const total    = allLines.length;
   const freeForm = allLines.filter((l) => l.section === "free" || (!l.item_category && l.item_name_snapshot)).length;
+  const standards = getLabelStandards(city);
+
+  const shortageLines = allLines.filter((l) => {
+    const std = standards[l.item_name_snapshot];
+    return std && isShortage(std, l.quantity);
+  });
+  const shortageRate = total > 0 ? Math.round((shortageLines.length / allLines.filter(l => standards[l.item_name_snapshot]).length) * 100) : 0;
 
   // By section
   const bySection: Record<string, number> = {};
@@ -116,98 +132,374 @@ function SummaryStats({ reports }: { reports: BackupReport[] }) {
   const sectionEntries = Object.entries(bySection).sort((a, b) => b[1] - a[1]);
   const maxSection = Math.max(...sectionEntries.map(([, c]) => c), 1);
 
-  // Top 10 items by frequency
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className={`${GLASS_CARD} p-4 relative overflow-hidden`}>
+        <div className="absolute inset-x-0 top-0 h-0.5 bg-violet-500" />
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Reports</p>
+        <p className="mt-2 text-3xl font-bold text-white">{reports.length}</p>
+      </div>
+      <div className={`${GLASS_CARD} p-4 relative overflow-hidden`}>
+        <div className="absolute inset-x-0 top-0 h-0.5 bg-blue-400" />
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Total Lines</p>
+        <p className="mt-2 text-3xl font-bold text-white">{total}</p>
+      </div>
+      <div className={`${GLASS_CARD} p-4 relative overflow-hidden`}>
+        <div className={`absolute inset-x-0 top-0 h-0.5 ${shortageRate > 30 ? "bg-red-500" : shortageRate > 10 ? "bg-yellow-500" : "bg-green-500"}`} />
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Shortage Rate</p>
+        <p className={`mt-2 text-3xl font-bold ${shortageRate > 30 ? "text-red-400" : shortageRate > 10 ? "text-yellow-400" : "text-green-400"}`}>
+          {shortageRate}%
+        </p>
+        <p className="mt-0.5 text-[11px] text-zinc-500">{shortageLines.length} lines below std</p>
+      </div>
+      <div className={`${GLASS_CARD} p-4`}>
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2">By Section</p>
+        <div className="space-y-2">
+          {sectionEntries.slice(0, 5).map(([s, count]) => {
+            const color = SECTION_COLORS[s] ?? "#a1a1aa";
+            return (
+              <div key={s} className="space-y-0.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-zinc-400 truncate">{SECTION_LABELS[s] ?? s}</span>
+                  <span className="text-[11px] font-bold tabular-nums" style={{ color }}>{count}</span>
+                </div>
+                <div className="h-1 rounded-full bg-white/8 overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${Math.round((count / maxSection) * 100)}%`, backgroundColor: color, opacity: 0.7 }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ② Shortage Heatmap ──────────────────────────────────────────────────────
+function ShortageHeatmap({ reports, city }: { reports: BackupReport[]; city: City }) {
+  const standards = getLabelStandards(city);
+  const branches = useMemo(() => {
+    const set = new Set<string>();
+    reports.forEach((r) => set.add(r.branch_code));
+    return [...set].sort();
+  }, [reports]);
+
+  // Per item per branch: {total, shortages}
+  const matrix = useMemo(() => {
+    const m: Record<string, Record<string, { total: number; shortages: number }>> = {};
+    for (const report of reports) {
+      for (const line of report.lines ?? []) {
+        const std = standards[line.item_name_snapshot];
+        if (!std) continue;
+        if (!m[line.item_name_snapshot]) m[line.item_name_snapshot] = {};
+        if (!m[line.item_name_snapshot][report.branch_code]) {
+          m[line.item_name_snapshot][report.branch_code] = { total: 0, shortages: 0 };
+        }
+        m[line.item_name_snapshot][report.branch_code].total++;
+        if (isShortage(std, line.quantity)) m[line.item_name_snapshot][report.branch_code].shortages++;
+      }
+    }
+    return m;
+  }, [reports, standards]);
+
+  // Sort items by total shortage count across all branches
+  const sortedItems = useMemo(() =>
+    Object.entries(matrix)
+      .map(([item, branchData]) => ({
+        item,
+        totalShortages: Object.values(branchData).reduce((s, b) => s + b.shortages, 0),
+        totalReports: Object.values(branchData).reduce((s, b) => s + b.total, 0),
+      }))
+      .filter((x) => x.totalShortages > 0)
+      .sort((a, b) => b.totalShortages - a.totalShortages)
+      .slice(0, 20),
+    [matrix]
+  );
+
+  if (sortedItems.length === 0) {
+    return (
+      <p className="text-sm text-zinc-500 py-4 text-center">
+        No shortage data — all items met their standards in this period.
+      </p>
+    );
+  }
+
+  function cellColor(branchData: { total: number; shortages: number } | undefined): string {
+    if (!branchData || branchData.total === 0) return "bg-white/4 text-zinc-600";
+    const rate = branchData.shortages / branchData.total;
+    if (rate === 0) return "bg-green-500/20 text-green-300";
+    if (rate < 0.3) return "bg-yellow-500/15 text-yellow-300";
+    if (rate < 0.6) return "bg-orange-500/20 text-orange-300";
+    return "bg-red-500/25 text-red-300";
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-white/8">
+      <table className="w-full text-xs">
+        <thead className="bg-white/5">
+          <tr>
+            <th className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 px-3 py-2.5 text-left w-48 sticky left-0 bg-zinc-900/80">
+              Item
+            </th>
+            {branches.map((b) => (
+              <th key={b} className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 px-3 py-2.5 text-center min-w-[64px]">
+                {b}
+              </th>
+            ))}
+            <th className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 px-3 py-2.5 text-center min-w-[56px]">
+              Total
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-white/5">
+          {sortedItems.map(({ item, totalShortages, totalReports }) => (
+            <tr key={item} className="hover:bg-white/3 transition-colors">
+              <td className="px-3 py-2 text-zinc-300 truncate max-w-[12rem] sticky left-0 bg-zinc-950/80 font-medium" title={item}>
+                {item}
+              </td>
+              {branches.map((b) => {
+                const bd = matrix[item]?.[b];
+                return (
+                  <td key={b} className={`px-3 py-2 text-center font-mono font-semibold rounded-sm ${cellColor(bd)}`}>
+                    {bd ? `${bd.shortages}/${bd.total}` : "—"}
+                  </td>
+                );
+              })}
+              <td className={`px-3 py-2 text-center font-mono font-semibold ${totalShortages > 0 ? "text-red-300" : "text-green-300"}`}>
+                {totalShortages}/{totalReports}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="flex items-center gap-3 px-4 py-2.5 border-t border-white/8 text-[10px] text-zinc-500">
+        <span>Legend:</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-500/25 inline-block" />0%</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-500/20 inline-block" />&lt;30%</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-500/25 inline-block" />30–60%</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-500/30 inline-block" />&gt;60%</span>
+        <span className="ml-auto italic">shortages / total reports</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── ③ Chronic Shortage Ranking ──────────────────────────────────────────────
+function ChronicShortageRanking({ reports, city }: { reports: BackupReport[]; city: City }) {
+  const standards = getLabelStandards(city);
+
+  const ranking = useMemo(() => {
+    const itemStats: Record<string, { total: number; shortages: number; avgQty: number; std: StandardSpec }> = {};
+
+    for (const report of reports) {
+      for (const line of report.lines ?? []) {
+        const std = standards[line.item_name_snapshot];
+        if (!std) continue;
+        if (!itemStats[line.item_name_snapshot]) {
+          itemStats[line.item_name_snapshot] = { total: 0, shortages: 0, avgQty: 0, std };
+        }
+        const s = itemStats[line.item_name_snapshot];
+        s.total++;
+        s.avgQty = (s.avgQty * (s.total - 1) + line.quantity) / s.total;
+        if (isShortage(std, line.quantity)) s.shortages++;
+      }
+    }
+
+    return Object.entries(itemStats)
+      .map(([item, s]) => ({
+        item,
+        total: s.total,
+        shortages: s.shortages,
+        shortageRate: s.total > 0 ? s.shortages / s.total : 0,
+        avgQty: Math.round(s.avgQty * 10) / 10,
+        std: s.std,
+      }))
+      .filter((x) => x.shortages > 0)
+      .sort((a, b) => b.shortages - a.shortages || b.shortageRate - a.shortageRate)
+      .slice(0, 15);
+  }, [reports, standards]);
+
+  if (ranking.length === 0) {
+    return (
+      <p className="text-sm text-zinc-500 py-4 text-center">
+        No chronic shortages found in this period. 🎉
+      </p>
+    );
+  }
+
+  const chartData = ranking.slice(0, 10).map((r) => ({
+    name: r.item.length > 22 ? r.item.slice(0, 20) + "…" : r.item,
+    fullName: r.item,
+    shortages: r.shortages,
+    rate: Math.round(r.shortageRate * 100),
+  }));
+
+  return (
+    <div className="space-y-4">
+      {/* Bar chart */}
+      <ResponsiveContainer width="100%" height={240}>
+        <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 48, left: 8, bottom: 0 }}>
+          <XAxis type="number" tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false} />
+          <YAxis type="category" dataKey="name" width={130} tick={{ fill: "#a1a1aa", fontSize: 11 }} axisLine={false} tickLine={false} />
+          <Tooltip content={({ active, payload }) => {
+            if (!active || !payload?.length) return null;
+            const d = payload[0].payload as { fullName: string; shortages: number; rate: number };
+            return (
+              <div className="rounded-xl border border-white/10 bg-zinc-900/95 px-3 py-2 text-xs shadow-2xl">
+                <p className="text-zinc-200 font-medium mb-1">{d.fullName}</p>
+                <p className="text-red-400 font-semibold">{d.shortages}× below standard</p>
+                <p className="text-zinc-400">{d.rate}% shortage rate</p>
+              </div>
+            );
+          }} />
+          <Bar dataKey="shortages" radius={[0, 4, 4, 0]}>
+            {chartData.map((d, i) => (
+              <Cell key={i} fill={d.rate > 60 ? "#f87171" : d.rate > 30 ? "#fb923c" : "#fbbf24"} fillOpacity={0.85 - i * 0.04} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+
+      {/* Detailed table */}
+      <div className="overflow-x-auto rounded-xl border border-white/8">
+        <table className="w-full text-sm">
+          <thead className="bg-white/5">
+            <tr>
+              <th className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 px-4 py-2.5 text-left">#</th>
+              <th className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 px-4 py-2.5 text-left">Item</th>
+              <th className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 px-3 py-2.5 text-center">Shortage Rate</th>
+              <th className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 px-3 py-2.5 text-center">Times Below Std</th>
+              <th className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 px-3 py-2.5 text-center">Avg Reported</th>
+              <th className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 px-3 py-2.5 text-left">Standard</th>
+            </tr>
+          </thead>
+          <tbody>
+            {ranking.map((r, idx) => {
+              const ratePct = Math.round(r.shortageRate * 100);
+              const rateColor = ratePct > 60 ? "text-red-400" : ratePct > 30 ? "text-orange-400" : "text-yellow-400";
+              return (
+                <tr key={r.item} className={TABLE_ROW}>
+                  <td className={`${TABLE_CELL} px-4 text-zinc-600 font-mono`}>{idx + 1}</td>
+                  <td className={`${TABLE_CELL} px-4 text-zinc-200 font-medium`}>{r.item}</td>
+                  <td className={`${TABLE_CELL} px-3 text-center`}>
+                    <div className="flex flex-col items-center gap-0.5">
+                      <span className={`font-bold tabular-nums ${rateColor}`}>{ratePct}%</span>
+                      <div className="w-16 h-1.5 rounded-full bg-white/10 overflow-hidden">
+                        <div className="h-full rounded-full bg-red-500/60" style={{ width: `${ratePct}%` }} />
+                      </div>
+                    </div>
+                  </td>
+                  <td className={`${TABLE_CELL} px-3 text-center font-mono tabular-nums text-red-300`}>
+                    {r.shortages}<span className="text-zinc-600">/{r.total}</span>
+                  </td>
+                  <td className={`${TABLE_CELL} px-3 text-center font-mono tabular-nums text-zinc-300`}>
+                    {r.std.type === "pct" ? `${r.avgQty}%` : r.avgQty}
+                  </td>
+                  <td className={`${TABLE_CELL} px-3 text-zinc-500 text-xs`}>{r.std.label}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Summary Stats (KPI cards + shortage analysis) ───────────────────────────
+function SummaryStats({ reports, city }: { reports: BackupReport[]; city: City }) {
+  const hasStandards = Object.keys(getLabelStandards(city)).length > 0;
+  const [analyticsTab, setAnalyticsTab] = useState<"heatmap" | "ranking">("ranking");
+
+  return (
+    <div className="space-y-3">
+      <KpiCards reports={reports} city={city} />
+
+      {/* ② ③ Shortage Analysis (replaces "Most Reported") */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-base">📊</span>
+            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+              {hasStandards ? "Shortage Analysis" : "Most Reported Items"}
+            </p>
+          </div>
+          {hasStandards && (
+            <div className="flex rounded-lg border border-white/10 overflow-hidden text-xs">
+              <button
+                onClick={() => setAnalyticsTab("ranking")}
+                className={`px-3 py-1.5 font-medium transition-colors ${analyticsTab === "ranking" ? "bg-violet-600 text-white" : "text-zinc-400 hover:text-white hover:bg-white/8"}`}
+              >
+                Shortage Ranking
+              </button>
+              <button
+                onClick={() => setAnalyticsTab("heatmap")}
+                className={`px-3 py-1.5 font-medium transition-colors ${analyticsTab === "heatmap" ? "bg-violet-600 text-white" : "text-zinc-400 hover:text-white hover:bg-white/8"}`}
+              >
+                Branch Heatmap
+              </button>
+            </div>
+          )}
+        </div>
+
+        {hasStandards ? (
+          analyticsTab === "ranking" ? (
+            <ChronicShortageRanking reports={reports} city={city} />
+          ) : (
+            <ShortageHeatmap reports={reports} city={city} />
+          )
+        ) : (
+          // Dubai fallback: original Most Reported chart
+          <MostReportedFallback reports={reports} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Dubai fallback (original Most Reported chart) ───────────────────────────
+function MostReportedFallback({ reports }: { reports: BackupReport[] }) {
+  const allLines = reports.flatMap((r) => r.lines ?? []);
   const itemCount: Record<string, number> = {};
   for (const l of allLines) { itemCount[l.item_name_snapshot] = (itemCount[l.item_name_snapshot] || 0) + 1; }
   const topItems = Object.entries(itemCount).sort((a, b) => b[1] - a[1]).slice(0, 10);
   const topChartData = topItems.map(([name, count]) => ({ name: name.length > 18 ? name.slice(0, 16) + "…" : name, count, fullName: name }));
 
-  return (
-    <div className="space-y-3">
-      {/* KPI row */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className={`${GLASS_CARD} p-4 relative overflow-hidden`}>
-          <div className="absolute inset-x-0 top-0 h-0.5 bg-violet-500" />
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Reports</p>
-          <p className="mt-2 text-3xl font-bold text-white">{reports.length}</p>
-        </div>
-        <div className={`${GLASS_CARD} p-4 relative overflow-hidden`}>
-          <div className="absolute inset-x-0 top-0 h-0.5 bg-blue-400" />
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Total Lines</p>
-          <p className="mt-2 text-3xl font-bold text-white">{total}</p>
-        </div>
-        <div className={`${GLASS_CARD} p-4 relative overflow-hidden`}>
-          <div className="absolute inset-x-0 top-0 h-0.5 bg-amber-500" />
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Needs Review</p>
-          <p className="mt-2 text-3xl font-bold text-amber-400">{freeForm}</p>
-          <p className="mt-0.5 text-[11px] text-zinc-500">free-form entries</p>
-        </div>
-        {/* By section */}
-        <div className={`${GLASS_CARD} p-4`}>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-2">By Section</p>
-          <div className="space-y-2">
-            {sectionEntries.slice(0, 5).map(([s, count]) => {
-              const color = SECTION_COLORS[s] ?? "#a1a1aa";
-              return (
-                <div key={s} className="space-y-0.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-zinc-400 truncate">{SECTION_LABELS[s] ?? s}</span>
-                    <span className="text-[11px] font-bold tabular-nums" style={{ color }}>{count}</span>
-                  </div>
-                  <div className="h-1 rounded-full bg-white/8 overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${Math.round((count / maxSection) * 100)}%`, backgroundColor: color, opacity: 0.7 }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+  if (topChartData.length === 0) return null;
 
-      {/* Top items chart */}
-      {topChartData.length > 0 && (
-        <div className={`${GLASS_CARD} p-4`}>
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="h-4 w-4 text-blue-400" />
-            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Most Reported Backup Items</p>
-          </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={topChartData} layout="vertical" margin={{ top: 0, right: 32, left: 8, bottom: 0 }}>
-              <XAxis type="number" tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="name" width={120} tick={{ fill: "#a1a1aa", fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip content={({ active, payload }) => {
-                if (!active || !payload?.length) return null;
-                const d = payload[0].payload as {fullName: string; count: number};
-                return (
-                  <div className="rounded-xl border border-white/10 bg-zinc-900/95 px-3 py-2 text-xs shadow-2xl">
-                    <p className="text-zinc-200 font-medium mb-0.5">{d.fullName}</p>
-                    <p className="text-blue-400 font-semibold">{d.count}×</p>
-                  </div>
-                );
-              }} />
-              <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                {topChartData.map((_, i) => (
-                  <Cell key={i} fill="#60a5fa" fillOpacity={1 - i * 0.07} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </div>
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <BarChart data={topChartData} layout="vertical" margin={{ top: 0, right: 32, left: 8, bottom: 0 }}>
+        <XAxis type="number" tick={{ fill: "#71717a", fontSize: 10 }} axisLine={false} tickLine={false} />
+        <YAxis type="category" dataKey="name" width={120} tick={{ fill: "#a1a1aa", fontSize: 11 }} axisLine={false} tickLine={false} />
+        <Tooltip content={({ active, payload }) => {
+          if (!active || !payload?.length) return null;
+          const d = payload[0].payload as { fullName: string; count: number };
+          return (
+            <div className="rounded-xl border border-white/10 bg-zinc-900/95 px-3 py-2 text-xs shadow-2xl">
+              <p className="text-zinc-200 font-medium mb-0.5">{d.fullName}</p>
+              <p className="text-blue-400 font-semibold">{d.count}×</p>
+            </div>
+          );
+        }} />
+        <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+          {topChartData.map((_, i) => <Cell key={i} fill="#60a5fa" fillOpacity={1 - i * 0.07} />)}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
   );
 }
 
 // ─── Main Section ─────────────────────────────────────────────────────────────
 export default function BackupAnalyticsSection({ isAdmin }: { isAdmin: boolean }) {
-  const [city, setCity]           = useState<City>("dubai");
+  const [city, setCity]             = useState<City>("dubai");
   const [branchCode, setBranchCode] = useState<string>("");
-  const [dateFrom, setDateFrom]   = useState(weekAgoStr);
-  const [dateTo, setDateTo]       = useState(todayStr);
-  const [reports, setReports]     = useState<BackupReport[]>([]);
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState("");
-  const [expanded, setExpanded]   = useState<number | null>(null);
+  const [dateFrom, setDateFrom]     = useState(weekAgoStr);
+  const [dateTo, setDateTo]         = useState(todayStr);
+  const [reports, setReports]       = useState<BackupReport[]>([]);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState("");
+  const [expanded, setExpanded]     = useState<number | null>(null);
   const [editingLine, setEditingLine] = useState<number | null>(null);
 
   const load = useCallback(async () => {
@@ -276,7 +568,7 @@ export default function BackupAnalyticsSection({ isAdmin }: { isAdmin: boolean }
       )}
       {loading && <div className="py-8 text-center text-sm text-zinc-500">Loading…</div>}
 
-      {!loading && reports.length > 0 && <SummaryStats reports={reports} />}
+      {!loading && reports.length > 0 && <SummaryStats reports={reports} city={city} />}
 
       {/* Reports list */}
       {!loading && (
@@ -287,7 +579,6 @@ export default function BackupAnalyticsSection({ isAdmin }: { isAdmin: boolean }
             const isExpanded = expanded === r.id;
             return (
               <div key={r.id} className={`overflow-hidden rounded-xl border transition-colors ${isExpanded ? "border-blue-500/30 bg-blue-500/5" : "border-white/8 bg-white/3 hover:border-blue-500/20"}`}>
-                {/* Header */}
                 <button type="button" className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-left"
                   onClick={() => { setExpanded(isExpanded ? null : r.id); setEditingLine(null); }}>
                   <span className="font-mono text-xs text-zinc-600">#{r.id}</span>

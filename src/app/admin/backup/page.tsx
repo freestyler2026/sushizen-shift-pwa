@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import { BRANCHES, type BranchCode, type City } from "@/lib/branches";
+import { MANILA_STANDARDS, type StandardSpec } from "@/lib/backup-standards";
 import {
   BADGE_INFO,
   BADGE_WARNING,
@@ -568,6 +569,68 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
   );
 }
 
+// ─── Shortage color helpers ───────────────────────────────────────────────────
+
+function shortageColor(std: StandardSpec | undefined, rawVal: string): "ok" | "warn" | "low" | "none" {
+  if (!std || rawVal === "") return "none";
+  const val = parseFloat(rawVal);
+  if (isNaN(val)) return "none";
+  if (val >= std.min) return "ok";
+  if (val >= std.min * 0.7) return "warn";
+  return "low";
+}
+
+const QTY_INPUT_COLOR: Record<"ok" | "warn" | "low" | "none", string> = {
+  ok:   "border-green-500/40 bg-green-500/8 text-green-200 focus:border-green-400/60",
+  warn: "border-yellow-500/40 bg-yellow-500/8 text-yellow-200 focus:border-yellow-400/60",
+  low:  "border-red-500/40 bg-red-500/8 text-red-200 focus:border-red-400/60",
+  none: "border-white/10 bg-white/6 text-white focus:border-violet-500/50",
+};
+
+// ─── Percentage Selector (Feature ④) ─────────────────────────────────────────
+
+const PCT_LEVELS = [0, 25, 50, 75, 100] as const;
+
+function PercentageSelector({
+  value,
+  standard,
+  onChange,
+}: {
+  value: string;
+  standard: number;
+  onChange: (val: string) => void;
+}) {
+  const current = parseInt(value);
+  const hasValue = !isNaN(current);
+
+  return (
+    <div className="flex gap-0.5 w-full">
+      {PCT_LEVELS.map((pct) => {
+        const isSelected = hasValue && current === pct;
+        let btnCls = "flex-1 rounded-md py-2.5 text-[11px] font-bold transition-colors border ";
+        if (isSelected) {
+          if (pct >= standard) btnCls += "bg-green-500/25 text-green-300 border-green-500/50";
+          else if (pct >= standard - 25) btnCls += "bg-yellow-500/25 text-yellow-300 border-yellow-500/50";
+          else btnCls += "bg-red-500/25 text-red-300 border-red-500/50";
+        } else {
+          btnCls += "bg-white/4 text-zinc-500 border-white/8 hover:bg-white/10 hover:text-zinc-300 active:bg-white/15";
+        }
+        return (
+          <button
+            key={pct}
+            type="button"
+            onClick={() => onChange(isSelected ? "" : String(pct))}
+            className={btnCls}
+            title={`${pct}% (standard: ${standard}%)`}
+          >
+            {pct}%
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Template Section Block (mobile-first) ────────────────────────────────────
 
 function TemplateSectionBlock({
@@ -576,15 +639,23 @@ function TemplateSectionBlock({
   unitOverrides,
   onChange,
   onUnitChange,
+  standards,
 }: {
   section: TemplateSection;
   qty: TemplateQty;
   unitOverrides: TemplateUnits;
   onChange: (key: string, val: string) => void;
   onUnitChange: (key: string, unit: string) => void;
+  standards: Record<string, StandardSpec>;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const filledCount = section.items.filter((i) => (qty[i.key] ?? "") !== "").length;
+
+  // Count shortages in this section
+  const shortageCount = section.items.filter((i) => {
+    const v = qty[i.key] ?? "";
+    return v !== "" && shortageColor(standards[i.key], v) !== "ok" && shortageColor(standards[i.key], v) !== "none";
+  }).length;
 
   return (
     <div className="rounded-xl border border-white/8 bg-white/3 overflow-hidden">
@@ -601,42 +672,69 @@ function TemplateSectionBlock({
               {filledCount}
             </span>
           )}
+          {shortageCount > 0 && (
+            <span className="text-xs font-semibold text-red-400 bg-red-500/15 px-2 py-0.5 rounded-full">
+              ⚠ {shortageCount} low
+            </span>
+          )}
         </div>
         <span className="text-zinc-500 text-base">{collapsed ? "▼" : "▲"}</span>
       </button>
 
       {!collapsed && (
         <div className="border-t border-white/8 px-4 py-4">
-          {/* 2-col on mobile, 3-col on sm, 4-col on md */}
-          <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-3 md:grid-cols-4">
-            {section.items.map((item) => (
-              <div key={item.key}>
-                <label className="block mb-1 text-xs text-zinc-400 truncate" title={item.label}>
-                  {item.label}
-                </label>
-                <div className="flex items-center gap-1">
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min="0"
-                    step="1"
-                    className="w-full rounded-lg border border-white/10 bg-white/6 px-2 py-3 text-base text-white text-right outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20"
-                    value={qty[item.key] ?? ""}
-                    placeholder="—"
-                    onChange={(e) => onChange(item.key, e.target.value)}
-                  />
-                  <select
-                    className="shrink-0 w-12 rounded-lg border border-white/10 bg-zinc-900 px-0.5 py-3 text-[10px] text-zinc-400 outline-none focus:border-violet-500/50 cursor-pointer text-center appearance-none"
-                    value={unitOverrides[item.key] ?? item.unit}
-                    onChange={(e) => onUnitChange(item.key, e.target.value)}
-                  >
-                    {unitOptionsFor(item.unit).map((u) => (
-                      <option key={u} value={u}>{u}</option>
-                    ))}
-                  </select>
+          {/* 2-col on mobile, 3-col on sm */}
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3">
+            {section.items.map((item) => {
+              const std = standards[item.key];
+              const isPct = std?.type === "pct";
+              const color = shortageColor(std, qty[item.key] ?? "");
+
+              return (
+                <div key={item.key}>
+                  <div className="flex items-center justify-between mb-1 gap-1">
+                    <label className="text-xs text-zinc-400 truncate flex-1" title={item.label}>
+                      {item.label}
+                    </label>
+                    {std && (
+                      <span className="shrink-0 text-[9px] font-semibold text-zinc-600 tabular-nums">
+                        {std.label}
+                      </span>
+                    )}
+                  </div>
+
+                  {isPct ? (
+                    <PercentageSelector
+                      value={qty[item.key] ?? ""}
+                      standard={(std as { type: "pct"; min: number; label: string }).min}
+                      onChange={(v) => onChange(item.key, v)}
+                    />
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min="0"
+                        step="1"
+                        className={`w-full rounded-lg border px-2 py-3 text-base text-right outline-none focus:ring-1 focus:ring-violet-500/20 transition-colors ${QTY_INPUT_COLOR[color]}`}
+                        value={qty[item.key] ?? ""}
+                        placeholder="—"
+                        onChange={(e) => onChange(item.key, e.target.value)}
+                      />
+                      <select
+                        className="shrink-0 w-12 rounded-lg border border-white/10 bg-zinc-900 px-0.5 py-3 text-[10px] text-zinc-400 outline-none focus:border-violet-500/50 cursor-pointer text-center appearance-none"
+                        value={unitOverrides[item.key] ?? item.unit}
+                        onChange={(e) => onUnitChange(item.key, e.target.value)}
+                      >
+                        {unitOptionsFor(item.unit).map((u) => (
+                          <option key={u} value={u}>{u}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -730,6 +828,7 @@ export default function BackupReportPage() {
   useEffect(() => { setTemplateQty({}); setTemplateUnitOverrides({}); }, [city]);
 
   const activeSections = city === "manila" ? MANILA_TEMPLATE_SECTIONS : DUBAI_TEMPLATE_SECTIONS;
+  const activeStandards = city === "manila" ? MANILA_STANDARDS : {};
 
   const handleQtyChange = useCallback((key: string, val: string) => {
     setTemplateQty((prev) => ({ ...prev, [key]: val }));
@@ -836,6 +935,22 @@ export default function BackupReportPage() {
     freeLines.filter((fl) => fl.item_name_snapshot.trim() && parseFloat(fl.quantity) > 0).length
   );
 
+  // Shortage items: items filled but below standard
+  const shortageItems = activeSections.flatMap((sec) =>
+    sec.items
+      .filter((i) => {
+        const v = templateQty[i.key] ?? "";
+        const std = activeStandards[i.key];
+        return v !== "" && std && shortageColor(std, v) !== "ok" && shortageColor(std, v) !== "none";
+      })
+      .map((i) => ({
+        label: i.label,
+        value: templateQty[i.key] ?? "",
+        std: activeStandards[i.key]!,
+        severity: shortageColor(activeStandards[i.key], templateQty[i.key] ?? "") as "warn" | "low",
+      }))
+  );
+
   return (
     <>
       {/* Page scrollable content */}
@@ -912,10 +1027,39 @@ export default function BackupReportPage() {
                   unitOverrides={templateUnitOverrides}
                   onChange={handleQtyChange}
                   onUnitChange={handleUnitChange}
+                  standards={activeStandards}
                 />
               ))}
             </div>
           </div>
+
+          {/* ① Shortage Alert Panel */}
+          {shortageItems.length > 0 && (
+            <div className="rounded-xl border border-red-500/30 bg-red-500/8 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-base">⚠️</span>
+                <span className="text-sm font-semibold text-red-300">
+                  {shortageItems.length} item{shortageItems.length > 1 ? "s" : ""} below standard
+                </span>
+              </div>
+              <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                {shortageItems.map(({ label, value, std, severity }) => (
+                  <div key={label}
+                    className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs ${
+                      severity === "low"
+                        ? "bg-red-500/15 border border-red-500/25"
+                        : "bg-yellow-500/12 border border-yellow-500/22"
+                    }`}>
+                    <span className={severity === "low" ? "text-red-200" : "text-yellow-200"}>{label}</span>
+                    <span className="font-mono font-semibold tabular-nums ml-2">
+                      {std.type === "pct" ? `${value}%` : value}
+                      <span className="text-zinc-500 font-normal ml-1">/ {std.label}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Free-form Extra Section */}
           <div className={`${GLASS_CARD} p-4 sm:p-6 relative z-20`}>
@@ -966,6 +1110,11 @@ export default function BackupReportPage() {
           </button>
           {filledCount > 0 && !submitSuccess && (
             <span className="text-xs text-zinc-500 hidden sm:block">{filledCount} items filled</span>
+          )}
+          {shortageItems.length > 0 && !submitSuccess && (
+            <span className="text-xs font-semibold text-red-400 hidden sm:block">
+              ⚠ {shortageItems.length} below standard
+            </span>
           )}
         </div>
         {(submitError || submitSuccess) && (

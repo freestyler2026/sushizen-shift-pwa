@@ -27,10 +27,10 @@ npm run build
 npm run lint
 
 # ✅ Deploy frontend to Vercel — ローカルターミナルから直接実行
-# ⚠️ GitHub連携は現在無効（2026-05 時点、再接続待ち）
-# ⚠️ Cowork サンドボックスから vercel コマンドは実行不可。必ずユーザーのローカルターミナルで実行すること
+# GitHub連携が有効（2026-05 GitHubアカウント制限解除済み）
+# git push origin main → Vercel が自動ビルド＆デプロイされる
 git add -A && git commit -m "your message"
-vercel --prod
+git push origin main
 
 # Deploy backend to Heroku — ローカルターミナルから実行（Cowork サンドボックス不可）
 cd ../sushizen_shift_app_clean
@@ -97,17 +97,18 @@ All Tailwind class constants are defined here: `GLASS_CARD`, `PRIMARY_BUTTON`, `
 ## Critical State: Git & Vercel
 
 **Vercel デプロイ方式（2026-05 現在）**
-- **GitHub連携は無効**（Vercel ↔ GitHub の接続が切れている。再接続依頼中）
-- **代替方式: `vercel --prod` をローカルターミナルから直接実行**
-- `git push origin main` だけではデプロイされない。必ず `vercel --prod` も実行すること
-- Cowork（Claude サンドボックス）からは `vercel` コマンドを実行できない。ユーザーが手動で実行する
+- **GitHub連携が有効**（GitHubアカウント制限が2026-05-11に解除済み）
+- `git push origin main` → Vercel が自動でビルド＆プロダクションデプロイされる
+- `vercel --prod` の手動実行は不要（ただし緊急時のバイパスとして使用可能）
+- Cowork（Claude サンドボックス）からは git push / vercel コマンドは実行不可。ユーザーがローカルターミナルで実行する
 
 ```bash
 # フロントエンドデプロイ手順（毎回この手順）
 cd /Users/jaynishimura/Desktop/sushizen-shift-pwa
 git add -A
 git commit -m "your message"
-vercel --prod
+git push origin main
+# → Vercel が自動ビルド＆デプロイ（数分で完了）
 ```
 
 **過去の正常 commit: `a5c28d2`** ("Late Analysis: visual overhaul with bar charts, severity heatmap, rank badges")
@@ -144,8 +145,8 @@ This is the largest and most complex page (2524 lines). Its key structural secti
 cd /Users/jaynishimura/Desktop/sushizen-shift-pwa
 git add -A
 git commit -m "your message"
-vercel --prod
-# ※ GitHub連携無効のため git push origin main だけではデプロイされない
+git push origin main
+# → Vercel が GitHub連携で自動ビルド＆デプロイ（GitHub連携は2026-05-11に復旧済み）
 ```
 
 ### バックエンド（Heroku）デプロイ手順
