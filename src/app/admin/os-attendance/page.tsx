@@ -709,7 +709,10 @@ function DailyReportTab({ city }: { city: string }) {
     if (!confirm(`Delete attendance record for ${s.staff_name} on ${s.work_date}? This cannot be undone.`)) return;
     setDeletingId(s.id); setLoadErr("");
     try {
-      const r = await apiFetch(`${API}/sessions/${s.id}`, { method: "DELETE" });
+      const url = s.source === "bayzat"
+        ? `${API}/bayzat/${s.id}`
+        : `${API}/sessions/${s.id}`;
+      const r = await apiFetch(url, { method: "DELETE" });
       if (!r.ok) { setLoadErr(await extractApiError(r, "Failed to delete record")); return; }
       setSessions(prev => prev.filter(x => x.id !== s.id));
       setExpandedIds(prev => { const n = new Set(prev); n.delete(s.id); return n; });
@@ -925,13 +928,13 @@ function DailyReportTab({ city }: { city: string }) {
                       </td>
                       <td className={`${cellCls} pr-3`}>
                         {!s.is_no_show && (
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex gap-1">
                             <button onClick={() => setEditingSession(s)}
                               className="rounded-lg border border-white/10 p-1.5 text-white/40 hover:text-white hover:border-white/20 transition-colors">
                               <Pencil size={12} />
                             </button>
                             <button onClick={() => { void handleDelete(s); }} disabled={deleting}
-                              className="rounded-lg border border-red-500/20 p-1.5 text-red-400/50 hover:text-red-400 hover:border-red-500/40 transition-colors">
+                              className="rounded-lg border border-red-500/30 p-1.5 text-red-400/60 hover:text-red-400 hover:border-red-500/60 transition-colors">
                               {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
                             </button>
                           </div>
