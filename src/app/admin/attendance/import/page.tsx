@@ -64,11 +64,11 @@ const DEFAULT_FOLDER_ID = "0AJRy_FdAYDp2Uk9PVA";
 function normalizeError(raw: string) {
   const text = String(raw || "").trim();
   const lower = text.toLowerCase();
-  if (!text) return "同期に失敗しました。時間をおいて再試行してください。";
-  if (lower.includes("invalid pin")) return "PINが正しくありません。";
-  if (lower.includes("permission") || lower.includes("forbidden")) return "同期権限がありません（HQ/ADMIN のPIN確認が必要です）。";
-  if (lower.includes("attendance drive source not found")) return "同期元設定が見つかりません。";
-  if (lower.includes("no attendance files found")) return "Driveフォルダに対象ファイルがありません。";
+  if (!text) return "Sync failed. Please try again later.";
+  if (lower.includes("invalid pin")) return "Incorrect PIN.";
+  if (lower.includes("permission") || lower.includes("forbidden")) return "You do not have sync permission (HQ/ADMIN PIN required).";
+  if (lower.includes("attendance drive source not found")) return "Sync source configuration not found.";
+  if (lower.includes("no attendance files found")) return "No attendance files found in the Drive folder.";
   return text;
 }
 
@@ -206,7 +206,7 @@ export default function AttendanceImportPage() {
             <div>
               <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-sky-500">ATTENDANCE ADMIN</p>
               <h1 className={T_PAGE_TITLE}>Attendance Drive Sync</h1>
-              <p className={T_CAPTION}>Google DriveのBayzat勤怠ファイルを一括取り込みします。未取得ファイルを全件インポートします。</p>
+              <p className={T_CAPTION}>Sync Bayzat attendance files from Google Drive. All unimported files will be imported.</p>
             </div>
           </div>
 
@@ -255,16 +255,16 @@ export default function AttendanceImportPage() {
                 >
                   {folderId}
                 </div>
-                <p className={T_CAPTION}>Bayzat共有ドライブフォルダ（固定）</p>
+                <p className={T_CAPTION}>Fixed Bayzat shared Drive folder</p>
               </label>
 
               <label className="space-y-2 md:col-span-2">
-                <span className={T_LABEL}>Specific Drive File ID（個別指定・任意）</span>
+                <span className={T_LABEL}>Specific Drive File ID (optional)</span>
                 <input
                   className={INPUT_CLASS}
                   value={driveFileId}
                   onChange={(e) => setDriveFileId(e.target.value)}
-                  placeholder="特定ファイルだけ取り込む場合はここにIDを入力"
+                  placeholder="Enter file ID to sync a specific file"
                 />
               </label>
             </div>
@@ -278,7 +278,7 @@ export default function AttendanceImportPage() {
                 className={`${SECONDARY_BUTTON} flex items-center gap-2 disabled:opacity-50`}
               >
                 <FolderSearch className="h-4 w-4" />
-                {loadingFiles ? "確認中..." : "Drive ファイル一覧"}
+                {loadingFiles ? "Loading..." : "Drive File List"}
               </button>
 
               {/* Sync specific file */}
@@ -289,7 +289,7 @@ export default function AttendanceImportPage() {
                 className={`${SECONDARY_BUTTON} flex items-center gap-2 disabled:opacity-50`}
               >
                 <RefreshCw className="h-4 w-4" />
-                {loadingSelected ? "Syncing..." : "個別ファイルをSync"}
+                {loadingSelected ? "Syncing..." : "Sync Selected File"}
               </button>
 
               {/* Sync ALL unimported files */}
@@ -300,11 +300,11 @@ export default function AttendanceImportPage() {
                 className={`${PRIMARY_BUTTON} flex items-center gap-2 disabled:opacity-50`}
               >
                 <Upload className="h-4 w-4" />
-                {loadingAll ? "Syncing..." : "Sync All（全件取り込み）"}
+                {loadingAll ? "Syncing..." : "Sync All"}
               </button>
             </div>
             <p className={`${T_CAPTION} mt-2`}>
-              「Sync All」はDriveフォルダ内の全ファイルをスキャンし、未取得のものを全てインポートします。
+              "Sync All" scans all files in the Drive folder and imports any that have not been imported yet.
             </p>
           </section>
 
@@ -321,12 +321,12 @@ export default function AttendanceImportPage() {
               <div className="mb-3 flex items-center gap-2">
                 <FolderSearch className="h-4 w-4 text-sky-400" />
                 <div>
-                  <h2 className={T_SECTION}>Drive ファイル一覧</h2>
-                  <p className={T_CAPTION}>{driveFiles.length} 件見つかりました（フォルダ: {DEFAULT_FOLDER_ID}）</p>
+                  <h2 className={T_SECTION}>Drive File List</h2>
+                  <p className={T_CAPTION}>{driveFiles.length} file(s) found (Folder: {DEFAULT_FOLDER_ID})</p>
                 </div>
               </div>
               {driveFiles.length === 0 ? (
-                <p className="text-sm text-zinc-400">ファイルが見つかりません。サービスアカウントのアクセス権限を確認してください。</p>
+                <p className="text-sm text-zinc-400">No files found. Please verify that the service account has access to this folder.</p>
               ) : (
                 <div className="space-y-2">
                   {driveFiles.map((f) => (
@@ -342,7 +342,7 @@ export default function AttendanceImportPage() {
                           onClick={() => setDriveFileId(f.id)}
                           className={`${SECONDARY_BUTTON} px-2 py-1 text-xs`}
                         >
-                          このIDを使う
+                          Use this ID
                         </button>
                         {f.webViewLink ? (
                           <a href={f.webViewLink} target="_blank" rel="noreferrer" className={`${SECONDARY_BUTTON} px-2 py-1 text-xs`}>
@@ -363,11 +363,11 @@ export default function AttendanceImportPage() {
               <div className="mb-4 flex items-center gap-2">
                 <Upload className="h-4 w-4 text-sky-400" />
                 <div>
-                  <h2 className={T_SECTION}>Sync All 結果</h2>
+                  <h2 className={T_SECTION}>Sync All Result</h2>
                   <p className={T_CAPTION}>
-                    確認: {syncAllResult.files_checked ?? 0} 件 ／
-                    新規インポート: {syncAllResult.files_imported ?? 0} 件 ／
-                    スキップ（取得済み）: {syncAllResult.files_skipped ?? 0} 件
+                    Checked: {syncAllResult.files_checked ?? 0} /
+                    Imported: {syncAllResult.files_imported ?? 0} /
+                    Skipped (already imported): {syncAllResult.files_skipped ?? 0}
                   </p>
                 </div>
               </div>
@@ -387,10 +387,10 @@ export default function AttendanceImportPage() {
                       <p className="truncate text-sm font-medium text-white">{item.file_name}</p>
                       <p className={T_CAPTION}>
                         {item.error
-                          ? `エラー: ${item.error}`
+                          ? `Error: ${item.error}`
                           : item.duplicate
-                          ? "取得済み（スキップ）"
-                          : `インポート完了 — ${item.imported_count ?? 0} 件`}
+                          ? "Already imported (skipped)"
+                          : `Import complete — ${item.imported_count ?? 0} rows`}
                       </p>
                     </div>
                     {item.duplicate ? (
@@ -412,7 +412,7 @@ export default function AttendanceImportPage() {
               <div className="mb-3 flex items-center gap-2 sm:mb-4">
                 <Upload className="h-4 w-4 text-sky-400" />
                 <div>
-                  <h2 className={T_SECTION}>個別Sync 結果</h2>
+                  <h2 className={T_SECTION}>Single File Sync Result</h2>
                 </div>
               </div>
               <div className="mb-3 flex flex-wrap gap-2 sm:mb-4">
