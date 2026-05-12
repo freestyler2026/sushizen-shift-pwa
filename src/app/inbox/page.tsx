@@ -64,11 +64,12 @@ export default function InboxPage() {
   // Re-read auth on focus and visibility change (no hard reload needed)
   useEffect(() => {
     const refresh = () => setAuth(getAuth());
+    const onVisibility = () => { if (!document.hidden) refresh(); };
     window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", refresh);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 
