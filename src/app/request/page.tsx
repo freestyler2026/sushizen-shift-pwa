@@ -151,7 +151,7 @@ function HistoryTab({ staffName, city }: { staffName: string; city: string }) {
                     <StatusBadge status={n.status} />
                   </div>
                   <p className="mt-1.5 text-sm text-gray-700">{n.reason}</p>
-                  {n.leave_days && (
+                  {n.leave_days != null && (
                     <p className="text-xs text-gray-500 mt-0.5">{n.leave_days} day(s) — {n.leave_type}</p>
                   )}
                   {n.overtime_hours && (
@@ -382,10 +382,12 @@ export default function RequestPage() {
   // Auth refresh on focus
   useEffect(() => {
     const refresh = () => setAuth(getAuth());
+    const onVisibility = () => { if (!document.hidden) refresh(); };
     window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 
@@ -458,6 +460,7 @@ export default function RequestPage() {
         if (!r.ok) throw new Error(await r.text());
         const d = await r.json() as Record<string, unknown>;
         setResult(d);
+        setReason("");
         return;
       }
 
@@ -518,6 +521,7 @@ export default function RequestPage() {
       const text = await res.text();
       if (!res.ok) throw new Error(`Submit failed: ${res.status} ${text}`);
       setResult(JSON.parse(text) as Record<string, unknown>);
+      setReason("");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
