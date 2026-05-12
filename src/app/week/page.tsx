@@ -61,7 +61,8 @@ function normName(s: string) {
 }
 
 function containsJP(s: string) {
-  return /[-龠]/.test(s || "");
+  // Matches hiragana (3040–309F), katakana (30A0–30FF), and CJK ideographs (4E00–9FFF)
+  return /[぀-ヿ一-鿿]/.test(s || "");
 }
 
 function sanitizeDisplayName(s: string) {
