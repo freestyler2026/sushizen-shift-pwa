@@ -157,6 +157,7 @@ export function LowRatingsCard({
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<LowRatingRow | null>(null);
   const [saveBusy, setSaveBusy] = useState(false);
+  const [reviewModalText, setReviewModalText] = useState<string | null>(null);
 
   const aggregatorFilterOptions = useMemo(() => {
     const defaults = city === "manila" ? [...MANILA_AGGREGATORS] : [...DUBAI_AGGREGATORS];
@@ -464,7 +465,11 @@ export function LowRatingsCard({
                     <td className={TABLE_CELL + " px-3 tabular-nums " + ratingClass(Number(row.rating))}>
                       {RATING_LABELS[Number(row.rating)] || row.rating}
                     </td>
-                    <td className={TABLE_CELL + " px-3 max-w-[200px]"} title={row.customer_review}>
+                    <td
+                      className={TABLE_CELL + " px-3 max-w-[200px] cursor-pointer hover:text-violet-300 transition-colors"}
+                      title="Click to read full review"
+                      onClick={() => row.customer_review && String(row.customer_review).trim() ? setReviewModalText(String(row.customer_review).trim()) : undefined}
+                    >
                       {clip(row.customer_review, 60) || "—"}
                     </td>
                     <td className={TABLE_CELL + " px-3"}>{row.issue_category || "—"}</td>
@@ -558,6 +563,33 @@ export function LowRatingsCard({
           }}
           onSave={handleSave}
         />
+      ) : null}
+
+      {reviewModalText !== null ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+          onClick={() => setReviewModalText(null)}
+        >
+          <div
+            className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-neutral-900 p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-neutral-200">Customer Review</h3>
+              <button
+                type="button"
+                onClick={() => setReviewModalText(null)}
+                className="rounded-lg p-1 text-neutral-400 hover:bg-white/10 hover:text-white transition-colors"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-sm leading-relaxed text-neutral-100 whitespace-pre-wrap break-words">
+              {reviewModalText}
+            </p>
+          </div>
+        </div>
       ) : null}
     </div>
   );
