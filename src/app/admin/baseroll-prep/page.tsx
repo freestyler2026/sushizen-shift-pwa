@@ -1006,8 +1006,9 @@ export default function BaserollPrepPage() {
         <div className="space-y-6">
           <div className={`${GLASS_CARD} flex flex-wrap items-end gap-4`}>
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-neutral-400">Prep Date</label>
+              <label htmlFor="prep-date" className="mb-1.5 block text-xs font-semibold text-neutral-400">Prep Date</label>
               <input
+                id="prep-date"
                 type="date"
                 value={prepDate}
                 onChange={(e) => setPrepDate(e.target.value)}
