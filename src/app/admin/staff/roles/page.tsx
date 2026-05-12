@@ -147,12 +147,14 @@ async function apiRequest<T>(path: string, options: RequestInit = {}, auth?: Aut
   });
   const text = await res.text();
   if (!res.ok) {
+    let detail = text;
     try {
       const j = JSON.parse(text);
-      throw new Error(j?.detail || text || `${options.method || "GET"} ${path} failed`);
+      detail = j?.detail || text;
     } catch {
-      throw new Error(text || `${options.method || "GET"} ${path} failed`);
+      // text is not JSON — use raw text
     }
+    throw new Error(detail || `${options.method || "GET"} ${path} failed`);
   }
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
