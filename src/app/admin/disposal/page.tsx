@@ -196,8 +196,12 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   });
   const text = await res.text();
   if (!res.ok) {
-    const j = text ? JSON.parse(text) : {};
-    throw new Error(j?.detail || j?.message || text || `HTTP ${res.status}`);
+    let detail = text;
+    try {
+      const j = text ? JSON.parse(text) : {};
+      detail = j?.detail || j?.message || text;
+    } catch { /* text is non-JSON (e.g. HTML error page) — use as-is */ }
+    throw new Error(detail || `HTTP ${res.status}`);
   }
   return (text ? JSON.parse(text) : {}) as T;
 }
@@ -609,6 +613,9 @@ export default function DisposalPage() {
   const role = auth?.role ?? "";
   const isAdmin = role === "ADMIN" || role === "HQ";
 
+  // ── Guard: skip first-render auto-save (draft restore hasn't completed yet) ──
+  const hasMounted = useRef(false);
+
   // ── Form state (restored from localStorage draft if present) ──
   const [city, setCity] = useState<City>("dubai");
   const [branchCode, setBranchCode] = useState<BranchCode>("BB");
@@ -644,8 +651,10 @@ export default function DisposalPage() {
   }, []);
 
   // ── Auto-save draft whenever form changes ──
+  // Skip the first render so the initial-default state never overwrites a
+  // valid draft that the restore effect is about to load.
   useEffect(() => {
-    // Don't save on first render before draft restore completes
+    if (!hasMounted.current) { hasMounted.current = true; return; }
     saveDraft({ city, branchCode, reportDate, reportedBy, shift, headerNotes, lines });
   }, [city, branchCode, reportDate, reportedBy, shift, headerNotes, lines]);
 
