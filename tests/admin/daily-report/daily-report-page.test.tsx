@@ -992,29 +992,27 @@ describe("DailyReportPage", () => {
       expect(mockApiPost).not.toHaveBeenCalled();
     });
 
-    it("confirmed generate calls apiPost for both cities", async () => {
+    it("confirmed generate calls apiPost only for the selected city (dubai by default)", async () => {
       vi.spyOn(window, "confirm").mockReturnValue(true);
       await renderAndLoad();
       fireEvent.click(screen.getByRole("button", { name: /Generate Now/i }));
       await waitFor(() => {
         const urls = mockApiPost.mock.calls.map((a: any) => String(a[0]));
         expect(urls.some((u) => u.includes("city=dubai"))).toBe(true);
-        expect(urls.some((u) => u.includes("city=manila"))).toBe(true);
+        // Should NOT generate manila when dubai tab is active
+        expect(urls.some((u) => u.includes("city=manila"))).toBe(false);
       }, { timeout: 5000 });
     });
 
-    // ── BUG: confirm message is hardcoded English even in Japanese mode ───────
-    it("BUG: confirm dialog message is hardcoded English, not using t.generateConfirm translation", async () => {
+    it("confirm dialog uses t.generateConfirm translation in Japanese mode", async () => {
       const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
       await renderAndLoad();
       // Switch to Japanese
       fireEvent.click(screen.getByRole("button", { name: /日本語/i }));
       fireEvent.click(screen.getByRole("button", { name: /Generate Now|今すぐ生成/i }));
-      // The confirm dialog hardcodes English "Generate report for Dubai on ..."
-      // instead of using t.generateConfirm = "{city} のレポートを今すぐ生成しますか？"
       const msg = String(confirmSpy.mock.calls[0]?.[0] ?? "");
-      // This reveals the bug: msg is English not Japanese
-      expect(msg).toMatch(/Generate report for/i);
+      // After fix, confirm uses t.generateConfirm = "{city} のレポートを今すぐ生成しますか？"
+      expect(msg).toMatch(/のレポートを今すぐ生成しますか/);
     });
 
     it("shows 'Generating...' button text during generation", async () => {

@@ -958,7 +958,12 @@ export default function DailyReportPage() {
   useEffect(() => {
     async function init() {
       if (!auth?.accessToken) { router.replace("/login?next=%2Fadmin%2Fdaily-report"); return; }
-      const a = (await refreshAuthFromApi(auth, { includeMfa: true })) || auth;
+      let a = auth;
+      try {
+        a = (await refreshAuthFromApi(auth, { includeMfa: true })) || auth;
+      } catch {
+        // Network error refreshing auth — fall back to cached auth
+      }
       const role = String(a?.role || "").toUpperCase();
       const can = canAccessAnalyticsAdmin(a) || role === "HQ" || role === "ADMIN";
       setAllowed(can);
@@ -1024,24 +1029,20 @@ export default function DailyReportPage() {
 
   const handleGenerate = async () => {
     const label = city === "dubai" ? "Dubai" : "Manila";
-    if (!window.confirm(`Generate report for ${label} on ${generateDate}?`)) return;
+    const confirmMsg = t.generateConfirm.replace("{city}", label) + ` (${generateDate})`;
+    if (!window.confirm(confirmMsg)) return;
     setGenerating(true); setError("");
     try {
-      // Call per-city to avoid Heroku H12 30-second timeout (generating both at once is too slow)
-      const [dubaiRes, manilaRes] = await Promise.all([
-        apiPost<{ ok: boolean; results?: Record<string, { ok: boolean; error?: string }> }>(
-          `/api/admin/daily-report/generate?report_date=${encodeURIComponent(generateDate)}&city=dubai`, {}
-        ),
-        apiPost<{ ok: boolean; results?: Record<string, { ok: boolean; error?: string }> }>(
-          `/api/admin/daily-report/generate?report_date=${encodeURIComponent(generateDate)}&city=manila`, {}
-        ),
-      ]);
-      const errs: string[] = [];
-      for (const [cityKey, res] of Object.entries({ dubai: dubaiRes, manila: manilaRes })) {
-        const cityResult = res.results?.[cityKey];
-        if (cityResult && !cityResult.ok) errs.push(`${cityKey}: ${cityResult.error || "unknown error"}`);
+      const res = await apiPost<{ ok: boolean; results?: Record<string, { ok: boolean; error?: string }> }>(
+        `/api/admin/daily-report/generate?report_date=${encodeURIComponent(generateDate)}&city=${encodeURIComponent(city)}`, {}
+      );
+      if (!res.ok || res.results) {
+        // Collect any per-branch failures from results map
+        const errs: string[] = Object.entries(res.results ?? {})
+          .filter(([, r]) => !r.ok)
+          .map(([k, r]) => `${k}: ${r.error || "unknown error"}`);
+        if (errs.length) setError(errs.join(" | "));
       }
-      if (errs.length) setError(errs.join(" | "));
       await fetchReports(city);
     } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setGenerating(false); }
