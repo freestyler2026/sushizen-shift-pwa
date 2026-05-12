@@ -54,6 +54,13 @@ export default function PrivateReportPage() {
     setSubmitError("");
     setBranch("");
     setDateTimeLocal("");
+    setCategory("Suggestion");
+    setWhatHappened("");
+    setWhyProblem("");
+    setFrequency("");
+    setAffectedPeople("");
+    setSupportNeeded("");
+    setAnonymousRequest(true);
     setScreenFeature("");
     setProblem("");
     setExpected("");
@@ -68,7 +75,6 @@ export default function PrivateReportPage() {
         router.replace("/login?next=%2Fprivate-report");
         return;
       }
-      if (!refreshed) return;
       setCity(refreshed.city || "dubai");
     }
     void syncAuth();
