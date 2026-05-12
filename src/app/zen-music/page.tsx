@@ -88,6 +88,15 @@ const TRACKS: Track[] = [
   },
   {
     id: 9,
+    title: "ZEN Metal",
+    subtitle: "Sushi ZEN",
+    file: "/music/zen-metal.mp3",
+    accent: "from-zinc-300 via-slate-500 to-gray-800",
+    accentHex: "#71717a",
+    glyph: "鋼",
+  },
+  {
+    id: 10,
     title: "We Are ZEN",
     subtitle: "Sushi ZEN",
     file: "/music/we-are-zen.mp3",
@@ -96,7 +105,7 @@ const TRACKS: Track[] = [
     glyph: "和",
   },
   {
-    id: 10,
+    id: 11,
     title: "ZEN Party",
     subtitle: "Sushi ZEN",
     file: "/music/sushi-zen-party.mp3",
@@ -105,7 +114,7 @@ const TRACKS: Track[] = [
     glyph: "祭",
   },
   {
-    id: 11,
+    id: 12,
     title: "ZEN Hawaiian",
     subtitle: "Sushi ZEN",
     file: "/music/sushi-zen-hawaiian.mp3",
@@ -114,7 +123,7 @@ const TRACKS: Track[] = [
     glyph: "浜",
   },
   {
-    id: 12,
+    id: 13,
     title: "ZEN Memories",
     subtitle: "Sushi ZEN",
     file: "/music/sushi-zen-memories.mp3",
@@ -123,7 +132,7 @@ const TRACKS: Track[] = [
     glyph: "想",
   },
   {
-    id: 13,
+    id: 14,
     title: "ZEN Midnight",
     subtitle: "Sushi ZEN",
     file: "/music/sushi-zen-midnight.mp3",
@@ -132,7 +141,7 @@ const TRACKS: Track[] = [
     glyph: "夜",
   },
   {
-    id: 14,
+    id: 15,
     title: "ZEN ZA WARUDO",
     subtitle: "Sushi ZEN",
     file: "/music/zen-za-warudo.mp3",
@@ -141,7 +150,7 @@ const TRACKS: Track[] = [
     glyph: "界",
   },
   {
-    id: 15,
+    id: 16,
     title: "ZEN SHOGUN MODE",
     subtitle: "Sushi ZEN",
     file: "/music/zen-shogun-mode.mp3",
@@ -150,7 +159,7 @@ const TRACKS: Track[] = [
     glyph: "将",
   },
   {
-    id: 16,
+    id: 17,
     title: "ZEN Night",
     subtitle: "Sushi ZEN",
     file: "/music/zen-night.mp3",
@@ -159,13 +168,22 @@ const TRACKS: Track[] = [
     glyph: "宵",
   },
   {
-    id: 17,
+    id: 18,
     title: "ZEN Days",
     subtitle: "Sushi ZEN",
     file: "/music/zen-days.mp3",
     accent: "from-sky-400 via-cyan-300 to-emerald-400",
     accentHex: "#0891b2",
     glyph: "陽",
+  },
+  {
+    id: 19,
+    title: "ZEN Jazzy Night",
+    subtitle: "Sushi ZEN",
+    file: "/music/zen-jazzy-night.mp3",
+    accent: "from-amber-400 via-orange-500 to-yellow-700",
+    accentHex: "#d97706",
+    glyph: "爵",
   },
 ];
 
