@@ -114,6 +114,7 @@ export function ManilaRatingsTab({
   const [filterBranch, setFilterBranch] = useState("");
   const [filterRating, setFilterRating] = useState("");
   const [searchText, setSearchText] = useState("");
+  const [reviewModalText, setReviewModalText] = useState<string | null>(null);
 
   const baseQs = useMemo(() => {
     const qs = new URLSearchParams({
@@ -482,7 +483,14 @@ export function ManilaRatingsTab({
                   <td className="max-w-[220px] truncate px-3 py-2 text-neutral-400" title={row.ordered_items}>
                     {row.ordered_items || "—"}
                   </td>
-                  <td className="max-w-[260px] px-3 py-2 text-neutral-300" title={row.customer_review}>
+                  <td
+                    className="max-w-[260px] px-3 py-2 text-neutral-300 cursor-pointer hover:text-violet-300 transition-colors"
+                    title="Click to read full review"
+                    onClick={() => {
+                      const t = String(row.customer_review || "").trim();
+                      if (t) setReviewModalText(t);
+                    }}
+                  >
                     {row.customer_review ? <span className="line-clamp-2">{row.customer_review}</span> : <span className="text-neutral-600">—</span>}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right text-neutral-400">
@@ -495,6 +503,33 @@ export function ManilaRatingsTab({
           </table>
         </div>
       </div>
+
+      {reviewModalText !== null ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+          onClick={() => setReviewModalText(null)}
+        >
+          <div
+            className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-neutral-900 p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold text-neutral-200">Customer Review</h3>
+              <button
+                type="button"
+                onClick={() => setReviewModalText(null)}
+                className="rounded-lg p-1 text-neutral-400 hover:bg-white/10 hover:text-white transition-colors"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-sm leading-relaxed text-neutral-100 whitespace-pre-wrap break-words">
+              {reviewModalText}
+            </p>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
