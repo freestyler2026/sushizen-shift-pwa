@@ -423,44 +423,31 @@ export default function ZenMusicPage() {
 
   const track = TRACKS[idx];
 
-  /* load new track */
+  /* set src when track changes — do NOT call a.load() or a.play() here */
   useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
-
-    // Do NOT call a.load() here — setting src already triggers the browser's
-    // media-resource-fetch algorithm. Calling load() right before play() causes
-    // the play() Promise to be rejected with AbortError in Chrome/Safari, which
-    // fires our catch handler and flips playing→false, delaying playback ~10s.
     a.src = track.file;
     setCurrentTime(0);
     setDuration(0);
-
-    if (playing) {
-      // Wait for enough data before playing so play() never rejects with NotAllowedError
-      const onCanPlay = () => {
-        a.play().catch(() => setPlaying(false));
-      };
-      a.addEventListener("canplay", onCanPlay, { once: true });
-      return () => a.removeEventListener("canplay", onCanPlay);
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx]);
 
-  /* play / pause */
+  /* sync play/pause — runs whenever playing OR idx changes so play() is always
+     called after the new src is set (idx effect runs first, then this one) */
   useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
     if (playing) {
-      // If src is already loaded (e.g. paused mid-track) play immediately;
-      // otherwise the canplay listener in the idx effect will handle it.
-      if (a.readyState >= 3) {
-        a.play().catch(() => setPlaying(false));
-      }
+      // play() queues itself internally until enough data is buffered.
+      // AbortError fires when src changes mid-play — safe to ignore.
+      a.play().catch((e: unknown) => {
+        if ((e as DOMException).name !== "AbortError") setPlaying(false);
+      });
     } else {
       a.pause();
     }
-  }, [playing]);
+  }, [playing, idx]);
 
   /* volume */
   useEffect(() => {
