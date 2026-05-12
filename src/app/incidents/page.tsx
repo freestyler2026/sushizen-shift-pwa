@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -93,9 +94,16 @@ function fmtDt(iso: string): string {
 }
 
 export default function IncidentsPage() {
+  const router = useRouter();
   const auth = getAuth();
   const city = (auth?.city || "dubai") as City;
   const staffName = auth?.staffName || "";
+
+  useEffect(() => {
+    if (!auth?.staffName || !auth?.accessToken) {
+      router.replace("/login?next=%2Fincidents");
+    }
+  }, [auth, router]);
 
   const [showForm, setShowForm]           = useState(false);
   const [formCity, setFormCity]           = useState<City>(city);
@@ -174,15 +182,21 @@ export default function IncidentsPage() {
       const data = await res.json();
       const reportId: string = data.report_id || "";
 
+      let imageUploadOk = true;
       if (imageFile && reportId) {
         const fd = new FormData();
         fd.append("file", imageFile);
         fd.append("uploader_name", reporter || a.staffName);
         fd.append("authorization", `Bearer ${a.accessToken || ""}`);
-        await fetch(`${API_BASE}/api/incidents/${reportId}/attachments`, { method: "POST", body: fd });
+        const attRes = await fetch(`${API_BASE}/api/incidents/${reportId}/attachments`, { method: "POST", body: fd });
+        if (!attRes.ok) imageUploadOk = false;
       }
 
-      setSubmitSuccess("Report submitted successfully.");
+      setSubmitSuccess(
+        imageUploadOk
+          ? "Report submitted successfully."
+          : "Report submitted. Image upload failed — please re-attach and retry."
+      );
       setShowForm(false);
       setCategory(""); setBranch(""); setSeverity("medium");
       setDescription(""); setIncidentDatetime(""); setImageFile(null);
