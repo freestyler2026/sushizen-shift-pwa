@@ -488,7 +488,7 @@ export default function ManualShiftPage() {
     setView("edit");
   }, [city]);
 
-  const loadStaff = useCallback(async () => {
+  const loadStaff = useCallback(async (): Promise<boolean> => {
     setLoading(true);
     setError("");
     try {
@@ -505,8 +505,10 @@ export default function ManualShiftPage() {
         }
         return next;
       });
+      return true;
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
+      return false;
     } finally {
       setLoading(false);
     }
@@ -601,8 +603,9 @@ export default function ManualShiftPage() {
     const savedDraft = loadDraft(city, branchCode, weekStart);
     bayzatAppliedRef.current = {};
     void (async () => {
-      await loadStaff();
+      const staffOk = await loadStaff();
       if (cancelled) return;
+      if (!staffOk) return; // staff load failed — keep the error visible
       await loadExistingShifts(true);
       if (cancelled) return;
       if (Object.keys(savedDraft).length > 0) {
@@ -808,7 +811,8 @@ export default function ManualShiftPage() {
       // Reload grid from newly published data
       clearDraft(city, branchCode, weekStart);
       setHasDraft(false);
-      await loadStaff();
+      const staffOk = await loadStaff();
+      if (!staffOk) return;
       await loadExistingShifts(true);
       setError("");
       alert(`Loaded ${res.rows_copied} shifts from Bayzat DB for ${labelOf(city, branchCode)}.`);
@@ -1140,7 +1144,8 @@ export default function ManualShiftPage() {
                 type="button"
                 onClick={async () => {
                   const savedDraft = loadDraft(city, branchCode, weekStart);
-                  await loadStaff();
+                  const staffOk = await loadStaff();
+                  if (!staffOk) return; // staff load failed — error is already displayed, do not clear it
                   await loadExistingShifts(true);
                   if (Object.keys(savedDraft).length > 0) {
                     setGridData((prev) => {
@@ -1168,8 +1173,8 @@ export default function ManualShiftPage() {
                     if (!window.confirm("Reload from server? All locally entered shifts that have not been published will be lost.")) return;
                     clearDraft(city, branchCode, weekStart);
                     setHasDraft(false);
-                    await loadStaff();
-                    void loadExistingShifts(true);
+                    const staffOk = await loadStaff();
+                    if (staffOk) void loadExistingShifts(true);
                   }}
                   disabled={loading}
                   className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-500 transition hover:bg-gray-50"
