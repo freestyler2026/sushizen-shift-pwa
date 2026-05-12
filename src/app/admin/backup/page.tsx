@@ -330,8 +330,12 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   });
   const text = await res.text();
   if (!res.ok) {
-    const j = text ? JSON.parse(text) : {};
-    throw new Error(j?.detail || j?.message || text || `HTTP ${res.status}`);
+    let detail = text;
+    try {
+      const j = text ? JSON.parse(text) : {};
+      detail = j?.detail || j?.message || text;
+    } catch { /* text is non-JSON (e.g. HTML error page) — use as-is */ }
+    throw new Error(detail || `HTTP ${res.status}`);
   }
   return (text ? JSON.parse(text) : {}) as T;
 }
@@ -516,7 +520,7 @@ function PastReports({ city, branchCode, isAdmin }: { city: City; branchCode: Br
                 <span className="text-xs text-zinc-400">{r.branch_code}</span>
                 <span className={BADGE_INFO}>{r.shift}</span>
                 <span className="text-xs text-zinc-400">by {r.reported_by}</span>
-                <span className="text-xs text-zinc-500 ml-auto">{nonZero} items</span>
+                <span className="text-xs text-zinc-500 ml-auto">{nonZero} item{nonZero !== 1 ? "s" : ""}</span>
                 {isAdmin && (
                   <button onClick={(e) => { e.stopPropagation(); handleDelete(r.id); }}
                     className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1">
