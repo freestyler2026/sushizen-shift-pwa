@@ -65,7 +65,10 @@ function formatHourLabel(hour: number) {
 }
 
 function hoursLabel(st: number, en: number) {
-  return `${formatHourLabel(st)} - ${formatHourLabel(en)}`;
+  const start = Number(st || 0);
+  const end = Number(en || 0);
+  const adjustedEnd = end < start ? end + 24 : end;
+  return `${formatHourLabel(start)} - ${formatHourLabel(adjustedEnd)}`;
 }
 
 function shiftHours(st: number, en: number) {
@@ -382,7 +385,7 @@ export default function MyShiftPage() {
               const hasShift = rows.some((row) => !isAbsenceRow(row));
               const hasAbsence = rows.some((row) => isAbsenceRow(row));
               const firstShift = rows.find((row) => !isAbsenceRow(row));
-              const shiftLabel = firstShift ? `${formatHourLabel(firstShift.start_hour)}-${formatHourLabel(firstShift.end_hour)}` : "";
+              const shiftLabel = firstShift ? (() => { const s = Number(firstShift.start_hour || 0); const e = Number(firstShift.end_hour || 0); const ae = e < s ? e + 24 : e; return `${formatHourLabel(s)}-${formatHourLabel(ae)}`; })() : "";
 
               return (
                 <div
@@ -640,7 +643,7 @@ export default function MyShiftPage() {
                         <td className="py-3 text-sm text-zinc-200">{row.work_date}</td>
                         <td className="py-3 text-sm text-zinc-400">{weekdayShort(row.work_date)}</td>
                         <td className="py-3 text-sm font-medium text-white">{formatHourLabel(row.start_hour)}</td>
-                        <td className="py-3 text-sm font-medium text-white">{formatHourLabel(row.end_hour)}</td>
+                        <td className="py-3 text-sm font-medium text-white">{formatHourLabel(Number(row.end_hour || 0) < Number(row.start_hour || 0) ? Number(row.end_hour || 0) + 24 : Number(row.end_hour || 0))}</td>
                         <td className="py-3 text-sm font-medium text-emerald-400">{shiftHours(row.start_hour, row.end_hour)}h</td>
                       </tr>
                     ))}
