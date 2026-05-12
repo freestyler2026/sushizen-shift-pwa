@@ -13,18 +13,18 @@ import DatePicker from "@/components/DatePicker";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
 
-// ── Light theme styles ────────────────────────────────────────────────────────
-const PAGE_BG   = "min-h-screen bg-gray-50";
-const CARD      = "rounded-2xl border border-gray-200 bg-white shadow-sm";
-const SECTION   = "text-base font-semibold text-gray-900";
-const CAPTION   = "text-xs text-gray-500";
+// ── Dark theme styles ─────────────────────────────────────────────────────────
+const PAGE_BG   = "min-h-screen bg-[#0a0b14]";
+const CARD      = "rounded-2xl border border-white/10 bg-white/5 shadow-xl shadow-black/20";
+const SECTION   = "text-base font-semibold text-white";
+const CAPTION   = "text-xs text-zinc-500";
 const BTN_PRIM  = "rounded-xl bg-teal-600 px-5 py-2.5 font-semibold text-white transition hover:bg-teal-500 disabled:opacity-50";
-const BTN_SEC   = "rounded-xl border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50";
-const INPUT     = "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20";
-const SELECT    = "w-full appearance-none rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20";
-const TAB_A     = "flex items-center gap-2 border-b-2 border-teal-500 px-4 py-3 text-sm font-semibold text-teal-600";
-const TAB_I     = "flex items-center gap-2 border-b-2 border-transparent px-4 py-3 text-sm font-medium text-gray-500 hover:text-gray-900 transition";
-const LABEL     = "block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1";
+const BTN_SEC   = "rounded-xl border border-white/10 bg-white/6 px-5 py-2.5 text-sm font-medium text-zinc-300 hover:bg-white/10 transition disabled:opacity-50";
+const INPUT     = "w-full rounded-xl border border-white/10 bg-white/6 px-4 py-2.5 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20";
+const SELECT    = "w-full appearance-none rounded-xl border border-white/10 bg-white/6 px-4 py-2.5 text-sm text-white outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20";
+const TAB_A     = "flex items-center gap-2 border-b-2 border-teal-400 px-4 py-3 text-sm font-semibold text-teal-400";
+const TAB_I     = "flex items-center gap-2 border-b-2 border-transparent px-4 py-3 text-sm font-medium text-zinc-500 hover:text-white transition";
+const LABEL     = "block text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-1";
 
 type Tab = "form" | "history" | "inbox";
 type ReqType = "time_change" | "day_off" | "absence" | "swap" | "paid_leave" | "vacation" | "overtime_request" | "other";
@@ -70,10 +70,10 @@ function todayIso() { return new Date().toISOString().slice(0, 10); }
 
 function StatusBadge({ status }: { status: string }) {
   const cls = status === "approved"
-    ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+    ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
     : status === "rejected"
-    ? "bg-red-100 text-red-700 border border-red-200"
-    : "bg-amber-100 text-amber-700 border border-amber-200";
+    ? "bg-red-500/15 text-red-400 border border-red-500/30"
+    : "bg-amber-500/15 text-amber-400 border border-amber-500/30";
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${cls}`}>
       {status === "approved" ? <CheckCircle2 size={11} /> : status === "rejected" ? <XCircle size={11} /> : <Clock size={11} />}
@@ -122,12 +122,12 @@ function HistoryTab({ staffName, city }: { staffName: string; city: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className={SECTION}>My Request History</h2>
-        <button onClick={load} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition">
+        <button onClick={load} className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition">
           <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> Refresh
         </button>
       </div>
       {error && (
-        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+        <div className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
           <AlertCircle size={14} /> {error}
         </div>
       )}
@@ -135,8 +135,8 @@ function HistoryTab({ staffName, city }: { staffName: string; city: string }) {
         <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-teal-500" /></div>
       ) : items.length === 0 ? (
         <div className={CARD + " p-10 text-center"}>
-          <ClipboardList size={36} className="mx-auto mb-2 text-gray-300" />
-          <p className="text-sm text-gray-400">No requests submitted yet.</p>
+          <ClipboardList size={36} className="mx-auto mb-2 text-zinc-600" />
+          <p className="text-sm text-zinc-500">No requests submitted yet.</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -145,23 +145,23 @@ function HistoryTab({ staffName, city }: { staffName: string; city: string }) {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-medium text-teal-700 capitalize">
+                    <span className="rounded-full bg-teal-500/15 px-2.5 py-0.5 text-xs font-medium text-teal-300 capitalize">
                       {n.notification_type.replace(/_/g, " ")}
                     </span>
                     <StatusBadge status={n.status} />
                   </div>
-                  <p className="mt-1.5 text-sm text-gray-700">{n.reason}</p>
+                  <p className="mt-1.5 text-sm text-zinc-300">{n.reason}</p>
                   {n.leave_days != null && (
-                    <p className="text-xs text-gray-500 mt-0.5">{n.leave_days} day(s) — {n.leave_type}</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">{n.leave_days} day(s) — {n.leave_type}</p>
                   )}
                   {n.overtime_hours && (
-                    <p className="text-xs text-gray-500 mt-0.5">{n.overtime_hours} OT hour(s)</p>
+                    <p className="text-xs text-zinc-500 mt-0.5">{n.overtime_hours} OT hour(s)</p>
                   )}
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="text-xs text-gray-400">{n.target_date}</p>
+                  <p className="text-xs text-zinc-500">{n.target_date}</p>
                   {n.review_note && (
-                    <p className="mt-1 text-xs text-gray-500 max-w-[160px]">{n.review_note}</p>
+                    <p className="mt-1 text-xs text-zinc-500 max-w-[160px]">{n.review_note}</p>
                   )}
                 </div>
               </div>
@@ -242,22 +242,22 @@ function InboxTab({ city }: { city: string }) {
           <h2 className={SECTION + " flex items-center gap-2"}>
             <BellRing size={18} className="text-amber-500" /> Pending Inbox
             {items.length > 0 && (
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">{items.length}</span>
+              <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-bold text-amber-400">{items.length}</span>
             )}
           </h2>
           {lastLoaded && (
-            <p className="text-xs text-gray-400 mt-0.5">
+            <p className="text-xs text-zinc-500 mt-0.5">
               Last updated: {lastLoaded.toLocaleTimeString()} · auto-refresh every 30s
             </p>
           )}
         </div>
-        <button onClick={load} className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition">
+        <button onClick={load} className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition">
           <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> Refresh
         </button>
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+        <div className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
           <AlertCircle size={14} /> {error}
         </div>
       )}
@@ -266,8 +266,8 @@ function InboxTab({ city }: { city: string }) {
         <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-teal-500" /></div>
       ) : items.length === 0 ? (
         <div className={CARD + " p-10 text-center"}>
-          <Bell size={36} className="mx-auto mb-2 text-gray-300" />
-          <p className="text-sm text-gray-400">No pending requests.</p>
+          <Bell size={36} className="mx-auto mb-2 text-zinc-600" />
+          <p className="text-sm text-zinc-500">No pending requests.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -276,18 +276,18 @@ function InboxTab({ city }: { city: string }) {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold text-gray-900 text-sm">{n.sender_name}</span>
-                    <span className="rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-medium text-teal-700 capitalize">
+                    <span className="font-semibold text-white text-sm">{n.sender_name}</span>
+                    <span className="rounded-full bg-teal-500/15 px-2.5 py-0.5 text-xs font-medium text-teal-300 capitalize">
                       {n.notification_type.replace(/_/g, " ")}
                     </span>
                   </div>
-                  <p className="mt-1 text-sm text-gray-700">{n.reason}</p>
-                  <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-400">
+                  <p className="mt-1 text-sm text-zinc-300">{n.reason}</p>
+                  <div className="mt-1 flex flex-wrap gap-3 text-xs text-zinc-500">
                     <span>Date: {n.target_date}</span>
                     {n.leave_type && <span>Type: {n.leave_type}</span>}
                     {n.leave_days != null && <span>{n.leave_days} day(s)</span>}
                     {n.overtime_hours != null && <span>{n.overtime_hours} OT hr(s)</span>}
-                    <span className="font-mono text-gray-300">{String(n.id).slice(0, 8)}…</span>
+                    <span className="font-mono text-zinc-600">{String(n.id).slice(0, 8)}…</span>
                   </div>
 
                   {reviewingId === n.id ? (
@@ -311,12 +311,12 @@ function InboxTab({ city }: { city: string }) {
                         <button
                           onClick={() => { void review(n.id, "rejected"); }}
                           disabled={reviewBusy}
-                          className="flex items-center gap-1 rounded-lg bg-red-100 border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-200 disabled:opacity-50 transition">
+                          className="flex items-center gap-1 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/20 disabled:opacity-50 transition">
                           <XCircle size={12} /> Reject
                         </button>
                         <button
                           onClick={() => { setReviewingId(null); setReviewNote(""); }}
-                          className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 transition">
+                          className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition">
                           Cancel
                         </button>
                       </div>
@@ -324,12 +324,12 @@ function InboxTab({ city }: { city: string }) {
                   ) : (
                     <button
                       onClick={() => setReviewingId(n.id)}
-                      className="mt-2 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition">
+                      className="mt-2 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-zinc-400 hover:bg-white/10 transition">
                       Review
                     </button>
                   )}
                 </div>
-                <div className="shrink-0 text-right text-xs text-gray-400">
+                <div className="shrink-0 text-right text-xs text-zinc-500">
                   {new Date(n.created_at).toLocaleDateString()}
                 </div>
               </div>
@@ -536,15 +536,15 @@ export default function RequestPage() {
         {/* Header */}
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Request</h1>
-            <p className="mt-0.5 text-sm text-gray-500">Submit shift changes, leave, or overtime requests.</p>
+            <h1 className="text-2xl font-bold text-white">Request</h1>
+            <p className="mt-0.5 text-sm text-zinc-400">Submit shift changes, leave, or overtime requests.</p>
           </div>
           {leaveBalances.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {leaveBalances.slice(0, 3).map(b => (
-                <div key={b.id} className="rounded-xl border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs">
-                  <span className="text-teal-600 font-medium capitalize">{b.leave_type.replace(/_/g, " ")}</span>
-                  <span className="ml-1 font-bold text-teal-800">{b.remaining_days}</span>
+                <div key={b.id} className="rounded-xl border border-teal-500/25 bg-teal-500/10 px-3 py-1.5 text-xs">
+                  <span className="text-teal-400 font-medium capitalize">{b.leave_type.replace(/_/g, " ")}</span>
+                  <span className="ml-1 font-bold text-teal-300">{b.remaining_days}</span>
                   <span className="text-teal-500">/{b.entitled_days}d</span>
                 </div>
               ))}
@@ -553,7 +553,7 @@ export default function RequestPage() {
         </div>
 
         {/* Tab bar */}
-        <div className="flex border-b border-gray-200 bg-white">
+        <div className="flex border-b border-white/10 bg-transparent">
           <button className={activeTab === "form" ? TAB_A : TAB_I} onClick={() => setActiveTab("form")}>
             <FileText size={14} /> Form
           </button>
@@ -576,8 +576,8 @@ export default function RequestPage() {
                 <div className={SECTION}>Request Form</div>
                 <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
                   canSubmitForOthers
-                    ? "bg-amber-100 text-amber-700 border border-amber-200"
-                    : "bg-teal-100 text-teal-700 border border-teal-200"
+                    ? "bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                    : "bg-teal-500/15 text-teal-400 border border-teal-500/30"
                 }`}>
                   {canSubmitForOthers ? "Manager mode" : "Self submit"}
                 </span>
@@ -689,17 +689,17 @@ export default function RequestPage() {
                 {requestType !== "overtime_request" && (
                   <div className="col-span-2">
                     <label className={LABEL}>Medical document</label>
-                    <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                    <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
                       <input type="checkbox" checked={medicalDoc} onChange={e => setMedicalDoc(e.target.checked)}
                         className="h-4 w-4 accent-teal-600 rounded" />
-                      <span className="text-sm text-gray-700">I have a medical document</span>
+                      <span className="text-sm text-zinc-300">I have a medical document</span>
                       <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp"
                         ref={medicalFileInputRef}
                         onChange={e => setMedicalDocumentFile(e.target.files?.[0] ?? null)}
                         className="hidden" aria-hidden tabIndex={-1} />
                       {medicalDoc && (
                         <button type="button" onClick={() => medicalFileInputRef.current?.click()}
-                          className="ml-auto rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 transition">
+                          className="ml-auto rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/10 transition">
                           {medicalDocumentFile ? medicalDocumentFile.name : "Choose file"}
                         </button>
                       )}
@@ -709,7 +709,7 @@ export default function RequestPage() {
               </div>
 
               {error && (
-                <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                <div className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
                   <AlertCircle size={14} /> {error}
                 </div>
               )}
@@ -724,18 +724,18 @@ export default function RequestPage() {
               </div>
 
               {result && (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4">
                   <div className="flex items-center gap-2 mb-2">
-                    <CheckCircle2 size={18} className="text-emerald-500" />
-                    <span className="font-semibold text-emerald-700 text-sm">Request submitted</span>
+                    <CheckCircle2 size={18} className="text-emerald-400" />
+                    <span className="font-semibold text-emerald-400 text-sm">Request submitted</span>
                   </div>
                   {(result.request_id || result.ok) && (
-                    <p className="text-xs text-emerald-600 font-mono">
+                    <p className="text-xs text-emerald-400 font-mono">
                       {result.request_id ? `ID: ${String(result.request_id).slice(0, 8)}…` : "Notification sent."}
                     </p>
                   )}
                   {result.urgency_status && (
-                    <p className="mt-1 text-xs text-emerald-600">
+                    <p className="mt-1 text-xs text-emerald-400">
                       Urgency: <span className="font-semibold">{String(result.urgency_status)}</span>
                       {" · "}Days before: <span className="font-semibold">{String(result.days_before)}</span>
                     </p>

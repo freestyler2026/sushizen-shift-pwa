@@ -7,14 +7,14 @@ import { useRouter } from "next/navigation";
 import { Field } from "@/components/Field";
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 
-// ── Light theme ────────────────────────────────────────────────────────────────
-const PAGE_BG  = "min-h-screen bg-gray-50";
-const CARD     = "rounded-2xl border border-gray-200 bg-white shadow-sm";
-const SECTION  = "text-base font-semibold text-gray-900";
-const CAPTION  = "text-xs text-gray-500";
-const INPUT    = "w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20";
+// ── Dark theme ─────────────────────────────────────────────────────────────────
+const PAGE_BG  = "min-h-screen bg-[#0a0b14]";
+const CARD     = "rounded-2xl border border-white/10 bg-white/5 shadow-xl shadow-black/20";
+const SECTION  = "text-base font-semibold text-white";
+const CAPTION  = "text-xs text-zinc-500";
+const INPUT    = "w-full rounded-xl border border-white/10 bg-white/6 px-4 py-2.5 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20";
 const BTN_APPROVE = "rounded-xl bg-teal-600 px-6 py-2.5 font-semibold text-white transition hover:bg-teal-500 disabled:opacity-50";
-const BTN_REJECT  = "rounded-xl border border-red-300 bg-white px-6 py-2.5 font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50";
+const BTN_REJECT  = "rounded-xl border border-red-500/40 bg-red-500/10 px-6 py-2.5 font-semibold text-red-400 transition hover:bg-red-500/20 disabled:opacity-50";
 
 // ✅ api.ts と同じ方針：ENVが空なら同一オリジン（相対URL）
 const RAW_API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").trim();
@@ -112,12 +112,12 @@ export default function SwapApprovePage() {
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Swap Approve</h1>
-            <p className="mt-1 text-sm text-gray-500">
+            <h1 className="text-2xl font-semibold text-white">Swap Approve</h1>
+            <p className="mt-1 text-sm text-zinc-400">
               Approve or reject a swap request as the designated counterparty.
             </p>
           </div>
-          <span className="flex items-center gap-1.5 rounded-full bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-700 border border-teal-200">
+          <span className="flex items-center gap-1.5 rounded-full bg-teal-500/15 px-3 py-1.5 text-xs font-semibold text-teal-300 border border-teal-500/30">
             <ShieldCheck className="h-3.5 w-3.5" />
             Counterparty approval
           </span>
@@ -177,9 +177,9 @@ export default function SwapApprovePage() {
           </div>
 
           {/* Warning banner */}
-          <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 p-4">
-            <ArrowRightLeft className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-600" />
-            <p className="text-xs text-amber-700">
+          <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+            <ArrowRightLeft className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-400" />
+            <p className="text-xs text-amber-300">
               Review the request carefully before confirming. This action affects both staff schedules.
             </p>
           </div>
@@ -207,7 +207,7 @@ export default function SwapApprovePage() {
 
           {/* Error */}
           {error && (
-            <div className="mt-3 flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <div className="mt-3 flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
               <XCircle className="h-4 w-4 flex-shrink-0" />
               {error}
             </div>
@@ -217,7 +217,7 @@ export default function SwapApprovePage() {
         {/* Success */}
         {done && (
           <div className={`${CARD} p-5`}>
-            <div className={`flex items-center gap-3 ${done === "approved" ? "text-teal-700" : "text-red-600"}`}>
+            <div className={`flex items-center gap-3 ${done === "approved" ? "text-teal-400" : "text-red-400"}`}>
               {done === "approved"
                 ? <CheckCircle2 className="h-6 w-6" />
                 : <XCircle className="h-6 w-6" />}
@@ -225,7 +225,7 @@ export default function SwapApprovePage() {
                 <div className="font-semibold">
                   {done === "approved" ? "Swap approved" : "Swap rejected"}
                 </div>
-                <div className="mt-0.5 text-xs text-gray-500">
+                <div className="mt-0.5 text-xs text-zinc-500">
                   The system has recorded your response. Both parties will be notified.
                 </div>
               </div>
@@ -233,10 +233,10 @@ export default function SwapApprovePage() {
 
             {result && (
               <details className="mt-4">
-                <summary className="cursor-pointer text-xs text-gray-400 hover:text-gray-600">
+                <summary className="cursor-pointer text-xs text-zinc-500 hover:text-zinc-300">
                   View API response
                 </summary>
-                <pre className="mt-2 overflow-auto rounded-lg bg-gray-100 p-3 text-xs text-gray-600">
+                <pre className="mt-2 overflow-auto rounded-lg bg-white/8 p-3 text-xs text-zinc-300">
                   {JSON.stringify(result, null, 2)}
                 </pre>
               </details>
@@ -244,7 +244,7 @@ export default function SwapApprovePage() {
           </div>
         )}
 
-        <div className="text-center text-xs text-gray-400">
+        <div className="text-center text-xs text-zinc-500">
           API: {API_BASE ? API_BASE : "(same origin)"}
         </div>
       </div>
