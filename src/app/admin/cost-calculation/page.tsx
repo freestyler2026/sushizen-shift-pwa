@@ -998,8 +998,9 @@ export default function CostCalculationPage() {
     } catch (e: any) {
       console.error("Failed to load ingredients:", e);
       setIngredients((prev) => prev.filter((row) => row._new)); // keep new rows on error
-      setAllIngredientOptions([]);
-      setError(e?.message || String(e));
+      // Do NOT clear allIngredientOptions on load failure — preserve the last known list
+      // so that master-item component search continues to work. Also do not surface this
+      // as the global error because it persists and blocks the master-item save flow.
     } finally {
       setLoading(false);
     }
@@ -1331,6 +1332,7 @@ export default function CostCalculationPage() {
 
   const saveMasterEditor = useCallback(async () => {
     if (!masterEditor) return;
+    setError("");
     const name = masterEditor.name.trim();
     const category = masterEditor.category.trim();
     if (!name || !category) {
