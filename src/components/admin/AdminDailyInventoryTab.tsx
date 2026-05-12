@@ -294,7 +294,9 @@ export default function AdminDailyInventoryTab() {
     if (!rid) {
       rid = await doSave(false);
       if (!rid) {
-        setError("Save first (select staff and enter quantities if needed).");
+        // doSave already set a network error in the catch block;
+        // only fall back to the generic message if no error was set (e.g. missing staff with showMsg=false)
+        setError((prev) => prev || "Save first (select staff and enter quantities if needed).");
         return;
       }
     }
@@ -323,8 +325,14 @@ export default function AdminDailyInventoryTab() {
     try {
       const res = await apiFetch(`/api/daily-inventory/reports?branch=${encodeURIComponent(branch)}&limit=20`);
       const text = await res.text();
-      if (!res.ok) throw new Error(text);
-      setHistory(JSON.parse(text || "[]") as ReportHeader[]);
+      if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text || "[]");
+      } catch {
+        throw new Error("Invalid JSON from history API");
+      }
+      setHistory(Array.isArray(parsed) ? (parsed as ReportHeader[]) : []);
     } catch {
       setError("Failed to load history.");
     } finally {
