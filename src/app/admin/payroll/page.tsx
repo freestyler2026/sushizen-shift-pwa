@@ -490,6 +490,7 @@ export default function PayrollPage() {
       const r = await apiFetch(`${API}/cycles/${selectedCycle.id}/unpublish-all`, { method: "POST" });
       if (!r.ok) { setErr(await extractApiError(r, "Failed to unpublish")); return; }
       setCyclePublishedCount(prev => ({ ...prev, [selectedCycle.id]: 0 }));
+      alert(`Payslips for ${MONTHS[selectedCycle.month - 1]} ${selectedCycle.year} have been unpublished.`);
     } catch {
       setErr("Network error — please try again");
     } finally { setPublishingCycle(false); }
@@ -537,13 +538,14 @@ export default function PayrollPage() {
   function toggleCol(k: ColKey) { setVisibleCols(p => ({ ...p, [k]: !p[k] })); }
 
   // ── Computed totals ───────────────────────────────────────────────────────
-  const totalBasic      = rows.reduce((s, r) => s + r.basic_salary, 0);
-  const totalAllowances = rows.reduce((s, r) => s + (r.allowances ?? 0), 0);
-  const totalGross      = rows.reduce((s, r) => s + r.gross_pay, 0);
-  const totalNetAdd     = rows.reduce((s, r) => s + r.net_additions, 0);
-  const totalNetDed     = rows.reduce((s, r) => s + r.net_deductions, 0);
   const missingRows     = rows.filter(r => r.basic_salary === 0);
   const displayRows     = filterMissing ? missingRows : rows;
+  // Totals are computed from displayRows so they stay in sync with the filter
+  const totalBasic      = displayRows.reduce((s, r) => s + r.basic_salary, 0);
+  const totalAllowances = displayRows.reduce((s, r) => s + (r.allowances ?? 0), 0);
+  const totalGross      = displayRows.reduce((s, r) => s + r.gross_pay, 0);
+  const totalNetAdd     = displayRows.reduce((s, r) => s + r.net_additions, 0);
+  const totalNetDed     = displayRows.reduce((s, r) => s + r.net_deductions, 0);
 
   const cycleName = selectedCycle
     ? `${MONTHS[selectedCycle.month - 1]} ${selectedCycle.year}`
