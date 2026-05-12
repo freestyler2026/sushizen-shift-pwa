@@ -122,5 +122,9 @@ export async function procurementJson<T>(
     } catch { /* not JSON — keep raw text */ }
     throw new Error(msg);
   }
-  return JSON.parse(text || "{}") as T;
+  try {
+    return JSON.parse(text || "{}") as T;
+  } catch {
+    throw new Error(`Invalid JSON response from server`);
+  }
 }

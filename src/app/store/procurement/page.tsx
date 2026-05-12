@@ -733,7 +733,7 @@ export default function StoreProcurementHomePage() {
         <div className={`${BLUSH_GLASS} px-4 py-3 text-xs text-neutral-200`}>
           <div className="mb-2 flex items-center justify-between gap-2">
             <div className={T_CARD_TITLE}>Recent Activity Timeline</div>
-            <span className={T_CAPTION}>{recentActivities.length} items</span>
+            <span className={T_CAPTION}>{recentActivities.length} item{recentActivities.length !== 1 ? "s" : ""}</span>
           </div>
           {recentActivities.length > 3 ? (
             <div className="mb-2">
@@ -863,7 +863,7 @@ export default function StoreProcurementHomePage() {
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[160px] flex-1">
             <label className={`${T_LABEL} mb-1.5 block`}>Approver Name</label>
-            <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`} readOnly />
+            <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`} />
           </div>
           <div className="min-w-[140px] flex-1">
             <label className={`${T_LABEL} mb-1.5 block`}>Session PIN</label>
