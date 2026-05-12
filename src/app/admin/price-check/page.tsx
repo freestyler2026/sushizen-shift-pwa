@@ -140,7 +140,7 @@ function fmtAED(v: number | null | undefined): string {
 function fmtRate(v: number | null | undefined): string {
   if (v == null) return "—";
   const pct = Number(v) * 100;
-  return `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
+  return `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`;
 }
 
 function fmtDatetime(iso: string | null | undefined): string {
@@ -279,7 +279,11 @@ function DubaiTab({ apiBase, tokenHeaders }: { apiBase: string; tokenHeaders: ()
         </div>
         <div className={KPI_CARD}>
           <div className={KPI_LABEL}>Discount Rate</div>
-          <div className={`${KPI_VALUE} text-violet-300`}>50%</div>
+          <div className={`${KPI_VALUE} text-violet-300`}>
+            {dubaiData?.discount_rate != null
+              ? `${(dubaiData.discount_rate * 100).toFixed(0)}%`
+              : "—"}
+          </div>
         </div>
         <div className={KPI_CARD}>
           <div className={KPI_LABEL}>Confirmed</div>
