@@ -163,8 +163,7 @@ function leaveSalaryBadge(status: string) {
 
 function PayslipModal({ slip, onClose }: { slip: Payslip; onClose: () => void }) {
   const cycleDisplay = formatCycleLabel(slip.cycle_year, slip.cycle_month, slip.cycle_label);
-  const isManila = (slip.city || slip.currency === "PHP" ? "manila" : "dubai") === "manila"
-    || slip.currency === "PHP";
+  const isManila = slip.city?.toLowerCase() === "manila" || slip.currency === "PHP";
 
   return (
     <>
