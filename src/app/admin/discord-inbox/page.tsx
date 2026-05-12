@@ -94,15 +94,19 @@ function MentionCard({
   const [expanded, setExpanded] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
+  const [replyError, setReplyError] = useState("");
   const isNew = mention.status === "new";
 
   const handleReply = async () => {
     if (!replyText.trim()) return;
     setSending(true);
+    setReplyError("");
     try {
       await onReply(mention.id, replyText.trim(), mention.channel_id);
       setReplyText("");
       setExpanded(false);
+    } catch (e: unknown) {
+      setReplyError(e instanceof Error ? e.message : "Reply failed. Please try again.");
     } finally {
       setSending(false);
     }
@@ -185,6 +189,11 @@ function MentionCard({
                   Dismiss
                 </button>
               </div>
+              {replyError && (
+                <div className="rounded-lg border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                  {replyError}
+                </div>
+              )}
             </>
           )}
         </div>
@@ -333,10 +342,19 @@ export default function DiscordInboxPage() {
   };
 
   const handleDismiss = async (id: number) => {
-    await authFetch(`${API_BASE}/api/admin/discord/mentions/${id}/dismiss`, {
-      method: "POST",
-    });
-    await fetchMentions(statusFilter);
+    try {
+      const res = await authFetch(`${API_BASE}/api/admin/discord/mentions/${id}/dismiss`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const data: { detail?: string } = await res.json().catch(() => ({}));
+        setError(data.detail || "Failed to dismiss mention.");
+        return;
+      }
+      await fetchMentions(statusFilter);
+    } catch {
+      setError("Failed to dismiss mention.");
+    }
   };
 
   const FILTERS: { label: string; value: StatusFilter }[] = [
@@ -450,7 +468,7 @@ export default function DiscordInboxPage() {
         ) : mentions.length === 0 ? (
           <div className={`${GLASS_CARD} p-12 flex flex-col items-center gap-3 text-center`}>
             <MessageSquare className="h-10 w-10 text-white/20" />
-            <p className="text-white/50 text-sm">No {statusFilter === "all" ? "" : statusFilter} mentions</p>
+            <p className="text-white/50 text-sm">No {statusFilter !== "all" ? `${statusFilter} ` : ""}mentions</p>
           </div>
         ) : (
           <div className="space-y-3">
