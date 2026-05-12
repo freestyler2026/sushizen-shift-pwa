@@ -79,12 +79,17 @@ function clampIsoToRange(value: string, min: string, max: string) {
 }
 
 function stripJPNotes(name: string) {
-  return (name || "").replace(/\([^)]*[^\x00-\x7F][^)]*\)/g, "").trim();
+  // Strip both ASCII parens (text) and full-width parens （text） containing non-ASCII chars
+  return (name || "")
+    .replace(/\([^)]*[^\x00-\x7F][^)]*\)/g, "")
+    .replace(/（[^）]*）/g, "")
+    .trim();
 }
 
 function hoursLabel(st: number, en: number) {
   const fmt = (h: number) => (h >= 24 ? `${h - 24}:00(+1)` : `${h}:00`);
-  return `${fmt(st)} - ${fmt(en)}`;
+  const adjustedEn = en < st ? en + 24 : en;
+  return `${fmt(st)} - ${fmt(adjustedEn)}`;
 }
 
 function isAbsenceRow(row: ShiftRow) {
