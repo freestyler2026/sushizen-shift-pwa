@@ -38,12 +38,12 @@ async function postJson<T = unknown>(path: string, headers?: HeadersInit): Promi
   const text = await res.text();
 
   if (!res.ok) {
+    let detail = text;
     try {
       const j = JSON.parse(text);
-      throw new Error(j?.detail || j?.message || text || `HTTP ${res.status}`);
-    } catch {
-      throw new Error(text || `HTTP ${res.status}`);
-    }
+      detail = j?.detail || j?.message || text;
+    } catch { /* not JSON (e.g. HTML error page) — use raw text */ }
+    throw new Error(detail || `HTTP ${res.status}`);
   }
 
   try {
