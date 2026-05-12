@@ -440,12 +440,6 @@ export default function AdminBackofficeEvaluationPage() {
     { label: "Quality", desc: "low error rate", pct: 35, color: "bg-violet-400" },
     { label: "Progress", desc: "completion against plan", pct: 45, color: "bg-violet-400" },
   ];
-  const scoreCriteriaJa = [
-    { label: "Workload", desc: "提出率・業務量", pct: 10, color: "bg-sky-400" },
-    { label: "Speed", desc: "期限内対応・当日対応", pct: 10, color: "bg-emerald-400" },
-    { label: "Quality", desc: "エラーの少なさ", pct: 35, color: "bg-violet-400" },
-    { label: "Progress", desc: "計画に対する完了率", pct: 45, color: "bg-violet-400" },
-  ];
   const hasRoleSummary = Boolean(summary?.by_role?.length);
 
   return (
@@ -494,26 +488,16 @@ export default function AdminBackofficeEvaluationPage() {
         <div className={`${GLASS_CARD} p-5`}>
           <div className="flex items-center gap-2 mb-4">
             <BarChart3 className="h-4 w-4 text-violet-400" />
-            <h2 className={T_SECTION}>Backoffice Eval 評価基準</h2>
+            <h2 className={T_SECTION}>Scoring Notes</h2>
           </div>
-          <p className={`${T_BODY} mb-3`}>点数は以下の4項目で構成されています。</p>
-          <div className="space-y-2">
-            {scoreCriteriaJa.map((d) => (
-              <div key={d.label}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-medium text-white">
-                    {d.label}
-                    <span className="text-zinc-500 font-normal">（{d.desc}）</span>
-                  </span>
-                  <span className="text-sm font-bold text-white">{d.pct}%</span>
-                </div>
-                <div className="h-1.5 rounded-full bg-white/8">
-                  <div className={`h-1.5 rounded-full ${d.color}`} style={{ width: `${d.pct}%` }} />
-                </div>
-              </div>
-            ))}
+          <p className={`${T_BODY} mb-3`}>How each dimension is evaluated:</p>
+          <div className="space-y-2 text-sm text-zinc-300">
+            <p><span className="text-sky-400 font-medium">Workload (10%)</span> — Number of submissions and task volume relative to role benchmark.</p>
+            <p><span className="text-emerald-400 font-medium">Speed (10%)</span> — Percentage of tasks completed on-time or same-day within SLA.</p>
+            <p><span className="text-violet-400 font-medium">Quality (35%)</span> — Inverse error rate; fewer corrections and rework lead to a higher score.</p>
+            <p><span className="text-violet-400 font-medium">Progress (45%)</span> — Completion rate against the monthly plan targets set per role.</p>
           </div>
-          <p className={`${T_CAPTION} mt-3`}>各項目の点数は、職種ごとの benchmark をもとに算出されます。</p>
+          <p className={`${T_CAPTION} mt-4`}>Benchmarks are role-specific and updated each evaluation cycle. Scores are imported from the Google Sheet after running Sync + Score.</p>
         </div>
       </div>
 
