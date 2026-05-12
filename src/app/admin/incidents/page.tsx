@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   BarChart3,
@@ -86,9 +86,15 @@ export default function AdminIncidentsPage() {
   const [filterStatus, setFilterStatus]     = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [filterNotes, setFilterNotes]       = useState("");
-  const [items, setItems]     = useState<IncidentRow[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState("");
+  const [allItems, setAllItems] = useState<IncidentRow[]>([]);
+  const [loading, setLoading]  = useState(false);
+  const [error, setError]      = useState("");
+
+  /** Category filter is purely client-side — does NOT trigger an API call. */
+  const items = useMemo(
+    () => filterCategory ? allItems.filter((r) => r.category === filterCategory) : allItems,
+    [allItems, filterCategory]
+  );
 
   const fetchList = useCallback(async () => {
     const a = getAuth();
@@ -105,13 +111,11 @@ export default function AdminIncidentsPage() {
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      let rows: IncidentRow[] = data.items || [];
-      if (filterCategory) rows = rows.filter((r) => r.category === filterCategory);
-      setItems(rows);
+      setAllItems(data.items || []);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally { setLoading(false); }
-  }, [filterCity, filterStatus, filterCategory, filterNotes]);
+  }, [filterCity, filterStatus, filterNotes]);
 
   useEffect(() => { void fetchList(); }, [fetchList]);
 
