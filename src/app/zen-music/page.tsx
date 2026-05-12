@@ -427,11 +427,23 @@ export default function ZenMusicPage() {
   useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
+
+    // Do NOT call a.load() here — setting src already triggers the browser's
+    // media-resource-fetch algorithm. Calling load() right before play() causes
+    // the play() Promise to be rejected with AbortError in Chrome/Safari, which
+    // fires our catch handler and flips playing→false, delaying playback ~10s.
     a.src = track.file;
-    a.load();
     setCurrentTime(0);
     setDuration(0);
-    if (playing) a.play().catch(() => setPlaying(false));
+
+    if (playing) {
+      // Wait for enough data before playing so play() never rejects with NotAllowedError
+      const onCanPlay = () => {
+        a.play().catch(() => setPlaying(false));
+      };
+      a.addEventListener("canplay", onCanPlay, { once: true });
+      return () => a.removeEventListener("canplay", onCanPlay);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx]);
 
@@ -439,7 +451,15 @@ export default function ZenMusicPage() {
   useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
-    playing ? a.play().catch(() => setPlaying(false)) : a.pause();
+    if (playing) {
+      // If src is already loaded (e.g. paused mid-track) play immediately;
+      // otherwise the canplay listener in the idx effect will handle it.
+      if (a.readyState >= 3) {
+        a.play().catch(() => setPlaying(false));
+      }
+    } else {
+      a.pause();
+    }
   }, [playing]);
 
   /* volume */
@@ -516,7 +536,7 @@ export default function ZenMusicPage() {
         onTimeUpdate={onTimeUpdate}
         onLoadedMetadata={onLoadedMetadata}
         onEnded={onEnded}
-        preload="metadata"
+        preload="auto"
       />
 
       {/* full-page dark canvas */}
