@@ -365,7 +365,7 @@ export default function ProductScoringTab({
 
       const [sumRes, scoresRes, chRes] = await Promise.all([
         fetch(`/api/admin/qc/summary?${qs}`, { headers: getAuthHeaders() }),
-        fetch(`/api/admin/qc/scores?${qs}&limit=300`, { headers: getAuthHeaders() }),
+        fetch(`/api/admin/qc/scores?${qs}&limit=1000`, { headers: getAuthHeaders() }),
         fetch(`/api/admin/qc/channels?approver_name=${approverName}&pin=${pin}`, { headers: getAuthHeaders() }),
       ]);
 
@@ -680,7 +680,11 @@ export default function ProductScoringTab({
               className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-violet-500"
             >
               <option value="">All Stores</option>
-              {Array.from(new Set(filteredScores.map((r) => r.branch_code || r.store_code)))
+              {(cityFilter
+                ? storeAggregated.filter((r) => r.city === cityFilter)
+                : storeAggregated
+              )
+                .map((r) => r.branch_code || r.store_code)
                 .sort()
                 .map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
