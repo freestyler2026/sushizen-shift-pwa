@@ -89,6 +89,11 @@ interface ChannelRow {
   label: string;
 }
 
+interface StoreWithRate extends ScoreSummaryRow {
+  order_total?: number;
+  upload_rate?: number;  // photos / orders * 100
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const GRADE_COLORS: Record<string, string> = {
@@ -133,7 +138,13 @@ function sevenDaysAgoIso() {
 
 // ─── Store chart bar ─────────────────────────────────────────────────────────
 
-function StoreBar({ row }: { row: ScoreSummaryRow }) {
+function uploadRateColor(rate: number) {
+  if (rate >= 80) return "text-emerald-400";
+  if (rate >= 50) return "text-yellow-400";
+  return "text-red-400";
+}
+
+function StoreBar({ row }: { row: StoreWithRate }) {
   const axes = Object.entries(AXES_LABELS).map(([key, label]) => ({
     label,
     value: Number((row as unknown as Record<string, unknown>)[key] ?? 0),
@@ -141,11 +152,10 @@ function StoreBar({ row }: { row: ScoreSummaryRow }) {
 
   return (
     <div className={`${GLASS_CARD} p-4`}>
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-2 flex items-center justify-between">
         <div>
           <span className="font-semibold text-slate-100">{row.branch_code || row.store_code}</span>
           <span className="ml-2 text-xs text-slate-400">{row.city}</span>
-          <span className="ml-2 text-xs text-slate-500">{row.score_date}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className={`text-lg font-bold ${scoreBg(row.avg_total)}`}>
@@ -159,6 +169,17 @@ function StoreBar({ row }: { row: ScoreSummaryRow }) {
           </span>
         </div>
       </div>
+      {row.upload_rate !== undefined && row.order_total !== undefined && (
+        <div className="mb-2 flex items-center gap-2 text-xs">
+          <span className="text-slate-400">Upload rate:</span>
+          <span className={`font-bold ${uploadRateColor(row.upload_rate)}`}>
+            {row.upload_rate.toFixed(1)}%
+          </span>
+          <span className="text-slate-500">
+            ({row.photo_count} photos / {row.order_total} orders)
+          </span>
+        </div>
+      )}
       <ResponsiveContainer width="100%" height={80}>
         <BarChart data={axes} margin={{ top: 0, right: 0, left: -28, bottom: 0 }}>
           <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#94a3b8" }} />
@@ -350,6 +371,7 @@ export default function ProductScoringTab({
   const [showSetup, setShowSetup] = useState(false);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const [scoreStoreFilter, setScoreStoreFilter] = useState<string>("");
+  const [orderTotals, setOrderTotals] = useState<Record<string, number>>({});
 
   async function load() {
     setLoading(true);
@@ -363,10 +385,19 @@ export default function ProductScoringTab({
       });
       if (cityFilter) qs.set("city", cityFilter);
 
-      const [sumRes, scoresRes, chRes] = await Promise.all([
+      // order-totals uses no city filter — always fetch all cities so rates are available
+      const orderQs = new URLSearchParams({
+        date_from: dateFrom,
+        date_to: dateTo,
+        approver_name: approverName,
+        pin,
+      });
+
+      const [sumRes, scoresRes, chRes, orderRes] = await Promise.all([
         fetch(`/api/admin/qc/summary?${qs}`, { headers: getAuthHeaders() }),
         fetch(`/api/admin/qc/scores?${qs}&limit=1000`, { headers: getAuthHeaders() }),
         fetch(`/api/admin/qc/channels?approver_name=${approverName}&pin=${pin}`, { headers: getAuthHeaders() }),
+        fetch(`/api/admin/qc/order-totals?${orderQs}`, { headers: getAuthHeaders() }),
       ]);
 
       if (!sumRes.ok) throw new Error(await sumRes.text());
@@ -391,6 +422,11 @@ export default function ProductScoringTab({
       if (chRes.ok) {
         const cd = await chRes.json();
         setChannels(cd.channels ?? []);
+      }
+
+      if (orderRes.ok) {
+        const od = await orderRes.json();
+        setOrderTotals(od.order_totals ?? {});
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to load");
@@ -462,6 +498,27 @@ export default function ProductScoringTab({
       } as ScoreSummaryRow;
     }).sort((a, b) => b.avg_total - a.avg_total);
   }, [summary]);
+
+  // ── Attach upload rates to store aggregates ──
+  const storeAggregatedWithRates = useMemo((): StoreWithRate[] => {
+    return storeAggregated.map((s) => {
+      const orderTotal = orderTotals[s.branch_code] ?? orderTotals[s.store_code];
+      if (orderTotal == null || orderTotal === 0) return s as StoreWithRate;
+      return {
+        ...s,
+        order_total: orderTotal,
+        upload_rate: Math.min((s.photo_count / orderTotal) * 100, 999),
+      } as StoreWithRate;
+    });
+  }, [storeAggregated, orderTotals]);
+
+  // ── Overall upload rate KPI ──
+  const overallUploadRate = useMemo(() => {
+    const totalPhotos = storeAggregatedWithRates.reduce((a, s) => a + s.photo_count, 0);
+    const totalOrders = storeAggregatedWithRates.reduce((a, s) => a + (s.order_total ?? 0), 0);
+    if (!totalOrders) return null;
+    return Math.min((totalPhotos / totalOrders) * 100, 999);
+  }, [storeAggregatedWithRates]);
 
   // ── Chart data split by city ──
   const dubaiChartData = (kpis?.storeAvgs ?? [])
@@ -560,7 +617,7 @@ export default function ProductScoringTab({
 
       {/* KPI row */}
       {kpis && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
           <div className={KPI_CARD}>
             <div className={KPI_LABEL}>Total Photos Scored</div>
             <div className={KPI_VALUE}>{kpis.totalPhotos}</div>
@@ -571,6 +628,14 @@ export default function ProductScoringTab({
               {kpis.avgScore.toFixed(1)}
             </div>
           </div>
+          {overallUploadRate !== null && (
+            <div className={KPI_CARD}>
+              <div className={KPI_LABEL}>Upload Rate</div>
+              <div className={`${KPI_VALUE} ${uploadRateColor(overallUploadRate)}`}>
+                {overallUploadRate.toFixed(1)}%
+              </div>
+            </div>
+          )}
           <div className={KPI_CARD}>
             <div className={KPI_LABEL}>Best Store</div>
             <div className={KPI_VALUE + " text-base"}>
@@ -636,23 +701,23 @@ export default function ProductScoringTab({
       )}
 
       {/* Per-store axis breakdown — aggregated, split by city */}
-      {storeAggregated.length > 0 ? (
+      {storeAggregatedWithRates.length > 0 ? (
         <div className="space-y-4">
-          {(!cityFilter || cityFilter === "dubai") && storeAggregated.filter((r) => r.city === "dubai").length > 0 && (
+          {(!cityFilter || cityFilter === "dubai") && storeAggregatedWithRates.filter((r) => r.city === "dubai").length > 0 && (
             <div>
               <h3 className={`${SECTION_TITLE} mb-3`}>🇦🇪 Dubai — Store Breakdown</h3>
               <div className="grid gap-3 sm:grid-cols-2">
-                {storeAggregated
+                {storeAggregatedWithRates
                   .filter((r) => r.city === "dubai")
                   .map((row, i) => <StoreBar key={i} row={row} />)}
               </div>
             </div>
           )}
-          {(!cityFilter || cityFilter === "manila") && storeAggregated.filter((r) => r.city === "manila").length > 0 && (
+          {(!cityFilter || cityFilter === "manila") && storeAggregatedWithRates.filter((r) => r.city === "manila").length > 0 && (
             <div>
               <h3 className={`${SECTION_TITLE} mb-3`}>🇵🇭 Manila — Store Breakdown</h3>
               <div className="grid gap-3 sm:grid-cols-2">
-                {storeAggregated
+                {storeAggregatedWithRates
                   .filter((r) => r.city === "manila")
                   .map((row, i) => <StoreBar key={i} row={row} />)}
               </div>
