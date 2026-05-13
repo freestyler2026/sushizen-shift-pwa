@@ -59,6 +59,7 @@ interface ScoreRow {
   total_score: number;
   grade: string;
   feedback: string;
+  food_category: string;
   score_shape: number;
   score_size_consistency: number;
   score_completion: number;
@@ -67,6 +68,18 @@ interface ScoreRow {
   score_arrangement: number;
   score_portioning: number;
 }
+
+// Axis display labels per food_category
+const AXIS_LABELS: Record<string, Record<string, string>> = {
+  sushi: {
+    shape: "Shape", size_consistency: "Size", completion: "Completion",
+    topping: "Topping", cut_uniformity: "Cut", arrangement: "Arrangement", portioning: "Portion",
+  },
+  general: {
+    shape: "Presentation", size_consistency: "Consistency", completion: "Completion",
+    topping: "Freshness", cut_uniformity: "Cleanliness", arrangement: "Overall", portioning: "Portion",
+  },
+};
 
 interface ChannelRow {
   channel_id: string;
@@ -600,7 +613,7 @@ export default function ProductScoringTab({
             <table className="w-full text-xs">
               <thead>
                 <tr>
-                  {["Date", "Store", "Staff", "Score", "Grade", "Feedback", ""].map((h) => (
+                  {["Date", "Store", "Staff", "Category", "Score", "Grade", "Feedback", ""].map((h) => (
                     <th key={h} className={TABLE_HEADER}>{h}</th>
                   ))}
                 </tr>
@@ -615,6 +628,11 @@ export default function ProductScoringTab({
                       <td className="py-1.5 px-2 text-slate-400">{row.score_date}</td>
                       <td className="py-1.5 px-2 font-medium">{row.branch_code || row.store_code}</td>
                       <td className="py-1.5 px-2 text-slate-400">{row.author_name || "—"}</td>
+                      <td className="py-1.5 px-2">
+                        <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${row.food_category === "general" ? "bg-amber-900/50 text-amber-300" : "bg-blue-900/50 text-blue-300"}`}>
+                          {row.food_category === "general" ? "🍽 General" : "🍣 Sushi"}
+                        </span>
+                      </td>
                       <td className={`py-1.5 px-2 font-bold ${scoreBg(row.total_score)}`}>{row.total_score}</td>
                       <td className="py-1.5 px-2">
                         <span
@@ -631,14 +649,16 @@ export default function ProductScoringTab({
                     </tr>
                     {expandedRow === row.id && (
                       <tr key={`${row.id}-expand`} className="bg-slate-900/40">
-                        <td colSpan={7} className="px-4 py-3">
+                        <td colSpan={8} className="px-4 py-3">
                           <div className="grid grid-cols-7 gap-2 text-xs">
                             {(["shape", "size_consistency", "completion", "topping", "cut_uniformity", "arrangement", "portioning"] as const).map((axis) => {
                               const val = row[`score_${axis}` as keyof ScoreRow] as number;
+                              const cat = row.food_category === "general" ? "general" : "sushi";
+                              const label = AXIS_LABELS[cat]?.[axis] ?? axis;
                               return (
                                 <div key={axis} className="text-center">
                                   <div className={`text-base font-bold ${scoreBg(val * 10)}`}>{val}</div>
-                                  <div className="text-slate-500 capitalize">{axis.replace("_", " ")}</div>
+                                  <div className="text-slate-500 text-[10px]">{label}</div>
                                 </div>
                               );
                             })}
