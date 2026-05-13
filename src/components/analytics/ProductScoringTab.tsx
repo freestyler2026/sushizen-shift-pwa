@@ -423,11 +423,44 @@ export default function ProductScoringTab({
     return { totalPhotos, avgScore, storeAvgs };
   }, [summary, cityFilter]);
 
-  // ── Chart data: per-store averages for the period ──
-  const chartData = kpis?.storeAvgs.map((s) => ({
-    name: s.branch || s.store_code,
-    score: parseFloat(s.avg.toFixed(1)),
-  })) ?? [];
+  // ── Per-store aggregated (one entry per store, across all dates) ──
+  const storeAggregated = useMemo(() => {
+    const byStore: Record<string, { rows: ScoreSummaryRow[]; city: string; branch: string }> = {};
+    for (const r of summary) {
+      if (!byStore[r.store_code]) {
+        byStore[r.store_code] = { rows: [], city: r.city, branch: r.branch_code };
+      }
+      byStore[r.store_code].rows.push(r);
+    }
+    return Object.entries(byStore).map(([store_code, { rows, city, branch }]) => {
+      const totalPhotos = rows.reduce((a, r) => a + r.photo_count, 0);
+      const wa = (key: keyof ScoreSummaryRow) =>
+        rows.reduce((a, r) => a + (r[key] as number) * r.photo_count, 0) / totalPhotos;
+      return {
+        store_code,
+        branch_code: branch,
+        city,
+        photo_count: totalPhotos,
+        score_date: "",
+        avg_total: parseFloat(wa("avg_total").toFixed(1)),
+        avg_shape: parseFloat(wa("avg_shape").toFixed(1)),
+        avg_size_consistency: parseFloat(wa("avg_size_consistency").toFixed(1)),
+        avg_completion: parseFloat(wa("avg_completion").toFixed(1)),
+        avg_topping: parseFloat(wa("avg_topping").toFixed(1)),
+        avg_cut_uniformity: parseFloat(wa("avg_cut_uniformity").toFixed(1)),
+        avg_arrangement: parseFloat(wa("avg_arrangement").toFixed(1)),
+        avg_portioning: parseFloat(wa("avg_portioning").toFixed(1)),
+      } as ScoreSummaryRow;
+    }).sort((a, b) => b.avg_total - a.avg_total);
+  }, [summary]);
+
+  // ── Chart data split by city ──
+  const dubaiChartData = (kpis?.storeAvgs ?? [])
+    .filter((s) => s.city === "dubai")
+    .map((s) => ({ name: s.branch || s.store_code, score: parseFloat(s.avg.toFixed(1)) }));
+  const manilaChartData = (kpis?.storeAvgs ?? [])
+    .filter((s) => s.city === "manila")
+    .map((s) => ({ name: s.branch || s.store_code, score: parseFloat(s.avg.toFixed(1)) }));
 
   return (
     <div className="space-y-6">
@@ -545,43 +578,77 @@ export default function ProductScoringTab({
         </div>
       )}
 
-      {/* Bar chart */}
-      {chartData.length > 0 && (
-        <div className={`${GLASS_CARD} p-4`}>
-          <h3 className={`${SECTION_TITLE} mb-3`}>Average Score by Store</h3>
-          <ResponsiveContainer width="100%" height={160}>
-            <BarChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#94a3b8" }} />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "#64748b" }} />
-              <Tooltip
-                contentStyle={{ background: "#1e293b", border: "none", fontSize: 12 }}
-                formatter={(v: number) => [`${v}`, "Avg Score"]}
-              />
-              <Bar dataKey="score" radius={[4, 4, 0, 0]}>
-                {chartData.map((entry, i) => (
-                  <Cell
-                    key={i}
-                    fill={entry.score >= 90 ? "#a78bfa" : entry.score >= 75 ? "#34d399" : entry.score >= 60 ? "#60a5fa" : entry.score >= 45 ? "#fbbf24" : "#f87171"}
+      {/* Bar charts — Dubai and Manila */}
+      {(dubaiChartData.length > 0 || manilaChartData.length > 0) && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {(!cityFilter || cityFilter === "dubai") && dubaiChartData.length > 0 && (
+            <div className={`${GLASS_CARD} p-4`}>
+              <h3 className={`${SECTION_TITLE} mb-1`}>🇦🇪 Dubai — Avg Score</h3>
+              <ResponsiveContainer width="100%" height={150}>
+                <BarChart data={dubaiChartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "#64748b" }} />
+                  <Tooltip
+                    contentStyle={{ background: "#1e293b", border: "none", fontSize: 12 }}
+                    formatter={(v: number) => [`${v}`, "Avg Score"]}
                   />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+                  <Bar dataKey="score" radius={[4, 4, 0, 0]}>
+                    {dubaiChartData.map((entry, i) => (
+                      <Cell key={i} fill={entry.score >= 90 ? "#a78bfa" : entry.score >= 75 ? "#34d399" : entry.score >= 60 ? "#60a5fa" : entry.score >= 45 ? "#fbbf24" : "#f87171"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+          {(!cityFilter || cityFilter === "manila") && manilaChartData.length > 0 && (
+            <div className={`${GLASS_CARD} p-4`}>
+              <h3 className={`${SECTION_TITLE} mb-1`}>🇵🇭 Manila — Avg Score</h3>
+              <ResponsiveContainer width="100%" height={150}>
+                <BarChart data={manilaChartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                  <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "#64748b" }} />
+                  <Tooltip
+                    contentStyle={{ background: "#1e293b", border: "none", fontSize: 12 }}
+                    formatter={(v: number) => [`${v}`, "Avg Score"]}
+                  />
+                  <Bar dataKey="score" radius={[4, 4, 0, 0]}>
+                    {manilaChartData.map((entry, i) => (
+                      <Cell key={i} fill={entry.score >= 90 ? "#a78bfa" : entry.score >= 75 ? "#34d399" : entry.score >= 60 ? "#60a5fa" : entry.score >= 45 ? "#fbbf24" : "#f87171"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Per-store per-day axis breakdown */}
-      {summary.length > 0 ? (
-        <div>
-          <h3 className={`${SECTION_TITLE} mb-3`}>Daily Breakdown by Store</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {summary
-              .filter((r) => !cityFilter || r.city === cityFilter)
-              .map((row, i) => (
-                <StoreBar key={i} row={row} />
-              ))}
-          </div>
+      {/* Per-store axis breakdown — aggregated, split by city */}
+      {storeAggregated.length > 0 ? (
+        <div className="space-y-4">
+          {(!cityFilter || cityFilter === "dubai") && storeAggregated.filter((r) => r.city === "dubai").length > 0 && (
+            <div>
+              <h3 className={`${SECTION_TITLE} mb-3`}>🇦🇪 Dubai — Store Breakdown</h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {storeAggregated
+                  .filter((r) => r.city === "dubai")
+                  .map((row, i) => <StoreBar key={i} row={row} />)}
+              </div>
+            </div>
+          )}
+          {(!cityFilter || cityFilter === "manila") && storeAggregated.filter((r) => r.city === "manila").length > 0 && (
+            <div>
+              <h3 className={`${SECTION_TITLE} mb-3`}>🇵🇭 Manila — Store Breakdown</h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {storeAggregated
+                  .filter((r) => r.city === "manila")
+                  .map((row, i) => <StoreBar key={i} row={row} />)}
+              </div>
+            </div>
+          )}
         </div>
       ) : !loading ? (
         <div className={`${GLASS_CARD} p-8 text-center`}>
