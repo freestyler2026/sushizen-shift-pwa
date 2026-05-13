@@ -365,7 +365,7 @@ export default function ProductScoringTab({
 
       const [sumRes, scoresRes, chRes] = await Promise.all([
         fetch(`/api/admin/qc/summary?${qs}`, { headers: getAuthHeaders() }),
-        fetch(`/api/admin/qc/scores?${qs}&limit=100`, { headers: getAuthHeaders() }),
+        fetch(`/api/admin/qc/scores?${qs}&limit=300`, { headers: getAuthHeaders() }),
         fetch(`/api/admin/qc/channels?approver_name=${approverName}&pin=${pin}`, { headers: getAuthHeaders() }),
       ]);
 
@@ -400,6 +400,15 @@ export default function ProductScoringTab({
   }
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset store filter whenever the city filter changes
+  useEffect(() => { setScoreStoreFilter(""); setExpandedRow(null); }, [cityFilter]);
+
+  // ── Individual scores filtered by active city ──
+  const filteredScores = useMemo(
+    () => cityFilter ? recentScores.filter((r) => r.city === cityFilter) : recentScores,
+    [recentScores, cityFilter],
+  );
 
   // ── Aggregate KPIs across filtered summary ──
   const kpis = useMemo(() => {
@@ -661,7 +670,7 @@ export default function ProductScoringTab({
       ) : null}
 
       {/* Recent individual scores table */}
-      {recentScores.length > 0 && (
+      {filteredScores.length > 0 && (
         <div className={GLASS_CARD + " p-4"}>
           <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
             <h3 className={SECTION_TITLE}>Recent Individual Scores</h3>
@@ -671,7 +680,7 @@ export default function ProductScoringTab({
               className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-violet-500"
             >
               <option value="">All Stores</option>
-              {Array.from(new Set(recentScores.map((r) => r.branch_code || r.store_code)))
+              {Array.from(new Set(filteredScores.map((r) => r.branch_code || r.store_code)))
                 .sort()
                 .map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -686,9 +695,9 @@ export default function ProductScoringTab({
                 </tr>
               </thead>
               <tbody>
-                {recentScores
+                {filteredScores
                   .filter((r) => !scoreStoreFilter || (r.branch_code || r.store_code) === scoreStoreFilter)
-                  .slice(0, 50)
+                  .slice(0, 100)
                   .map((row) => (
                   <>
                     <tr key={row.id} className={TABLE_ROW + " cursor-pointer"} onClick={() => setExpandedRow(expandedRow === row.id ? null : row.id)}>
