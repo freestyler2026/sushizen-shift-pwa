@@ -159,7 +159,8 @@ export function ManilaOrderCountsTab({
   const storeTotalMap = useMemo(() => {
     const m = new Map<string, number>();
     for (const st of data?.store_totals || []) {
-      m.set(formatStoreLabel(st.store_name), st.total_transactions);
+      const label = formatStoreLabel(st.store_name);
+      m.set(label, (m.get(label) ?? 0) + st.total_transactions);
     }
     return m;
   }, [data?.store_totals]);
