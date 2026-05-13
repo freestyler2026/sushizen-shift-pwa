@@ -261,6 +261,7 @@ const BODY_TEXT = T_BODY;
 const SUBTEXT = T_CAPTION;
 const LABEL_TEXT = T_LABEL;
 const NUMERIC_BLOCK_VALUE = "mt-2 min-h-[40px] text-2xl font-bold leading-tight tracking-tight text-white tabular-nums break-words";
+const NUMERIC_FINANCE_KPI_VALUE = "mt-2 min-h-[40px] text-xl font-bold leading-tight tracking-tight text-white tabular-nums whitespace-nowrap overflow-hidden";
 const NUMERIC_SMALL_BLOCK_VALUE = "mt-1 text-lg font-bold leading-tight tracking-tight text-white tabular-nums break-words";
 const SALES_NUMERIC_VALUE = "mt-1 min-h-[40px] text-2xl font-bold leading-tight tracking-tight text-white tabular-nums break-words";
 function sleep(ms: number) {
@@ -9547,7 +9548,7 @@ export default function AdminAnalyticsPage() {
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Revenue (P&amp;L imported)</div>
                 <MetricValue
-                  className={NUMERIC_BLOCK_VALUE}
+                  className={NUMERIC_FINANCE_KPI_VALUE}
                   value={plHeadline ? plHeadline.revenue : isStoreScopedView ? "—" : Number(financeRatio?.sales_total ?? 0)}
                 />
                 {plHeadline && plHeadline.revenue > 0 && <div className="mt-1 text-[10px] text-neutral-500">100% of revenue</div>}
@@ -9555,7 +9556,7 @@ export default function AdminAnalyticsPage() {
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Opex (P&amp;L rollup)</div>
                 <MetricValue
-                  className={NUMERIC_BLOCK_VALUE}
+                  className={NUMERIC_FINANCE_KPI_VALUE}
                   value={plHeadline ? plHeadline.opex : isStoreScopedView ? "—" : financeBreakdown ? financeBreakdown.totalModeledCost : "—"}
                 />
                 {plHeadline && plHeadline.revenue > 0 && <div className="mt-1 text-[10px] text-neutral-500">{formatPct((plHeadline.opex / plHeadline.revenue) * 100)} of revenue</div>}
@@ -9563,24 +9564,24 @@ export default function AdminAnalyticsPage() {
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Operating profit (P&amp;L)</div>
                 <MetricValue
-                  className={plHeadline ? (plHeadline.profit >= 0 ? `${NUMERIC_BLOCK_VALUE} text-emerald-400` : `${NUMERIC_BLOCK_VALUE} text-rose-400`) : NUMERIC_BLOCK_VALUE}
+                  className={plHeadline ? (plHeadline.profit >= 0 ? `${NUMERIC_FINANCE_KPI_VALUE} text-emerald-400` : `${NUMERIC_FINANCE_KPI_VALUE} text-rose-400`) : NUMERIC_FINANCE_KPI_VALUE}
                   value={plHeadline ? plHeadline.profit : isStoreScopedView ? "—" : Number(financeRatio?.estimated_profit_using_targets ?? 0)}
                 />
                 {plHeadline && plHeadline.revenue > 0 && <div className="mt-1 text-[10px] text-neutral-500">{formatPct((plHeadline.profit / plHeadline.revenue) * 100)} margin</div>}
               </div>
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">FLR cost total</div>
-                <MetricValue className={NUMERIC_BLOCK_VALUE} value={plHeadline ? plHeadline.flrCost : "—"} />
+                <MetricValue className={NUMERIC_FINANCE_KPI_VALUE} value={plHeadline ? plHeadline.flrCost : "—"} />
                 {plHeadline && plHeadline.revenue > 0 && <div className="mt-1 text-[10px] text-neutral-500">{formatPct((plHeadline.flrCost / plHeadline.revenue) * 100)} of revenue</div>}
               </div>
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Other expenses total</div>
-                <MetricValue className={NUMERIC_BLOCK_VALUE} value={plHeadline ? plHeadline.otherExpenses : "—"} />
+                <MetricValue className={NUMERIC_FINANCE_KPI_VALUE} value={plHeadline ? plHeadline.otherExpenses : "—"} />
                 {plHeadline && plHeadline.revenue > 0 && <div className="mt-1 text-[10px] text-neutral-500">{formatPct((plHeadline.otherExpenses / plHeadline.revenue) * 100)} of revenue</div>}
               </div>
               <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Labor ratio (P&amp;L labor ÷ revenue)</div>
-                <div className={NUMERIC_BLOCK_VALUE}>
+                <div className={NUMERIC_FINANCE_KPI_VALUE}>
                   {plHeadline
                     ? formatPct(plHeadline.laborRatioPct)
                     : isStoreScopedView
@@ -9808,6 +9809,84 @@ export default function AdminAnalyticsPage() {
                           <span>0 (break-even)</span>
                           <span>{isAbove ? "Above break-even ✓" : "Below break-even ✗"}</span>
                         </div>
+                      </div>
+                    );
+                  })()}
+                  {/* FLR Cost Ratio Analysis */}
+                  {(() => {
+                    const s = breakEven.summary;
+                    const sales = Number(s.sales || 0);
+                    if (sales <= 0) return null;
+                    const foodPct = (Number(s.food_cost || 0) / sales) * 100;
+                    const laborPct = (Number(s.labor_cost || 0) / sales) * 100;
+                    const rentPct = (Number(s.rent_cost || 0) / sales) * 100;
+                    const otherPct = (Number(s.other_cost || 0) / sales) * 100;
+                    const flrPct = foodPct + laborPct + rentPct;
+
+                    type FlrZone = "green" | "normal" | "yellow" | "red";
+                    const getZone = (metric: string, v: number): FlrZone => {
+                      if (metric === "F") return v <= 36 ? "green" : v <= 39 ? "normal" : v <= 42 ? "yellow" : "red";
+                      if (metric === "L") return v <= 22 ? "green" : v <= 24 ? "normal" : v <= 26 ? "yellow" : "red";
+                      if (metric === "R") return v <= 7 ? "green" : v <= 9 ? "normal" : v <= 12 ? "yellow" : "red";
+                      return v <= 62 ? "green" : v <= 66 ? "normal" : v <= 70 ? "yellow" : "red";
+                    };
+
+                    const ZONE_META: Record<FlrZone, { badge: string; text: string; label: string }> = {
+                      green:  { badge: "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30", text: "text-emerald-400", label: "Good" },
+                      normal: { badge: "bg-sky-500/15 text-sky-300 border border-sky-500/30",             text: "text-sky-400",    label: "Normal" },
+                      yellow: { badge: "bg-amber-500/15 text-amber-300 border border-amber-500/30",       text: "text-amber-400",  label: "Caution" },
+                      red:    { badge: "bg-rose-500/15 text-rose-300 border border-rose-500/30",           text: "text-rose-400",   label: "High" },
+                    };
+
+                    const METRIC_CONFIG = [
+                      { key: "F",   label: "Food",      sublabel: "食材費",  value: foodPct,  maxVal: 55, segs: [{ c: "bg-emerald-700", w: 36 }, { c: "bg-sky-700", w: 3 }, { c: "bg-amber-700", w: 3 }, { c: "bg-rose-700", w: 13 }] },
+                      { key: "L",   label: "Labor",     sublabel: "人件費",  value: laborPct, maxVal: 35, segs: [{ c: "bg-emerald-700", w: 22 }, { c: "bg-sky-700", w: 2 }, { c: "bg-amber-700", w: 2 }, { c: "bg-rose-700", w: 9  }] },
+                      { key: "R",   label: "Rent",      sublabel: "賃料",    value: rentPct,  maxVal: 18, segs: [{ c: "bg-emerald-700", w: 7  }, { c: "bg-sky-700", w: 2 }, { c: "bg-amber-700", w: 3 }, { c: "bg-rose-700", w: 6  }] },
+                      { key: "FLR", label: "FLR Total", sublabel: "F+L+R合計", value: flrPct, maxVal: 85, segs: [{ c: "bg-emerald-700", w: 62 }, { c: "bg-sky-700", w: 4 }, { c: "bg-amber-700", w: 4 }, { c: "bg-rose-700", w: 15 }] },
+                    ];
+
+                    return (
+                      <div className="mt-4">
+                        <div className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">FLR Cost Ratios</div>
+                        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                          {METRIC_CONFIG.map(({ key, label, sublabel, value, maxVal, segs }) => {
+                            const zone = getZone(key, value);
+                            const meta = ZONE_META[zone];
+                            const cursorPos = Math.min((value / maxVal) * 100, 100);
+                            return (
+                              <div key={key} className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                                <div className="mb-1 flex items-center justify-between">
+                                  <div className="text-[11px] font-semibold uppercase tracking-widest text-neutral-500">{label}</div>
+                                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${meta.badge}`}>{meta.label}</span>
+                                </div>
+                                <div className={`text-2xl font-bold tabular-nums ${meta.text}`}>{value.toFixed(1)}%</div>
+                                <div className="text-[10px] text-neutral-600">{sublabel}</div>
+                                {/* Segmented benchmark bar */}
+                                <div className="relative mt-3">
+                                  <div className="flex h-2 w-full overflow-hidden rounded-full">
+                                    {segs.map((seg, i) => (
+                                      <div key={i} className={seg.c} style={{ width: `${(seg.w / maxVal) * 100}%` }} />
+                                    ))}
+                                  </div>
+                                  {/* Current value marker */}
+                                  <div
+                                    className="absolute -top-0.5 h-3 w-0.5 rounded-full bg-white shadow"
+                                    style={{ left: `${cursorPos}%`, transform: "translateX(-50%)" }}
+                                  />
+                                </div>
+                                <div className="mt-1.5 flex justify-between text-[9px] text-neutral-600">
+                                  <span>0%</span>
+                                  <span>{maxVal}%+</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {otherPct > 0 && (
+                          <div className="mt-2 text-[11px] text-neutral-500">
+                            Other expenses: <span className="text-neutral-400">{otherPct.toFixed(1)}%</span> of sales — includes platform fees (GrabFood / FoodPanda), utilities, and other overheads.
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
