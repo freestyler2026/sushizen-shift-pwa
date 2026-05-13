@@ -60,6 +60,7 @@ import MonthPicker from "@/components/MonthPicker";
 import { ManilaSalesSection } from "@/components/analytics/ManilaSalesSection";
 import { SalesDataCheckTable, type DataCheckCell, type DataCheckColumn } from "@/components/analytics/SalesDataCheckTable";
 import ProcurementAnalyticsSection from "@/app/admin/analytics/procurement/page";
+import ProductScoringTab from "@/components/analytics/ProductScoringTab";
 import { fmtNum, fmtNumTitle } from "@/lib/formatters";
 import {
   GLASS_CARD,
@@ -2526,7 +2527,7 @@ export default function AdminAnalyticsPage() {
   const [comparisonLimit, setComparisonLimit] = useState("5000");
 
   const [viewMode, setViewMode] = useState<AnalyticsViewMode>("perfect_attendance");
-  const [analyticsTab, setAnalyticsTab] = useState<"staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai" | "overtime" | "late" | "absence" | "adherence" | "lean_shift" | "inventory_gap" | "disposal" | "backup">("staff");
+  const [analyticsTab, setAnalyticsTab] = useState<"staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai" | "overtime" | "late" | "absence" | "adherence" | "lean_shift" | "inventory_gap" | "disposal" | "backup" | "product_scoring">("staff");
   const [staffSearch, setStaffSearch] = useState("");
 
   const roleUpper = String(auth?.role || "STAFF").toUpperCase();
@@ -5755,7 +5756,7 @@ export default function AdminAnalyticsPage() {
                             ? "Backup Report"
                             : "Management P&L Channel";
   const analyticsTabs: Array<{
-    key: "staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai" | "overtime" | "late" | "absence" | "adherence" | "lean_shift" | "inventory_gap" | "disposal" | "backup";
+    key: "staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai" | "overtime" | "late" | "absence" | "adherence" | "lean_shift" | "inventory_gap" | "disposal" | "backup" | "product_scoring";
     label: string;
     visible: boolean;
   }> = [
@@ -5768,6 +5769,7 @@ export default function AdminAnalyticsPage() {
     { key: "inventory_gap", label: "Inventory Gap", visible: isHQOrAdmin },
     { key: "disposal", label: "Disposal Report", visible: isHQOrAdmin },
     { key: "backup", label: "Backup Report", visible: isHQOrAdmin },
+    { key: "product_scoring", label: "Product Scoring", visible: isHQOrAdmin },
     { key: "overtime", label: "Overtime", visible: canViewStaffChannel },
     { key: "late", label: "Late", visible: canViewStaffChannel },
     { key: "absence", label: "Absence", visible: canViewStaffChannel },
@@ -10464,6 +10466,16 @@ export default function AdminAnalyticsPage() {
           {analyticsTab === "backup" && isHQOrAdmin && (
           <div className="mt-8">
             <BackupAnalyticsSection isAdmin={isHQOrAdmin} />
+          </div>
+          )}
+
+          {analyticsTab === "product_scoring" && isHQOrAdmin && (
+          <div className="mt-8">
+            <ProductScoringTab
+              approverName={approverName}
+              pin={pin}
+              isHQOrAdmin={isHQOrAdmin}
+            />
           </div>
           )}
 
