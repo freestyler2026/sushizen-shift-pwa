@@ -10470,6 +10470,7 @@ export default function AdminAnalyticsPage() {
           )}
 
           {analyticsTab === "product_scoring" && isHQOrAdmin && (
+          salesStepUpReady ? (
           <div className="mt-8">
             <ProductScoringTab
               approverName={approverName}
@@ -10477,6 +10478,19 @@ export default function AdminAnalyticsPage() {
               isHQOrAdmin={isHQOrAdmin}
             />
           </div>
+          ) : (
+          <div className="mt-8 rounded-2xl border border-amber-800/50 bg-amber-950/20 p-5 text-sm text-amber-100">
+            <div className="font-semibold">Product Scoring is locked</div>
+            <div className="mt-1 text-xs text-amber-100/90">
+              This section requires recent MFA verification (Passkey or Session PIN).
+            </div>
+            <div className="mt-2 space-y-0.5 text-xs text-amber-100/70">
+              <div>1) Click <span className="font-semibold text-amber-200">Verify With Passkey</span> in the Security section above.</div>
+              <div>2) If Passkey is unavailable, use <span className="font-semibold text-amber-200">Verify With PIN</span> as an alternative.</div>
+              <div>3) Once verified, this tab will unlock automatically.</div>
+            </div>
+          </div>
+          )
           )}
 
           {analyticsTab === "staff" && canViewStaffChannel ? (
