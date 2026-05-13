@@ -336,6 +336,7 @@ export default function ProductScoringTab({
   const [error, setError] = useState("");
   const [showSetup, setShowSetup] = useState(false);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  const [scoreStoreFilter, setScoreStoreFilter] = useState<string>("");
 
   async function load() {
     setLoading(true);
@@ -582,7 +583,19 @@ export default function ProductScoringTab({
       {/* Recent individual scores table */}
       {recentScores.length > 0 && (
         <div className={GLASS_CARD + " p-4"}>
-          <h3 className={`${SECTION_TITLE} mb-3`}>Recent Individual Scores</h3>
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <h3 className={SECTION_TITLE}>Recent Individual Scores</h3>
+            <select
+              value={scoreStoreFilter}
+              onChange={(e) => { setScoreStoreFilter(e.target.value); setExpandedRow(null); }}
+              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-violet-500"
+            >
+              <option value="">All Stores</option>
+              {Array.from(new Set(recentScores.map((r) => r.branch_code || r.store_code)))
+                .sort()
+                .map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
@@ -593,7 +606,10 @@ export default function ProductScoringTab({
                 </tr>
               </thead>
               <tbody>
-                {recentScores.slice(0, 50).map((row) => (
+                {recentScores
+                  .filter((r) => !scoreStoreFilter || (r.branch_code || r.store_code) === scoreStoreFilter)
+                  .slice(0, 50)
+                  .map((row) => (
                   <>
                     <tr key={row.id} className={TABLE_ROW + " cursor-pointer"} onClick={() => setExpandedRow(expandedRow === row.id ? null : row.id)}>
                       <td className="py-1.5 px-2 text-slate-400">{row.score_date}</td>
