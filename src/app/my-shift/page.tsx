@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { CalendarCheck, CalendarOff, ChevronLeft, ChevronRight, Clock3, MapPin, User } from "lucide-react";
+import { CalendarCheck, CalendarOff, ChevronLeft, ChevronRight, Clock3, MapPin, RefreshCw, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { apiGet, qs, type ShiftRow } from "@/lib/api";
 import { getAuth, canAccessMyShiftPage, type City } from "@/lib/auth";
@@ -360,7 +360,12 @@ export default function MyShiftPage() {
               </div>
             </div>
 
-            {loading ? <div className="mt-3 text-xs text-neutral-400">Loading monthly shift...</div> : null}
+            {loading ? (
+              <div className="mt-3 flex items-center gap-1.5 text-xs text-neutral-400">
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                Loading monthly shift…
+              </div>
+            ) : null}
             {error ? <div className="mt-2 text-xs text-red-300">{error}</div> : null}
           </div>
         </div>

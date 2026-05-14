@@ -2,9 +2,41 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson, procurementTokenHeaders } from "@/lib/procurementClient";
+import {
+  GLASS_CARD,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  SMALL_BUTTON,
+  DANGER_BUTTON,
+  INPUT_CLASS,
+  SELECT_CLASS,
+  TEXTAREA_CLASS,
+  T_PAGE_TITLE,
+  T_SECTION,
+  T_CARD_TITLE,
+  T_LABEL,
+  T_CAPTION,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  BADGE_ERROR,
+  BADGE_INFO,
+  BADGE_ACCENT,
+} from "@/lib/ui-tokens";
+import {
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  CornerUpLeft,
+  AlertTriangle,
+  Bell,
+  Upload,
+  ChevronRight,
+  Image as ImageIcon,
+  AlertCircle,
+} from "lucide-react";
 
 type Bundle = {
   case?: any;
@@ -22,14 +54,46 @@ type Bundle = {
   payments?: any[];
 };
 
+function statusBadge(status: string) {
+  const s = String(status || "").toUpperCase();
+  if (s === "OPEN")       return <span className={BADGE_INFO}>OPEN</span>;
+  if (s === "CLAIMED")    return <span className={BADGE_WARNING}>CLAIMED</span>;
+  if (s === "IN_REVIEW")  return <span className={BADGE_INFO}>IN REVIEW</span>;
+  if (s === "ESCALATED")  return <span className={BADGE_ERROR}>ESCALATED</span>;
+  if (s === "APPROVED")   return <span className={BADGE_SUCCESS}>APPROVED</span>;
+  if (s === "RETURNED")   return <span className={BADGE_WARNING}>RETURNED</span>;
+  if (s === "REJECTED")   return <span className={BADGE_ERROR}>REJECTED</span>;
+  return <span className={BADGE_INFO}>{status || "-"}</span>;
+}
+
+function severityBadge(severity: string) {
+  const s = String(severity || "").toUpperCase();
+  if (s === "RED" || s === "HIGH")    return <span className={BADGE_ERROR}>{s}</span>;
+  if (s === "AMBER" || s === "MEDIUM" || s === "YELLOW") return <span className={BADGE_WARNING}>{s}</span>;
+  if (s === "GREEN" || s === "LOW")   return <span className={BADGE_SUCCESS}>{s}</span>;
+  return <span className={BADGE_INFO}>{severity || "-"}</span>;
+}
+
+function actionBadge(action: string) {
+  const a = String(action || "").toUpperCase();
+  if (a === "APPROVE") return <span className={BADGE_SUCCESS}>{action}</span>;
+  if (a === "REJECT")  return <span className={BADGE_ERROR}>{action}</span>;
+  if (a === "RETURN")  return <span className={BADGE_WARNING}>{action}</span>;
+  if (a === "ESCALATE") return <span className={BADGE_ERROR}>{action}</span>;
+  return <span className={BADGE_INFO}>{action || "-"}</span>;
+}
+
 export default function ProcurementCaseDetailPage() {
-  const auth = getAuth();
+  const auth = useMemo(() => getAuth(), []);
   const params = useParams<{ caseId: string }>();
   const caseId = String(params?.caseId || "");
+
   const [allowed, setAllowed] = useState(false);
+  const [city, setCity] = useState("manila");
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
   const [bundle, setBundle] = useState<Bundle>({});
+  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [escalateRole, setEscalateRole] = useState("HQ");
   const [uploadStage, setUploadStage] = useState("01_PR");
@@ -37,9 +101,16 @@ export default function ProcurementCaseDetailPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+
+  const currency = bundle.request?.currency || (city === "dubai" ? "AED" : "PHP");
+  const APPROVAL_THRESHOLD = city === "dubai" ? 500 : 15000;
+  const totalAmount = Number(bundle.request?.total_amount || 0);
+  const isHighValue = totalAmount > APPROVAL_THRESHOLD;
 
   const load = useCallback(async () => {
     setError("");
+    setLoading(true);
     try {
       const data = await procurementJson<Bundle>(
         `/api/admin/procurement/cases/${caseId}`,
@@ -50,12 +121,15 @@ export default function ProcurementCaseDetailPage() {
       setBundle(data || {});
     } catch (e: any) {
       setError(e?.message || String(e));
+    } finally {
+      setLoading(false);
     }
   }, [caseId, pin, requestedBy]);
 
   const act = async (path: string, body: Record<string, unknown>) => {
     setBusy(path);
     setError("");
+    setSuccessMsg("");
     try {
       await procurementJson(
         `/api/admin/procurement/cases/${caseId}/${path}`,
@@ -68,8 +142,8 @@ export default function ProcurementCaseDetailPage() {
         pin,
       );
       setMessage("");
+      setSuccessMsg(`Action "${path}" completed successfully.`);
       await load();
-      // Notify ProcurementTabs to refresh badge counts immediately
       window.dispatchEvent(new Event("procurement-badge-refresh"));
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -79,12 +153,10 @@ export default function ProcurementCaseDetailPage() {
   };
 
   const upload = async () => {
-    if (!uploadFile) {
-      setError("Please choose a file.");
-      return;
-    }
+    if (!uploadFile) { setError("Please choose a file."); return; }
     setBusy("upload");
     setError("");
+    setSuccessMsg("");
     try {
       const headers = await procurementTokenHeaders(requestedBy, pin);
       const form = new FormData();
@@ -101,6 +173,7 @@ export default function ProcurementCaseDetailPage() {
       const text = await res.text();
       if (!res.ok) throw new Error(text || `Upload failed (${res.status})`);
       setUploadFile(null);
+      setSuccessMsg("Document uploaded successfully.");
       await load();
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -112,91 +185,165 @@ export default function ProcurementCaseDetailPage() {
   useEffect(() => {
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
+      const resolvedAuth = refreshed || auth;
+      const resolvedCity = String(resolvedAuth?.city || "manila").toLowerCase();
+      setCity(resolvedCity);
       const can = canAccessProcurementAdmin(
-        String((refreshed || auth)?.role || ""),
-        String((refreshed || auth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
+        String(resolvedAuth?.role || ""),
+        resolvedCity === "dubai" ? "dubai" : "manila",
       );
       setAllowed(can);
       if (can && caseId) await load();
     }
     void init();
-  }, [auth, caseId, load]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!allowed) {
-    return <div className="text-sm text-red-300">Procurement page is available only to authorized Manila admin roles.</div>;
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+        <AlertCircle className="h-4 w-4 shrink-0" />
+        Procurement case detail is only available to authorized admin roles.
+      </div>
+    );
   }
 
+  const caseStatus = String(bundle.case?.status || "").toUpperCase();
+  const isClosed = ["APPROVED", "REJECTED"].includes(caseStatus);
+
   return (
-    <div className="space-y-4">
-      {error ? <div className="text-sm text-red-300">{error}</div> : null}
-      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 md:grid-cols-3">
-        <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Approver name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <button type="button" onClick={() => void load()} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900">
-          Refresh
-        </button>
+    <div className="space-y-5">
+
+      {/* Header */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className={T_PAGE_TITLE}>
+            {bundle.case?.parent_case_no || bundle.request?.request_no || caseId}
+          </h2>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+            {bundle.case && statusBadge(bundle.case.status)}
+            {bundle.case && severityBadge(bundle.case.severity)}
+            {isHighValue && <span className={BADGE_WARNING}>⚠ High Value</span>}
+            {bundle.request?.urgent_flag && <span className={BADGE_ERROR}>URGENT</span>}
+            {bundle.request?.new_vendor_flag && <span className={BADGE_WARNING}>NEW VENDOR</span>}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {loading && <RefreshCw className="h-4 w-4 animate-spin text-zinc-500" />}
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            className={`${SECONDARY_BUTTON} flex items-center gap-2 px-4 py-2 text-sm`}
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+          <Link href="/admin/procurement/approval-inbox" className={`${SMALL_BUTTON} flex items-center gap-1.5`}>
+            ← Inbox
+          </Link>
+        </div>
       </div>
 
-      {/* ── Request Details ── */}
+      {/* Session / Auth bar */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <p className="mb-3 text-sm font-semibold text-white">Session</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Approver Name</label>
+            <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Name" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>PIN</label>
+            <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="••••••••" className={INPUT_CLASS} />
+          </div>
+          <div className="flex items-end">
+            <button type="button" onClick={() => void load()} disabled={loading} className={`${SECONDARY_BUTTON} w-full flex items-center justify-center gap-2`}>
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              {loading ? "Loading…" : "Load Case"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Error / Success */}
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+          <AlertCircle className="h-4 w-4 shrink-0" />{error}
+        </div>
+      )}
+      {successMsg && !error && (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-300">
+          <CheckCircle className="h-4 w-4 shrink-0" />{successMsg}
+        </div>
+      )}
+
+      {/* Loading skeleton */}
+      {loading && !bundle.request && (
+        <div className={`${GLASS_CARD} p-10 flex items-center justify-center gap-3 text-zinc-500`}>
+          <RefreshCw className="h-5 w-5 animate-spin" />
+          <span className="text-sm">Loading case details…</span>
+        </div>
+      )}
+
+      {/* Request Details */}
       {bundle.request && (
-        <div className="rounded-2xl border border-sky-800/40 bg-sky-950/20 p-4">
-          <div className="mb-3 flex flex-wrap items-baseline gap-3">
-            <span className="text-base font-semibold text-sky-200">{bundle.request.request_no}</span>
-            <span className="text-sm text-neutral-400">{String(bundle.request.request_date || "").slice(0, 10)}</span>
-            <span className="text-sm text-neutral-400">Store: {bundle.request.store_code || "-"}</span>
-            <span className="text-sm text-neutral-400">By: {bundle.request.requested_by || "-"}</span>
-            {bundle.request.urgent_flag && (
-              <span className="rounded-full border border-rose-700/60 bg-rose-900/30 px-2 py-0.5 text-[11px] font-bold text-rose-300">URGENT</span>
-            )}
-            {bundle.request.new_vendor_flag && (
-              <span className="rounded-full border border-amber-700/60 bg-amber-900/30 px-2 py-0.5 text-[11px] font-bold text-amber-300">NEW VENDOR</span>
-            )}
-            <span className="ml-auto text-lg font-bold text-sky-200">
-              {Number(bundle.request.total_amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })} {bundle.request.currency || "PHP"}
+        <div className={`${GLASS_CARD} p-5`}>
+          <div className="mb-4 flex flex-wrap items-baseline gap-3">
+            <span className="font-mono text-base font-semibold text-white">{bundle.request.request_no}</span>
+            <span className={T_CAPTION}>{String(bundle.request.request_date || "").slice(0, 10)}</span>
+            <span className={T_CAPTION}>Store: <span className="text-zinc-300">{bundle.request.store_code || "-"}</span></span>
+            <span className={T_CAPTION}>By: <span className="text-zinc-300">{bundle.request.requested_by || "-"}</span></span>
+            <span className="ml-auto text-xl font-bold text-white tabular-nums">
+              {isHighValue
+                ? <span className="text-amber-300">{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} {currency}</span>
+                : <>{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} {currency}</>
+              }
             </span>
           </div>
+
           {bundle.request.notes && (
-            <div className="mb-3 rounded-xl border border-neutral-700/40 bg-neutral-900/40 px-3 py-2 text-sm text-neutral-300">
+            <div className="mb-4 rounded-xl border border-white/8 bg-white/4 px-4 py-3 text-sm text-zinc-300">
               {bundle.request.notes}
             </div>
           )}
-          {/* Line items table */}
+
           {(bundle.request.items || []).length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-neutral-700/60 text-left text-xs text-neutral-500">
-                    <th className="pb-2 pr-3">Item</th>
-                    <th className="pb-2 pr-3">Category</th>
-                    <th className="pb-2 pr-3">Spec</th>
-                    <th className="pb-2 pr-3 text-right">Qty</th>
-                    <th className="pb-2 pr-3">Unit</th>
-                    <th className="pb-2 pr-3 text-right">Unit Price</th>
-                    <th className="pb-2 pr-3 text-right">Total</th>
-                    <th className="pb-2 pr-3">Vendor</th>
-                    <th className="pb-2">Needed By</th>
+                  <tr className="border-b border-white/8 text-left">
+                    <th className={`${T_LABEL} pb-2 pr-3`}>Item</th>
+                    <th className={`${T_LABEL} pb-2 pr-3`}>Category</th>
+                    <th className={`${T_LABEL} pb-2 pr-3`}>Spec</th>
+                    <th className={`${T_LABEL} pb-2 pr-3 text-right`}>Qty</th>
+                    <th className={`${T_LABEL} pb-2 pr-3`}>Unit</th>
+                    <th className={`${T_LABEL} pb-2 pr-3 text-right`}>Unit Price</th>
+                    <th className={`${T_LABEL} pb-2 pr-3 text-right`}>Total</th>
+                    <th className={`${T_LABEL} pb-2 pr-3`}>Vendor</th>
+                    <th className={`${T_LABEL} pb-2`}>Needed By</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(bundle.request.items as any[]).map((item: any, idx: number) => (
-                    <tr key={item.id || idx} className="border-b border-neutral-800/40 last:border-0">
-                      <td className="py-2 pr-3 font-medium text-neutral-100">{item.item_name || "-"}</td>
-                      <td className="py-2 pr-3 text-neutral-400">{item.category || "-"}</td>
-                      <td className="py-2 pr-3 text-neutral-400">{item.spec || "-"}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums text-neutral-200">{Number(item.qty || 0).toLocaleString()}</td>
-                      <td className="py-2 pr-3 text-neutral-400">{item.unit || "-"}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums text-neutral-200">{Number(item.unit_price || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums font-semibold text-sky-300">{Number(item.line_total || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}</td>
-                      <td className="py-2 pr-3 text-neutral-400">{item.vendor_name || "-"}</td>
-                      <td className="py-2 text-neutral-400">{String(item.needed_by_date || "").slice(0, 10) || "-"}</td>
+                    <tr key={item.id || idx} className="border-b border-white/5 last:border-0">
+                      <td className="py-2.5 pr-3 font-medium text-white">{item.item_name || "-"}</td>
+                      <td className="py-2.5 pr-3 text-zinc-400">{item.category || "-"}</td>
+                      <td className="py-2.5 pr-3 text-zinc-400">{item.spec || "-"}</td>
+                      <td className="py-2.5 pr-3 text-right tabular-nums text-zinc-200">{Number(item.qty || 0).toLocaleString()}</td>
+                      <td className="py-2.5 pr-3 text-zinc-400">{item.unit || "-"}</td>
+                      <td className="py-2.5 pr-3 text-right tabular-nums text-zinc-200">{Number(item.unit_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td className="py-2.5 pr-3 text-right tabular-nums font-semibold text-violet-300">{Number(item.line_total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td className="py-2.5 pr-3 text-zinc-400">{item.vendor_name || "-"}</td>
+                      <td className="py-2.5 text-zinc-400">{String(item.needed_by_date || "").slice(0, 10) || "-"}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr className="border-t border-sky-800/40">
-                    <td colSpan={6} className="pt-2 text-right text-xs text-neutral-500">Total</td>
-                    <td className="pt-2 pr-3 text-right tabular-nums font-bold text-sky-200">
-                      {Number(bundle.request.total_amount || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                  <tr className="border-t border-white/10">
+                    <td colSpan={6} className="pt-3 text-right text-xs text-zinc-500">Order Total</td>
+                    <td className="pt-3 pr-3 text-right tabular-nums font-bold text-white">
+                      {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} {currency}
                     </td>
                     <td colSpan={2} />
                   </tr>
@@ -205,199 +352,341 @@ export default function ProcurementCaseDetailPage() {
             </div>
           )}
           {!(bundle.request.items || []).length && (
-            <div className="text-sm text-neutral-500">No line items found.</div>
+            <p className={T_CAPTION}>No line items found.</p>
           )}
         </div>
       )}
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-        <div className="text-lg font-semibold">{bundle.case?.parent_case_no || bundle.request?.request_no || caseId}</div>
-        <div className="mt-1 text-sm text-neutral-400">
-          {bundle.request?.requested_by || "-"} | {bundle.request?.store_code || "-"} | Severity {bundle.case?.severity || "-"} | Status {bundle.case?.status || "-"}
-        </div>
-        <div className="mt-2 text-xs text-neutral-500">
-          Document Gate: {bundle.document_validation?.status || "-"} | Missing: {(bundle.document_validation?.missing_stage_codes || []).join(", ") || "none"}
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button type="button" onClick={() => void act("approve", { case_id: caseId, approver_name: requestedBy, pin, comment: message })} disabled={busy === "approve"} className="rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-xs text-emerald-200 hover:bg-emerald-800/30 disabled:opacity-60">
-            {busy === "approve" ? "Approving..." : "Approve"}
-          </button>
-          <button type="button" onClick={() => void act("reject", { case_id: caseId, approver_name: requestedBy, pin, comment: message })} disabled={busy === "reject"} className="rounded-xl border border-rose-700/60 bg-rose-900/20 px-3 py-2 text-xs text-rose-200 hover:bg-rose-800/30 disabled:opacity-60">
-            {busy === "reject" ? "Rejecting..." : "Reject"}
-          </button>
-          <button type="button" onClick={() => void act("message", { case_id: caseId, approver_name: requestedBy, pin, body: message || "Internal note", message_type: "NOTE" })} disabled={busy === "message"} className="rounded-xl border border-sky-700/60 bg-sky-900/20 px-3 py-2 text-xs text-sky-200 hover:bg-sky-800/30 disabled:opacity-60">
-            {busy === "message" ? "Posting..." : "Post Message"}
-          </button>
-          <button
-            type="button"
-            onClick={() => void act("notifications/resend", { case_id: caseId, approver_name: requestedBy, pin })}
-            disabled={busy === "notifications/resend"}
-            className="rounded-xl border border-fuchsia-700/60 bg-fuchsia-900/20 px-3 py-2 text-xs text-fuchsia-200 hover:bg-fuchsia-800/30 disabled:opacity-60"
-          >
-            {busy === "notifications/resend" ? "Resending..." : "Resend Push Notification"}
-          </button>
-          <select value={escalateRole} onChange={(e) => setEscalateRole(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs">
-            <option value="HR_MANAGER">HR_MANAGER</option>
-            <option value="HQ">HQ</option>
-            <option value="FINANCE">FINANCE</option>
-            <option value="ADMIN">ADMIN</option>
-          </select>
-          <button type="button" onClick={() => void act("escalate", { case_id: caseId, approver_name: requestedBy, pin, target_role: escalateRole, comment: message })} disabled={busy === "escalate"} className="rounded-xl border border-amber-700/60 bg-amber-900/20 px-3 py-2 text-xs text-amber-200 hover:bg-amber-800/30 disabled:opacity-60">
-            {busy === "escalate" ? "Escalating..." : "Escalate"}
-          </button>
-          <Link href={`/admin/procurement/pos?request_id=${encodeURIComponent(bundle.request?.id || "")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
-            Open PO Screen
-          </Link>
-          <Link href={`/admin/procurement/receiving?request_id=${encodeURIComponent(bundle.request?.id || "")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
-            Open Receiving
-          </Link>
-          <Link href={`/admin/procurement/claims?request_id=${encodeURIComponent(bundle.request?.id || "")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
-            Open Claims
-          </Link>
-          <Link href={`/admin/procurement/invoices?request_id=${encodeURIComponent(bundle.request?.id || "")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
-            Open Invoices
-          </Link>
-          <Link href={`/admin/procurement/payments?request_id=${encodeURIComponent(bundle.request?.id || "")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
-            Open Payments
-          </Link>
-          <Link href={`/admin/procurement/audit?request_id=${encodeURIComponent(bundle.request?.id || "")}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
-            Open Audit
-          </Link>
-        </div>
-        <textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Comment / case note" className="mt-3 min-h-24 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-      </div>
+      {/* Case Actions panel */}
+      {bundle.case && (
+        <div className={`${GLASS_CARD} p-5`}>
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <p className={T_SECTION}>Actions</p>
+            <span className={T_CAPTION}>Assignee: <span className="text-zinc-300">{bundle.case.current_assignee_role || "-"}</span></span>
+            {bundle.case.claimed_by && (
+              <span className={T_CAPTION}>Claimed by: <span className="text-zinc-300">{bundle.case.claimed_by}</span></span>
+            )}
+            <span className={T_CAPTION}>Doc Gate: <span className="text-zinc-300">{bundle.document_validation?.status || "-"}</span></span>
+          </div>
 
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Comment / case note (required for Reject and Return)"
+            className={`${TEXTAREA_CLASS} mb-4 min-h-20`}
+          />
+
+          {isClosed ? (
+            <div className="rounded-xl border border-white/8 bg-white/4 px-4 py-3 text-sm text-zinc-400">
+              This case is <strong className="text-zinc-200">{caseStatus}</strong> and no further actions can be taken.
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Approve */}
+              <button
+                type="button"
+                onClick={() => void act("approve", { case_id: caseId, approver_name: requestedBy, pin, comment: message })}
+                disabled={!!busy}
+                className={`${PRIMARY_BUTTON} flex items-center gap-2 px-4 py-2 text-sm`}
+              >
+                <CheckCircle className="h-4 w-4" />
+                {busy === "approve" ? "Approving…" : "Approve"}
+              </button>
+
+              {/* Return */}
+              <button
+                type="button"
+                onClick={() => void act("return", { case_id: caseId, approver_name: requestedBy, pin, comment: message })}
+                disabled={!!busy}
+                className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-medium text-amber-300 transition hover:bg-amber-500/20 disabled:opacity-60"
+              >
+                <CornerUpLeft className="h-4 w-4" />
+                {busy === "return" ? "Returning…" : "Return for Revision"}
+              </button>
+
+              {/* Reject */}
+              <button
+                type="button"
+                onClick={() => void act("reject", { case_id: caseId, approver_name: requestedBy, pin, comment: message })}
+                disabled={!!busy}
+                className={`${DANGER_BUTTON} flex items-center gap-2 px-4 py-2 text-sm`}
+              >
+                <XCircle className="h-4 w-4" />
+                {busy === "reject" ? "Rejecting…" : "Reject"}
+              </button>
+
+              {/* Post Message */}
+              <button
+                type="button"
+                onClick={() => void act("message", { case_id: caseId, approver_name: requestedBy, pin, body: message || "Internal note", message_type: "NOTE" })}
+                disabled={!!busy}
+                className={`${SMALL_BUTTON} flex items-center gap-2`}
+              >
+                {busy === "message" ? "Posting…" : "Post Note"}
+              </button>
+
+              {/* Resend Push */}
+              <button
+                type="button"
+                onClick={() => void act("notifications/resend", { case_id: caseId, approver_name: requestedBy, pin })}
+                disabled={!!busy}
+                className={`${SMALL_BUTTON} flex items-center gap-2`}
+              >
+                <Bell className="h-3.5 w-3.5" />
+                {busy === "notifications/resend" ? "Resending…" : "Resend Push"}
+              </button>
+
+              {/* Escalate */}
+              <div className="flex items-center gap-1">
+                <select value={escalateRole} onChange={(e) => setEscalateRole(e.target.value)} className="w-36 appearance-none rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs text-white outline-none">
+                  <option value="HR_MANAGER">HR_MANAGER</option>
+                  <option value="HQ">HQ</option>
+                  <option value="FINANCE">FINANCE</option>
+                  <option value="ADMIN">ADMIN</option>
+                </select>
+                <button
+                  type="button"
+                  onClick={() => void act("escalate", { case_id: caseId, approver_name: requestedBy, pin, target_role: escalateRole, comment: message })}
+                  disabled={!!busy}
+                  className={`${SMALL_BUTTON} flex items-center gap-1.5`}
+                >
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  {busy === "escalate" ? "Escalating…" : "Escalate"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Quick links */}
+          <div className="mt-4 flex flex-wrap gap-2 border-t border-white/8 pt-4">
+            {[
+              { label: "PO Screen", href: `/admin/procurement/pos?request_id=${encodeURIComponent(bundle.request?.id || "")}` },
+              { label: "Receiving", href: `/admin/procurement/receiving?request_id=${encodeURIComponent(bundle.request?.id || "")}` },
+              { label: "Claims", href: `/admin/procurement/claims?request_id=${encodeURIComponent(bundle.request?.id || "")}` },
+              { label: "Invoices", href: `/admin/procurement/invoices?request_id=${encodeURIComponent(bundle.request?.id || "")}` },
+              { label: "Payments", href: `/admin/procurement/payments?request_id=${encodeURIComponent(bundle.request?.id || "")}` },
+              { label: "Audit Log", href: `/admin/procurement/audit?request_id=${encodeURIComponent(bundle.request?.id || "")}` },
+            ].map(({ label, href }) => (
+              <Link
+                key={label}
+                href={href}
+                className={`${SMALL_BUTTON} flex items-center gap-1`}
+              >
+                {label} <ChevronRight className="h-3 w-3" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Document Chain + Message Timeline */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-          <div className="text-sm font-medium">Document Chain</div>
-          <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-4">
-            <select value={uploadStage} onChange={(e) => setUploadStage(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm">
-              <option value="01_PR">01_PR</option>
-              <option value="02_RFQ">02_RFQ</option>
-              <option value="03_PO">03_PO</option>
-              <option value="04_RECEIVING">04_RECEIVING</option>
-              <option value="05_INVOICE">05_INVOICE</option>
-              <option value="06_PAYMENT">06_PAYMENT</option>
-              <option value="07_EXCEPTION">07_EXCEPTION</option>
+
+        {/* Document Chain */}
+        <div className={`${GLASS_CARD} p-5`}>
+          <p className={`${T_CARD_TITLE} mb-4`}>Document Chain</p>
+          <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <select value={uploadStage} onChange={(e) => setUploadStage(e.target.value)} className={`${SELECT_CLASS} col-span-2 sm:col-span-1`}>
+              {["01_PR","02_RFQ","03_PO","04_RECEIVING","05_INVOICE","06_PAYMENT","07_EXCEPTION"].map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
             </select>
-            <input value={uploadDocType} onChange={(e) => setUploadDocType(e.target.value)} placeholder="Doc type" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-            <input type="file" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-            <button type="button" onClick={() => void upload()} disabled={busy === "upload"} className="rounded-xl border border-sky-700/60 bg-sky-900/20 px-3 py-2 text-sm text-sky-200 hover:bg-sky-800/30 disabled:opacity-60">
-              {busy === "upload" ? "Uploading..." : "Upload"}
+            <input value={uploadDocType} onChange={(e) => setUploadDocType(e.target.value)} placeholder="Doc type" className={INPUT_CLASS} />
+            <input type="file" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} className="col-span-2 rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs text-zinc-300 sm:col-span-1 file:mr-2 file:rounded-lg file:border-0 file:bg-violet-500/20 file:px-2 file:py-1 file:text-xs file:text-violet-300" />
+            <button
+              type="button"
+              onClick={() => void upload()}
+              disabled={busy === "upload" || !uploadFile}
+              className={`${PRIMARY_BUTTON} flex items-center justify-center gap-2 px-3 py-2 text-xs`}
+            >
+              <Upload className="h-3.5 w-3.5" />
+              {busy === "upload" ? "Uploading…" : "Upload"}
             </button>
           </div>
-          <div className="mt-3 space-y-2">
-            {(bundle.documents || []).map((doc) => (
-              <a key={doc.id} href={doc.web_view_link || "#"} target="_blank" rel="noreferrer" className="block rounded-xl border border-neutral-800 bg-neutral-950/40 p-3 hover:bg-neutral-900">
-                <div className="text-sm text-neutral-100">{doc.stage_code} | {doc.file_name}</div>
-                <div className="mt-1 text-xs text-neutral-500">
-                  {doc.doc_type || "-"} | Uploaded by {doc.uploaded_by || "-"} | {doc.validation_status || "-"}
+          <div className="space-y-2">
+            {(bundle.documents || []).map((doc: any) => (
+              <a
+                key={doc.id}
+                href={doc.web_view_link || "#"}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-start gap-3 rounded-xl border border-white/8 bg-white/4 p-3 transition hover:bg-white/8"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm text-white">{doc.stage_code} — {doc.file_name}</div>
+                  <div className={`${T_CAPTION} mt-0.5`}>
+                    {doc.doc_type || "-"} · Uploaded by {doc.uploaded_by || "-"} · {doc.validation_status || "-"}
+                  </div>
                 </div>
+                <ChevronRight className="h-4 w-4 shrink-0 text-zinc-600" />
               </a>
             ))}
-            {!(bundle.documents || []).length ? <div className="text-sm text-neutral-500">No documents uploaded.</div> : null}
+            {!(bundle.documents || []).length && <p className={T_CAPTION}>No documents uploaded yet.</p>}
           </div>
+          {bundle.document_validation && (
+            <div className="mt-3 rounded-xl border border-white/8 bg-white/4 px-3 py-2">
+              <p className={`${T_CAPTION}`}>Doc Gate: <span className="text-zinc-300">{bundle.document_validation.status || "-"}</span></p>
+              {(bundle.document_validation.missing_stage_codes || []).length > 0 && (
+                <p className={`${T_CAPTION} mt-0.5`}>Missing stages: {bundle.document_validation.missing_stage_codes.join(", ")}</p>
+              )}
+            </div>
+          )}
         </div>
 
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-          <div className="text-sm font-medium">Message Timeline</div>
-          <div className="mt-3 space-y-2">
-            {(bundle.messages || []).map((row) => (
-              <div key={row.id} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
-                <div className="text-sm text-neutral-100">{row.message_type} | {row.actor_name}</div>
-                <div className="mt-1 text-sm text-neutral-300">{row.body}</div>
-                <div className="mt-1 text-xs text-neutral-500">{String(row.created_at || "").slice(0, 16).replace("T", " ")}</div>
+        {/* Message Timeline */}
+        <div className={`${GLASS_CARD} p-5`}>
+          <p className={`${T_CARD_TITLE} mb-4`}>Message Timeline</p>
+          <div className="space-y-2">
+            {(bundle.messages || []).map((row: any) => (
+              <div key={row.id} className="rounded-xl border border-white/8 bg-white/4 p-3">
+                <div className="flex items-center gap-2">
+                  <span className={BADGE_INFO}>{row.message_type}</span>
+                  <span className="text-sm font-medium text-zinc-200">{row.actor_name}</span>
+                </div>
+                <p className="mt-1.5 text-sm text-zinc-300">{row.body}</p>
+                <p className={`${T_CAPTION} mt-1`}>{String(row.created_at || "").slice(0, 16).replace("T", " ")}</p>
               </div>
             ))}
-            {!(bundle.messages || []).length ? <div className="text-sm text-neutral-500">No messages yet.</div> : null}
+            {!(bundle.messages || []).length && <p className={T_CAPTION}>No messages yet.</p>}
           </div>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-        <div className="text-sm font-medium">Approval History</div>
-        <div className="mt-3 space-y-2">
-          {(bundle.history || []).map((row) => (
-            <div key={row.id} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3 text-sm text-neutral-200">
-              {row.action} | {row.actor_role} | {row.actor_name} | {row.comment || "-"}
+      {/* Approval History */}
+      <div className={`${GLASS_CARD} p-5`}>
+        <p className={`${T_CARD_TITLE} mb-4`}>Approval History</p>
+        <div className="space-y-2">
+          {(bundle.history || []).map((row: any) => (
+            <div key={row.id} className="flex flex-wrap items-start gap-3 rounded-xl border border-white/8 bg-white/4 p-3">
+              {actionBadge(row.action)}
+              <span className="text-sm text-zinc-200">{row.actor_role}</span>
+              <span className="text-sm font-medium text-white">{row.actor_name}</span>
+              {row.comment && <span className="text-sm text-zinc-400">"{row.comment}"</span>}
             </div>
           ))}
-          {!(bundle.history || []).length ? <div className="text-sm text-neutral-500">No approval actions yet.</div> : null}
+          {!(bundle.history || []).length && <p className={T_CAPTION}>No approval actions yet.</p>}
         </div>
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-        <div className="text-sm font-medium">Notification Timeline</div>
-        <div className="mt-3 space-y-2">
-          {(bundle.notifications || []).map((row) => (
-            <div key={row.id} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
-              <div className="text-sm text-neutral-100">
-                {row.channel || "-"} | {row.status || "-"} | {row.recipient_name || row.recipient_role || "-"}
+      {/* Notification Timeline */}
+      <div className={`${GLASS_CARD} p-5`}>
+        <p className={`${T_CARD_TITLE} mb-4`}>Notification Timeline</p>
+        <div className="space-y-2">
+          {(bundle.notifications || []).map((row: any) => (
+            <div key={row.id} className="rounded-xl border border-white/8 bg-white/4 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={row.status === "DELIVERED" ? BADGE_SUCCESS : row.status === "FAILED" ? BADGE_ERROR : BADGE_INFO}>
+                  {row.status || "-"}
+                </span>
+                <span className="text-sm text-zinc-200">{row.channel || "-"}</span>
+                <span className="text-sm text-zinc-400">{row.recipient_name || row.recipient_role || "-"}</span>
               </div>
-              <div className="mt-1 text-xs text-neutral-500">
-                Provider {row.provider_status || "-"} {row.provider_ref ? `| Ref ${row.provider_ref}` : ""}
-              </div>
-              <div className="mt-1 text-xs text-neutral-500">
+              <p className={`${T_CAPTION} mt-1`}>
+                Provider: {row.provider_status || "-"}{row.provider_ref ? ` · Ref ${row.provider_ref}` : ""}
+              </p>
+              <p className={`${T_CAPTION} mt-0.5`}>
                 Sent {String(row.sent_at || "").slice(0, 16).replace("T", " ")}
-                {row.delivered_at ? ` | Delivered ${String(row.delivered_at || "").slice(0, 16).replace("T", " ")}` : ""}
-                {row.claimed_at ? ` | Claimed ${String(row.claimed_at || "").slice(0, 16).replace("T", " ")}` : ""}
-              </div>
-              {row.error_text ? <div className="mt-1 text-xs text-rose-300">{row.error_text}</div> : null}
+                {row.delivered_at ? ` · Delivered ${String(row.delivered_at || "").slice(0, 16).replace("T", " ")}` : ""}
+              </p>
+              {row.error_text && <p className="mt-1 text-xs text-red-300">{row.error_text}</p>}
             </div>
           ))}
-          {!(bundle.notifications || []).length ? <div className="text-sm text-neutral-500">No notification records yet.</div> : null}
+          {!(bundle.notifications || []).length && <p className={T_CAPTION}>No notification records yet.</p>}
         </div>
       </div>
 
+      {/* Phase 2: Receiving + Claims / Invoices / Payments */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-          <div className="text-sm font-medium">Phase2 Control Summary</div>
-          <div className="mt-2 text-xs text-neutral-500">
-            Payment Gate: {bundle.phase2_validation?.status || "-"} | Missing: {(bundle.phase2_validation?.missing_stage_codes || []).join(", ") || "none"}
-          </div>
-          <div className="mt-3 space-y-2">
-            {(bundle.receivings || []).map((row) => (
-              <div key={row.id} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
-                <div className="text-sm text-neutral-100">{row.receiving_no}</div>
-                <div className="mt-1 text-xs text-neutral-500">
-                  {row.status} | Qty {Number(row.qty_received || 0).toFixed(2)} / {Number(row.qty_expected || 0).toFixed(2)} | {row.quality_status || "-"}
-                </div>
+
+        {/* Receiving Records */}
+        <div className={`${GLASS_CARD} p-5`}>
+          <p className={`${T_CARD_TITLE} mb-1`}>Receiving Records</p>
+          {bundle.phase2_validation && (
+            <p className={`${T_CAPTION} mb-3`}>
+              Payment Gate: {bundle.phase2_validation.status || "-"}
+              {(bundle.phase2_validation.missing_stage_codes || []).length > 0
+                ? ` · Missing: ${bundle.phase2_validation.missing_stage_codes.join(", ")}`
+                : ""}
+            </p>
+          )}
+          <div className="space-y-2">
+            {(bundle.receivings || []).map((row: any) => (
+              <div key={row.id} className="rounded-xl border border-white/8 bg-white/4 p-3">
+                <p className="font-mono text-sm font-semibold text-white">{row.receiving_no}</p>
+                <p className={`${T_CAPTION} mt-0.5`}>
+                  {row.status} · Qty {Number(row.qty_received || 0).toFixed(2)} / {Number(row.qty_expected || 0).toFixed(2)} · Quality: {row.quality_status || "-"}
+                </p>
               </div>
             ))}
-            {!(bundle.receivings || []).length ? <div className="text-sm text-neutral-500">No receiving records.</div> : null}
+            {!(bundle.receivings || []).length && <p className={T_CAPTION}>No receiving records.</p>}
           </div>
         </div>
 
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-          <div className="text-sm font-medium">Claims / Invoices / Payments</div>
-          <div className="mt-3 space-y-2">
-            {(bundle.claims || []).map((row) => (
-              <div key={row.id} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
-                <div className="text-sm text-neutral-100">Claim {row.claim_no}</div>
-                <div className="mt-1 text-xs text-neutral-500">
-                  {row.claim_type} | {row.status} | Impact {Number(row.amount_impact || 0).toFixed(2)} PHP
+        {/* Claims */}
+        <div className={`${GLASS_CARD} p-5`}>
+          <p className={`${T_CARD_TITLE} mb-3`}>Claims / Invoices / Payments</p>
+          <div className="space-y-2">
+            {(bundle.claims || []).map((row: any) => {
+              const hasPhoto = !!(row.photo_url || "").trim();
+              const requiresPhoto = ["SHORTAGE", "QUALITY"].includes(String(row.claim_type || "").toUpperCase());
+              return (
+                <div key={row.id} className="rounded-xl border border-white/8 bg-white/4 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-sm font-semibold text-white">{row.claim_no}</span>
+                    <span className={BADGE_ACCENT}>{row.claim_type}</span>
+                    <span className={row.status === "RESOLVED" ? BADGE_SUCCESS : row.status === "ESCALATED" ? BADGE_ERROR : BADGE_WARNING}>
+                      {row.status}
+                    </span>
+                  </div>
+                  <p className={`${T_CAPTION} mt-1`}>
+                    Impact: {Number(row.amount_impact || 0).toFixed(2)} {currency}
+                  </p>
+                  {requiresPhoto && (
+                    <div className="mt-1.5">
+                      {hasPhoto ? (
+                        <a
+                          href={row.photo_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs text-violet-400 hover:text-violet-300"
+                        >
+                          <ImageIcon className="h-3.5 w-3.5" />
+                          View photo evidence
+                        </a>
+                      ) : (
+                        <span className={`${BADGE_WARNING} text-xs`}>
+                          <AlertTriangle className="h-3 w-3" /> No Photo
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {row.description && <p className="mt-1 text-xs text-zinc-400">{row.description}</p>}
                 </div>
+              );
+            })}
+
+            {(bundle.invoices || []).map((row: any) => (
+              <div key={row.id} className="rounded-xl border border-white/8 bg-white/4 p-3">
+                <p className="font-mono text-sm font-semibold text-white">{row.invoice_no}</p>
+                <p className={`${T_CAPTION} mt-0.5`}>
+                  {row.status} · Match: {row.match_status} · Variance: {Number(row.variance_amount || 0).toFixed(2)} {currency}
+                </p>
               </div>
             ))}
-            {(bundle.invoices || []).map((row) => (
-              <div key={row.id} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
-                <div className="text-sm text-neutral-100">Invoice {row.invoice_no}</div>
-                <div className="mt-1 text-xs text-neutral-500">
-                  {row.status} | Match {row.match_status} | Variance {Number(row.variance_amount || 0).toFixed(2)}
-                </div>
+
+            {(bundle.payments || []).map((row: any) => (
+              <div key={row.id} className="rounded-xl border border-white/8 bg-white/4 p-3">
+                <p className="font-mono text-sm font-semibold text-white">{row.payment_no}</p>
+                <p className={`${T_CAPTION} mt-0.5`}>
+                  {row.status} · Scheduled: {Number(row.scheduled_amount || 0).toFixed(2)} {currency}
+                  {row.execution_ref ? ` · Ref: ${row.execution_ref}` : ""}
+                </p>
               </div>
             ))}
-            {(bundle.payments || []).map((row) => (
-              <div key={row.id} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
-                <div className="text-sm text-neutral-100">Payment {row.payment_no}</div>
-                <div className="mt-1 text-xs text-neutral-500">
-                  {row.status} | Scheduled {Number(row.scheduled_amount || 0).toFixed(2)} PHP | Ref {row.execution_ref || "-"}
-                </div>
-              </div>
-            ))}
-            {!(bundle.claims || []).length && !(bundle.invoices || []).length && !(bundle.payments || []).length ? (
-              <div className="text-sm text-neutral-500">No Phase2 records yet.</div>
-            ) : null}
+
+            {!(bundle.claims || []).length && !(bundle.invoices || []).length && !(bundle.payments || []).length && (
+              <p className={T_CAPTION}>No Phase 2 records yet.</p>
+            )}
           </div>
         </div>
       </div>
