@@ -3,6 +3,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
+import {
+  GLASS_CARD,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  DANGER_BUTTON,
+  INPUT_CLASS,
+  T_PAGE_TITLE,
+  T_SECTION,
+  T_CAPTION,
+  T_LABEL,
+  BADGE_SUCCESS,
+  BADGE_ERROR,
+} from "@/lib/ui-tokens";
+import { RefreshCw, AlertCircle, CheckCircle, Plus, ShieldCheck } from "lucide-react";
 
 type MatrixRow = {
   id: string;
@@ -55,7 +69,7 @@ function newDraft(nextLevel: number): MatrixDraft {
 }
 
 export default function ProcurementApprovalMatrixPage() {
-  const auth = getAuth();
+  const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
@@ -63,6 +77,7 @@ export default function ProcurementApprovalMatrixPage() {
   const [drafts, setDrafts] = useState<MatrixDraft[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
   const sortedDrafts = useMemo(
     () =>
@@ -105,6 +120,7 @@ export default function ProcurementApprovalMatrixPage() {
   const save = async () => {
     setBusy(true);
     setError("");
+    setSuccessMsg("");
     try {
       const preparedRows = sortedDrafts.map(({ row }) => {
         const levelNo = Number(row.level_no || 0);
@@ -113,12 +129,10 @@ export default function ProcurementApprovalMatrixPage() {
         if (!Number.isFinite(levelNo) || levelNo <= 0) throw new Error("level_no must be a positive integer.");
         if (!Number.isFinite(minAmount) || !Number.isFinite(maxAmount)) throw new Error("min/max amount must be numeric.");
         if (maxAmount < minAmount) throw new Error(`max_amount must be >= min_amount (level ${levelNo}).`);
-
         const requiredRoles = row.required_roles_text
           .split(",")
           .map((x) => x.trim().toUpperCase())
           .filter(Boolean);
-
         return {
           id: row.id || undefined,
           level_no: levelNo,
@@ -146,15 +160,12 @@ export default function ProcurementApprovalMatrixPage() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            approver_name: requestedBy,
-            pin,
-            rows: preparedRows,
-          }),
+          body: JSON.stringify({ approver_name: requestedBy, pin, rows: preparedRows }),
         },
         requestedBy,
         pin,
       );
+      setSuccessMsg("Approval matrix saved.");
       await load();
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -174,77 +185,144 @@ export default function ProcurementApprovalMatrixPage() {
       if (can) await load();
     }
     void init();
-  }, [auth, load]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!allowed) {
-    return <div className="text-sm text-red-300">Procurement page is available only to authorized admin roles.</div>;
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+        <AlertCircle className="h-4 w-4 shrink-0" />
+        Approval matrix is only available to authorized admin roles.
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-4">
-      {error ? <div className="text-sm text-red-300">{error}</div> : null}
+    <div className="space-y-5">
 
-      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 md:grid-cols-4">
-        <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Approver name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <button type="button" onClick={() => void load()} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900">
-          Reload
-        </button>
-        <button type="button" onClick={addRow} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900">
-          Add Level
-        </button>
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className={T_PAGE_TITLE}>Approval Matrix</h2>
+          <p className="mt-1 text-sm text-zinc-400">Configure approval levels, amount thresholds, and required roles.</p>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/25 bg-violet-500/15 px-2.5 py-0.5 text-xs font-medium text-violet-400">
+          <ShieldCheck className="h-3 w-3" />{rows.length} levels
+        </span>
       </div>
 
+      {/* Error / Success */}
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+          <AlertCircle className="h-4 w-4 shrink-0" />{error}
+        </div>
+      )}
+      {successMsg && !error && (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-300">
+          <CheckCircle className="h-4 w-4 shrink-0" />{successMsg}
+        </div>
+      )}
+
+      {/* Session bar */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Approver Name</label>
+            <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Name" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>PIN</label>
+            <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="••••••••" className={INPUT_CLASS} />
+          </div>
+          <div className="flex items-end">
+            <button type="button" onClick={() => void load()} className={`${SECONDARY_BUTTON} w-full flex items-center justify-center gap-2`}>
+              <RefreshCw className="h-4 w-4" />Reload
+            </button>
+          </div>
+          <div className="flex items-end">
+            <button type="button" onClick={addRow} className={`${SECONDARY_BUTTON} w-full flex items-center justify-center gap-2`}>
+              <Plus className="h-4 w-4" />Add Level
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Draft rows */}
       <div className="space-y-3">
         {sortedDrafts.map(({ row, index }) => (
-          <div key={`${row.id || "new"}:${index}`} className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
-              <input value={row.level_no} onChange={(e) => updateDraft(index, { level_no: e.target.value })} placeholder="Level" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-              <input value={row.min_amount} onChange={(e) => updateDraft(index, { min_amount: e.target.value })} placeholder="Min amount" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-              <input value={row.max_amount} onChange={(e) => updateDraft(index, { max_amount: e.target.value })} placeholder="Max amount" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-              <input
-                value={row.required_roles_text}
-                onChange={(e) => updateDraft(index, { required_roles_text: e.target.value })}
-                placeholder="Roles (comma-separated)"
-                className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm md:col-span-2"
-              />
-              <button type="button" onClick={() => removeDraft(index)} className="rounded-xl border border-rose-700/60 bg-rose-900/20 px-3 py-2 text-xs text-rose-200 hover:bg-rose-800/30">
-                Remove
-              </button>
+          <div key={`${row.id || "new"}:${index}`} className={GLASS_CARD + " p-4"}>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-6">
+              <div>
+                <label className={`${T_LABEL} mb-1.5 block`}>Level</label>
+                <input value={row.level_no} onChange={(e) => updateDraft(index, { level_no: e.target.value })} placeholder="Level" className={INPUT_CLASS} />
+              </div>
+              <div>
+                <label className={`${T_LABEL} mb-1.5 block`}>Min Amount</label>
+                <input value={row.min_amount} onChange={(e) => updateDraft(index, { min_amount: e.target.value })} placeholder="0" className={INPUT_CLASS} />
+              </div>
+              <div>
+                <label className={`${T_LABEL} mb-1.5 block`}>Max Amount</label>
+                <input value={row.max_amount} onChange={(e) => updateDraft(index, { max_amount: e.target.value })} placeholder="0" className={INPUT_CLASS} />
+              </div>
+              <div className="sm:col-span-2">
+                <label className={`${T_LABEL} mb-1.5 block`}>Required Roles (comma-separated)</label>
+                <input
+                  value={row.required_roles_text}
+                  onChange={(e) => updateDraft(index, { required_roles_text: e.target.value })}
+                  placeholder="ADMIN, HQ"
+                  className={INPUT_CLASS}
+                />
+              </div>
+              <div className="flex items-end">
+                <button type="button" onClick={() => removeDraft(index)} className={`${DANGER_BUTTON} w-full`}>
+                  Remove
+                </button>
+              </div>
             </div>
 
             <div className="mt-3 flex flex-wrap gap-3">
-              <label className="inline-flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-neutral-200">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/8 bg-white/4 px-3 py-2 text-xs text-zinc-300">
                 <input type="checkbox" checked={row.escalate_if_urgent} onChange={(e) => updateDraft(index, { escalate_if_urgent: e.target.checked })} />
                 Escalate if urgent
               </label>
-              <label className="inline-flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-neutral-200">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/8 bg-white/4 px-3 py-2 text-xs text-zinc-300">
                 <input type="checkbox" checked={row.require_hq_if_new_vendor} onChange={(e) => updateDraft(index, { require_hq_if_new_vendor: e.target.checked })} />
                 Require HQ if new vendor
               </label>
-              <label className="inline-flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-neutral-200">
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/8 bg-white/4 px-3 py-2 text-xs text-zinc-300">
                 <input type="checkbox" checked={row.is_active} onChange={(e) => updateDraft(index, { is_active: e.target.checked })} />
                 Active
               </label>
             </div>
           </div>
         ))}
-        {!sortedDrafts.length ? <div className="text-sm text-neutral-500">No matrix rows yet.</div> : null}
+        {!sortedDrafts.length && (
+          <div className={`${GLASS_CARD} p-10 flex items-center justify-center`}>
+            <p className={T_CAPTION}>No matrix rows. Click &ldquo;Add Level&rdquo; to get started.</p>
+          </div>
+        )}
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-        <div className="text-sm font-medium">Current Matrix (Readback)</div>
-        <div className="mt-2 space-y-2">
-          {rows.map((row) => (
-            <div key={row.id} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3 text-xs text-neutral-300">
-              L{row.level_no}: {Number(row.min_amount || 0).toFixed(2)} - {Number(row.max_amount || 0).toFixed(2)} | Roles {(row.required_roles_json || []).join(", ") || "-"} | {row.is_active ? "ACTIVE" : "INACTIVE"}
-            </div>
-          ))}
+      {/* Readback */}
+      {rows.length > 0 && (
+        <div className={`${GLASS_CARD} p-4`}>
+          <p className={`${T_SECTION} mb-3`}>Current Matrix</p>
+          <div className="space-y-2">
+            {rows.map((row) => (
+              <div key={row.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-white/6 bg-white/3 px-3 py-2 text-xs text-zinc-300">
+                <span className="font-mono font-medium text-white">L{row.level_no}</span>
+                <span className={T_CAPTION}>{Number(row.min_amount || 0).toFixed(2)} – {Number(row.max_amount || 0).toFixed(2)}</span>
+                <span className={T_CAPTION}>Roles: {(row.required_roles_json || []).join(", ") || "-"}</span>
+                {row.is_active ? <span className={BADGE_SUCCESS}>ACTIVE</span> : <span className={BADGE_ERROR}>INACTIVE</span>}
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      <button type="button" onClick={() => void save()} disabled={busy} className="rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-4 py-2 text-sm text-emerald-200 hover:bg-emerald-800/30 disabled:opacity-60">
-        {busy ? "Saving..." : "Save Approval Matrix"}
+      <button type="button" onClick={() => void save()} disabled={busy} className={`${PRIMARY_BUTTON} flex items-center gap-2`}>
+        <CheckCircle className="h-4 w-4" />
+        {busy ? "Saving…" : "Save Approval Matrix"}
       </button>
     </div>
   );

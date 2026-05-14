@@ -5,6 +5,24 @@ import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/au
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
 import DatePicker from "@/components/DatePicker";
 import MonthPicker from "@/components/MonthPicker";
+import {
+  GLASS_CARD,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  INPUT_CLASS,
+  SELECT_CLASS,
+  TEXTAREA_CLASS,
+  T_PAGE_TITLE,
+  T_SECTION,
+  T_CARD_TITLE,
+  T_CAPTION,
+  T_LABEL,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  BADGE_ERROR,
+  BADGE_INFO,
+} from "@/lib/ui-tokens";
+import { RefreshCw, AlertCircle, CheckCircle, BarChart3 } from "lucide-react";
 
 type KpiRow = {
   id: string;
@@ -37,8 +55,24 @@ function monthNow(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function gradeBadge(grade: string) {
+  const g = String(grade || "-").toUpperCase();
+  if (g === "A" || g === "S") return <span className={BADGE_SUCCESS}>{g}</span>;
+  if (g === "B") return <span className={BADGE_INFO}>{g}</span>;
+  if (g === "C") return <span className={BADGE_WARNING}>{g}</span>;
+  return <span className={BADGE_ERROR}>{g || "-"}</span>;
+}
+
+function improvementStatusBadge(status: string) {
+  const s = String(status || "").toUpperCase();
+  if (s === "DONE" || s === "CLOSED") return <span className={BADGE_SUCCESS}>{s}</span>;
+  if (s === "IN_PROGRESS") return <span className={BADGE_INFO}>{s}</span>;
+  if (s === "OPEN") return <span className={BADGE_WARNING}>{s}</span>;
+  return <span className={BADGE_INFO}>{status || "-"}</span>;
+}
+
 export default function ProcurementScorecardsPage() {
-  const auth = getAuth();
+  const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
@@ -55,6 +89,7 @@ export default function ProcurementScorecardsPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
   const owners = useMemo(() => {
     const set = new Set<string>();
@@ -74,16 +109,8 @@ export default function ProcurementScorecardsPage() {
     setLoading(true);
     setError("");
     try {
-      const qsKpi = new URLSearchParams({
-        month_key: monthKey.trim(),
-        owner_name: effectiveOwner,
-        limit: "500",
-      });
-      const qsImp = new URLSearchParams({
-        month_key: monthKey.trim(),
-        owner_name: effectiveOwner,
-        limit: "500",
-      });
+      const qsKpi = new URLSearchParams({ month_key: monthKey.trim(), owner_name: effectiveOwner, limit: "500" });
+      const qsImp = new URLSearchParams({ month_key: monthKey.trim(), owner_name: effectiveOwner, limit: "500" });
       const [kpiRes, impRes] = await Promise.all([
         procurementJson<{ rows: KpiRow[] }>(
           `/api/admin/procurement/kpi/staff?${qsKpi.toString()}`,
@@ -127,20 +154,12 @@ export default function ProcurementScorecardsPage() {
   };
 
   const saveImprovement = async () => {
-    if (!monthKey.trim()) {
-      setError("month_key is required.");
-      return;
-    }
-    if (!effectiveOwner) {
-      setError("owner_name is required.");
-      return;
-    }
-    if (!issueTitle.trim()) {
-      setError("issue_title is required.");
-      return;
-    }
+    if (!monthKey.trim()) { setError("month_key is required."); return; }
+    if (!effectiveOwner) { setError("owner_name is required."); return; }
+    if (!issueTitle.trim()) { setError("issue_title is required."); return; }
     setSaving(true);
     setError("");
+    setSuccessMsg("");
     try {
       await procurementJson(
         "/api/admin/procurement/improvements/upsert",
@@ -162,6 +181,7 @@ export default function ProcurementScorecardsPage() {
         requestedBy,
         pin,
       );
+      setSuccessMsg("Improvement action saved.");
       await load();
       clearForm();
     } catch (e: any) {
@@ -191,110 +211,174 @@ export default function ProcurementScorecardsPage() {
       if (can) await load();
     }
     void init();
-  }, [auth, load]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!allowed) {
-    return <div className="text-sm text-red-300">Procurement page is available only to authorized admin roles.</div>;
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+        <AlertCircle className="h-4 w-4 shrink-0" />
+        Scorecards are only available to authorized admin roles.
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-4">
-      {error ? <div className="text-sm text-red-300">{error}</div> : null}
+    <div className="space-y-5">
 
-      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 md:grid-cols-5">
-        <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Approver name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <MonthPicker value={monthKey} onChange={setMonthKey} />
-        <input list="owner-list" value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)} placeholder="Owner name (optional)" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60">
-          {loading ? "Loading..." : "Refresh"}
-        </button>
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className={T_PAGE_TITLE}>Staff Scorecards</h2>
+          <p className="mt-1 text-sm text-zinc-400">Monthly KPI scores and improvement action tracking.</p>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/25 bg-violet-500/15 px-2.5 py-0.5 text-xs font-medium text-violet-400">
+          <BarChart3 className="h-3 w-3" />{monthKey}
+        </span>
       </div>
-      <datalist id="owner-list">
-        {owners.map((owner) => (
-          <option key={owner} value={owner} />
-        ))}
-      </datalist>
+
+      {/* Error / Success */}
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+          <AlertCircle className="h-4 w-4 shrink-0" />{error}
+        </div>
+      )}
+      {successMsg && !error && (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-300">
+          <CheckCircle className="h-4 w-4 shrink-0" />{successMsg}
+        </div>
+      )}
+
+      {/* Filter bar */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Approver Name</label>
+            <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Name" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>PIN</label>
+            <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="••••••••" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Month</label>
+            <MonthPicker value={monthKey} onChange={setMonthKey} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Owner</label>
+            <input list="owner-list" value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)} placeholder="Filter by owner" className={INPUT_CLASS} />
+            <datalist id="owner-list">
+              {owners.map((owner) => <option key={owner} value={owner} />)}
+            </datalist>
+          </div>
+          <div className="flex items-end">
+            <button type="button" onClick={() => void load()} disabled={loading} className={`${SECONDARY_BUTTON} w-full flex items-center justify-center gap-2`}>
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              {loading ? "Loading…" : "Refresh"}
+            </button>
+          </div>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+
+        {/* Left: scorecards + improvements list */}
         <div className="space-y-4">
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-            <div className="text-sm font-medium">Staff Scorecards ({monthKey})</div>
-            <div className="mt-3 space-y-2">
+          <div className={`${GLASS_CARD} p-4`}>
+            <p className={`${T_SECTION} mb-3`}>Staff Scorecards ({monthKey})</p>
+            <div className="space-y-2">
               {kpiRows.map((row) => (
                 <button
                   key={row.id || `${row.month_key}:${row.owner_name}`}
                   type="button"
                   onClick={() => setOwnerFilter(row.owner_name || "")}
-                  className="w-full rounded-xl border border-neutral-800 bg-neutral-950/40 p-3 text-left hover:bg-neutral-900"
+                  className="w-full rounded-xl border border-white/6 bg-white/3 p-3 text-left transition-colors hover:bg-white/5"
                 >
-                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                    <div className="text-sm text-neutral-100">{row.owner_name || "UNASSIGNED"}</div>
-                    <div className="text-xs text-neutral-400">
-                      Score {Number(row.score_total || 0).toFixed(1)} / Grade {row.grade || "-"}
+                  <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-sm font-medium text-white">{row.owner_name || "UNASSIGNED"}</div>
+                    <div className="flex items-center gap-2">
+                      <span className={T_CAPTION}>Score {Number(row.score_total || 0).toFixed(1)}</span>
+                      {gradeBadge(row.grade || "-")}
                     </div>
                   </div>
-                  <div className="mt-1 text-xs text-neutral-500">
+                  <div className={`mt-1 ${T_CAPTION}`}>
                     On-time {Number(row.on_time_rate || 0).toFixed(1)} | Price dev {Number(row.price_deviation_avg || 0).toFixed(2)} | Exceptions {Number(row.exception_count || 0)}
                   </div>
                 </button>
               ))}
-              {!kpiRows.length ? <div className="text-sm text-neutral-500">No KPI rows.</div> : null}
+              {!kpiRows.length && <p className={T_CAPTION}>No KPI rows for this month.</p>}
             </div>
           </div>
 
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-            <div className="text-sm font-medium">Improvement Actions</div>
-            <div className="mt-3 space-y-2">
+          <div className={`${GLASS_CARD} p-4`}>
+            <p className={`${T_SECTION} mb-3`}>Improvement Actions</p>
+            <div className="space-y-2">
               {improvementRows.map((row) => (
                 <button
                   key={row.id}
                   type="button"
                   onClick={() => editImprovement(row)}
                   className={[
-                    "w-full rounded-xl border p-3 text-left",
-                    selectedImprovementId === row.id ? "border-amber-500 bg-amber-950/20" : "border-neutral-800 bg-neutral-950/40 hover:bg-neutral-900",
+                    "w-full rounded-xl border p-3 text-left transition-colors",
+                    selectedImprovementId === row.id
+                      ? "border-amber-500/40 bg-amber-500/10"
+                      : "border-white/6 bg-white/3 hover:bg-white/5",
                   ].join(" ")}
                 >
-                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                    <div className="text-sm text-neutral-100">{row.issue_title}</div>
-                    <div className="text-xs text-neutral-400">{row.status || "-"}</div>
+                  <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-sm font-medium text-white">{row.issue_title}</div>
+                    {improvementStatusBadge(row.status)}
                   </div>
-                  <div className="mt-1 text-xs text-neutral-500">
+                  <div className={`mt-1 ${T_CAPTION}`}>
                     {row.owner_name || "-"} | Due {String(row.due_date || "").slice(0, 10) || "-"} | Updated {String(row.updated_at || "").slice(0, 16).replace("T", " ")}
                   </div>
                 </button>
               ))}
-              {!improvementRows.length ? <div className="text-sm text-neutral-500">No improvement actions.</div> : null}
+              {!improvementRows.length && <p className={T_CAPTION}>No improvement actions.</p>}
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-          <div className="flex items-center justify-between gap-2">
+        {/* Right: edit / create form */}
+        <div className={`${GLASS_CARD} p-4`}>
+          <div className="mb-4 flex items-center justify-between gap-2">
             <div>
-              <div className="text-sm font-medium">{selectedImprovementId ? "Edit Improvement" : "New Improvement"}</div>
-              <div className="mt-1 text-xs text-neutral-500">Register action plans against monthly scorecards.</div>
+              <p className={T_CARD_TITLE}>{selectedImprovementId ? "Edit Improvement" : "New Improvement"}</p>
+              <p className={`mt-0.5 ${T_CAPTION}`}>Register action plans against monthly scorecards.</p>
             </div>
-            <button type="button" onClick={clearForm} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
-              Clear
-            </button>
+            <button type="button" onClick={clearForm} className={SECONDARY_BUTTON}>Clear</button>
           </div>
-          <div className="mt-4 grid grid-cols-1 gap-3">
-            <input value={issueTitle} onChange={(e) => setIssueTitle(e.target.value)} placeholder="Issue title" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-            <textarea value={actionPlan} onChange={(e) => setActionPlan(e.target.value)} placeholder="Action plan" className="min-h-24 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <DatePicker value={dueDate} onChange={setDueDate} />
-              <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm">
-                <option value="OPEN">OPEN</option>
-                <option value="IN_PROGRESS">IN_PROGRESS</option>
-                <option value="DONE">DONE</option>
-                <option value="CLOSED">CLOSED</option>
-              </select>
+
+          <div className="space-y-3">
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Issue Title</label>
+              <input value={issueTitle} onChange={(e) => setIssueTitle(e.target.value)} placeholder="Issue title" className={INPUT_CLASS} />
             </div>
-            <textarea value={resultNote} onChange={(e) => setResultNote(e.target.value)} placeholder="Result note" className="min-h-24 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-            <button type="button" onClick={() => void saveImprovement()} disabled={saving} className="rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-800/30 disabled:opacity-60">
-              {saving ? "Saving..." : "Save Improvement"}
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Action Plan</label>
+              <textarea value={actionPlan} onChange={(e) => setActionPlan(e.target.value)} placeholder="Action plan" rows={3} className={TEXTAREA_CLASS} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={`${T_LABEL} mb-1.5 block`}>Due Date</label>
+                <DatePicker value={dueDate} onChange={setDueDate} />
+              </div>
+              <div>
+                <label className={`${T_LABEL} mb-1.5 block`}>Status</label>
+                <select value={status} onChange={(e) => setStatus(e.target.value)} className={SELECT_CLASS}>
+                  <option value="OPEN">OPEN</option>
+                  <option value="IN_PROGRESS">IN_PROGRESS</option>
+                  <option value="DONE">DONE</option>
+                  <option value="CLOSED">CLOSED</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Result Note</label>
+              <textarea value={resultNote} onChange={(e) => setResultNote(e.target.value)} placeholder="Result note" rows={3} className={TEXTAREA_CLASS} />
+            </div>
+            <button type="button" onClick={() => void saveImprovement()} disabled={saving} className={`${PRIMARY_BUTTON} w-full`}>
+              {saving ? "Saving…" : "Save Improvement"}
             </button>
           </div>
         </div>

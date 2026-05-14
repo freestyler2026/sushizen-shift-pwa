@@ -5,6 +5,22 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
 import DateRangePicker from "@/components/DateRangePicker";
+import {
+  GLASS_CARD,
+  SECONDARY_BUTTON,
+  PRIMARY_BUTTON,
+  INPUT_CLASS,
+  SELECT_CLASS,
+  TABLE_HEADER,
+  TABLE_ROW,
+  TABLE_CELL,
+  T_PAGE_TITLE,
+  T_SECTION,
+  T_CAPTION,
+  T_LABEL,
+  BADGE_SUCCESS,
+} from "@/lib/ui-tokens";
+import { RefreshCw, AlertCircle, CheckCircle, Upload, ArrowLeft } from "lucide-react";
 
 type ImportBatchRow = {
   id: string;
@@ -73,6 +89,7 @@ export default function ProcurementImportsPage() {
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
   const selectedCount = selectedIds.length;
 
@@ -121,6 +138,7 @@ export default function ProcurementImportsPage() {
     }
     setBusy(true);
     setError("");
+    setSuccessMsg("");
     try {
       const data = await procurementJson<{ requests: CreatedRequestResult[] }>(
         `/api/admin/procurement/import/orders-excel/create-requests`,
@@ -141,8 +159,10 @@ export default function ProcurementImportsPage() {
         requestedBy,
         pin,
       );
-      setCreatedRequests(Array.isArray(data?.requests) ? data.requests : []);
+      const created = Array.isArray(data?.requests) ? data.requests : [];
+      setCreatedRequests(created);
       setSelectedIds([]);
+      setSuccessMsg(`Created ${created.length} procurement request(s).`);
       await load();
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -160,9 +180,7 @@ export default function ProcurementImportsPage() {
       setAllowed(can);
     }
     void init();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [auth, city]);
 
   useEffect(() => {
@@ -171,94 +189,136 @@ export default function ProcurementImportsPage() {
   }, [allowed, load]);
 
   if (!allowed) {
-    return <div className="text-sm text-red-300">Procurement imports are available only to authorized admin roles.</div>;
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+        <AlertCircle className="h-4 w-4 shrink-0" />
+        Procurement imports are available only to authorized admin roles.
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-4">
-      {error ? <div className="text-sm text-red-300">{error}</div> : null}
+    <div className="space-y-5">
 
-      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 lg:grid-cols-4">
-        <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Approver name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <select value={city} onChange={(e) => setCity((String(e.target.value || "manila").toLowerCase() === "dubai" ? "dubai" : "manila"))} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm">
-          <option value="manila">Manila</option>
-          <option value="dubai">Dubai</option>
-        </select>
-        <input value={sourceSheet} onChange={(e) => setSourceSheet(e.target.value)} placeholder="Source sheet" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60 lg:col-span-2">
-          {loading ? "Refreshing..." : "Refresh"}
-        </button>
-        <input value={store} onChange={(e) => setStore(e.target.value)} placeholder="Store filter" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <select value={orderType} onChange={(e) => setOrderType(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm">
-          <option value="">All order types</option>
-          <option value="WH">WH</option>
-          <option value="Supplier">Supplier</option>
-          <option value="CK">CK</option>
-          <option value="CK_WH_to_supplier">CK_WH_to_supplier</option>
-        </select>
-        <DateRangePicker
-          value={{ from: dateFrom, to: dateTo }}
-          onChange={(range) => {
-            setDateFrom(range.from);
-            setDateTo(range.to);
-          }}
-          className="lg:col-span-2"
-        />
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className={T_PAGE_TITLE}>Import Orders</h2>
+          <p className="mt-1 text-sm text-zinc-400">Create procurement requests from imported Excel order data.</p>
+        </div>
+        <Link href="/admin/procurement" className="inline-flex items-center gap-1.5 text-xs text-violet-400 hover:text-violet-300 transition-colors">
+          <ArrowLeft className="h-3.5 w-3.5" />Back to Requests
+        </Link>
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <div className="text-sm font-medium">Import Batches</div>
-            <div className="mt-1 text-xs text-neutral-400">Saved workbook sync history. Use row selection below to raise PR from imported data.</div>
-          </div>
-          <Link href="/admin/procurement" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
-            Back to Requests
-          </Link>
+      {/* Error / Success */}
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+          <AlertCircle className="h-4 w-4 shrink-0" />{error}
         </div>
-        <div className="mt-3 space-y-2">
+      )}
+      {successMsg && !error && (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-300">
+          <CheckCircle className="h-4 w-4 shrink-0" />{successMsg}
+        </div>
+      )}
+
+      {/* Session / filter bar */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Approver Name</label>
+            <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Name" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>PIN</label>
+            <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="••••••••" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>City</label>
+            <select value={city} onChange={(e) => setCity(String(e.target.value || "manila").toLowerCase() === "dubai" ? "dubai" : "manila")} className={SELECT_CLASS}>
+              <option value="manila">Manila</option>
+              <option value="dubai">Dubai</option>
+            </select>
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Source Sheet</label>
+            <input value={sourceSheet} onChange={(e) => setSourceSheet(e.target.value)} placeholder="Sheet name" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Store Filter</label>
+            <input value={store} onChange={(e) => setStore(e.target.value)} placeholder="Store" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Order Type</label>
+            <select value={orderType} onChange={(e) => setOrderType(e.target.value)} className={SELECT_CLASS}>
+              <option value="">All order types</option>
+              <option value="WH">WH</option>
+              <option value="Supplier">Supplier</option>
+              <option value="CK">CK</option>
+              <option value="CK_WH_to_supplier">CK_WH_to_supplier</option>
+            </select>
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Date Range</label>
+            <DateRangePicker value={{ from: dateFrom, to: dateTo }} onChange={(range) => { setDateFrom(range.from); setDateTo(range.to); }} />
+          </div>
+          <div className="flex items-end">
+            <button type="button" onClick={() => void load()} disabled={loading} className={`${SECONDARY_BUTTON} w-full flex items-center justify-center gap-2`}>
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              {loading ? "Loading…" : "Refresh"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Import batches */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <p className={`${T_SECTION} mb-1`}>Import Batches</p>
+        <p className={`${T_CAPTION} mb-3`}>Saved workbook sync history. Use row selection below to raise PRs from imported data.</p>
+        <div className="space-y-2">
           {batches.map((batch) => (
-            <div key={batch.id} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3 text-xs">
-              <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                <div className="text-sm text-white">{batch.filename}</div>
-                <div className="text-neutral-400">{fmtDateTime(batch.created_at)}</div>
+            <div key={batch.id} className="rounded-xl border border-white/6 bg-white/3 p-3">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm font-medium text-white">{batch.filename}</div>
+                <span className={T_CAPTION}>{fmtDateTime(batch.created_at)}</span>
               </div>
-              <div className="mt-2 text-neutral-400">
+              <div className={`mt-1 ${T_CAPTION}`}>
                 Records {batch.record_count} | Imported by {batch.imported_by || "-"} | Months {(batch.month_keys_json || []).join(", ") || "-"}
               </div>
-              <div className="mt-1 text-neutral-500">
+              <div className={T_CAPTION}>
                 Stores {Object.entries(batch.store_counts_json || {}).map(([key, value]) => `${key}:${value}`).join(" / ") || "-"}
               </div>
             </div>
           ))}
-          {!batches.length ? <div className="text-sm text-neutral-500">No import batches yet.</div> : null}
+          {!batches.length && <p className={T_CAPTION}>No import batches yet.</p>}
         </div>
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+      {/* Imported rows */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <div className="text-sm font-medium">Imported Rows</div>
-            <div className="mt-1 text-xs text-neutral-400">{selectedCount} row(s) selected. Selected rows are grouped by store + date + order type when PRs are created.</div>
+            <p className={T_SECTION}>Imported Rows</p>
+            <p className={`mt-0.5 ${T_CAPTION}`}>{selectedCount} row(s) selected. Selected rows are grouped by store + date + order type when PRs are created.</p>
           </div>
-          <div className="flex flex-wrap gap-2 text-xs">
-            <label className="inline-flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/8 bg-white/4 px-3 py-2 text-zinc-300">
               <input type="checkbox" checked={submitImmediately} onChange={(e) => setSubmitImmediately(e.target.checked)} />
               Submit immediately
             </label>
-            <label className="inline-flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/8 bg-white/4 px-3 py-2 text-zinc-300">
               <input type="checkbox" checked={urgentFlag} onChange={(e) => setUrgentFlag(e.target.checked)} />
               Urgent
             </label>
-            <label className="inline-flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/8 bg-white/4 px-3 py-2 text-zinc-300">
               <input type="checkbox" checked={newVendorFlag} onChange={(e) => setNewVendorFlag(e.target.checked)} />
               New vendor
             </label>
             <button
               type="button"
               onClick={() => setSelectedIds(allVisibleSelected ? [] : rows.map((row) => row.id))}
-              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 hover:bg-neutral-900"
+              className={SECONDARY_BUTTON}
             >
               {allVisibleSelected ? "Clear Visible" : "Select Visible"}
             </button>
@@ -266,68 +326,63 @@ export default function ProcurementImportsPage() {
               type="button"
               onClick={() => void createRequests()}
               disabled={busy || !selectedIds.length}
-              className="rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-emerald-200 hover:bg-emerald-800/30 disabled:opacity-60"
+              className={`${PRIMARY_BUTTON} flex items-center gap-2`}
             >
-              {busy ? "Creating..." : "Create PR from Selected"}
+              <Upload className="h-3.5 w-3.5" />
+              {busy ? "Creating…" : "Create PR from Selected"}
             </button>
           </div>
         </div>
 
-        <div className="mt-3 overflow-x-auto">
+        <div className="overflow-x-auto">
           <table className="min-w-full text-left text-xs">
-            <thead className="text-neutral-400">
+            <thead>
               <tr>
-                <th className="px-2 py-2">Select</th>
-                <th className="px-2 py-2">Date</th>
-                <th className="px-2 py-2">Store</th>
-                <th className="px-2 py-2">Type</th>
-                <th className="px-2 py-2">Item</th>
-                <th className="px-2 py-2">Supplier</th>
-                <th className="px-2 py-2">Qty</th>
-                <th className="px-2 py-2">Unit Price</th>
-                <th className="px-2 py-2">Sheet</th>
+                {["Select","Date","Store","Type","Item","Supplier","Qty","Unit Price","Sheet"].map((h) => (
+                  <th key={h} className={`${TABLE_HEADER} px-2 py-2`}>{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => {
                 const checked = selectedIds.includes(row.id);
                 return (
-                  <tr key={row.id} className={checked ? "bg-amber-950/10" : ""}>
-                    <td className="px-2 py-2">
+                  <tr key={row.id} className={`${TABLE_ROW} ${checked ? "bg-amber-500/6" : ""}`}>
+                    <td className={`${TABLE_CELL} px-2`}>
                       <input type="checkbox" checked={checked} onChange={() => toggleRow(row.id)} />
                     </td>
-                    <td className="px-2 py-2">{row.order_date}</td>
-                    <td className="px-2 py-2">{row.store || "-"}</td>
-                    <td className="px-2 py-2">{row.order_type || "-"}</td>
-                    <td className="px-2 py-2">{row.item_name || "-"}</td>
-                    <td className="px-2 py-2">{row.supplier || "-"}</td>
-                    <td className="px-2 py-2">{Number(row.quantity || 0).toFixed(2)}</td>
-                    <td className="px-2 py-2">{Number(row.unit_price || 0).toFixed(2)}</td>
-                    <td className="px-2 py-2">{row.source_sheet || "-"}</td>
+                    <td className={`${TABLE_CELL} px-2`}>{row.order_date}</td>
+                    <td className={`${TABLE_CELL} px-2`}>{row.store || "-"}</td>
+                    <td className={`${TABLE_CELL} px-2`}>{row.order_type || "-"}</td>
+                    <td className={`${TABLE_CELL} px-2`}>{row.item_name || "-"}</td>
+                    <td className={`${TABLE_CELL} px-2`}>{row.supplier || "-"}</td>
+                    <td className={`${TABLE_CELL} px-2`}>{Number(row.quantity || 0).toFixed(2)}</td>
+                    <td className={`${TABLE_CELL} px-2`}>{Number(row.unit_price || 0).toFixed(2)}</td>
+                    <td className={`${TABLE_CELL} px-2`}>{row.source_sheet || "-"}</td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
-        {!rows.length ? <div className="mt-3 text-sm text-neutral-500">No imported rows for the selected filter.</div> : null}
+        {!rows.length && <p className={`mt-3 ${T_CAPTION}`}>No imported rows for the selected filter.</p>}
       </div>
 
-      {createdRequests.length ? (
-        <div className="rounded-2xl border border-sky-800/60 bg-sky-950/10 p-4">
-          <div className="text-sm font-medium text-sky-100">Created Requests</div>
-          <div className="mt-3 space-y-2">
+      {/* Created requests result */}
+      {createdRequests.length > 0 && (
+        <div className="rounded-2xl border border-sky-500/20 bg-sky-500/8 p-4">
+          <p className={`${T_SECTION} mb-3`}>Created Requests</p>
+          <div className="space-y-2">
             {createdRequests.map((entry, idx) => (
-              <div key={`${entry.request?.id || idx}`} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3 text-xs">
-                <div className="text-sm text-white">{entry.request?.request_no || entry.request?.id || "Request"}</div>
-                <div className="mt-1 text-neutral-400">
-                  {entry.request?.store_code || "-"} | {entry.request?.request_date || "-"} | {entry.request?.status || "-"}
-                </div>
+              <div key={entry.request?.id || idx} className="flex flex-wrap items-center gap-2 rounded-xl border border-white/6 bg-white/3 p-3">
+                <span className="text-sm font-medium text-white">{entry.request?.request_no || entry.request?.id || "Request"}</span>
+                <span className={BADGE_SUCCESS}>{entry.request?.status || "CREATED"}</span>
+                <span className={T_CAPTION}>{entry.request?.store_code || "-"} | {entry.request?.request_date || "-"}</span>
               </div>
             ))}
           </div>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

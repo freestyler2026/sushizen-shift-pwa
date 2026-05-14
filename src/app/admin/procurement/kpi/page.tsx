@@ -1,10 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson, procurementTokenHeaders } from "@/lib/procurementClient";
 import MonthPicker from "@/components/MonthPicker";
+import {
+  GLASS_CARD,
+  SECONDARY_BUTTON,
+  KPI_CARD,
+  KPI_LABEL,
+  KPI_VALUE,
+  T_PAGE_TITLE,
+  T_SECTION,
+  T_CAPTION,
+  T_LABEL,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  BADGE_ERROR,
+  BADGE_INFO,
+} from "@/lib/ui-tokens";
+import { RefreshCw, AlertCircle, BarChart3, ExternalLink } from "lucide-react";
 
 type DashboardSummary = {
   month_key: string;
@@ -49,8 +65,16 @@ function monthNow(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function gradeBadge(grade: string) {
+  const g = String(grade || "-").toUpperCase();
+  if (g === "A" || g === "S") return <span className={BADGE_SUCCESS}>{g}</span>;
+  if (g === "B") return <span className={BADGE_INFO}>{g}</span>;
+  if (g === "C") return <span className={BADGE_WARNING}>{g}</span>;
+  return <span className={BADGE_ERROR}>{g || "-"}</span>;
+}
+
 export default function ProcurementKpiPage() {
-  const auth = getAuth();
+  const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
@@ -58,11 +82,13 @@ export default function ProcurementKpiPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [staffRows, setStaffRows] = useState<DashboardStaffRow[]>([]);
   const [storeRows, setStoreRows] = useState<DashboardStoreRow[]>([]);
-  const [busy, setBusy] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     setError("");
+    setLoading(true);
     try {
       const data = await procurementJson<{ summary: DashboardSummary; staff_rows: DashboardStaffRow[]; store_rows: DashboardStoreRow[] }>(
         `/api/admin/procurement/kpi/dashboard?month_key=${encodeURIComponent(monthKey)}`,
@@ -75,19 +101,17 @@ export default function ProcurementKpiPage() {
       setStoreRows(Array.isArray(data?.store_rows) ? data.store_rows : []);
     } catch (e: any) {
       setError(e?.message || String(e));
+    } finally {
+      setLoading(false);
     }
   }, [monthKey, pin, requestedBy]);
 
   const recompute = async () => {
-    setBusy("recompute");
+    setBusy(true);
     setError("");
     try {
       const headers = await procurementTokenHeaders(requestedBy, pin);
-      const qs = new URLSearchParams({
-        month_key: monthKey,
-        approver_name: requestedBy,
-        pin,
-      });
+      const qs = new URLSearchParams({ month_key: monthKey, approver_name: requestedBy, pin });
       const res = await fetch(`/api/admin/procurement/kpi/recompute?${qs.toString()}`, {
         method: "POST",
         headers,
@@ -99,7 +123,7 @@ export default function ProcurementKpiPage() {
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
-      setBusy("");
+      setBusy(false);
     }
   };
 
@@ -114,94 +138,145 @@ export default function ProcurementKpiPage() {
       if (can) await load();
     }
     void init();
-  }, [auth, load]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!allowed) {
-    return <div className="text-sm text-red-300">Procurement page is available only to authorized admin roles.</div>;
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+        <AlertCircle className="h-4 w-4 shrink-0" />
+        KPI dashboard is only available to authorized admin roles.
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-4">
-      {error ? <div className="text-sm text-red-300">{error}</div> : null}
+    <div className="space-y-5">
 
-      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 md:grid-cols-4">
-        <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Approver name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <MonthPicker value={monthKey} onChange={setMonthKey} />
-        <div className="flex gap-2">
-          <button type="button" onClick={() => void load()} className="flex-1 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900">
-            Refresh
-          </button>
-          <button type="button" onClick={() => void recompute()} disabled={busy === "recompute"} className="rounded-xl border border-amber-700/60 bg-amber-900/20 px-3 py-2 text-sm text-amber-200 hover:bg-amber-800/30 disabled:opacity-60">
-            {busy === "recompute" ? "Recomputing..." : "Recompute"}
-          </button>
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className={T_PAGE_TITLE}>KPI Dashboard</h2>
+          <p className="mt-1 text-sm text-zinc-400">Monthly procurement performance scores by staff and store.</p>
         </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/25 bg-violet-500/15 px-2.5 py-0.5 text-xs font-medium text-violet-400">
+          <BarChart3 className="h-3 w-3" />{monthKey}
+        </span>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-          <div className="text-xs text-neutral-400">Overall Score</div>
-          <div className="mt-2 text-2xl font-semibold text-neutral-100">{Number(summary?.score_total || 0).toFixed(1)}</div>
-          <div className="mt-1 text-xs text-neutral-500">Grade {summary?.grade || "-"}</div>
+      {/* Error */}
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+          <AlertCircle className="h-4 w-4 shrink-0" />{error}
         </div>
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-          <div className="text-xs text-neutral-400">Receiving Delay</div>
-          <div className="mt-2 text-2xl font-semibold text-neutral-100">{Number(summary?.receiving_delay_rate || 0).toFixed(1)}%</div>
-          <div className="mt-1 text-xs text-neutral-500">Requests {summary?.request_count || 0}</div>
-        </div>
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-          <div className="text-xs text-neutral-400">Variance / Claim</div>
-          <div className="mt-2 text-2xl font-semibold text-neutral-100">{Number(summary?.variance_rate || 0).toFixed(1)}%</div>
-          <div className="mt-1 text-xs text-neutral-500">Claim rate {Number(summary?.claim_rate || 0).toFixed(1)}%</div>
-        </div>
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-          <div className="text-xs text-neutral-400">Payment Compliance</div>
-          <div className="mt-2 text-2xl font-semibold text-neutral-100">{Number(summary?.payment_compliance_rate || 0).toFixed(1)}%</div>
-          <div className="mt-1 text-xs text-neutral-500">Hold release LT {Number(summary?.hold_release_lead_hours || 0).toFixed(1)}h</div>
-        </div>
-      </div>
+      )}
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-        <div className="flex items-center justify-between gap-3">
+      {/* Session / filter bar */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
           <div>
-            <div className="text-sm font-medium">By Staff</div>
-            <div className="mt-1 text-xs text-neutral-500">Use low-scoring rows to open improvement actions for the month.</div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Approver Name</label>
+            <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Name" className="w-full rounded-xl border border-white/10 bg-white/6 px-4 py-2.5 text-sm text-white placeholder:text-zinc-500 outline-none transition focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20" />
           </div>
-          <Link href={`/admin/procurement?month_key=${encodeURIComponent(monthKey)}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
-            Open Improvements
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>PIN</label>
+            <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="••••••••" className="w-full rounded-xl border border-white/10 bg-white/6 px-4 py-2.5 text-sm text-white placeholder:text-zinc-500 outline-none transition focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20" />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Month</label>
+            <MonthPicker value={monthKey} onChange={setMonthKey} />
+          </div>
+          <div className="flex items-end gap-2">
+            <button type="button" onClick={() => void load()} disabled={loading} className={`${SECONDARY_BUTTON} flex-1 flex items-center justify-center gap-2`}>
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              {loading ? "Loading…" : "Refresh"}
+            </button>
+            <button type="button" onClick={() => void recompute()} disabled={busy} className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-300 transition hover:bg-amber-500/20 disabled:opacity-60">
+              {busy ? "…" : "Recompute"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className={KPI_CARD}>
+          <div className={KPI_LABEL}>Overall Score</div>
+          <div className={KPI_VALUE}>{Number(summary?.score_total || 0).toFixed(1)}</div>
+          <div className="mt-1 flex items-center gap-2">
+            <span className={T_CAPTION}>Grade</span>
+            {gradeBadge(summary?.grade || "-")}
+          </div>
+        </div>
+        <div className={KPI_CARD}>
+          <div className={KPI_LABEL}>Receiving Delay</div>
+          <div className={KPI_VALUE}>{Number(summary?.receiving_delay_rate || 0).toFixed(1)}%</div>
+          <div className={`mt-1 ${T_CAPTION}`}>Requests: {summary?.request_count || 0}</div>
+        </div>
+        <div className={KPI_CARD}>
+          <div className={KPI_LABEL}>Variance Rate</div>
+          <div className={KPI_VALUE}>{Number(summary?.variance_rate || 0).toFixed(1)}%</div>
+          <div className={`mt-1 ${T_CAPTION}`}>Claim rate: {Number(summary?.claim_rate || 0).toFixed(1)}%</div>
+        </div>
+        <div className={KPI_CARD}>
+          <div className={KPI_LABEL}>Payment Compliance</div>
+          <div className={KPI_VALUE}>{Number(summary?.payment_compliance_rate || 0).toFixed(1)}%</div>
+          <div className={`mt-1 ${T_CAPTION}`}>Hold LT: {Number(summary?.hold_release_lead_hours || 0).toFixed(1)}h</div>
+        </div>
+      </div>
+
+      {/* By Staff */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <p className={T_SECTION}>By Staff</p>
+            <p className={`mt-0.5 ${T_CAPTION}`}>Use low-scoring rows to open improvement actions for the month.</p>
+          </div>
+          <Link
+            href={`/admin/procurement?month_key=${encodeURIComponent(monthKey)}`}
+            className="inline-flex items-center gap-1.5 text-xs text-violet-400 hover:text-violet-300 transition-colors"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />Open Improvements
           </Link>
         </div>
-        <div className="mt-3 space-y-2">
+        <div className="space-y-2">
           {staffRows.map((row) => (
-            <div key={row.owner_name} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div className="text-sm text-neutral-100">{row.owner_name || "UNASSIGNED"}</div>
-                <div className="text-xs text-neutral-400">Score {Number(row.score_total || 0).toFixed(1)} / Grade {row.grade || "-"}</div>
+            <div key={row.owner_name} className="rounded-xl border border-white/6 bg-white/3 p-3">
+              <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm font-medium text-white">{row.owner_name || "UNASSIGNED"}</div>
+                <div className="flex items-center gap-2">
+                  <span className={T_CAPTION}>Score {Number(row.score_total || 0).toFixed(1)}</span>
+                  {gradeBadge(row.grade || "-")}
+                </div>
               </div>
-              <div className="mt-2 text-xs text-neutral-500">
+              <div className={`mt-1 ${T_CAPTION}`}>
                 Delay {Number(row.receiving_delay_rate || 0).toFixed(1)}% | Variance {Number(row.variance_rate || 0).toFixed(1)}% | Claim {Number(row.claim_rate || 0).toFixed(1)}% | Payment {Number(row.payment_compliance_rate || 0).toFixed(1)}%
               </div>
             </div>
           ))}
-          {!staffRows.length ? <div className="text-sm text-neutral-500">No staff KPI rows.</div> : null}
+          {!staffRows.length && <p className={T_CAPTION}>No staff KPI rows for this month.</p>}
         </div>
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-        <div className="text-sm font-medium">By Store</div>
-        <div className="mt-3 space-y-2">
+      {/* By Store */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <p className={`${T_SECTION} mb-3`}>By Store</p>
+        <div className="space-y-2">
           {storeRows.map((row) => (
-            <div key={row.store_code} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div className="text-sm text-neutral-100">{row.store_code || "UNASSIGNED"}</div>
-                <div className="text-xs text-neutral-400">Score {Number(row.score_total || 0).toFixed(1)} / Grade {row.grade || "-"}</div>
+            <div key={row.store_code} className="rounded-xl border border-white/6 bg-white/3 p-3">
+              <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-sm font-medium text-white">{row.store_code || "UNASSIGNED"}</div>
+                <div className="flex items-center gap-2">
+                  <span className={T_CAPTION}>Score {Number(row.score_total || 0).toFixed(1)}</span>
+                  {gradeBadge(row.grade || "-")}
+                </div>
               </div>
-              <div className="mt-2 text-xs text-neutral-500">
+              <div className={`mt-1 ${T_CAPTION}`}>
                 Delay {Number(row.receiving_delay_rate || 0).toFixed(1)}% | Variance {Number(row.variance_rate || 0).toFixed(1)}% | Claim {Number(row.claim_rate || 0).toFixed(1)}% | Payment {Number(row.payment_compliance_rate || 0).toFixed(1)}%
               </div>
             </div>
           ))}
-          {!storeRows.length ? <div className="text-sm text-neutral-500">No store KPI rows.</div> : null}
+          {!storeRows.length && <p className={T_CAPTION}>No store KPI rows for this month.</p>}
         </div>
       </div>
     </div>
