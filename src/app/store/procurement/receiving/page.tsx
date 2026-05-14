@@ -406,45 +406,10 @@ export default function StoreProcurementReceivingPage() {
 
   return (
     <div className="min-h-screen text-white">
-      <div className="mx-auto max-w-3xl space-y-4 px-4 py-8">
+      <div className="mx-auto max-w-7xl px-4 py-8">
 
-        {/* ── Error / Info banners ── */}
-        {error ? (
-          <div className="flex items-center gap-2 rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-sm text-red-300">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
-            {error}
-          </div>
-        ) : null}
-        {info ? (
-          <div className="flex items-center gap-2 rounded-xl border border-emerald-900/40 bg-emerald-950/20 px-3 py-2 text-sm text-emerald-300">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-            {info}
-          </div>
-        ) : null}
-
-        {/* ── Last created receiving banner ── */}
-        {lastCreatedId ? (
-          <div className="rounded-xl border border-emerald-700/50 bg-emerald-900/15 px-4 py-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2 text-sm font-medium text-emerald-200">
-                  <CheckCircle2 className="h-4 w-4" />
-                  {lastCreatedNo || "Receiving created"}
-                  {lastCreatedAt ? <span className="text-[11px] font-normal text-emerald-300/70">({formatRelativeAge(lastCreatedAt, relativeNowMs)})</span> : null}
-                </div>
-              </div>
-              <Link
-                href={`/store/procurement/claim?request_id=${encodeURIComponent(lastCreatedRequestId || requestId)}&receiving_id=${encodeURIComponent(lastCreatedId)}`}
-                className="flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300 transition hover:bg-emerald-500/20"
-              >
-                Continue to Claim <ChevronRight className="h-3 w-3" />
-              </Link>
-            </div>
-          </div>
-        ) : null}
-
-        {/* ── Header ── */}
-        <div>
+        {/* ── Page header + stepper (full-width) ── */}
+        <div className="mb-5">
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl font-light tracking-tight text-white">Store Receiving</h1>
@@ -454,41 +419,46 @@ export default function StoreProcurementReceivingPage() {
               <Package className="h-3 w-3" />{cityLabel}
             </span>
           </div>
-          <div className={`${GLASS} px-6 py-3 mb-1`}>
+          <div className={`${GLASS} px-6 py-3 mb-3`}>
             <ProcurementStepper currentStep="receiving" />
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+            <Link href="/store/procurement" className="hover:text-violet-300 transition-colors">Home</Link>
+            <span>›</span>
+            <Link href={`/store/procurement/request?city=${encodeURIComponent(city)}`} className="hover:text-violet-300 transition-colors">New Request</Link>
+            <span>›</span>
+            <span className="text-violet-300 font-medium">Receiving</span>
+            <span>›</span>
+            <Link href={`/store/procurement/claim?city=${encodeURIComponent(city)}`} className="hover:text-violet-300 transition-colors">Claim</Link>
           </div>
         </div>
 
-        {/* ── Nav links ── */}
-        <div className="flex flex-wrap gap-2 text-xs text-zinc-500">
-          <Link href="/store/procurement" className="hover:text-violet-300 transition-colors">Home</Link>
-          <span>›</span>
-          <Link href={`/store/procurement/request?city=${encodeURIComponent(city)}`} className="hover:text-violet-300 transition-colors">New Request</Link>
-          <span>›</span>
-          <span className="text-violet-300 font-medium">Receiving</span>
-          <span>›</span>
-          <Link href={`/store/procurement/claim?city=${encodeURIComponent(city)}`} className="hover:text-violet-300 transition-colors">Claim</Link>
-        </div>
+        {/* ── Two-column layout ── */}
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
 
-        {/* ── Auth row ── */}
-        <div className={`${GLASS} grid grid-cols-2 gap-2 p-3 md:grid-cols-4`}>
-          <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Your name" className={FIELD} />
-          <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className={FIELD} />
-          <select value={city} onChange={(e) => { const c = e.target.value; setCity(c); void loadMyRequests(c); }} className={FIELD}>
-            <option value="manila">Manila</option>
-            <option value="dubai">Dubai</option>
-          </select>
-          <button
-            type="button"
-            onClick={() => void Promise.all([loadMyRequests(), loadReceivings()])}
-            className="flex items-center justify-center gap-1.5 rounded-xl border border-violet-400/15 bg-violet-950/30 py-2 text-xs text-white transition hover:bg-violet-950/45"
-          >
-            <RefreshCw className="h-3.5 w-3.5" /> Refresh
-          </button>
-        </div>
+        {/* ─── LEFT PANEL: Auth + Request Selector ─── */}
+        <div className="flex flex-col gap-4 lg:w-72 xl:w-80 lg:shrink-0">
 
-        {/* ── Step 1: Select a request ── */}
-        <div className={`${GLASS} p-4`}>
+          {/* Auth fields */}
+          <div className={`${GLASS} p-4 space-y-3`}>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Session</p>
+            <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Your name" className={FIELD} />
+            <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className={FIELD} />
+            <select value={city} onChange={(e) => { const c = e.target.value; setCity(c); void loadMyRequests(c); }} className={FIELD}>
+              <option value="manila">Manila</option>
+              <option value="dubai">Dubai</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => void Promise.all([loadMyRequests(), loadReceivings()])}
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-violet-400/15 bg-violet-950/30 py-2 text-xs text-white transition hover:bg-violet-950/45"
+            >
+              <RefreshCw className="h-3.5 w-3.5" /> Refresh
+            </button>
+          </div>
+
+          {/* Step 1: Request selector */}
+          <div className={`${GLASS} p-4`}>
           <div className="mb-3 flex items-center justify-between">
             <div>
               <div className="text-sm font-semibold">Step 1 — Select Request</div>
@@ -544,9 +514,45 @@ export default function StoreProcurementReceivingPage() {
               <div className="py-4 text-center text-sm text-zinc-500">No requests found for {requestedBy || "this user"}.</div>
             ) : null}
           </div>
-        </div>
+        </div>{/* end request selector */}
 
-        {/* ── Step 2: Items checklist + Delivery form ── */}
+        </div>{/* end left panel */}
+
+        {/* ─── RIGHT PANEL: Banners + Step 2 + Step 3 ─── */}
+        <div className="flex min-w-0 flex-1 flex-col gap-4">
+
+          {/* Banners */}
+          {error ? (
+            <div className="flex items-center gap-2 rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-sm text-red-300">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              {error}
+            </div>
+          ) : null}
+          {info ? (
+            <div className="flex items-center gap-2 rounded-xl border border-emerald-900/40 bg-emerald-950/20 px-3 py-2 text-sm text-emerald-300">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              {info}
+            </div>
+          ) : null}
+          {lastCreatedId ? (
+            <div className="rounded-xl border border-emerald-700/50 bg-emerald-900/15 px-4 py-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm font-medium text-emerald-200">
+                  <CheckCircle2 className="h-4 w-4" />
+                  {lastCreatedNo || "Receiving created"}
+                  {lastCreatedAt ? <span className="text-[11px] font-normal text-emerald-300/70">({formatRelativeAge(lastCreatedAt, relativeNowMs)})</span> : null}
+                </div>
+                <Link
+                  href={`/store/procurement/claim?city=${encodeURIComponent(city)}&request_id=${encodeURIComponent(lastCreatedRequestId || requestId)}&receiving_id=${encodeURIComponent(lastCreatedId)}`}
+                  className="flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300 transition hover:bg-emerald-500/20"
+                >
+                  Continue to Claim <ChevronRight className="h-3 w-3" />
+                </Link>
+              </div>
+            </div>
+          ) : null}
+
+          {/* ── Step 2: Items checklist + Delivery form ── */}
         {requestId ? (
           <div className={`${GLASS} p-4`}>
             <div className="mb-4">
@@ -951,6 +957,8 @@ export default function StoreProcurementReceivingPage() {
           </div>
         ) : null}
 
+        </div>{/* end right panel */}
+        </div>{/* end two-column flex */}
       </div>
     </div>
   );

@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, ChevronRight, RefreshCw, CheckCircle2, MapPin, Building2 } from "lucide-react";
+import { AlertCircle, Camera, ChevronRight, RefreshCw, CheckCircle2, MapPin, Building2, X } from "lucide-react";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
 import { formatRelativeAge, getRecentBadgeMaxAgeMs, isOlderThan, useRelativeAgeNow } from "@/lib/timeAgo";
@@ -95,6 +95,10 @@ export default function StoreProcurementClaimPage() {
   const [amountImpact, setAmountImpact] = useState("0");
   const [responsibleParty, setResponsibleParty] = useState("");
   const [description, setDescription] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState("");
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
@@ -142,9 +146,39 @@ export default function StoreProcurementClaimPage() {
     }
   }, [pin, requestId, requestedBy, statusFilter]);
 
+  const requiresPhoto = ["SHORTAGE", "QUALITY"].includes(claimType.toUpperCase());
+
+  const uploadPhoto = async (file: File): Promise<string> => {
+    setPhotoUploading(true);
+    setError("");
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("approver_name", requestedBy.trim());
+      fd.append("pin", pin.trim());
+      fd.append("store_code", selectedRequest?.store_code || "");
+      const res = await fetch("/api/admin/procurement/claims/upload-photo", {
+        method: "POST",
+        body: fd,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({})) as { detail?: string };
+        throw new Error(err?.detail || `Upload failed (${res.status})`);
+      }
+      const data = await res.json() as { url?: string };
+      return data?.url || "";
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
   const createClaim = async () => {
     if (!requestId.trim()) {
       setError("Please select a request first.");
+      return;
+    }
+    if (requiresPhoto && !photoUrl.trim()) {
+      setError("A photo is required for SHORTAGE and QUALITY claims. Please attach a photo.");
       return;
     }
     setBusy("create");
@@ -165,6 +199,7 @@ export default function StoreProcurementClaimPage() {
             responsible_party: responsibleParty.trim(),
             owner_name: requestedBy.trim(),
             description: description.trim(),
+            photo_url: photoUrl.trim(),
             approver_name: requestedBy.trim(),
             pin: pin.trim(),
           }),
@@ -196,6 +231,8 @@ export default function StoreProcurementClaimPage() {
       }
       setInfo(claimNo ? `Claim created: ${claimNo}` : "Claim created successfully.");
       setDescription("");
+      setPhotoUrl("");
+      setPhotoPreview("");
       await loadClaims();
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -483,16 +520,96 @@ export default function StoreProcurementClaimPage() {
                   />
                 </div>
 
+                {/* Photo attachment — required for SHORTAGE / QUALITY */}
+                <div className="sm:col-span-2">
+                  <label className={`${T_LABEL} mb-1.5 flex items-center gap-1.5`}>
+                    <Camera className="h-3 w-3" />
+                    Photo Evidence
+                    {requiresPhoto
+                      ? <span className="text-red-400 font-semibold">*required</span>
+                      : <span className="text-zinc-600 normal-case font-normal">(optional)</span>}
+                  </label>
+
+                  {/* Preview if already uploaded */}
+                  {photoUrl && (
+                    <div className="mb-2 flex items-center gap-2 rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-3 py-2 text-xs text-emerald-300">
+                      <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      <span className="flex-1 truncate">
+                        Photo uploaded.{" "}
+                        <a href={photoUrl} target="_blank" rel="noopener noreferrer" className="underline hover:text-emerald-200">View</a>
+                      </span>
+                      {photoPreview && (
+                        <img src={photoPreview} alt="preview" className="h-8 w-8 rounded object-cover border border-white/10" />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => { setPhotoUrl(""); setPhotoPreview(""); if (photoInputRef.current) photoInputRef.current.value = ""; }}
+                        className="rounded p-0.5 hover:bg-white/10"
+                      >
+                        <X className="h-3.5 w-3.5 text-zinc-400" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Upload button */}
+                  {!photoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => photoInputRef.current?.click()}
+                      disabled={photoUploading}
+                      className={[
+                        "flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-4 text-sm transition-colors",
+                        requiresPhoto
+                          ? "border-amber-500/40 bg-amber-950/10 text-amber-300 hover:border-amber-400/60 hover:bg-amber-950/20"
+                          : "border-white/12 bg-white/3 text-zinc-400 hover:border-white/20 hover:bg-white/5",
+                      ].join(" ")}
+                    >
+                      <Camera className="h-4 w-4" />
+                      {photoUploading ? "Uploading…" : "Tap to attach a photo"}
+                    </button>
+                  )}
+                  <input
+                    ref={photoInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      // Local preview
+                      const reader = new FileReader();
+                      reader.onload = (ev) => setPhotoPreview(String(ev.target?.result || ""));
+                      reader.readAsDataURL(file);
+                      // Upload
+                      try {
+                        const url = await uploadPhoto(file);
+                        setPhotoUrl(url);
+                        if (!url) setError("Photo upload succeeded but no URL was returned. Try again.");
+                      } catch (err: any) {
+                        setError(err?.message || "Photo upload failed.");
+                        setPhotoPreview("");
+                        if (photoInputRef.current) photoInputRef.current.value = "";
+                      }
+                    }}
+                  />
+                </div>
+
                 <div className="sm:col-span-2">
                   <button
                     type="button"
                     onClick={() => void createClaim()}
-                    disabled={busy === "create" || !requestId.trim()}
+                    disabled={busy === "create" || !requestId.trim() || photoUploading || (requiresPhoto && !photoUrl.trim())}
                     className={`${PRIMARY_BUTTON} w-full flex items-center justify-center gap-2`}
                   >
                     <AlertCircle className="h-4 w-4" />
                     {busy === "create" ? "Submitting…" : "Submit Claim"}
                   </button>
+                  {requiresPhoto && !photoUrl && (
+                    <p className="mt-2 text-center text-xs text-amber-400/80">
+                      Attach a photo to enable submit for this claim type.
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

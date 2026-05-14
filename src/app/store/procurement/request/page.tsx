@@ -489,8 +489,10 @@ export default function StoreProcurementRequestPage() {
       if (typeof window !== "undefined") {
         const sp = new URLSearchParams(window.location.search);
         queryCity = String(sp.get("city") || "").toLowerCase();
-        const queryStore = String(sp.get("store") || "").trim();
+        const queryStore = String(sp.get("store") || sp.get("store_code") || "").trim();
+        const savedBranch = typeof window !== "undefined" ? (localStorage.getItem("store_proc_branch") || "") : "";
         if (queryStore) setStoreCode(queryStore);
+        else if (savedBranch) setStoreCode(savedBranch);
         queryCategory = String(sp.get("catalog_category") || "").trim();
       }
       const initialCity = queryCity || city || String(refreshed?.city || auth?.city || "manila").toLowerCase() || "manila";
@@ -651,9 +653,8 @@ export default function StoreProcurementRequestPage() {
         <Link href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}`} className="hover:text-violet-300 transition-colors">Claim</Link>
       </div>
 
-      <div className={`grid grid-cols-1 gap-3 p-3 md:grid-cols-6 ${GLASS_PANEL}`}>
-        <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Requested by" className={FIELD_CLASS} />
-        <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className={FIELD_CLASS} />
+      {/* Compact top bar — city/store selector visible even on mobile */}
+      <div className={`${GLASS_PANEL} grid grid-cols-2 gap-2 p-3 sm:grid-cols-4`}>
         <select
           value={city}
           onChange={(e) => {
@@ -672,7 +673,7 @@ export default function StoreProcurementRequestPage() {
           <option value="manila">Manila</option>
           <option value="dubai">Dubai</option>
         </select>
-        <select value={storeCode} onChange={(e) => setStoreCode(String(e.target.value || ""))} className={FIELD_CLASS}>
+        <select value={storeCode} onChange={(e) => { const v = String(e.target.value || ""); setStoreCode(v); if (v && typeof window !== "undefined") localStorage.setItem("store_proc_branch", v); }} className={FIELD_CLASS}>
           <option value="">Select store (required)</option>
           {catalogStores.map((store) => (
             <option key={store} value={store}>
@@ -681,17 +682,16 @@ export default function StoreProcurementRequestPage() {
           ))}
         </select>
         <input type="date" value={requestDate} onChange={(e) => setRequestDate(e.target.value)} className={FIELD_CLASS} />
-        <button type="button" onClick={() => void loadMyRequests()} className={SECONDARY_BUTTON}>
-          Refresh My Requests
-        </button>
-        <label className="inline-flex items-center gap-2 text-xs text-neutral-300">
-          <input type="checkbox" checked={urgentFlag} onChange={(e) => setUrgentFlag(e.target.checked)} />
-          Urgent
-        </label>
-        <label className="inline-flex items-center gap-2 text-xs text-neutral-300">
-          <input type="checkbox" checked={newVendorFlag} onChange={(e) => setNewVendorFlag(e.target.checked)} />
-          New vendor
-        </label>
+        <div className="flex items-center gap-3">
+          <label className="inline-flex items-center gap-1.5 text-xs text-neutral-300 cursor-pointer">
+            <input type="checkbox" checked={urgentFlag} onChange={(e) => setUrgentFlag(e.target.checked)} />
+            Urgent
+          </label>
+          <label className="inline-flex items-center gap-1.5 text-xs text-neutral-300 cursor-pointer">
+            <input type="checkbox" checked={newVendorFlag} onChange={(e) => setNewVendorFlag(e.target.checked)} />
+            New vendor
+          </label>
+        </div>
       </div>
 
       {/* print-only styles */}
@@ -928,7 +928,19 @@ export default function StoreProcurementRequestPage() {
 
       {/* ── PO Preview Panel (right) ── */}
       <div className="lg:col-span-1">
-        <div className={`sticky top-4 ${GLASS_PANEL} p-4`} id="po-print-area">
+        <div className="sticky top-4 space-y-3">
+
+        {/* Session auth — in sidebar */}
+        <div className={`${GLASS_PANEL} p-3 space-y-2`}>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Session</p>
+          <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Your name" className={FIELD_CLASS} />
+          <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className={FIELD_CLASS} />
+          <button type="button" onClick={() => void loadMyRequests()} className={`${SECONDARY_BUTTON} w-full text-sm`}>
+            Refresh My Requests
+          </button>
+        </div>
+
+        <div className={`${GLASS_PANEL} p-4`} id="po-print-area">
           <div className="flex items-center justify-between">
             <div className="text-sm font-semibold text-violet-200">Purchase Order</div>
             {validItems.length > 0 ? (
@@ -995,6 +1007,7 @@ export default function StoreProcurementRequestPage() {
             </div>
           )}
         </div>
+        </div>{/* end sticky wrapper */}
       </div>
       </div>{/* end lg:grid */}
 
