@@ -3,6 +3,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
+import {
+  GLASS_CARD,
+  SECONDARY_BUTTON,
+  INPUT_CLASS,
+  T_PAGE_TITLE,
+  T_SECTION,
+  T_CAPTION,
+  T_LABEL,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  BADGE_ERROR,
+  BADGE_INFO,
+} from "@/lib/ui-tokens";
+import { RefreshCw, AlertCircle, TrendingUp } from "lucide-react";
 
 type RequestListRow = {
   id: string;
@@ -80,8 +94,15 @@ function formatPct(v: number): string {
   return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
 }
 
+function deviationBadge(band: string, pct: number, benchmarkPrice: number) {
+  if (band === "NO_BENCHMARK") return <span className={BADGE_INFO}>No benchmark</span>;
+  if (band === "RED") return <span className={BADGE_ERROR}>{formatPct(pct)}</span>;
+  if (band === "YELLOW") return <span className={BADGE_WARNING}>{formatPct(pct)}</span>;
+  return <span className={BADGE_SUCCESS}>{benchmarkPrice > 0 ? formatPct(pct) : "-"}</span>;
+}
+
 export default function ProcurementQuotesPage() {
-  const auth = getAuth();
+  const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
   const [city, setCity] = useState<"manila" | "dubai">(
     String(auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila",
@@ -96,6 +117,8 @@ export default function ProcurementQuotesPage() {
   const [quoteInputByItem, setQuoteInputByItem] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const currency = city === "dubai" ? "AED" : "PHP";
 
   const vendorByAnyKey = useMemo(() => {
     const map = new Map<string, VendorRow>();
@@ -165,10 +188,8 @@ export default function ProcurementQuotesPage() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError("");
-    // Load masters and requests independently so a masters failure doesn't block requests
     const [mastersResult, requestsResult] = await Promise.allSettled([loadMasters(), loadRequests()]);
     if (mastersResult.status === "rejected") {
-      // Non-blocking: show warning but don't block the page
       console.warn("Failed to load vendor/benchmark data:", mastersResult.reason);
     }
     if (requestsResult.status === "rejected") {
@@ -203,70 +224,136 @@ export default function ProcurementQuotesPage() {
       if (can) await loadAll();
     }
     void init();
-  }, [auth, loadAll]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const requestItems = Array.isArray(detail?.request?.items) ? detail.request.items : [];
 
   if (!allowed) {
-    return <div className="text-sm text-red-300">Procurement page is available only to authorized admin roles.</div>;
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+        <AlertCircle className="h-4 w-4 shrink-0" />
+        Procurement quotes is only available to authorized admin roles.
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-4">
-      {error ? <div className="text-sm text-red-300">{error}</div> : null}
+    <div className="space-y-5">
 
-      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 md:grid-cols-5">
-        <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Approver name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input value={requestId} onChange={(e) => setRequestId(e.target.value)} placeholder="Request ID" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <button type="button" onClick={() => void loadDetail(requestId)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900">
-          Load Request
-        </button>
-        <button type="button" onClick={() => void loadAll()} disabled={loading} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60">
-          {loading ? "Loading..." : "Refresh"}
-        </button>
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className={T_PAGE_TITLE}>Quote Comparison</h2>
+          <p className="mt-1 text-sm text-zinc-400">
+            Benchmark comparison, vendor validation, and lowest-vendor indicator per item.
+          </p>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/25 bg-violet-500/15 px-2.5 py-0.5 text-xs font-medium text-violet-400">
+          <TrendingUp className="h-3 w-3" />{currency}
+        </span>
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-        <div className="text-sm font-medium">Request Selector</div>
-        <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
-          {requests.map((row) => (
+      {/* Error */}
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+          <AlertCircle className="h-4 w-4 shrink-0" />{error}
+        </div>
+      )}
+
+      {/* Session / Filter bar */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Approver Name</label>
+            <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Name" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>PIN</label>
+            <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="••••••••" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Request ID</label>
+            <input value={requestId} onChange={(e) => setRequestId(e.target.value)} placeholder="Request ID" className={INPUT_CLASS} />
+          </div>
+          <div className="flex items-end">
             <button
-              key={row.id}
               type="button"
-              onClick={() => {
-                setRequestId(row.id);
-                void loadDetail(row.id);
-              }}
-              className={[
-                "rounded-xl border p-3 text-left",
-                requestId === row.id ? "border-amber-500 bg-amber-950/20" : "border-neutral-800 bg-neutral-950/30 hover:bg-neutral-900/40",
-              ].join(" ")}
+              onClick={() => void loadDetail(requestId)}
+              disabled={loading}
+              className={`${SECONDARY_BUTTON} w-full flex items-center justify-center gap-2`}
             >
-              <div className="text-sm text-neutral-100">{row.request_no}</div>
-              <div className="mt-1 text-xs text-neutral-400">
-                {row.requested_by} | {row.store_code || "-"} | {row.status}
-              </div>
-              <div className="mt-1 text-xs text-neutral-500">{Number(row.total_amount || 0).toFixed(2)} PHP</div>
+              Load Request
             </button>
-          ))}
-          {!requests.length ? <div className="text-sm text-neutral-500">No requests found.</div> : null}
+          </div>
+          <div className="flex items-end">
+            <button
+              type="button"
+              onClick={() => void loadAll()}
+              disabled={loading}
+              className={`${SECONDARY_BUTTON} w-full flex items-center justify-center gap-2`}
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              {loading ? "Loading…" : "Refresh"}
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-        <div className="text-sm font-medium">Quote Comparison</div>
-        <div className="mt-1 text-xs text-neutral-500">
-          Spec-aligned view: benchmark comparison, vendor validation, and lowest-vendor indicator per item.
-        </div>
-        <div className="mt-3 space-y-3">
+      {/* Request selector */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <p className={`${T_SECTION} mb-3`}>Request Selector</p>
+        {loading && !requests.length ? (
+          <div className="flex items-center gap-3 py-6 text-zinc-500">
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            <span className="text-sm">Loading requests…</span>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {requests.map((row) => (
+              <button
+                key={row.id}
+                type="button"
+                onClick={() => {
+                  setRequestId(row.id);
+                  void loadDetail(row.id);
+                }}
+                className={[
+                  "rounded-xl border p-3 text-left transition-colors",
+                  requestId === row.id
+                    ? "border-amber-500/40 bg-amber-500/10"
+                    : "border-white/8 bg-white/4 hover:bg-white/6",
+                ].join(" ")}
+              >
+                <div className="text-sm font-medium text-white">{row.request_no}</div>
+                <div className={`mt-1 ${T_CAPTION}`}>
+                  {row.requested_by} | {row.store_code || "-"} | {row.status}
+                </div>
+                <div className={`mt-1 ${T_CAPTION}`}>
+                  {Number(row.total_amount || 0).toFixed(2)} {currency}
+                </div>
+              </button>
+            ))}
+            {!requests.length && (
+              <p className={T_CAPTION}>No requests found.</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Quote comparison */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <p className={`${T_SECTION} mb-1`}>Quote Comparison</p>
+        <p className={`${T_CAPTION} mb-4`}>Spec-aligned view: benchmark comparison, vendor validation, and lowest-vendor indicator per item.</p>
+
+        <div className="space-y-3">
           {requestItems.map((item, idx) => {
             const benchmark = benchmarkByName.get(normalizeKey(item.item_name)) || null;
             const vendor = vendorByAnyKey.get(normalizeKey(item.vendor_name)) || null;
             const benchmarkPrice = Number(benchmark?.benchmark_unit_price || 0);
             const actualPrice = Number(item.unit_price || 0);
             const deviationPct = benchmarkPrice > 0 ? ((actualPrice - benchmarkPrice) / benchmarkPrice) * 100 : 0;
-            const deviationBand = benchmarkPrice <= 0 ? "NO_BENCHMARK" : deviationPct > 8 ? "RED" : deviationPct > 3 ? "YELLOW" : "GREEN";
+            const band = benchmarkPrice <= 0 ? "NO_BENCHMARK" : deviationPct > 8 ? "RED" : deviationPct > 3 ? "YELLOW" : "GREEN";
             const quoteText = quoteInputByItem[idx] || "";
             const parsedQuotes = parseQuotes(quoteText);
             const lowestQuote = parsedQuotes.length
@@ -274,49 +361,60 @@ export default function ProcurementQuotesPage() {
               : null;
 
             return (
-              <div key={`${item.item_name}:${idx}`} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
+              <div key={`${item.item_name}:${idx}`} className="rounded-2xl border border-white/8 bg-white/4 p-4">
                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                  <div className="text-sm text-neutral-100">
-                    {item.item_name || "(no item name)"} | Qty {Number(item.qty || 0).toFixed(2)} {item.unit || ""}
+                  <div className="text-sm font-medium text-white">
+                    {item.item_name || "(no item name)"} &mdash; Qty {Number(item.qty || 0).toFixed(2)} {item.unit || ""}
                   </div>
-                  <div className="text-xs text-neutral-400">
-                    Requested vendor: {item.vendor_name || "-"} | Unit {actualPrice.toFixed(2)} PHP
-                  </div>
-                </div>
-
-                <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-3">
-                  <div className="rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-neutral-300">
-                    Benchmark: {benchmarkPrice > 0 ? `${benchmarkPrice.toFixed(2)} PHP` : "N/A"}
-                  </div>
-                  <div className="rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-neutral-300">
-                    Deviation: {benchmarkPrice > 0 ? formatPct(deviationPct) : "-"} ({deviationBand})
-                  </div>
-                  <div className="rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-neutral-300">
-                    Vendor status: {vendor ? `${vendor.status} / Risk ${vendor.risk_level}` : "NOT_IN_MASTER"}
+                  <div className={T_CAPTION}>
+                    Vendor: {item.vendor_name || "-"} | Unit {actualPrice.toFixed(2)} {currency}
                   </div>
                 </div>
 
-                <div className="mt-2">
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <div className="rounded-xl border border-white/8 bg-white/3 px-3 py-2 text-xs text-zinc-300">
+                    <span className="text-zinc-500">Benchmark: </span>
+                    {benchmarkPrice > 0 ? `${benchmarkPrice.toFixed(2)} ${currency}` : "N/A"}
+                  </div>
+                  <div className="rounded-xl border border-white/8 bg-white/3 px-3 py-2 text-xs text-zinc-300 flex items-center gap-2">
+                    <span className="text-zinc-500">Deviation: </span>
+                    {deviationBadge(band, deviationPct, benchmarkPrice)}
+                  </div>
+                  <div className="rounded-xl border border-white/8 bg-white/3 px-3 py-2 text-xs text-zinc-300">
+                    <span className="text-zinc-500">Vendor status: </span>
+                    {vendor ? `${vendor.status} / Risk ${vendor.risk_level}` : "NOT IN MASTER"}
+                  </div>
+                </div>
+
+                <div className="mt-3">
                   <input
                     value={quoteText}
                     onChange={(e) => setQuoteInputByItem((prev) => ({ ...prev, [idx]: e.target.value }))}
                     placeholder="Manual quotes (e.g. VENDORA:98, VENDORB:95)"
-                    className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+                    className={INPUT_CLASS}
                   />
                 </div>
 
-                {parsedQuotes.length ? (
-                  <div className="mt-2 rounded-lg border border-neutral-800 bg-neutral-950 p-2 text-xs">
-                    <div className="text-neutral-400">Lowest vendor indicator:</div>
-                    <div className="mt-1 text-emerald-200">
-                      {lowestQuote?.vendor} @ {Number(lowestQuote?.unit_price || 0).toFixed(2)} PHP
-                    </div>
+                {parsedQuotes.length > 0 && (
+                  <div className="mt-2 rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-3 py-2 text-xs">
+                    <span className="text-zinc-400">Lowest vendor: </span>
+                    <span className="font-medium text-emerald-300">
+                      {lowestQuote?.vendor} @ {Number(lowestQuote?.unit_price || 0).toFixed(2)} {currency}
+                    </span>
+                    {parsedQuotes.length > 1 && (
+                      <span className={`ml-2 ${T_CAPTION}`}>({parsedQuotes.length} quotes compared)</span>
+                    )}
                   </div>
-                ) : null}
+                )}
               </div>
             );
           })}
-          {!requestItems.length ? <div className="text-sm text-neutral-500">Select a request to start quote comparison.</div> : null}
+
+          {!requestItems.length && (
+            <div className="flex items-center justify-center py-10">
+              <p className={T_CAPTION}>Select a request to start quote comparison.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

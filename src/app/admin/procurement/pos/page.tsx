@@ -4,6 +4,24 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
 import DatePicker from "@/components/DatePicker";
+import {
+  GLASS_CARD,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  SMALL_BUTTON,
+  INPUT_CLASS,
+  TEXTAREA_CLASS,
+  T_PAGE_TITLE,
+  T_SECTION,
+  T_CARD_TITLE,
+  T_CAPTION,
+  T_LABEL,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  BADGE_ERROR,
+  BADGE_INFO,
+} from "@/lib/ui-tokens";
+import { RefreshCw, AlertCircle, CheckCircle, Send, Package, ExternalLink } from "lucide-react";
 
 type PoRow = {
   id: string;
@@ -113,9 +131,25 @@ function money(value: number) {
   return Number(value || 0).toFixed(2);
 }
 
+function poStatusBadge(status: string) {
+  const s = String(status || "").toUpperCase();
+  if (s === "SENT" || s === "DELIVERED") return <span className={BADGE_SUCCESS}>{s}</span>;
+  if (s === "FAILED") return <span className={BADGE_ERROR}>{s}</span>;
+  if (s === "CREATED") return <span className={BADGE_WARNING}>{s}</span>;
+  return <span className={BADGE_INFO}>{status || "PENDING"}</span>;
+}
+
+function emailStatusBadge(status: string) {
+  const s = String(status || "PENDING").toUpperCase();
+  if (s === "SENT") return <span className={BADGE_SUCCESS}>{s}</span>;
+  if (s === "FAILED") return <span className={BADGE_ERROR}>{s}</span>;
+  return <span className={BADGE_INFO}>{s}</span>;
+}
+
 export default function ProcurementPoPage() {
-  const auth = getAuth();
+  const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
+  const [city, setCity] = useState<"manila" | "dubai">("manila");
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
   const [requestId, setRequestId] = useState("");
@@ -133,11 +167,16 @@ export default function ProcurementPoPage() {
   const [messageById, setMessageById] = useState<Record<string, string>>({});
   const [deliveryById, setDeliveryById] = useState<Record<string, DeliveryBundle>>({});
   const [bulkResult, setBulkResult] = useState<BulkResult | null>(null);
+  const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
+
+  const currency = city === "dubai" ? "AED" : "PHP";
 
   const load = useCallback(async () => {
     setError("");
+    setLoading(true);
     try {
       const trimmedRequestId = requestId.trim();
       const [poData, catalogData] = await Promise.all([
@@ -194,6 +233,8 @@ export default function ProcurementPoPage() {
       }
     } catch (e: any) {
       setError(e?.message || String(e));
+    } finally {
+      setLoading(false);
     }
   }, [paymentTerms, pin, requestId, requestedBy]);
 
@@ -223,6 +264,7 @@ export default function ProcurementPoPage() {
     }
     setBusy(true);
     setError("");
+    setSuccessMsg("");
     try {
       const data = await procurementJson<DeliveryBundle & { ok: boolean; confirm_url?: string }>(
         `/api/admin/procurement/pos/${encodeURIComponent(poId)}/send-email`,
@@ -244,6 +286,7 @@ export default function ProcurementPoPage() {
         pin,
       );
       setDeliveryById((prev) => ({ ...prev, [poId]: { po: data.po, email_logs: data.email_logs || [], confirm_url: data.confirm_url } }));
+      setSuccessMsg("PO email sent successfully.");
       await load();
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -307,6 +350,7 @@ export default function ProcurementPoPage() {
     }
     setBusy(true);
     setError("");
+    setSuccessMsg("");
     setBulkResult(null);
     try {
       const data = await procurementJson<BulkResult>(
@@ -340,6 +384,7 @@ export default function ProcurementPoPage() {
       );
       setBulkResult(data);
       setRows(Array.isArray(data?.rows) ? data.rows : []);
+      setSuccessMsg(`Created ${data.created_count} PO(s), sent ${data.sent_count}.`);
       await load();
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -358,254 +403,418 @@ export default function ProcurementPoPage() {
   useEffect(() => {
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
+      const resolvedCity: "manila" | "dubai" =
+        String((refreshed || auth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
+      setCity(resolvedCity);
       const can = canAccessProcurementAdmin(
         String((refreshed || auth)?.role || ""),
-        String((refreshed || auth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
+        resolvedCity,
       );
       setAllowed(can);
       if (can) await load();
     }
     void init();
-  }, [auth, load]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!allowed) {
-    return <div className="text-sm text-red-300">Procurement page is available only to authorized admin roles.</div>;
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+        <AlertCircle className="h-4 w-4 shrink-0" />
+        Procurement PO management is only available to authorized admin roles.
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-4">
-      {error ? <div className="text-sm text-red-300">{error}</div> : null}
+    <div className="space-y-5">
 
-      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 md:grid-cols-4">
-        <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Approver name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input value={requestId} onChange={(e) => setRequestId(e.target.value)} placeholder="Request ID" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <button type="button" onClick={() => void load()} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900">
-          Refresh Request + Catalog
-        </button>
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className={T_PAGE_TITLE}>Purchase Orders</h2>
+          <p className="mt-1 text-sm text-zinc-400">Create supplier POs from catalog rows and send by email.</p>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/25 bg-violet-500/15 px-2.5 py-0.5 text-xs font-medium text-violet-400">
+          <Package className="h-3 w-3" />{rows.length} POs
+        </span>
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+      {/* Error / Success */}
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+          <AlertCircle className="h-4 w-4 shrink-0" />{error}
+        </div>
+      )}
+      {successMsg && !error && (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-300">
+          <CheckCircle className="h-4 w-4 shrink-0" />{successMsg}
+        </div>
+      )}
+
+      {/* Session bar */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
           <div>
-            <div className="text-sm font-medium text-neutral-100">Supplier-grouped PO Builder</div>
-            <div className="mt-1 text-xs text-neutral-500">Imported Excel rows are used as the supplier/category/item catalog for this request.</div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Approver Name</label>
+            <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Name" className={INPUT_CLASS} />
           </div>
-          {requestSummary ? (
-            <div className="text-xs text-neutral-400">
-              {requestSummary.request_no} | {requestSummary.store_code} | {requestSummary.request_date} | {requestSummary.status}
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>PIN</label>
+            <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="••••••••" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Request ID</label>
+            <input value={requestId} onChange={(e) => setRequestId(e.target.value)} placeholder="Request ID" className={INPUT_CLASS} />
+          </div>
+          <div className="flex items-end">
+            <button
+              type="button"
+              onClick={() => void load()}
+              disabled={loading}
+              className={`${SECONDARY_BUTTON} w-full flex items-center justify-center gap-2`}
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              {loading ? "Loading…" : "Load Request"}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* PO Builder */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className={`${T_SECTION} mb-1`}>Supplier-Grouped PO Builder</p>
+            <p className={T_CAPTION}>Imported Excel rows are used as the supplier/category/item catalog for this request.</p>
+          </div>
+          {requestSummary && (
+            <div className="shrink-0 text-right">
+              <div className="text-sm font-medium text-white">{requestSummary.request_no}</div>
+              <div className={T_CAPTION}>{requestSummary.store_code} | {requestSummary.request_date} | {requestSummary.status}</div>
             </div>
-          ) : null}
+          )}
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-          <DatePicker value={deliveryDate} onChange={setDeliveryDate} />
-          <input value={vatTreatment} onChange={(e) => setVatTreatment(e.target.value)} placeholder="VAT treatment" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-          <input value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} placeholder="Delivery address" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm md:col-span-2" />
-          <input value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} placeholder="Payment terms" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm md:col-span-2" />
+        {/* PO metadata fields */}
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Delivery Date</label>
+            <DatePicker value={deliveryDate} onChange={setDeliveryDate} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>VAT Treatment</label>
+            <input value={vatTreatment} onChange={(e) => setVatTreatment(e.target.value)} placeholder="e.g. VAT-inclusive" className={INPUT_CLASS} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={`${T_LABEL} mb-1.5 block`}>Delivery Address</label>
+            <input value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} placeholder="Delivery address" className={INPUT_CLASS} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={`${T_LABEL} mb-1.5 block`}>Payment Terms</label>
+            <input value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} placeholder="Payment terms" className={INPUT_CLASS} />
+          </div>
         </div>
 
-        <div className="mt-4 rounded-2xl border border-dashed border-neutral-800 bg-neutral-950/40 p-3 text-xs text-neutral-400">
-          Selected suppliers: {selectedSuppliers.length} | Selected items: {selectedSuppliers.reduce((sum, supplier) => sum + supplier.selectedItems.length, 0)} | Total: PHP {money(overallTotal)}
+        {/* Selection summary */}
+        <div className="mt-4 rounded-xl border border-white/8 bg-white/4 px-4 py-2.5 text-xs text-zinc-400">
+          Selected suppliers: <span className="font-medium text-white">{selectedSuppliers.length}</span> &nbsp;|&nbsp;
+          Selected items: <span className="font-medium text-white">{selectedSuppliers.reduce((sum, s) => sum + s.selectedItems.length, 0)}</span> &nbsp;|&nbsp;
+          Total: <span className="font-medium text-amber-300">{currency} {money(overallTotal)}</span>
         </div>
 
+        {/* Supplier panels */}
         <div className="mt-4 space-y-4">
-          {catalogSuppliers.map((supplier) => {
-            const supplierDraft = supplierDrafts[supplier.supplier] || { recipient_email: "", cc_raw: "", message: "", send_email: true };
-            const selectedSupplier = selectedSuppliers.find((row) => row.supplier === supplier.supplier);
-            return (
-              <div key={supplier.supplier} className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
-                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <div className="text-sm font-medium text-neutral-100">{supplier.supplier}</div>
-                    <div className="mt-1 text-xs text-neutral-500">
-                      {supplier.category_count} categories | {supplier.item_count} items | Suggested payment terms {supplier.payment_terms || "-"}
-                    </div>
-                  </div>
-                  <div className="text-xs text-amber-200">Selected total: PHP {money(selectedSupplier?.total || 0)}</div>
-                </div>
-
-                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <input
-                    value={supplierDraft.recipient_email}
-                    onChange={(e) => setSupplierDrafts((prev) => ({ ...prev, [supplier.supplier]: { ...supplierDraft, recipient_email: e.target.value } }))}
-                    placeholder="Supplier email"
-                    className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-                  />
-                  <input
-                    value={supplierDraft.cc_raw}
-                    onChange={(e) => setSupplierDrafts((prev) => ({ ...prev, [supplier.supplier]: { ...supplierDraft, cc_raw: e.target.value } }))}
-                    placeholder="CC emails (comma separated)"
-                    className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-                  />
-                  <label className="inline-flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
-                    <input
-                      type="checkbox"
-                      checked={supplierDraft.send_email}
-                      onChange={(e) => setSupplierDrafts((prev) => ({ ...prev, [supplier.supplier]: { ...supplierDraft, send_email: e.target.checked } }))}
-                    />
-                    Send email after PO creation
-                  </label>
-                  <div className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-400">
-                    This supplier will create {selectedSupplier?.selectedItems.length || 0} line items.
-                  </div>
-                  <textarea
-                    value={supplierDraft.message}
-                    onChange={(e) => setSupplierDrafts((prev) => ({ ...prev, [supplier.supplier]: { ...supplierDraft, message: e.target.value } }))}
-                    placeholder="Optional supplier message"
-                    className="min-h-24 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm md:col-span-2"
-                  />
-                </div>
-
-                <div className="mt-4 space-y-3">
-                  {supplier.categories.map((category) => (
-                    <div key={`${supplier.supplier}-${category.category}`} className="rounded-xl border border-neutral-800 bg-neutral-900/30 p-3">
-                      <div className="text-xs font-medium uppercase tracking-wide text-neutral-400">{category.category}</div>
-                      <div className="mt-2 space-y-2">
-                        {category.items.map((item) => {
-                          const key = itemKey(supplier.supplier, item);
-                          const draft = itemDrafts[key] || { enabled: false, qty: String(item.suggested_qty || ""), unit_price: String(item.suggested_unit_price || "") };
-                          return (
-                            <div key={key} className="grid grid-cols-1 gap-2 rounded-xl border border-neutral-800 bg-neutral-950/40 p-3 md:grid-cols-[minmax(0,1.5fr)_120px_120px_minmax(0,1fr)]">
-                              <label className="inline-flex items-start gap-2 text-sm text-neutral-200">
-                                <input
-                                  type="checkbox"
-                                  checked={draft.enabled}
-                                  onChange={(e) => setItemDrafts((prev) => ({ ...prev, [key]: { ...draft, enabled: e.target.checked } }))}
-                                  className="mt-1"
-                                />
-                                <span>
-                                  <span className="block">{item.item_name}</span>
-                                  <span className="block text-xs text-neutral-500">
-                                    {item.section || "-"} | {item.order_date || "-"} | {item.order_type || "-"} | {item.unit || "-"}
-                                  </span>
-                                </span>
-                              </label>
-                              <input
-                                value={draft.qty}
-                                onChange={(e) => setItemDrafts((prev) => ({ ...prev, [key]: { ...draft, qty: e.target.value } }))}
-                                placeholder="Qty"
-                                className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-                              />
-                              <input
-                                value={draft.unit_price}
-                                onChange={(e) => setItemDrafts((prev) => ({ ...prev, [key]: { ...draft, unit_price: e.target.value } }))}
-                                placeholder="Unit price"
-                                className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-                              />
-                              <div className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-400">
-                                Suggested: {item.suggested_qty || 0} x PHP {money(item.suggested_unit_price || 0)}
-                              </div>
-                            </div>
-                          );
-                        })}
+          {loading && !catalogSuppliers.length ? (
+            <div className="flex items-center gap-3 py-8 text-zinc-500">
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              <span className="text-sm">Loading catalog…</span>
+            </div>
+          ) : (
+            catalogSuppliers.map((supplier) => {
+              const supplierDraft = supplierDrafts[supplier.supplier] || { recipient_email: "", cc_raw: "", message: "", send_email: true };
+              const selectedSupplier = selectedSuppliers.find((row) => row.supplier === supplier.supplier);
+              return (
+                <div key={supplier.supplier} className="rounded-2xl border border-white/8 bg-white/4 p-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <div className={T_CARD_TITLE}>{supplier.supplier}</div>
+                      <div className={T_CAPTION}>
+                        {supplier.category_count} categories | {supplier.item_count} items | Payment terms: {supplier.payment_terms || "-"}
                       </div>
                     </div>
-                  ))}
+                    <div className="text-xs font-medium text-amber-300">
+                      {currency} {money(selectedSupplier?.total || 0)} selected
+                    </div>
+                  </div>
+
+                  {/* Supplier email fields */}
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className={`${T_LABEL} mb-1.5 block`}>Supplier Email</label>
+                      <input
+                        value={supplierDraft.recipient_email}
+                        onChange={(e) => setSupplierDrafts((prev) => ({ ...prev, [supplier.supplier]: { ...supplierDraft, recipient_email: e.target.value } }))}
+                        placeholder="supplier@example.com"
+                        className={INPUT_CLASS}
+                      />
+                    </div>
+                    <div>
+                      <label className={`${T_LABEL} mb-1.5 block`}>CC Emails</label>
+                      <input
+                        value={supplierDraft.cc_raw}
+                        onChange={(e) => setSupplierDrafts((prev) => ({ ...prev, [supplier.supplier]: { ...supplierDraft, cc_raw: e.target.value } }))}
+                        placeholder="cc1@example.com, cc2@example.com"
+                        className={INPUT_CLASS}
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className={`${T_LABEL} mb-1.5 block`}>Message (optional)</label>
+                      <textarea
+                        value={supplierDraft.message}
+                        onChange={(e) => setSupplierDrafts((prev) => ({ ...prev, [supplier.supplier]: { ...supplierDraft, message: e.target.value } }))}
+                        placeholder="Optional supplier message"
+                        rows={3}
+                        className={TEXTAREA_CLASS}
+                      />
+                    </div>
+                    <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-zinc-300">
+                      <input
+                        type="checkbox"
+                        checked={supplierDraft.send_email}
+                        onChange={(e) => setSupplierDrafts((prev) => ({ ...prev, [supplier.supplier]: { ...supplierDraft, send_email: e.target.checked } }))}
+                        className="rounded"
+                      />
+                      Send email after PO creation
+                    </label>
+                    <div className={T_CAPTION}>
+                      {selectedSupplier?.selectedItems.length || 0} item(s) selected for this supplier.
+                    </div>
+                  </div>
+
+                  {/* Item catalog */}
+                  <div className="mt-4 space-y-3">
+                    {supplier.categories.map((category) => (
+                      <div key={`${supplier.supplier}-${category.category}`} className="rounded-xl border border-white/6 bg-white/3 p-3">
+                        <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{category.category}</div>
+                        <div className="space-y-2">
+                          {category.items.map((item) => {
+                            const key = itemKey(supplier.supplier, item);
+                            const draft = itemDrafts[key] || { enabled: false, qty: String(item.suggested_qty || ""), unit_price: String(item.suggested_unit_price || "") };
+                            return (
+                              <div key={key} className="grid grid-cols-1 gap-2 rounded-xl border border-white/6 bg-white/4 p-3 sm:grid-cols-[minmax(0,1.5fr)_100px_110px_minmax(0,1fr)]">
+                                <label className="inline-flex cursor-pointer items-start gap-2 text-sm text-zinc-200">
+                                  <input
+                                    type="checkbox"
+                                    checked={draft.enabled}
+                                    onChange={(e) => setItemDrafts((prev) => ({ ...prev, [key]: { ...draft, enabled: e.target.checked } }))}
+                                    className="mt-0.5 rounded"
+                                  />
+                                  <span>
+                                    <span className="block font-medium">{item.item_name}</span>
+                                    <span className={`block ${T_CAPTION}`}>
+                                      {item.section || "-"} | {item.order_date || "-"} | {item.order_type || "-"} | {item.unit || "-"}
+                                    </span>
+                                  </span>
+                                </label>
+                                <input
+                                  value={draft.qty}
+                                  onChange={(e) => setItemDrafts((prev) => ({ ...prev, [key]: { ...draft, qty: e.target.value } }))}
+                                  placeholder="Qty"
+                                  className={INPUT_CLASS}
+                                />
+                                <input
+                                  value={draft.unit_price}
+                                  onChange={(e) => setItemDrafts((prev) => ({ ...prev, [key]: { ...draft, unit_price: e.target.value } }))}
+                                  placeholder="Unit price"
+                                  className={INPUT_CLASS}
+                                />
+                                <div className="rounded-xl border border-white/6 bg-white/4 px-3 py-2 text-xs text-zinc-400">
+                                  Suggested: {item.suggested_qty || 0} &times; {currency} {money(item.suggested_unit_price || 0)}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-          {!catalogSuppliers.length ? <div className="text-sm text-neutral-500">No imported catalog rows found for this request yet.</div> : null}
+              );
+            })
+          )}
+
+          {!loading && !catalogSuppliers.length && (
+            <div className="flex items-center justify-center py-10">
+              <p className={T_CAPTION}>No imported catalog rows found for this request yet.</p>
+            </div>
+          )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => void createAndSendBulk()}
-          disabled={busy}
-          className="mt-4 rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-4 py-2 text-sm text-emerald-200 hover:bg-emerald-800/30 disabled:opacity-60"
-        >
-          {busy ? "Processing..." : "Create Supplier POs and Send"}
-        </button>
+        {/* Bulk create button */}
+        <div className="mt-5">
+          <button
+            type="button"
+            onClick={() => void createAndSendBulk()}
+            disabled={busy || !selectedSuppliers.length}
+            className={`${PRIMARY_BUTTON} flex items-center gap-2`}
+          >
+            <Send className="h-4 w-4" />
+            {busy ? "Processing…" : "Create Supplier POs and Send"}
+          </button>
+        </div>
 
-        {bulkResult ? (
-          <div className="mt-4 rounded-2xl border border-neutral-800 bg-neutral-950/40 p-3 text-sm">
-            <div className="text-neutral-100">
-              Created {bulkResult.created_count} | Sent {bulkResult.sent_count} | Failed {bulkResult.failed_count}
+        {/* Bulk result */}
+        {bulkResult && (
+          <div className="mt-4 rounded-2xl border border-white/8 bg-white/4 p-4">
+            <div className="flex flex-wrap gap-3 text-sm">
+              <span className="text-zinc-300">Created: <span className="font-semibold text-white">{bulkResult.created_count}</span></span>
+              <span className="text-zinc-300">Sent: <span className="font-semibold text-emerald-300">{bulkResult.sent_count}</span></span>
+              {bulkResult.failed_count > 0 && (
+                <span className="text-zinc-300">Failed: <span className="font-semibold text-red-300">{bulkResult.failed_count}</span></span>
+              )}
             </div>
-            <div className="mt-2 space-y-2 text-xs text-neutral-400">
+            <div className="mt-3 space-y-2">
               {bulkResult.results.map((row, idx) => (
-                <div key={`${row.vendor_name}-${idx}`} className="rounded-xl border border-neutral-800 bg-neutral-900/30 p-2">
-                  {row.vendor_name || "Unknown supplier"} | {row.ok ? "OK" : "FAILED"} {row.po?.po_no ? `| ${row.po.po_no}` : ""} {row.error ? `| ${row.error}` : ""}
+                <div key={`${row.vendor_name}-${idx}`} className="flex flex-wrap items-center gap-2 rounded-xl border border-white/6 bg-white/3 p-2.5 text-xs text-zinc-400">
+                  <span className="font-medium text-zinc-200">{row.vendor_name || "Unknown supplier"}</span>
+                  {row.ok ? <span className={BADGE_SUCCESS}>OK</span> : <span className={BADGE_ERROR}>FAILED</span>}
+                  {row.po?.po_no && <span className="font-mono text-zinc-300">{row.po.po_no}</span>}
+                  {row.error && <span className="text-red-400">{row.error}</span>}
                 </div>
               ))}
             </div>
           </div>
-        ) : null}
+        )}
       </div>
 
-      <div className="space-y-2">
-        {rows.map((row) => (
-          <div key={row.id} className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-            <div className="text-sm font-medium text-neutral-100">{row.po_no}</div>
-            <div className="mt-1 text-xs text-neutral-400">
-              {row.parent_case_no} | {row.vendor_name || "-"} | {money(row.amount)} PHP | {row.status}
-            </div>
-            <div className="mt-1 text-xs text-neutral-500">
-              Email {row.last_email_status || "PENDING"} | Recipient {row.last_recipient_email || "-"} | Receipt {row.receipt_confirmed_at ? String(row.receipt_confirmed_at).slice(0, 16).replace("T", " ") : "Pending"}
-            </div>
-            {row.drive_file_url ? (
-              <a href={row.drive_file_url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs text-sky-300 underline">
-                Open PO file in Drive
-              </a>
-            ) : null}
-            <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
-              <input
-                value={recipientById[row.id] || row.last_recipient_email || ""}
-                onChange={(e) => setRecipientById((prev) => ({ ...prev, [row.id]: e.target.value }))}
-                placeholder="Supplier email"
-                className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              />
-              <input
-                value={ccById[row.id] || ""}
-                onChange={(e) => setCcById((prev) => ({ ...prev, [row.id]: e.target.value }))}
-                placeholder="CC emails (comma separated)"
-                className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-              />
-              <button
-                type="button"
-                onClick={() => void sendPoEmail(row.id)}
-                disabled={busy}
-                className="rounded-xl border border-sky-700/60 bg-sky-900/20 px-3 py-2 text-sm text-sky-200 hover:bg-sky-800/30 disabled:opacity-60"
-              >
-                {busy ? "Sending..." : "Send PO by Gmail"}
-              </button>
-              <textarea
-                value={messageById[row.id] || ""}
-                onChange={(e) => setMessageById((prev) => ({ ...prev, [row.id]: e.target.value }))}
-                placeholder="Optional supplier message"
-                className="min-h-24 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm md:col-span-2"
-              />
-              <button
-                type="button"
-                onClick={() => void loadDeliveryStatus(row.id)}
-                disabled={busy}
-                className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60"
-              >
-                {busy ? "Loading..." : "View Delivery Status"}
-              </button>
-            </div>
-            {deliveryById[row.id]?.email_logs?.length ? (
-              <div className="mt-3 space-y-2">
-                {deliveryById[row.id].email_logs.map((log) => (
-                  <div key={log.id} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3 text-xs text-neutral-300">
-                    <div>{log.recipient_email} | {log.status} | {log.sent_at ? String(log.sent_at).slice(0, 16).replace("T", " ") : "-"}</div>
-                    <div className="mt-1 text-neutral-500">
-                      Receipt {log.receipt_confirmed_at ? String(log.receipt_confirmed_at).slice(0, 16).replace("T", " ") : "Pending"}
-                    </div>
-                    {log.drive_file_url ? (
-                      <a href={log.drive_file_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-sky-300 underline">
-                        Open mailed PO
-                      </a>
-                    ) : null}
+      {/* PO list */}
+      {rows.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600">Purchase Orders</p>
+          {rows.map((row) => (
+            <div key={row.id} className={`${GLASS_CARD} p-4`}>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-sm font-semibold text-white">{row.po_no}</span>
+                    {poStatusBadge(row.status)}
+                    {emailStatusBadge(row.last_email_status)}
                   </div>
-                ))}
+                  <div className={`mt-1 ${T_CAPTION}`}>
+                    {row.parent_case_no} | {row.vendor_name || "-"} | {currency} {money(row.amount)}
+                  </div>
+                  <div className={T_CAPTION}>
+                    Recipient: {row.last_recipient_email || "-"} | Receipt:{" "}
+                    {row.receipt_confirmed_at ? String(row.receipt_confirmed_at).slice(0, 16).replace("T", " ") : "Pending"}
+                  </div>
+                </div>
+                {row.drive_file_url && (
+                  <a
+                    href={row.drive_file_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs text-sky-400 hover:text-sky-300 transition-colors shrink-0"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Open PO in Drive
+                  </a>
+                )}
               </div>
-            ) : null}
-          </div>
-        ))}
-        {!rows.length ? <div className="text-sm text-neutral-500">No purchase orders.</div> : null}
-      </div>
+
+              {/* Per-PO email controls */}
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div>
+                  <label className={`${T_LABEL} mb-1.5 block`}>Supplier Email</label>
+                  <input
+                    value={recipientById[row.id] || row.last_recipient_email || ""}
+                    onChange={(e) => setRecipientById((prev) => ({ ...prev, [row.id]: e.target.value }))}
+                    placeholder="supplier@example.com"
+                    className={INPUT_CLASS}
+                  />
+                </div>
+                <div>
+                  <label className={`${T_LABEL} mb-1.5 block`}>CC Emails</label>
+                  <input
+                    value={ccById[row.id] || ""}
+                    onChange={(e) => setCcById((prev) => ({ ...prev, [row.id]: e.target.value }))}
+                    placeholder="cc1@example.com, cc2@example.com"
+                    className={INPUT_CLASS}
+                  />
+                </div>
+                <div className="flex items-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void sendPoEmail(row.id)}
+                    disabled={busy}
+                    className={`${SECONDARY_BUTTON} flex-1 flex items-center justify-center gap-2`}
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    {busy ? "Sending…" : "Send by Gmail"}
+                  </button>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className={`${T_LABEL} mb-1.5 block`}>Message (optional)</label>
+                  <textarea
+                    value={messageById[row.id] || ""}
+                    onChange={(e) => setMessageById((prev) => ({ ...prev, [row.id]: e.target.value }))}
+                    placeholder="Optional supplier message"
+                    rows={3}
+                    className={TEXTAREA_CLASS}
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={() => void loadDeliveryStatus(row.id)}
+                    disabled={busy}
+                    className={`${SMALL_BUTTON} w-full flex items-center justify-center gap-2`}
+                  >
+                    <Package className="h-3.5 w-3.5" />
+                    {busy ? "Loading…" : "View Delivery Status"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Delivery / email logs */}
+              {deliveryById[row.id]?.email_logs?.length ? (
+                <div className="mt-4 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600">Email Log</p>
+                  {deliveryById[row.id].email_logs.map((log) => (
+                    <div key={log.id} className="rounded-xl border border-white/6 bg-white/3 p-3 text-xs text-zinc-300">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>{log.recipient_email}</span>
+                        {emailStatusBadge(log.status)}
+                        <span className={T_CAPTION}>{log.sent_at ? String(log.sent_at).slice(0, 16).replace("T", " ") : "-"}</span>
+                      </div>
+                      <div className={`mt-1 ${T_CAPTION}`}>
+                        Receipt: {log.receipt_confirmed_at ? String(log.receipt_confirmed_at).slice(0, 16).replace("T", " ") : "Pending"}
+                      </div>
+                      {log.drive_file_url && (
+                        <a
+                          href={log.drive_file_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-1 inline-flex items-center gap-1 text-sky-400 hover:text-sky-300 transition-colors"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Open mailed PO
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!loading && !rows.length && (
+        <div className={`${GLASS_CARD} p-10 flex items-center justify-center`}>
+          <p className={T_CAPTION}>No purchase orders. Enter a Request ID and load to see or create POs.</p>
+        </div>
+      )}
     </div>
   );
 }

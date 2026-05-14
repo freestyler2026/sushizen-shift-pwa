@@ -3,6 +3,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
+import {
+  GLASS_CARD,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  INPUT_CLASS,
+  SELECT_CLASS,
+  TEXTAREA_CLASS,
+  T_PAGE_TITLE,
+  T_CARD_TITLE,
+  T_LABEL,
+  T_CAPTION,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  BADGE_ERROR,
+  BADGE_INFO,
+} from "@/lib/ui-tokens";
+import { RefreshCw, AlertCircle, CheckCircle, Building2 } from "lucide-react";
 
 type VendorRow = {
   id: string;
@@ -39,8 +56,24 @@ const EMPTY_FORM = {
   notes: "",
 };
 
+function statusBadge(status: string) {
+  const s = String(status || "").toUpperCase();
+  if (s === "ACTIVE")   return <span className={BADGE_SUCCESS}>ACTIVE</span>;
+  if (s === "INACTIVE") return <span className={BADGE_WARNING}>INACTIVE</span>;
+  if (s === "BLOCKED")  return <span className={BADGE_ERROR}>BLOCKED</span>;
+  return <span className={BADGE_INFO}>{status || "-"}</span>;
+}
+
+function riskBadge(risk: string) {
+  const r = String(risk || "").toUpperCase();
+  if (r === "RED" || r === "BLACK") return <span className={BADGE_ERROR}>{r}</span>;
+  if (r === "YELLOW") return <span className={BADGE_WARNING}>{r}</span>;
+  if (r === "GREEN")  return <span className={BADGE_SUCCESS}>{r}</span>;
+  return <span className={BADGE_INFO}>{risk || "-"}</span>;
+}
+
 export default function ProcurementVendorsPage() {
-  const auth = getAuth();
+  const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
@@ -48,8 +81,10 @@ export default function ProcurementVendorsPage() {
   const [rows, setRows] = useState<VendorRow[]>([]);
   const [selectedCode, setSelectedCode] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
+  const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
   const selectedRow = useMemo(
     () => rows.find((row) => row.vendor_code === selectedCode) || null,
@@ -58,6 +93,7 @@ export default function ProcurementVendorsPage() {
 
   const load = useCallback(async () => {
     setError("");
+    setLoading(true);
     try {
       const qs = new URLSearchParams();
       if (statusFilter.trim()) qs.set("status", statusFilter.trim());
@@ -71,13 +107,12 @@ export default function ProcurementVendorsPage() {
       setRows(Array.isArray(data?.rows) ? data.rows : []);
     } catch (e: any) {
       setError(e?.message || String(e));
+    } finally {
+      setLoading(false);
     }
   }, [pin, requestedBy, statusFilter]);
 
-  const resetForm = () => {
-    setSelectedCode("");
-    setForm(EMPTY_FORM);
-  };
+  const resetForm = () => { setSelectedCode(""); setForm(EMPTY_FORM); };
 
   const editRow = (row: VendorRow) => {
     setSelectedCode(row.vendor_code);
@@ -100,11 +135,12 @@ export default function ProcurementVendorsPage() {
 
   const save = async () => {
     if (!form.vendor_code.trim() || !form.registered_name.trim()) {
-      setError("vendor_code and registered_name are required.");
+      setError("Vendor code and registered name are required.");
       return;
     }
     setBusy(true);
     setError("");
+    setSuccessMsg("");
     try {
       await procurementJson(
         "/api/admin/procurement/vendors/upsert",
@@ -114,28 +150,27 @@ export default function ProcurementVendorsPage() {
           body: JSON.stringify({
             approver_name: requestedBy,
             pin,
-            rows: [
-              {
-                ...form,
-                vendor_code: form.vendor_code.trim().toUpperCase(),
-                registered_name: form.registered_name.trim(),
-                trade_name: form.trade_name.trim(),
-                tin: form.tin.trim(),
-                registered_address: form.registered_address.trim(),
-                bank_account_name: form.bank_account_name.trim(),
-                bank_account_no: form.bank_account_no.trim(),
-                bank_name: form.bank_name.trim(),
-                payment_terms: form.payment_terms.trim(),
-                risk_level: form.risk_level.trim().toUpperCase(),
-                status: form.status.trim().toUpperCase(),
-                notes: form.notes.trim(),
-              },
-            ],
+            rows: [{
+              ...form,
+              vendor_code: form.vendor_code.trim().toUpperCase(),
+              registered_name: form.registered_name.trim(),
+              trade_name: form.trade_name.trim(),
+              tin: form.tin.trim(),
+              registered_address: form.registered_address.trim(),
+              bank_account_name: form.bank_account_name.trim(),
+              bank_account_no: form.bank_account_no.trim(),
+              bank_name: form.bank_name.trim(),
+              payment_terms: form.payment_terms.trim(),
+              risk_level: form.risk_level.trim().toUpperCase(),
+              status: form.status.trim().toUpperCase(),
+              notes: form.notes.trim(),
+            }],
           }),
         },
         requestedBy,
         pin,
       );
+      setSuccessMsg(selectedRow ? "Vendor updated." : "Vendor created.");
       await load();
       setSelectedCode(form.vendor_code.trim().toUpperCase());
     } catch (e: any) {
@@ -148,111 +183,221 @@ export default function ProcurementVendorsPage() {
   useEffect(() => {
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
+      const resolvedAuth = refreshed || auth;
       const can = canAccessProcurementAdmin(
-        String((refreshed || auth)?.role || ""),
-        String((refreshed || auth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
+        String(resolvedAuth?.role || ""),
+        String(resolvedAuth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
       );
       setAllowed(can);
       if (can) await load();
     }
     void init();
-  }, [auth, load]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!allowed) {
-    return <div className="text-sm text-red-300">Procurement page is available only to authorized admin roles.</div>;
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+        <AlertCircle className="h-4 w-4 shrink-0" />
+        Procurement vendors is only available to authorized admin roles.
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-4">
-      {error ? <div className="text-sm text-red-300">{error}</div> : null}
+    <div className="space-y-5">
 
-      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 md:grid-cols-4">
-        <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Approver name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm">
-          <option value="">All statuses</option>
-          <option value="ACTIVE">ACTIVE</option>
-          <option value="INACTIVE">INACTIVE</option>
-          <option value="BLOCKED">BLOCKED</option>
-        </select>
-        <button type="button" onClick={() => void load()} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900">
-          Refresh
-        </button>
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className={T_PAGE_TITLE}>Vendor Master</h2>
+          <p className="mt-1 text-sm text-zinc-400">Manage vendor profiles, risk levels, and bank details.</p>
+        </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/25 bg-violet-500/15 px-2.5 py-0.5 text-xs font-medium text-violet-400">
+          <Building2 className="h-3 w-3" />{rows.length} vendors
+        </span>
+      </div>
+
+      {/* Error / Success */}
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+          <AlertCircle className="h-4 w-4 shrink-0" />{error}
+        </div>
+      )}
+      {successMsg && !error && (
+        <div className="flex items-center gap-2 rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-300">
+          <CheckCircle className="h-4 w-4 shrink-0" />{successMsg}
+        </div>
+      )}
+
+      {/* Session + Filter */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Approver Name</label>
+            <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Name" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>PIN</label>
+            <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="••••••••" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Status</label>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={SELECT_CLASS}>
+              <option value="">All statuses</option>
+              <option value="ACTIVE">ACTIVE</option>
+              <option value="INACTIVE">INACTIVE</option>
+              <option value="BLOCKED">BLOCKED</option>
+            </select>
+          </div>
+          <div className="flex items-end">
+            <button
+              type="button"
+              onClick={() => void load()}
+              disabled={loading}
+              className={`${SECONDARY_BUTTON} w-full flex items-center justify-center gap-2`}
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              {loading ? "Loading…" : "Refresh"}
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="space-y-3">
+
+        {/* Vendor list */}
+        <div className="space-y-2">
+          {loading && !rows.length && (
+            <div className={`${GLASS_CARD} p-8 flex items-center justify-center gap-3 text-zinc-500`}>
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              <span className="text-sm">Loading vendors…</span>
+            </div>
+          )}
+          {!loading && !rows.length && (
+            <div className={`${GLASS_CARD} p-8 flex items-center justify-center`}>
+              <p className={T_CAPTION}>No vendors found.</p>
+            </div>
+          )}
           {rows.map((row) => (
             <button
               key={row.id}
               type="button"
               onClick={() => editRow(row)}
               className={[
-                "w-full rounded-2xl border p-4 text-left",
+                "w-full rounded-2xl border p-4 text-left transition-all",
                 selectedCode === row.vendor_code
-                  ? "border-amber-500 bg-amber-950/20"
-                  : "border-neutral-800 bg-neutral-900/20 hover:bg-neutral-900/30",
+                  ? "border-violet-500/50 bg-violet-500/10"
+                  : "border-white/8 bg-white/4 hover:border-violet-500/30 hover:bg-violet-500/8",
               ].join(" ")}
             >
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <div className="text-sm font-medium text-neutral-100">{row.registered_name}</div>
-                  <div className="mt-1 text-xs text-neutral-400">
-                    {row.vendor_code} | {row.trade_name || "-"} | {row.status} | Risk {row.risk_level || "-"}
-                  </div>
-                </div>
-                <div className="text-xs text-neutral-500">{row.payment_terms || "No payment terms"}</div>
+              <div className="flex flex-wrap items-center gap-2">
+                {statusBadge(row.status)}
+                {riskBadge(row.risk_level)}
+                <span className="font-mono text-xs text-zinc-500">{row.vendor_code}</span>
               </div>
-              <div className="mt-2 text-xs text-neutral-500">
-                BIR {row.bir_registered ? "REGISTERED" : "NOT REGISTERED"} | Bank {row.bank_name || "-"} | Updated {String(row.updated_at || "").slice(0, 16).replace("T", " ")}
+              <p className="mt-1.5 text-sm font-medium text-white">{row.registered_name}</p>
+              {row.trade_name && row.trade_name !== row.registered_name && (
+                <p className={T_CAPTION}>{row.trade_name}</p>
+              )}
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-zinc-500">
+                {row.payment_terms && <span>Terms: {row.payment_terms}</span>}
+                {row.bank_name && <span>Bank: {row.bank_name}</span>}
+                <span>BIR: {row.bir_registered ? "✓" : "✗"}</span>
+                <span>Updated: {String(row.updated_at || "").slice(0, 10)}</span>
               </div>
-              {row.notes ? <div className="mt-2 text-sm text-neutral-300">{row.notes}</div> : null}
+              {row.notes && <p className="mt-1 text-xs text-zinc-400">{row.notes}</p>}
             </button>
           ))}
-          {!rows.length ? <div className="text-sm text-neutral-500">No vendors found.</div> : null}
         </div>
 
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-sm font-medium">{selectedRow ? "Edit Vendor" : "New Vendor"}</div>
-              <div className="mt-1 text-xs text-neutral-500">Vendor master, risk level, payment terms, and bank details.</div>
-            </div>
-            <button type="button" onClick={resetForm} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+        {/* Edit / Create form */}
+        <div className={`${GLASS_CARD} p-5`}>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <p className={T_CARD_TITLE}>{selectedRow ? "Edit Vendor" : "New Vendor"}</p>
+            <button type="button" onClick={resetForm} className="text-xs text-zinc-500 hover:text-zinc-300">
               Reset
             </button>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-3">
-            <input value={form.vendor_code} onChange={(e) => setForm((prev) => ({ ...prev, vendor_code: e.target.value }))} placeholder="Vendor code" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-            <input value={form.registered_name} onChange={(e) => setForm((prev) => ({ ...prev, registered_name: e.target.value }))} placeholder="Registered name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-            <input value={form.trade_name} onChange={(e) => setForm((prev) => ({ ...prev, trade_name: e.target.value }))} placeholder="Trade name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-            <input value={form.tin} onChange={(e) => setForm((prev) => ({ ...prev, tin: e.target.value }))} placeholder="TIN" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-            <textarea value={form.registered_address} onChange={(e) => setForm((prev) => ({ ...prev, registered_address: e.target.value }))} placeholder="Registered address" className="min-h-24 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <input value={form.bank_account_name} onChange={(e) => setForm((prev) => ({ ...prev, bank_account_name: e.target.value }))} placeholder="Bank account name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-              <input value={form.bank_account_no} onChange={(e) => setForm((prev) => ({ ...prev, bank_account_no: e.target.value }))} placeholder="Bank account no" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-              <input value={form.bank_name} onChange={(e) => setForm((prev) => ({ ...prev, bank_name: e.target.value }))} placeholder="Bank name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-              <input value={form.payment_terms} onChange={(e) => setForm((prev) => ({ ...prev, payment_terms: e.target.value }))} placeholder="Payment terms" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-              <select value={form.risk_level} onChange={(e) => setForm((prev) => ({ ...prev, risk_level: e.target.value }))} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm">
-                <option value="GREEN">GREEN</option>
-                <option value="YELLOW">YELLOW</option>
-                <option value="RED">RED</option>
-                <option value="BLACK">BLACK</option>
-              </select>
-              <select value={form.status} onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm">
-                <option value="ACTIVE">ACTIVE</option>
-                <option value="INACTIVE">INACTIVE</option>
-                <option value="BLOCKED">BLOCKED</option>
-              </select>
+          <div className="space-y-3">
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Vendor Code *</label>
+              <input value={form.vendor_code} onChange={(e) => setForm((p) => ({ ...p, vendor_code: e.target.value }))} placeholder="e.g. VENDOR001" className={INPUT_CLASS} />
             </div>
-            <label className="inline-flex items-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200">
-              <input type="checkbox" checked={form.bir_registered} onChange={(e) => setForm((prev) => ({ ...prev, bir_registered: e.target.checked }))} />
-              BIR registered
-            </label>
-            <textarea value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} placeholder="Notes / watchlist memo / vendor context" className="min-h-24 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-            <button type="button" onClick={() => void save()} disabled={busy} className="rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-800/30 disabled:opacity-60">
-              {busy ? "Saving..." : selectedRow ? "Update Vendor" : "Create Vendor"}
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Registered Name *</label>
+              <input value={form.registered_name} onChange={(e) => setForm((p) => ({ ...p, registered_name: e.target.value }))} placeholder="Legal business name" className={INPUT_CLASS} />
+            </div>
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Trade Name</label>
+              <input value={form.trade_name} onChange={(e) => setForm((p) => ({ ...p, trade_name: e.target.value }))} placeholder="DBA / trade name" className={INPUT_CLASS} />
+            </div>
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>TIN</label>
+              <input value={form.tin} onChange={(e) => setForm((p) => ({ ...p, tin: e.target.value }))} placeholder="Tax identification number" className={INPUT_CLASS} />
+            </div>
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Registered Address</label>
+              <textarea value={form.registered_address} onChange={(e) => setForm((p) => ({ ...p, registered_address: e.target.value }))} placeholder="Address" className={`${TEXTAREA_CLASS} min-h-16`} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={`${T_LABEL} mb-1.5 block`}>Bank Name</label>
+                <input value={form.bank_name} onChange={(e) => setForm((p) => ({ ...p, bank_name: e.target.value }))} placeholder="Bank" className={INPUT_CLASS} />
+              </div>
+              <div>
+                <label className={`${T_LABEL} mb-1.5 block`}>Account No</label>
+                <input value={form.bank_account_no} onChange={(e) => setForm((p) => ({ ...p, bank_account_no: e.target.value }))} placeholder="Account number" className={INPUT_CLASS} />
+              </div>
+              <div className="col-span-2">
+                <label className={`${T_LABEL} mb-1.5 block`}>Account Name</label>
+                <input value={form.bank_account_name} onChange={(e) => setForm((p) => ({ ...p, bank_account_name: e.target.value }))} placeholder="Account holder name" className={INPUT_CLASS} />
+              </div>
+              <div>
+                <label className={`${T_LABEL} mb-1.5 block`}>Payment Terms</label>
+                <input value={form.payment_terms} onChange={(e) => setForm((p) => ({ ...p, payment_terms: e.target.value }))} placeholder="e.g. Net 30" className={INPUT_CLASS} />
+              </div>
+              <div>
+                <label className={`${T_LABEL} mb-1.5 block`}>Risk Level</label>
+                <select value={form.risk_level} onChange={(e) => setForm((p) => ({ ...p, risk_level: e.target.value }))} className={SELECT_CLASS}>
+                  <option value="GREEN">GREEN</option>
+                  <option value="YELLOW">YELLOW</option>
+                  <option value="RED">RED</option>
+                  <option value="BLACK">BLACK</option>
+                </select>
+              </div>
+              <div>
+                <label className={`${T_LABEL} mb-1.5 block`}>Status</label>
+                <select value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))} className={SELECT_CLASS}>
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="INACTIVE">INACTIVE</option>
+                  <option value="BLOCKED">BLOCKED</option>
+                </select>
+              </div>
+              <div className="flex items-center">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-zinc-200">
+                  <input
+                    type="checkbox"
+                    checked={form.bir_registered}
+                    onChange={(e) => setForm((p) => ({ ...p, bir_registered: e.target.checked }))}
+                    className="h-4 w-4 rounded"
+                  />
+                  BIR Registered
+                </label>
+              </div>
+            </div>
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Notes / Watchlist Memo</label>
+              <textarea value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} placeholder="Context, watchlist flags, special terms…" className={`${TEXTAREA_CLASS} min-h-16`} />
+            </div>
+            <button
+              type="button"
+              onClick={() => void save()}
+              disabled={busy}
+              className={`${PRIMARY_BUTTON} w-full flex items-center justify-center gap-2`}
+            >
+              {busy ? <><RefreshCw className="h-4 w-4 animate-spin" />Saving…</> : (selectedRow ? "Update Vendor" : "Create Vendor")}
             </button>
           </div>
         </div>
