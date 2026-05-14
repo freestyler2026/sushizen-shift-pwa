@@ -481,9 +481,14 @@ function _canAccessStaffChannel(channelKey: string, a?: Auth | null): boolean {
   return true;
 }
 
-/** Attendance page — matches `attendance` channel in `app/access_control.py`. */
+/** Attendance page — matches `attendance` channel in `app/access_control.py`.
+ *  Time-in / Time-out is a fundamental right for every authenticated employee.
+ *  Never block it on a missing channel permission — any valid auth session may clock in/out.
+ *  The backend also auto-grants channel.attendance.view to all roles, but this is a
+ *  permanent frontend safety net so a future role-config mistake can never lock staff out. */
 export function canAccessAttendancePage(a?: Auth | null): boolean {
-  return _canAccessStaffChannel("attendance", a);
+  const x = a ?? getAuth();
+  return x != null;
 }
 
 /** Week page — matches `week` channel in `app/access_control.py`. */
