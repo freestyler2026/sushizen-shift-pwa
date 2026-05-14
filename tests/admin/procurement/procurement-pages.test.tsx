@@ -33,9 +33,44 @@ vi.mock("framer-motion", () => ({
   AnimatePresence: ({ children }: any) => <>{children}</>,
 }));
 
+const _icon = () => null;
 vi.mock("lucide-react", () => ({
+  AlertCircle: _icon,
+  AlertTriangle: _icon,
+  ArrowDown: _icon,
+  ArrowLeft: _icon,
+  ArrowUp: _icon,
+  ArrowUpDown: _icon,
+  BarChart3: _icon,
+  Building2: _icon,
+  Camera: _icon,
+  CheckCircle: _icon,
+  CheckCircle2: _icon,
+  ChevronDown: _icon,
+  ChevronRight: _icon,
+  ChevronUp: _icon,
+  Database: _icon,
+  Download: _icon,
+  ExternalLink: _icon,
+  Inbox: _icon,
+  Minus: _icon,
+  Package: _icon,
+  Plus: _icon,
+  RefreshCw: _icon,
+  Save: _icon,
+  ScrollText: _icon,
+  Search: _icon,
+  Send: _icon,
+  ShieldAlert: _icon,
+  ShieldCheck: _icon,
   ShoppingCart: () => <span data-testid="cart-icon" />,
-  MonthPicker: () => <input type="month" />,
+  SquarePen: _icon,
+  Tag: _icon,
+  TrendingDown: _icon,
+  TrendingUp: _icon,
+  TriangleAlert: _icon,
+  Upload: _icon,
+  X: _icon,
 }));
 
 vi.mock("@/components/DatePicker", () => ({
@@ -142,7 +177,7 @@ describe("ProcurementApprovalInboxPage", () => {
   it("shows access denied when user is not authorized", async () => {
     mockAuthReturn = NO_AUTH;
     render(<ApprovalInboxPage />);
-    await screen.findByText(/Procurement page is available only to authorized admin roles/i);
+    await screen.findByText(/Procurement approval inbox is only available to authorized admin roles/i);
   });
 
   it("shows case list when HQ user is authorized", async () => {
@@ -176,7 +211,7 @@ describe("ProcurementApprovalInboxPage", () => {
     mockAuthReturn = HQ_AUTH;
     mockProcurementJson = vi.fn(async () => ({ rows: [] }));
     render(<ApprovalInboxPage />);
-    await screen.findByText("No approval cases.");
+    await screen.findByText("No pending approval cases.");
   });
 
   it("shows error message when API call fails", async () => {
@@ -218,7 +253,7 @@ describe("ProcurementApprovalInboxPage", () => {
       ],
     }));
     render(<ApprovalInboxPage />);
-    await screen.findByText(/Notification Failed/i);
+    await screen.findByText(/Push Failed ×2/i);
   });
 });
 
@@ -385,7 +420,7 @@ describe("ProcurementAuditPage", () => {
   it("shows 'No audit logs.' when empty", async () => {
     mockAuthReturn = HQ_AUTH;
     render(<AuditPage />);
-    await screen.findByText("No audit logs.");
+    await screen.findByText("No audit logs. Enter a Request ID and click Search.");
   });
 
   it("[FIXED] error message says 'authorized admin roles' not 'Manila admin roles'", async () => {

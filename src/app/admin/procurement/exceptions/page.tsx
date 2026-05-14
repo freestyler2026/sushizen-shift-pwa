@@ -49,7 +49,9 @@ function statusBadge(status: string) {
 export default function ProcurementExceptionsPage() {
   const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
-  const [city, setCity] = useState<"manila" | "dubai">("manila");
+  const [city, setCity] = useState<"manila" | "dubai">(
+    String(auth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
+  );
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
   const [rows, setRows] = useState<ExceptionRow[]>([]);

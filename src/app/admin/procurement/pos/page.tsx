@@ -149,7 +149,9 @@ function emailStatusBadge(status: string) {
 export default function ProcurementPoPage() {
   const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
-  const [city, setCity] = useState<"manila" | "dubai">("manila");
+  const [city, setCity] = useState<"manila" | "dubai">(
+    String(auth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
+  );
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
   const [requestId, setRequestId] = useState("");
