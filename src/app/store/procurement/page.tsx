@@ -411,6 +411,8 @@ export default function StoreProcurementHomePage() {
   const initRef = useRef(false);
   const cityLabel = city === "dubai" ? "Dubai" : "Manila";
   const currencyCode = city === "dubai" ? "AED" : "PHP";
+  const APPROVAL_THRESHOLD = city === "dubai" ? 500 : 15000;
+  const isHighValue = (row: RequestRow) => Number(row.total_amount || 0) > APPROVAL_THRESHOLD;
 
   const loadMyRequests = useCallback(async (cityOverride?: string) => {
     setLoading(true);
@@ -1079,7 +1081,9 @@ export default function StoreProcurementHomePage() {
                           <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-zinc-500">
                             <span>{row.store_code || "-"}</span>
                             <span>{row.request_date || "-"}</span>
-                            <span className="font-semibold text-zinc-400">{Number(row.total_amount || 0).toFixed(2)} {currencyCode}</span>
+                            <span className={`font-semibold ${isHighValue(row) ? "text-amber-400" : "text-zinc-400"}`}>
+                              {Number(row.total_amount || 0).toFixed(2)} {currencyCode}
+                            </span>
                           </div>
                           {/* Status badge row */}
                           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -1088,6 +1092,11 @@ export default function StoreProcurementHomePage() {
                             {s === "RETURNED" && <span className={BADGE_ERROR}>RETURNED</span>}
                             {(s === "IN_REVIEW" || s === "SUBMITTED") && <span className={BADGE_INFO}>IN REVIEW</span>}
                             {s === "RECEIVED" && <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/15 border border-cyan-500/25 px-2.5 py-0.5 text-xs font-medium text-cyan-400">RECEIVED</span>}
+                            {isHighValue(row) && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-900/40 border border-amber-500/40 px-2.5 py-0.5 text-xs font-medium text-amber-300">
+                                ⚠ High Value
+                              </span>
+                            )}
                           </div>
                         </div>
                         {/* Status-driven action button */}

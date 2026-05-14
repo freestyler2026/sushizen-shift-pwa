@@ -169,6 +169,8 @@ export default function StoreProcurementRequestPage() {
   const initRef = useRef(false);
   const cityLabel = city === "dubai" ? "Dubai" : "Manila";
   const currencyCode = city === "dubai" ? "AED" : "PHP";
+  const APPROVAL_THRESHOLD = city === "dubai" ? 500 : 15000;
+  const isOverThreshold = validItemsTotal > 0 && validItemsTotal > APPROVAL_THRESHOLD;
 
   // ── Add to Catalog state ──────────────────────────────────────────────────
   const [showAddCatalog, setShowAddCatalog] = useState(false);
@@ -996,10 +998,26 @@ export default function StoreProcurementRequestPage() {
               </div>
 
               {/* Total */}
-              <div className="flex items-center justify-between rounded-xl border border-violet-500/30 bg-violet-950/30 px-3 py-2 font-semibold">
-                <span className="text-neutral-300">Total ({currencyCode})</span>
-                <span className="text-white">{validItemsTotal.toFixed(2)}</span>
+              <div className={[
+                "flex items-center justify-between rounded-xl border px-3 py-2 font-semibold transition-colors",
+                isOverThreshold
+                  ? "border-amber-500/40 bg-amber-950/30"
+                  : "border-violet-500/30 bg-violet-950/30",
+              ].join(" ")}>
+                <span className={isOverThreshold ? "text-amber-300" : "text-neutral-300"}>Total ({currencyCode})</span>
+                <span className={isOverThreshold ? "text-amber-200 font-bold" : "text-white"}>{validItemsTotal.toFixed(2)}</span>
               </div>
+
+              {/* Management approval threshold warning */}
+              {isOverThreshold && (
+                <div className="rounded-xl border border-amber-500/35 bg-amber-950/20 px-3 py-2.5 text-xs text-amber-200">
+                  <div className="font-semibold mb-0.5">⚠ Management Approval Required</div>
+                  <div className="text-amber-300/80">
+                    Orders over {currencyCode} {APPROVAL_THRESHOLD.toLocaleString()} require management approval before receiving.
+                    Your order will be routed to the approval queue automatically.
+                  </div>
+                </div>
+              )}
 
               <div className="text-center text-[10px] text-neutral-500">
                 After submission, you can view the order in your request history.
