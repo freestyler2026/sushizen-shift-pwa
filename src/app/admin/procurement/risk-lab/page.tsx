@@ -6,6 +6,16 @@ import { canAccessProcurementAdmin, getAuth, hasPermission, refreshAuthFromApi }
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
 import DatePicker from "@/components/DatePicker";
 import MonthPicker from "@/components/MonthPicker";
+import { AlertCircle } from "lucide-react";
+import {
+  GLASS_CARD,
+  SECONDARY_BUTTON,
+  INPUT_CLASS,
+  T_PAGE_TITLE,
+  T_SECTION,
+  T_CAPTION,
+  T_LABEL,
+} from "@/lib/ui-tokens";
 
 type CaseRow = {
   id: string;
@@ -260,7 +270,7 @@ function diffThresholdSettings(
 }
 
 export default function ProcurementRiskLabPage() {
-  const auth = getAuth();
+  const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
   const [canWriteSharedConfig, setCanWriteSharedConfig] = useState(false);
   const [city, setCity] = useState<"manila" | "dubai">(
@@ -404,7 +414,8 @@ export default function ProcurementRiskLabPage() {
       }
     }
     void init();
-  }, [auth, load, requestedBy]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const saveThresholdSettings = async () => {
     if (!canWriteSharedConfig) {
@@ -801,43 +812,71 @@ export default function ProcurementRiskLabPage() {
   };
 
   if (!allowed) {
-    return <div className="text-sm text-red-300">Procurement page is available only to authorized admin roles.</div>;
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+        <AlertCircle className="h-4 w-4 shrink-0" />
+        Risk Lab is only available to authorized admin roles.
+      </div>
+    );
   }
 
   return (
     <div className="space-y-4">
-      {error ? <div className="text-sm text-red-300">{error}</div> : null}
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+          <AlertCircle className="h-4 w-4 shrink-0" />{error}
+        </div>
+      )}
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-        <div className="text-lg font-semibold">Risk Lab (Phase 3 MVP)</div>
-        <div className="mt-1 text-sm text-neutral-400">
+      <div className={`${GLASS_CARD} p-4`}>
+        <h2 className={T_PAGE_TITLE}>Risk Lab</h2>
+        <p className="mt-1 text-sm text-zinc-400">
           Fraud pattern watch, approver behavior scoring, and investigation workflow on existing procurement APIs.
+        </p>
+      </div>
+
+      <div className={`${GLASS_CARD} p-3`}>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-6">
+          <div>
+            <label className={`${T_LABEL} mb-1 block`}>Approver</label>
+            <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Approver name" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1 block`}>PIN</label>
+            <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1 block`}>Month</label>
+            <MonthPicker value={monthKey} onChange={setMonthKey} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1 block`}>Owner Filter</label>
+            <input value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)} placeholder="Optional" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1 block`}>Investigation Owner</label>
+            <input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Owner name" className={INPUT_CLASS} />
+          </div>
+          <div className="flex items-end">
+            <button type="button" onClick={() => void load()} disabled={loading} className={`${SECONDARY_BUTTON} w-full flex items-center justify-center gap-2`}>
+              {loading ? "Loading…" : "Refresh"}
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-3 md:grid-cols-6">
-        <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Approver name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <MonthPicker value={monthKey} onChange={setMonthKey} />
-        <input value={ownerFilter} onChange={(e) => setOwnerFilter(e.target.value)} placeholder="Owner filter (optional)" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} placeholder="Investigation owner" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <button type="button" onClick={() => void load()} disabled={loading} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60">
-          {loading ? "Loading..." : "Refresh"}
-        </button>
-      </div>
-
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+      <div className={`${GLASS_CARD} p-4`}>
         <div className="mb-3 flex items-center justify-between gap-2">
           <div>
-            <div className="text-sm font-medium">Risk Threshold Settings</div>
-            <div className="mt-1 text-xs text-neutral-500">Operational tuning for behavior/fraud detection in this Risk Lab.</div>
+            <p className={T_SECTION}>Risk Threshold Settings</p>
+            <p className={`mt-1 ${T_CAPTION}`}>Operational tuning for behavior/fraud detection in this Risk Lab.</p>
             {thresholdUpdatedAt ? (
-              <div className="mt-1 text-[11px] text-neutral-500">
+              <div className="mt-1 text-[11px] text-zinc-500">
                 Last shared update: {String(thresholdUpdatedAt || "").slice(0, 16).replace("T", " ")}
                 {thresholdUpdatedBy ? ` by ${thresholdUpdatedBy}` : ""}
               </div>
             ) : null}
-            <div className="mt-1 text-[11px] text-neutral-500">
+            <div className="mt-1 text-[11px] text-zinc-500">
               Draft delta vs shared: {draftVsSharedDiff.length} field{draftVsSharedDiff.length === 1 ? "" : "s"}
             </div>
           </div>
@@ -846,7 +885,7 @@ export default function ProcurementRiskLabPage() {
               type="button"
               onClick={() => setThresholds(RISK_THRESHOLD_DEFAULTS)}
               disabled={!canWriteSharedConfig}
-              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900"
+              className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs hover:bg-white/5"
             >
               Reset Defaults
             </button>
@@ -862,7 +901,7 @@ export default function ProcurementRiskLabPage() {
               type="button"
               onClick={() => setThresholds(sharedThresholds)}
               disabled={!draftVsSharedDiff.length || !canWriteSharedConfig}
-              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900 disabled:opacity-60"
+              className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs hover:bg-white/5 disabled:opacity-60"
             >
               Revert Draft to Shared
             </button>
@@ -874,27 +913,27 @@ export default function ProcurementRiskLabPage() {
           </div>
         ) : null}
         <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
-          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.exceptionHighCount} onChange={(e) => setThresholds((p) => ({ ...p, exceptionHighCount: Number(e.target.value || 0) }))} placeholder="Exception high count" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs disabled:opacity-60" />
-          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.exceptionMediumCount} onChange={(e) => setThresholds((p) => ({ ...p, exceptionMediumCount: Number(e.target.value || 0) }))} placeholder="Exception medium count" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs disabled:opacity-60" />
-          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.priceDevHigh} onChange={(e) => setThresholds((p) => ({ ...p, priceDevHigh: Number(e.target.value || 0) }))} placeholder="Price deviation high %" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs disabled:opacity-60" />
-          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.priceDevMedium} onChange={(e) => setThresholds((p) => ({ ...p, priceDevMedium: Number(e.target.value || 0) }))} placeholder="Price deviation medium %" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs disabled:opacity-60" />
-          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.urgentRatioHigh} onChange={(e) => setThresholds((p) => ({ ...p, urgentRatioHigh: Number(e.target.value || 0) }))} placeholder="Urgent high %" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs disabled:opacity-60" />
-          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.urgentRatioMedium} onChange={(e) => setThresholds((p) => ({ ...p, urgentRatioMedium: Number(e.target.value || 0) }))} placeholder="Urgent medium %" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs disabled:opacity-60" />
-          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.onTimeLow} onChange={(e) => setThresholds((p) => ({ ...p, onTimeLow: Number(e.target.value || 0) }))} placeholder="On-time low %" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs disabled:opacity-60" />
-          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.onTimeWarn} onChange={(e) => setThresholds((p) => ({ ...p, onTimeWarn: Number(e.target.value || 0) }))} placeholder="On-time warn %" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs disabled:opacity-60" />
-          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.cycleHoursHigh} onChange={(e) => setThresholds((p) => ({ ...p, cycleHoursHigh: Number(e.target.value || 0) }))} placeholder="Cycle high hours" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs disabled:opacity-60" />
-          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.cycleHoursMedium} onChange={(e) => setThresholds((p) => ({ ...p, cycleHoursMedium: Number(e.target.value || 0) }))} placeholder="Cycle medium hours" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs disabled:opacity-60" />
-          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.behaviorHighRiskPoint} onChange={(e) => setThresholds((p) => ({ ...p, behaviorHighRiskPoint: Number(e.target.value || 0) }))} placeholder="Behavior high points" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs disabled:opacity-60" />
-          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.behaviorMediumRiskPoint} onChange={(e) => setThresholds((p) => ({ ...p, behaviorMediumRiskPoint: Number(e.target.value || 0) }))} placeholder="Behavior medium points" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs disabled:opacity-60" />
-          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.caseRiskScoreCritical} onChange={(e) => setThresholds((p) => ({ ...p, caseRiskScoreCritical: Number(e.target.value || 0) }))} placeholder="Case critical score" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs disabled:opacity-60" />
-          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.exceptionRiskScoreCritical} onChange={(e) => setThresholds((p) => ({ ...p, exceptionRiskScoreCritical: Number(e.target.value || 0) }))} placeholder="Exception critical score" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs disabled:opacity-60" />
+          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.exceptionHighCount} onChange={(e) => setThresholds((p) => ({ ...p, exceptionHighCount: Number(e.target.value || 0) }))} placeholder="Exception high count" className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs disabled:opacity-60" />
+          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.exceptionMediumCount} onChange={(e) => setThresholds((p) => ({ ...p, exceptionMediumCount: Number(e.target.value || 0) }))} placeholder="Exception medium count" className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs disabled:opacity-60" />
+          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.priceDevHigh} onChange={(e) => setThresholds((p) => ({ ...p, priceDevHigh: Number(e.target.value || 0) }))} placeholder="Price deviation high %" className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs disabled:opacity-60" />
+          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.priceDevMedium} onChange={(e) => setThresholds((p) => ({ ...p, priceDevMedium: Number(e.target.value || 0) }))} placeholder="Price deviation medium %" className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs disabled:opacity-60" />
+          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.urgentRatioHigh} onChange={(e) => setThresholds((p) => ({ ...p, urgentRatioHigh: Number(e.target.value || 0) }))} placeholder="Urgent high %" className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs disabled:opacity-60" />
+          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.urgentRatioMedium} onChange={(e) => setThresholds((p) => ({ ...p, urgentRatioMedium: Number(e.target.value || 0) }))} placeholder="Urgent medium %" className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs disabled:opacity-60" />
+          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.onTimeLow} onChange={(e) => setThresholds((p) => ({ ...p, onTimeLow: Number(e.target.value || 0) }))} placeholder="On-time low %" className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs disabled:opacity-60" />
+          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.onTimeWarn} onChange={(e) => setThresholds((p) => ({ ...p, onTimeWarn: Number(e.target.value || 0) }))} placeholder="On-time warn %" className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs disabled:opacity-60" />
+          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.cycleHoursHigh} onChange={(e) => setThresholds((p) => ({ ...p, cycleHoursHigh: Number(e.target.value || 0) }))} placeholder="Cycle high hours" className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs disabled:opacity-60" />
+          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.cycleHoursMedium} onChange={(e) => setThresholds((p) => ({ ...p, cycleHoursMedium: Number(e.target.value || 0) }))} placeholder="Cycle medium hours" className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs disabled:opacity-60" />
+          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.behaviorHighRiskPoint} onChange={(e) => setThresholds((p) => ({ ...p, behaviorHighRiskPoint: Number(e.target.value || 0) }))} placeholder="Behavior high points" className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs disabled:opacity-60" />
+          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.behaviorMediumRiskPoint} onChange={(e) => setThresholds((p) => ({ ...p, behaviorMediumRiskPoint: Number(e.target.value || 0) }))} placeholder="Behavior medium points" className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs disabled:opacity-60" />
+          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.caseRiskScoreCritical} onChange={(e) => setThresholds((p) => ({ ...p, caseRiskScoreCritical: Number(e.target.value || 0) }))} placeholder="Case critical score" className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs disabled:opacity-60" />
+          <input type="number" disabled={!canWriteSharedConfig} value={thresholds.exceptionRiskScoreCritical} onChange={(e) => setThresholds((p) => ({ ...p, exceptionRiskScoreCritical: Number(e.target.value || 0) }))} placeholder="Exception critical score" className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs disabled:opacity-60" />
         </div>
         <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-[280px_1fr]">
           <select
             disabled={!canWriteSharedConfig}
             value={thresholdReasonCode}
             onChange={(e) => setThresholdReasonCode(e.target.value)}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs disabled:opacity-60"
+            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs disabled:opacity-60"
           >
             {RISK_REASON_OPTIONS.map((item) => (
               <option key={item.code} value={item.code}>
@@ -902,7 +941,7 @@ export default function ProcurementRiskLabPage() {
               </option>
             ))}
           </select>
-          <div className="rounded-xl border border-neutral-800 bg-neutral-950/50 px-3 py-2 text-xs text-neutral-400">
+          <div className="rounded-xl border border-white/10 bg-white/6/50 px-3 py-2 text-xs text-zinc-400">
             {RISK_REASON_OPTIONS.find((item) => item.code === thresholdReasonCode)?.description || "Select a reason."}
           </div>
         </div>
@@ -913,29 +952,29 @@ export default function ProcurementRiskLabPage() {
               value={thresholdReasonDetail}
               onChange={(e) => setThresholdReasonDetail(e.target.value)}
               placeholder="Describe the reason for reporting (required when Other)"
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs disabled:opacity-60"
+              className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs disabled:opacity-60"
             />
           </div>
         ) : null}
-        <div className="mt-1 text-[11px] text-neutral-500">
+        <div className="mt-1 text-[11px] text-zinc-500">
           This reason code is used for audit/report grouping across the team.
         </div>
         {thresholdConflict ? (
           <div className="mt-3 rounded-xl border border-amber-700/50 bg-amber-900/10 p-3">
             <div className="text-xs font-medium text-amber-200">Conflict detected while saving shared thresholds</div>
             <div className="mt-1 text-[11px] text-amber-100/90">{thresholdConflict.message}</div>
-            <div className="mt-1 text-[11px] text-neutral-400">
+            <div className="mt-1 text-[11px] text-zinc-400">
               Current shared version: {String(thresholdConflict.serverUpdatedAt || "").slice(0, 16).replace("T", " ")}
               {thresholdConflict.serverUpdatedBy ? ` by ${thresholdConflict.serverUpdatedBy}` : ""}
             </div>
             <div className="mt-2 space-y-1">
               {thresholdConflictDiff.map((item) => (
-                <div key={`conflict-${item.key}`} className="text-[11px] text-neutral-300">
+                <div key={`conflict-${item.key}`} className="text-[11px] text-zinc-300">
                   {RISK_THRESHOLD_LABELS[item.key]}: server {item.beforeValue == null ? "-" : item.beforeValue} -&gt; your draft{" "}
                   {item.afterValue == null ? "-" : item.afterValue}
                 </div>
               ))}
-              {!thresholdConflictDiff.length ? <div className="text-[11px] text-neutral-500">No numeric diff found, but shared version changed.</div> : null}
+              {!thresholdConflictDiff.length ? <div className="text-[11px] text-zinc-500">No numeric diff found, but shared version changed.</div> : null}
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <button
@@ -948,7 +987,7 @@ export default function ProcurementRiskLabPage() {
                   setThresholdConflict(null);
                   setError("");
                 }}
-                className="rounded-xl border border-neutral-700 bg-neutral-950 px-2.5 py-1.5 text-[11px] hover:bg-neutral-900"
+                className="rounded-xl border border-white/8 bg-white/6 px-2.5 py-1.5 text-[11px] hover:bg-white/5"
               >
                 Load Latest Shared Values
               </button>
@@ -970,18 +1009,18 @@ export default function ProcurementRiskLabPage() {
         ) : null}
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
         <div className="mb-2 flex items-center justify-between gap-2">
           <div>
             <div className="text-sm font-medium">Shared Settings Update History</div>
-            <div className="mt-1 text-xs text-neutral-500">Shows who changed thresholds, when, and what values were updated.</div>
+            <div className="mt-1 text-xs text-zinc-500">Shows who changed thresholds, when, and what values were updated.</div>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={exportHistoryCsv}
               disabled={!filteredRiskLabHistoryRows.length}
-              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900 disabled:opacity-60"
+              className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs hover:bg-white/5 disabled:opacity-60"
             >
               Export History CSV
             </button>
@@ -989,7 +1028,7 @@ export default function ProcurementRiskLabPage() {
               type="button"
               onClick={exportReasonSummaryCsv}
               disabled={!historyReasonCounts.length}
-              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900 disabled:opacity-60"
+              className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs hover:bg-white/5 disabled:opacity-60"
             >
               Export Summary CSV
             </button>
@@ -997,7 +1036,7 @@ export default function ProcurementRiskLabPage() {
               type="button"
               onClick={() => void loadRiskLabAudit()}
               disabled={auditLoading}
-              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900 disabled:opacity-60"
+              className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs hover:bg-white/5 disabled:opacity-60"
             >
               {auditLoading ? "Loading..." : "Refresh History"}
             </button>
@@ -1007,7 +1046,7 @@ export default function ProcurementRiskLabPage() {
           <select
             value={historyReasonFilter}
             onChange={(e) => setHistoryReasonFilter(e.target.value)}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs"
+            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs"
           >
             <option value="ALL">All reasons</option>
             {RISK_REASON_OPTIONS.map((item) => (
@@ -1020,18 +1059,18 @@ export default function ProcurementRiskLabPage() {
           <button
             type="button"
             onClick={() => setHistoryMonthFilter("")}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900"
+            className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs hover:bg-white/5"
           >
             Show all months
           </button>
         </div>
         <div className="mb-3 flex flex-wrap gap-2">
           {historyReasonCounts.map((item) => (
-            <div key={item.code} className="rounded-full border border-neutral-700 bg-neutral-950/60 px-2.5 py-1 text-[11px] text-neutral-300">
+            <div key={item.code} className="rounded-full border border-white/8 bg-white/6/60 px-2.5 py-1 text-[11px] text-zinc-300">
               {item.label}: {item.count} ({item.pct.toFixed(1)}%)
             </div>
           ))}
-          {!historyReasonCounts.length ? <div className="text-xs text-neutral-500">No history rows in this month range.</div> : null}
+          {!historyReasonCounts.length ? <div className="text-xs text-zinc-500">No history rows in this month range.</div> : null}
         </div>
         <div className="mb-3 flex flex-wrap gap-2">
           <button
@@ -1041,7 +1080,7 @@ export default function ProcurementRiskLabPage() {
               "rounded-full border px-2.5 py-1 text-[11px]",
               historyChangedKeyFilter === "ALL"
                 ? "border-amber-500 bg-amber-900/25 text-amber-200"
-                : "border-neutral-700 bg-neutral-950/60 text-neutral-300 hover:bg-neutral-900",
+                : "border-white/8 bg-white/6/60 text-zinc-300 hover:bg-white/5",
             ].join(" ")}
           >
             All changed thresholds
@@ -1061,30 +1100,30 @@ export default function ProcurementRiskLabPage() {
               {item.label}: {item.count} ({item.pct.toFixed(1)}%)
             </button>
           ))}
-          {!topChangedThresholds.length ? <div className="text-xs text-neutral-500">No threshold changes in current filter scope.</div> : null}
+          {!topChangedThresholds.length ? <div className="text-xs text-zinc-500">No threshold changes in current filter scope.</div> : null}
         </div>
         {historyChangedKeyFilter !== "ALL" ? (
-          <div className="mb-3 text-[11px] text-neutral-500">
+          <div className="mb-3 text-[11px] text-zinc-500">
             Showing history rows that changed:{" "}
             {RISK_THRESHOLD_LABELS[historyChangedKeyFilter as keyof RiskThresholdSettings] || historyChangedKeyFilter}
           </div>
         ) : null}
         <div className="space-y-2">
           {filteredRiskLabHistoryRows.map((row) => (
-            <div key={row.id} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
+            <div key={row.id} className="rounded-xl border border-white/10 bg-white/4 p-3">
               <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-                <div className="text-xs text-neutral-300">
+                <div className="text-xs text-zinc-300">
                   {row.actor_name || "-"} {row.actor_role ? `(${row.actor_role})` : ""}
                 </div>
-                <div className="text-[11px] text-neutral-500">{String(row.created_at || "").slice(0, 16).replace("T", " ")}</div>
+                <div className="text-[11px] text-zinc-500">{String(row.created_at || "").slice(0, 16).replace("T", " ")}</div>
               </div>
               <div className="mt-2 space-y-1">
                 {row.reason_code ? (
-                  <div className="text-[11px] text-neutral-500">
+                  <div className="text-[11px] text-zinc-500">
                     Reason: {RISK_REASON_OPTIONS.find((item) => item.code === row.reason_code)?.label || row.reason_code}
                   </div>
                 ) : null}
-                {row.after_json?.reason_detail ? <div className="text-[11px] text-neutral-500">Detail: {row.after_json.reason_detail}</div> : null}
+                {row.after_json?.reason_detail ? <div className="text-[11px] text-zinc-500">Detail: {row.after_json.reason_detail}</div> : null}
                 <div className="mt-1 flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -1099,43 +1138,43 @@ export default function ProcurementRiskLabPage() {
                       setThresholdConflict(null);
                       setError("");
                     }}
-                    className="rounded-xl border border-neutral-800 bg-neutral-950 px-2.5 py-1 text-[11px] hover:bg-neutral-900 disabled:opacity-50"
+                    className="rounded-xl border border-white/10 bg-white/6 px-2.5 py-1 text-[11px] hover:bg-white/5 disabled:opacity-50"
                   >
                     Load This Snapshot as Draft
                   </button>
                 </div>
                 {row.changed.slice(0, 8).map((change) => (
-                  <div key={`${row.id}-${change.key}`} className="text-[11px] text-neutral-400">
+                  <div key={`${row.id}-${change.key}`} className="text-[11px] text-zinc-400">
                     {RISK_THRESHOLD_LABELS[change.key]}: {change.beforeValue == null ? "-" : change.beforeValue} -&gt; {change.afterValue == null ? "-" : change.afterValue}
                   </div>
                 ))}
-                {row.changed.length > 8 ? <div className="text-[11px] text-neutral-500">...and {row.changed.length - 8} more changes</div> : null}
-                {!row.changed.length ? <div className="text-[11px] text-neutral-500">No effective threshold value change.</div> : null}
+                {row.changed.length > 8 ? <div className="text-[11px] text-zinc-500">...and {row.changed.length - 8} more changes</div> : null}
+                {!row.changed.length ? <div className="text-[11px] text-zinc-500">No effective threshold value change.</div> : null}
               </div>
             </div>
           ))}
-          {!filteredRiskLabHistoryRows.length && !auditLoading ? <div className="text-sm text-neutral-500">No risk threshold update history for this filter.</div> : null}
+          {!filteredRiskLabHistoryRows.length && !auditLoading ? <div className="text-sm text-zinc-500">No risk threshold update history for this filter.</div> : null}
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="text-sm font-medium">Fraud Pattern Snapshot</div>
-          <div className="mt-2 text-xs text-neutral-500">Grouped by exception rule code.</div>
+          <div className="mt-2 text-xs text-zinc-500">Grouped by exception rule code.</div>
           <div className="mt-3 space-y-2">
             {exceptionPatternRows.slice(0, 12).map((row) => (
-              <div key={row.rule_code} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
-                <div className="text-sm text-neutral-100">{row.rule_code}</div>
-                <div className="mt-1 text-xs text-neutral-400">
+              <div key={row.rule_code} className="rounded-xl border border-white/10 bg-white/4 p-3">
+                <div className="text-sm text-white">{row.rule_code}</div>
+                <div className="mt-1 text-xs text-zinc-400">
                   Count {row.count} | Avg Score {Number(row.avgScore || 0).toFixed(1)} | Red/Black {row.redCount}
                 </div>
               </div>
             ))}
-            {!exceptionPatternRows.length ? <div className="text-sm text-neutral-500">No exception patterns.</div> : null}
+            {!exceptionPatternRows.length ? <div className="text-sm text-zinc-500">No exception patterns.</div> : null}
           </div>
         </div>
 
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4 xl:col-span-2">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4 xl:col-span-2">
           <div className="mb-2 flex items-center justify-between gap-2">
             <div className="text-sm font-medium">Approver Behavior Scoring</div>
             <Link href={`/admin/procurement/scorecards?month_key=${encodeURIComponent(monthKey)}${ownerFilter ? `&owner_name=${encodeURIComponent(ownerFilter)}` : ""}`} className="text-xs text-amber-200 hover:underline">
@@ -1144,44 +1183,44 @@ export default function ProcurementRiskLabPage() {
           </div>
           <div className="space-y-2">
             {behaviorRows.slice(0, 20).map((row) => (
-              <div key={row.id || `${row.month_key}:${row.owner_name}`} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
+              <div key={row.id || `${row.month_key}:${row.owner_name}`} className="rounded-xl border border-white/10 bg-white/4 p-3">
                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                  <div className="text-sm text-neutral-100">{row.owner_name || "UNASSIGNED"}</div>
-                  <div className="text-xs text-neutral-400">
+                  <div className="text-sm text-white">{row.owner_name || "UNASSIGNED"}</div>
+                  <div className="text-xs text-zinc-400">
                     Behavior Risk {row.riskPoints} ({row.riskBand})
                   </div>
                 </div>
-                <div className="mt-1 text-xs text-neutral-500">
+                <div className="mt-1 text-xs text-zinc-500">
                   Exceptions {Number(row.exception_count || 0)} | Price Dev {Number(row.price_deviation_avg || 0).toFixed(2)} | Urgent {Number(row.urgentRatio || 0).toFixed(1)}%
                 </div>
-                <div className="mt-1 text-xs text-neutral-500">
+                <div className="mt-1 text-xs text-zinc-500">
                   On-time {Number(row.onTime || 0).toFixed(1)}% | Cycle {Number(row.approval_cycle_hours_avg || 0).toFixed(2)}h | KPI Grade {row.grade || "-"}
                 </div>
               </div>
             ))}
-            {!behaviorRows.length ? <div className="text-sm text-neutral-500">No behavior rows for this filter.</div> : null}
+            {!behaviorRows.length ? <div className="text-sm text-zinc-500">No behavior rows for this filter.</div> : null}
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-4">
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="text-sm font-medium">Investigation Candidates (High Risk Cases)</div>
             <div className="mt-3 space-y-2">
               {investigationCandidates.highRiskCases.map((row) => (
-                <div key={row.id} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
+                <div key={row.id} className="rounded-xl border border-white/10 bg-white/4 p-3">
                   <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                    <div className="text-sm text-neutral-100">{row.parent_case_no || row.request_no || row.id}</div>
-                    <div className="text-xs text-neutral-400">
+                    <div className="text-sm text-white">{row.parent_case_no || row.request_no || row.id}</div>
+                    <div className="text-xs text-zinc-400">
                       Severity {row.severity || "-"} | Payment {row.payment_status || "-"} | Status {row.status || "-"}
                     </div>
                   </div>
-                  <div className="mt-1 text-xs text-neutral-500">
+                  <div className="mt-1 text-xs text-zinc-500">
                     Assignee role {row.current_assignee_role || "-"} {row.payment_hold_reason ? `| Hold reason: ${row.payment_hold_reason}` : ""}
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    <Link href={`/admin/procurement/cases/${row.id}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-[11px] hover:bg-neutral-900">
+                    <Link href={`/admin/procurement/cases/${row.id}`} className="rounded-xl border border-white/10 bg-white/6 px-2.5 py-1.5 text-[11px] hover:bg-white/5">
                       Open Case
                     </Link>
                     <button type="button" onClick={() => prepareFromCase(row)} className="rounded-xl border border-amber-700/60 bg-amber-900/20 px-2.5 py-1.5 text-[11px] text-amber-200 hover:bg-amber-800/30">
@@ -1190,29 +1229,29 @@ export default function ProcurementRiskLabPage() {
                   </div>
                 </div>
               ))}
-              {!investigationCandidates.highRiskCases.length ? <div className="text-sm text-neutral-500">No high-risk cases.</div> : null}
+              {!investigationCandidates.highRiskCases.length ? <div className="text-sm text-zinc-500">No high-risk cases.</div> : null}
             </div>
           </div>
 
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="text-sm font-medium">Investigation Candidates (Critical Exceptions)</div>
             <div className="mt-3 space-y-2">
               {investigationCandidates.highRiskExceptions.map((row) => (
-                <div key={row.id} className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
+                <div key={row.id} className="rounded-xl border border-white/10 bg-white/4 p-3">
                   <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                    <div className="text-sm text-neutral-100">{row.rule_code || "-"}</div>
-                    <div className="text-xs text-neutral-400">
+                    <div className="text-sm text-white">{row.rule_code || "-"}</div>
+                    <div className="text-xs text-zinc-400">
                       {row.request_no || row.request_id || "-"} | Severity {row.severity || "-"} | Score {Number(row.score || 0).toFixed(1)}
                     </div>
                   </div>
-                  <div className="mt-1 text-xs text-neutral-500">Requester {row.requested_by || "-"}</div>
+                  <div className="mt-1 text-xs text-zinc-500">Requester {row.requested_by || "-"}</div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {row.case_id ? (
-                      <Link href={`/admin/procurement/cases/${row.case_id}`} className="rounded-xl border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-[11px] hover:bg-neutral-900">
+                      <Link href={`/admin/procurement/cases/${row.case_id}`} className="rounded-xl border border-white/10 bg-white/6 px-2.5 py-1.5 text-[11px] hover:bg-white/5">
                         Open Case
                       </Link>
                     ) : null}
-                    <Link href="/admin/procurement/exceptions" className="rounded-xl border border-neutral-800 bg-neutral-950 px-2.5 py-1.5 text-[11px] hover:bg-neutral-900">
+                    <Link href="/admin/procurement/exceptions" className="rounded-xl border border-white/10 bg-white/6 px-2.5 py-1.5 text-[11px] hover:bg-white/5">
                       Open Exceptions
                     </Link>
                     <button type="button" onClick={() => prepareFromException(row)} className="rounded-xl border border-amber-700/60 bg-amber-900/20 px-2.5 py-1.5 text-[11px] text-amber-200 hover:bg-amber-800/30">
@@ -1221,40 +1260,40 @@ export default function ProcurementRiskLabPage() {
                   </div>
                 </div>
               ))}
-              {!investigationCandidates.highRiskExceptions.length ? <div className="text-sm text-neutral-500">No critical exception candidates.</div> : null}
+              {!investigationCandidates.highRiskExceptions.length ? <div className="text-sm text-zinc-500">No critical exception candidates.</div> : null}
             </div>
           </div>
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="flex items-center justify-between gap-2">
               <div>
                 <div className="text-sm font-medium">{selectedImprovementId ? "Edit Investigation Action" : "New Investigation Action"}</div>
-                <div className="mt-1 text-xs text-neutral-500">Saved via improvements API with `INVESTIGATION:` prefix.</div>
+                <div className="mt-1 text-xs text-zinc-500">Saved via improvements API with `INVESTIGATION:` prefix.</div>
               </div>
-              <button type="button" onClick={clearForm} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs hover:bg-neutral-900">
+              <button type="button" onClick={clearForm} className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs hover:bg-white/5">
                 Clear
               </button>
             </div>
             <div className="mt-4 grid grid-cols-1 gap-3">
-              <input value={issueTitle} onChange={(e) => setIssueTitle(e.target.value)} placeholder="Issue title (e.g. INVESTIGATION:CASE-...)" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-              <textarea value={actionPlan} onChange={(e) => setActionPlan(e.target.value)} placeholder="Investigation plan" className="min-h-24 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+              <input value={issueTitle} onChange={(e) => setIssueTitle(e.target.value)} placeholder="Issue title (e.g. INVESTIGATION:CASE-...)" className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm" />
+              <textarea value={actionPlan} onChange={(e) => setActionPlan(e.target.value)} placeholder="Investigation plan" className="min-h-24 rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm" />
               <DatePicker value={dueDate} onChange={setDueDate} />
-              <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm">
+              <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm">
                 <option value="OPEN">OPEN</option>
                 <option value="IN_PROGRESS">IN_PROGRESS</option>
                 <option value="DONE">DONE</option>
                 <option value="CLOSED">CLOSED</option>
               </select>
-              <textarea value={resultNote} onChange={(e) => setResultNote(e.target.value)} placeholder="Result / finding note" className="min-h-24 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+              <textarea value={resultNote} onChange={(e) => setResultNote(e.target.value)} placeholder="Result / finding note" className="min-h-24 rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm" />
               <button type="button" onClick={() => void saveInvestigationAction()} disabled={saving} className="rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-800/30 disabled:opacity-60">
                 {saving ? "Saving..." : "Save Investigation Action"}
               </button>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="text-sm font-medium">Investigation Action Log ({monthKey})</div>
             <div className="mt-3 space-y-2">
               {investigationActions.slice(0, 40).map((row) => (
@@ -1264,16 +1303,16 @@ export default function ProcurementRiskLabPage() {
                   onClick={() => editInvestigationAction(row)}
                   className={[
                     "w-full rounded-xl border p-3 text-left",
-                    selectedImprovementId === row.id ? "border-amber-500 bg-amber-950/20" : "border-neutral-800 bg-neutral-950/40 hover:bg-neutral-900",
+                    selectedImprovementId === row.id ? "border-amber-500 bg-amber-950/20" : "border-white/10 bg-white/4 hover:bg-white/5",
                   ].join(" ")}
                 >
-                  <div className="text-sm text-neutral-100">{row.issue_title}</div>
-                  <div className="mt-1 text-xs text-neutral-500">
+                  <div className="text-sm text-white">{row.issue_title}</div>
+                  <div className="mt-1 text-xs text-zinc-500">
                     {row.owner_name || "-"} | {row.status || "-"} | Due {String(row.due_date || "").slice(0, 10) || "-"}
                   </div>
                 </button>
               ))}
-              {!investigationActions.length ? <div className="text-sm text-neutral-500">No investigation actions in this month/filter.</div> : null}
+              {!investigationActions.length ? <div className="text-sm text-zinc-500">No investigation actions in this month/filter.</div> : null}
             </div>
           </div>
         </div>

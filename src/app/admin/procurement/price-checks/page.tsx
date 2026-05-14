@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Download,
+  AlertCircle, AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Download,
   Minus, RefreshCw, TrendingDown, TrendingUp, TriangleAlert,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -143,7 +143,7 @@ function pctClass(pct: number): string {
   if (pct > 0) return "text-amber-300";
   if (pct < -5) return "text-emerald-400";
   if (pct < 0) return "text-teal-400";
-  return "text-neutral-400";
+  return "text-zinc-400";
 }
 
 function PctBadge({ pct }: { pct: number }) {
@@ -156,7 +156,7 @@ function PctBadge({ pct }: { pct: number }) {
     ? "border-emerald-700/40 bg-emerald-900/20 text-emerald-300"
     : pct < 0
     ? "border-teal-700/40 bg-teal-900/15 text-teal-300"
-    : "border-neutral-700/40 bg-neutral-800/40 text-neutral-400";
+    : "border-white/8/40 bg-white/6 text-zinc-400";
   return (
     <span className={`inline-flex items-center gap-0.5 rounded-full border px-2 py-0.5 text-xs font-semibold tabular-nums ${cls}`}>
       {pct > 0 ? <ArrowUp className="h-3 w-3" /> : pct < 0 ? <ArrowDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
@@ -173,17 +173,17 @@ function KpiCard({ label, value, sub, accent }: {
     : accent === "emerald" ? "border-emerald-800/40"
     : accent === "amber" ? "border-amber-800/40"
     : accent === "orange" ? "border-orange-800/40"
-    : "border-neutral-800";
+    : "border-white/10";
   const valueCls = accent === "rose" ? "text-rose-200"
     : accent === "emerald" ? "text-emerald-300"
     : accent === "amber" ? "text-amber-200"
     : accent === "orange" ? "text-orange-300"
-    : "text-neutral-100";
+    : "text-white";
   return (
-    <div className={`rounded-2xl border ${borderCls} bg-neutral-900/30 p-4`}>
-      <div className="text-[10px] uppercase tracking-widest text-neutral-500">{label}</div>
+    <div className={`rounded-2xl border ${borderCls} bg-white/5 p-4`}>
+      <div className="text-[10px] uppercase tracking-widest text-zinc-500">{label}</div>
       <div className={`mt-1 text-2xl font-bold tabular-nums ${valueCls}`}>{value}</div>
-      {sub && <div className="mt-0.5 text-xs text-neutral-500">{sub}</div>}
+      {sub && <div className="mt-0.5 text-xs text-zinc-500">{sub}</div>}
     </div>
   );
 }
@@ -205,7 +205,7 @@ function DatePresets({ onSelect }: { onSelect: (from: string, to: string) => voi
           key={p.key}
           type="button"
           onClick={() => { const r = getPresetRange(p.key); onSelect(r.from, r.to); }}
-          className="rounded-lg border border-neutral-700/50 bg-neutral-800/40 px-2.5 py-1 text-xs text-neutral-300 hover:border-violet-600/50 hover:bg-violet-900/20 hover:text-violet-200 transition"
+          className="rounded-lg border border-white/8 bg-white/6 px-2.5 py-1 text-xs text-zinc-300 hover:border-violet-600/50 hover:bg-violet-900/20 hover:text-violet-200 transition"
         >
           {p.label}
         </button>
@@ -241,7 +241,7 @@ function SortHeader({
         {label}
         {active
           ? (dir === "asc" ? <ArrowUp className="h-3 w-3 text-violet-400" /> : <ArrowDown className="h-3 w-3 text-violet-400" />)
-          : <ArrowUpDown className="h-3 w-3 text-neutral-600" />}
+          : <ArrowUpDown className="h-3 w-3 text-zinc-600" />}
       </span>
     </th>
   );
@@ -353,45 +353,45 @@ function PoVarianceTab({
   return (
     <div className="space-y-4">
       {/* Filters */}
-      <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5 space-y-4">
+      <section className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-4">
         <div>
-          <div className="mb-2 text-xs text-neutral-500 font-medium">Quick range</div>
+          <div className="mb-2 text-xs text-zinc-500 font-medium">Quick range</div>
           <DatePresets onSelect={applyPreset} />
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div>
-            <div className="mb-1 text-[10px] uppercase tracking-widest text-neutral-500">From</div>
+            <div className="mb-1 text-[10px] uppercase tracking-widest text-zinc-500">From</div>
             <DatePicker value={dateFrom} onChange={setDateFrom} />
           </div>
           <div>
-            <div className="mb-1 text-[10px] uppercase tracking-widest text-neutral-500">To</div>
+            <div className="mb-1 text-[10px] uppercase tracking-widest text-zinc-500">To</div>
             <DatePicker value={dateTo} onChange={setDateTo} />
           </div>
           <div>
-            <div className="mb-1 text-[10px] uppercase tracking-widest text-neutral-500">Supplier</div>
+            <div className="mb-1 text-[10px] uppercase tracking-widest text-zinc-500">Supplier</div>
             <input
               value={supplier}
               onChange={(e) => setSupplier(e.target.value)}
               placeholder="All suppliers"
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-violet-500/50"
+              className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
             />
           </div>
           <div>
-            <div className="mb-1 text-[10px] uppercase tracking-widest text-neutral-500">Item</div>
+            <div className="mb-1 text-[10px] uppercase tracking-widest text-zinc-500">Item</div>
             <input
               value={itemDesc}
               onChange={(e) => setItemDesc(e.target.value)}
               placeholder="All items"
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-violet-500/50"
+              className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
             />
           </div>
           <div>
-            <div className="mb-1 text-[10px] uppercase tracking-widest text-neutral-500">Min Variance %</div>
+            <div className="mb-1 text-[10px] uppercase tracking-widest text-zinc-500">Min Variance %</div>
             <input
               type="number" min={0} max={100} step={0.5}
               value={minPct}
               onChange={(e) => setMinPct(Math.max(0, Number(e.target.value || 0)))}
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-violet-500/50"
+              className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
             />
           </div>
         </div>
@@ -405,7 +405,7 @@ function PoVarianceTab({
           </button>
           {result && (
             <>
-              <label className="flex items-center gap-2 text-xs text-neutral-400 cursor-pointer select-none">
+              <label className="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={hideUnitMismatch}
@@ -416,7 +416,7 @@ function PoVarianceTab({
               </label>
               <button
                 onClick={handleExport}
-                className="ml-auto inline-flex items-center gap-2 rounded-xl border border-neutral-700 bg-neutral-800/40 px-3 py-2 text-xs text-neutral-300 hover:border-violet-600/50 hover:text-violet-200 transition"
+                className="ml-auto inline-flex items-center gap-2 rounded-xl border border-white/8 bg-white/6 px-3 py-2 text-xs text-zinc-300 hover:border-violet-600/50 hover:text-violet-200 transition"
               >
                 <Download className="h-3.5 w-3.5" />
                 Export CSV
@@ -470,9 +470,9 @@ function PoVarianceTab({
 
       {/* Empty state */}
       {result && filteredRows.length === 0 && !busy && (
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-8 text-center space-y-2">
-          <div className="text-sm text-neutral-400 font-medium">No variances found for this period</div>
-          <div className="text-xs text-neutral-600 max-w-md mx-auto">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center space-y-2">
+          <div className="text-sm text-zinc-400 font-medium">No variances found for this period</div>
+          <div className="text-xs text-zinc-600 max-w-md mx-auto">
             This could mean prices matched the PO exactly, or that invoices in this period don&apos;t have PO numbers linked. Try lowering the Min Variance % or check the unlinked invoice count above.
           </div>
         </div>
@@ -480,17 +480,17 @@ function PoVarianceTab({
 
       {/* Table */}
       {filteredRows.length > 0 && (
-        <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
+        <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
           <div className="flex items-center justify-between gap-3 mb-4">
-            <div className="text-sm font-semibold text-neutral-200">
+            <div className="text-sm font-semibold text-zinc-200">
               Variance Details — {filteredRows.length} line{filteredRows.length !== 1 ? "s" : ""}
             </div>
-            <div className="text-xs text-neutral-500">Click column headers to sort</div>
+            <div className="text-xs text-zinc-500">Click column headers to sort</div>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead>
-                <tr className="text-[10px] uppercase tracking-widest text-neutral-500">
+                <tr className="text-[10px] uppercase tracking-widest text-zinc-500">
                   <SortHeader label="Item" sortKey="item" current={sortKey} dir={sortDir} onClick={handleSort} />
                   <SortHeader label="Supplier" sortKey="supplier" current={sortKey} dir={sortDir} onClick={handleSort} />
                   <th className="px-3 py-2">PO No</th>
@@ -511,10 +511,10 @@ function PoVarianceTab({
                     ? "bg-orange-950/10"
                     : isOver ? "bg-rose-950/10" : "bg-emerald-950/10";
                   return (
-                    <tr key={i} className={`border-t border-neutral-800/60 ${rowBg}`}>
+                    <tr key={i} className={`border-t border-white/8 ${rowBg}`}>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-medium text-neutral-100">{r.item_description || "—"}</span>
+                          <span className="font-medium text-white">{r.item_description || "—"}</span>
                           {r.unit_mismatch && (
                             <span title={`Unit mismatch: PO=${r.po_unit}, Invoice=${r.invoice_unit}`}
                               className="inline-flex items-center gap-0.5 rounded border border-orange-700/40 bg-orange-900/20 px-1.5 py-0.5 text-[9px] font-bold text-orange-300">
@@ -524,35 +524,35 @@ function PoVarianceTab({
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-2.5 text-neutral-300">{r.invoice_supplier || r.po_vendor || "—"}</td>
-                      <td className="px-3 py-2.5 text-xs text-neutral-400 font-mono">{r.po_number || "—"}</td>
-                      <td className="px-3 py-2.5 text-xs text-neutral-400 font-mono">{r.invoice_no || "—"}</td>
-                      <td className="px-3 py-2.5 text-xs text-neutral-400">{r.invoice_date || "—"}</td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-neutral-400">
+                      <td className="px-3 py-2.5 text-zinc-300">{r.invoice_supplier || r.po_vendor || "—"}</td>
+                      <td className="px-3 py-2.5 text-xs text-zinc-400 font-mono">{r.po_number || "—"}</td>
+                      <td className="px-3 py-2.5 text-xs text-zinc-400 font-mono">{r.invoice_no || "—"}</td>
+                      <td className="px-3 py-2.5 text-xs text-zinc-400">{r.invoice_date || "—"}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-zinc-400">
                         {fmt(r.po_unit_price)}
-                        {r.po_unit ? <span className="ml-0.5 text-neutral-600 text-[10px]">/{r.po_unit}</span> : null}
+                        {r.po_unit ? <span className="ml-0.5 text-zinc-600 text-[10px]">/{r.po_unit}</span> : null}
                       </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-neutral-100">
+                      <td className="px-3 py-2.5 text-right tabular-nums text-white">
                         {fmt(r.invoice_unit_price)}
-                        {r.invoice_unit ? <span className="ml-0.5 text-neutral-500 text-[10px]">/{r.invoice_unit}</span> : null}
+                        {r.invoice_unit ? <span className="ml-0.5 text-zinc-500 text-[10px]">/{r.invoice_unit}</span> : null}
                       </td>
                       <td className="px-3 py-2.5">
                         <PctBadge pct={r.pct_delta} />
                       </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-neutral-400">{fmt(r.invoice_qty, 0)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums text-zinc-400">{fmt(r.invoice_qty, 0)}</td>
                       <td className={`px-3 py-2.5 text-right tabular-nums font-semibold ${pctClass(r.pct_delta)}`}>
                         {r.total_impact > 0 ? "+" : ""}{r.currency} {fmt(Math.abs(r.total_impact))}
                       </td>
-                      <td className="px-3 py-2.5 text-xs text-neutral-500">{r.branch || "—"}</td>
+                      <td className="px-3 py-2.5 text-xs text-zinc-500">{r.branch || "—"}</td>
                     </tr>
                   );
                 })}
               </tbody>
               {/* Footer totals */}
               <tfoot>
-                <tr className="border-t-2 border-neutral-700">
-                  <td colSpan={9} className="px-3 py-2.5 text-xs text-neutral-500">Total</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums font-bold text-neutral-200">
+                <tr className="border-t-2 border-white/8">
+                  <td colSpan={9} className="px-3 py-2.5 text-xs text-zinc-500">Total</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums font-bold text-zinc-200">
                     {currency} {fmt(Math.abs(netExposure))}
                     <span className={`ml-1 text-xs ${netExposure > 0 ? "text-rose-400" : "text-emerald-400"}`}>
                       {netExposure > 0 ? "over" : "under"}
@@ -563,8 +563,8 @@ function PoVarianceTab({
               </tfoot>
             </table>
           </div>
-          <div className="mt-3 border-t border-neutral-800 pt-3 text-xs text-neutral-600">
-            Rows sorted by <strong className="text-neutral-400">Total Impact</strong> (price delta × invoice qty).
+          <div className="mt-3 border-t border-white/10 pt-3 text-xs text-zinc-600">
+            Rows sorted by <strong className="text-zinc-400">Total Impact</strong> (price delta × invoice qty).
             Overcharged = invoice price &gt; PO price. Undercharged = invoice price &lt; PO price.
           </div>
         </section>
@@ -654,36 +654,36 @@ function PriceChangeTab({
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5 space-y-4">
+      <section className="rounded-2xl border border-white/10 bg-white/5 p-5 space-y-4">
         <div>
-          <div className="mb-2 text-xs text-neutral-500 font-medium">Quick range</div>
+          <div className="mb-2 text-xs text-zinc-500 font-medium">Quick range</div>
           <DatePresets onSelect={(f, t) => { setDateFrom(f); setDateTo(t); }} />
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <div className="mb-1 text-[10px] uppercase tracking-widest text-neutral-500">From</div>
+            <div className="mb-1 text-[10px] uppercase tracking-widest text-zinc-500">From</div>
             <DatePicker value={dateFrom} onChange={setDateFrom} />
           </div>
           <div>
-            <div className="mb-1 text-[10px] uppercase tracking-widest text-neutral-500">To</div>
+            <div className="mb-1 text-[10px] uppercase tracking-widest text-zinc-500">To</div>
             <DatePicker value={dateTo} onChange={setDateTo} />
           </div>
           <div>
-            <div className="mb-1 text-[10px] uppercase tracking-widest text-neutral-500">Supplier</div>
+            <div className="mb-1 text-[10px] uppercase tracking-widest text-zinc-500">Supplier</div>
             <input
               value={supplier}
               onChange={(e) => setSupplier(e.target.value)}
               placeholder="All suppliers"
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-violet-500/50"
+              className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
             />
           </div>
           <div>
-            <div className="mb-1 text-[10px] uppercase tracking-widest text-neutral-500">Min Change %</div>
+            <div className="mb-1 text-[10px] uppercase tracking-widest text-zinc-500">Min Change %</div>
             <input
               type="number" min={0} max={100} step={0.5}
               value={minPct}
               onChange={(e) => setMinPct(Math.max(0, Number(e.target.value || 0)))}
-              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-violet-500/50"
+              className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
             />
           </div>
         </div>
@@ -698,7 +698,7 @@ function PriceChangeTab({
           {result && rows.length > 0 && (
             <button
               onClick={handleExport}
-              className="ml-auto inline-flex items-center gap-2 rounded-xl border border-neutral-700 bg-neutral-800/40 px-3 py-2 text-xs text-neutral-300 hover:border-violet-600/50 hover:text-violet-200 transition"
+              className="ml-auto inline-flex items-center gap-2 rounded-xl border border-white/8 bg-white/6 px-3 py-2 text-xs text-zinc-300 hover:border-violet-600/50 hover:text-violet-200 transition"
             >
               <Download className="h-3.5 w-3.5" />
               Export CSV
@@ -717,21 +717,21 @@ function PriceChangeTab({
       )}
 
       {searched && rows.length === 0 && !busy && (
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-8 text-center space-y-2">
-          <div className="text-sm text-neutral-400 font-medium">No price changes found</div>
-          <div className="text-xs text-neutral-600">
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center space-y-2">
+          <div className="text-sm text-zinc-400 font-medium">No price changes found</div>
+          <div className="text-xs text-zinc-600">
             All items have stable prices in this period, or there are fewer than 2 invoices per item. Try a longer date range.
           </div>
         </div>
       )}
 
       {rows.length > 0 && (
-        <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
+        <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
           <div className="flex items-center justify-between gap-3 mb-4">
-            <div className="text-sm font-semibold text-neutral-200">
+            <div className="text-sm font-semibold text-zinc-200">
               Changed Items — {rows.length} item{rows.length !== 1 ? "s" : ""}
             </div>
-            <div className="text-xs text-neutral-500">Click a row to see full price timeline</div>
+            <div className="text-xs text-zinc-500">Click a row to see full price timeline</div>
           </div>
           <div className="space-y-1.5">
             {rows.map((r, i) => {
@@ -740,11 +740,11 @@ function PriceChangeTab({
               const detail = detailCache[key];
               const absChange = Math.abs(r.pct_change);
               return (
-                <div key={i} className="rounded-xl border border-neutral-800 bg-neutral-950/40">
+                <div key={i} className="rounded-xl border border-white/10 bg-white/4">
                   <button
                     type="button"
                     onClick={() => void loadDetail(r.item_description, r.supplier_name)}
-                    className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-neutral-900/50 transition rounded-xl"
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-white/4 transition rounded-xl"
                   >
                     <div className="shrink-0">
                       {r.pct_change > 0
@@ -752,23 +752,23 @@ function PriceChangeTab({
                         : <TrendingDown className="h-5 w-5 text-emerald-400" />}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium text-neutral-100">{r.item_description}</div>
-                      <div className="text-xs text-neutral-500">{r.supplier_name || "—"}</div>
+                      <div className="truncate font-medium text-white">{r.item_description}</div>
+                      <div className="text-xs text-zinc-500">{r.supplier_name || "—"}</div>
                     </div>
                     <div className="shrink-0 text-right hidden sm:block">
-                      <div className="text-sm text-neutral-400 tabular-nums">
+                      <div className="text-sm text-zinc-400 tabular-nums">
                         {r.currency} {fmt(r.first_price)}
-                        <span className="mx-1.5 text-neutral-600">→</span>
-                        <span className="font-semibold text-neutral-200">{fmt(r.latest_price)}</span>
+                        <span className="mx-1.5 text-zinc-600">→</span>
+                        <span className="font-semibold text-zinc-200">{fmt(r.latest_price)}</span>
                       </div>
-                      <div className="text-xs text-neutral-600">{r.unit || ""}</div>
+                      <div className="text-xs text-zinc-600">{r.unit || ""}</div>
                     </div>
                     <div className="shrink-0">
                       <PctBadge pct={r.pct_change} />
                     </div>
                     <div className="shrink-0 text-right hidden md:block">
-                      <div className="text-xs text-neutral-500">{r.data_points} invoices</div>
-                      <div className="text-xs text-neutral-600">{r.first_date} → {r.latest_date}</div>
+                      <div className="text-xs text-zinc-500">{r.data_points} invoices</div>
+                      <div className="text-xs text-zinc-600">{r.first_date} → {r.latest_date}</div>
                     </div>
                     {/* Severity indicator */}
                     {absChange >= 20 && (
@@ -777,21 +777,21 @@ function PriceChangeTab({
                     {absChange >= 10 && absChange < 20 && (
                       <span className="shrink-0 rounded border border-amber-700/40 bg-amber-900/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">MED</span>
                     )}
-                    <div className="shrink-0 text-xs text-neutral-600">{isOpen ? "▲" : "▼"}</div>
+                    <div className="shrink-0 text-xs text-zinc-600">{isOpen ? "▲" : "▼"}</div>
                   </button>
 
                   {isOpen && (
-                    <div className="border-t border-neutral-800 px-4 pb-4 pt-3">
+                    <div className="border-t border-white/10 px-4 pb-4 pt-3">
                       {!detail ? (
-                        <div className="text-sm text-neutral-500">Loading…</div>
+                        <div className="text-sm text-zinc-500">Loading…</div>
                       ) : detail.length === 0 ? (
-                        <div className="text-sm text-neutral-500">No history found.</div>
+                        <div className="text-sm text-zinc-500">No history found.</div>
                       ) : (
                         <>
                           <div className="overflow-x-auto">
                             <table className="min-w-full text-sm">
                               <thead>
-                                <tr className="text-[10px] uppercase tracking-widest text-neutral-600">
+                                <tr className="text-[10px] uppercase tracking-widest text-zinc-600">
                                   <th className="px-2 py-1 text-left">Date</th>
                                   <th className="px-2 py-1 text-right">Unit Price</th>
                                   <th className="px-2 py-1 text-right">Change vs prev</th>
@@ -800,26 +800,26 @@ function PriceChangeTab({
                               </thead>
                               <tbody>
                                 {detail.map((d, di) => (
-                                  <tr key={di} className="border-t border-neutral-800/60">
-                                    <td className="px-2 py-1.5 tabular-nums text-neutral-400">{d.invoice_date}</td>
-                                    <td className="px-2 py-1.5 text-right tabular-nums font-medium text-neutral-100">
+                                  <tr key={di} className="border-t border-white/8">
+                                    <td className="px-2 py-1.5 tabular-nums text-zinc-400">{d.invoice_date}</td>
+                                    <td className="px-2 py-1.5 text-right tabular-nums font-medium text-white">
                                       {d.currency} {fmt(d.unit_price)}
                                     </td>
                                     <td className="px-2 py-1.5 text-right">
                                       {d.pct_change != null
                                         ? <PctBadge pct={Number(d.pct_change)} />
-                                        : <span className="text-xs text-neutral-600">first</span>}
+                                        : <span className="text-xs text-zinc-600">first</span>}
                                     </td>
-                                    <td className="px-2 py-1.5 text-xs font-mono text-neutral-500">{d.invoice_no}</td>
+                                    <td className="px-2 py-1.5 text-xs font-mono text-zinc-500">{d.invoice_no}</td>
                                   </tr>
                                 ))}
                               </tbody>
                             </table>
                           </div>
-                          <div className="mt-3 flex flex-wrap gap-4 text-xs text-neutral-500">
-                            <span>Min: <span className="text-neutral-300">{r.currency} {fmt(r.min_price)}</span></span>
-                            <span>Max: <span className="text-neutral-300">{r.currency} {fmt(r.max_price)}</span></span>
-                            <span>Latest invoice: <span className="font-mono text-neutral-300">{r.latest_invoice_no}</span></span>
+                          <div className="mt-3 flex flex-wrap gap-4 text-xs text-zinc-500">
+                            <span>Min: <span className="text-zinc-300">{r.currency} {fmt(r.min_price)}</span></span>
+                            <span>Max: <span className="text-zinc-300">{r.currency} {fmt(r.max_price)}</span></span>
+                            <span>Latest invoice: <span className="font-mono text-zinc-300">{r.latest_invoice_no}</span></span>
                           </div>
                         </>
                       )}
@@ -865,46 +865,51 @@ export default function ProcurementPriceChecksPage() {
     return () => { cancelled = true; };
   }, [auth]);
 
-  if (!ready) return <div className="text-sm text-neutral-500">Loading…</div>;
-  if (!allowed) return <div className="text-sm text-rose-300">Procurement page is available only to authorized admin roles.</div>;
+  if (!ready) return <div className="text-sm text-zinc-500">Loading…</div>;
+  if (!allowed) return (
+    <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+      <AlertCircle className="h-4 w-4 shrink-0" />
+      Price Checks are only available to authorized admin roles.
+    </div>
+  );
 
   return (
     <div className="space-y-5">
       {/* Page header + auth */}
-      <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
+      <section className="rounded-2xl border border-white/10 bg-white/5 p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="text-lg font-semibold text-neutral-100">Price Checks</div>
-            <div className="mt-1 text-sm text-neutral-400">
+            <div className="text-lg font-semibold text-white">Price Checks</div>
+            <div className="mt-1 text-sm text-zinc-400">
               Compare invoice prices against PO rates and track price movements per item.
             </div>
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <div>
-              <div className="mb-1 text-[10px] uppercase tracking-widest text-neutral-500">Approver</div>
+              <div className="mb-1 text-[10px] uppercase tracking-widest text-zinc-500">Approver</div>
               <input
                 value={requestedBy}
                 onChange={(e) => setRequestedBy(e.target.value)}
                 placeholder="Name"
-                className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-violet-500/50 w-40"
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50 w-40"
               />
             </div>
             <div>
-              <div className="mb-1 text-[10px] uppercase tracking-widest text-neutral-500">PIN</div>
+              <div className="mb-1 text-[10px] uppercase tracking-widest text-zinc-500">PIN</div>
               <input
                 type="password"
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
                 placeholder="PIN"
-                className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-violet-500/50 w-28"
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50 w-28"
               />
             </div>
             <div>
-              <div className="mb-1 text-[10px] uppercase tracking-widest text-neutral-500">Market</div>
+              <div className="mb-1 text-[10px] uppercase tracking-widest text-zinc-500">Market</div>
               <select
                 value={city}
                 onChange={(e) => setCity(e.target.value as "dubai" | "manila")}
-                className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none focus:border-violet-500/50"
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
               >
                 <option value="dubai">Dubai</option>
                 <option value="manila">Manila</option>
@@ -921,10 +926,10 @@ export default function ProcurementPriceChecksPage() {
             className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
               activeTab === "variance"
                 ? "border-rose-600/60 bg-rose-900/30 text-rose-200 shadow-[0_0_12px_rgba(225,29,72,0.15)]"
-                : "border-neutral-700/50 bg-neutral-900/40 text-neutral-400 hover:border-rose-800/40 hover:bg-rose-950/20 hover:text-rose-300"
+                : "border-white/8 bg-white/5 text-zinc-400 hover:border-rose-800/40 hover:bg-rose-950/20 hover:text-rose-300"
             }`}
           >
-            <AlertTriangle className={`h-4 w-4 ${activeTab === "variance" ? "text-rose-400" : "text-neutral-500"}`} />
+            <AlertTriangle className={`h-4 w-4 ${activeTab === "variance" ? "text-rose-400" : "text-zinc-500"}`} />
             ① Invoice vs PO Variance
           </button>
           <button
@@ -933,10 +938,10 @@ export default function ProcurementPriceChecksPage() {
             className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
               activeTab === "changes"
                 ? "border-violet-600/60 bg-violet-900/30 text-violet-200 shadow-[0_0_12px_rgba(124,58,237,0.15)]"
-                : "border-neutral-700/50 bg-neutral-900/40 text-neutral-400 hover:border-violet-800/40 hover:bg-violet-950/20 hover:text-violet-300"
+                : "border-white/8 bg-white/5 text-zinc-400 hover:border-violet-800/40 hover:bg-violet-950/20 hover:text-violet-300"
             }`}
           >
-            <TrendingUp className={`h-4 w-4 ${activeTab === "changes" ? "text-violet-400" : "text-neutral-500"}`} />
+            <TrendingUp className={`h-4 w-4 ${activeTab === "changes" ? "text-violet-400" : "text-zinc-500"}`} />
             ② Price Change History
           </button>
         </div>

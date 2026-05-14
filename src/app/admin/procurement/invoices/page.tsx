@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ChevronDown, ChevronRight, Database, Download, ExternalLink, RefreshCw, Save, SquarePen, Upload, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Database, Download, ExternalLink, RefreshCw, Save, SquarePen, Upload, X } from "lucide-react";
 import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson, procurementTokenHeaders } from "@/lib/procurementClient";
@@ -822,7 +822,12 @@ export default function ProcurementInvoicesPage() {
   }, [problemBaseDraft, problemDraft]);
 
   if (!allowed) {
-    return <div className="text-sm text-red-300">Procurement page is available only to authorized procurement admin roles.</div>;
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+        <AlertCircle className="h-4 w-4 shrink-0" />
+        Invoice Hub is only available to authorized procurement admin roles.
+      </div>
+    );
   }
 
   return (
@@ -830,7 +835,7 @@ export default function ProcurementInvoicesPage() {
       {error ? <div className="rounded-2xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-200">{error}</div> : null}
       {notice ? <div className="rounded-2xl border border-emerald-900/50 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-200">{notice}</div> : null}
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
         <div className="space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
@@ -839,13 +844,13 @@ export default function ProcurementInvoicesPage() {
                   <Database className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-xl font-semibold tracking-tight text-neutral-100">Supplier Invoice Hub</div>
-                  <div className="mt-1 text-sm text-neutral-400">Spreadsheet-backed invoice sync, quality review, and correction for Dubai and Manila.</div>
+                  <div className="text-xl font-semibold tracking-tight text-white">Supplier Invoice Hub</div>
+                  <div className="mt-1 text-sm text-zinc-400">Spreadsheet-backed invoice sync, quality review, and correction for Dubai and Manila.</div>
                 </div>
               </div>
             </div>
             <div className="flex flex-wrap gap-2 lg:justify-end">
-              <span className="rounded-full border border-neutral-800 bg-neutral-950/80 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-neutral-400">
+              <span className="rounded-full border border-white/10 bg-white/6/80 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-zinc-400">
                 Source Tabs
               </span>
               <span className="rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-xs font-medium text-violet-200">
@@ -859,25 +864,25 @@ export default function ProcurementInvoicesPage() {
               </span>
             </div>
           </div>
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-950/80 p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
+          <div className="rounded-2xl border border-white/10 bg-white/6/80 p-3 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
             <div className="flex flex-wrap items-end gap-3 xl:flex-nowrap">
               <div className="min-w-[168px] flex-1 xl:w-52 xl:flex-none">
-                <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-neutral-500">Approver</div>
-                <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Approver name" className="w-full rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-sm text-neutral-100 outline-none transition focus:border-violet-500/50 focus:bg-neutral-900/90" />
+                <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Approver</div>
+                <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Approver name" className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition focus:border-violet-500/50 focus:bg-white/5/90" />
               </div>
               <div className="min-w-[132px] xl:w-36 xl:flex-none">
-                <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-neutral-500">PIN</div>
-                <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="w-full rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-sm text-neutral-100 outline-none transition focus:border-violet-500/50 focus:bg-neutral-900/90" />
+                <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">PIN</div>
+                <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition focus:border-violet-500/50 focus:bg-white/5/90" />
               </div>
               <div className="min-w-[124px] xl:w-32 xl:flex-none">
-                <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-neutral-500">Market</div>
-                <select value={city} onChange={(e) => setCity(e.target.value === "dubai" ? "dubai" : "manila")} className="w-full rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-sm text-neutral-100 outline-none transition focus:border-violet-500/50 focus:bg-neutral-900/90">
+                <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Market</div>
+                <select value={city} onChange={(e) => setCity(e.target.value === "dubai" ? "dubai" : "manila")} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition focus:border-violet-500/50 focus:bg-white/5/90">
                   <option value="manila">Manila</option>
                   <option value="dubai">Dubai</option>
                 </select>
               </div>
               <div className="flex flex-wrap gap-2 xl:ml-2 xl:justify-end">
-                <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex min-w-[110px] items-center justify-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm hover:bg-neutral-900 disabled:opacity-60">
+                <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex min-w-[110px] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm hover:bg-white/5 disabled:opacity-60">
                   <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                   Refresh
                 </button>
@@ -916,21 +921,21 @@ export default function ProcurementInvoicesPage() {
               <div className="mt-3 rounded-2xl border border-amber-700/30 bg-amber-950/20 p-3">
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
                   <div className="min-w-0 flex-1">
-                    <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-neutral-500">Selected File</div>
-                    <div className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2.5 text-sm text-neutral-100">
+                    <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Selected File</div>
+                    <div className="rounded-xl border border-white/10 bg-white/6 px-3 py-2.5 text-sm text-white">
                       {uploadFile.name}
                     </div>
                   </div>
                   <div className="min-w-[160px] xl:w-44 xl:flex-none">
-                    <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-neutral-500">Invoice Date</div>
+                    <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Invoice Date</div>
                     <DatePicker value={uploadInvoiceDate} onChange={setUploadInvoiceDate} />
                   </div>
                   <div className="min-w-[180px] xl:w-52 xl:flex-none">
-                    <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-neutral-500">Branch Name</div>
+                    <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Branch Name</div>
                     <select
                       value={uploadBranchName}
                       onChange={(e) => setUploadBranchName(String(e.target.value || ""))}
-                      className="w-full rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2.5 text-sm text-neutral-100 outline-none transition focus:border-amber-500/50 focus:bg-neutral-900/90"
+                      className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white outline-none transition focus:border-amber-500/50 focus:bg-white/5/90"
                     >
                       <option value="">Select branch</option>
                       {normalizedBranchOptions.map((option) => (
@@ -945,7 +950,7 @@ export default function ProcurementInvoicesPage() {
                       type="button"
                       onClick={resetUploadDraft}
                       disabled={uploadBusy}
-                      className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-200 hover:bg-neutral-900 disabled:opacity-60"
+                      className="inline-flex min-w-[96px] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-zinc-200 hover:bg-white/5 disabled:opacity-60"
                     >
                       <X className="h-4 w-4" />
                       Cancel
@@ -967,41 +972,41 @@ export default function ProcurementInvoicesPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4 md:grid-cols-4">
-        <input value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} placeholder="Invoice no" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
-        <input value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="Vendor name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm" />
+      <div className="grid grid-cols-1 gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 md:grid-cols-4">
+        <input value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} placeholder="Invoice no" className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm" />
+        <input value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="Vendor name" className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm" />
         <DatePicker value={dateFrom} onChange={setDateFrom} />
         <DatePicker value={dateTo} onChange={setDateTo} />
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-          <div className="text-xs uppercase tracking-[0.18em] text-neutral-500">Valid Invoices</div>
-          <div className="mt-2 text-2xl font-semibold text-neutral-100">{validSummary.invoiceCount}</div>
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Valid Invoices</div>
+          <div className="mt-2 text-2xl font-semibold text-white">{validSummary.invoiceCount}</div>
         </div>
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-          <div className="text-xs uppercase tracking-[0.18em] text-neutral-500">Valid Amount</div>
-          <div className="mt-2 text-2xl font-semibold text-neutral-100">{formatMoney(validSummary.totalAmount, city === "dubai" ? "AED" : "PHP")}</div>
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Valid Amount</div>
+          <div className="mt-2 text-2xl font-semibold text-white">{formatMoney(validSummary.totalAmount, city === "dubai" ? "AED" : "PHP")}</div>
         </div>
-        <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
-          <div className="text-xs uppercase tracking-[0.18em] text-neutral-500">Problem Invoices</div>
+        <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Problem Invoices</div>
           <div className="mt-2 text-2xl font-semibold text-amber-100">{qualitySummary.flagged_invoice_count}</div>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-2">
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-2">
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => setActiveTab("valid")}
-            className={`rounded-xl px-4 py-2 text-sm font-medium transition ${activeTab === "valid" ? "bg-neutral-100 text-neutral-950" : "bg-neutral-950 text-neutral-300 hover:bg-neutral-900"}`}
+            className={`rounded-xl px-4 py-2 text-sm font-medium transition ${activeTab === "valid" ? "bg-neutral-100 text-neutral-950" : "bg-white/6 text-zinc-300 hover:bg-white/5"}`}
           >
             Valid Data ({validRows.length})
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("problems")}
-            className={`rounded-xl px-4 py-2 text-sm font-medium transition ${activeTab === "problems" ? "bg-amber-200 text-amber-950" : "bg-neutral-950 text-neutral-300 hover:bg-neutral-900"}`}
+            className={`rounded-xl px-4 py-2 text-sm font-medium transition ${activeTab === "problems" ? "bg-amber-200 text-amber-950" : "bg-white/6 text-zinc-300 hover:bg-white/5"}`}
           >
             Problem Data ({qualitySummary.flagged_invoice_count})
           </button>
@@ -1014,68 +1019,68 @@ export default function ProcurementInvoicesPage() {
             const isExpanded = expandedInvoiceNo === row.invoice_no;
             const detail = detailsByInvoiceNo[detailKeyFor(city, row.invoice_no)];
             return (
-              <div key={row.id} className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+              <div key={row.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <button
                   type="button"
                   onClick={() => void toggleDetail(row)}
                   className="flex w-full items-start justify-between gap-3 text-left"
                 >
                   <div>
-                    <div className="flex items-center gap-2 text-sm font-medium text-neutral-100">
-                      {isExpanded ? <ChevronDown className="h-4 w-4 text-violet-300" /> : <ChevronRight className="h-4 w-4 text-neutral-500" />}
+                    <div className="flex items-center gap-2 text-sm font-medium text-white">
+                      {isExpanded ? <ChevronDown className="h-4 w-4 text-violet-300" /> : <ChevronRight className="h-4 w-4 text-zinc-500" />}
                       <span>{row.invoice_no}</span>
                       <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-violet-200">{row.market}</span>
                     </div>
-                    <div className="mt-2 text-xs text-neutral-400">
+                    <div className="mt-2 text-xs text-zinc-400">
                       {row.supplier_name || "-"} | Invoice {formatDate(row.invoice_date)} | Due {formatDate(row.due_date)} | Branch {row.branch || "-"} | PO {row.po_number || "-"}
                     </div>
-                    <div className="mt-1 text-xs text-neutral-500">
+                    <div className="mt-1 text-xs text-zinc-500">
                       {formatMoney(row.invoice_amount, row.currency)} | {row.line_count} lines | Qty {Number(row.quantity_total || 0).toFixed(2)} | Updated {formatDateTime(row.updated_at)}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-xs uppercase tracking-wide text-neutral-500">Grand Total</div>
-                    <div className="mt-1 font-mono text-base font-semibold text-neutral-100">{formatMoney(row.invoice_amount, row.currency)}</div>
+                    <div className="text-xs uppercase tracking-wide text-zinc-500">Grand Total</div>
+                    <div className="mt-1 font-mono text-base font-semibold text-white">{formatMoney(row.invoice_amount, row.currency)}</div>
                   </div>
                 </button>
 
                 {isExpanded ? (
-                  <div className="mt-4 rounded-2xl border border-neutral-800 bg-neutral-950/60 p-4">
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/6/60 p-4">
                     {detailBusy === row.invoice_no && !detail ? (
-                      <div className="text-sm text-neutral-500">Loading invoice detail...</div>
+                      <div className="text-sm text-zinc-500">Loading invoice detail...</div>
                     ) : detail ? (
                       <div className="space-y-4">
                         <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
-                          <div className="rounded-xl border border-neutral-800 bg-neutral-900/30 p-3">
-                            <div className="text-[10px] uppercase tracking-wide text-neutral-500">Supplier</div>
-                            <div className="mt-1 text-sm text-neutral-100">{String(detail.summary.supplier_name || "-")}</div>
+                          <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                            <div className="text-[10px] uppercase tracking-wide text-zinc-500">Supplier</div>
+                            <div className="mt-1 text-sm text-white">{String(detail.summary.supplier_name || "-")}</div>
                           </div>
-                          <div className="rounded-xl border border-neutral-800 bg-neutral-900/30 p-3">
-                            <div className="text-[10px] uppercase tracking-wide text-neutral-500">Branch</div>
-                            <div className="mt-1 text-sm text-neutral-100">{String(detail.line_items.find((line) => String(line.branch || "").trim())?.branch || row.branch || "-")}</div>
+                          <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                            <div className="text-[10px] uppercase tracking-wide text-zinc-500">Branch</div>
+                            <div className="mt-1 text-sm text-white">{String(detail.line_items.find((line) => String(line.branch || "").trim())?.branch || row.branch || "-")}</div>
                           </div>
-                          <div className="rounded-xl border border-neutral-800 bg-neutral-900/30 p-3">
-                            <div className="text-[10px] uppercase tracking-wide text-neutral-500">Payment Terms</div>
-                            <div className="mt-1 text-sm text-neutral-100">{String(detail.summary.payment_terms || "-")}</div>
+                          <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                            <div className="text-[10px] uppercase tracking-wide text-zinc-500">Payment Terms</div>
+                            <div className="mt-1 text-sm text-white">{String(detail.summary.payment_terms || "-")}</div>
                           </div>
-                          <div className="rounded-xl border border-neutral-800 bg-neutral-900/30 p-3">
-                            <div className="text-[10px] uppercase tracking-wide text-neutral-500">Prepared By</div>
-                            <div className="mt-1 text-sm text-neutral-100">{String(detail.summary.prepared_by || "-")}</div>
+                          <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                            <div className="text-[10px] uppercase tracking-wide text-zinc-500">Prepared By</div>
+                            <div className="mt-1 text-sm text-white">{String(detail.summary.prepared_by || "-")}</div>
                           </div>
-                          <div className="rounded-xl border border-neutral-800 bg-neutral-900/30 p-3">
-                            <div className="text-[10px] uppercase tracking-wide text-neutral-500">Approved By</div>
-                            <div className="mt-1 text-sm text-neutral-100">{String(detail.summary.approved_by || "-")}</div>
+                          <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                            <div className="text-[10px] uppercase tracking-wide text-zinc-500">Approved By</div>
+                            <div className="mt-1 text-sm text-white">{String(detail.summary.approved_by || "-")}</div>
                           </div>
                         </div>
 
                         {detail.summary.notes ? (
-                          <div className="rounded-xl border border-neutral-800 bg-neutral-900/30 p-3 text-sm text-neutral-300">
+                          <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-zinc-300">
                             {String(detail.summary.notes)}
                           </div>
                         ) : null}
 
-                        <div className="overflow-hidden rounded-xl border border-neutral-800">
-                          <div className="grid grid-cols-[56px_120px_minmax(0,1fr)_100px_80px_120px_120px] gap-3 border-b border-neutral-800 bg-neutral-900/40 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-neutral-500">
+                        <div className="overflow-hidden rounded-xl border border-white/10">
+                          <div className="grid grid-cols-[56px_120px_minmax(0,1fr)_100px_80px_120px_120px] gap-3 border-b border-white/10 bg-white/5 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
                             <div>Line</div>
                             <div>Branch</div>
                             <div>Item</div>
@@ -1087,27 +1092,27 @@ export default function ProcurementInvoicesPage() {
                           <div className="divide-y divide-neutral-800">
                             {detail.line_items.map((line) => (
                               <div key={`${row.invoice_no}-${line.line_no}`} className="grid grid-cols-[56px_120px_minmax(0,1fr)_100px_80px_120px_120px] gap-3 px-3 py-2 text-sm">
-                                <div className="text-neutral-500">{line.line_no}</div>
-                                <div className="text-neutral-300">{line.branch || "-"}</div>
-                                <div className="text-neutral-100">{line.item_description || "-"}</div>
-                                <div className="text-right font-mono text-neutral-200">{Number(line.quantity || 0).toFixed(2)}</div>
-                                <div className="text-neutral-400">{line.unit || "-"}</div>
-                                <div className="text-right font-mono text-neutral-200">{formatMoney(line.unit_price, line.currency)}</div>
-                                <div className="text-right font-mono text-neutral-100">{formatMoney(line.total_incl_vat || line.amount, line.currency)}</div>
+                                <div className="text-zinc-500">{line.line_no}</div>
+                                <div className="text-zinc-300">{line.branch || "-"}</div>
+                                <div className="text-white">{line.item_description || "-"}</div>
+                                <div className="text-right font-mono text-zinc-200">{Number(line.quantity || 0).toFixed(2)}</div>
+                                <div className="text-zinc-400">{line.unit || "-"}</div>
+                                <div className="text-right font-mono text-zinc-200">{formatMoney(line.unit_price, line.currency)}</div>
+                                <div className="text-right font-mono text-white">{formatMoney(line.total_incl_vat || line.amount, line.currency)}</div>
                               </div>
                             ))}
                           </div>
                         </div>
                       </div>
                     ) : (
-                      <div className="text-sm text-neutral-500">No detail available.</div>
+                      <div className="text-sm text-zinc-500">No detail available.</div>
                     )}
                   </div>
                 ) : null}
               </div>
             );
           })}
-          {!validRows.length && !loading ? <div className="text-sm text-neutral-500">No valid supplier invoices found for the current filters.</div> : null}
+          {!validRows.length && !loading ? <div className="text-sm text-zinc-500">No valid supplier invoices found for the current filters.</div> : null}
         </div>
       ) : (
         <div className="space-y-4">
@@ -1123,10 +1128,10 @@ export default function ProcurementInvoicesPage() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <div className="rounded-xl border border-amber-700/40 bg-neutral-950/60 px-3 py-2 text-sm text-amber-100">
+                <div className="rounded-xl border border-amber-700/40 bg-white/6/60 px-3 py-2 text-sm text-amber-100">
                   Flagged invoices: <span className="font-semibold">{qualitySummary.flagged_invoice_count}</span>
                 </div>
-                <div className="rounded-xl border border-amber-700/40 bg-neutral-950/60 px-3 py-2 text-sm text-amber-100">
+                <div className="rounded-xl border border-amber-700/40 bg-white/6/60 px-3 py-2 text-sm text-amber-100">
                   Affected lines: <span className="font-semibold">{qualitySummary.flagged_line_count}</span>
                 </div>
                 <button
@@ -1142,7 +1147,7 @@ export default function ProcurementInvoicesPage() {
             </div>
 
             <div className="mt-4 overflow-hidden rounded-xl border border-amber-900/30">
-              <div className="grid grid-cols-[160px_120px_minmax(0,1fr)_120px_140px_170px_120px] gap-3 border-b border-amber-900/30 bg-neutral-950/70 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-amber-200/70">
+              <div className="grid grid-cols-[160px_120px_minmax(0,1fr)_120px_140px_170px_120px] gap-3 border-b border-amber-900/30 bg-white/6/70 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-amber-200/70">
                 <div>Invoice</div>
                 <div>Date</div>
                 <div>Supplier</div>
@@ -1151,18 +1156,18 @@ export default function ProcurementInvoicesPage() {
                 <div>Reason</div>
                 <div className="text-right">Action</div>
               </div>
-              <div className="divide-y divide-amber-900/20 bg-neutral-950/40">
+              <div className="divide-y divide-amber-900/20 bg-white/4">
                 {qualityRows.map((row) => {
                   const selected = selectedProblemInvoiceNo === row.invoice_no;
                   return (
                     <div key={row.id} className={`grid grid-cols-[160px_120px_minmax(0,1fr)_120px_140px_170px_120px] gap-3 px-3 py-2 text-sm ${selected ? "bg-amber-900/10" : ""}`}>
                       <div className="font-medium text-amber-50">{row.invoice_no}</div>
-                      <div className="text-neutral-300">{formatDate(row.invoice_date)}</div>
-                      <div className="truncate text-neutral-200">{row.supplier_name || "-"}</div>
+                      <div className="text-zinc-300">{formatDate(row.invoice_date)}</div>
+                      <div className="truncate text-zinc-200">{row.supplier_name || "-"}</div>
                       <div className="text-right font-mono text-amber-100">
                         {row.blank_financial_line_count}/{row.line_count}
                       </div>
-                      <div className="text-right font-mono text-neutral-200">{formatMoney(row.invoice_amount, row.currency)}</div>
+                      <div className="text-right font-mono text-zinc-200">{formatMoney(row.invoice_amount, row.currency)}</div>
                       <div className="text-xs text-amber-200/80">{row.reason}</div>
                       <div className="flex justify-end">
                         <button
@@ -1187,42 +1192,42 @@ export default function ProcurementInvoicesPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <div className="text-sm font-semibold text-neutral-100">Manager Priority Report</div>
-                <div className="mt-1 text-sm text-neutral-400">
+                <div className="text-sm font-semibold text-white">Manager Priority Report</div>
+                <div className="mt-1 text-sm text-zinc-400">
                   Same report shape as the manual review summary: supplier counts, priority order, line volume, and sample items for the invoices still missing source financial values.
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <div className="rounded-xl border border-neutral-800 bg-neutral-950/70 px-3 py-2 text-sm text-neutral-200">
+                <div className="rounded-xl border border-white/10 bg-white/6/70 px-3 py-2 text-sm text-zinc-200">
                   Suppliers: <span className="font-semibold">{problemReportSummary.supplier_count}</span>
                 </div>
-                <div className="rounded-xl border border-neutral-800 bg-neutral-950/70 px-3 py-2 text-sm text-neutral-200">
+                <div className="rounded-xl border border-white/10 bg-white/6/70 px-3 py-2 text-sm text-zinc-200">
                   Report rows: <span className="font-semibold">{problemReportRows.length}</span>
                 </div>
               </div>
             </div>
 
             <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-[320px_minmax(0,1fr)]">
-              <div className="rounded-xl border border-neutral-800 bg-neutral-950/50 p-3">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-neutral-500">Supplier Summary</div>
+              <div className="rounded-xl border border-white/10 bg-white/6/50 p-3">
+                <div className="text-[11px] uppercase tracking-[0.18em] text-zinc-500">Supplier Summary</div>
                 <div className="mt-3 space-y-2">
                   {problemSupplierSummary.map((row) => (
-                    <div key={row.supplier_name} className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900/50 px-3 py-2 text-sm">
-                      <div className="truncate pr-3 text-neutral-200">{row.supplier_name}</div>
-                      <div className="font-mono text-neutral-100">{row.invoice_count}</div>
+                    <div key={row.supplier_name} className="flex items-center justify-between rounded-lg border border-white/10 bg-white/4 px-3 py-2 text-sm">
+                      <div className="truncate pr-3 text-zinc-200">{row.supplier_name}</div>
+                      <div className="font-mono text-white">{row.invoice_count}</div>
                     </div>
                   ))}
                   {!problemSupplierSummary.length ? (
-                    <div className="text-sm text-neutral-500">No supplier summary for the current filters.</div>
+                    <div className="text-sm text-zinc-500">No supplier summary for the current filters.</div>
                   ) : null}
                 </div>
               </div>
 
-              <div className="overflow-hidden rounded-xl border border-neutral-800">
-                <div className="grid grid-cols-[70px_150px_110px_minmax(0,1fr)_70px_110px_120px] gap-3 border-b border-neutral-800 bg-neutral-900/50 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-neutral-500">
+              <div className="overflow-hidden rounded-xl border border-white/10">
+                <div className="grid grid-cols-[70px_150px_110px_minmax(0,1fr)_70px_110px_120px] gap-3 border-b border-white/10 bg-white/4 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-zinc-500">
                   <div>Priority</div>
                   <div>Invoice</div>
                   <div>Date</div>
@@ -1231,23 +1236,23 @@ export default function ProcurementInvoicesPage() {
                   <div className="text-right">Qty</div>
                   <div className="text-right">Blank Cells</div>
                 </div>
-                <div className="divide-y divide-neutral-800 bg-neutral-950/30">
+                <div className="divide-y divide-neutral-800 bg-white/4">
                   {problemReportRows.map((row) => (
                     <div key={`report-${row.invoice_no}`} className="grid grid-cols-[70px_150px_110px_minmax(0,1fr)_70px_110px_120px] gap-3 px-3 py-3 text-sm">
-                      <div className="font-mono text-neutral-300">{row.priority}</div>
-                      <div className="font-medium text-neutral-100">{row.invoice_no}</div>
-                      <div className="text-neutral-300">{formatDate(row.invoice_date)}</div>
+                      <div className="font-mono text-zinc-300">{row.priority}</div>
+                      <div className="font-medium text-white">{row.invoice_no}</div>
+                      <div className="text-zinc-300">{formatDate(row.invoice_date)}</div>
                       <div className="min-w-0">
-                        <div className="truncate text-neutral-200">{row.supplier_name || "-"}</div>
-                        <div className="mt-1 truncate text-xs text-neutral-500">{row.sample_items.join(" | ") || "-"}</div>
+                        <div className="truncate text-zinc-200">{row.supplier_name || "-"}</div>
+                        <div className="mt-1 truncate text-xs text-zinc-500">{row.sample_items.join(" | ") || "-"}</div>
                       </div>
-                      <div className="text-right font-mono text-neutral-200">{row.line_count}</div>
-                      <div className="text-right font-mono text-neutral-200">{Number(row.quantity_total || 0).toFixed(2)}</div>
+                      <div className="text-right font-mono text-zinc-200">{row.line_count}</div>
+                      <div className="text-right font-mono text-zinc-200">{Number(row.quantity_total || 0).toFixed(2)}</div>
                       <div className="text-right font-mono text-amber-200">{row.blank_source_cells}</div>
                     </div>
                   ))}
                   {!problemReportRows.length ? (
-                    <div className="px-3 py-4 text-sm text-neutral-500">
+                    <div className="px-3 py-4 text-sm text-zinc-500">
                       No manager report rows for the current filters.
                     </div>
                   ) : null}
@@ -1257,12 +1262,12 @@ export default function ProcurementInvoicesPage() {
           </div>
 
           {problemDraft ? (
-            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <div className="text-sm font-semibold text-neutral-100">Problem Invoice Editor</div>
-                  <div className="mt-1 text-sm text-neutral-400">
-                    Invoice <span className="font-medium text-neutral-100">{problemDraft.invoice_no}</span>. Fields not present in the source tab structure are ignored automatically on save.
+                  <div className="text-sm font-semibold text-white">Problem Invoice Editor</div>
+                  <div className="mt-1 text-sm text-zinc-400">
+                    Invoice <span className="font-medium text-white">{problemDraft.invoice_no}</span>. Fields not present in the source tab structure are ignored automatically on save.
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -1273,7 +1278,7 @@ export default function ProcurementInvoicesPage() {
                       setProblemBaseDraft(null);
                       setSelectedProblemInvoiceNo(null);
                     }}
-                    className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-200 hover:bg-neutral-900"
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/8 bg-white/6 px-3 py-2 text-sm text-zinc-200 hover:bg-white/5"
                   >
                     <X className="h-4 w-4" />
                     Close
@@ -1282,7 +1287,7 @@ export default function ProcurementInvoicesPage() {
                     type="button"
                     onClick={() => setProblemDraft(problemBaseDraft)}
                     disabled={!problemDirty || problemSaveBusy}
-                    className="inline-flex items-center gap-2 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-200 hover:bg-neutral-900 disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/8 bg-white/6 px-3 py-2 text-sm text-zinc-200 hover:bg-white/5 disabled:opacity-50"
                   >
                     <RefreshCw className="h-4 w-4" />
                     Cancel Changes
@@ -1302,13 +1307,13 @@ export default function ProcurementInvoicesPage() {
               <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
                 {SUMMARY_EDIT_FIELDS.map((field) => (
                   <label key={field.key} className={`block ${field.className || ""}`}>
-                    <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-neutral-500">{field.label}</div>
+                    <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{field.label}</div>
                     {field.type === "textarea" ? (
                       <textarea
                         value={problemDraft.summary[field.key] || ""}
                         onChange={(e) => updateProblemSummaryField(field.key, e.target.value)}
                         rows={3}
-                        className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none transition focus:border-violet-500/50"
+                        className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none transition focus:border-violet-500/50"
                       />
                     ) : (
                       <input
@@ -1316,17 +1321,17 @@ export default function ProcurementInvoicesPage() {
                         step={field.type === "number" ? "0.01" : undefined}
                         value={problemDraft.summary[field.key] || ""}
                         onChange={(e) => updateProblemSummaryField(field.key, e.target.value)}
-                        className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 outline-none transition focus:border-violet-500/50"
+                        className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none transition focus:border-violet-500/50"
                       />
                     )}
                   </label>
                 ))}
               </div>
 
-              <div className="mt-4 overflow-x-auto rounded-xl border border-neutral-800">
+              <div className="mt-4 overflow-x-auto rounded-xl border border-white/10">
                 <table className="min-w-[1700px] w-full text-sm">
-                  <thead className="bg-neutral-900/50">
-                    <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-neutral-500">
+                  <thead className="bg-white/4">
+                    <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-zinc-500">
                       <th className="px-3 py-2">Line</th>
                       {LINE_EDIT_FIELDS.map((field) => (
                         <th key={field.key} className="px-3 py-2">{field.label}</th>
@@ -1336,7 +1341,7 @@ export default function ProcurementInvoicesPage() {
                   <tbody className="divide-y divide-neutral-800">
                     {problemDraft.line_items.map((line) => (
                       <tr key={`${problemDraft.invoice_no}-${line.line_no}`} className="align-top">
-                        <td className="px-3 py-2 font-mono text-neutral-500">{line.line_no}</td>
+                        <td className="px-3 py-2 font-mono text-zinc-500">{line.line_no}</td>
                         {LINE_EDIT_FIELDS.map((field) => (
                           <td key={`${line.line_no}-${field.key}`} className="px-3 py-2">
                             <input
@@ -1344,7 +1349,7 @@ export default function ProcurementInvoicesPage() {
                               step={field.type === "number" ? "0.01" : undefined}
                               value={line.updates[field.key] || ""}
                               onChange={(e) => updateProblemLineField(line.line_no, field.key, e.target.value)}
-                              className="w-full min-w-[120px] rounded-lg border border-neutral-800 bg-neutral-950 px-2.5 py-2 text-sm text-neutral-100 outline-none transition focus:border-violet-500/50"
+                              className="w-full min-w-[120px] rounded-lg border border-white/10 bg-white/6 px-2.5 py-2 text-sm text-white outline-none transition focus:border-violet-500/50"
                             />
                           </td>
                         ))}
