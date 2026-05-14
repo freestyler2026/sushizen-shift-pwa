@@ -561,7 +561,7 @@ export default function ProcurementCaseDetailPage() {
               {actionBadge(row.action)}
               <span className="text-sm text-zinc-200">{row.actor_role}</span>
               <span className="text-sm font-medium text-white">{row.actor_name}</span>
-              {row.comment && <span className="text-sm text-zinc-400">"{row.comment}"</span>}
+              {row.comment && <span className="text-sm text-zinc-400">&ldquo;{row.comment}&rdquo;</span>}
             </div>
           ))}
           {!(bundle.history || []).length && <p className={T_CAPTION}>No approval actions yet.</p>}
