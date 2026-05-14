@@ -194,6 +194,15 @@ const TRACKS: Track[] = [
     accentHex: "#7f1d1d",
     glyph: "覇",
   },
+  {
+    id: 21,
+    title: "ZEN Rock",
+    subtitle: "Sushi ZEN",
+    file: "/music/zen-rock.mp3",
+    accent: "from-zinc-900 via-red-800 to-orange-500",
+    accentHex: "#dc2626",
+    glyph: "轟",
+  },
 ];
 
 function fmt(sec: number) {
