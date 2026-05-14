@@ -40,7 +40,7 @@ type Lang = "en" | "ja";
 const TR = {
   en: {
     pageTitle: "Daily Operations Report",
-    subtitle: "All-in-one daily summary · Auto-generated at 1:30 PM PHT",
+    subtitle: "All-in-one daily summary · Auto-generated daily at 1:30 PM PHT (previous day)",
     refresh: "Refresh", generateNow: "Generate Now", generating: "Generating...",
     reportDate: "Report date", generatedAt: "Generated",
     noReports: "No report yet for today.", noReportsHint: "HQ/ADMIN can click \"Generate Now\" to build a report manually.",
@@ -84,7 +84,7 @@ const TR = {
   },
   ja: {
     pageTitle: "デイリー業務レポート",
-    subtitle: "全データ一覧 · 毎日13:30 PHT 自動生成",
+    subtitle: "全データ一覧 · 毎日13:30 PHT 自動生成（前日分）",
     refresh: "更新", generateNow: "今すぐ生成", generating: "生成中...",
     reportDate: "日付", generatedAt: "生成",
     noReports: "本日のレポートがまだありません。", noReportsHint: "HQ/ADMINが「今すぐ生成」で手動生成できます。",
