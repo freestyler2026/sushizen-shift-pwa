@@ -227,7 +227,12 @@ const MANILA_BRANCH_NORM: Record<string, string | null> = {
   taf: "Taft",
   taft: "Taft",
   ck: null,   // Cloud Kitchen — doesn't sell, exclude from cards
+  bo: null,   // Back Office — no sales, exclude from branch cards
 };
+
+// Dubai short-code aliases that duplicate full-name cards — hide them.
+// BB=Business Bay, AB=Al Barsha, AM=Al Mina, ARJ=Arjan, JLT=duplicate, CK=Cloud Kitchen
+const DUBAI_BRANCH_EXCLUDE = new Set(["bb", "ab", "am", "arj", "jlt", "ck"]);
 
 function buildBranchCards(data: ReportData, city: string): BranchCard[] {
   const map = new Map<string, BranchCard>();
@@ -235,9 +240,15 @@ function buildBranchCards(data: ReportData, city: string): BranchCard[] {
 
   // Returns canonical name (possibly remapped), or null to skip this branch entirely.
   const norm = (rawName: string): string | null => {
-    if (city !== "manila") return rawName || null;
     const k = key(rawName);
-    if (k in MANILA_BRANCH_NORM) return MANILA_BRANCH_NORM[k]; // explicit map (may be null)
+    if (city === "manila") {
+      if (k in MANILA_BRANCH_NORM) return MANILA_BRANCH_NORM[k]; // explicit map (may be null)
+      return rawName || null;
+    }
+    if (city === "dubai") {
+      if (DUBAI_BRANCH_EXCLUDE.has(k)) return null; // short-code duplicate → hide
+      return rawName || null;
+    }
     return rawName || null;
   };
 
