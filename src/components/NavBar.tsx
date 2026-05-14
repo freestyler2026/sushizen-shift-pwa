@@ -59,6 +59,7 @@ import {
   canAccessCostAdmin,
   canAccessDailyInventoryAdmin,
   canAccessDraftAdmin,
+  canAccessFinancePage,
   canAccessIncidentReport,
   canAccessIncidentReportAdmin,
   canAccessInventoryAdminNav,
@@ -244,7 +245,7 @@ export default function NavBar() {
   function canSeeAdminItem(href: string, auth: ReturnType<typeof getAuth>) {
     if (!auth) return false;
     const role = String(auth.role || "").toUpperCase();
-    if (href === "/admin/finance") return role === "HQ";
+    if (href === "/admin/finance") return canAccessFinancePage(auth);
     if (role === "HQ" || role === "ADMIN") return true;
     if (href === "/admin") return canAccessAdminDashboard(auth);
     if (href === "/admin/ai-analytics-pro") return canAccessAiAnalyticsProAdmin(auth);

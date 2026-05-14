@@ -448,6 +448,15 @@ export function canAccessRoleManagement(a?: Auth | null): boolean {
   return String(x?.role || "").toUpperCase() === "HQ";
 }
 
+/** Management P&L page — matches `admin.finance` channel in `app/access_control.py`.
+ *  HQ always has access. Other roles can be granted `channel.admin.finance.view` via Role Management. */
+export function canAccessFinancePage(a?: Auth | null): boolean {
+  const x = a ?? getAuth();
+  if (!x) return false;
+  if (String(x.role || "").toUpperCase() === "HQ") return true;
+  return hasAnyPermission(["channel.admin.finance.view"], x);
+}
+
 /** Incident Report admin — matches `admin.incident_reports` channel in `app/access_control.py`. */
 export function canAccessIncidentReportAdmin(a?: Auth | null): boolean {
   return hasAnyPermission(["channel.admin.incident_reports.view", "incident_report.read", "incident_report.reply"], a);

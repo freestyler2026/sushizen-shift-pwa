@@ -16,6 +16,7 @@ import {
   YAxis,
 } from "recharts";
 import {
+  canAccessFinancePage,
   clearStepUpAuth,
   getAuth,
   getAuthHeaders,
@@ -443,8 +444,7 @@ export default function FinancePage() {
   useEffect(() => {
     (async () => {
       const next = await refreshAuthFromApi(getAuth(), { includeMfa: true });
-      const role = String(next?.role || "").toUpperCase();
-      if (role !== "HQ") {
+      if (!canAccessFinancePage(next)) {
         router.replace("/admin/analytics");
         return;
       }
