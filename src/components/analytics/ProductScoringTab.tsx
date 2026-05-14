@@ -795,6 +795,9 @@ export default function ProductScoringTab({
                     {expandedRow === row.id && (
                       <tr key={`${row.id}-expand`} className="bg-slate-900/40">
                         <td colSpan={8} className="px-4 py-3">
+                          {row.feedback && (
+                            <p className="mb-3 text-xs text-slate-300 leading-relaxed">{row.feedback}</p>
+                          )}
                           <div className="grid grid-cols-7 gap-2 text-xs">
                             {(["shape", "size_consistency", "completion", "topping", "cut_uniformity", "arrangement", "portioning"] as const).map((axis) => {
                               const val = row[`score_${axis}` as keyof ScoreRow] as number;
