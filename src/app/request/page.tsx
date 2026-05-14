@@ -523,7 +523,7 @@ export default function RequestPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0b14]">
+    <div className="min-h-screen">
       <div className="mx-auto max-w-3xl space-y-6 px-4 pb-12 pt-8">
 
         {/* ── Header ──────────────────────────────────────────────────── */}
