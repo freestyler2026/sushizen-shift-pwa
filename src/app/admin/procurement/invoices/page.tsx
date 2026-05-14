@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Database, Download, ExternalLink, RefreshCw, Save, SquarePen, Upload, X } from "lucide-react";
+import { TAB_ACTIVE, TAB_INACTIVE, TAB_CONTAINER } from "@/lib/ui-tokens";
 import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson, procurementTokenHeaders } from "@/lib/procurementClient";
@@ -994,19 +995,19 @@ export default function ProcurementInvoicesPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-2">
+      <div className={TAB_CONTAINER}>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={() => setActiveTab("valid")}
-            className={`rounded-xl px-4 py-2 text-sm font-medium transition ${activeTab === "valid" ? "bg-neutral-100 text-neutral-950" : "bg-white/6 text-zinc-300 hover:bg-white/5"}`}
+            className={activeTab === "valid" ? TAB_ACTIVE : TAB_INACTIVE}
           >
             Valid Data ({validRows.length})
           </button>
           <button
             type="button"
             onClick={() => setActiveTab("problems")}
-            className={`rounded-xl px-4 py-2 text-sm font-medium transition ${activeTab === "problems" ? "bg-amber-200 text-amber-950" : "bg-white/6 text-zinc-300 hover:bg-white/5"}`}
+            className={activeTab === "problems" ? `${TAB_ACTIVE} !border-amber-500/30 !bg-amber-500/20 !text-amber-300` : TAB_INACTIVE}
           >
             Problem Data ({qualitySummary.flagged_invoice_count})
           </button>

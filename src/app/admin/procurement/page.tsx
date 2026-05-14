@@ -2,7 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ShoppingCart } from "lucide-react";
+import { AlertCircle, CheckCircle, ShoppingCart } from "lucide-react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi, setAuth } from "@/lib/auth";
 import DatePicker from "@/components/DatePicker";
 import MonthPicker from "@/components/MonthPicker";
@@ -308,7 +308,12 @@ export default function AdminProcurementPage() {
   }, [auth, city, loadAll, requestedBy]);
 
   if (!allowed) {
-    return <div className="text-sm text-red-300">Procurement page is available only to authorized admin roles.</div>;
+    return (
+      <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+        <AlertCircle className="h-4 w-4 shrink-0" />
+        Procurement Control is only available to authorized admin roles.
+      </div>
+    );
   }
 
   return (
@@ -328,7 +333,11 @@ export default function AdminProcurementPage() {
         </div>
       </div>
 
-      {error ? <div className={`${BADGE_ERROR} whitespace-pre-wrap`}>{error}</div> : null}
+      {error && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
+          <AlertCircle className="h-4 w-4 shrink-0" />{error}
+        </div>
+      )}
 
       <div className={`${GLASS_CARD} mb-6 flex flex-wrap items-end gap-3 p-4`}>
         <div className="min-w-[180px]">
@@ -551,11 +560,11 @@ export default function AdminProcurementPage() {
               Clear Note
             </button>
           </div>
-          {approvalSuccess ? (
-            <div className="mt-3 rounded-xl border border-emerald-700/40 bg-emerald-900/20 px-3 py-2 text-sm font-medium text-emerald-300">
-              {approvalSuccess}
+          {approvalSuccess && (
+            <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-3 py-2 text-sm font-medium text-emerald-300">
+              <CheckCircle className="h-4 w-4 shrink-0" />{approvalSuccess}
             </div>
-          ) : null}
+          )}
           <div className="mt-4 flex flex-wrap gap-2">
             <span className={BADGE_INFO}>Queue count: {queueRows.length}</span>
             <span className={exceptions.filter((x) => x.status === "OPEN").length > 0 ? BADGE_WARNING : BADGE_SUCCESS}>
@@ -565,13 +574,13 @@ export default function AdminProcurementPage() {
 
           {/* Selected Request Detail */}
           {selectedRequestLoading ? (
-            <div className="mt-4 text-sm text-neutral-500">Loading request detail...</div>
+            <div className="mt-4 text-sm text-zinc-500">Loading request detail...</div>
           ) : selectedRequestDetail ? (
             <div className="mt-4 rounded-xl border border-amber-700/30 bg-amber-950/15 p-4">
               <div className="mb-3 flex items-center justify-between">
                 <div>
                   <div className="text-sm font-semibold text-amber-200">{selectedRequestDetail.request_no || "–"}</div>
-                  <div className="mt-0.5 text-xs text-neutral-400">
+                  <div className="mt-0.5 text-xs text-zinc-400">
                     {selectedRequestDetail.store_code || "-"} · {selectedRequestDetail.status} · {Number(selectedRequestDetail.total_amount || 0).toFixed(2)} {currencyCode}
                   </div>
                 </div>
@@ -580,7 +589,7 @@ export default function AdminProcurementPage() {
                 <div className="overflow-x-auto rounded-lg border border-white/8">
                   <table className="min-w-full text-xs">
                     <thead>
-                      <tr className="border-b border-white/8 bg-black/20 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
+                      <tr className="border-b border-white/8 bg-black/20 text-[11px] font-medium uppercase tracking-wide text-zinc-500">
                         <th className="px-3 py-2 text-left">Item</th>
                         <th className="px-3 py-2 text-left">Category</th>
                         <th className="px-3 py-2 text-right">Qty</th>
@@ -592,18 +601,18 @@ export default function AdminProcurementPage() {
                     <tbody>
                       {selectedRequestDetail.items!.map((item, i) => (
                         <tr key={i} className="border-b border-white/5 last:border-0">
-                          <td className="px-3 py-2 text-neutral-200">{item.item_name}</td>
-                          <td className="px-3 py-2 text-neutral-400">{item.category || "-"}</td>
+                          <td className="px-3 py-2 text-zinc-200">{item.item_name}</td>
+                          <td className="px-3 py-2 text-zinc-400">{item.category || "-"}</td>
                           <td className="px-3 py-2 text-right font-medium text-white">{Number(item.qty || 0)}</td>
-                          <td className="px-3 py-2 text-neutral-400">{item.unit || "-"}</td>
-                          <td className="px-3 py-2 text-right text-neutral-300">{Number(item.unit_price || 0).toFixed(2)}</td>
-                          <td className="px-3 py-2 text-neutral-400">{item.vendor_name || "-"}</td>
+                          <td className="px-3 py-2 text-zinc-400">{item.unit || "-"}</td>
+                          <td className="px-3 py-2 text-right text-zinc-300">{Number(item.unit_price || 0).toFixed(2)}</td>
+                          <td className="px-3 py-2 text-zinc-400">{item.vendor_name || "-"}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-              ) : <div className="text-xs text-neutral-500">No items found.</div>}
+              ) : <div className="text-xs text-zinc-500">No items found.</div>}
             </div>
           ) : null}
         </div>
