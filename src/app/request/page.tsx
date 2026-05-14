@@ -12,19 +12,13 @@ import { Field } from "@/components/Field";
 import DatePicker from "@/components/DatePicker";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
-
-// ── Dark theme styles ─────────────────────────────────────────────────────────
-const PAGE_BG   = "min-h-screen bg-[#0a0b14]";
-const CARD      = "rounded-2xl border border-white/10 bg-white/5 shadow-xl shadow-black/20";
-const SECTION   = "text-base font-semibold text-white";
-const CAPTION   = "text-xs text-zinc-500";
-const BTN_PRIM  = "rounded-xl bg-teal-600 px-5 py-2.5 font-semibold text-white transition hover:bg-teal-500 disabled:opacity-50";
-const BTN_SEC   = "rounded-xl border border-white/10 bg-white/6 px-5 py-2.5 text-sm font-medium text-zinc-300 hover:bg-white/10 transition disabled:opacity-50";
-const INPUT     = "w-full rounded-xl border border-white/10 bg-white/6 px-4 py-2.5 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20";
-const SELECT    = "w-full appearance-none rounded-xl border border-white/10 bg-white/6 px-4 py-2.5 text-sm text-white outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20";
-const TAB_A     = "flex items-center gap-2 border-b-2 border-teal-400 px-4 py-3 text-sm font-semibold text-teal-400";
-const TAB_I     = "flex items-center gap-2 border-b-2 border-transparent px-4 py-3 text-sm font-medium text-zinc-500 hover:text-white transition";
-const LABEL     = "block text-xs font-semibold uppercase tracking-wide text-zinc-500 mb-1";
+import {
+  GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, SMALL_BUTTON, DANGER_BUTTON,
+  INPUT_CLASS, SELECT_CLASS, TEXTAREA_CLASS,
+  TAB_CONTAINER, TAB_ACTIVE, TAB_INACTIVE,
+  BADGE_SUCCESS, BADGE_WARNING, BADGE_ERROR, BADGE_INFO, BADGE_ACCENT,
+  T_PAGE_TITLE, T_SECTION, T_LABEL, T_CAPTION,
+} from "@/lib/ui-tokens";
 
 type Tab = "form" | "history" | "inbox";
 type ReqType = "time_change" | "day_off" | "absence" | "swap" | "paid_leave" | "vacation" | "overtime_request" | "other";
@@ -69,17 +63,9 @@ type Notification = {
 function todayIso() { return new Date().toISOString().slice(0, 10); }
 
 function StatusBadge({ status }: { status: string }) {
-  const cls = status === "approved"
-    ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
-    : status === "rejected"
-    ? "bg-red-500/15 text-red-400 border border-red-500/30"
-    : "bg-amber-500/15 text-amber-400 border border-amber-500/30";
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${cls}`}>
-      {status === "approved" ? <CheckCircle2 size={11} /> : status === "rejected" ? <XCircle size={11} /> : <Clock size={11} />}
-      {status}
-    </span>
-  );
+  if (status === "approved") return <span className={BADGE_SUCCESS}><CheckCircle2 size={11} />Approved</span>;
+  if (status === "rejected") return <span className={BADGE_ERROR}><XCircle size={11} />Rejected</span>;
+  return <span className={BADGE_WARNING}><Clock size={11} />Pending</span>;
 }
 
 function apiFetch(path: string, opts?: RequestInit) {
@@ -121,47 +107,54 @@ function HistoryTab({ staffName, city }: { staffName: string; city: string }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className={SECTION}>My Request History</h2>
-        <button onClick={load} className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition">
+        <h2 className={T_SECTION}>My Request History</h2>
+        <button onClick={load} className={SMALL_BUTTON + " flex items-center gap-1.5"}>
           <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> Refresh
         </button>
       </div>
+
       {error && (
         <div className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
           <AlertCircle size={14} /> {error}
         </div>
       )}
+
       {loading && items.length === 0 ? (
-        <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-teal-500" /></div>
+        <div className="flex justify-center py-12">
+          <Loader2 size={24} className="animate-spin text-violet-400" />
+        </div>
       ) : items.length === 0 ? (
-        <div className={CARD + " p-10 text-center"}>
-          <ClipboardList size={36} className="mx-auto mb-2 text-zinc-600" />
+        <div className={GLASS_CARD + " p-10 text-center"}>
+          <ClipboardList size={36} className="mx-auto mb-3 text-zinc-600" />
           <p className="text-sm text-zinc-500">No requests submitted yet.</p>
         </div>
       ) : (
         <div className="space-y-2">
           {items.map(n => (
-            <div key={n.id} className={CARD + " p-4"}>
+            <div key={n.id} className={GLASS_CARD + " p-4"}>
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-teal-500/15 px-2.5 py-0.5 text-xs font-medium text-teal-300 capitalize">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={BADGE_INFO + " capitalize"}>
                       {n.notification_type.replace(/_/g, " ")}
                     </span>
                     <StatusBadge status={n.status} />
                   </div>
-                  <p className="mt-1.5 text-sm text-zinc-300">{n.reason}</p>
+                  <p className="mt-2 text-sm text-zinc-300">{n.reason}</p>
                   {n.leave_days != null && (
-                    <p className="text-xs text-zinc-500 mt-0.5">{n.leave_days} day(s) — {n.leave_type}</p>
+                    <p className={T_CAPTION + " mt-1"}>{n.leave_days} day(s) · {n.leave_type}</p>
                   )}
-                  {n.overtime_hours && (
-                    <p className="text-xs text-zinc-500 mt-0.5">{n.overtime_hours} OT hour(s)</p>
+                  {n.overtime_hours != null && n.overtime_hours > 0 && (
+                    <p className={T_CAPTION + " mt-1"}>{n.overtime_hours} OT hour(s)</p>
+                  )}
+                  {n.review_note && (
+                    <p className={T_CAPTION + " mt-1 italic"}>Note: {n.review_note}</p>
                   )}
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="text-xs text-zinc-500">{n.target_date}</p>
-                  {n.review_note && (
-                    <p className="mt-1 text-xs text-zinc-500 max-w-[160px]">{n.review_note}</p>
+                  <p className={T_CAPTION}>{n.target_date}</p>
+                  {n.reviewed_by && (
+                    <p className={T_CAPTION + " mt-0.5"}>{n.reviewed_by}</p>
                   )}
                 </div>
               </div>
@@ -203,7 +196,6 @@ function InboxTab({ city }: { city: string }) {
     }
   }, [city]);
 
-  // 30-second polling
   useEffect(() => {
     void load();
     pollingRef.current = setInterval(() => { void load(); }, 30_000);
@@ -239,19 +231,20 @@ function InboxTab({ city }: { city: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className={SECTION + " flex items-center gap-2"}>
-            <BellRing size={18} className="text-amber-500" /> Pending Inbox
+          <h2 className={T_SECTION + " flex items-center gap-2"}>
+            <BellRing size={18} className="text-amber-400" />
+            Pending Inbox
             {items.length > 0 && (
-              <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-bold text-amber-400">{items.length}</span>
+              <span className={BADGE_WARNING}>{items.length}</span>
             )}
           </h2>
           {lastLoaded && (
-            <p className="text-xs text-zinc-500 mt-0.5">
-              Last updated: {lastLoaded.toLocaleTimeString()} · auto-refresh every 30s
+            <p className={T_CAPTION + " mt-0.5"}>
+              Updated {lastLoaded.toLocaleTimeString()} · auto-refresh every 30s
             </p>
           )}
         </div>
-        <button onClick={load} className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition">
+        <button onClick={load} className={SMALL_BUTTON + " flex items-center gap-1.5"}>
           <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> Refresh
         </button>
       </div>
@@ -263,25 +256,27 @@ function InboxTab({ city }: { city: string }) {
       )}
 
       {loading && items.length === 0 ? (
-        <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-teal-500" /></div>
+        <div className="flex justify-center py-12">
+          <Loader2 size={24} className="animate-spin text-violet-400" />
+        </div>
       ) : items.length === 0 ? (
-        <div className={CARD + " p-10 text-center"}>
-          <Bell size={36} className="mx-auto mb-2 text-zinc-600" />
+        <div className={GLASS_CARD + " p-10 text-center"}>
+          <Bell size={36} className="mx-auto mb-3 text-zinc-600" />
           <p className="text-sm text-zinc-500">No pending requests.</p>
         </div>
       ) : (
         <div className="space-y-3">
           {items.map(n => (
-            <div key={n.id} className={CARD + " p-4"}>
+            <div key={n.id} className={GLASS_CARD + " p-4"}>
               <div className="flex items-start justify-between gap-3">
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-semibold text-white text-sm">{n.sender_name}</span>
-                    <span className="rounded-full bg-teal-500/15 px-2.5 py-0.5 text-xs font-medium text-teal-300 capitalize">
+                    <span className={BADGE_INFO + " capitalize"}>
                       {n.notification_type.replace(/_/g, " ")}
                     </span>
                   </div>
-                  <p className="mt-1 text-sm text-zinc-300">{n.reason}</p>
+                  <p className="mt-1.5 text-sm text-zinc-300">{n.reason}</p>
                   <div className="mt-1 flex flex-wrap gap-3 text-xs text-zinc-500">
                     <span>Date: {n.target_date}</span>
                     {n.leave_type && <span>Type: {n.leave_type}</span>}
@@ -292,9 +287,9 @@ function InboxTab({ city }: { city: string }) {
 
                   {reviewingId === n.id ? (
                     <div className="mt-3 space-y-2">
-                      <label className={LABEL}>Review note (optional)</label>
+                      <label className={T_LABEL}>Review note (optional)</label>
                       <textarea
-                        className={INPUT + " resize-none"}
+                        className={TEXTAREA_CLASS}
                         rows={2}
                         value={reviewNote}
                         onChange={e => setReviewNote(e.target.value)}
@@ -304,19 +299,19 @@ function InboxTab({ city }: { city: string }) {
                         <button
                           onClick={() => { void review(n.id, "approved"); }}
                           disabled={reviewBusy}
-                          className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50 transition">
+                          className="flex items-center gap-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/30 px-3 py-1.5 text-xs font-semibold text-emerald-400 hover:bg-emerald-500/30 disabled:opacity-50 transition">
                           {reviewBusy ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
                           Approve
                         </button>
                         <button
                           onClick={() => { void review(n.id, "rejected"); }}
                           disabled={reviewBusy}
-                          className="flex items-center gap-1 rounded-lg bg-red-500/10 border border-red-500/30 px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/20 disabled:opacity-50 transition">
+                          className={DANGER_BUTTON + " flex items-center gap-1.5 !px-3 !py-1.5 text-xs font-semibold"}>
                           <XCircle size={12} /> Reject
                         </button>
                         <button
                           onClick={() => { setReviewingId(null); setReviewNote(""); }}
-                          className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition">
+                          className={SMALL_BUTTON}>
                           Cancel
                         </button>
                       </div>
@@ -324,13 +319,13 @@ function InboxTab({ city }: { city: string }) {
                   ) : (
                     <button
                       onClick={() => setReviewingId(n.id)}
-                      className="mt-2 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-zinc-400 hover:bg-white/10 transition">
+                      className={SMALL_BUTTON + " mt-2"}>
                       Review
                     </button>
                   )}
                 </div>
-                <div className="shrink-0 text-right text-xs text-zinc-500">
-                  {new Date(n.created_at).toLocaleDateString()}
+                <div className="shrink-0 text-right">
+                  <p className={T_CAPTION}>{new Date(n.created_at).toLocaleDateString()}</p>
                 </div>
               </div>
             </div>
@@ -419,7 +414,7 @@ export default function RequestPage() {
       .catch(() => setStaffNames([]));
   }, [city]);
 
-  // Fetch leave balances for badge display
+  // Fetch leave balances
   useEffect(() => {
     const freshAuth = getAuth();
     if (!freshAuth?.accessToken || !staffName || !city) return;
@@ -444,7 +439,6 @@ export default function RequestPage() {
       if (requestType === "time_change" && !to.trim()) throw new Error("Requested time is required.");
       if (medicalDoc && !medicalDocumentFile) throw new Error("Please attach your medical document file.");
 
-      // For overtime_request, use the new /api/request/notify endpoint
       if (requestType === "overtime_request") {
         const r = await apiFetch("/api/request/notify", {
           method: "POST",
@@ -464,7 +458,6 @@ export default function RequestPage() {
         return;
       }
 
-      // For leave types, also send to new notification endpoint in addition to legacy
       const isLeaveType = ["paid_leave", "vacation", "absence", "day_off"].includes(requestType);
       if (isLeaveType) {
         await apiFetch("/api/request/notify", {
@@ -478,7 +471,7 @@ export default function RequestPage() {
             leave_days: parseFloat(leaveDays) || 1,
             reason: reason.trim(),
           }),
-        }).catch(() => {}); // non-blocking
+        }).catch(() => {});
       }
 
       let payload: Record<string, string> = {};
@@ -530,80 +523,83 @@ export default function RequestPage() {
   };
 
   return (
-    <div className={PAGE_BG}>
-      <div className="mx-auto max-w-3xl space-y-0 px-4 pb-10 pt-6">
+    <div className="min-h-screen bg-[#0a0b14]">
+      <div className="mx-auto max-w-3xl space-y-6 px-4 pb-12 pt-8">
 
-        {/* Header */}
-        <div className="mb-5 flex items-start justify-between gap-4">
+        {/* ── Header ──────────────────────────────────────────────────── */}
+        <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">Request</h1>
-            <p className="mt-0.5 text-sm text-zinc-400">Submit shift changes, leave, or overtime requests.</p>
+            <h1 className={T_PAGE_TITLE}>Request</h1>
+            <p className="mt-1 text-sm text-zinc-400">Submit shift changes, leave, or overtime requests.</p>
           </div>
           {leaveBalances.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap justify-end gap-1.5">
               {leaveBalances.slice(0, 3).map(b => (
-                <div key={b.id} className="rounded-xl border border-teal-500/25 bg-teal-500/10 px-3 py-1.5 text-xs">
-                  <span className="text-teal-400 font-medium capitalize">{b.leave_type.replace(/_/g, " ")}</span>
-                  <span className="ml-1 font-bold text-teal-300">{b.remaining_days}</span>
-                  <span className="text-teal-500">/{b.entitled_days}d</span>
+                <div key={b.id} className="rounded-xl border border-violet-500/20 bg-violet-500/10 px-3 py-1.5 text-xs">
+                  <span className="text-violet-300 font-medium capitalize">{b.leave_type.replace(/_/g, " ")}</span>
+                  <span className="ml-1.5 font-bold text-white">{b.remaining_days}</span>
+                  <span className="text-zinc-500">/{b.entitled_days}d</span>
                 </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* Tab bar */}
-        <div className="flex border-b border-white/10 bg-transparent">
-          <button className={activeTab === "form" ? TAB_A : TAB_I} onClick={() => setActiveTab("form")}>
-            <FileText size={14} /> Form
+        {/* ── Tab bar ─────────────────────────────────────────────────── */}
+        <div className={TAB_CONTAINER}>
+          <button
+            className={activeTab === "form" ? TAB_ACTIVE : TAB_INACTIVE}
+            onClick={() => setActiveTab("form")}>
+            <FileText size={14} className="inline mr-1.5" />Form
           </button>
-          <button className={activeTab === "history" ? TAB_A : TAB_I} onClick={() => setActiveTab("history")}>
-            <ClipboardList size={14} /> My History
+          <button
+            className={activeTab === "history" ? TAB_ACTIVE : TAB_INACTIVE}
+            onClick={() => setActiveTab("history")}>
+            <ClipboardList size={14} className="inline mr-1.5" />My History
           </button>
           {isInbox && (
-            <button className={activeTab === "inbox" ? TAB_A : TAB_I} onClick={() => setActiveTab("inbox")}>
-              <BellRing size={14} /> Inbox
+            <button
+              className={activeTab === "inbox" ? TAB_ACTIVE : TAB_INACTIVE}
+              onClick={() => setActiveTab("inbox")}>
+              <BellRing size={14} className="inline mr-1.5" />Inbox
             </button>
           )}
         </div>
 
-        <div className={CARD + " p-5 mt-0 rounded-t-none border-t-0"}>
+        {/* ── Tab content ─────────────────────────────────────────────── */}
+        <div className={GLASS_CARD + " p-6"}>
 
-          {/* ── Tab 1: Form ────────────────────────────────────────────── */}
+          {/* ── Tab 1: Form ──────────────────────────────────────────── */}
           {activeTab === "form" && (
             <div className="space-y-5">
               <div className="flex items-center justify-between">
-                <div className={SECTION}>Request Form</div>
-                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                  canSubmitForOthers
-                    ? "bg-amber-500/15 text-amber-400 border border-amber-500/30"
-                    : "bg-teal-500/15 text-teal-400 border border-teal-500/30"
-                }`}>
+                <h2 className={T_SECTION}>Request Form</h2>
+                <span className={canSubmitForOthers ? BADGE_WARNING : BADGE_INFO}>
                   {canSubmitForOthers ? "Manager mode" : "Self submit"}
                 </span>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <Field label="City">
-                  <select className={SELECT} value={city} onChange={e => setCity(e.target.value as "dubai" | "manila")}>
+                  <select className={SELECT_CLASS} value={city} onChange={e => setCity(e.target.value as "dubai" | "manila")}>
                     <option value="dubai">Dubai</option>
                     <option value="manila">Manila</option>
                   </select>
                 </Field>
                 <Field label="Branch">
-                  <select className={SELECT} value={branch} onChange={e => setBranch(e.target.value)}>
+                  <select className={SELECT_CLASS} value={branch} onChange={e => setBranch(e.target.value)}>
                     {branchOptions.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}
                   </select>
                 </Field>
 
                 <Field label="Staff name" hint={canSubmitForOthers ? "Submit on behalf of staff" : "Locked to login"}>
                   {canSubmitForOthers && staffNames.length > 0 ? (
-                    <select className={SELECT} value={staffName} onChange={e => setStaffName(e.target.value)}>
+                    <select className={SELECT_CLASS} value={staffName} onChange={e => setStaffName(e.target.value)}>
                       <option value="">— Select —</option>
                       {staffNames.map(n => <option key={n} value={n}>{n}</option>)}
                     </select>
                   ) : (
-                    <input className={INPUT} value={staffName} readOnly={!canSubmitForOthers}
+                    <input className={INPUT_CLASS} value={staffName} readOnly={!canSubmitForOthers}
                       onChange={e => setStaffName(e.target.value)} />
                   )}
                 </Field>
@@ -612,7 +608,7 @@ export default function RequestPage() {
                 </Field>
 
                 <Field label="Request type">
-                  <select className={SELECT} value={requestType}
+                  <select className={SELECT_CLASS} value={requestType}
                     onChange={e => setRequestType(e.target.value as ReqType)}>
                     {LEAVE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                   </select>
@@ -622,10 +618,10 @@ export default function RequestPage() {
                 {requestType === "time_change" && (
                   <>
                     <Field label="From (current)">
-                      <input className={INPUT} value={from} onChange={e => setFrom(e.target.value)} placeholder="e.g. 9-16" />
+                      <input className={INPUT_CLASS} value={from} onChange={e => setFrom(e.target.value)} placeholder="e.g. 9-16" />
                     </Field>
                     <Field label="To (requested)">
-                      <input className={INPUT} value={to} onChange={e => setTo(e.target.value)} placeholder="e.g. 10-18" />
+                      <input className={INPUT_CLASS} value={to} onChange={e => setTo(e.target.value)} placeholder="e.g. 10-18" />
                     </Field>
                   </>
                 )}
@@ -633,7 +629,7 @@ export default function RequestPage() {
                 {["paid_leave", "vacation", "absence", "day_off"].includes(requestType) && (
                   <>
                     <Field label="Leave sub-type">
-                      <select className={SELECT} value={leaveSubType} onChange={e => setLeaveSubType(e.target.value)}>
+                      <select className={SELECT_CLASS} value={leaveSubType} onChange={e => setLeaveSubType(e.target.value)}>
                         <option value="annual_leave">Annual Leave</option>
                         <option value="sick_leave">Sick Leave</option>
                         <option value="emergency_leave">Emergency Leave</option>
@@ -644,7 +640,7 @@ export default function RequestPage() {
                       </select>
                     </Field>
                     <Field label="Days">
-                      <input className={INPUT} type="number" min="0.5" step="0.5" value={leaveDays}
+                      <input className={INPUT_CLASS} type="number" min="0.5" step="0.5" value={leaveDays}
                         onChange={e => setLeaveDays(e.target.value)} />
                     </Field>
                   </>
@@ -652,7 +648,7 @@ export default function RequestPage() {
 
                 {requestType === "overtime_request" && (
                   <Field label="Overtime hours">
-                    <input className={INPUT} type="number" min="0.5" step="0.5" value={otHours}
+                    <input className={INPUT_CLASS} type="number" min="0.5" step="0.5" value={otHours}
                       onChange={e => setOtHours(e.target.value)} placeholder="e.g. 2.5" />
                   </Field>
                 )}
@@ -661,37 +657,37 @@ export default function RequestPage() {
                   <>
                     <Field label="Counterparty staff">
                       {staffNames.length > 0 ? (
-                        <select className={SELECT} value={withStaff} onChange={e => setWithStaff(e.target.value)}>
+                        <select className={SELECT_CLASS} value={withStaff} onChange={e => setWithStaff(e.target.value)}>
                           <option value="">— Select —</option>
                           {staffNames.filter(n => n !== staffName).map(n => <option key={n} value={n}>{n}</option>)}
                         </select>
                       ) : (
-                        <input className={INPUT} value={withStaff} onChange={e => setWithStaff(e.target.value)} />
+                        <input className={INPUT_CLASS} value={withStaff} onChange={e => setWithStaff(e.target.value)} />
                       )}
                     </Field>
                     <div />
                     <Field label="My new time">
-                      <input className={INPUT} value={myTo} onChange={e => setMyTo(e.target.value)} />
+                      <input className={INPUT_CLASS} value={myTo} onChange={e => setMyTo(e.target.value)} />
                     </Field>
                     <Field label="Their new time">
-                      <input className={INPUT} value={theirTo} onChange={e => setTheirTo(e.target.value)} />
+                      <input className={INPUT_CLASS} value={theirTo} onChange={e => setTheirTo(e.target.value)} />
                     </Field>
                   </>
                 )}
 
                 <div className="col-span-2">
-                  <label className={LABEL}>Reason</label>
-                  <textarea className={INPUT + " resize-none"} rows={3} value={reason}
+                  <label className={T_LABEL}>Reason</label>
+                  <textarea className={TEXTAREA_CLASS + " mt-1"} rows={3} value={reason}
                     onChange={e => setReason(e.target.value)} placeholder="At least 5 characters…" />
                 </div>
 
                 {/* Medical doc */}
                 {requestType !== "overtime_request" && (
                   <div className="col-span-2">
-                    <label className={LABEL}>Medical document</label>
-                    <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+                    <label className={T_LABEL}>Medical document</label>
+                    <div className="mt-1 flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3">
                       <input type="checkbox" checked={medicalDoc} onChange={e => setMedicalDoc(e.target.checked)}
-                        className="h-4 w-4 accent-teal-600 rounded" />
+                        className="h-4 w-4 accent-violet-500 rounded" />
                       <span className="text-sm text-zinc-300">I have a medical document</span>
                       <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp"
                         ref={medicalFileInputRef}
@@ -699,7 +695,7 @@ export default function RequestPage() {
                         className="hidden" aria-hidden tabIndex={-1} />
                       {medicalDoc && (
                         <button type="button" onClick={() => medicalFileInputRef.current?.click()}
-                          className="ml-auto rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/10 transition">
+                          className={SMALL_BUTTON + " ml-auto"}>
                           {medicalDocumentFile ? medicalDocumentFile.name : "Choose file"}
                         </button>
                       )}
@@ -715,16 +711,20 @@ export default function RequestPage() {
               )}
 
               <div className="flex items-center gap-3">
-                <button onClick={() => { void submit(); }} disabled={loading} className={BTN_PRIM + " flex items-center gap-2"}>
+                <button onClick={() => { void submit(); }} disabled={loading}
+                  className={PRIMARY_BUTTON + " flex items-center gap-2"}>
                   {loading ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-                  {loading ? "Submitting…" : "Submit"}
+                  {loading ? "Submitting…" : "Submit Request"}
                 </button>
-                <button type="button" onClick={() => { setReason(""); setError(""); setResult(null); }}
-                  className={BTN_SEC}>Clear</button>
+                <button type="button"
+                  onClick={() => { setReason(""); setError(""); setResult(null); }}
+                  className={SECONDARY_BUTTON}>
+                  Clear
+                </button>
               </div>
 
               {result && (
-                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+                <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <CheckCircle2 size={18} className="text-emerald-400" />
                     <span className="font-semibold text-emerald-400 text-sm">Request submitted</span>
@@ -746,12 +746,12 @@ export default function RequestPage() {
             </div>
           )}
 
-          {/* ── Tab 2: History ─────────────────────────────────────────── */}
+          {/* ── Tab 2: History ───────────────────────────────────────── */}
           {activeTab === "history" && (
             <HistoryTab staffName={staffName} city={city} />
           )}
 
-          {/* ── Tab 3: Inbox ───────────────────────────────────────────── */}
+          {/* ── Tab 3: Inbox ─────────────────────────────────────────── */}
           {activeTab === "inbox" && isInbox && (
             <InboxTab city={city} />
           )}
