@@ -185,6 +185,15 @@ const TRACKS: Track[] = [
     accentHex: "#d97706",
     glyph: "爵",
   },
+  {
+    id: 20,
+    title: "ZEN SHOGUN MODE 2",
+    subtitle: "Sushi ZEN",
+    file: "/music/zen-shogun-mode-2.mp3",
+    accent: "from-red-950 via-orange-900 to-yellow-600",
+    accentHex: "#7f1d1d",
+    glyph: "覇",
+  },
 ];
 
 function fmt(sec: number) {
