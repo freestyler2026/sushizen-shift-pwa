@@ -368,6 +368,7 @@ function UnitSelector({ value, onChange }: { value: string; onChange: (v: string
 
 function DisposalLineCard({
   line,
+  city,
   onUpdate,
   onRemove,
   index,
@@ -403,7 +404,7 @@ function DisposalLineCard({
 
       {/* Qty + Unit + Reason row */}
       <div className="flex items-center gap-2 pl-7">
-        <input type="number" inputMode="numeric" min="0" step="0.5"
+        <input type="number" inputMode="decimal" min="0" step="0.5"
           className="w-24 rounded-lg border border-white/10 bg-white/6 px-3 py-2 text-sm text-white text-right outline-none focus:border-violet-500/50"
           value={line.quantity}
           onChange={(e) => onUpdate({ quantity: e.target.value })}
@@ -413,7 +414,9 @@ function DisposalLineCard({
           className="flex-1 appearance-none cursor-pointer rounded-lg border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
           value={line.disposal_reason}
           onChange={(e) => onUpdate({ disposal_reason: e.target.value as DisposalReason })}>
-          {(Object.keys(REASON_LABELS) as DisposalReason[]).map((r) => (
+          {(Object.keys(REASON_LABELS) as DisposalReason[]).filter((r) =>
+            !(r === "staff_meal" && city === "manila")
+          ).map((r) => (
             <option key={r} value={r}>{REASON_LABELS[r]}</option>
           ))}
         </select>
