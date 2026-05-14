@@ -2,9 +2,30 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { AlertCircle, ChevronRight, RefreshCw, CheckCircle2, MapPin, Building2 } from "lucide-react";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
 import { formatRelativeAge, getRecentBadgeMaxAgeMs, isOlderThan, useRelativeAgeNow } from "@/lib/timeAgo";
+import {
+  GLASS_CARD,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  SMALL_BUTTON,
+  INPUT_CLASS,
+  SELECT_CLASS,
+  TEXTAREA_CLASS,
+  T_PAGE_TITLE,
+  T_SECTION,
+  T_LABEL,
+  T_BODY,
+  T_CAPTION,
+  T_CARD_TITLE,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  BADGE_ERROR,
+  BADGE_INFO,
+} from "@/lib/ui-tokens";
+import { ProcurementStepper } from "@/components/ProcurementStepper";
 
 type RequestRow = {
   id: string;
@@ -35,16 +56,22 @@ function formatDateTime(value: string): string {
   return value ? String(value).slice(0, 16).replace("T", " ") : "-";
 }
 
-const PAGE_BG = "min-h-screen text-white";
-const GLASS_PANEL = "rounded-2xl border border-white/8 bg-violet-950/30 backdrop-blur-xl";
-const FIELD_CLASS =
-  "rounded-xl border border-white/8 bg-black/20 px-3 py-2 text-sm text-white placeholder:text-zinc-500 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20";
-const PRIMARY_BUTTON =
-  "rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 px-4 py-2 text-sm font-semibold text-white transition-all duration-200 shadow-lg shadow-violet-500/25 hover:scale-[1.02] hover:from-violet-400 hover:to-purple-400 hover:shadow-violet-500/40 active:scale-[0.98] disabled:opacity-60";
-const SECONDARY_BUTTON =
-  "rounded-xl border border-violet-400/15 bg-violet-950/30 px-4 py-2 text-sm text-white transition-all duration-200 hover:border-violet-500/25 hover:bg-violet-950/45 disabled:opacity-60";
-const SMALL_LINK =
-  "inline-flex rounded-xl border border-violet-400/15 bg-violet-950/30 px-3 py-2 text-xs text-white transition-all duration-200 hover:border-violet-500/25 hover:bg-violet-950/45";
+function statusBadge(status: string) {
+  const s = String(status || "").toUpperCase();
+  if (s === "OPEN") return <span className={BADGE_ERROR}>OPEN</span>;
+  if (s === "ASSIGNED") return <span className={BADGE_WARNING}>ASSIGNED</span>;
+  if (s === "ESCALATED") return <span className={BADGE_ERROR}>ESCALATED</span>;
+  if (s === "RESOLVED") return <span className={BADGE_SUCCESS}>RESOLVED</span>;
+  return <span className={BADGE_INFO}>{status}</span>;
+}
+
+function claimTypeBadge(type: string) {
+  const t = String(type || "").toUpperCase();
+  if (t === "SHORTAGE") return <span className={BADGE_ERROR}>SHORTAGE</span>;
+  if (t === "QUALITY") return <span className={BADGE_WARNING}>QUALITY</span>;
+  if (t === "EXCESS") return <span className={BADGE_INFO}>EXCESS</span>;
+  return <span className={BADGE_INFO}>{type}</span>;
+}
 
 export default function StoreProcurementClaimPage() {
   const LAST_CREATED_CLAIM_KEY = "store_procurement_last_created_claim";
@@ -74,9 +101,7 @@ export default function StoreProcurementClaimPage() {
   const cityLabel = city === "dubai" ? "Dubai" : "Manila";
   const currencyCode = city === "dubai" ? "AED" : "PHP";
 
-  const actionHint = !requestId.trim()
-    ? "Select a request first to create claim."
-    : "";
+  const actionHint = !requestId.trim() ? "Select a request first to create a claim." : "";
 
   const loadMyRequests = useCallback(async (cityOverride?: string) => {
     try {
@@ -119,7 +144,7 @@ export default function StoreProcurementClaimPage() {
 
   const createClaim = async () => {
     if (!requestId.trim()) {
-      setError("request_id is required.");
+      setError("Please select a request first.");
       return;
     }
     setBusy("create");
@@ -169,7 +194,7 @@ export default function StoreProcurementClaimPage() {
           );
         } catch {}
       }
-      setInfo(claimNo ? `Claim created: ${claimNo}` : "Claim created.");
+      setInfo(claimNo ? `Claim created: ${claimNo}` : "Claim created successfully.");
       setDescription("");
       await loadClaims();
     } catch (e: any) {
@@ -228,176 +253,328 @@ export default function StoreProcurementClaimPage() {
       await Promise.all([loadMyRequests(initialCity), loadClaims()]);
     }
     void init();
-  }, [auth, city, loadClaims, loadMyRequests, requestedBy]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const selectedRequest = requests.find((r) => r.id === requestId);
 
   return (
-    <div className={PAGE_BG}>
-      <div className="mx-auto max-w-6xl space-y-4 px-4 py-8">
-      {error ? <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-sm text-red-300">{error}</div> : null}
-      {info ? <div className="rounded-xl border border-emerald-900/40 bg-emerald-950/20 px-3 py-2 text-sm text-emerald-300">{info}</div> : null}
-      {requestId.trim() ? (
-        <div className="rounded-xl border border-violet-500/25 bg-violet-500/12 px-3 py-2 text-xs text-violet-200">
-          Selected request_id: <span className="font-mono">{requestId.trim()}</span>
+    <div className="min-h-screen text-white">
+      <div className="mx-auto max-w-7xl px-4 py-8 space-y-5">
+
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className={T_PAGE_TITLE}>File a Claim</h1>
+            <p className={T_BODY}>Report shortage, excess, quality issues, or invoice variance.</p>
+          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-500/15 border border-violet-500/25 px-2.5 py-0.5 text-xs font-medium text-violet-400">
+            <MapPin className="h-3 w-3" />{cityLabel}
+          </span>
         </div>
-      ) : null}
-      {lastCreatedClaimId ? (
-        <div className="rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-xs text-emerald-200">
-          Last created claim: <span className="font-mono">{lastCreatedClaimNo || lastCreatedClaimId}</span>
-          {lastCreatedClaimAt ? <span className="ml-2 text-[11px] text-emerald-300/90">({formatRelativeAge(lastCreatedClaimAt, relativeNowMs)})</span> : null}
-          {lastCreatedClaimCaseId ? (
-            <div className="mt-2">
-              <Link
-                href={`/admin/procurement/cases/${lastCreatedClaimCaseId}`}
-                className={SMALL_LINK}
-              >
-                Open Case
+
+        {/* Stepper */}
+        <div className={`${GLASS_CARD} px-6 py-3`}>
+          <ProcurementStepper currentStep="claim" />
+        </div>
+
+        {/* Breadcrumb nav */}
+        <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+          <Link href="/store/procurement" className="hover:text-violet-300 transition-colors">Home</Link>
+          <ChevronRight className="h-3 w-3" />
+          <Link href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}`} className="hover:text-violet-300 transition-colors">New Request</Link>
+          <ChevronRight className="h-3 w-3" />
+          <Link href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}${requestId ? `&request_id=${encodeURIComponent(requestId)}` : ""}`} className="hover:text-violet-300 transition-colors">Receiving</Link>
+          <ChevronRight className="h-3 w-3" />
+          <span className="text-violet-300 font-medium">Claim</span>
+        </div>
+
+        {/* Banners */}
+        {error && (
+          <div className="rounded-xl border border-red-700/40 bg-red-900/20 px-4 py-3 text-sm text-red-300">{error}</div>
+        )}
+        {info && (
+          <div className="flex items-center gap-2 rounded-xl border border-emerald-700/40 bg-emerald-900/20 px-4 py-3 text-sm text-emerald-300">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
+            {info}
+            {lastCreatedClaimCaseId && (
+              <Link href={`/admin/procurement/cases/${lastCreatedClaimCaseId}`} className="ml-auto shrink-0 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300 transition hover:bg-emerald-500/20">
+                Open Case <ChevronRight className="inline h-3 w-3" />
               </Link>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+            )}
+          </div>
+        )}
+        {lastCreatedClaimId && !info && (
+          <div className="rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-xs text-emerald-200">
+            Last created: <span className="font-mono font-semibold">{lastCreatedClaimNo || lastCreatedClaimId}</span>
+            {lastCreatedClaimAt && <span className="ml-2 text-emerald-300/70">({formatRelativeAge(lastCreatedClaimAt, relativeNowMs)})</span>}
+            {lastCreatedClaimCaseId && (
+              <Link href={`/admin/procurement/cases/${lastCreatedClaimCaseId}`} className="ml-3 inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-300 transition hover:bg-emerald-500/20">
+                Open Case <ChevronRight className="h-3 w-3" />
+              </Link>
+            )}
+          </div>
+        )}
 
-      <div className={`${GLASS_PANEL} p-4`}>
-        <div className="text-sm font-medium">Store Claims</div>
-        <div className="mt-1 text-xs text-neutral-500">Create claim records for shortage, excess, quality issues, and invoice variance from store operations.</div>
-        <div className="mt-2 text-xs text-violet-200">Current city: {cityLabel}</div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Link href="/store/procurement" className={SMALL_LINK}>
-            Home
-          </Link>
-          <Link href={`/store/procurement/history?city=${encodeURIComponent(city || "manila")}`} className={SMALL_LINK}>
-            Go to History
-          </Link>
-          <Link href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}`} className={SMALL_LINK}>
-            Go to Request
-          </Link>
-          <Link href={requestId ? `/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(requestId)}` : `/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}`} className={SMALL_LINK}>
-            Go to Receiving
-          </Link>
-        </div>
-      </div>
+        {/* Two-column PC layout */}
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
 
-      <div className={`grid grid-cols-1 gap-3 p-3 md:grid-cols-5 ${GLASS_PANEL}`}>
-        <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Requested by" className={FIELD_CLASS} />
-        <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className={FIELD_CLASS} />
-        <select
-          value={city}
-          onChange={(e) => {
-            const nextCity = String(e.target.value || "manila").toLowerCase();
-            setCity(nextCity);
-            void loadMyRequests(nextCity);
-          }}
-          className={FIELD_CLASS}
-        >
-          <option value="manila">Manila</option>
-          <option value="dubai">Dubai</option>
-        </select>
-        <input value={requestId} onChange={(e) => setRequestId(e.target.value)} placeholder="Request ID" className={FIELD_CLASS} />
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={FIELD_CLASS}>
-          <option value="">All statuses</option>
-          <option value="OPEN">OPEN</option>
-          <option value="ASSIGNED">ASSIGNED</option>
-          <option value="ESCALATED">ESCALATED</option>
-          <option value="RESOLVED">RESOLVED</option>
-        </select>
-        <button type="button" onClick={() => void Promise.all([loadMyRequests(), loadClaims()])} className={SECONDARY_BUTTON}>
-          Refresh
-        </button>
-      </div>
+          {/* ─── LEFT PANEL: Auth + Request Selector ─── */}
+          <div className="flex flex-col gap-4 lg:w-72 xl:w-80 lg:shrink-0">
 
-      <div className={`${GLASS_PANEL} p-4`}>
-        <div className="text-sm font-medium">My Requests (for claim, {cityLabel})</div>
-        <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
-          {requests.map((row) => (
-            <button
-              key={row.id}
-              type="button"
-              onClick={() => setRequestId(row.id)}
-              className={[
-                "rounded-xl border p-3 text-left",
-                requestId === row.id ? "border-violet-500/30 bg-violet-500/15" : "border-white/8 bg-black/15 hover:bg-violet-950/45",
-              ].join(" ")}
-            >
-              <div className="text-sm text-neutral-100">{row.request_no}</div>
-              <div className="mt-1 text-xs text-neutral-400">{row.store_code || "-"} | {row.status}</div>
-              <div className="mt-2">
-                <Link
-                  href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`}
-                  className={SMALL_LINK}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  Open Receiving
-                </Link>
-              </div>
-            </button>
-          ))}
-          {!requests.length ? <div className="text-sm text-neutral-500">No requests found.</div> : null}
-        </div>
-      </div>
-
-      <div className={`${GLASS_PANEL} p-4`}>
-        <div className="text-sm font-medium">Create Claim</div>
-        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <input value={receivingId} onChange={(e) => setReceivingId(e.target.value)} placeholder="Receiving ID (optional)" className={FIELD_CLASS} />
-          <input value={invoiceId} onChange={(e) => setInvoiceId(e.target.value)} placeholder="Invoice ID (optional)" className={FIELD_CLASS} />
-          <select value={claimType} onChange={(e) => setClaimType(e.target.value)} className={FIELD_CLASS}>
-            <option value="SHORTAGE">SHORTAGE</option>
-            <option value="EXCESS">EXCESS</option>
-            <option value="QUALITY">QUALITY</option>
-            <option value="INVOICE_VARIANCE">INVOICE_VARIANCE</option>
-          </select>
-          <input value={amountImpact} onChange={(e) => setAmountImpact(e.target.value)} placeholder={`Amount impact (${currencyCode})`} className={FIELD_CLASS} />
-          <input value={responsibleParty} onChange={(e) => setResponsibleParty(e.target.value)} placeholder="Responsible party (vendor/etc)" className={`md:col-span-2 ${FIELD_CLASS}`} />
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Claim description" className={`min-h-24 md:col-span-3 ${FIELD_CLASS}`} />
-          <button type="button" onClick={() => void createClaim()} disabled={busy === "create" || !requestId.trim()} className={`md:col-span-3 ${PRIMARY_BUTTON}`}>
-            {busy === "create" ? "Creating..." : "Create Claim"}
-          </button>
-          {actionHint ? <div className="text-xs text-amber-300 md:col-span-3">{actionHint}</div> : null}
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        {rows.map((row) => (
-          <div
-            key={row.id}
-            className={`rounded-2xl border p-4 ${
-              row.id === lastCreatedClaimId
-                ? "border-emerald-700/60 bg-emerald-900/20"
-                : "border-white/8 bg-violet-950/25"
-            }`}
-          >
-            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            {/* Auth */}
+            <div className={`${GLASS_CARD} p-4 space-y-3`}>
+              <p className={`${T_LABEL} mb-1`}>Session</p>
               <div>
-                <div className="flex items-center gap-2 text-sm font-medium text-neutral-100">
-                  <span>{row.claim_no}</span>
-                  {row.id === lastCreatedClaimId ? (
-                    <span className="rounded-full border border-emerald-700/60 bg-emerald-900/30 px-2 py-0.5 text-[10px] text-emerald-200">
-                      Just created
-                    </span>
-                  ) : null}
-                </div>
-                <div className="mt-1 text-xs text-neutral-400">
-                  {row.request_no || row.request_id} | {row.claim_type} | {row.severity} | {row.status}
-                </div>
-                <div className="mt-1 text-xs text-neutral-500">
-                  Impact {Number(row.amount_impact || 0).toFixed(2)} {currencyCode} | Owner {row.owner_name || "-"} | Assigned {row.assigned_to || "-"} | Escalated {row.escalated_to_role || "-"}
-                </div>
-                <div className="mt-1 text-xs text-neutral-500">Created {formatDateTime(row.created_at)}</div>
-                {row.description ? <div className="mt-2 text-sm text-neutral-300">{row.description}</div> : null}
-                {row.resolution_note ? <div className="mt-2 text-sm text-emerald-200">{row.resolution_note}</div> : null}
+                <label className={`${T_LABEL} mb-1.5 block`}>Your Name</label>
+                <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} className={INPUT_CLASS} />
               </div>
-              <div className="flex flex-wrap gap-2">
-                {row.case_id ? (
-                  <Link href={`/admin/procurement/cases/${row.case_id}`} className={SMALL_LINK}>
-                    Open Case
-                  </Link>
-                ) : null}
+              <div>
+                <label className={`${T_LABEL} mb-1.5 block`}>PIN</label>
+                <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="••••••••" className={INPUT_CLASS} />
+              </div>
+              <div>
+                <label className={`${T_LABEL} mb-1.5 flex items-center gap-1.5`}>
+                  <Building2 className="h-3 w-3" />
+                  City
+                </label>
+                <select
+                  value={city}
+                  onChange={(e) => {
+                    const nextCity = String(e.target.value || "manila").toLowerCase();
+                    setCity(nextCity);
+                    void loadMyRequests(nextCity);
+                  }}
+                  className={SELECT_CLASS}
+                >
+                  <option value="manila">Manila</option>
+                  <option value="dubai">Dubai</option>
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => void Promise.all([loadMyRequests(), loadClaims()])}
+                className={`${SECONDARY_BUTTON} w-full flex items-center justify-center gap-2 text-sm`}
+              >
+                <RefreshCw className="h-4 w-4" /> Refresh
+              </button>
+            </div>
+
+            {/* Selected request summary */}
+            {selectedRequest && (
+              <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-3">
+                <p className={`${T_LABEL} mb-1`}>Selected Request</p>
+                <p className="font-mono text-sm font-semibold text-white">{selectedRequest.request_no}</p>
+                <p className="mt-1 text-xs text-zinc-400">{selectedRequest.store_code || "-"}</p>
+                <div className="mt-1.5">
+                  {String(selectedRequest.status || "").toUpperCase() === "APPROVED" && <span className={BADGE_SUCCESS}>APPROVED</span>}
+                  {String(selectedRequest.status || "").toUpperCase() === "RETURNED" && <span className={BADGE_ERROR}>RETURNED</span>}
+                  {(String(selectedRequest.status || "").toUpperCase() === "IN_REVIEW" || String(selectedRequest.status || "").toUpperCase() === "SUBMITTED") && <span className={BADGE_INFO}>IN REVIEW</span>}
+                  {String(selectedRequest.status || "").toUpperCase() === "RECEIVED" && <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/15 border border-cyan-500/25 px-2.5 py-0.5 text-xs font-medium text-cyan-400">RECEIVED</span>}
+                </div>
+              </div>
+            )}
+
+            {/* Request selector */}
+            <div className={`${GLASS_CARD} p-4`}>
+              <p className={`${T_CARD_TITLE} mb-3`}>My Requests</p>
+              <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                {requests.map((row) => (
+                  <button
+                    key={row.id}
+                    type="button"
+                    onClick={() => setRequestId(row.id)}
+                    className={[
+                      "w-full rounded-xl border p-3 text-left transition-all duration-150",
+                      requestId === row.id
+                        ? "border-violet-500/40 bg-violet-500/15"
+                        : "border-white/8 bg-white/4 hover:bg-violet-950/45 hover:border-violet-500/20",
+                    ].join(" ")}
+                  >
+                    <div className="text-sm font-medium text-white">{row.request_no}</div>
+                    <div className="mt-0.5 text-xs text-zinc-400">{row.store_code || "-"} · {row.status}</div>
+                  </button>
+                ))}
+                {!requests.length && (
+                  <p className={`${T_CAPTION} py-4 text-center`}>No requests found.</p>
+                )}
               </div>
             </div>
           </div>
-        ))}
-        {!rows.length ? <div className="text-sm text-neutral-500">No claims found.</div> : null}
-      </div>
+
+          {/* ─── RIGHT PANEL: Claim Form + History ─── */}
+          <div className="flex min-w-0 flex-1 flex-col gap-4">
+
+            {/* Create Claim form */}
+            <div className={`${GLASS_CARD} p-5`}>
+              <h2 className={`${T_SECTION} mb-4`}>Create Claim</h2>
+
+              {actionHint && (
+                <div className="mb-4 rounded-xl border border-amber-700/40 bg-amber-900/15 px-4 py-2.5 text-sm text-amber-300">
+                  {actionHint}
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {/* Claim type */}
+                <div>
+                  <label className={`${T_LABEL} mb-1.5 block`}>Claim Type</label>
+                  <select value={claimType} onChange={(e) => setClaimType(e.target.value)} className={SELECT_CLASS}>
+                    <option value="SHORTAGE">SHORTAGE — Items missing from delivery</option>
+                    <option value="EXCESS">EXCESS — More than ordered received</option>
+                    <option value="QUALITY">QUALITY — Items damaged or substandard</option>
+                    <option value="INVOICE_VARIANCE">INVOICE_VARIANCE — Price discrepancy</option>
+                  </select>
+                </div>
+
+                {/* Amount impact */}
+                <div>
+                  <label className={`${T_LABEL} mb-1.5 block`}>Amount Impact ({currencyCode})</label>
+                  <input
+                    value={amountImpact}
+                    onChange={(e) => setAmountImpact(e.target.value)}
+                    placeholder="0.00"
+                    className={INPUT_CLASS}
+                  />
+                </div>
+
+                {/* Receiving ID — auto-populated from URL, editable */}
+                <div>
+                  <label className={`${T_LABEL} mb-1.5 block`}>Receiving ID <span className="text-zinc-600 normal-case font-normal">(optional)</span></label>
+                  <input
+                    value={receivingId}
+                    onChange={(e) => setReceivingId(e.target.value)}
+                    placeholder="Auto-populated after receiving"
+                    className={INPUT_CLASS}
+                  />
+                </div>
+
+                {/* Invoice ID */}
+                <div>
+                  <label className={`${T_LABEL} mb-1.5 block`}>Invoice ID <span className="text-zinc-600 normal-case font-normal">(optional)</span></label>
+                  <input
+                    value={invoiceId}
+                    onChange={(e) => setInvoiceId(e.target.value)}
+                    placeholder="Vendor invoice reference"
+                    className={INPUT_CLASS}
+                  />
+                </div>
+
+                {/* Responsible party */}
+                <div className="sm:col-span-2">
+                  <label className={`${T_LABEL} mb-1.5 block`}>Responsible Party</label>
+                  <input
+                    value={responsibleParty}
+                    onChange={(e) => setResponsibleParty(e.target.value)}
+                    placeholder="e.g. vendor name, delivery staff"
+                    className={INPUT_CLASS}
+                  />
+                </div>
+
+                {/* Description */}
+                <div className="sm:col-span-2">
+                  <label className={`${T_LABEL} mb-1.5 block`}>Description</label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Describe the issue in detail…"
+                    rows={4}
+                    className={TEXTAREA_CLASS}
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <button
+                    type="button"
+                    onClick={() => void createClaim()}
+                    disabled={busy === "create" || !requestId.trim()}
+                    className={`${PRIMARY_BUTTON} w-full flex items-center justify-center gap-2`}
+                  >
+                    <AlertCircle className="h-4 w-4" />
+                    {busy === "create" ? "Submitting…" : "Submit Claim"}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Claims history */}
+            {rows.length > 0 && (
+              <div className={`${GLASS_CARD} p-5`}>
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className={T_SECTION}>Claim History</h2>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-white outline-none focus:border-violet-500/50"
+                    >
+                      <option value="">All statuses</option>
+                      <option value="OPEN">OPEN</option>
+                      <option value="ASSIGNED">ASSIGNED</option>
+                      <option value="ESCALATED">ESCALATED</option>
+                      <option value="RESOLVED">RESOLVED</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {rows.map((row) => (
+                    <div
+                      key={row.id}
+                      className={`rounded-xl border px-4 py-3 ${
+                        row.id === lastCreatedClaimId
+                          ? "border-emerald-700/50 bg-emerald-900/15"
+                          : "border-white/8 bg-white/4"
+                      }`}
+                    >
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-mono text-sm font-semibold text-white">{row.claim_no}</span>
+                            {row.id === lastCreatedClaimId && <span className={BADGE_SUCCESS}>Just created</span>}
+                            {claimTypeBadge(row.claim_type)}
+                            {statusBadge(row.status)}
+                          </div>
+                          <div className="mt-1.5 text-xs text-zinc-500">
+                            {row.request_no || row.request_id}
+                            {row.severity ? <span className="ml-2">· {row.severity}</span> : null}
+                            {Number(row.amount_impact) > 0 ? (
+                              <span className="ml-2">· Impact: <span className="font-semibold text-zinc-300">{Number(row.amount_impact).toFixed(2)} {currencyCode}</span></span>
+                            ) : null}
+                          </div>
+                          {row.owner_name && (
+                            <div className="mt-1 text-xs text-zinc-600">
+                              Owner: {row.owner_name}
+                              {row.assigned_to ? ` · Assigned: ${row.assigned_to}` : ""}
+                              {row.escalated_to_role ? ` · Escalated to: ${row.escalated_to_role}` : ""}
+                            </div>
+                          )}
+                          <div className="mt-1 text-xs text-zinc-600">Created: {formatDateTime(row.created_at)}</div>
+                          {row.description && <div className="mt-2 text-sm text-zinc-300">{row.description}</div>}
+                          {row.resolution_note && <div className="mt-2 text-sm text-emerald-300">{row.resolution_note}</div>}
+                        </div>
+                        {row.case_id && (
+                          <Link
+                            href={`/admin/procurement/cases/${row.case_id}`}
+                            className={SMALL_BUTTON}
+                          >
+                            Open Case
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {rows.length === 0 && (
+              <div className={`${GLASS_CARD} p-8 flex flex-col items-center gap-2`}>
+                <AlertCircle className="h-8 w-8 text-zinc-600" />
+                <p className={T_CAPTION}>No claims yet for this request.</p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

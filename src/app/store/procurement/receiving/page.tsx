@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, Circle, Clock, Package, ChevronRight, CheckCheck, AlertTriangle, RefreshCw } from "lucide-react";
+import { ProcurementStepper } from "@/components/ProcurementStepper";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
 import { formatRelativeAge, getRecentBadgeMaxAgeMs, isOlderThan, useRelativeAgeNow } from "@/lib/timeAgo";
@@ -121,6 +122,7 @@ export default function StoreProcurementReceivingPage() {
   const [info, setInfo] = useState("");
   const [formError, setFormError] = useState("");
   const [showNewForm, setShowNewForm] = useState(false);
+  const [duplicateWarningConfirmed, setDuplicateWarningConfirmed] = useState(false);
 
   const cityLabel = city === "dubai" ? "Dubai" : "Manila";
   const currencyCode = city === "dubai" ? "AED" : "PHP";
@@ -442,23 +444,30 @@ export default function StoreProcurementReceivingPage() {
         ) : null}
 
         {/* ── Header ── */}
-        <div className={`${GLASS} p-4`}>
-          <div className="flex items-start justify-between">
+        <div>
+          <div className="mb-4 flex items-start justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2">
-                <Package className="h-4 w-4 text-violet-400" />
-                <span className="text-sm font-semibold">Store Receiving</span>
-                <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[11px] text-violet-300">{cityLabel}</span>
-              </div>
-              <p className="mt-1 text-xs text-zinc-500">Record deliveries and confirm received items.</p>
+              <h1 className="text-2xl font-light tracking-tight text-white">Store Receiving</h1>
+              <p className="text-sm text-zinc-400 mt-1">Record deliveries and confirm received items.</p>
             </div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-500/15 border border-violet-500/25 px-2.5 py-0.5 text-xs font-medium text-violet-400">
+              <Package className="h-3 w-3" />{cityLabel}
+            </span>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Link href="/store/procurement" className={BTN_SECONDARY}>Home</Link>
-            <Link href={`/store/procurement/history?city=${encodeURIComponent(city)}`} className={BTN_SECONDARY}>History</Link>
-            <Link href={`/store/procurement/request?city=${encodeURIComponent(city)}`} className={BTN_SECONDARY}>New Request</Link>
-            <Link href={`/store/procurement/claim?city=${encodeURIComponent(city)}`} className={BTN_SECONDARY}>Claim</Link>
+          <div className={`${GLASS} px-6 py-3 mb-1`}>
+            <ProcurementStepper currentStep="receiving" />
           </div>
+        </div>
+
+        {/* ── Nav links ── */}
+        <div className="flex flex-wrap gap-2 text-xs text-zinc-500">
+          <Link href="/store/procurement" className="hover:text-violet-300 transition-colors">Home</Link>
+          <span>›</span>
+          <Link href={`/store/procurement/request?city=${encodeURIComponent(city)}`} className="hover:text-violet-300 transition-colors">New Request</Link>
+          <span>›</span>
+          <span className="text-violet-300 font-medium">Receiving</span>
+          <span>›</span>
+          <Link href={`/store/procurement/claim?city=${encodeURIComponent(city)}`} className="hover:text-violet-300 transition-colors">Claim</Link>
         </div>
 
         {/* ── Auth row ── */}
@@ -486,7 +495,7 @@ export default function StoreProcurementReceivingPage() {
               <div className="text-xs text-zinc-500">Tap a request to start receiving.</div>
             </div>
             {requestId && (
-              <button type="button" onClick={() => { setRequestId(""); setRequestDetail(null); setRows([]); }} className="text-xs text-zinc-500 underline">
+              <button type="button" onClick={() => { setRequestId(""); setRequestDetail(null); setRows([]); setDuplicateWarningConfirmed(false); }} className="text-xs text-zinc-500 underline">
                 Clear
               </button>
             )}
@@ -498,7 +507,7 @@ export default function StoreProcurementReceivingPage() {
                 <button
                   key={row.id}
                   type="button"
-                  onClick={() => setRequestId(row.id)}
+                  onClick={() => { setRequestId(row.id); setDuplicateWarningConfirmed(false); }}
                   className={[
                     "w-full rounded-xl border p-3 text-left transition-all duration-150",
                     selected
@@ -548,6 +557,31 @@ export default function StoreProcurementReceivingPage() {
                 </div>
               ) : null}
             </div>
+
+            {/* Duplicate receiving warning */}
+            {selectedRequest && String(selectedRequest.status || "").toUpperCase() === "RECEIVED" && rows.length > 0 && !duplicateWarningConfirmed && (
+              <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-950/20 px-4 py-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+                  <div>
+                    <div className="text-sm font-semibold text-amber-200">This order has already been received</div>
+                    <div className="mt-1 text-xs text-amber-300/80">
+                      A receiving record already exists for <span className="font-mono font-semibold">{selectedRequest.request_no}</span>.
+                      Recording again may cause duplicate entries.
+                    </div>
+                    <label className="mt-3 flex cursor-pointer items-center gap-2 text-xs text-amber-200">
+                      <input
+                        type="checkbox"
+                        checked={duplicateWarningConfirmed}
+                        onChange={(e) => setDuplicateWarningConfirmed(e.target.checked)}
+                        className="h-4 w-4 rounded border-amber-500/40 accent-amber-500"
+                      />
+                      I understand — record another delivery anyway
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Already confirmed — show success state (unless user wants to add another) */}
             {!showNewForm && rows.length > 0 && rows.every((r) => r.status === "CONFIRMED") ? (

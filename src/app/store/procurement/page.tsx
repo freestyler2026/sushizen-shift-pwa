@@ -23,7 +23,9 @@ import {
   User,
   CalendarDays,
   Hash,
+  PlusCircle,
 } from "lucide-react";
+import { ProcurementStepper } from "@/components/ProcurementStepper";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
@@ -669,18 +671,99 @@ export default function StoreProcurementHomePage() {
     } catch {}
   }, [RECENT_ACTIVITY_ACTIONS_EXPANDED_KEY, expandedActionsByItem]);
 
+  const getStatusActionButton = (row: RequestRow) => {
+    const s = String(row.status || "").toUpperCase();
+    if (s === "APPROVED") {
+      return (
+        <Link
+          href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`}
+          className="rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 py-2 text-sm font-semibold text-white transition-all shadow-md shadow-emerald-500/20 hover:from-emerald-500 hover:to-emerald-400 hover:scale-[1.02] active:scale-[0.98]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span className="flex items-center gap-2">
+            <PackageCheck className="h-4 w-4" />
+            Receive Now
+            <ChevronRight className="h-3.5 w-3.5" />
+          </span>
+        </Link>
+      );
+    }
+    if (s === "RETURNED") {
+      return (
+        <Link
+          href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}&edit=${encodeURIComponent(row.id)}`}
+          className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-4 py-2 text-sm font-semibold text-amber-300 transition hover:bg-amber-900/40"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span className="flex items-center gap-2">
+            <RotateCcw className="h-4 w-4" />
+            Edit & Resubmit
+          </span>
+        </Link>
+      );
+    }
+    if (s === "IN_REVIEW" || s === "SUBMITTED") {
+      return (
+        <span className="inline-flex items-center gap-2 rounded-xl border border-white/8 bg-white/4 px-4 py-2 text-sm text-zinc-500 cursor-default">
+          <Clock className="h-4 w-4" />
+          Awaiting Approval
+        </span>
+      );
+    }
+    if (s === "RECEIVED") {
+      return (
+        <Link
+          href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`}
+          className="rounded-xl border border-blue-500/30 bg-blue-950/30 px-4 py-2 text-sm font-semibold text-blue-300 transition hover:bg-blue-900/40"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4" />
+            File Claim
+          </span>
+        </Link>
+      );
+    }
+    if (s === "DRAFT") {
+      return (
+        <Link
+          href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}&edit=${encodeURIComponent(row.id)}`}
+          className="rounded-xl border border-amber-500/25 bg-amber-950/25 px-4 py-2 text-sm font-semibold text-amber-400 transition hover:bg-amber-900/35"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span className="flex items-center gap-2">
+            <ChevronRight className="h-4 w-4" />
+            Continue Draft
+          </span>
+        </Link>
+      );
+    }
+    // CLAIMED / CLOSED / fallback — show both options
+    return (
+      <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
+        <Link href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`} className={`${SMALL_BUTTON} justify-center`}>
+          Receiving
+        </Link>
+        <Link href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`} className={`${DANGER_BUTTON} justify-center`}>
+          Claim
+        </Link>
+      </div>
+    );
+  };
+
   return (
     <div className={PAGE_BG}>
       <motion.div
-        className="mx-auto max-w-6xl space-y-6 px-4 py-8"
+        className="mx-auto max-w-7xl px-4 py-8"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
       >
-      <div className="flex items-start justify-between gap-4">
+      {/* Header */}
+      <div className="mb-5 flex items-start justify-between gap-4">
         <div>
           <h1 className={T_PAGE_TITLE}>Store Procurement</h1>
-          <p className={T_BODY}>Central entry point for store request, receiving, and claim operations.</p>
+          <p className={T_BODY}>Request, track, receive, and claim store supplies.</p>
         </div>
         <span className={BADGE_INFO}>
           <MapPin className="h-3 w-3" />
@@ -688,115 +771,229 @@ export default function StoreProcurementHomePage() {
         </span>
       </div>
 
-      {/* Branch selector */}
-      <div className={`${BLUSH_GLASS} p-4`}>
-        <div className="mb-2 flex items-center gap-2">
-          <Building2 className="h-4 w-4 text-violet-400" />
-          <span className="text-sm font-semibold text-white">Select Your Branch</span>
-          {storeCode ? (
-            <span className="rounded-full bg-violet-500/20 px-2.5 py-0.5 text-xs font-semibold text-violet-300">
-              ✓ {BRANCHES[city as "dubai" | "manila"]?.find((b) => b.code === storeCode)?.name || storeCode}
-            </span>
-          ) : (
-            <span className="text-xs text-amber-400">⚠ Please select your branch</span>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {(BRANCHES[city as "dubai" | "manila"] || [])
-            .filter((b) => b.code !== "CK" && b.code !== "DRIVER")
-            .map((branch) => {
-              const active = storeCode === branch.code;
-              return (
-                <button
-                  key={branch.code}
-                  type="button"
-                  onClick={() => {
-                    setStoreCode(branch.code);
-                    if (typeof window !== "undefined") localStorage.setItem("store_proc_branch", branch.code);
-                  }}
-                  className={[
-                    "rounded-xl border px-4 py-2 text-sm font-semibold transition-all duration-200",
-                    active
-                      ? "bg-violet-500/25 text-violet-100 border-violet-500/50 shadow-sm"
-                      : "bg-violet-950/30 text-violet-400 border-violet-800/40 hover:bg-violet-900/40 hover:text-violet-200",
-                  ].join(" ")}
-                >
-                  {branch.name}
-                </button>
-              );
-            })}
-        </div>
+      {/* Stepper */}
+      <div className={`${BLUSH_GLASS} px-6 py-3 mb-6`}>
+        <ProcurementStepper currentStep="hub" />
       </div>
 
-      {error ? <div className="text-sm text-red-300">{error}</div> : null}
-      {recentActivities.length ? (
-        <div className={`${BLUSH_GLASS} px-4 py-3 text-xs text-neutral-200`}>
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <div className={T_CARD_TITLE}>Recent Activity Timeline</div>
-            <span className={T_CAPTION}>{recentActivities.length} item{recentActivities.length !== 1 ? "s" : ""}</span>
-          </div>
-          {recentActivities.length > 3 ? (
-            <div className="mb-2">
-              <button
-                type="button"
-                onClick={() => setShowAllRecentActivities((prev) => !prev)}
-                className={BLUSH_SMALL}
-              >
-                {showAllRecentActivities ? "Show less" : `View all (${recentActivities.length})`}
-              </button>
+      {/* Two-column layout on PC */}
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+
+        {/* ─── LEFT PANEL ─── */}
+        <div className="flex flex-col gap-4 lg:w-72 xl:w-80 lg:shrink-0">
+
+          {/* Branch selector */}
+          <div className={`${BLUSH_GLASS} p-4`}>
+            <div className="mb-3 flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-violet-400" />
+              <span className="text-sm font-semibold text-white">Branch</span>
+              {storeCode ? (
+                <span className="rounded-full bg-violet-500/20 px-2.5 py-0.5 text-xs font-semibold text-violet-300">
+                  ✓ {BRANCHES[city as "dubai" | "manila"]?.find((b) => b.code === storeCode)?.name || storeCode}
+                </span>
+              ) : (
+                <span className="text-xs text-amber-400">⚠ Select branch</span>
+              )}
             </div>
-          ) : null}
-          <div className="space-y-2">
-            {visibleRecentActivities.map((item) => (
-              <div key={`${item.kind}:${item.id}`} className={`${STATUS_CARD} bg-violet-950/25 p-3`}>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className={`rounded-full border px-2 py-0.5 text-[10px] ${
-                      item.kind === "request"
-                        ? "border-emerald-700/60 bg-emerald-900/30 text-emerald-200"
-                        : item.kind === "receiving"
-                          ? "border-cyan-700/60 bg-cyan-900/30 text-cyan-200"
-                          : "border-violet-700/60 bg-violet-900/30 text-violet-200"
-                    }`}
+            <div className="flex flex-wrap gap-2">
+              {(BRANCHES[city as "dubai" | "manila"] || [])
+                .filter((b) => b.code !== "CK" && b.code !== "DRIVER")
+                .map((branch) => {
+                  const active = storeCode === branch.code;
+                  return (
+                    <button
+                      key={branch.code}
+                      type="button"
+                      onClick={() => {
+                        setStoreCode(branch.code);
+                        if (typeof window !== "undefined") localStorage.setItem("store_proc_branch", branch.code);
+                      }}
+                      className={[
+                        "rounded-xl border px-3 py-1.5 text-sm font-semibold transition-all duration-200",
+                        active
+                          ? "bg-violet-500/25 text-violet-100 border-violet-500/50 shadow-sm"
+                          : "bg-violet-950/30 text-violet-400 border-violet-800/40 hover:bg-violet-900/40 hover:text-violet-200",
+                      ].join(" ")}
+                    >
+                      {branch.name}
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+
+          {/* New Request CTA */}
+          <Link
+            href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}${storeCode ? `&store_code=${encodeURIComponent(storeCode)}` : ""}`}
+            className={[BLUSH_PRIMARY, "flex items-center justify-center gap-2 text-sm", !storeCode ? "opacity-60 cursor-not-allowed pointer-events-none" : ""].join(" ")}
+            aria-disabled={!storeCode}
+          >
+            <PlusCircle className="h-4 w-4" />
+            {storeCode ? "New Request" : "Select Branch First"}
+          </Link>
+
+          {/* KPI cards */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className={KPI_CARD}>
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <ClipboardList className="h-3.5 w-3.5 text-zinc-400" />
+                <p className={KPI_LABEL}>Draft</p>
+              </div>
+              <p className={`${KPI_VALUE} text-lg text-zinc-200`}>{counts.draft}</p>
+            </div>
+            <div className={KPI_CARD}>
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5 text-amber-400" />
+                <p className={KPI_LABEL}>In Review</p>
+              </div>
+              <p className={`${KPI_VALUE} text-lg ${counts.inReview > 0 ? "text-amber-400" : "text-zinc-500"}`}>{counts.inReview}</p>
+            </div>
+            <div className={KPI_CARD}>
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                <p className={KPI_LABEL}>Approved</p>
+              </div>
+              <p className={`${KPI_VALUE} text-lg ${counts.approved > 0 ? "text-emerald-400" : "text-zinc-500"}`}>{counts.approved}</p>
+            </div>
+            <div className={KPI_CARD}>
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <RotateCcw className="h-3.5 w-3.5 text-red-400" />
+                <p className={KPI_LABEL}>Returned</p>
+              </div>
+              <p className={`${KPI_VALUE} text-lg ${counts.returned > 0 ? "text-red-400" : "text-zinc-500"}`}>{counts.returned}</p>
+            </div>
+          </div>
+
+          {/* Auth form + city */}
+          <div className={`${BLUSH_GLASS} p-4 space-y-3`}>
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Your Name</label>
+              <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`} />
+            </div>
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Session PIN</label>
+              <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="••••••••" className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`} />
+            </div>
+            <div>
+              <label className={`${T_LABEL} mb-1.5 flex items-center gap-1.5`}>
+                <Building2 className="h-3 w-3" />
+                City
+              </label>
+              <select
+                value={city}
+                onChange={(e) => {
+                  const nextCity = String(e.target.value || "manila").toLowerCase();
+                  setCity(nextCity);
+                  void loadMyRequests(nextCity);
+                }}
+                className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
+              >
+                <option value="manila">Manila</option>
+                <option value="dubai">Dubai</option>
+              </select>
+            </div>
+            <button type="button" onClick={() => void loadMyRequests()} disabled={loading} className={BLUSH_SECONDARY + " w-full flex items-center justify-center gap-2 text-sm"}>
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              {loading ? "Loading..." : "Refresh"}
+            </button>
+          </div>
+
+          {/* Quick links */}
+          <div className={`${BLUSH_GLASS} p-4`}>
+            <p className={`${T_LABEL} mb-3`}>Quick Links</p>
+            <div className="grid grid-cols-2 gap-2">
+              <Link href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}`} className={`${BLUSH_SMALL} justify-center min-h-10`}>
+                <span className="flex items-center justify-center gap-1.5">
+                  <PackageCheck className="h-3 w-3" /> Receiving
+                </span>
+              </Link>
+              <Link href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}`} className={`${DANGER_BUTTON} justify-center min-h-10 text-sm`}>
+                <span className="flex items-center justify-center gap-1.5">
+                  <AlertCircle className="h-3 w-3" /> Claim
+                </span>
+              </Link>
+              <Link href={`/store/procurement?city=${encodeURIComponent(city || "manila")}#history`} className={`col-span-2 ${BLUSH_SMALL} justify-center min-h-10`}>
+                <span className="flex items-center justify-center gap-1.5">
+                  <History className="h-3 w-3" /> View History
+                </span>
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── RIGHT PANEL ─── */}
+        <div className="flex min-w-0 flex-1 flex-col gap-4">
+
+          {error ? <div className="rounded-xl border border-red-700/40 bg-red-900/20 px-4 py-3 text-sm text-red-300">{error}</div> : null}
+
+          {recentActivities.length ? (
+            <div className={`${BLUSH_GLASS} px-4 py-3 text-xs text-neutral-200`}>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className={T_CARD_TITLE}>Recent Activity</div>
+                <span className={T_CAPTION}>{recentActivities.length} item{recentActivities.length !== 1 ? "s" : ""}</span>
+              </div>
+              {recentActivities.length > 3 ? (
+                <div className="mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAllRecentActivities((prev) => !prev)}
+                    className={BLUSH_SMALL}
                   >
-                    {item.kind === "request" ? "Request" : item.kind === "receiving" ? "Receiving" : "Claim"}
-                  </span>
-                  <span className="font-mono">{item.label}</span>
-                  {item.at ? <span className="text-[11px] text-neutral-400">({formatRelativeAge(item.at, relativeNowMs)})</span> : null}
+                    {showAllRecentActivities ? "Show less" : `View all (${recentActivities.length})`}
+                  </button>
                 </div>
-                {(() => {
-                  const activityKey = `${item.kind}:${item.id}`;
-                  const isExpanded = Boolean(expandedActionsByItem[activityKey]);
-                  const actions: TimelineAction[] =
-                    item.kind === "request" && item.requestId
-                      ? [
-                          {
-                            label: "Continue to Receiving",
-                            href: `/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(item.requestId)}`,
-                          },
-                          {
-                            label: "Continue to Claim",
-                            href: `/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(item.requestId)}`,
-                          },
-                        ]
-                      : item.kind === "receiving" && item.requestId
-                        ? [
-                            {
-                              label: "Open Receiving",
-                              href: `/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(item.requestId)}`,
-                            },
-                            {
-                              label: "Continue to Claim",
-                              href: `/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(item.requestId)}&receiving_id=${encodeURIComponent(item.id)}`,
-                            },
-                          ]
-                        : item.kind === "claim" && item.requestId
+              ) : null}
+              <div className="space-y-2">
+                {visibleRecentActivities.map((item) => (
+                  <div key={`${item.kind}:${item.id}`} className={`${STATUS_CARD} bg-violet-950/25 p-3`}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-[10px] ${
+                          item.kind === "request"
+                            ? "border-emerald-700/60 bg-emerald-900/30 text-emerald-200"
+                            : item.kind === "receiving"
+                              ? "border-cyan-700/60 bg-cyan-900/30 text-cyan-200"
+                              : "border-violet-700/60 bg-violet-900/30 text-violet-200"
+                        }`}
+                      >
+                        {item.kind === "request" ? "Request" : item.kind === "receiving" ? "Receiving" : "Claim"}
+                      </span>
+                      <span className="font-mono">{item.label}</span>
+                      {item.at ? <span className="text-[11px] text-neutral-400">({formatRelativeAge(item.at, relativeNowMs)})</span> : null}
+                    </div>
+                    {(() => {
+                      const activityKey = `${item.kind}:${item.id}`;
+                      const isExpanded = Boolean(expandedActionsByItem[activityKey]);
+                      const actions: TimelineAction[] =
+                        item.kind === "request" && item.requestId
                           ? [
                               {
-                                label: "Open Claim",
+                                label: "Continue to Receiving",
+                                href: `/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(item.requestId)}`,
+                              },
+                              {
+                                label: "Continue to Claim",
                                 href: `/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(item.requestId)}`,
                               },
-                              ...(item.caseId && canOpenAdminCase
+                            ]
+                          : item.kind === "receiving" && item.requestId
+                            ? [
+                                {
+                                  label: "Open Receiving",
+                                  href: `/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(item.requestId)}`,
+                                },
+                                {
+                                  label: "Continue to Claim",
+                                  href: `/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(item.requestId)}&receiving_id=${encodeURIComponent(item.id)}`,
+                                },
+                              ]
+                            : item.kind === "claim" && item.requestId
+                              ? [
+                                  {
+                                    label: "Open Claim",
+                                    href: `/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(item.requestId)}`,
+                                  },
+                                  ...(item.caseId && canOpenAdminCase
                                 ? [
                                     {
                                       label: "Open Case",
@@ -842,188 +1039,71 @@ export default function StoreProcurementHomePage() {
         </div>
       ) : null}
 
-      <div className={`${BLUSH_GLASS} p-5 flex items-center justify-between`}>
-        <div>
-          <h2 className={T_SECTION}>New Request</h2>
-          <p className={T_CAPTION}>Create a new procurement request</p>
-        </div>
-        <Link
-          href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}${storeCode ? `&store_code=${encodeURIComponent(storeCode)}` : ""}`}
-          className={[BLUSH_PRIMARY, !storeCode ? "opacity-60 cursor-not-allowed pointer-events-none" : ""].join(" ")}
-          aria-disabled={!storeCode}
-        >
-          <span className="flex items-center gap-2">
-            {storeCode ? "New Request" : "Select Branch First"}
-            <ChevronRight className="h-4 w-4" />
-          </span>
-        </Link>
-      </div>
-
-      <div className={`${BLUSH_GLASS} p-4`}>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="min-w-[160px] flex-1">
-            <label className={`${T_LABEL} mb-1.5 block`}>Approver Name</label>
-            <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`} />
-          </div>
-          <div className="min-w-[140px] flex-1">
-            <label className={`${T_LABEL} mb-1.5 block`}>Session PIN</label>
-            <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="••••••••" className={`${INPUT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`} />
-          </div>
-          <div className="min-w-[140px]">
-            <label className={`${T_LABEL} mb-1.5 flex items-center gap-1.5`}>
-              <Building2 className="h-3 w-3" />
-              City
-            </label>
-            <select
-              value={city}
-              onChange={(e) => {
-                const nextCity = String(e.target.value || "manila").toLowerCase();
-                setCity(nextCity);
-                void loadMyRequests(nextCity);
-              }}
-              className={`${SELECT_CLASS} focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20`}
-            >
-              <option value="manila">Manila</option>
-              <option value="dubai">Dubai</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-3">
-            <button type="button" onClick={() => void loadMyRequests()} disabled={loading} className={BLUSH_SECONDARY}>
-              <span className="flex items-center gap-2">
-                <RefreshCw className="h-4 w-4" />
-                {loading ? "Loading..." : "Refresh"}
-              </span>
-            </button>
-            <span className={T_CAPTION}>
-              Total: <span className="font-semibold text-white">{counts.total}</span> requests
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
-        <div className={KPI_CARD}>
-          <div className="mb-2 flex items-center gap-2">
-            <ClipboardList className="h-4 w-4 text-zinc-400" />
-            <p className={KPI_LABEL}>Draft</p>
-          </div>
-          <p className={`${KPI_VALUE} text-zinc-200`}>{counts.draft}</p>
-        </div>
-        <div className={KPI_CARD}>
-          <div className="mb-2 flex items-center gap-2">
-            <Clock className="h-4 w-4 text-amber-400" />
-            <p className={KPI_LABEL}>In Review</p>
-          </div>
-          <p className={`${KPI_VALUE} ${counts.inReview > 0 ? "text-amber-400" : "text-zinc-500"}`}>{counts.inReview}</p>
-        </div>
-        <div className={KPI_CARD}>
-          <div className="mb-2 flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-            <p className={KPI_LABEL}>Approved</p>
-          </div>
-          <p className={`${KPI_VALUE} ${counts.approved > 0 ? "text-emerald-400" : "text-zinc-500"}`}>{counts.approved}</p>
-        </div>
-        <div className={KPI_CARD}>
-          <div className="mb-2 flex items-center gap-2">
-            <RotateCcw className="h-4 w-4 text-red-400" />
-            <p className={KPI_LABEL}>Returned</p>
-          </div>
-          <p className={`${KPI_VALUE} ${counts.returned > 0 ? "text-red-400" : "text-zinc-500"}`}>{counts.returned}</p>
-        </div>
-        <div className={`col-span-2 ${STATUS_CARD} bg-violet-950/25 p-4 md:col-span-1`}>
-          <p className={`${KPI_LABEL} mb-3`}>Quick Actions</p>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-2">
-            <Link href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}`} className={`${BLUSH_SMALL} min-h-10 justify-center`}>
-              <span className="flex items-center justify-center gap-1.5 text-center">
-                <ShoppingCart className="h-3 w-3" /> Request
-              </span>
-            </Link>
-            <Link href={`/store/procurement?city=${encodeURIComponent(city || "manila")}#history`} className={`${BLUSH_SMALL} min-h-10 justify-center`}>
-              <span className="flex items-center justify-center gap-1.5 text-center">
-                <History className="h-3 w-3" /> History
-              </span>
-            </Link>
-            <Link href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}`} className={`${BLUSH_SMALL} min-h-10 justify-center`}>
-              <span className="flex items-center justify-center gap-1.5 text-center">
-                <PackageCheck className="h-3 w-3" /> Receiving
-              </span>
-            </Link>
-            <Link href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}`} className={`${DANGER_BUTTON} min-h-10 justify-center`}>
-              <span className="flex items-center justify-center gap-1.5 text-center">
-                <AlertCircle className="h-3 w-3" /> Claim
-              </span>
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      <div id="history" className={DIVIDER} />
-
-      <div className={`${BLUSH_GLASS} p-5`}>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className={T_SECTION}>My Recent Requests ({cityLabel})</h2>
-        </div>
-
-        {rows.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-10">
-            <ShoppingCart className="h-8 w-8 text-zinc-600" />
-            <p className={T_CAPTION}>No requests yet.</p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-          {rows.map((row) => (
-            <div
-              key={row.id}
-              className={`rounded-xl border px-4 py-3 transition-all duration-150 cursor-pointer hover:border-violet-500/40 hover:bg-violet-950/20 ${
-                row.id === lastCreatedRequestId
-                  ? "border-emerald-700/60 bg-emerald-900/20"
-                  : selectedRequestId === row.id
-                    ? "border-violet-500/50 bg-violet-950/25"
-                    : "border-white/8 bg-white/4"
-              }`}
-              onClick={() => setSelectedRequestId(row.id)}
-            >
-              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div className="min-w-0 flex-1">
-                  <p className="break-words text-base font-semibold leading-tight text-white flex items-center gap-2">
-                    {row.request_no}
-                    <ChevronRight className="h-4 w-4 text-zinc-500" />
-                  </p>
-                  <div className="mt-2 grid gap-1 text-xs text-zinc-400 sm:grid-cols-3">
-                    <span>{row.store_code || "-"}</span>
-                    <span>{row.request_date || "-"}</span>
-                    <span>{Number(row.total_amount || 0).toFixed(2)} {currencyCode}</span>
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2 md:items-end" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex flex-wrap gap-2">
-                    {String(row.status || "").toUpperCase() === "DRAFT" ? (
-                      <span className={BADGE_WARNING}>DRAFT | Level {row.current_approval_level || 0}</span>
-                    ) : null}
-                    {String(row.status || "").toUpperCase() === "APPROVED" ? <span className={BADGE_SUCCESS}>APPROVED</span> : null}
-                    {String(row.status || "").toUpperCase() === "RETURNED" ? <span className={BADGE_ERROR}>RETURNED</span> : null}
-                    {(String(row.status || "").toUpperCase() === "IN_REVIEW" || String(row.status || "").toUpperCase() === "SUBMITTED") ? <span className={BADGE_INFO}>IN REVIEW</span> : null}
-                    {row.id === lastCreatedRequestId ? (
-                      <span className={BADGE_SUCCESS}>
-                        Just created
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 sm:flex">
-                    <Link href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`} className={`${SMALL_BUTTON} justify-center`}>
-                      Receiving
-                    </Link>
-                    <Link href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`} className={`${DANGER_BUTTON} justify-center`}>
-                      Claim
-                    </Link>
-                  </div>
-                </div>
-              </div>
+          {/* Request list */}
+          <div id="history" className={`${BLUSH_GLASS} p-5`}>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className={T_SECTION}>
+                My Requests
+                <span className={`${T_CAPTION} ml-2 font-normal`}>({cityLabel} · {counts.total})</span>
+              </h2>
+              {loading && <RefreshCw className="h-4 w-4 animate-spin text-zinc-500" />}
             </div>
-          ))}
+
+            {rows.length === 0 && !loading ? (
+              <div className="flex flex-col items-center gap-2 py-10">
+                <ShoppingCart className="h-8 w-8 text-zinc-600" />
+                <p className={T_CAPTION}>No requests yet.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {rows.map((row) => {
+                  const s = String(row.status || "").toUpperCase();
+                  return (
+                    <div
+                      key={row.id}
+                      className={`rounded-xl border px-4 py-3 transition-all duration-150 cursor-pointer hover:border-violet-500/40 hover:bg-violet-950/20 ${
+                        row.id === lastCreatedRequestId
+                          ? "border-emerald-700/60 bg-emerald-900/20"
+                          : selectedRequestId === row.id
+                            ? "border-violet-500/50 bg-violet-950/25"
+                            : "border-white/8 bg-white/4"
+                      }`}
+                      onClick={() => setSelectedRequestId(row.id)}
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0 flex-1">
+                          <p className="break-words text-sm font-semibold leading-tight text-white flex items-center gap-2">
+                            <span className="font-mono">{row.request_no}</span>
+                            {row.id === lastCreatedRequestId && <span className={BADGE_SUCCESS}>New</span>}
+                          </p>
+                          <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-zinc-500">
+                            <span>{row.store_code || "-"}</span>
+                            <span>{row.request_date || "-"}</span>
+                            <span className="font-semibold text-zinc-400">{Number(row.total_amount || 0).toFixed(2)} {currencyCode}</span>
+                          </div>
+                          {/* Status badge row */}
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {s === "DRAFT" && <span className={BADGE_WARNING}>DRAFT · Level {row.current_approval_level || 0}</span>}
+                            {s === "APPROVED" && <span className={BADGE_SUCCESS}>APPROVED</span>}
+                            {s === "RETURNED" && <span className={BADGE_ERROR}>RETURNED</span>}
+                            {(s === "IN_REVIEW" || s === "SUBMITTED") && <span className={BADGE_INFO}>IN REVIEW</span>}
+                            {s === "RECEIVED" && <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/15 border border-cyan-500/25 px-2.5 py-0.5 text-xs font-medium text-cyan-400">RECEIVED</span>}
+                          </div>
+                        </div>
+                        {/* Status-driven action button */}
+                        <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                          {getStatusActionButton(row)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+
+        </div>{/* end right panel */}
+      </div>{/* end two-column */}
       </motion.div>
 
       {/* Request detail drawer */}

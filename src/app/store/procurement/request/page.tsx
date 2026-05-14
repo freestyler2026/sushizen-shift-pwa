@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ProcurementStepper } from "@/components/ProcurementStepper";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
 import { formatRelativeAge, getRecentBadgeMaxAgeMs, isOlderThan, useRelativeAgeNow } from "@/lib/timeAgo";
@@ -623,24 +624,31 @@ export default function StoreProcurementRequestPage() {
         </div>
       ) : null}
 
-      <div className={`${GLASS_PANEL} p-4`}>
-        <div className="text-sm font-medium">Store Procurement Request</div>
-        <div className="mt-1 text-xs text-neutral-500">Create a store-side purchase request and optionally submit to approval workflow.</div>
-        <div className="mt-2 text-xs text-violet-200">Current city: {cityLabel}</div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Link href="/store/procurement" className={SMALL_LINK}>
-            Home
-          </Link>
-          <Link href={`/store/procurement/history?city=${encodeURIComponent(city || "manila")}`} className={SMALL_LINK}>
-            Go to History
-          </Link>
-          <Link href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}`} className={SMALL_LINK}>
-            Go to Receiving
-          </Link>
-          <Link href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}`} className={SMALL_LINK}>
-            Go to Claim
-          </Link>
+      {/* Page header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-light tracking-tight text-white">New Request</h1>
+          <p className="text-sm text-zinc-400 mt-1">Browse catalog, build your order, and submit for approval.</p>
         </div>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-500/15 border border-violet-500/25 px-2.5 py-0.5 text-xs font-medium text-violet-400">
+          {cityLabel}
+        </span>
+      </div>
+
+      {/* Stepper */}
+      <div className={`${GLASS_PANEL} px-6 py-3`}>
+        <ProcurementStepper currentStep="request" />
+      </div>
+
+      {/* Breadcrumb */}
+      <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+        <Link href="/store/procurement" className="hover:text-violet-300 transition-colors">Home</Link>
+        <span>›</span>
+        <span className="text-violet-300 font-medium">Request</span>
+        <span>›</span>
+        <Link href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}`} className="hover:text-violet-300 transition-colors">Receiving</Link>
+        <span>›</span>
+        <Link href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}`} className="hover:text-violet-300 transition-colors">Claim</Link>
       </div>
 
       <div className={`grid grid-cols-1 gap-3 p-3 md:grid-cols-6 ${GLASS_PANEL}`}>
