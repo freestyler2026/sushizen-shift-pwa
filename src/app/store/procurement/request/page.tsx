@@ -170,7 +170,6 @@ export default function StoreProcurementRequestPage() {
   const cityLabel = city === "dubai" ? "Dubai" : "Manila";
   const currencyCode = city === "dubai" ? "AED" : "PHP";
   const APPROVAL_THRESHOLD = city === "dubai" ? 500 : 15000;
-  const isOverThreshold = validItemsTotal > 0 && validItemsTotal > APPROVAL_THRESHOLD;
 
   // ── Add to Catalog state ──────────────────────────────────────────────────
   const [showAddCatalog, setShowAddCatalog] = useState(false);
@@ -240,6 +239,7 @@ export default function StoreProcurementRequestPage() {
     () => validItems.reduce((sum, item) => sum + Number(item.qty || 0) * Number(item.unit_price || 0), 0),
     [validItems],
   );
+  const isOverThreshold = validItemsTotal > 0 && validItemsTotal > APPROVAL_THRESHOLD;
 
   const lastCreatedItemsTotal = useMemo(
     () => lastCreatedItems.reduce((sum, item) => sum + Number(item.qty || 0) * Number(item.unit_price || 0), 0),
