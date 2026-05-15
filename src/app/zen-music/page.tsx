@@ -203,6 +203,15 @@ const TRACKS: Track[] = [
     accentHex: "#dc2626",
     glyph: "轟",
   },
+  {
+    id: 22,
+    title: "ZEN Power Ballad",
+    subtitle: "Sushi ZEN",
+    file: "/music/zen-power-ballad.mp3",
+    accent: "from-rose-400 via-pink-500 to-purple-700",
+    accentHex: "#be185d",
+    glyph: "歌",
+  },
 ];
 
 function fmt(sec: number) {
