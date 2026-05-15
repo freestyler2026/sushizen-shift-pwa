@@ -762,15 +762,9 @@ export default function StoreProcurementHomePage() {
         transition={{ duration: 0.3, ease: "easeOut" }}
       >
       {/* Header */}
-      <div className="mb-5 flex items-start justify-between gap-4">
-        <div>
-          <h1 className={T_PAGE_TITLE}>Store Procurement</h1>
-          <p className={T_BODY}>Request, track, receive, and claim store supplies.</p>
-        </div>
-        <span className={BADGE_INFO}>
-          <MapPin className="h-3 w-3" />
-          {cityLabel}
-        </span>
+      <div className="mb-5">
+        <h1 className={T_PAGE_TITLE}>Store Procurement</h1>
+        <p className={T_BODY}>Request, track, receive, and claim store supplies.</p>
       </div>
 
       {/* Stepper */}
@@ -783,6 +777,28 @@ export default function StoreProcurementHomePage() {
 
         {/* ─── LEFT PANEL ─── */}
         <div className="flex flex-col gap-4 lg:w-72 xl:w-80 lg:shrink-0">
+
+          {/* City selector */}
+          <div className={`${BLUSH_GLASS} p-4`}>
+            <div className="mb-2 flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-violet-400" />
+              <span className="text-sm font-semibold text-white">City</span>
+            </div>
+            <select
+              value={city}
+              onChange={(e) => {
+                const nextCity = e.target.value as "dubai" | "manila";
+                setCity(nextCity);
+                setStoreCode("");
+                if (typeof window !== "undefined") localStorage.removeItem("store_proc_branch");
+                void loadMyRequests(nextCity);
+              }}
+              className={SELECT_CLASS}
+            >
+              <option value="manila">Manila</option>
+              <option value="dubai">Dubai</option>
+            </select>
+          </div>
 
           {/* Branch selector */}
           <div className={`${BLUSH_GLASS} p-4`}>

@@ -456,7 +456,26 @@ export default function ProcurementPoPage() {
 
       {/* Session bar */}
       <div className={`${GLASS_CARD} p-4`}>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>City</label>
+            <select
+              value={city}
+              onChange={(e) => {
+                const nextCity = e.target.value as "manila" | "dubai";
+                setCity(nextCity);
+                const can = canAccessProcurementAdmin(String(auth?.role || ""), nextCity);
+                setAllowed(can);
+                setCatalogSuppliers([]);
+                setRows([]);
+                setRequestSummary(null);
+              }}
+              className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white focus:border-violet-500/60 focus:outline-none"
+            >
+              <option value="manila">Manila (PHP)</option>
+              <option value="dubai">Dubai (AED)</option>
+            </select>
+          </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Approver Name</label>
             <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Name" className={INPUT_CLASS} />

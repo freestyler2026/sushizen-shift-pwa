@@ -34,9 +34,9 @@ import {
 type ReqItem = {
   item_name: string;
   category: string;
-  qty: number;
-  unit?: string;
-  unit_price: number;
+  qty: number | "";
+  unit: string;
+  unit_price: number | "";
   vendor_name: string;
 };
 
@@ -89,7 +89,7 @@ export default function AdminProcurementPage() {
   const [requestDate, setRequestDate] = useState(todayIso());
   const [urgent, setUrgent] = useState(false);
   const [newVendor, setNewVendor] = useState(false);
-  const [items, setItems] = useState<ReqItem[]>([{ item_name: "", category: "", qty: 1, unit_price: 0, vendor_name: "" }]);
+  const [items, setItems] = useState<ReqItem[]>([{ item_name: "", category: "", qty: "", unit: "", unit_price: "", vendor_name: "" }]);
   const [rows, setRows] = useState<ReqRow[]>([]);
   const [queueRows, setQueueRows] = useState<ReqRow[]>([]);
   const [exceptions, setExceptions] = useState<ExceptionRow[]>([]);
@@ -220,7 +220,11 @@ export default function AdminProcurementPage() {
           request_date: requestDate,
           urgent_flag: urgent,
           new_vendor_flag: newVendor,
-          items: validItems,
+          items: validItems.map((x) => ({
+            ...x,
+            qty: x.qty === "" ? 0 : Number(x.qty),
+            unit_price: x.unit_price === "" ? 0 : Number(x.unit_price),
+          })),
         }),
       });
       const text = await res.text();
@@ -236,7 +240,7 @@ export default function AdminProcurementPage() {
         const submitText = await submitRes.text();
         if (!submitRes.ok) throw new Error(submitText || `Submit failed (${submitRes.status})`);
       }
-      setItems([{ item_name: "", category: "", qty: 1, unit_price: 0, vendor_name: "" }]);
+      setItems([{ item_name: "", category: "", qty: "", unit: "", unit_price: "", vendor_name: "" }]);
       await loadAll();
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -405,19 +409,61 @@ export default function AdminProcurementPage() {
           <h2 className={T_SECTION}>Manual PR Entry</h2>
           <p className={T_CAPTION}>Use this path for direct OS/manual PR creation. Excel Sync remains available above as the main entry from the existing workbook.</p>
         </div>
+        {/* Column headers */}
+        <div className="mb-1 hidden grid-cols-6 gap-2 lg:grid">
+          {["Item name", "Category", "Qty", "Unit", "Unit price", "Vendor"].map((h) => (
+            <span key={h} className="px-1 text-xs font-medium text-zinc-500">{h}</span>
+          ))}
+        </div>
         <div className="space-y-3">
           {items.map((row, idx) => (
-            <div key={idx} className="grid grid-cols-1 gap-2 lg:grid-cols-5">
-              <input value={row.item_name} onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, item_name: e.target.value } : x)))} placeholder="Item name" className={INPUT_CLASS} />
-              <input value={row.category} onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, category: e.target.value } : x)))} placeholder="Category" className={INPUT_CLASS} />
-              <input type="number" value={row.qty} onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, qty: Number(e.target.value || 0) } : x)))} placeholder="Qty" className={INPUT_CLASS} />
-              <input type="number" value={row.unit_price} onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, unit_price: Number(e.target.value || 0) } : x)))} placeholder="Unit price" className={INPUT_CLASS} />
-              <input value={row.vendor_name} onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, vendor_name: e.target.value } : x)))} placeholder="Vendor" className={INPUT_CLASS} />
+            <div key={idx} className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+              <input
+                value={row.item_name}
+                onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, item_name: e.target.value } : x)))}
+                placeholder="Item name"
+                className={INPUT_CLASS}
+              />
+              <input
+                value={row.category}
+                onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, category: e.target.value } : x)))}
+                placeholder="Category"
+                className={INPUT_CLASS}
+              />
+              <input
+                type="number"
+                min="0"
+                value={row.qty}
+                onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, qty: e.target.value === "" ? "" : Number(e.target.value) } : x)))}
+                placeholder="Quantity"
+                className={INPUT_CLASS}
+              />
+              <input
+                value={row.unit}
+                onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, unit: e.target.value } : x)))}
+                placeholder="Unit (kg, pcs…)"
+                className={INPUT_CLASS}
+              />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={row.unit_price}
+                onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, unit_price: e.target.value === "" ? "" : Number(e.target.value) } : x)))}
+                placeholder="Unit price"
+                className={INPUT_CLASS}
+              />
+              <input
+                value={row.vendor_name}
+                onChange={(e) => setItems((prev) => prev.map((x, i) => (i === idx ? { ...x, vendor_name: e.target.value } : x)))}
+                placeholder="Vendor"
+                className={INPUT_CLASS}
+              />
             </div>
           ))}
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
-          <button type="button" onClick={() => setItems((prev) => [...prev, { item_name: "", category: "", qty: 1, unit_price: 0, vendor_name: "" }])} className={SMALL_BUTTON}>
+          <button type="button" onClick={() => setItems((prev) => [...prev, { item_name: "", category: "", qty: "", unit: "", unit_price: "", vendor_name: "" }])} className={SMALL_BUTTON}>
             Add Item
           </button>
           <button type="button" onClick={() => void createRequest()} disabled={submitBusy} className={PRIMARY_BUTTON}>
