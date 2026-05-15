@@ -26,7 +26,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { canAccessAdminNav, getAuth } from "@/lib/auth";
 import ShiftScheduleView from "./ShiftScheduleView";
+import ShiftMasterPanel from "@/components/ShiftMasterPanel";
 import { BRANCHES, labelOf, type BranchCode, type City } from "@/lib/branches";
+import {
+  loadShiftMaster,
+  checkViolations,
+  buildAiContext,
+  type ShiftMasterData,
+  type ShiftViolation,
+} from "@/lib/shiftMasterData";
 import { fmtNum } from "@/lib/formatters";
 import {
   BADGE_ERROR,
@@ -1094,6 +1102,10 @@ export default function AdminDraftPage() {
   const [applyingActions, setApplyingActions] = useState(false);
   const [applyActionsError, setApplyActionsError] = useState("");
 
+  // Staff Master Data (①②③④⑤)
+  const [shiftMaster, setShiftMaster] = useState<ShiftMasterData | null>(null);
+  const [violations, setViolations] = useState<ShiftViolation[]>([]);
+
   const canOperate = myRole === "HQ" || myRole === "ADMIN";
   const targetMonthDates = useMemo(() => monthDates(targetMonth), [targetMonth]);
   const applyWeekStarts = useMemo(() => weekStartsForMonth(applyMonth), [applyMonth]);
@@ -1131,6 +1143,21 @@ export default function AdminDraftPage() {
       router.replace("/week");
     }
   }, [auth, router]);
+
+  // Load staff master from localStorage on mount
+  useEffect(() => {
+    const saved = loadShiftMaster();
+    if (saved) setShiftMaster(saved);
+  }, []);
+
+  // Re-run violations whenever rows or shiftMaster changes
+  useEffect(() => {
+    if (!shiftMaster || rows.length === 0) {
+      setViolations([]);
+      return;
+    }
+    setViolations(checkViolations(rows, shiftMaster));
+  }, [rows, shiftMaster]);
 
   useEffect(() => {
     const run = async () => {
@@ -1768,6 +1795,10 @@ export default function AdminDraftPage() {
           approver_name: approverName,
           pin,
           branch_results: branchResults,
+          // ① Staff master context — included for AI prompt enrichment
+          staff_rules_context: shiftMaster
+            ? buildAiContext(shiftMaster, generateResult.target_month)
+            : undefined,
         }
       );
       if (res.ok && res.analysis) {
@@ -1975,6 +2006,8 @@ export default function AdminDraftPage() {
                 onUpdateRow={handleUpdateRow}
                 onDeleteRow={handleDeleteRow}
                 onAddRow={handleAddRow}
+                masterData={shiftMaster ?? undefined}
+                branchCode={activeBranchCode || undefined}
               />
             </>
           )}
@@ -2254,8 +2287,61 @@ export default function AdminDraftPage() {
             })}
           </div>
 
+          {/* ① Staff Master Panel */}
+          <div className="mt-5">
+            <ShiftMasterPanel
+              masterData={shiftMaster}
+              targetMonth={generateResult.target_month}
+              onLoaded={(data) => {
+                setShiftMaster(data);
+              }}
+              onCleared={() => {
+                setShiftMaster(null);
+                setViolations([]);
+              }}
+            />
+          </div>
+
+          {/* ② Violation Panel */}
+          {violations.length > 0 && (
+            <div className="mt-4 rounded-2xl border border-red-500/20 bg-red-500/5 p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle className="h-4 w-4 text-red-400" />
+                <span className={T_SECTION}>Rule Violations Detected ({violations.length})</span>
+              </div>
+              <div className="space-y-2">
+                {violations.map((v, i) => (
+                  <div
+                    key={i}
+                    className={`flex items-start gap-2 rounded-xl border px-3 py-2 ${
+                      v.severity === "CRITICAL"
+                        ? "border-red-500/20 bg-red-950/20"
+                        : v.severity === "HIGH"
+                          ? "border-amber-500/20 bg-amber-950/10"
+                          : "border-zinc-500/20 bg-zinc-950/10"
+                    }`}
+                  >
+                    <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                      v.severity === "CRITICAL"
+                        ? "bg-red-500/20 text-red-400"
+                        : v.severity === "HIGH"
+                          ? "bg-amber-500/20 text-amber-400"
+                          : "bg-zinc-500/20 text-zinc-400"
+                    }`}>
+                      {v.ruleId}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs text-zinc-300">{v.message}</span>
+                      <span className="ml-2 text-[10px] text-zinc-600">{v.date}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* AI Analysis Button */}
-          <div className="mt-5 flex items-center gap-3">
+          <div className="mt-5 flex items-center gap-3 flex-wrap">
             <button
               type="button"
               onClick={runAiAnalysis}
@@ -2265,6 +2351,11 @@ export default function AdminDraftPage() {
               {aiBusy ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               {aiBusy ? "Analyzing…" : "AI Schedule Analysis"}
             </button>
+            {shiftMaster && (
+              <span className="text-[10px] text-emerald-500 flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3" /> Staff rules context will be included in AI analysis
+              </span>
+            )}
             {aiError && <span className="text-xs text-red-400">{aiError}</span>}
           </div>
 

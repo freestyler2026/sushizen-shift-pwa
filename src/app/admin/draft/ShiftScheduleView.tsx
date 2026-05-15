@@ -10,6 +10,8 @@ import {
   X,
   Users,
 } from "lucide-react";
+import type { ShiftMasterData, StaffTransport, VLEntry, BranchPeakInfo } from "@/lib/shiftMasterData";
+import { getTransport, isOnVL, getPeakInfo } from "@/lib/shiftMasterData";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,6 +41,8 @@ type Props = {
   }) => Promise<void>;
   onDeleteRow: (id: string) => Promise<void>;
   onAddRow: (date: string, staffName: string, role: string, startHour: number, endHour: number) => Promise<void>;
+  masterData?: ShiftMasterData; // ③④⑤
+  branchCode?: string;           // for peak coverage context
 };
 
 // ---------------------------------------------------------------------------
@@ -180,6 +184,29 @@ function fmtHourOpt(h: number): string {
 // ---------------------------------------------------------------------------
 // Single shift row component
 // ---------------------------------------------------------------------------
+// Transport icon helper (③)
+function TransportBadge({ t }: { t: StaffTransport }) {
+  if (t.isWalking) return null; // walking = no restriction, no badge
+  if (!t.hardEndHour && !t.pickupRequired) return null;
+  const isHardEnd = t.hardEndHour != null;
+  const label = isHardEnd ? `⚠ ${t.hardEndHour}:00` : "🚐";
+  const title = isHardEnd
+    ? `${t.transportType} — must finish by ${t.hardEndHour}:00`
+    : `${t.transportType} — confirm pickup before late shift`;
+  return (
+    <span
+      title={title}
+      className={`ml-1 rounded px-1 py-0.5 text-[8px] font-bold leading-none ${
+        isHardEnd
+          ? "bg-amber-500/20 text-amber-400"
+          : "bg-sky-500/20 text-sky-400"
+      }`}
+    >
+      {label}
+    </span>
+  );
+}
+
 function ShiftRow({
   row,
   isEditing,
@@ -188,6 +215,8 @@ function ShiftRow({
   onSave,
   onDelete,
   busy,
+  transportInfo,
+  vlEntry,
 }: {
   row: DraftRow;
   isEditing: boolean;
@@ -196,6 +225,8 @@ function ShiftRow({
   onSave: (start: number, end: number, staffName: string, role: string) => void;
   onDelete: () => void;
   busy: boolean;
+  transportInfo?: StaffTransport;  // ③
+  vlEntry?: VLEntry;               // ④
 }) {
   const [editStart, setEditStart] = useState(row.start_hour);
   const [editEnd,   setEditEnd]   = useState(row.end_hour);
@@ -216,9 +247,22 @@ function ShiftRow({
 
   return (
     <tr className={`group transition-colors ${isEditing ? "bg-white/[0.05]" : "hover:bg-white/[0.03]"}`}>
-      {/* Staff name — sticky */}
-      <td className="sticky left-0 z-10 max-w-[148px] min-w-[120px] bg-[#141428] px-3 py-1.5 text-xs font-medium text-white group-hover:bg-[#1a1a38]">
-        <span className="block truncate" title={row.staff_name}>{row.staff_name}</span>
+      {/* Staff name — sticky (③ transport badge, ④ VL indicator) */}
+      <td className="sticky left-0 z-10 max-w-[148px] min-w-[120px] bg-[#141428] px-3 py-1.5 text-xs font-medium group-hover:bg-[#1a1a38]">
+        <div className="flex items-center gap-0.5 min-w-0">
+          <span className={`block truncate ${vlEntry ? "text-rose-400 line-through opacity-60" : "text-white"}`} title={row.staff_name}>
+            {row.staff_name}
+          </span>
+          {vlEntry && (
+            <span title={`On approved leave: ${vlEntry.vlStart} – ${vlEntry.vlEnd}`}
+              className="shrink-0 rounded bg-rose-500/20 px-1 py-0.5 text-[8px] font-bold text-rose-400">
+              VL
+            </span>
+          )}
+          {transportInfo && !vlEntry && (
+            <TransportBadge t={transportInfo} />
+          )}
+        </div>
       </td>
 
       {/* Role badge */}
@@ -473,6 +517,8 @@ function DaySection({
   onDeleteRow,
   onAddRow,
   busy,
+  masterData,
+  branchCode,
 }: {
   date: string;
   rows: DraftRow[];
@@ -481,12 +527,48 @@ function DaySection({
   onDeleteRow: Props["onDeleteRow"];
   onAddRow: (date: string, staffName: string, role: string, start: number, end: number) => Promise<void>;
   busy: boolean;
+  masterData?: ShiftMasterData;
+  branchCode?: string;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAdd,   setShowAdd]   = useState(false);
 
   const headcount  = useMemo(() => computeHeadcount(rows), [rows]);
   const maxCount   = useMemo(() => Math.max(...Object.values(headcount), 1), [headcount]);
+
+  // ⑤ Peak coverage: is a PIC/2nd PIC present during peak hours?
+  const peakInfo: BranchPeakInfo | undefined = useMemo(
+    () => (masterData && branchCode ? getPeakInfo(branchCode, masterData) : undefined),
+    [masterData, branchCode],
+  );
+  const leaderNames = useMemo(
+    () =>
+      new Set(
+        (masterData?.staff ?? [])
+          .filter((s) => s.roleTag === "PIC" || s.roleTag === "2nd PIC" || s.roleTag === "PIC / AM")
+          .map((s) => s.name.toLowerCase()),
+      ),
+    [masterData],
+  );
+  const peakCoverage = useMemo(() => {
+    if (!peakInfo) return null;
+    return HOURS.map((h) => {
+      const isPeakHour =
+        (peakInfo.lunchStart != null && peakInfo.lunchEnd != null && h >= peakInfo.lunchStart && h < peakInfo.lunchEnd) ||
+        (peakInfo.dinnerStart != null && peakInfo.dinnerEnd != null && h >= peakInfo.dinnerStart && h < peakInfo.dinnerEnd) ||
+        (peakInfo.lateNightStart != null && peakInfo.lateNightEnd != null && h >= peakInfo.lateNightStart && h < peakInfo.lateNightEnd);
+      if (!isPeakHour) return { h, isPeak: false, hasLeader: false };
+      const hasLeader = rows.some(
+        (r) =>
+          (leaderNames.has(r.staff_name.toLowerCase()) ||
+            r.role.toUpperCase().includes("PIC") ||
+            r.staff_name.toUpperCase().includes("PIC")) &&
+          h >= r.start_hour &&
+          h < r.end_hour,
+      );
+      return { h, isPeak: true, hasLeader };
+    });
+  }, [peakInfo, rows, leaderNames]);
 
   const d    = parseDate(date);
   const dow  = d.getDay();
@@ -589,6 +671,8 @@ function DaySection({
                   onSave={(start, end, staffName, role) => handleSave(row, start, end, staffName, role)}
                   onDelete={() => { void onDeleteRow(row.id); }}
                   busy={busy}
+                  transportInfo={masterData ? getTransport(row.staff_name, masterData) : undefined}
+                  vlEntry={masterData ? isOnVL(row.staff_name, row.work_date, masterData) : undefined}
                 />
               ))
             )}
@@ -624,6 +708,33 @@ function DaySection({
               })}
               <td colSpan={2} />
             </tr>
+            {/* ⑤ Peak coverage row */}
+            {peakCoverage && peakCoverage.some((c) => c.isPeak) && (
+              <tr className="border-t border-white/5 bg-white/[0.01]">
+                <td className="sticky left-0 z-10 bg-[#141428] px-3 py-1 text-[10px] font-semibold text-zinc-600">
+                  Peak
+                </td>
+                <td />
+                {peakCoverage.map(({ h, isPeak, hasLeader }) => (
+                  <td key={h} className="py-1 text-center">
+                    {isPeak ? (
+                      <span
+                        title={hasLeader ? "Leader present during peak" : "⚠ No leader during peak!"}
+                        className={`inline-block h-2 w-2 rounded-sm ${hasLeader ? "bg-emerald-500/70" : "bg-red-500/70"}`}
+                      />
+                    ) : (
+                      <span className="inline-block h-2 w-2 rounded-sm bg-transparent" />
+                    )}
+                  </td>
+                ))}
+                <td colSpan={2} className="px-2 text-[9px] text-zinc-600">
+                  {peakCoverage.some((c) => c.isPeak && !c.hasLeader)
+                    ? <span className="text-red-500">⚠ Gap</span>
+                    : <span className="text-emerald-600">✓ OK</span>
+                  }
+                </td>
+              </tr>
+            )}
           </tfoot>
         </table>
       </div>
@@ -642,6 +753,8 @@ export default function ShiftScheduleView({
   onUpdateRow,
   onDeleteRow,
   onAddRow,
+  masterData,
+  branchCode,
 }: Props) {
   const [weekStart, setWeekStart] = useState<string>(() => firstWeekOfMonth(month));
   const [busy, setBusy] = useState(false);
@@ -787,6 +900,8 @@ export default function ShiftScheduleView({
           onDeleteRow={handleDelete}
           onAddRow={handleAdd}
           busy={busy}
+          masterData={masterData}
+          branchCode={branchCode}
         />
       ))}
 
