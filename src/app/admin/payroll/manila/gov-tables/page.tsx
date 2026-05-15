@@ -3,6 +3,7 @@
 import {
   AlertCircle, AlertTriangle, CheckCircle2, ChevronLeft,
   Info, Loader2, RefreshCw, Shield, Upload, X, FileSpreadsheet,
+  Tag, ToggleLeft, ToggleRight, Plus, Pencil, Save,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -100,7 +101,27 @@ type GovTables = {
   bir: BirBracket[];
 };
 
-type TabId = "pay_rules" | "sss" | "philhealth" | "pagibig" | "bir";
+type AllowanceType = {
+  id: number;
+  code: string;
+  label: string;
+  category: string;
+  is_taxable: boolean;
+  de_minimis_monthly_limit: string | null;
+  bir_basis: string | null;
+  is_active: boolean;
+  updated_at: string;
+};
+
+type BirUploadRow = {
+  annual_from: string;
+  annual_to: string;
+  base_tax: string;
+  excess_rate_pct: string;
+  excess_over: string;
+};
+
+type TabId = "pay_rules" | "sss" | "philhealth" | "pagibig" | "bir" | "allowances";
 
 const DAY_TYPE_LABELS: Record<string, string> = {
   ordinary:                               "Ordinary Day",
@@ -162,6 +183,135 @@ export default function GovTablesPage() {
     } catch (e) { setSssParsError(String(e)); }
   }
 
+  // BIR upload modal state
+  const [birModal, setBirModal] = useState(false);
+  const [birEffectiveDate, setBirEffectiveDate] = useState("");
+  const [birSourceVersion, setBirSourceVersion] = useState("");
+  const [birCsvText, setBirCsvText] = useState("");
+  const [birPreview, setBirPreview] = useState<BirUploadRow[] | null>(null);
+  const [birParsError, setBirParsError] = useState("");
+  const [birUploading, setBirUploading] = useState(false);
+  const [birUploadMsg, setBirUploadMsg] = useState("");
+
+  function parseBirCsv(text: string): BirUploadRow[] {
+    const lines = text.trim().split("\n").filter(l => l.trim() && !l.trim().startsWith("#"));
+    return lines.map((line, i) => {
+      const cols = line.split(/[,\t]/).map(c => c.trim());
+      if (cols.length < 5) throw new Error(`Row ${i + 1}: need 5 columns (annual_from, annual_to, base_tax, excess_rate_pct%, excess_over)`);
+      const [from, to, base, rate, over] = cols;
+      return { annual_from: from, annual_to: to, base_tax: base, excess_rate_pct: rate, excess_over: over };
+    });
+  }
+
+  function handleBirParsePreview() {
+    setBirParsError(""); setBirPreview(null);
+    if (!birEffectiveDate) { setBirParsError("Effective date is required."); return; }
+    try {
+      const rows = parseBirCsv(birCsvText);
+      if (rows.length === 0) { setBirParsError("No rows parsed."); return; }
+      setBirPreview(rows);
+    } catch (e) { setBirParsError(String(e)); }
+  }
+
+  async function handleBirUpload() {
+    if (!birPreview || !birEffectiveDate) return;
+    setBirUploading(true); setBirUploadMsg("");
+    try {
+      const r = await apiFetch(`${API}/bir/upload`, {
+        method: "POST",
+        body: JSON.stringify({
+          effective_from: birEffectiveDate,
+          source_version: birSourceVersion || `BIR ${birEffectiveDate.slice(0, 4)}`,
+          rows: birPreview,
+        }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const res = await r.json() as { inserted: number };
+      setBirUploadMsg(`✓ ${res.inserted} brackets uploaded successfully.`);
+      setBirPreview(null); setBirCsvText(""); setBirEffectiveDate(""); setBirSourceVersion("");
+      await load();
+      setTimeout(() => { setBirModal(false); setBirUploadMsg(""); }, 2000);
+    } catch (e) { setBirUploadMsg(`Error: ${String(e)}`); }
+    finally { setBirUploading(false); }
+  }
+
+  // Allowance types state
+  const [allowanceTypes, setAllowanceTypes] = useState<AllowanceType[]>([]);
+  const [allowanceLoading, setAllowanceLoading] = useState(false);
+  const [allowanceError, setAllowanceError] = useState("");
+  const [editingAllowance, setEditingAllowance] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<Partial<AllowanceType>>({});
+  const [addingNew, setAddingNew] = useState(false);
+  const [newForm, setNewForm] = useState({ code: "", label: "", category: "other", is_taxable: true, de_minimis_monthly_limit: "", bir_basis: "" });
+  const [savingId, setSavingId] = useState<number | null>(null);
+
+  const loadAllowanceTypes = useCallback(async () => {
+    setAllowanceLoading(true); setAllowanceError("");
+    try {
+      const r = await apiFetch(`${API}/allowance-types`);
+      if (!r.ok) throw new Error(await r.text());
+      setAllowanceTypes(await r.json() as AllowanceType[]);
+    } catch (e) { setAllowanceError(String(e)); }
+    finally { setAllowanceLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "allowances") void loadAllowanceTypes();
+  }, [activeTab, loadAllowanceTypes]);
+
+  async function toggleTaxable(at: AllowanceType) {
+    setSavingId(at.id);
+    try {
+      const r = await apiFetch(`${API}/allowance-types/${at.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ is_taxable: !at.is_taxable }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      setAllowanceTypes(prev => prev.map(x => x.id === at.id ? { ...x, is_taxable: !x.is_taxable } : x));
+    } catch (e) { setAllowanceError(String(e)); }
+    finally { setSavingId(null); }
+  }
+
+  async function saveEditAllowance(id: number) {
+    setSavingId(id);
+    try {
+      const r = await apiFetch(`${API}/allowance-types/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          label: editForm.label,
+          category: editForm.category,
+          is_taxable: editForm.is_taxable,
+          de_minimis_monthly_limit: editForm.de_minimis_monthly_limit ? parseFloat(String(editForm.de_minimis_monthly_limit)) : null,
+          bir_basis: editForm.bir_basis || null,
+        }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const updated = await r.json() as AllowanceType;
+      setAllowanceTypes(prev => prev.map(x => x.id === id ? updated : x));
+      setEditingAllowance(null);
+    } catch (e) { setAllowanceError(String(e)); }
+    finally { setSavingId(null); }
+  }
+
+  async function createAllowanceType() {
+    setSavingId(-1);
+    try {
+      const r = await apiFetch(`${API}/allowance-types`, {
+        method: "POST",
+        body: JSON.stringify({
+          ...newForm,
+          de_minimis_monthly_limit: newForm.de_minimis_monthly_limit ? parseFloat(newForm.de_minimis_monthly_limit) : null,
+        }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const created = await r.json() as AllowanceType;
+      setAllowanceTypes(prev => [...prev, created]);
+      setAddingNew(false);
+      setNewForm({ code: "", label: "", category: "other", is_taxable: true, de_minimis_monthly_limit: "", bir_basis: "" });
+    } catch (e) { setAllowanceError(String(e)); }
+    finally { setSavingId(null); }
+  }
+
   async function handleSssUpload() {
     if (!sssPreview || !sssEffectiveDate) return;
     setSssUploading(true); setSssUploadMsg("");
@@ -215,6 +365,7 @@ export default function GovTablesPage() {
     { id: "philhealth", label: "PhilHealth" },
     { id: "pagibig",    label: "Pag-IBIG" },
     { id: "bir",        label: "BIR / TRAIN" },
+    { id: "allowances", label: "Allowance Types" },
   ];
 
   return (
@@ -497,8 +648,14 @@ export default function GovTablesPage() {
             {/* ── BIR tab ────────────────────────────────────────────────── */}
             {activeTab === "bir" && (
               <div className={GLASS_CARD + " overflow-hidden"}>
-                <div className="border-b border-white/10 px-4 py-3">
+                <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
                   <p className="text-xs text-slate-400">BIR Withholding Tax — TRAIN Law annual brackets; annualized monthly compensation method</p>
+                  <button
+                    onClick={() => { setBirModal(true); setBirPreview(null); setBirCsvText(""); setBirParsError(""); setBirUploadMsg(""); }}
+                    className="flex items-center gap-1.5 rounded-lg bg-violet-600/20 border border-violet-500/30 px-3 py-1.5 text-xs text-violet-300 hover:bg-violet-600/30 transition-colors"
+                  >
+                    <Upload size={12} /> Update Brackets
+                  </button>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -533,12 +690,319 @@ export default function GovTablesPage() {
           </>
         )}
 
+            {/* ── Allowance Types tab ────────────────────────────────────── */}
+            {activeTab === "allowances" && (
+              <div className={GLASS_CARD + " overflow-hidden"}>
+                <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-white flex items-center gap-2"><Tag size={15} className="text-violet-400" /> Allowance Taxability Classification</p>
+                    <p className="text-xs text-slate-400 mt-0.5">BIR / TRAIN Law — define which allowances are taxable vs non-taxable (de minimis)</p>
+                  </div>
+                  <button
+                    onClick={() => setAddingNew(true)}
+                    className="flex items-center gap-1.5 rounded-lg bg-violet-600/20 border border-violet-500/30 px-3 py-1.5 text-xs text-violet-300 hover:bg-violet-600/30 transition-colors"
+                  >
+                    <Plus size={12} /> Add Type
+                  </button>
+                </div>
+
+                {allowanceError && (
+                  <div className="flex items-center gap-2 m-4 rounded-lg border border-red-500/20 bg-red-900/20 p-3 text-xs text-red-300">
+                    <AlertCircle size={13} /> {allowanceError}
+                  </div>
+                )}
+
+                {allowanceLoading ? (
+                  <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-violet-400" /></div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm" style={{ minWidth: "900px" }}>
+                      <thead>
+                        <tr className="border-b border-white/10">
+                          <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Code</th>
+                          <th className={TABLE_HEADER + " px-3 py-3 text-left"}>Label</th>
+                          <th className={TABLE_HEADER + " px-3 py-3 text-left"}>Category</th>
+                          <th className={TABLE_HEADER + " px-3 py-3 text-center"}>Taxable</th>
+                          <th className={TABLE_HEADER + " px-3 py-3 text-right"}>De Minimis Monthly Limit</th>
+                          <th className={TABLE_HEADER + " px-3 py-3 text-left"}>BIR Basis</th>
+                          <th className={TABLE_HEADER + " px-3 py-3 text-center"}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {/* Add new row */}
+                        {addingNew && (
+                          <tr className="border-b border-violet-500/20 bg-violet-900/10">
+                            <td className="px-4 py-2">
+                              <input value={newForm.code} onChange={e => setNewForm(f => ({ ...f, code: e.target.value }))}
+                                placeholder="RICE_SUBSIDY" className="w-full rounded bg-white/10 px-2 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-500" />
+                            </td>
+                            <td className="px-3 py-2">
+                              <input value={newForm.label} onChange={e => setNewForm(f => ({ ...f, label: e.target.value }))}
+                                placeholder="Label" className="w-full rounded bg-white/10 px-2 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-500" />
+                            </td>
+                            <td className="px-3 py-2">
+                              <select value={newForm.category} onChange={e => setNewForm(f => ({ ...f, category: e.target.value }))}
+                                className="rounded bg-white/10 px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-violet-500">
+                                <option value="de_minimis">de_minimis</option>
+                                <option value="regular">regular</option>
+                                <option value="fringe">fringe</option>
+                                <option value="other">other</option>
+                              </select>
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <button onClick={() => setNewForm(f => ({ ...f, is_taxable: !f.is_taxable }))}
+                                className={newForm.is_taxable ? "text-red-400 hover:text-red-300" : "text-emerald-400 hover:text-emerald-300"}>
+                                {newForm.is_taxable ? <ToggleRight size={22} /> : <ToggleLeft size={22} />}
+                              </button>
+                            </td>
+                            <td className="px-3 py-2 text-right">
+                              <input value={newForm.de_minimis_monthly_limit} onChange={e => setNewForm(f => ({ ...f, de_minimis_monthly_limit: e.target.value }))}
+                                placeholder="—" className="w-24 rounded bg-white/10 px-2 py-1 text-xs text-white text-right placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-500" />
+                            </td>
+                            <td className="px-3 py-2">
+                              <input value={newForm.bir_basis} onChange={e => setNewForm(f => ({ ...f, bir_basis: e.target.value }))}
+                                placeholder="Legal reference" className="w-full rounded bg-white/10 px-2 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-violet-500" />
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <button onClick={createAllowanceType} disabled={savingId === -1 || !newForm.code || !newForm.label}
+                                  className="rounded-lg bg-violet-600 px-2.5 py-1 text-xs text-white hover:bg-violet-500 disabled:opacity-40 flex items-center gap-1">
+                                  {savingId === -1 ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />} Save
+                                </button>
+                                <button onClick={() => setAddingNew(false)} className="rounded-lg border border-white/10 px-2 py-1 text-xs text-slate-400 hover:text-white">Cancel</button>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+
+                        {allowanceTypes.map(at => (
+                          <tr key={at.id} className={TABLE_ROW + (at.is_active ? "" : " opacity-40")}>
+                            {editingAllowance === at.id ? (
+                              <>
+                                <td className="px-4 py-2 font-mono text-xs text-slate-400">{at.code}</td>
+                                <td className="px-3 py-2">
+                                  <input value={editForm.label ?? ""} onChange={e => setEditForm(f => ({ ...f, label: e.target.value }))}
+                                    className="w-full rounded bg-white/10 px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-violet-500" />
+                                </td>
+                                <td className="px-3 py-2">
+                                  <select value={editForm.category ?? "other"} onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}
+                                    className="rounded bg-white/10 px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-violet-500">
+                                    <option value="de_minimis">de_minimis</option>
+                                    <option value="regular">regular</option>
+                                    <option value="fringe">fringe</option>
+                                    <option value="other">other</option>
+                                  </select>
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  <button onClick={() => setEditForm(f => ({ ...f, is_taxable: !f.is_taxable }))}
+                                    className={editForm.is_taxable ? "text-red-400" : "text-emerald-400"}>
+                                    {editForm.is_taxable ? <ToggleRight size={22} /> : <ToggleLeft size={22} />}
+                                  </button>
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <input value={editForm.de_minimis_monthly_limit ?? ""} onChange={e => setEditForm(f => ({ ...f, de_minimis_monthly_limit: e.target.value as never }))}
+                                    className="w-24 rounded bg-white/10 px-2 py-1 text-xs text-white text-right focus:outline-none focus:ring-1 focus:ring-violet-500" />
+                                </td>
+                                <td className="px-3 py-2">
+                                  <input value={editForm.bir_basis ?? ""} onChange={e => setEditForm(f => ({ ...f, bir_basis: e.target.value }))}
+                                    className="w-full rounded bg-white/10 px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-violet-500" />
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  <div className="flex items-center justify-center gap-2">
+                                    <button onClick={() => saveEditAllowance(at.id)} disabled={savingId === at.id}
+                                      className="rounded-lg bg-violet-600 px-2.5 py-1 text-xs text-white hover:bg-violet-500 disabled:opacity-40 flex items-center gap-1">
+                                      {savingId === at.id ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />} Save
+                                    </button>
+                                    <button onClick={() => setEditingAllowance(null)} className="rounded-lg border border-white/10 px-2 py-1 text-xs text-slate-400 hover:text-white">Cancel</button>
+                                  </div>
+                                </td>
+                              </>
+                            ) : (
+                              <>
+                                <td className={TABLE_CELL + " px-4 py-2.5 font-mono text-xs text-slate-400"}>{at.code}</td>
+                                <td className={TABLE_CELL + " px-3 py-2.5 font-medium text-white"}>{at.label}</td>
+                                <td className="px-3 py-2.5">
+                                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium border ${
+                                    at.category === "de_minimis"
+                                      ? "bg-emerald-900/40 text-emerald-300 border-emerald-500/30"
+                                      : at.category === "fringe"
+                                      ? "bg-amber-900/40 text-amber-300 border-amber-500/30"
+                                      : "bg-slate-700 text-slate-400 border-slate-600"
+                                  }`}>
+                                    {at.category}
+                                  </span>
+                                </td>
+                                <td className="px-3 py-2.5 text-center">
+                                  <button
+                                    onClick={() => toggleTaxable(at)}
+                                    disabled={savingId === at.id}
+                                    title={at.is_taxable ? "Click to mark non-taxable" : "Click to mark taxable"}
+                                    className={`transition-colors ${at.is_taxable ? "text-red-400 hover:text-red-300" : "text-emerald-400 hover:text-emerald-300"} ${savingId === at.id ? "opacity-40" : ""}`}
+                                  >
+                                    {savingId === at.id
+                                      ? <Loader2 size={20} className="animate-spin" />
+                                      : at.is_taxable
+                                      ? <span className="flex items-center gap-1 text-xs"><ToggleRight size={20} /><span className="text-red-400">Taxable</span></span>
+                                      : <span className="flex items-center gap-1 text-xs"><ToggleLeft size={20} /><span className="text-emerald-400">Non-taxable</span></span>
+                                    }
+                                  </button>
+                                </td>
+                                <td className={TABLE_CELL + " px-3 py-2.5 text-right tabular-nums"}>
+                                  {at.de_minimis_monthly_limit
+                                    ? <span className="text-emerald-300">{php(at.de_minimis_monthly_limit)}<span className="text-slate-500 text-xs">/mo</span></span>
+                                    : <span className="text-slate-600">—</span>}
+                                </td>
+                                <td className={TABLE_CELL + " px-3 py-2.5 text-xs text-slate-500 max-w-xs"}>{at.bir_basis ?? "—"}</td>
+                                <td className="px-3 py-2.5 text-center">
+                                  <button
+                                    onClick={() => { setEditingAllowance(at.id); setEditForm({ ...at }); }}
+                                    className="rounded-lg border border-white/10 p-1.5 text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                                  >
+                                    <Pencil size={12} />
+                                  </button>
+                                </td>
+                              </>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* De minimis footnote */}
+                <div className="border-t border-white/10 px-4 py-3">
+                  <p className="text-xs text-slate-500">
+                    <span className="text-emerald-400 font-medium">Non-taxable</span> items are excluded from BIR taxable income. De minimis limits follow BIR RR 11-2018.
+                    Click the toggle to change taxability · Click <Pencil size={10} className="inline" /> to edit details.
+                  </p>
+                </div>
+              </div>
+            )}
+
         {/* Footer nav */}
         <div className="flex justify-between text-xs text-slate-500">
           <Link href="/admin/payroll/manila" className="hover:text-slate-300">← Back to Manila Payroll</Link>
-          <span>SSS table editable via Update Table button · other tables: contact system admin</span>
+          <span>SSS &amp; BIR brackets editable via Update buttons · Allowance Types: inline edit</span>
         </div>
       </div>
+
+      {/* ── BIR Upload Modal ────────────────────────────────────────── */}
+      {birModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-slate-900 shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <FileSpreadsheet size={20} className="text-violet-400" />
+                <div>
+                  <h2 className="text-base font-semibold text-white">Update BIR Tax Brackets</h2>
+                  <p className="text-xs text-slate-400 mt-0.5">Paste bracket data from the BIR circular (TRAIN Law / RMC)</p>
+                </div>
+              </div>
+              <button onClick={() => setBirModal(false)} className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white transition-colors"><X size={18} /></button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-4">
+              <div className="rounded-xl border border-blue-500/20 bg-blue-900/10 p-3 text-xs text-blue-300 leading-relaxed">
+                <p className="font-semibold mb-1">CSV Format (tab or comma separated):</p>
+                <code className="block text-slate-300 font-mono">annual_from, annual_to, base_tax, excess_rate_pct, excess_over</code>
+                <p className="mt-1.5 text-slate-400">Example (TRAIN Law brackets):</p>
+                <code className="block text-slate-300 font-mono whitespace-pre">{"0, 250000, 0, 0, 0\n250001, 400000, 0, 15, 250000\n400001, 800000, 22500, 20, 400000\n800001, 2000000, 102500, 25, 800000\n2000001, 8000000, 402500, 30, 2000000\n8000001, , 2202500, 35, 8000000"}</code>
+                <p className="mt-1.5 text-slate-500">Leave annual_to blank for the top bracket. excess_rate_pct is a percentage (e.g. 15 = 15%).</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Effective Date <span className="text-red-400">*</span></label>
+                  <input type="date" value={birEffectiveDate} onChange={e => setBirEffectiveDate(e.target.value)}
+                    className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-violet-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Source Version</label>
+                  <input type="text" value={birSourceVersion} onChange={e => setBirSourceVersion(e.target.value)}
+                    placeholder="TRAIN RR8-2018"
+                    className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-violet-500 focus:outline-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">CSV Data</label>
+                <textarea value={birCsvText} onChange={e => { setBirCsvText(e.target.value); setBirPreview(null); setBirParsError(""); }}
+                  rows={8} placeholder={"0, 250000, 0, 0, 0\n250001, 400000, 0, 15, 250000\n..."}
+                  className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300 font-mono placeholder-slate-700 focus:border-violet-500 focus:outline-none resize-none" />
+              </div>
+
+              {birParsError && (
+                <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-900/20 p-3 text-xs text-red-300">
+                  <AlertCircle size={13} /> {birParsError}
+                </div>
+              )}
+
+              {birPreview && (
+                <div>
+                  <p className="text-xs text-emerald-400 mb-2 flex items-center gap-1.5">
+                    <CheckCircle2 size={13} /> {birPreview.length} brackets parsed — review before uploading
+                  </p>
+                  <div className="overflow-x-auto rounded-xl border border-white/10">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-white/10 bg-white/5">
+                          <th className="px-3 py-2 text-right text-slate-400">Annual From</th>
+                          <th className="px-3 py-2 text-right text-slate-400">Annual To</th>
+                          <th className="px-3 py-2 text-right text-slate-400">Base Tax</th>
+                          <th className="px-3 py-2 text-right text-slate-400">Rate %</th>
+                          <th className="px-3 py-2 text-right text-slate-400">Excess Over</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {birPreview.map((r, i) => (
+                          <tr key={i} className="border-b border-white/5">
+                            <td className="px-3 py-1.5 text-right tabular-nums">{php(r.annual_from)}</td>
+                            <td className="px-3 py-1.5 text-right tabular-nums">{r.annual_to ? php(r.annual_to) : <span className="text-slate-600">—</span>}</td>
+                            <td className="px-3 py-1.5 text-right tabular-nums text-violet-300">{php(r.base_tax)}</td>
+                            <td className="px-3 py-1.5 text-right tabular-nums font-semibold">{parseFloat(r.excess_rate_pct).toFixed(1)}%</td>
+                            <td className="px-3 py-1.5 text-right tabular-nums">{php(r.excess_over)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {birUploadMsg && (
+                <div className={`flex items-center gap-2 rounded-lg border p-3 text-xs ${
+                  birUploadMsg.startsWith("✓") ? "border-emerald-500/20 bg-emerald-900/20 text-emerald-300" : "border-red-500/20 bg-red-900/20 text-red-300"
+                }`}>
+                  {birUploadMsg.startsWith("✓") ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
+                  {birUploadMsg}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between border-t border-white/10 px-6 py-4 gap-3">
+              <p className="text-xs text-slate-500">Existing brackets for the selected effective date will be deactivated and replaced.</p>
+              <div className="flex gap-2 shrink-0">
+                {!birPreview ? (
+                  <button onClick={handleBirParsePreview} disabled={!birCsvText.trim()}
+                    className="flex items-center gap-1.5 rounded-lg bg-slate-700 px-4 py-2 text-sm text-white hover:bg-slate-600 disabled:opacity-40 transition-colors">
+                    Preview
+                  </button>
+                ) : (
+                  <button onClick={handleBirUpload} disabled={birUploading}
+                    className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-4 py-2 text-sm text-white hover:bg-violet-500 disabled:opacity-40 transition-colors">
+                    {birUploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                    {birUploading ? "Uploading…" : "Upload & Replace"}
+                  </button>
+                )}
+                {birPreview && (
+                  <button onClick={() => { setBirPreview(null); setBirParsError(""); }} className="rounded-lg border border-white/10 px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors">Edit</button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── SSS Upload Modal ────────────────────────────────────────── */}
       {sssModal && (
