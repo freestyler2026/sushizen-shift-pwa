@@ -7,7 +7,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getAuth } from "@/lib/auth";
+import { getAuth, canAccessPayrollAdmin } from "@/lib/auth";
 import { GLASS_CARD, PRIMARY_BUTTON } from "@/lib/ui-tokens";
 
 const API = "/api/admin/manila-payroll";
@@ -78,11 +78,12 @@ export default function ManilaPayrollPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  // Auth guard
+  // Auth guard — allow ADMIN, HQ, HR_MANAGER, or anyone with payroll admin permission
   useEffect(() => {
     const auth = getAuth();
     const role = auth?.role ?? "";
-    if (!auth || (role !== "ADMIN" && role !== "HQ")) {
+    const ok = role === "ADMIN" || role === "HQ" || role === "HR_MANAGER" || canAccessPayrollAdmin(auth);
+    if (!auth || !ok) {
       router.replace("/week");
     }
   }, [router]);

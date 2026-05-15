@@ -8,7 +8,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getAuth } from "@/lib/auth";
+import { getAuth, canAccessPayrollAdmin } from "@/lib/auth";
 
 const API = "/api/admin/payroll";
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
@@ -311,12 +311,18 @@ export default function PayrollPage() {
   const role = auth?.role ?? "";
 
   useEffect(() => {
-    const ok = role === "HQ" || role === "ADMIN" || ["MANAGEMENT", "MANILA_MANAGEMENT", "HR_MANAGER"].includes(role);
+    const ok = role === "HQ" || role === "ADMIN" || canAccessPayrollAdmin(auth) || ["MANAGEMENT", "MANILA_MANAGEMENT", "HR_MANAGER"].includes(role);
     if (!ok) router.replace("/week");
-  }, [role, router]);
+  }, [role, auth, router]);
+
+  // cityLock="" = all cities, "dubai" = Dubai-only, "manila" = Manila-only
+  const cityLock = auth?.cityLock ?? "";
 
   const [city, setCity] = useState<"dubai" | "manila">(() => {
     const a = getAuth();
+    const lock = a?.cityLock ?? "";
+    if (lock === "dubai") return "dubai";
+    if (lock === "manila") return "manila";
     return (a as { city?: string } | null)?.city?.toLowerCase() === "dubai" ? "dubai" : "manila";
   });
   const [tab, setTab] = useState<Tab>("table");
@@ -572,7 +578,7 @@ export default function PayrollPage() {
           <h1 className="text-lg font-bold text-gray-900">Payroll</h1>
           {/* City toggle */}
           <div className="flex rounded-lg overflow-hidden border border-gray-200 bg-gray-100">
-            {(["dubai","manila"] as const).map(c => (
+            {(["dubai","manila"] as const).filter(c => !cityLock || cityLock === c).map(c => (
               <button key={c} onClick={() => setCity(c)}
                 className={`px-4 py-1.5 text-sm font-medium transition ${
                   city === c
