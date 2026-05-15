@@ -451,18 +451,20 @@ type ForecastSettings = {
   anchor_month: number;
 };
 
-// Helper: "YYYY-MM" string ↔ YYYYMM integer
+// Helper: "YYYY-MM" string ↔ YYYY.MM float
+// Stored as YYYY.MM (e.g. 2026.04) to fit in DB NUMERIC(8,4). 0 = disabled.
 function anchorMonthToStr(v: number): string {
-  if (!v || v < 100001) return "";
-  const y = Math.floor(v / 100);
-  const m = v % 100;
-  return `${y}-${String(m).padStart(2, "0")}`;
+  if (!v || v < 2000) return "";
+  const year = Math.floor(v);
+  const month = Math.round((v - year) * 100);
+  if (month < 1 || month > 12) return "";
+  return `${year}-${String(month).padStart(2, "0")}`;
 }
 function strToAnchorMonth(s: string): number {
   if (!s) return 0;
   const [y, m] = s.split("-").map(Number);
-  if (!y || !m) return 0;
-  return y * 100 + m;
+  if (!y || !m || m < 1 || m > 12) return 0;
+  return parseFloat(`${y}.${String(m).padStart(2, "0")}`);
 }
 
 const FORECAST_DEFAULTS_DUBAI: ForecastSettings  = { holiday_multiplier: 1.35, holiday_eve_multiplier: 1.20, weekend_multiplier: 1.25, weight_year_0: 0.80, weight_year_1: 0.20, weight_year_2: 0.00, anchor_month: 0 };
