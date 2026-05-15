@@ -1154,11 +1154,15 @@ export default function AdminDraftPage() {
   const [shiftMaster, setShiftMaster] = useState<ShiftMasterData | null>(null);
   const [violations, setViolations] = useState<ShiftViolation[]>([]);
 
-  // Export state
+  // Export state (manual toolbar on Schedule View)
   const [sheetExportLoading, setSheetExportLoading] = useState(false);
   const [sheetExportResult, setSheetExportResult] = useState<{ ok: boolean; url?: string } | null>(null);
   const [sheetExportError, setSheetExportError] = useState("");
   const [xlsxExporting, setXlsxExporting] = useState(false);
+
+  // Auto-export state: triggered right after Confirm Generate
+  const [autoExportBusy, setAutoExportBusy] = useState(false);
+  const [autoExportResults, setAutoExportResults] = useState<Record<string, string>>({}); // branch_code → sheet url
 
   const canOperate = myRole === "HQ" || myRole === "ADMIN";
   const targetMonthDates = useMemo(() => monthDates(targetMonth), [targetMonth]);
@@ -1430,6 +1434,40 @@ export default function AdminDraftPage() {
             .map((item) => `${item.branch_code}: ${item.detail}`)
             .join("\n")
         );
+      }
+
+      // ── Auto-export draft to Google Sheets (runs in background) ──────────
+      if (canOperate && approverName.trim() && pin.trim()) {
+        setAutoExportResults({});
+        setAutoExportBusy(true);
+        void (async () => {
+          const results: Record<string, string> = {};
+          for (const v of nextVersions) {
+            try {
+              const prep = await apiPost<ExportPrepareResult>(`/api/admin/export/month/prepare`, {
+                city: prepared.city,
+                branch_code: v.branch_code,
+                month: prepared.target_month,
+                mode: "DRAFT",
+                approver_name: approverName,
+                pin,
+              });
+              const conf = await apiPost<ExportConfirmResult>(`/api/admin/export/month/confirm`, {
+                confirm_token: prep.confirm_token,
+                approver_name: approverName,
+                pin,
+              });
+              if (conf.ok) {
+                results[v.branch_code] = conf.main_url || conf.sheet_url || "";
+              }
+              await sleep(300); // avoid Sheets API quota spikes
+            } catch {
+              // ignore per-branch export errors silently
+            }
+          }
+          setAutoExportResults(results);
+          setAutoExportBusy(false);
+        })();
       }
     } catch (e: any) {
       setError(String(e?.message || e || "Failed to generate monthly draft"));
@@ -2397,6 +2435,41 @@ export default function AdminDraftPage() {
               failed_branches: {generateResult.failed_branches.map((item) => item.branch_code).join(", ")}
             </div>
           ) : null}
+
+          {/* Auto-export status banner */}
+          {(autoExportBusy || Object.keys(autoExportResults).length > 0) && (
+            <div className={`mt-4 rounded-xl border px-4 py-3 ${autoExportBusy ? "border-sky-500/30 bg-sky-500/10" : "border-emerald-500/30 bg-emerald-500/10"}`}>
+              <div className="flex items-center gap-2 mb-1">
+                {autoExportBusy ? (
+                  <RefreshCw className="h-3.5 w-3.5 text-sky-400 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                )}
+                <span className={`text-xs font-semibold ${autoExportBusy ? "text-sky-300" : "text-emerald-300"}`}>
+                  {autoExportBusy ? "Exporting draft to Google Sheets…" : "Draft exported to Google Sheets"}
+                </span>
+              </div>
+              {!autoExportBusy && Object.keys(autoExportResults).length > 0 && (
+                <div className="flex flex-wrap gap-3 mt-2">
+                  {Object.entries(autoExportResults).map(([bc, url]) =>
+                    url ? (
+                      <a
+                        key={bc}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-xs text-emerald-400 underline underline-offset-2 hover:text-emerald-300"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        {labelOf(bc as BranchCode)}
+                      </a>
+                    ) : null
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
             {generateResult.versions.map((item) => {
               const coverage = typeof item.summary?.demand_coverage_ratio === "number" ? item.summary.demand_coverage_ratio : null;
