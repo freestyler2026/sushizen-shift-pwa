@@ -1256,33 +1256,50 @@ ${pages}
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
-          <select
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-            value={city}
-            onChange={(e) => setCity(e.target.value as City)}
-          >
-            <option value="dubai">Dubai</option>
-            <option value="manila">Manila</option>
-          </select>
-          <input
-            type="date"
-            value={businessDate}
-            onChange={(e) => setBusinessDate(e.target.value)}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-          />
-          <input
-            list="inventory-production-staff-list"
-            value={creatorName}
-            onChange={(e) => setCreatorName(e.target.value)}
-            placeholder="Select responsible staff"
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-          />
-          <input
-            type="month"
-            value={historyMonth}
-            onChange={(e) => setHistoryMonth(e.target.value)}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-          />
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">City</label>
+            <select
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              value={city}
+              onChange={(e) => {
+                const next = e.target.value as City;
+                if (next === city) return;
+                if (draftOutputs.length > 0 && !window.confirm("Switching city will clear your current draft. Continue?")) return;
+                setCity(next);
+              }}
+            >
+              <option value="dubai">Dubai</option>
+              <option value="manila">Manila</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Date</label>
+            <input
+              type="date"
+              value={businessDate}
+              onChange={(e) => setBusinessDate(e.target.value)}
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Responsible Staff</label>
+            <input
+              list="inventory-production-staff-list"
+              value={creatorName}
+              onChange={(e) => setCreatorName(e.target.value)}
+              placeholder="Select or type name"
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">History Month</label>
+            <input
+              type="month"
+              value={historyMonth}
+              onChange={(e) => setHistoryMonth(e.target.value)}
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            />
+          </div>
         </div>
         <datalist id="inventory-production-staff-list">
           {staffOptions.map((name) => (
@@ -1340,8 +1357,8 @@ ${pages}
           </button>
         </div>
 
-        {error ? <div className="mt-3 text-sm text-rose-300">{error}</div> : null}
-        {success ? <div className="mt-3 text-sm text-emerald-300">{success}</div> : null}
+        {error ? <div className="mt-3 rounded-xl bg-rose-950/30 px-3 py-2 text-sm text-rose-300">{error}</div> : null}
+        {success ? <div className="mt-3 rounded-xl bg-emerald-950/30 px-3 py-2 text-sm text-emerald-300">{success}</div> : null}
       </section>
 
       <InventoryRegistrationHelp />
@@ -1364,11 +1381,27 @@ ${pages}
           </div>
 
           {productOptions.length === 0 ? (
-            <div className="py-4 text-sm text-neutral-500">No production items registered.</div>
-          ) : productOptions.filter((p) => ckProductIds.size === 0 || ckProductIds.has(p.id)).length === 0 ? (
-            <div className="py-4 text-sm text-neutral-500">No CK production recipes defined yet. Add recipes in the Build tab to see items here.</div>
+            <div className="py-4 text-sm text-neutral-500">No production items registered. Please add products in the Ingredients / Products module first.</div>
           ) : (
             <>
+              {/* When no recipes defined yet, show a prominent guide */}
+              {ckProductIds.size === 0 && (
+                <div className="mb-4 rounded-xl border border-amber-800/50 bg-amber-950/20 px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-semibold text-amber-200">No production recipes defined yet</div>
+                      <div className="mt-0.5 text-xs text-neutral-400">All registered products are shown below. Set up ingredient recipes in the Build tab to enable automatic ingredient deduction when closing a production.</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("BUILD")}
+                      className="shrink-0 rounded-lg border border-amber-700 bg-amber-950/30 px-3 py-1.5 text-xs font-medium text-amber-200 hover:bg-amber-900/30"
+                    >
+                      Go to Build tab →
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="overflow-hidden rounded-xl border border-neutral-800">
                 {/* Header */}
                 <div className="grid grid-cols-[1fr_140px_110px] border-b border-neutral-800 bg-black/20 px-4 py-2 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
@@ -1376,9 +1409,8 @@ ${pages}
                   <div className="text-right">Qty Produced</div>
                   <div className="pl-2">Unit</div>
                 </div>
-                {/* Product rows — filtered to CK-produced items (those with a production recipe) */}
+                {/* All product rows (recipe items highlighted; no-recipe items shown with indicator) */}
                 {productOptions
-                  .filter((p) => ckProductIds.size === 0 || ckProductIds.has(p.id))
                   .filter((p) =>
                     !stockSearch.trim() ||
                     p.name.toLowerCase().includes(stockSearch.toLowerCase()) ||
@@ -1387,6 +1419,7 @@ ${pages}
                   .map((product) => {
                     const qty = stockQtys[product.id] || "";
                     const hasQty = parseFloat(qty) > 0;
+                    const hasRecipe = ckProductIds.size > 0 && ckProductIds.has(product.id);
                     const unit = stockUnits[product.id] || normalizeProductionOutputUnit(product.storage_unit || "pcs");
                     return (
                       <div
@@ -1398,7 +1431,12 @@ ${pages}
                       >
                         <div>
                           <div className={`text-sm font-medium ${hasQty ? "text-sky-200" : "text-neutral-300"}`}>{product.name}</div>
-                          {product.sku ? <div className="text-[11px] text-neutral-500">{product.sku}</div> : null}
+                          <div className="flex items-center gap-2">
+                            {product.sku ? <span className="text-[11px] text-neutral-500">{product.sku}</span> : null}
+                            {ckProductIds.size > 0 && !hasRecipe && (
+                              <span className="text-[10px] text-neutral-600 italic">No recipe</span>
+                            )}
+                          </div>
                         </div>
                         <div className="pr-2 text-right">
                           <input

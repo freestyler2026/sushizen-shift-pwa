@@ -328,55 +328,67 @@ export default function InventorySpotChecksPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="text-lg font-semibold text-neutral-100">Quick Spot Check</div>
-            <div className="mt-1 text-sm text-neutral-400">Spot-check selected items at any time — enter counted quantities and save a draft to close later.</div>
+            <div className="mt-1 text-sm text-neutral-400">Count selected items at any time, independent of the monthly Full Count cycle. Pick items from the library, enter quantities, save a draft, then close to post variances.</div>
           </div>
           {/* City toggle */}
           <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-1">
-            <button
-              type="button"
-              onClick={() => setCity("manila")}
-              className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${city === "manila" ? "bg-violet-600 text-white shadow" : "text-neutral-400 hover:text-white"}`}
-            >
-              🇵🇭 Manila
-            </button>
-            <button
-              type="button"
-              onClick={() => setCity("dubai")}
-              className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${city === "dubai" ? "bg-violet-600 text-white shadow" : "text-neutral-400 hover:text-white"}`}
-            >
-              🇦🇪 Dubai
-            </button>
+            {(["manila", "dubai"] as const).map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => {
+                  if (c === city) return;
+                  if (draftLines.length > 0 && !window.confirm("Switching city will clear your current draft. Continue?")) return;
+                  setCity(c);
+                }}
+                className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${city === c ? "bg-violet-600 text-white shadow" : "text-neutral-400 hover:text-white"}`}
+              >
+                {c === "manila" ? "🇵🇭 Manila" : "🇦🇪 Dubai"}
+              </button>
+            ))}
           </div>
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <select
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
-            value={branchCode}
-            onChange={(e) => setBranchCode(e.target.value)}
-          >
-            {BRANCHES[city].map((branch) => (
-              <option key={branch.code} value={branch.code}>{branch.name}</option>
-            ))}
-          </select>
-          <input
-            type="date"
-            value={businessDate}
-            onChange={(e) => setBusinessDate(e.target.value)}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
-          />
-          <input
-            value={picName}
-            onChange={(e) => setPicName(e.target.value)}
-            placeholder="PIC name"
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
-          />
-          <input
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Notes (optional)"
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
-          />
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Branch</label>
+            <select
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+              value={branchCode}
+              onChange={(e) => setBranchCode(e.target.value)}
+            >
+              {BRANCHES[city].map((branch) => (
+                <option key={branch.code} value={branch.code}>{branch.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Date</label>
+            <input
+              type="date"
+              value={businessDate}
+              onChange={(e) => setBusinessDate(e.target.value)}
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">PIC</label>
+            <input
+              value={picName}
+              onChange={(e) => setPicName(e.target.value)}
+              placeholder="Name"
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Notes</label>
+            <input
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Optional"
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+            />
+          </div>
         </div>
 
         {error ? <div className="mt-3 rounded-lg bg-rose-950/30 px-3 py-2 text-sm text-rose-300">{error}</div> : null}
@@ -408,9 +420,27 @@ export default function InventorySpotChecksPage() {
             </div>
           ) : (
             <div className="mt-3 max-h-[540px] space-y-3 overflow-y-auto pr-1">
-              {groupedItems.map((group) => (
+              {groupedItems.map((group) => {
+                const allInDraft = group.rows.every((item) => draftItemIdSet.has(String(item.id)));
+                const anyNotInDraft = group.rows.some((item) => !draftItemIdSet.has(String(item.id)));
+                return (
                 <div key={group.supplier}>
-                  <div className="mb-1 px-1 text-xs font-semibold text-amber-400/80">{group.supplier}</div>
+                  <div className="mb-1 flex items-center justify-between px-1">
+                    <span className="text-xs font-semibold text-amber-400/80">{group.supplier}</span>
+                    {anyNotInDraft && (
+                      <button
+                        type="button"
+                        onClick={() => group.rows.forEach((item) => appendItemToDraft(item))}
+                        className="rounded px-2 py-0.5 text-[10px] font-medium text-emerald-400 hover:bg-emerald-950/30"
+                        title={`Add all items from ${group.supplier}`}
+                      >
+                        Add All ({group.rows.filter((item) => !draftItemIdSet.has(String(item.id))).length})
+                      </button>
+                    )}
+                    {allInDraft && (
+                      <span className="text-[10px] text-emerald-600">✓ All added</span>
+                    )}
+                  </div>
                   {group.rows.map((item) => {
                     const inDraft = draftItemIdSet.has(String(item.id));
                     return (
@@ -448,7 +478,8 @@ export default function InventorySpotChecksPage() {
                     );
                   })}
                 </div>
-              ))}
+                );
+              })}
               {groupedItems.length === 0 && (
                 <div className="py-6 text-center text-xs text-neutral-500">No items matched your search.</div>
               )}

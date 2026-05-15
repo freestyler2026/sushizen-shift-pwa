@@ -87,7 +87,8 @@ export default function InventoryCountsPage() {
   // Draft UX state
   const [draftSearch, setDraftSearch] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
-  // Template picker — separate from selectedCountSheetId to allow explicit "Load" action
+  const [showDetailColumns, setShowDetailColumns] = useState(false);
+  // Template picker — auto-loads on select
   const [templatePickerId, setTemplatePickerId] = useState("");
   // Inline item editing state
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
@@ -556,33 +557,60 @@ export default function InventoryCountsPage() {
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-6">
-          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" value={city} onChange={(e) => setCity(e.target.value as City)}>
-            <option value="dubai">Dubai</option>
-            <option value="manila">Manila</option>
-          </select>
-          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" value={branchCode} onChange={(e) => setBranchCode(e.target.value)}>
-            {BRANCHES[city].map((branch) => (
-              <option key={branch.code} value={branch.code}>
-                {branch.name}
-              </option>
-            ))}
-          </select>
-          <input type="date" value={businessDate} onChange={(e) => setBusinessDate(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" />
-          <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" value={cycle} onChange={(e) => setCycle(e.target.value)}>
-            <option value="15TH">15th</option>
-            <option value="MONTH_END">Month End</option>
-          </select>
-          <input value={picName} onChange={(e) => setPicName(e.target.value)} placeholder="PIC" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" />
-          <input value={approverName} onChange={(e) => setApproverName(e.target.value)} placeholder="Approver" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" />
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">City</label>
+            <select
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+              value={city}
+              onChange={(e) => {
+                const next = e.target.value as City;
+                if (next === city) return;
+                if (draftLines.length > 0 && !window.confirm("Switching city will clear your current draft. Continue?")) return;
+                setCity(next);
+              }}
+            >
+              <option value="dubai">Dubai</option>
+              <option value="manila">Manila</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Branch</label>
+            <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" value={branchCode} onChange={(e) => setBranchCode(e.target.value)}>
+              {BRANCHES[city].map((branch) => (
+                <option key={branch.code} value={branch.code}>
+                  {branch.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Date</label>
+            <input type="date" value={businessDate} onChange={(e) => setBusinessDate(e.target.value)} className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Cycle</label>
+            <select className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" value={cycle} onChange={(e) => setCycle(e.target.value)}>
+              <option value="15TH">15th</option>
+              <option value="MONTH_END">Month End</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">PIC</label>
+            <input value={picName} onChange={(e) => setPicName(e.target.value)} placeholder="Name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Approver</label>
+            <input value={approverName} onChange={(e) => setApproverName(e.target.value)} placeholder="Name" className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" />
+          </div>
         </div>
-
 
         <div className="mt-3">
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Notes" className="min-h-24 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" />
+          <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Notes</label>
+          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes for this count session" rows={2} className="mt-1 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100" />
         </div>
 
-        {error ? <div className="mt-3 text-sm text-rose-300">{error}</div> : null}
-        {success ? <div className="mt-3 text-sm text-emerald-300">{success}</div> : null}
+        {error ? <div className="mt-3 rounded-xl bg-rose-950/30 px-3 py-2 text-sm text-rose-300">{error}</div> : null}
+        {success ? <div className="mt-3 rounded-xl bg-emerald-950/30 px-3 py-2 text-sm text-emerald-300">{success}</div> : null}
       </section>
 
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
@@ -599,14 +627,25 @@ export default function InventoryCountsPage() {
               </div>
             )}
           </div>
-          {draftLines.length > 0 && (
-            <div className="h-2 w-40 overflow-hidden rounded-full bg-neutral-800">
-              <div
-                className={["h-full rounded-full transition-all", countedLineCount === draftLines.length ? "bg-emerald-500" : "bg-amber-500"].join(" ")}
-                style={{ width: `${draftLines.length ? (countedLineCount / draftLines.length) * 100 : 0}%` }}
-              />
-            </div>
-          )}
+          <div className="flex items-center gap-3 shrink-0">
+            {draftLines.length > 0 && (
+              <div className="h-2 w-40 overflow-hidden rounded-full bg-neutral-800">
+                <div
+                  className={["h-full rounded-full transition-all", countedLineCount === draftLines.length ? "bg-emerald-500" : "bg-amber-500"].join(" ")}
+                  style={{ width: `${draftLines.length ? (countedLineCount / draftLines.length) * 100 : 0}%` }}
+                />
+              </div>
+            )}
+            {draftLines.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowDetailColumns((v) => !v)}
+                className="rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-xs text-neutral-300 hover:bg-neutral-800"
+              >
+                {showDetailColumns ? "Hide Details" : "Show Details"}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* ── Template loader ── */}
@@ -620,28 +659,28 @@ export default function InventoryCountsPage() {
             )}
           </div>
           {countSheetOptions.length > 0 ? (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_140px]">
-              <select
-                value={templatePickerId}
-                onChange={(e) => setTemplatePickerId(e.target.value)}
-                className="rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
-              >
-                <option value="">— Select a template —</option>
-                {countSheetOptions.map((sheet) => (
-                  <option key={sheet.id} value={sheet.id}>
-                    {sheet.name}{sheet.reference ? ` · ${sheet.reference}` : ""}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={handleLoadTemplate}
-                disabled={!templatePickerId || loading}
-                className="rounded-xl border border-violet-700/60 bg-violet-950/30 px-4 py-2 text-sm font-medium text-violet-200 hover:bg-violet-900/30 disabled:opacity-50"
-              >
-                {loading ? "Loading…" : "Load Template"}
-              </button>
-            </div>
+            <select
+              value={templatePickerId}
+              onChange={(e) => {
+                const newId = e.target.value;
+                setTemplatePickerId(newId);
+                if (!newId) return;
+                if (draftLines.length > 0) {
+                  if (!window.confirm("現在のDraft itemsはテンプレートの内容に置き換えられます。続けますか？\n(Current draft items will be replaced by the template. Continue?)")) {
+                    return;
+                  }
+                }
+                setSelectedCountSheetId(newId);
+              }}
+              className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
+            >
+              <option value="">— Select a template to load —</option>
+              {countSheetOptions.map((sheet) => (
+                <option key={sheet.id} value={sheet.id}>
+                  {sheet.name}{sheet.reference ? ` · ${sheet.reference}` : ""}
+                </option>
+              ))}
+            </select>
           ) : (
             <div className="text-xs text-neutral-500">
               No templates available for this branch / cycle.{" "}
@@ -692,7 +731,7 @@ export default function InventoryCountsPage() {
         <div className="mt-4 space-y-3">
           {filteredGroupedDraft.length === 0 && draftLines.length === 0 ? (
             <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-950/30 px-3 py-8 text-center text-sm text-neutral-500">
-              Select a template above and click <span className="font-semibold text-violet-400">Load Template</span>, or add items manually.
+              Select a template above to auto-load items, or add items manually one by one.
             </div>
           ) : filteredGroupedDraft.length === 0 ? (
             <div className="rounded-xl border border-dashed border-neutral-800 bg-neutral-950/30 px-3 py-6 text-center text-xs text-neutral-500">
@@ -739,10 +778,10 @@ export default function InventoryCountsPage() {
                           <th className="px-3 py-2 text-right font-semibold text-neutral-200">Counted</th>
                           <th className="px-3 py-2 text-right">Variance</th>
                           <th className="px-3 py-2 text-right">Assets</th>
-                          <th className="hidden px-3 py-2 text-right md:table-cell">Price</th>
-                          <th className="hidden px-3 py-2 text-left lg:table-cell">Memo</th>
-                          <th className="hidden px-3 py-2 text-left lg:table-cell">Foodics</th>
-                          <th className="hidden px-3 py-2 text-left lg:table-cell">Order Diff</th>
+                          <th className="px-3 py-2 text-left">Memo</th>
+                          {showDetailColumns && <th className="px-3 py-2 text-right">Price</th>}
+                          {showDetailColumns && <th className="px-3 py-2 text-left">Foodics</th>}
+                          {showDetailColumns && <th className="px-3 py-2 text-left">Order Diff</th>}
                           <th className="px-3 py-2 text-right"></th>
                         </tr>
                       </thead>
@@ -800,16 +839,20 @@ export default function InventoryCountsPage() {
                                 {number3(line.variance_qty)}
                               </td>
                               <td className="px-3 py-2 text-right text-neutral-400">{Number(line.asset_value || 0).toFixed(2)}</td>
-                              <td className="hidden px-3 py-2 text-right text-neutral-500 md:table-cell">{Number(line.unit_price || 0).toFixed(2)}</td>
-                              <td className="hidden px-3 py-2 lg:table-cell">
-                                <input value={line.memo} onChange={(e) => updateDraftLine(index, { memo: e.target.value })} className="w-28 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1 text-xs text-neutral-100" />
+                              <td className="px-3 py-2">
+                                <input value={line.memo} onChange={(e) => updateDraftLine(index, { memo: e.target.value })} placeholder="—" className="w-28 rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-xs text-neutral-500 placeholder-neutral-700 hover:border-neutral-700 focus:border-neutral-600 focus:bg-neutral-950 focus:outline-none" />
                               </td>
-                              <td className="hidden px-3 py-2 lg:table-cell">
-                                <input value={line.foodics_data} onChange={(e) => updateDraftLine(index, { foodics_data: e.target.value })} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1 text-xs text-neutral-100" />
-                              </td>
-                              <td className="hidden px-3 py-2 lg:table-cell">
-                                <input value={line.order_difference} onChange={(e) => updateDraftLine(index, { order_difference: e.target.value })} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1 text-xs text-neutral-100" />
-                              </td>
+                              {showDetailColumns && <td className="px-3 py-2 text-right text-neutral-500">{Number(line.unit_price || 0).toFixed(2)}</td>}
+                              {showDetailColumns && (
+                                <td className="px-3 py-2">
+                                  <input value={line.foodics_data} onChange={(e) => updateDraftLine(index, { foodics_data: e.target.value })} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1 text-xs text-neutral-100" />
+                                </td>
+                              )}
+                              {showDetailColumns && (
+                                <td className="px-3 py-2">
+                                  <input value={line.order_difference} onChange={(e) => updateDraftLine(index, { order_difference: e.target.value })} className="w-24 rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-1 text-xs text-neutral-100" />
+                                </td>
+                              )}
                               <td className="px-3 py-2 text-right">
                                 <button type="button" onClick={() => removeDraftLine(index)} className="rounded-lg border border-rose-800/60 bg-rose-950/10 px-2 py-1 text-xs text-rose-400 hover:bg-rose-950/30">
                                   ×

@@ -3,11 +3,9 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { CheckCircle2 } from "lucide-react";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import InventoryTabs from "@/components/InventoryTabs";
 import { canAccessCountTemplatesAdmin, canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
-import { BADGE_SUCCESS } from "@/lib/ui-tokens";
 import { cardVariants, pageVariants, staggerContainerVariants } from "@/lib/motion-tokens";
 import { Spinner } from "@/components/ui/Spinner";
 
@@ -175,8 +173,8 @@ export default function AdminInventoryPage() {
           </div>
           <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/8 to-white/3 p-4 shadow-lg shadow-black/30 backdrop-blur-sm">
             <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-zinc-500">Status</div>
-            <div className={`mt-2 ${BADGE_SUCCESS}`}>
-              <CheckCircle2 className="h-3 w-3" />
+            <div className="mt-2 flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-400 w-fit">
+              <span>✓</span>
               <span>Backend connected</span>
             </div>
             <div className="mt-2 text-sm leading-relaxed text-zinc-400">Inventory APIs, ledger, BOM, and POS staging are prepared.</div>
@@ -222,14 +220,8 @@ export default function AdminInventoryPage() {
         {visibleModules.map((module) => (
           <motion.div key={module.title} variants={cardVariants}>
             <Link href={module.href} className="block rounded-2xl border border-white/10 bg-white/5 p-4 shadow-xl shadow-black/20 backdrop-blur-sm transition-all duration-200 hover:border-white/15 hover:bg-white/8">
-            <div className="flex items-center justify-between gap-3">
               <div className="text-base font-semibold text-white">{module.title}</div>
-              <span className={BADGE_SUCCESS}>
-                <CheckCircle2 className="h-3 w-3" />
-                <span>{module.status}</span>
-              </span>
-            </div>
-            <div className="mt-2 text-sm leading-relaxed text-zinc-400">{module.description}</div>
+              <div className="mt-2 text-sm leading-relaxed text-zinc-400">{module.description}</div>
             </Link>
           </motion.div>
         ))}

@@ -411,43 +411,52 @@ export default function InventoryQuantityAdjustmentsPage() {
         </div>
 
         {/* Settings fields */}
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <select
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-            value={branchCode}
-            onChange={(e) => setBranchCode(e.target.value)}
-          >
-            {BRANCHES[city].map((branch) => (
-              <option key={branch.code} value={branch.code}>{branch.name}</option>
-            ))}
-          </select>
-
-          <input
-            type="date"
-            value={businessDate}
-            onChange={(e) => setBusinessDate(e.target.value)}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-          />
-
-          <select
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-          >
-            <option value="WASTE">Waste</option>
-            <option value="EXPIRED">Expired</option>
-            <option value="LOSS">Loss</option>
-            <option value="DAMAGE">Damage</option>
-            <option value="MANUAL_FIX">Manual Fix</option>
-          </select>
-
-          <input
-            type="text"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Notes (optional)"
-            className="min-w-[200px] flex-1 rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-          />
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Branch</label>
+            <select
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              value={branchCode}
+              onChange={(e) => setBranchCode(e.target.value)}
+            >
+              {BRANCHES[city].map((branch) => (
+                <option key={branch.code} value={branch.code}>{branch.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Date</label>
+            <input
+              type="date"
+              value={businessDate}
+              onChange={(e) => setBusinessDate(e.target.value)}
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Reason</label>
+            <select
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            >
+              <option value="WASTE">Waste</option>
+              <option value="EXPIRED">Expired</option>
+              <option value="LOSS">Loss</option>
+              <option value="DAMAGE">Damage</option>
+              <option value="MANUAL_FIX">Manual Fix</option>
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">Notes</label>
+            <input
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Optional"
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            />
+          </div>
         </div>
 
         {error ? <div className="mt-3 rounded-xl bg-rose-950/30 px-3 py-2 text-sm text-rose-300">{error}</div> : null}
