@@ -447,10 +447,26 @@ type ForecastSettings = {
   weight_year_0: number;
   weight_year_1: number;
   weight_year_2: number;
+  // anchor_month: stored as YYYYMM integer (e.g. 202604). 0 = disabled.
+  anchor_month: number;
 };
 
-const FORECAST_DEFAULTS_DUBAI: ForecastSettings  = { holiday_multiplier: 1.35, holiday_eve_multiplier: 1.20, weekend_multiplier: 1.25, weight_year_0: 0.60, weight_year_1: 0.30, weight_year_2: 0.10 };
-const FORECAST_DEFAULTS_MANILA: ForecastSettings = { holiday_multiplier: 1.35, holiday_eve_multiplier: 1.20, weekend_multiplier: 1.20, weight_year_0: 0.60, weight_year_1: 0.30, weight_year_2: 0.10 };
+// Helper: "YYYY-MM" string ↔ YYYYMM integer
+function anchorMonthToStr(v: number): string {
+  if (!v || v < 100001) return "";
+  const y = Math.floor(v / 100);
+  const m = v % 100;
+  return `${y}-${String(m).padStart(2, "0")}`;
+}
+function strToAnchorMonth(s: string): number {
+  if (!s) return 0;
+  const [y, m] = s.split("-").map(Number);
+  if (!y || !m) return 0;
+  return y * 100 + m;
+}
+
+const FORECAST_DEFAULTS_DUBAI: ForecastSettings  = { holiday_multiplier: 1.35, holiday_eve_multiplier: 1.20, weekend_multiplier: 1.25, weight_year_0: 0.80, weight_year_1: 0.20, weight_year_2: 0.00, anchor_month: 0 };
+const FORECAST_DEFAULTS_MANILA: ForecastSettings = { holiday_multiplier: 1.35, holiday_eve_multiplier: 1.20, weekend_multiplier: 1.20, weight_year_0: 0.80, weight_year_1: 0.20, weight_year_2: 0.00, anchor_month: 0 };
 
 function ForecastSettingsPanel({
   city,
@@ -589,6 +605,36 @@ function ForecastSettingsPanel({
                   const ok = s >= 0.99 && s <= 1.01;
                   return <p className={`mt-2 text-xs ${ok ? "text-neutral-500" : "text-rose-400 font-semibold"}`}>Sum: {pct(s)} {ok ? "✓" : "— must equal 100%"}</p>;
                 })()}
+              </div>
+              {/* Anchor Month Override */}
+              <div>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-neutral-400">Anchor Month Override</p>
+                <p className="mb-2 text-xs text-neutral-500">
+                  When set, this month&apos;s actual hourly order data replaces the &quot;most recent year&quot; reference.
+                  Use this when operating hours changed and a specific month should drive all future drafts.
+                </p>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="month"
+                    value={anchorMonthToStr(vals.anchor_month)}
+                    onChange={(e) => setVals((p) => ({ ...p, anchor_month: strToAnchorMonth(e.target.value) }))}
+                    className={INPUT_CLASS + " text-sm w-40"}
+                  />
+                  {vals.anchor_month > 0 && (
+                    <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
+                      Active: {anchorMonthToStr(vals.anchor_month)}
+                    </span>
+                  )}
+                  {vals.anchor_month !== defaults.anchor_month && (
+                    <button
+                      type="button"
+                      onClick={() => setVals((p) => ({ ...p, anchor_month: defaults.anchor_month }))}
+                      className="text-xs text-neutral-500 hover:text-neutral-300"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-3">
                 <button type="button" onClick={saveSettings} disabled={saving} className={PRIMARY_BUTTON + " text-sm"}>

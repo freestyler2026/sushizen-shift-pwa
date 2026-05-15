@@ -27,10 +27,15 @@ npm run build
 npm run lint
 
 # ✅ Deploy frontend to Vercel — ローカルターミナルから直接実行
-# GitHub連携が有効（2026-05 GitHubアカウント制限解除済み）
-# git push origin main → Vercel が自動ビルド＆デプロイされる
+# ⚠️ git push origin main は SSH/HTTPS ともにパック送信中に切断されることが多い（2026-05 時点）
+# → 代わりに npx vercel --prod で直接デプロイする（確実に動作）
 git add -A && git commit -m "your message"
-git push origin main
+npx vercel --prod
+
+# git push が必要な場合（GitHub履歴を残したいとき）は以下を試す:
+# git push origin main --no-thin  または
+# GIT_SSH_COMMAND="ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=10" git push origin main
+# それでも詰まる場合は npx vercel --prod にフォールバック
 
 # Deploy backend to Heroku — ローカルターミナルから実行（Cowork サンドボックス不可）
 cd ../sushizen_shift_app_clean
