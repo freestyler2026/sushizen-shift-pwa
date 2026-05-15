@@ -1162,7 +1162,9 @@ export default function AdminDraftPage() {
 
   // Auto-export state: triggered right after Confirm Generate
   const [autoExportBusy, setAutoExportBusy] = useState(false);
-  const [autoExportResults, setAutoExportResults] = useState<Record<string, string>>({}); // branch_code → sheet url
+  const [autoExportResults, setAutoExportResults] = useState<Record<string, string>>({}); // branch_code → sheet url (success)
+  const [autoExportErrors, setAutoExportErrors] = useState<Record<string, string>>({}); // branch_code → error msg
+  const [autoExportRan, setAutoExportRan] = useState(false); // true once auto-export was triggered
 
   const canOperate = myRole === "HQ" || myRole === "ADMIN";
   const targetMonthDates = useMemo(() => monthDates(targetMonth), [targetMonth]);
@@ -1271,6 +1273,10 @@ export default function AdminDraftPage() {
   useEffect(() => {
     setSheetExportResult(null);
     setSheetExportError("");
+    setAutoExportRan(false);
+    setAutoExportResults({});
+    setAutoExportErrors({});
+    setAutoExportBusy(false);
   }, [activeBranchCode]);
 
   useEffect(() => {
@@ -1439,33 +1445,43 @@ export default function AdminDraftPage() {
       // ── Auto-export draft to Google Sheets (runs in background) ──────────
       if (canOperate && approverName.trim() && pin.trim()) {
         setAutoExportResults({});
+        setAutoExportErrors({});
+        setAutoExportRan(true);
         setAutoExportBusy(true);
+        const _city = prepared.city;
+        const _month = prepared.target_month;
+        const _approver = approverName;
+        const _pin = pin;
         void (async () => {
           const results: Record<string, string> = {};
+          const errors: Record<string, string> = {};
           for (const v of nextVersions) {
             try {
               const prep = await apiPost<ExportPrepareResult>(`/api/admin/export/month/prepare`, {
-                city: prepared.city,
+                city: _city,
                 branch_code: v.branch_code,
-                month: prepared.target_month,
+                month: _month,
                 mode: "DRAFT",
-                approver_name: approverName,
-                pin,
+                approver_name: _approver,
+                pin: _pin,
               });
               const conf = await apiPost<ExportConfirmResult>(`/api/admin/export/month/confirm`, {
                 confirm_token: prep.confirm_token,
-                approver_name: approverName,
-                pin,
+                approver_name: _approver,
+                pin: _pin,
               });
               if (conf.ok) {
                 results[v.branch_code] = conf.main_url || conf.sheet_url || "";
+              } else {
+                errors[v.branch_code] = conf.warning || "Export returned ok=false";
               }
               await sleep(300); // avoid Sheets API quota spikes
-            } catch {
-              // ignore per-branch export errors silently
+            } catch (e: any) {
+              errors[v.branch_code] = String(e?.message || e || "Export failed");
             }
           }
           setAutoExportResults(results);
+          setAutoExportErrors(errors);
           setAutoExportBusy(false);
         })();
       }
@@ -2437,38 +2453,64 @@ export default function AdminDraftPage() {
           ) : null}
 
           {/* Auto-export status banner */}
-          {(autoExportBusy || Object.keys(autoExportResults).length > 0) && (
-            <div className={`mt-4 rounded-xl border px-4 py-3 ${autoExportBusy ? "border-sky-500/30 bg-sky-500/10" : "border-emerald-500/30 bg-emerald-500/10"}`}>
-              <div className="flex items-center gap-2 mb-1">
-                {autoExportBusy ? (
-                  <RefreshCw className="h-3.5 w-3.5 text-sky-400 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                )}
-                <span className={`text-xs font-semibold ${autoExportBusy ? "text-sky-300" : "text-emerald-300"}`}>
-                  {autoExportBusy ? "Exporting draft to Google Sheets…" : "Draft exported to Google Sheets"}
-                </span>
-              </div>
-              {!autoExportBusy && Object.keys(autoExportResults).length > 0 && (
-                <div className="flex flex-wrap gap-3 mt-2">
-                  {Object.entries(autoExportResults).map(([bc, url]) =>
-                    url ? (
-                      <a
-                        key={bc}
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-xs text-emerald-400 underline underline-offset-2 hover:text-emerald-300"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        {labelOf(bc as BranchCode)}
-                      </a>
-                    ) : null
-                  )}
+          {(autoExportBusy || autoExportRan) && (() => {
+            const hasSuccess = Object.keys(autoExportResults).length > 0;
+            const hasError = Object.keys(autoExportErrors).length > 0;
+            const allFailed = !autoExportBusy && !hasSuccess && hasError;
+            const partialFail = !autoExportBusy && hasSuccess && hasError;
+            const borderCls = autoExportBusy
+              ? "border-sky-500/30 bg-sky-500/10"
+              : allFailed
+                ? "border-red-500/30 bg-red-500/10"
+                : partialFail
+                  ? "border-amber-500/30 bg-amber-500/10"
+                  : "border-emerald-500/30 bg-emerald-500/10";
+            const iconEl = autoExportBusy
+              ? <RefreshCw className="h-3.5 w-3.5 text-sky-400 animate-spin" />
+              : allFailed
+                ? <XCircle className="h-3.5 w-3.5 text-red-400" />
+                : partialFail
+                  ? <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
+                  : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />;
+            const labelCls = autoExportBusy ? "text-sky-300" : allFailed ? "text-red-300" : partialFail ? "text-amber-300" : "text-emerald-300";
+            const labelText = autoExportBusy
+              ? "Exporting draft to Google Sheets…"
+              : allFailed
+                ? "Sheet export failed"
+                : partialFail
+                  ? "Sheet export partially failed"
+                  : "Draft exported to Google Sheets";
+            return (
+              <div className={`mt-4 rounded-xl border px-4 py-3 ${borderCls}`}>
+                <div className="flex items-center gap-2 mb-1">
+                  {iconEl}
+                  <span className={`text-xs font-semibold ${labelCls}`}>{labelText}</span>
                 </div>
-              )}
-            </div>
-          )}
+                {!autoExportBusy && hasSuccess && (
+                  <div className="flex flex-wrap gap-3 mt-2">
+                    {Object.entries(autoExportResults).map(([bc, url]) =>
+                      url ? (
+                        <a key={bc} href={url} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-xs text-emerald-400 underline underline-offset-2 hover:text-emerald-300">
+                          <ExternalLink className="h-3 w-3" />
+                          {labelOf(bc as BranchCode)}
+                        </a>
+                      ) : null
+                    )}
+                  </div>
+                )}
+                {!autoExportBusy && hasError && (
+                  <div className="mt-2 space-y-1">
+                    {Object.entries(autoExportErrors).map(([bc, msg]) => (
+                      <div key={bc} className="text-xs text-red-300">
+                        <span className="font-semibold">{labelOf(bc as BranchCode)}:</span> {msg}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
             {generateResult.versions.map((item) => {
