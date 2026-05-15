@@ -1152,6 +1152,12 @@ export default function AdminDraftPage() {
   const [shiftMaster, setShiftMaster] = useState<ShiftMasterData | null>(null);
   const [violations, setViolations] = useState<ShiftViolation[]>([]);
 
+  // Export state
+  const [sheetExportLoading, setSheetExportLoading] = useState(false);
+  const [sheetExportResult, setSheetExportResult] = useState<{ ok: boolean; url?: string } | null>(null);
+  const [sheetExportError, setSheetExportError] = useState("");
+  const [xlsxExporting, setXlsxExporting] = useState(false);
+
   const canOperate = myRole === "HQ" || myRole === "ADMIN";
   const targetMonthDates = useMemo(() => monthDates(targetMonth), [targetMonth]);
   const applyWeekStarts = useMemo(() => weekStartsForMonth(applyMonth), [applyMonth]);
@@ -1254,6 +1260,12 @@ export default function AdminDraftPage() {
       setActiveBranchCode(versions[0].branch_code);
     }
   }, [versions, activeBranchCode]);
+
+  // Reset export state when branch changes
+  useEffect(() => {
+    setSheetExportResult(null);
+    setSheetExportError("");
+  }, [activeBranchCode]);
 
   useEffect(() => {
     let mounted = true;
@@ -1917,6 +1929,108 @@ export default function AdminDraftPage() {
     }
   }
 
+  // ── Export to Google Sheets (draft mode) ──────────────────────────────────
+  async function exportDraftToSheet() {
+    if (!canOperate || !activeBranchCode) return;
+    setSheetExportLoading(true);
+    setSheetExportError("");
+    setSheetExportResult(null);
+    try {
+      const prep = await apiPost<ExportPrepareResult>(`/api/admin/export/month/prepare`, {
+        city,
+        branch_code: activeBranchCode,
+        month: targetMonth,
+        mode: "DRAFT",
+        approver_name: approverName,
+        pin,
+      });
+      const confirm = await apiPost<ExportConfirmResult>(`/api/admin/export/month/confirm`, {
+        confirm_token: prep.confirm_token,
+        approver_name: approverName,
+        pin,
+      });
+      setSheetExportResult({ ok: confirm.ok, url: confirm.main_url || confirm.sheet_url });
+    } catch (e: any) {
+      setSheetExportError(String(e?.message || e || "Export to sheet failed"));
+    } finally {
+      setSheetExportLoading(false);
+    }
+  }
+
+  // ── Download .xlsx (browser-side pivot: staff × date) ────────────────────
+  async function downloadDraftXlsx() {
+    if (!rows.length) return;
+    setXlsxExporting(true);
+    try {
+      const XLSX = await import("xlsx");
+
+      const fmtH = (h: number) => {
+        const hr = h >= 24 ? h - 24 : h;
+        return `${String(hr).padStart(2, "0")}:00${h >= 24 ? "(+1)" : ""}`;
+      };
+      const fmtShift = (s: number, e: number) => `${fmtH(s)}-${fmtH(e)}`;
+
+      // All unique dates (sorted) and staff names (alphabetical)
+      const dates = Array.from(new Set(rows.map((r) => r.work_date))).sort();
+      const staffNames = Array.from(new Set(rows.map((r) => r.staff_name))).sort();
+
+      // Build lookup: staffName → date → shift string
+      const lookup: Record<string, Record<string, string>> = {};
+      for (const row of rows) {
+        if (!lookup[row.staff_name]) lookup[row.staff_name] = {};
+        const cell = fmtShift(row.start_hour, row.end_hour);
+        const prev = lookup[row.staff_name][row.work_date];
+        lookup[row.staff_name][row.work_date] = prev ? `${prev} / ${cell}` : cell;
+      }
+
+      // ── Sheet 1: Schedule grid ──────────────────────────────────────────
+      const dayLabels = dates.map((d) => {
+        const dt = new Date(d + "T00:00:00");
+        const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dt.getDay()];
+        return `${dt.getDate()}(${wd})`;
+      });
+
+      const header = ["Staff Name", "Role", ...dayLabels];
+      const dataRows = staffNames.map((name) => {
+        const role = rows.find((r) => r.staff_name === name)?.role ?? "";
+        const cells = dates.map((d) => lookup[name]?.[d] ?? "");
+        return [name, role, ...cells];
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows]);
+      ws["!cols"] = [
+        { wch: 22 },
+        { wch: 8 },
+        ...dates.map(() => ({ wch: 13 })),
+      ];
+      // Freeze top row and first two columns
+      ws["!freeze"] = { xSplit: 2, ySplit: 1, topLeftCell: "C2", activePane: "bottomRight" };
+
+      // ── Sheet 2: Raw data ───────────────────────────────────────────────
+      const rawHeaders = ["Date", "Day", "Staff Name", "Role", "Start", "End", "Shift"];
+      const rawRows = [...rows]
+        .sort((a, b) => a.work_date.localeCompare(b.work_date) || a.staff_name.localeCompare(b.staff_name))
+        .map((r) => {
+          const dt = new Date(r.work_date + "T00:00:00");
+          const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dt.getDay()];
+          return [r.work_date, wd, r.staff_name, r.role, fmtH(r.start_hour), fmtH(r.end_hour), fmtShift(r.start_hour, r.end_hour)];
+        });
+      const wsRaw = XLSX.utils.aoa_to_sheet([rawHeaders, ...rawRows]);
+      wsRaw["!cols"] = [{ wch: 12 }, { wch: 5 }, { wch: 22 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 14 }];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Schedule");
+      XLSX.utils.book_append_sheet(wb, wsRaw, "Raw Data");
+
+      const filename = `draft_${activeBranchCode}_${targetMonth}.xlsx`;
+      XLSX.writeFile(wb, filename);
+    } catch (e: any) {
+      console.error("xlsx export failed", e);
+    } finally {
+      setXlsxExporting(false);
+    }
+  }
+
   async function proposeFromSheet() {
     if (!canOperate) return;
     if (!approverName.trim() || !pin.trim()) {
@@ -2044,6 +2158,61 @@ export default function AdminDraftPage() {
                   </button>
                 ))}
               </div>
+              {/* Export toolbar */}
+              {rows.length > 0 && (
+                <div className="mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-white/8 bg-white/3 px-3 py-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mr-1">Export:</span>
+
+                  {/* Google Sheets export */}
+                  <button
+                    type="button"
+                    onClick={exportDraftToSheet}
+                    disabled={sheetExportLoading || !canOperate}
+                    className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-40 transition-colors"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    {sheetExportLoading ? "Exporting…" : "Export to Sheet"}
+                  </button>
+
+                  {/* Local xlsx download */}
+                  <button
+                    type="button"
+                    onClick={downloadDraftXlsx}
+                    disabled={xlsxExporting}
+                    className="flex items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-medium text-sky-300 hover:bg-sky-500/20 disabled:opacity-40 transition-colors"
+                  >
+                    <ArrowDownToLine className="h-3.5 w-3.5" />
+                    {xlsxExporting ? "Preparing…" : "Download .xlsx"}
+                  </button>
+
+                  {/* Sheet export result link */}
+                  {sheetExportResult?.ok && sheetExportResult.url && (
+                    <a
+                      href={sheetExportResult.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 rounded-lg border border-emerald-500/20 bg-emerald-500/8 px-2.5 py-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Sheet updated — Open
+                    </a>
+                  )}
+                  {sheetExportResult?.ok && !sheetExportResult.url && (
+                    <span className="flex items-center gap-1 text-xs text-emerald-400">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Sheet updated
+                    </span>
+                  )}
+                  {sheetExportError && (
+                    <span className="text-xs text-rose-400">{sheetExportError}</span>
+                  )}
+
+                  {!canOperate && (
+                    <span className="text-[11px] text-zinc-600">HQ/Admin only for sheet export</span>
+                  )}
+                </div>
+              )}
+
               <ShiftScheduleView
                 rows={rows}
                 month={targetMonth}
