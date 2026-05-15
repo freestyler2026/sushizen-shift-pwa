@@ -3887,13 +3887,23 @@ export default function CostCalculationPage() {
                                 const yieldRate = normalizeRateValue(masterEditor.yield_rate);
                                 const bufferRate = normalizeMenuBufferRate(masterEditor.buffer_rate);
                                 const outputQty = Number(masterEditor.output_qty || 1) > 0 ? Number(masterEditor.output_qty) : 1;
-                                // Build formula: (rawCost / yieldRate) * bufferRate / outputQty
+                                // When output_qty is 1 but output_unit is 'g' and we have total grams,
+                                // automatically use total grams as the denominator (cost per gram).
+                                // This avoids the situation where the formula yields "cost per batch"
+                                // instead of "cost per gram" — matching the manual Dubai approach (e.g. 4.4/3050/.9).
+                                const totalGrams = masterComponentSummary.totalGrams;
+                                const isGramUnit = (masterEditor.output_unit || "").trim().toLowerCase() === "g";
+                                const effectiveOutputQty =
+                                  Math.abs(outputQty - 1) < 1e-6 && isGramUnit && totalGrams > 1
+                                    ? totalGrams
+                                    : outputQty;
+                                // Build formula: (rawCost / yieldRate) * bufferRate / effectiveOutputQty
                                 const rStr = rawCost.toFixed(4);
                                 const yStr = String(+yieldRate.toFixed(6));
                                 const bStr = String(+bufferRate.toFixed(6));
                                 const hasYield = Math.abs(yieldRate - 1) > 1e-6;
                                 const hasBuffer = Math.abs(bufferRate - 1) > 1e-6;
-                                const hasOutput = Math.abs(outputQty - 1) > 1e-6;
+                                const hasOutput = Math.abs(effectiveOutputQty - 1) > 1e-6;
                                 let formula: string;
                                 if (hasYield && hasBuffer) {
                                   formula = `(${rStr}/${yStr})*${bStr}`;
@@ -3905,7 +3915,7 @@ export default function CostCalculationPage() {
                                   formula = rStr;
                                 }
                                 if (hasOutput) {
-                                  formula = `(${formula})/${String(+outputQty.toFixed(6))}`;
+                                  formula = `(${formula})/${String(+effectiveOutputQty.toFixed(6))}`;
                                 }
                                 const evaluated = evaluateCostFormulaExpression(formula);
                                 updateMasterEditor((current) => ({
