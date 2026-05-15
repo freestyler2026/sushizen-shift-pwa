@@ -78,11 +78,12 @@ export default function ManilaPayrollPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  // Auth guard — allow ADMIN, HQ, HR_MANAGER, or anyone with payroll admin permission
+  // Pure permission-based guard — Role Management is the source of truth.
+  // HQ always has wildcard access; all other roles need the payroll permission.
   useEffect(() => {
     const auth = getAuth();
     const role = auth?.role ?? "";
-    const ok = role === "ADMIN" || role === "HQ" || role === "HR_MANAGER" || canAccessPayrollAdmin(auth);
+    const ok = role === "HQ" || canAccessPayrollAdmin(auth);
     if (!auth || !ok) {
       router.replace("/week");
     }

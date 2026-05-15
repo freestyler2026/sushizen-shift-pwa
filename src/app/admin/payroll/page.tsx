@@ -311,7 +311,9 @@ export default function PayrollPage() {
   const role = auth?.role ?? "";
 
   useEffect(() => {
-    const ok = role === "HQ" || role === "ADMIN" || canAccessPayrollAdmin(auth) || ["MANAGEMENT", "MANILA_MANAGEMENT", "HR_MANAGER"].includes(role);
+    // Pure permission-based guard — Role Management is the source of truth.
+    // HQ always has wildcard access; all other roles need the payroll permission.
+    const ok = role === "HQ" || canAccessPayrollAdmin(auth);
     if (!ok) router.replace("/week");
   }, [role, auth, router]);
 
