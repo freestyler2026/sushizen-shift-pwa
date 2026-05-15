@@ -6,6 +6,8 @@ import { motion } from "framer-motion";
 import InventoryRegistrationHelp from "@/components/InventoryRegistrationHelp";
 import InventoryTabs from "@/components/InventoryTabs";
 import { canAccessCountTemplatesAdmin, canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { BRANCHES, type City } from "@/lib/branches";
+import { inventoryGet } from "@/lib/inventoryClient";
 import { cardVariants, pageVariants, staggerContainerVariants } from "@/lib/motion-tokens";
 import { Spinner } from "@/components/ui/Spinner";
 
@@ -14,6 +16,14 @@ type ModuleCard = {
   description: string;
   status: string;
   href: string;
+};
+
+type ActivitySummary = {
+  lastCountDate?: string;
+  lastSpotCheckDate?: string;
+  openSpotCheckCount?: number;
+  pendingOrderCount?: number;
+  lastAdjustmentDate?: string;
 };
 
 const MODULES: ModuleCard[] = [
@@ -85,6 +95,19 @@ const MODULES: ModuleCard[] = [
   },
 ];
 
+function relativeDate(isoDate?: string): string {
+  if (!isoDate) return "";
+  const date = new Date(isoDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  date.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((today.getTime() - date.getTime()) / 86400000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return new Date(isoDate).toLocaleDateString("en", { month: "short", day: "numeric" });
+}
+
 export default function AdminInventoryPage() {
   const initialAuth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
@@ -92,6 +115,9 @@ export default function AdminInventoryPage() {
   const [staffName, setStaffName] = useState(initialAuth?.staffName || "");
   const [city, setCity] = useState((initialAuth?.city || "manila").toUpperCase());
   const [role, setRole] = useState((initialAuth?.role || "").toString().toUpperCase());
+  const [summary, setSummary] = useState<ActivitySummary>({});
+  const [summaryLoading, setSummaryLoading] = useState(false);
+
   const limitedInventoryUser = role === "STAFF" || role === "MANAGER";
   const canManageCountTemplates = role === "HQ" || role === "ADMIN" || canAccessCountTemplatesAdmin(initialAuth);
   const visibleModules = useMemo(
@@ -107,7 +133,6 @@ export default function AdminInventoryPage() {
 
   useEffect(() => {
     let cancelled = false;
-
     async function load() {
       const auth = getAuth();
       const resolved = await refreshAuthFromApi(auth);
@@ -118,12 +143,82 @@ export default function AdminInventoryPage() {
       setRole((resolved?.role || auth?.role || "").toString().toUpperCase());
       setReady(true);
     }
-
     load();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
+
+  // Fetch activity summary after auth resolves
+  useEffect(() => {
+    if (!allowed || !city) return;
+    const cityLower = city.toLowerCase() as City;
+    const defaultBranch = BRANCHES[cityLower]?.[0]?.code || "";
+    let cancelled = false;
+    setSummaryLoading(true);
+
+    Promise.all([
+      inventoryGet<{ rows: { business_date: string }[] }>(
+        `/api/admin/inventory/counts?city=${cityLower}&branch_code=${encodeURIComponent(defaultBranch)}&limit=1`,
+      ).catch(() => ({ rows: [] as { business_date: string }[] })),
+      inventoryGet<{ rows: { business_date: string; status: string }[] }>(
+        `/api/admin/inventory/spot-checks?city=${cityLower}&branch_code=${encodeURIComponent(defaultBranch)}&limit=30`,
+      ).catch(() => ({ rows: [] as { business_date: string; status: string }[] })),
+      inventoryGet<{ rows: unknown[] }>(
+        `/api/admin/inventory/productions/ck-pending?city=${cityLower}`,
+      ).catch(() => ({ rows: [] as unknown[] })),
+      inventoryGet<{ rows: { business_date: string }[] }>(
+        `/api/admin/inventory/quantity-adjustments?city=${cityLower}&branch_code=${encodeURIComponent(defaultBranch)}&limit=1`,
+      ).catch(() => ({ rows: [] as { business_date: string }[] })),
+    ]).then(([countsRes, spotRes, ckRes, adjRes]) => {
+      if (cancelled) return;
+      const spotRows = spotRes.rows || [];
+      setSummary({
+        lastCountDate: (countsRes.rows || [])[0]?.business_date,
+        lastSpotCheckDate: spotRows[0]?.business_date,
+        openSpotCheckCount: spotRows.filter((r) => r.status === "DRAFT").length,
+        pendingOrderCount: (ckRes.rows || []).length,
+        lastAdjustmentDate: (adjRes.rows || [])[0]?.business_date,
+      });
+    }).finally(() => {
+      if (!cancelled) setSummaryLoading(false);
+    });
+
+    return () => { cancelled = true; };
+  }, [allowed, city]);
+
+  function getModuleStat(href: string): React.ReactNode {
+    if (href === "/admin/inventory/counts") {
+      if (summaryLoading) return <span className="text-[11px] text-zinc-600">Loading…</span>;
+      if (summary.lastCountDate) return (
+        <span className="text-[11px] text-zinc-400">Last count: {relativeDate(summary.lastCountDate)}</span>
+      );
+      return <span className="text-[11px] text-zinc-600">No counts yet</span>;
+    }
+    if (href === "/admin/inventory/spot-checks") {
+      if (summaryLoading) return <span className="text-[11px] text-zinc-600">Loading…</span>;
+      const parts: string[] = [];
+      if (summary.lastSpotCheckDate) parts.push(`Last: ${relativeDate(summary.lastSpotCheckDate)}`);
+      if (summary.openSpotCheckCount) parts.push(`${summary.openSpotCheckCount} open draft${summary.openSpotCheckCount !== 1 ? "s" : ""}`);
+      if (parts.length) return <span className="text-[11px] text-zinc-400">{parts.join(" · ")}</span>;
+      return <span className="text-[11px] text-zinc-600">No spot checks yet</span>;
+    }
+    if (href === "/admin/inventory/productions") {
+      if (summaryLoading) return <span className="text-[11px] text-zinc-600">Loading…</span>;
+      if (summary.pendingOrderCount) return (
+        <span className="text-[11px] font-semibold text-amber-400">
+          {summary.pendingOrderCount} pending order{summary.pendingOrderCount !== 1 ? "s" : ""}
+        </span>
+      );
+      return <span className="text-[11px] text-zinc-600">No pending orders</span>;
+    }
+    if (href === "/admin/inventory/quantity-adjustments") {
+      if (summaryLoading) return <span className="text-[11px] text-zinc-600">Loading…</span>;
+      if (summary.lastAdjustmentDate) return (
+        <span className="text-[11px] text-zinc-400">Last: {relativeDate(summary.lastAdjustmentDate)}</span>
+      );
+      return null;
+    }
+    return null;
+  }
 
   if (!ready) {
     return <div className="flex justify-center py-8"><Spinner /></div>;
@@ -217,14 +312,22 @@ export default function AdminInventoryPage() {
         initial="hidden"
         animate="visible"
       >
-        {visibleModules.map((module) => (
-          <motion.div key={module.title} variants={cardVariants}>
-            <Link href={module.href} className="block rounded-2xl border border-white/10 bg-white/5 p-4 shadow-xl shadow-black/20 backdrop-blur-sm transition-all duration-200 hover:border-white/15 hover:bg-white/8">
-              <div className="text-base font-semibold text-white">{module.title}</div>
-              <div className="mt-2 text-sm leading-relaxed text-zinc-400">{module.description}</div>
-            </Link>
-          </motion.div>
-        ))}
+        {visibleModules.map((module) => {
+          const stat = getModuleStat(module.href);
+          return (
+            <motion.div key={module.title} variants={cardVariants}>
+              <Link href={module.href} className="block rounded-2xl border border-white/10 bg-white/5 p-4 shadow-xl shadow-black/20 backdrop-blur-sm transition-all duration-200 hover:border-white/15 hover:bg-white/8">
+                <div className="text-base font-semibold text-white">{module.title}</div>
+                <div className="mt-2 text-sm leading-relaxed text-zinc-400">{module.description}</div>
+                {stat && (
+                  <div className="mt-3 border-t border-white/5 pt-2">
+                    {stat}
+                  </div>
+                )}
+              </Link>
+            </motion.div>
+          );
+        })}
       </motion.section>
     </motion.div>
   );

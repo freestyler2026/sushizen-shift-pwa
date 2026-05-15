@@ -384,7 +384,11 @@ export default function InventoryQuantityAdjustmentsPage() {
               <button
                 key={c}
                 type="button"
-                onClick={() => setCity(c)}
+                onClick={() => {
+                  if (c === city) return;
+                  if (draftItems.length > 0 && !window.confirm("Switching city will clear your current draft. Continue?")) return;
+                  setCity(c);
+                }}
                 className={[
                   "rounded-lg px-4 py-1.5 text-sm font-medium transition",
                   city === c

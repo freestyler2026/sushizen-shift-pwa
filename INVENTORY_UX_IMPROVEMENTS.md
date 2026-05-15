@@ -139,7 +139,7 @@ Staff reported the Inventory channel is difficult to use. This document outlines
 - Productions: "2 pending orders"
 - Quantity Adjustments: "Last: May 10"
 
-*Note: Requires new backend summary endpoints. Implement after backend team confirms.*
+*Note: Implemented client-side using existing endpoints (counts, spot-checks, productions/ck-pending, quantity-adjustments) with a parallel Promise.all() fetch after auth resolves. No new backend endpoints required.*
 
 ---
 
@@ -156,4 +156,4 @@ Staff reported the Inventory channel is difficult to use. This document outlines
 | 2-B | City switch confirmation | 2 | ✅ Done |
 | 2-C | Spot check "Add All" per supplier | 2 | ✅ Done |
 | 2-D | Productions empty state | 2 | ✅ Done |
-| 3-A | Dashboard activity status | 3 | ⬜ Pending (requires backend API) |
+| 3-A | Dashboard activity status | 3 | ✅ Done (implemented client-side using existing endpoints) |
