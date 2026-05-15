@@ -2,7 +2,7 @@
 
 import {
   AlertCircle, ChevronLeft, Loader2, Plus, RefreshCw,
-  Users, X, Pencil, CheckCircle2, XCircle,
+  Users, X, Pencil, CheckCircle2, XCircle, Link2, Link2Off, Wand2,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -26,6 +26,7 @@ function apiFetch(path: string, opts?: RequestInit) {
 type StaffProfile = {
   id: number;
   staff_name: string;
+  bayzat_employee_id: string | null;
   sss_number: string | null;
   philhealth_id: string | null;
   tin: string | null;
@@ -48,6 +49,7 @@ type StaffProfile = {
 
 type FormState = {
   staff_name: string;
+  bayzat_employee_id: string;
   sss_number: string;
   philhealth_id: string;
   tin: string;
@@ -68,7 +70,8 @@ type FormState = {
 
 function emptyForm(): FormState {
   return {
-    staff_name: "", sss_number: "", philhealth_id: "", tin: "", pagibig_mid: "",
+    staff_name: "", bayzat_employee_id: "",
+    sss_number: "", philhealth_id: "", tin: "", pagibig_mid: "",
     employment_type: "regular", salary_type: "monthly_paid",
     hire_date: "", official_hire_date: "",
     department: "", position: "",
@@ -81,6 +84,7 @@ function emptyForm(): FormState {
 function profileToForm(p: StaffProfile): FormState {
   return {
     staff_name: p.staff_name,
+    bayzat_employee_id: p.bayzat_employee_id ?? "",
     sss_number: p.sss_number ?? "",
     philhealth_id: p.philhealth_id ?? "",
     tin: p.tin ?? "",
@@ -129,6 +133,7 @@ function ProfileModal({
       const body = {
         ...form,
         staff_name: form.staff_name.trim(),
+        bayzat_employee_id: form.bayzat_employee_id.trim() || null,
         sss_number: form.sss_number.trim() || null,
         philhealth_id: form.philhealth_id.trim() || null,
         tin: form.tin.trim() || null,
@@ -185,6 +190,17 @@ function ProfileModal({
                 onChange={e => set("staff_name", e.target.value)}
                 placeholder="Full name (must match OS Attendance)" disabled={isEdit} />
               {isEdit && <p className="mt-1 text-xs text-slate-500">Name cannot be changed after creation</p>}
+            </div>
+
+            {/* Bayzat Employee ID */}
+            <div className="col-span-2">
+              <label className={L}>Bayzat Employee ID</label>
+              <input className={I} value={form.bayzat_employee_id}
+                onChange={e => set("bayzat_employee_id", e.target.value.toUpperCase())}
+                placeholder="e.g. PH25018" />
+              <p className="mt-1 text-xs text-slate-500">
+                Used for automatic DTR sync from Bayzat. Usually auto-filled by the system.
+              </p>
             </div>
 
             {/* Employment Type + Salary Type */}
@@ -326,6 +342,8 @@ export default function StaffProfilesPage() {
   const [showInactive, setShowInactive] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<StaffProfile | null>(null);
+  const [autoMatching, setAutoMatching] = useState(false);
+  const [autoMatchResult, setAutoMatchResult] = useState<{ matched: number; staff: { staff_name: string; bayzat_employee_id: string }[] } | null>(null);
   const loadRef = useRef(0);
 
   useEffect(() => {
@@ -353,6 +371,22 @@ export default function StaffProfilesPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  async function runAutoMatch() {
+    setAutoMatching(true);
+    setAutoMatchResult(null);
+    try {
+      const r = await apiFetch(`${API}/staff-profiles/auto-match`, { method: "POST" });
+      if (!r.ok) throw new Error(await r.text());
+      const data = await r.json() as typeof autoMatchResult;
+      setAutoMatchResult(data);
+      await load();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setAutoMatching(false);
+    }
+  }
+
   function onSaved(p: StaffProfile) {
     setShowModal(false);
     setEditing(null);
@@ -377,6 +411,8 @@ export default function StaffProfilesPage() {
     contractual: "Contractual", part_time: "Part-time",
   };
 
+  const unlinkedCount = profiles.filter(p => !p.bayzat_employee_id).length;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-6">
       <div className="mx-auto max-w-6xl space-y-6">
@@ -395,10 +431,18 @@ export default function StaffProfilesPage() {
               Staff Profiles
             </h1>
             <p className="mt-1 text-sm text-slate-400">
-              Manila payroll employee records — government IDs, rates, and payment details
+              Manila payroll employee records — government IDs, rates, and Bayzat linking
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap justify-end">
+            <button
+              onClick={() => { void runAutoMatch(); }}
+              disabled={autoMatching}
+              title="Auto-match staff names to Bayzat Employee IDs"
+              className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-300 hover:bg-amber-500/20 disabled:opacity-50">
+              {autoMatching ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+              Auto-Match Bayzat
+            </button>
             <button
               onClick={() => setShowInactive(v => !v)}
               className={`rounded-xl border px-4 py-2 text-sm transition ${
@@ -419,6 +463,32 @@ export default function StaffProfilesPage() {
           </div>
         </div>
 
+        {/* Auto-match result banner */}
+        {autoMatchResult && (
+          <div className={`flex items-start gap-3 rounded-xl border p-4 text-sm ${
+            autoMatchResult.matched > 0
+              ? "border-emerald-500/20 bg-emerald-900/20 text-emerald-300"
+              : "border-slate-500/20 bg-slate-800/40 text-slate-400"
+          }`}>
+            <Wand2 size={16} className="mt-0.5 shrink-0" />
+            <div>
+              <p className="font-semibold">
+                {autoMatchResult.matched > 0
+                  ? `${autoMatchResult.matched} staff matched to Bayzat IDs`
+                  : "No new matches found — all staff are already linked or names don't match"}
+              </p>
+              {autoMatchResult.staff.length > 0 && (
+                <p className="mt-1 text-xs opacity-80">
+                  {autoMatchResult.staff.map(s => `${s.staff_name} → ${s.bayzat_employee_id}`).join(", ")}
+                </p>
+              )}
+            </div>
+            <button onClick={() => setAutoMatchResult(null)} className="ml-auto shrink-0 opacity-60 hover:opacity-100">
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
         {/* Error */}
         {error && (
           <div className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-900/20 p-4 text-sm text-red-300">
@@ -428,17 +498,29 @@ export default function StaffProfilesPage() {
 
         {/* Stats */}
         {!loading && profiles.length > 0 && (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-4 gap-4">
             {[
               { label: "Total Profiles", value: profiles.length, color: "text-white" },
               { label: "Active", value: profiles.filter(p => p.is_active).length, color: "text-emerald-300" },
               { label: "Monthly Paid", value: profiles.filter(p => p.salary_type === "monthly_paid").length, color: "text-violet-300" },
+              { label: "Bayzat Unlinked", value: unlinkedCount, color: unlinkedCount > 0 ? "text-amber-300" : "text-emerald-300" },
             ].map(s => (
               <div key={s.label} className={GLASS_CARD + " p-4"}>
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">{s.label}</p>
                 <p className={`mt-1 text-2xl font-bold tabular-nums ${s.color}`}>{s.value}</p>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Unlinked warning */}
+        {!loading && unlinkedCount > 0 && (
+          <div className="flex items-center gap-3 rounded-xl border border-amber-500/20 bg-amber-900/10 px-4 py-3 text-sm text-amber-300">
+            <Link2Off size={16} className="shrink-0" />
+            <span>
+              <span className="font-semibold">{unlinkedCount} staff</span> have no Bayzat Employee ID linked.
+              Click <strong>Auto-Match Bayzat</strong> to link them automatically, or edit each profile manually.
+            </span>
           </div>
         )}
 
@@ -456,14 +538,14 @@ export default function StaffProfilesPage() {
         ) : (
           <div className={GLASS_CARD + " overflow-hidden"}>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm" style={{ minWidth: "900px" }}>
+              <table className="w-full text-sm" style={{ minWidth: "1000px" }}>
                 <thead>
                   <tr className="border-b border-white/10">
                     <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Name</th>
+                    <th className={TABLE_HEADER + " px-3 py-3 text-center"}>Bayzat ID</th>
                     <th className={TABLE_HEADER + " px-3 py-3 text-left"}>Position</th>
                     <th className={TABLE_HEADER + " px-3 py-3 text-center"}>Type</th>
                     <th className={TABLE_HEADER + " px-3 py-3 text-right"}>Monthly Rate</th>
-                    <th className={TABLE_HEADER + " px-3 py-3 text-right"}>Daily Rate</th>
                     <th className={TABLE_HEADER + " px-3 py-3 text-center"}>Gov IDs</th>
                     <th className={TABLE_HEADER + " px-3 py-3 text-center"}>Status</th>
                     <th className={TABLE_HEADER + " w-12"} />
@@ -478,6 +560,19 @@ export default function StaffProfilesPage() {
                           <p className="font-semibold text-white">{p.staff_name}</p>
                           {p.department && <p className="text-xs text-slate-500">{p.department}</p>}
                         </td>
+                        <td className="px-3 py-3 text-center">
+                          {p.bayzat_employee_id ? (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-violet-500/30 bg-violet-900/30 px-2 py-0.5 text-xs font-mono text-violet-300">
+                              <Link2 size={10} />
+                              {p.bayzat_employee_id}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-900/20 px-2 py-0.5 text-xs text-amber-400">
+                              <Link2Off size={10} />
+                              Unlinked
+                            </span>
+                          )}
+                        </td>
                         <td className={TABLE_CELL + " px-3 py-3 text-slate-300"}>
                           {p.position ?? <span className="text-slate-600">—</span>}
                         </td>
@@ -488,9 +583,6 @@ export default function StaffProfilesPage() {
                         </td>
                         <td className={TABLE_CELL + " px-3 py-3 text-right tabular-nums font-medium text-white"}>
                           {php(p.monthly_rate)}
-                        </td>
-                        <td className={TABLE_CELL + " px-3 py-3 text-right tabular-nums text-slate-400"}>
-                          {php(p.daily_rate)}
                         </td>
                         <td className="px-3 py-3 text-center">
                           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
