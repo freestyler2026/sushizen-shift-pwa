@@ -95,8 +95,6 @@ const DAY_TYPE_LABELS: Record<string, string> = {
   special_non_working_holiday:            "Special Non-Working Holiday",
   regular_holiday_and_rest_day:           "Regular Holiday + Rest Day",
   special_holiday_and_rest_day:           "Special Holiday + Rest Day",
-  double_regular_holiday:                 "Double Regular Holiday",
-  double_regular_holiday_and_rest_day:    "Double Regular Holiday + Rest Day",
 };
 
 function dec(v: string | number, dp = 2) { return parseFloat(String(v)).toFixed(dp); }
@@ -222,6 +220,7 @@ export default function GovTablesPage() {
                         <th className={TABLE_HEADER + " px-3 py-3 text-center"}>Worked</th>
                         <th className={TABLE_HEADER + " px-3 py-3 text-right"}>Base Mult.</th>
                         <th className={TABLE_HEADER + " px-3 py-3 text-right"}>OT Mult.</th>
+                        <th className={TABLE_HEADER + " px-3 py-3 text-right"}>Effective OT Rate</th>
                         <th className={TABLE_HEADER + " px-3 py-3 text-center"}>Base in Monthly</th>
                         <th className={TABLE_HEADER + " px-3 py-3 text-center"}>CPA Required</th>
                         <th className={TABLE_HEADER + " px-3 py-3 text-left"}>Effective From</th>
@@ -250,6 +249,15 @@ export default function GovTablesPage() {
                           </td>
                           <td className={TABLE_CELL + " px-3 py-3 text-right tabular-nums font-mono"}>
                             {dec(r.ot_hourly_multiplier, 2)}×
+                          </td>
+                          <td className={TABLE_CELL + " px-3 py-3 text-right tabular-nums font-mono"}>
+                            {r.worked ? (
+                              <span className="text-amber-300">
+                                {(parseFloat(r.base_day_multiplier) * parseFloat(r.ot_hourly_multiplier)).toFixed(2)}×
+                              </span>
+                            ) : (
+                              <span className="text-slate-600">—</span>
+                            )}
                           </td>
                           <td className="px-3 py-3 text-center">
                             {r.is_base_included_in_monthly ? (
@@ -322,7 +330,7 @@ export default function GovTablesPage() {
             {activeTab === "philhealth" && (
               <div className={GLASS_CARD + " overflow-hidden"}>
                 <div className="border-b border-white/10 px-4 py-3">
-                  <p className="text-xs text-slate-400">PhilHealth — 5% of basic salary (Circular 2023-0009); basis clamped ₱10,000–₱100,000; EE share = 50% with centavo ceiling</p>
+                  <p className="text-xs text-slate-400">PhilHealth — 2.5% of monthly basic salary (EE) + 2.5% (ER); no floor/ceiling applied</p>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -359,7 +367,7 @@ export default function GovTablesPage() {
             {activeTab === "pagibig" && (
               <div className={GLASS_CARD + " overflow-hidden"}>
                 <div className="border-b border-white/10 px-4 py-3">
-                  <p className="text-xs text-slate-400">Pag-IBIG Circular 460 — 2% EE + 2% ER on fund salary capped at ₱10,000; max ₱200 each</p>
+                  <p className="text-xs text-slate-400">Pag-IBIG — Fixed contribution: ₱200.00 EE + ₱200.00 ER per employee per month</p>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
