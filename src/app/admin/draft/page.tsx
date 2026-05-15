@@ -2151,6 +2151,27 @@ export default function AdminDraftPage() {
     }
   }
 
+  // Auto-export banner computed values (used in JSX below)
+  const aeHasSuccess = Object.keys(autoExportResults).length > 0;
+  const aeHasError = Object.keys(autoExportErrors).length > 0;
+  const aeAllFailed = !autoExportBusy && !aeHasSuccess && aeHasError;
+  const aePartialFail = !autoExportBusy && aeHasSuccess && aeHasError;
+  const aeBorderCls = autoExportBusy
+    ? "border-sky-500/30 bg-sky-500/10"
+    : aeAllFailed
+      ? "border-red-500/30 bg-red-500/10"
+      : aePartialFail
+        ? "border-amber-500/30 bg-amber-500/10"
+        : "border-emerald-500/30 bg-emerald-500/10";
+  const aeLabelCls = autoExportBusy ? "text-sky-300" : aeAllFailed ? "text-red-300" : aePartialFail ? "text-amber-300" : "text-emerald-300";
+  const aeLabelText = autoExportBusy
+    ? "Exporting draft to Google Sheets…"
+    : aeAllFailed
+      ? "Sheet export failed"
+      : aePartialFail
+        ? "Sheet export partially failed"
+        : "Draft exported to Google Sheets";
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -2453,64 +2474,39 @@ export default function AdminDraftPage() {
           ) : null}
 
           {/* Auto-export status banner */}
-          {(autoExportBusy || autoExportRan) && (() => {
-            const hasSuccess = Object.keys(autoExportResults).length > 0;
-            const hasError = Object.keys(autoExportErrors).length > 0;
-            const allFailed = !autoExportBusy && !hasSuccess && hasError;
-            const partialFail = !autoExportBusy && hasSuccess && hasError;
-            const borderCls = autoExportBusy
-              ? "border-sky-500/30 bg-sky-500/10"
-              : allFailed
-                ? "border-red-500/30 bg-red-500/10"
-                : partialFail
-                  ? "border-amber-500/30 bg-amber-500/10"
-                  : "border-emerald-500/30 bg-emerald-500/10";
-            const iconEl = autoExportBusy
-              ? <RefreshCw className="h-3.5 w-3.5 text-sky-400 animate-spin" />
-              : allFailed
-                ? <XCircle className="h-3.5 w-3.5 text-red-400" />
-                : partialFail
-                  ? <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
-                  : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />;
-            const labelCls = autoExportBusy ? "text-sky-300" : allFailed ? "text-red-300" : partialFail ? "text-amber-300" : "text-emerald-300";
-            const labelText = autoExportBusy
-              ? "Exporting draft to Google Sheets…"
-              : allFailed
-                ? "Sheet export failed"
-                : partialFail
-                  ? "Sheet export partially failed"
-                  : "Draft exported to Google Sheets";
-            return (
-              <div className={`mt-4 rounded-xl border px-4 py-3 ${borderCls}`}>
-                <div className="flex items-center gap-2 mb-1">
-                  {iconEl}
-                  <span className={`text-xs font-semibold ${labelCls}`}>{labelText}</span>
-                </div>
-                {!autoExportBusy && hasSuccess && (
-                  <div className="flex flex-wrap gap-3 mt-2">
-                    {Object.entries(autoExportResults).map(([bc, url]) =>
-                      url ? (
-                        <a key={bc} href={url} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-xs text-emerald-400 underline underline-offset-2 hover:text-emerald-300">
-                          <ExternalLink className="h-3 w-3" />
-                          {labelOf(bc as BranchCode)}
-                        </a>
-                      ) : null
-                    )}
-                  </div>
-                )}
-                {!autoExportBusy && hasError && (
-                  <div className="mt-2 space-y-1">
-                    {Object.entries(autoExportErrors).map(([bc, msg]) => (
-                      <div key={bc} className="text-xs text-red-300">
-                        <span className="font-semibold">{labelOf(bc as BranchCode)}:</span> {msg}
-                      </div>
-                    ))}
-                  </div>
-                )}
+          {(autoExportBusy || autoExportRan) && (
+            <div className={`mt-4 rounded-xl border px-4 py-3 ${aeBorderCls}`}>
+              <div className="flex items-center gap-2 mb-1">
+                {autoExportBusy && <RefreshCw className="h-3.5 w-3.5 text-sky-400 animate-spin" />}
+                {!autoExportBusy && aeAllFailed && <XCircle className="h-3.5 w-3.5 text-red-400" />}
+                {!autoExportBusy && aePartialFail && <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />}
+                {!autoExportBusy && !aeAllFailed && !aePartialFail && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />}
+                <span className={`text-xs font-semibold ${aeLabelCls}`}>{aeLabelText}</span>
               </div>
-            );
-          })()}
+              {!autoExportBusy && aeHasSuccess && (
+                <div className="flex flex-wrap gap-3 mt-2">
+                  {Object.entries(autoExportResults).map(([bc, url]) =>
+                    url ? (
+                      <a key={bc} href={url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-xs text-emerald-400 underline underline-offset-2 hover:text-emerald-300">
+                        <ExternalLink className="h-3 w-3" />
+                        {labelOf(city, bc)}
+                      </a>
+                    ) : null
+                  )}
+                </div>
+              )}
+              {!autoExportBusy && aeHasError && (
+                <div className="mt-2 space-y-1">
+                  {Object.entries(autoExportErrors).map(([bc, msg]) => (
+                    <div key={bc} className="text-xs text-red-300">
+                      <span className="font-semibold">{labelOf(city, bc)}:</span> {msg}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
             {generateResult.versions.map((item) => {
@@ -2521,8 +2517,6 @@ export default function AdminDraftPage() {
               const relRows = item.reliability_summary || [];
               const atRisk = relRows.filter((r) => r.reliability_score < 0.82);
               const isOpen = openReliabilityBranch === item.branch_code;
-              const coverageColor = coverage === null ? "text-zinc-400" : coverage >= 0.9 ? "text-emerald-400" : coverage >= 0.75 ? "text-amber-400" : "text-red-400";
-              const relColor = avgRel === null ? "text-zinc-400" : avgRel >= 0.9 ? "text-emerald-400" : avgRel >= 0.82 ? "text-amber-400" : "text-red-400";
               return (
                 <div key={item.branch_code} className={`${GLASS_CARD} p-4`}>
                   <div className="flex items-center justify-between mb-3">
@@ -2750,7 +2744,6 @@ export default function AdminDraftPage() {
                     {(aiAnalysis.recommended_actions || []).map((action) => {
                       const checked = selectedActions.has(action.id);
                       const isRule = action.type === "staffing_rule";
-                      const isSetting = action.type === "forecast_setting";
                       const typeLabel = isRule
                         ? `+${(action as any).adjustment > 0 ? "+" : ""}${(action as any).adjustment} staff · ${(action as any).condition_type}`
                         : `${(action as any).setting_key} → ${(action as any).setting_value}`;
