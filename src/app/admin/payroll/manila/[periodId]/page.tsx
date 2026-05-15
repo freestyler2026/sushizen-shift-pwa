@@ -2,7 +2,8 @@
 
 import {
   AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, ChevronDown,
-  ChevronUp, Eye, EyeOff, Loader2, Play, Printer, Send, X,
+  ChevronUp, Clock, Eye, EyeOff, Loader2, MinusCircle, PlusCircle,
+  Play, Printer, Send, Trash2, X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
@@ -65,6 +66,32 @@ type PayrollItem = {
   note: string | null;
 };
 
+type AttendanceRow = {
+  id: number;
+  staff_name: string;
+  work_date: string;
+  day_type: string;
+  is_worked: boolean;
+  actual_time_in: string | null;
+  actual_time_out: string | null;
+  late_minutes: number;
+  undertime_minutes: number;
+  absent_without_pay: boolean;
+  paid_leave_flag: boolean;
+  period_id: number | null;
+};
+
+type Adjustment = {
+  id: number;
+  period_id: number;
+  staff_name: string;
+  item_type: "MANUAL_ADDITION" | "MANUAL_DEDUCTION";
+  amount: number;
+  reason: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
 const fmtPHP = (v: number | null | undefined) =>
   v == null ? "—" : "₱" + v.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -78,27 +105,495 @@ const STATUS_BADGE: Record<string, string> = {
   paid:     "bg-violet-900/60 text-violet-300 border border-violet-500/30",
 };
 
+// ─── DTR Correction Modal ─────────────────────────────────────────────────────
+
+function fmtLocalDatetime(ts: string | null): string {
+  if (!ts) return "";
+  // ts is ISO with tz — convert to local datetime-local string
+  try {
+    const d = new Date(ts);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } catch { return ""; }
+}
+
+function DTRModal({
+  run,
+  periodId,
+  onClose,
+  onRecomputed,
+}: {
+  run: Run;
+  periodId: number;
+  onClose: () => void;
+  onRecomputed: () => void;
+}) {
+  const [rows, setRows] = useState<AttendanceRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null); // work_date being saved
+  const [recomputing, setRecomputing] = useState(false);
+  const [error, setError] = useState("");
+  // editing state: work_date → {time_in, time_out}
+  const [edits, setEdits] = useState<Record<string, { time_in: string; time_out: string }>>({});
+
+  useEffect(() => {
+    setLoading(true);
+    apiFetch(`${API}/attendance/${periodId}?staff_name=${encodeURIComponent(run.staff_name)}`)
+      .then(r => r.json())
+      .then(d => {
+        setRows(d as AttendanceRow[]);
+        const initial: Record<string, { time_in: string; time_out: string }> = {};
+        (d as AttendanceRow[]).forEach(row => {
+          initial[row.work_date] = {
+            time_in:  fmtLocalDatetime(row.actual_time_in),
+            time_out: fmtLocalDatetime(row.actual_time_out),
+          };
+        });
+        setEdits(initial);
+      })
+      .catch(e => setError(String(e)))
+      .finally(() => setLoading(false));
+  }, [run.staff_name, periodId]);
+
+  const saveRow = async (row: AttendanceRow) => {
+    const ed = edits[row.work_date];
+    if (!ed) return;
+    setSaving(row.work_date);
+    setError("");
+    try {
+      const body: Record<string, unknown> = {
+        day_type:   row.day_type,
+        is_worked:  row.is_worked,
+        is_scheduled_rest_day: false,
+        actual_time_in:  ed.time_in  ? new Date(ed.time_in).toISOString()  : null,
+        actual_time_out: ed.time_out ? new Date(ed.time_out).toISOString() : null,
+        late_minutes:    row.late_minutes,
+        undertime_minutes: row.undertime_minutes,
+        absent_without_pay: row.absent_without_pay,
+        paid_leave_flag: row.paid_leave_flag,
+        period_id:  row.period_id ?? periodId,
+        approval_status: "approved",
+      };
+      const r = await apiFetch(
+        `${API}/attendance/${encodeURIComponent(run.staff_name)}/${row.work_date}`,
+        { method: "PUT", body: JSON.stringify(body) }
+      );
+      if (!r.ok) throw new Error(await r.text());
+      // update local row
+      const updated = await r.json() as AttendanceRow;
+      setRows(prev => prev.map(x => x.work_date === row.work_date ? { ...x, ...updated } : x));
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const recompute = async () => {
+    setRecomputing(true);
+    setError("");
+    try {
+      const r = await apiFetch(`${API}/runs/${run.id}/compute`, { method: "POST" });
+      if (!r.ok) throw new Error(await r.text());
+      onRecomputed();
+      onClose();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setRecomputing(false);
+    }
+  };
+
+  const DAY_TYPE_BADGE: Record<string, string> = {
+    ordinary_day: "text-slate-500",
+    regular_holiday: "text-amber-400",
+    special_non_working_holiday: "text-blue-400",
+    rest_day: "text-violet-400",
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="relative flex flex-col w-full max-w-3xl max-h-[90vh] rounded-2xl border border-white/10 bg-slate-900 shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex-none flex items-center justify-between border-b border-white/10 px-6 py-4">
+          <div>
+            <h2 className="text-base font-semibold text-white flex items-center gap-2">
+              <Clock size={16} className="text-blue-400" />
+              Edit DTR — {run.staff_name}
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Correct clock-in / clock-out times. Save each row, then click Recompute.
+            </p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-white"><X size={18}/></button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {error && (
+            <div className="mb-3 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-900/20 p-3 text-xs text-red-300">
+              <AlertCircle size={12}/> {error}
+            </div>
+          )}
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <Loader2 size={24} className="animate-spin text-blue-400"/>
+            </div>
+          ) : rows.length === 0 ? (
+            <p className="text-center text-sm text-slate-500 py-8">No attendance records found for this period.</p>
+          ) : (
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-white/5 text-slate-500">
+                  <th className="py-2 text-left font-medium">Date</th>
+                  <th className="py-2 text-left font-medium">Type</th>
+                  <th className="py-2 text-left font-medium">Worked</th>
+                  <th className="py-2 text-left font-medium">Time In</th>
+                  <th className="py-2 text-left font-medium">Time Out</th>
+                  <th className="py-2 text-center font-medium">Save</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(row => {
+                  const ed = edits[row.work_date] ?? { time_in: "", time_out: "" };
+                  const isSaving = saving === row.work_date;
+                  const badge = DAY_TYPE_BADGE[row.day_type] ?? "text-slate-500";
+                  return (
+                    <tr key={row.work_date} className="border-b border-white/5 hover:bg-white/5">
+                      <td className="py-2 pr-2 font-mono text-slate-300">
+                        {row.work_date}
+                      </td>
+                      <td className={`py-2 pr-2 ${badge}`}>
+                        {row.day_type.replace(/_/g," ")}
+                      </td>
+                      <td className="py-2 pr-2">
+                        {row.is_worked
+                          ? <span className="text-emerald-400">✓</span>
+                          : <span className="text-red-400/60">—</span>}
+                      </td>
+                      <td className="py-2 pr-2">
+                        <input
+                          type="datetime-local"
+                          value={ed.time_in}
+                          onChange={e => setEdits(prev => ({
+                            ...prev,
+                            [row.work_date]: { ...prev[row.work_date], time_in: e.target.value }
+                          }))}
+                          className="rounded-lg border border-white/10 bg-slate-800 px-2 py-1 text-white text-xs focus:border-blue-500/60 focus:outline-none"
+                          style={{ colorScheme: "dark" }}
+                        />
+                      </td>
+                      <td className="py-2 pr-2">
+                        <input
+                          type="datetime-local"
+                          value={ed.time_out}
+                          onChange={e => setEdits(prev => ({
+                            ...prev,
+                            [row.work_date]: { ...prev[row.work_date], time_out: e.target.value }
+                          }))}
+                          className="rounded-lg border border-white/10 bg-slate-800 px-2 py-1 text-white text-xs focus:border-blue-500/60 focus:outline-none"
+                          style={{ colorScheme: "dark" }}
+                        />
+                      </td>
+                      <td className="py-2 text-center">
+                        <button
+                          onClick={() => saveRow(row)}
+                          disabled={isSaving}
+                          className="rounded-lg border border-blue-500/30 bg-blue-900/30 px-2 py-1 text-blue-300 hover:bg-blue-900/50 disabled:opacity-40 text-xs"
+                        >
+                          {isSaving ? <Loader2 size={10} className="animate-spin inline" /> : "Save"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex-none flex items-center justify-end gap-3 border-t border-white/10 px-6 py-4">
+          <button onClick={onClose} className="rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700">
+            Close
+          </button>
+          <button
+            onClick={recompute}
+            disabled={recomputing}
+            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
+          >
+            {recomputing ? <Loader2 size={14} className="animate-spin"/> : <Play size={14}/>}
+            Recompute Payroll
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Manual Adjustment Modal ──────────────────────────────────────────────────
+
+function AdjustmentModal({
+  run,
+  periodId,
+  onClose,
+  onRecomputed,
+}: {
+  run: Run;
+  periodId: number;
+  onClose: () => void;
+  onRecomputed: () => void;
+}) {
+  const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [recomputing, setRecomputing] = useState(false);
+  const [error, setError] = useState("");
+  // new-item form
+  const [newType, setNewType] = useState<"MANUAL_ADDITION" | "MANUAL_DEDUCTION">("MANUAL_ADDITION");
+  const [newAmount, setNewAmount] = useState("");
+  const [newReason, setNewReason] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  const loadAdj = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await apiFetch(
+        `${API}/adjustments?period_id=${periodId}&staff_name=${encodeURIComponent(run.staff_name)}`
+      );
+      setAdjustments(await r.json() as Adjustment[]);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [run.staff_name, periodId]);
+
+  useEffect(() => { void loadAdj(); }, [loadAdj]);
+
+  const addAdjustment = async () => {
+    const amt = parseFloat(newAmount);
+    if (!amt || amt <= 0) { setError("Amount must be a positive number"); return; }
+    setAdding(true);
+    setError("");
+    try {
+      const r = await apiFetch(`${API}/adjustments`, {
+        method: "POST",
+        body: JSON.stringify({
+          period_id:  periodId,
+          staff_name: run.staff_name,
+          item_type:  newType,
+          amount:     amt,
+          reason:     newReason.trim() || null,
+        }),
+      });
+      if (!r.ok) throw new Error(await r.text());
+      setNewAmount("");
+      setNewReason("");
+      await loadAdj();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const deleteAdj = async (id: number) => {
+    setError("");
+    try {
+      const r = await apiFetch(`${API}/adjustments/${id}`, { method: "DELETE" });
+      if (!r.ok) throw new Error(await r.text());
+      setAdjustments(prev => prev.filter(a => a.id !== id));
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const recompute = async () => {
+    setRecomputing(true);
+    setError("");
+    try {
+      const r = await apiFetch(`${API}/runs/${run.id}/compute`, { method: "POST" });
+      if (!r.ok) throw new Error(await r.text());
+      onRecomputed();
+      onClose();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setRecomputing(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="relative flex flex-col w-full max-w-lg max-h-[90vh] rounded-2xl border border-white/10 bg-slate-900 shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex-none flex items-center justify-between border-b border-white/10 px-6 py-4">
+          <div>
+            <h2 className="text-base font-semibold text-white flex items-center gap-2">
+              <PlusCircle size={16} className="text-violet-400"/>
+              Manual Adjustments — {run.staff_name}
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Add one-off additions or deductions (e.g. missed OT recognition, reimbursements).
+            </p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-white"><X size={18}/></button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          {error && (
+            <div className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-900/20 p-3 text-xs text-red-300">
+              <AlertCircle size={12}/> {error}
+            </div>
+          )}
+
+          {/* Existing adjustments */}
+          {loading ? (
+            <div className="flex justify-center py-6"><Loader2 size={20} className="animate-spin text-violet-400"/></div>
+          ) : adjustments.length === 0 ? (
+            <p className="text-center text-xs text-slate-600 py-4">No manual adjustments yet.</p>
+          ) : (
+            <div className="rounded-xl border border-white/5 overflow-hidden">
+              {adjustments.map((adj, idx) => (
+                <div
+                  key={adj.id}
+                  className={`flex items-center justify-between px-4 py-3 ${idx < adjustments.length-1 ? "border-b border-white/5" : ""}`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      {adj.item_type === "MANUAL_ADDITION"
+                        ? <PlusCircle size={13} className="text-emerald-400 flex-none"/>
+                        : <MinusCircle size={13} className="text-red-400 flex-none"/>}
+                      <span className={`text-sm font-medium ${adj.item_type === "MANUAL_ADDITION" ? "text-emerald-300" : "text-red-300"}`}>
+                        {adj.item_type === "MANUAL_ADDITION" ? "+" : "−"}{fmtPHP(adj.amount)}
+                      </span>
+                    </div>
+                    {adj.reason && <p className="text-xs text-slate-500 mt-0.5 ml-5">{adj.reason}</p>}
+                    <p className="text-[10px] text-slate-600 mt-0.5 ml-5">
+                      {new Date(adj.created_at).toLocaleDateString("en-PH")}
+                      {adj.created_by && ` · ${adj.created_by}`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => deleteAdj(adj.id)}
+                    className="ml-3 text-slate-600 hover:text-red-400"
+                    title="Delete"
+                  >
+                    <Trash2 size={14}/>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add form */}
+          <div className="rounded-xl border border-violet-500/20 bg-violet-900/10 p-4 space-y-3">
+            <p className="text-xs font-semibold text-violet-300 uppercase tracking-wider">Add Adjustment</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setNewType("MANUAL_ADDITION")}
+                className={`flex-1 flex items-center justify-center gap-1 rounded-lg border py-2 text-xs font-medium transition-colors ${
+                  newType === "MANUAL_ADDITION"
+                    ? "border-emerald-500/40 bg-emerald-900/30 text-emerald-300"
+                    : "border-white/10 bg-slate-800 text-slate-500 hover:text-slate-300"
+                }`}
+              >
+                <PlusCircle size={12}/> Addition
+              </button>
+              <button
+                onClick={() => setNewType("MANUAL_DEDUCTION")}
+                className={`flex-1 flex items-center justify-center gap-1 rounded-lg border py-2 text-xs font-medium transition-colors ${
+                  newType === "MANUAL_DEDUCTION"
+                    ? "border-red-500/40 bg-red-900/30 text-red-300"
+                    : "border-white/10 bg-slate-800 text-slate-500 hover:text-slate-300"
+                }`}
+              >
+                <MinusCircle size={12}/> Deduction
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="block text-[10px] text-slate-500 mb-1">Amount (PHP)</label>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={newAmount}
+                  onChange={e => setNewAmount(e.target.value)}
+                  className="w-full rounded-lg border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-violet-500/60 focus:outline-none"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] text-slate-500 mb-1">Reason / Note</label>
+              <input
+                type="text"
+                placeholder="e.g. Missed overtime 2025-05-10, Cash advance, etc."
+                value={newReason}
+                onChange={e => setNewReason(e.target.value)}
+                className="w-full rounded-lg border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-violet-500/60 focus:outline-none"
+              />
+            </div>
+            <button
+              onClick={addAdjustment}
+              disabled={adding || !newAmount}
+              className="w-full flex items-center justify-center gap-2 rounded-lg bg-violet-600 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50"
+            >
+              {adding ? <Loader2 size={13} className="animate-spin"/> : <PlusCircle size={13}/>}
+              Add
+            </button>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex-none flex items-center justify-end gap-3 border-t border-white/10 px-6 py-4">
+          <button onClick={onClose} className="rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700">
+            Close
+          </button>
+          <button
+            onClick={recompute}
+            disabled={recomputing}
+            className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50"
+          >
+            {recomputing ? <Loader2 size={14} className="animate-spin"/> : <Play size={14}/>}
+            Recompute Payroll
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Payslip detail (right panel) ────────────────────────────────────────────
 
 function PayslipDetail({
   run,
   items,
   itemsLoading,
+  periodId,
   onApprove,
   onPublish,
   onUnpublish,
   onClose,
+  onRecomputed,
   period,
 }: {
   run: Run;
   items: PayrollItem[];
   itemsLoading: boolean;
+  periodId: number;
   onApprove: (id: number) => void;
   onPublish: (id: number) => void;
   onUnpublish: (id: number) => void;
   onClose: () => void;
+  onRecomputed: () => void;
   period: Period | null;
 }) {
+  const [showDTR, setShowDTR]     = useState(false);
+  const [showAdj, setShowAdj]     = useState(false);
+
   const earnings      = items.filter(i => i.item_type === "earning"      && i.amount > 0);
   const deductions    = items.filter(i => i.item_type === "deduction");
   const employerCosts = items.filter(i => i.item_type === "employer_cost");
@@ -118,6 +613,23 @@ function PayslipDetail({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
+      {showDTR && (
+        <DTRModal
+          run={run}
+          periodId={periodId}
+          onClose={() => setShowDTR(false)}
+          onRecomputed={() => { setShowDTR(false); onRecomputed(); }}
+        />
+      )}
+      {showAdj && (
+        <AdjustmentModal
+          run={run}
+          periodId={periodId}
+          onClose={() => setShowAdj(false)}
+          onRecomputed={() => { setShowAdj(false); onRecomputed(); }}
+        />
+      )}
+
       {/* ── Header ── */}
       <div className="flex-none border-b border-white/5 p-5">
         <div className="flex items-start justify-between">
@@ -141,6 +653,22 @@ function PayslipDetail({
             )}
           </div>
           <div className="flex items-center gap-2 ml-2 shrink-0 flex-wrap justify-end">
+            {/* DTR correction button */}
+            <button
+              onClick={() => setShowDTR(true)}
+              className="flex items-center gap-1 rounded-lg border border-blue-500/30 bg-blue-900/20 px-3 py-1.5 text-xs text-blue-300 hover:bg-blue-900/40"
+              title="Edit clock-in / clock-out times"
+            >
+              <Clock size={12}/> Edit DTR
+            </button>
+            {/* Manual adjustment button */}
+            <button
+              onClick={() => setShowAdj(true)}
+              className="flex items-center gap-1 rounded-lg border border-violet-500/30 bg-violet-900/20 px-3 py-1.5 text-xs text-violet-300 hover:bg-violet-900/40"
+              title="Add manual addition or deduction"
+            >
+              <PlusCircle size={12}/> Adjust
+            </button>
             {run.status === "computed" && (
               <button
                 onClick={() => onApprove(run.id)}
@@ -254,7 +782,12 @@ function PayslipDetail({
                       } hover:bg-white/5`}
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm text-slate-200">{item.label}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm text-slate-200">{item.label}</p>
+                          {item.source === "manual" && (
+                            <span className="rounded-full border border-violet-500/30 bg-violet-900/20 px-1.5 py-0.5 text-[9px] text-violet-400 uppercase tracking-wide">Manual</span>
+                          )}
+                        </div>
                         {item.quantity != null && item.unit_rate != null && (
                           <p className="text-xs text-slate-500 mt-0.5">
                             {item.quantity} day(s) × ₱{item.unit_rate.toLocaleString("en-PH", { minimumFractionDigits: 4, maximumFractionDigits: 4 })}
@@ -299,11 +832,16 @@ function PayslipDetail({
                       } hover:bg-white/5`}
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm text-slate-200">{item.label}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm text-slate-200">{item.label}</p>
+                          {item.source === "manual" && (
+                            <span className="rounded-full border border-red-500/30 bg-red-900/20 px-1.5 py-0.5 text-[9px] text-red-400 uppercase tracking-wide">Manual</span>
+                          )}
+                        </div>
                         {item.note && (
                           <p className="text-xs text-slate-500 mt-0.5">{item.note}</p>
                         )}
-                        {item.source && item.source !== "computed" && (
+                        {item.source && item.source !== "computed" && item.source !== "manual" && (
                           <p className="text-xs text-slate-600 mt-0.5">Source: {item.source}</p>
                         )}
                       </div>
@@ -404,7 +942,13 @@ export default function ManilaPayrollPeriodPage() {
       const p = periods.find(x => x.id === periodId);
       setPeriod(p ?? null);
       if (!rr.ok) throw new Error(await rr.text());
-      setRuns(await rr.json() as Run[]);
+      const newRuns = await rr.json() as Run[];
+      setRuns(newRuns);
+      // refresh selectedRun if present
+      setSelectedRun(prev => {
+        if (!prev) return null;
+        return newRuns.find(r => r.id === prev.id) ?? null;
+      });
     } catch (e) {
       if (seq !== loadRef.current) return;
       setError(String(e));
@@ -502,6 +1046,19 @@ export default function ManilaPayrollPeriodPage() {
       setError(String(e));
     }
   };
+
+  // After DTR edit or adjustment → reload period + items
+  const handleRecomputed = useCallback(async () => {
+    await loadPeriod();
+    if (selectedRun) {
+      setItemsLoading(true);
+      try {
+        const r = await apiFetch(`${API}/runs/${selectedRun.id}/items`);
+        setItems(await r.json() as PayrollItem[]);
+      } catch { /* ignore */ }
+      finally { setItemsLoading(false); }
+    }
+  }, [loadPeriod, selectedRun]);
 
   // Sort runs
   const sortedRuns = [...runs].sort((a, b) => {
@@ -708,6 +1265,7 @@ export default function ManilaPayrollPeriodPage() {
                       <td className="py-2.5 text-right text-sm font-bold text-red-300 tabular-nums">({fmtPHP(totals.ded)})</td>
                       <td className="py-2.5 text-right text-sm font-bold text-emerald-300 tabular-nums">{fmtPHP(totals.net)}</td>
                       <td />
+                      <td />
                     </tr>
                   </tfoot>
                 </table>
@@ -725,6 +1283,10 @@ export default function ManilaPayrollPeriodPage() {
                     Click a name from the list on the left<br />
                     to view the payroll breakdown.
                   </p>
+                  <p className="text-xs text-slate-700 mt-3">
+                    Use <span className="text-blue-400">Edit DTR</span> to correct clock-in/out times.<br/>
+                    Use <span className="text-violet-400">Adjust</span> to add manual additions or deductions.
+                  </p>
                 </div>
               </div>
             ) : (
@@ -732,10 +1294,12 @@ export default function ManilaPayrollPeriodPage() {
                 run={selectedRun}
                 items={items}
                 itemsLoading={itemsLoading}
+                periodId={periodId}
                 onApprove={approveRun}
                 onPublish={publishRun}
                 onUnpublish={unpublishRun}
                 onClose={() => setSelectedRun(null)}
+                onRecomputed={handleRecomputed}
                 period={period}
               />
             )}
