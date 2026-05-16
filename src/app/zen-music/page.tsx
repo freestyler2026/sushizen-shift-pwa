@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pause, Play, Shuffle, SkipBack, SkipForward, Volume2, VolumeX, Repeat } from "lucide-react";
 
+type Category = "all" | "hype" | "chill" | "rock" | "night" | "ballad";
+
 type Track = {
   id: number;
   title: string;
@@ -11,7 +13,17 @@ type Track = {
   accent: string;       // Tailwind gradient (bg-gradient-to-br ...)
   accentHex: string;    // for canvas / glow
   glyph: string;        // big decorative character
+  category: Exclude<Category, "all">;
 };
+
+const CATEGORIES: { id: Category; label: string; emoji: string }[] = [
+  { id: "all",    label: "All",    emoji: "🎵" },
+  { id: "hype",   label: "Hype",   emoji: "🔥" },
+  { id: "chill",  label: "Chill",  emoji: "✨" },
+  { id: "rock",   label: "Rock",   emoji: "⚡" },
+  { id: "night",  label: "Night",  emoji: "🌙" },
+  { id: "ballad", label: "Ballad", emoji: "🎵" },
+];
 
 const TRACKS: Track[] = [
   {
@@ -22,6 +34,7 @@ const TRACKS: Track[] = [
     accent: "from-pink-400 via-rose-500 to-red-600",
     accentHex: "#ec4899",
     glyph: "粋",
+    category: "hype",
   },
   {
     id: 2,
@@ -31,6 +44,7 @@ const TRACKS: Track[] = [
     accent: "from-violet-500 via-indigo-600 to-blue-700",
     accentHex: "#7c3aed",
     glyph: "禅",
+    category: "hype",
   },
   {
     id: 3,
@@ -40,6 +54,7 @@ const TRACKS: Track[] = [
     accent: "from-rose-500 via-pink-600 to-fuchsia-700",
     accentHex: "#e11d48",
     glyph: "斬",
+    category: "hype",
   },
   {
     id: 4,
@@ -49,6 +64,7 @@ const TRACKS: Track[] = [
     accent: "from-emerald-400 via-teal-500 to-cyan-700",
     accentHex: "#059669",
     glyph: "魂",
+    category: "ballad",
   },
   {
     id: 5,
@@ -58,6 +74,7 @@ const TRACKS: Track[] = [
     accent: "from-amber-400 via-orange-500 to-red-600",
     accentHex: "#f59e0b",
     glyph: "心",
+    category: "chill",
   },
   {
     id: 6,
@@ -67,6 +84,7 @@ const TRACKS: Track[] = [
     accent: "from-lime-400 via-green-500 to-emerald-700",
     accentHex: "#84cc16",
     glyph: "律",
+    category: "chill",
   },
   {
     id: 7,
@@ -76,6 +94,7 @@ const TRACKS: Track[] = [
     accent: "from-yellow-400 via-amber-500 to-orange-600",
     accentHex: "#eab308",
     glyph: "猿",
+    category: "hype",
   },
   {
     id: 8,
@@ -85,6 +104,7 @@ const TRACKS: Track[] = [
     accent: "from-red-500 via-orange-600 to-yellow-500",
     accentHex: "#ef4444",
     glyph: "轟",
+    category: "rock",
   },
   {
     id: 9,
@@ -94,6 +114,7 @@ const TRACKS: Track[] = [
     accent: "from-zinc-300 via-slate-500 to-gray-800",
     accentHex: "#71717a",
     glyph: "鋼",
+    category: "rock",
   },
   {
     id: 10,
@@ -103,6 +124,7 @@ const TRACKS: Track[] = [
     accent: "from-sky-400 via-blue-500 to-indigo-600",
     accentHex: "#0ea5e9",
     glyph: "和",
+    category: "hype",
   },
   {
     id: 11,
@@ -112,6 +134,7 @@ const TRACKS: Track[] = [
     accent: "from-fuchsia-400 via-pink-500 to-rose-600",
     accentHex: "#d946ef",
     glyph: "祭",
+    category: "hype",
   },
   {
     id: 12,
@@ -121,6 +144,7 @@ const TRACKS: Track[] = [
     accent: "from-cyan-400 via-teal-400 to-emerald-500",
     accentHex: "#22d3ee",
     glyph: "浜",
+    category: "chill",
   },
   {
     id: 13,
@@ -130,6 +154,7 @@ const TRACKS: Track[] = [
     accent: "from-purple-400 via-violet-500 to-indigo-600",
     accentHex: "#a855f7",
     glyph: "想",
+    category: "chill",
   },
   {
     id: 14,
@@ -139,6 +164,7 @@ const TRACKS: Track[] = [
     accent: "from-slate-400 via-blue-700 to-indigo-900",
     accentHex: "#3730a3",
     glyph: "夜",
+    category: "night",
   },
   {
     id: 15,
@@ -148,6 +174,7 @@ const TRACKS: Track[] = [
     accent: "from-cyan-300 via-blue-500 to-violet-800",
     accentHex: "#6d28d9",
     glyph: "界",
+    category: "hype",
   },
   {
     id: 16,
@@ -157,6 +184,7 @@ const TRACKS: Track[] = [
     accent: "from-red-900 via-red-700 to-orange-500",
     accentHex: "#b91c1c",
     glyph: "将",
+    category: "hype",
   },
   {
     id: 17,
@@ -166,6 +194,7 @@ const TRACKS: Track[] = [
     accent: "from-indigo-900 via-purple-800 to-violet-600",
     accentHex: "#4c1d95",
     glyph: "宵",
+    category: "night",
   },
   {
     id: 18,
@@ -175,6 +204,7 @@ const TRACKS: Track[] = [
     accent: "from-sky-400 via-cyan-300 to-emerald-400",
     accentHex: "#0891b2",
     glyph: "陽",
+    category: "chill",
   },
   {
     id: 19,
@@ -184,6 +214,7 @@ const TRACKS: Track[] = [
     accent: "from-amber-400 via-orange-500 to-yellow-700",
     accentHex: "#d97706",
     glyph: "爵",
+    category: "night",
   },
   {
     id: 20,
@@ -193,6 +224,7 @@ const TRACKS: Track[] = [
     accent: "from-red-950 via-orange-900 to-yellow-600",
     accentHex: "#7f1d1d",
     glyph: "覇",
+    category: "hype",
   },
   {
     id: 21,
@@ -202,6 +234,7 @@ const TRACKS: Track[] = [
     accent: "from-zinc-900 via-red-800 to-orange-500",
     accentHex: "#dc2626",
     glyph: "轟",
+    category: "rock",
   },
   {
     id: 22,
@@ -211,6 +244,7 @@ const TRACKS: Track[] = [
     accent: "from-rose-400 via-pink-500 to-purple-700",
     accentHex: "#be185d",
     glyph: "歌",
+    category: "ballad",
   },
   {
     id: 23,
@@ -220,6 +254,7 @@ const TRACKS: Track[] = [
     accent: "from-cyan-400 via-blue-500 to-indigo-700",
     accentHex: "#3b82f6",
     glyph: "隊",
+    category: "hype",
   },
 ];
 
@@ -455,11 +490,20 @@ export default function ZenMusicPage() {
   const [muted, setMuted] = useState(false);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<Category>("all");
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const track = TRACKS[idx];
 
-  /* set src when track changes — do NOT call a.load() or a.play() here */
+  // Filtered track list based on active category
+  const filteredTracks = activeCategory === "all"
+    ? TRACKS
+    : TRACKS.filter((t) => t.category === activeCategory);
+
+  // Index of current track within the filtered list (-1 if not present)
+  const filteredIdx = filteredTracks.findIndex((t) => t.id === track.id);
+
+  /* set src when track changes */
   useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
@@ -469,14 +513,11 @@ export default function ZenMusicPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx]);
 
-  /* sync play/pause — runs whenever playing OR idx changes so play() is always
-     called after the new src is set (idx effect runs first, then this one) */
+  /* sync play/pause */
   useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
     if (playing) {
-      // play() queues itself internally until enough data is buffered.
-      // AbortError fires when src changes mid-play — safe to ignore.
       a.play().catch((e: unknown) => {
         if ((e as DOMException).name !== "AbortError") setPlaying(false);
       });
@@ -501,21 +542,30 @@ export default function ZenMusicPage() {
     const a = audioRef.current;
     if (a) setDuration(a.duration);
   }, []);
+
   const onEnded = useCallback(() => {
     if (repeat) {
       const a = audioRef.current;
       if (a) { a.currentTime = 0; a.play().catch(() => {}); }
       return;
     }
+    // navigate within filtered list (snapshot via ref or recalc inline)
+    const filtered = activeCategory === "all"
+      ? TRACKS
+      : TRACKS.filter((t) => t.category === activeCategory);
+    const fi = filtered.findIndex((t) => t.id === TRACKS[idx].id);
     if (shuffle) {
       let next: number;
-      do { next = Math.floor(Math.random() * TRACKS.length); } while (next === idx && TRACKS.length > 1);
-      setIdx(next);
+      do {
+        next = Math.floor(Math.random() * filtered.length);
+      } while (next === fi && filtered.length > 1);
+      setIdx(TRACKS.indexOf(filtered[next]));
     } else {
-      setIdx((i) => (i + 1) % TRACKS.length);
+      const nextFiltered = filtered[(fi + 1) % filtered.length];
+      setIdx(TRACKS.indexOf(nextFiltered));
     }
     setPlaying(true);
-  }, [idx, shuffle, repeat]);
+  }, [idx, shuffle, repeat, activeCategory]);
 
   const prev = () => {
     if (currentTime > 3) {
@@ -523,15 +573,34 @@ export default function ZenMusicPage() {
       if (a) { a.currentTime = 0; setCurrentTime(0); }
       return;
     }
-    setIdx((i) => (i - 1 + TRACKS.length) % TRACKS.length);
+    const fi = filteredIdx >= 0 ? filteredIdx : 0;
+    const prevFiltered = filteredTracks[(fi - 1 + filteredTracks.length) % filteredTracks.length];
+    setIdx(TRACKS.indexOf(prevFiltered));
     setPlaying(true);
   };
+
   const next = () => {
-    setIdx((i) => shuffle
-      ? (() => { let n; do { n = Math.floor(Math.random() * TRACKS.length); } while (n === i && TRACKS.length > 1); return n; })()
-      : (i + 1) % TRACKS.length
-    );
+    const fi = filteredIdx >= 0 ? filteredIdx : 0;
+    const nextFiltered = shuffle
+      ? (() => {
+          let n: number;
+          do { n = Math.floor(Math.random() * filteredTracks.length); } while (n === fi && filteredTracks.length > 1);
+          return filteredTracks[n];
+        })()
+      : filteredTracks[(fi + 1) % filteredTracks.length];
+    setIdx(TRACKS.indexOf(nextFiltered));
     setPlaying(true);
+  };
+
+  // When switching category, if current track isn't in the new filter, jump to first of that category
+  const handleCategoryChange = (cat: Category) => {
+    setActiveCategory(cat);
+    const newFiltered = cat === "all" ? TRACKS : TRACKS.filter((t) => t.category === cat);
+    const stillVisible = newFiltered.some((t) => t.id === track.id);
+    if (!stillVisible && newFiltered.length > 0) {
+      setIdx(TRACKS.indexOf(newFiltered[0]));
+      setPlaying(false);
+    }
   };
 
   return (
@@ -583,14 +652,14 @@ export default function ZenMusicPage() {
             <h1 className="text-base font-bold tracking-tight text-white/90">ZEN Music</h1>
           </div>
           <div className="flex gap-1.5">
-            {TRACKS.map((_, i) => (
-              <button key={i} onClick={() => { setIdx(i); setPlaying(true); }}>
+            {filteredTracks.map((t, i) => (
+              <button key={t.id} onClick={() => { setIdx(TRACKS.indexOf(t)); setPlaying(true); }}>
                 <span
                   className="block rounded-full transition-all duration-300"
                   style={{
-                    width: i === idx ? 20 : 6,
+                    width: t.id === track.id ? 20 : 6,
                     height: 6,
-                    background: i === idx ? track.accentHex : "rgba(255,255,255,0.2)",
+                    background: t.id === track.id ? track.accentHex : "rgba(255,255,255,0.2)",
                   }}
                 />
               </button>
@@ -713,17 +782,49 @@ export default function ZenMusicPage() {
 
         {/* ── Playlist ── */}
         <div className="relative mt-4 rounded-t-3xl border-t border-white/8 bg-white/[0.03] px-4 pb-8 pt-5 backdrop-blur-xl">
-          <p className="mb-3 px-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white/25">
-            Playlist · {TRACKS.length} tracks
-          </p>
+          {/* Header + category pills */}
+          <div className="mb-3 flex items-center justify-between px-1">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/25">
+              Playlist · {filteredTracks.length} tracks
+            </p>
+          </div>
+
+          {/* Category pill tabs */}
+          <div className="mb-4 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+            {CATEGORIES.map((cat) => {
+              const isActive = activeCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => handleCategoryChange(cat.id)}
+                  className={[
+                    "flex flex-shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all duration-200",
+                    isActive
+                      ? "text-white shadow-lg"
+                      : "bg-white/8 text-white/40 hover:bg-white/12 hover:text-white/70",
+                  ].join(" ")}
+                  style={isActive ? {
+                    background: `linear-gradient(135deg, ${track.accentHex}cc, ${track.accentHex}66)`,
+                    boxShadow: `0 0 12px ${track.accentHex}44`,
+                  } : undefined}
+                >
+                  <span>{cat.emoji}</span>
+                  <span>{cat.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Track list */}
           <div className="flex flex-col gap-1">
-            {TRACKS.map((t, i) => (
+            {filteredTracks.map((t) => (
               <TrackRow
                 key={t.id}
                 track={t}
-                active={i === idx}
+                active={t.id === track.id}
                 playing={playing}
                 onClick={() => {
+                  const i = TRACKS.indexOf(t);
                   if (i === idx) { setPlaying((p) => !p); }
                   else { setIdx(i); setPlaying(true); }
                 }}
