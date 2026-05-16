@@ -255,6 +255,15 @@ export default function AdminProcurementPage() {
       setError("Request, approver name, and PIN are required.");
       return;
     }
+    const selectedStatus = String(selectedRequestDetail?.status || "").toUpperCase();
+    if (selectedStatus === "DRAFT") {
+      setError("このリクエストはまだDRAFTです。店舗側でSubmitしてからApprovalを実行してください。");
+      return;
+    }
+    if (selectedStatus && !["IN_REVIEW", "SUBMITTED"].includes(selectedStatus)) {
+      setError(`ステータスが "${selectedStatus}" のため、Approval Actionは実行できません。対象は IN_REVIEW / SUBMITTED のみです。`);
+      return;
+    }
     setActionBusy(true);
     setError("");
     try {
@@ -476,7 +485,7 @@ export default function AdminProcurementPage() {
       </div>
 
       {(() => {
-        const pendingCount = rows.filter((r) => ["SUBMITTED", "IN_REVIEW", "DRAFT"].includes(String(r.status || "").toUpperCase())).length;
+        const pendingCount = rows.filter((r) => ["SUBMITTED", "IN_REVIEW"].includes(String(r.status || "").toUpperCase())).length;
         const kpiCards = [
           { id: "requests", label: "Requests", value: rows.length, pending: pendingCount },
           { id: "approvalInbox", label: "Approval Inbox", value: queueRows.length, pending: 0 },
@@ -510,7 +519,7 @@ export default function AdminProcurementPage() {
             <h2 className={T_SECTION}>Requests</h2>
             <div className="flex items-center gap-2">
               {(() => {
-                const pending = rows.filter((r) => ["SUBMITTED", "IN_REVIEW", "DRAFT"].includes(String(r.status || "").toUpperCase())).length;
+                const pending = rows.filter((r) => ["SUBMITTED", "IN_REVIEW"].includes(String(r.status || "").toUpperCase())).length;
                 return pending > 0 ? (
                   <span className="rounded-full bg-amber-500/20 border border-amber-500/30 px-2.5 py-0.5 text-xs font-bold text-amber-300">
                     {pending} unprocessed
@@ -590,6 +599,11 @@ export default function AdminProcurementPage() {
             <h2 className={T_SECTION}>Approval Action</h2>
             <p className={T_CAPTION}>Run procurement approval workflow for the selected request.</p>
           </div>
+          {selectedRequestDetail && String(selectedRequestDetail.status || "").toUpperCase() === "DRAFT" && (
+            <div className="mb-3 flex items-center gap-2 rounded-xl border border-amber-700/40 bg-amber-900/15 px-3 py-2 text-sm text-amber-300">
+              ⚠ このリクエストはまだ <strong>DRAFT</strong> です。店舗側で「Continue Draft → Submit」を実行してからApprovalしてください。
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
             <select value={approvalAction} onChange={(e) => setApprovalAction(e.target.value as "APPROVE" | "REJECT" | "RETURN")} className={SELECT_CLASS}>
               <option value="APPROVE">APPROVE</option>
@@ -599,7 +613,7 @@ export default function AdminProcurementPage() {
             <textarea value={approvalNote} onChange={(e) => setApprovalNote(e.target.value)} placeholder="Comment" className={`${TEXTAREA_CLASS} lg:col-span-2`} rows={3} />
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" onClick={runApproval} disabled={actionBusy || !selectedRequestId} className={PRIMARY_BUTTON}>
+            <button type="button" onClick={runApproval} disabled={actionBusy || !selectedRequestId || String(selectedRequestDetail?.status || "").toUpperCase() === "DRAFT"} className={PRIMARY_BUTTON}>
               {actionBusy ? "Processing..." : "Run Approval Action"}
             </button>
             <button type="button" onClick={() => setApprovalNote("")} className={SECONDARY_BUTTON}>

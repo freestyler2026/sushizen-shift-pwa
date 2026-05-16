@@ -342,23 +342,90 @@ function RequestDetailDrawer({
           )}
         </div>
 
-        {/* Footer actions */}
-        {detail && (
-          <div className="border-t border-white/10 px-5 py-4 flex gap-3">
-            <Link
-              href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(requestId)}`}
-              className="flex-1 rounded-xl border border-violet-500/30 bg-violet-950/40 py-2.5 text-center text-sm font-semibold text-violet-300 transition hover:bg-violet-900/40"
-            >
-              Receiving
-            </Link>
-            <Link
-              href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(requestId)}`}
-              className="flex-1 rounded-xl border border-red-500/30 bg-red-950/40 py-2.5 text-center text-sm font-semibold text-red-300 transition hover:bg-red-900/40"
-            >
-              Claim
-            </Link>
-          </div>
-        )}
+        {/* Footer actions — status-aware */}
+        {detail && (() => {
+          const s = String(detail.status || "").toUpperCase();
+          if (s === "DRAFT") {
+            return (
+              <div className="border-t border-white/10 px-5 py-4 flex gap-3">
+                <Link
+                  href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}&edit=${encodeURIComponent(requestId)}`}
+                  onClick={onClose}
+                  className="flex-1 rounded-xl border border-amber-500/40 bg-amber-950/30 py-2.5 text-center text-sm font-semibold text-amber-300 transition hover:bg-amber-900/40"
+                >
+                  Continue Draft → Submit
+                </Link>
+              </div>
+            );
+          }
+          if (s === "RETURNED") {
+            return (
+              <div className="border-t border-white/10 px-5 py-4 flex gap-3">
+                <Link
+                  href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}&edit=${encodeURIComponent(requestId)}`}
+                  onClick={onClose}
+                  className="flex-1 rounded-xl border border-amber-500/40 bg-amber-950/30 py-2.5 text-center text-sm font-semibold text-amber-300 transition hover:bg-amber-900/40"
+                >
+                  Edit &amp; Resubmit
+                </Link>
+              </div>
+            );
+          }
+          if (s === "IN_REVIEW" || s === "SUBMITTED") {
+            return (
+              <div className="border-t border-white/10 px-5 py-4">
+                <div className="flex items-center justify-center gap-2 rounded-xl border border-white/8 bg-white/4 py-2.5 text-sm text-zinc-500">
+                  <Clock className="h-4 w-4" /> Awaiting Approval
+                </div>
+              </div>
+            );
+          }
+          if (s === "APPROVED") {
+            return (
+              <div className="border-t border-white/10 px-5 py-4 flex gap-3">
+                <Link
+                  href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(requestId)}`}
+                  onClick={onClose}
+                  className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 py-2.5 text-center text-sm font-semibold text-white transition hover:from-emerald-500 hover:to-emerald-400"
+                >
+                  Receive Now
+                </Link>
+              </div>
+            );
+          }
+          if (s === "RECEIVED") {
+            return (
+              <div className="border-t border-white/10 px-5 py-4 flex gap-3">
+                <Link
+                  href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(requestId)}`}
+                  onClick={onClose}
+                  className="flex-1 rounded-xl border border-blue-500/30 bg-blue-950/30 py-2.5 text-center text-sm font-semibold text-blue-300 transition hover:bg-blue-900/40"
+                >
+                  File Claim
+                </Link>
+              </div>
+            );
+          }
+          // CLAIMED / CLOSED / other — show history links
+          return (
+            <div className="border-t border-white/10 px-5 py-4 flex gap-3">
+              <Link
+                href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(requestId)}`}
+                onClick={onClose}
+                className="flex-1 rounded-xl border border-violet-500/30 bg-violet-950/40 py-2.5 text-center text-sm font-semibold text-violet-300 transition hover:bg-violet-900/40"
+              >
+                Receiving
+              </Link>
+              <Link
+                href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(requestId)}`}
+                onClick={onClose}
+                className="flex-1 rounded-xl border border-red-500/30 bg-red-950/40 py-2.5 text-center text-sm font-semibold text-red-300 transition hover:bg-red-900/40"
+              >
+                Claim
+              </Link>
+            </div>
+          );
+        })()}
       </motion.div>
     </>
   );
@@ -815,7 +882,7 @@ export default function StoreProcurementHomePage() {
             </div>
             <div className="flex flex-wrap gap-2">
               {(BRANCHES[city as "dubai" | "manila"] || [])
-                .filter((b) => b.code !== "CK" && b.code !== "DRIVER")
+                .filter((b) => b.code !== "DRIVER")
                 .map((branch) => {
                   const active = storeCode === branch.code;
                   return (

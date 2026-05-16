@@ -12,7 +12,8 @@ export type BranchCode =
   | "PAR"
   | "CUB"
   | "TAFT"
-  | "BO";
+  | "BO"
+  | "WH";
 
 export type Branch = { code: BranchCode; name: string };
 
@@ -31,6 +32,7 @@ export const BRANCHES: Record<City, Branch[]> = {
     { code: "CUB", name: "Cubao" },
     { code: "TAFT", name: "Taft" },
     { code: "CK", name: "Central Kitchen" },
+    { code: "WH", name: "Warehouse" },
     { code: "BO", name: "Back Office" },
   ],
 };
@@ -56,6 +58,7 @@ export function normalizeBranchCode(city: City, v: string): BranchCode | string 
     if (low.includes("cub")) return "CUB";
     if (low.includes("taft")) return "TAFT";
     if (low.includes("ck") || low.includes("central")) return "CK";
+    if (low.includes("warehouse") || low === "wh") return "WH";
     if (low.includes("back office") || low.includes("regus") || low === "bo") return "BO";
   }
 
