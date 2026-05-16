@@ -5548,7 +5548,7 @@ export default function CostCalculationPage() {
                           <button
                             type="button"
                             onClick={() => void openIngredientDetail(ingredientRow)}
-                            title="詳細を見る"
+                            title="View Details"
                             className="inline-flex h-7 w-7 items-center justify-center rounded border border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10 hover:text-sky-300"
                           >
                             <History className="h-3.5 w-3.5" />

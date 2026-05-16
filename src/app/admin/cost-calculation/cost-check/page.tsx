@@ -240,7 +240,7 @@ function IngredientPanel({
               onClick={onClose}
               className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-zinc-500 transition hover:text-zinc-300"
             >
-              閉じる
+              Close
             </button>
           </div>
         </div>
@@ -788,7 +788,7 @@ function CostCheckPageInner() {
                         <td className="py-3 pr-5">
                           {loaded && (
                             <span className="text-[10px] text-zinc-600 whitespace-nowrap">
-                              {isExpanded ? "閉じる" : "詳細を見る"}
+                              {isExpanded ? "Close" : "Details"}
                             </span>
                           )}
                         </td>

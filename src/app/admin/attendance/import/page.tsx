@@ -417,7 +417,7 @@ export default function AttendanceImportPage() {
               </div>
               <div className="mb-3 flex flex-wrap gap-2 sm:mb-4">
                 <span className={`${singleResult.duplicate ? BADGE_INFO : BADGE_SUCCESS} text-xs`}>
-                  {singleResult.message || (singleResult.duplicate ? "取得済み（スキップ）" : "インポート完了")}
+                  {singleResult.message || (singleResult.duplicate ? "Already imported (skipped)" : "Import complete")}
                 </span>
               </div>
               <div className="grid gap-2 sm:gap-3 md:grid-cols-2">

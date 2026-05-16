@@ -233,7 +233,7 @@ export default function DiscordInboxPage() {
         { cache: "no-store" }
       );
       if (res.status === 401) { router.replace("/week"); return; }
-      if (res.status === 403) { setError("アクセス権限がありません。管理者にご連絡ください。"); setLoading(false); return; }
+      if (res.status === 403) { setError("You do not have permission to access this page. Please contact your administrator."); setLoading(false); return; }
       const data = await res.json();
       if (data.ok) {
         setMentions(data.items || []);

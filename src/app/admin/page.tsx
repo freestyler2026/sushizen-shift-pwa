@@ -1209,14 +1209,14 @@ function AdminPageInner() {
                 <AlertTriangle className="h-5 w-5 shrink-0 text-red-400" />
                 <div>
                   <div className="text-sm font-semibold text-red-200">
-                    Price Check — {priceCheckFlagged} 件の価格変更を検出
+                    Price Check — {priceCheckFlagged} price change{priceCheckFlagged !== 1 ? "s" : ""} detected
                   </div>
                   <div className="text-xs text-red-400/70">
-                    StoreHubの販売価格が基準価格から変更されています。確認してください。
+                    StoreHub selling prices have changed from baseline. Please review.
                   </div>
                 </div>
               </div>
-              <span className="shrink-0 text-xs text-red-400">詳細を見る →</span>
+              <span className="shrink-0 text-xs text-red-400">View Details →</span>
             </div>
           </div>
         </Link>

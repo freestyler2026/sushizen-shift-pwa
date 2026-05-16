@@ -885,7 +885,7 @@ export default function ShiftScheduleView({
       {/* No data state */}
       {!loading && rows.length === 0 && (
         <div className="rounded-xl border border-white/10 bg-white/[0.02] py-10 text-center text-sm text-zinc-500">
-          このブランチのドラフトデータがありません。先にドラフトを生成してください。
+          No draft data for this branch. Please generate a draft first.
         </div>
       )}
 

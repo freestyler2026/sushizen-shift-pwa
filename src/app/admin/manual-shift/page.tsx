@@ -873,7 +873,7 @@ export default function ManualShiftPage() {
       // Persist to this branch's localStorage draft
       saveDraft(city, bc, weekStart, grid);
       const shiftCount = bRows.filter((r) => r.type === "shift").length;
-      summary.push(`${bc}: ${shiftCount}件`);
+      summary.push(`${bc}: ${shiftCount} shifts`);
     }
 
     setBayzatAllApplied(summary);
@@ -1776,10 +1776,10 @@ export default function ManualShiftPage() {
               {/* Success message after Apply All */}
               {bayzatAllApplied && (
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs text-emerald-800">
-                  <span className="font-semibold">✅ 全ブランチに保存済み：</span>{" "}
+                  <span className="font-semibold">✅ Saved to all branches:</span>{" "}
                   {bayzatAllApplied.join(" · ")}
                   <br />
-                  <span className="text-emerald-700">ブランチを切り替えると自動的にデータが反映されます。</span>
+                  <span className="text-emerald-700">Data will be reflected automatically when switching branches.</span>
                 </div>
               )}
 
@@ -1797,7 +1797,7 @@ export default function ManualShiftPage() {
                       disabled={loading || allWeekRows.length === 0}
                       className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
                     >
-                      🌐 全ブランチ一括保存 ({branchesInFile.length}ブランチ)
+                      🌐 Save All Branches ({branchesInFile.length} branches)
                     </button>
                   );
                 })()}
@@ -1812,7 +1812,7 @@ export default function ManualShiftPage() {
                   ).length === 0}
                   className={`${PRIMARY_BUTTON} flex-1 disabled:opacity-40 disabled:cursor-not-allowed`}
                 >
-                  {loading ? "⏳ Loading..." : `✅ このブランチに適用 (${bayzatResult.rows.filter(
+                  {loading ? "⏳ Loading..." : `✅ Apply to This Branch (${bayzatResult.rows.filter(
                     (r) => r.branch_code === branchCode &&
                       r.work_date >= weekStart && r.work_date <= addDays(weekStart, 6)
                   ).length} rows)`}
@@ -1823,7 +1823,7 @@ export default function ManualShiftPage() {
                   onClick={() => { setBayzatResult(null); setBayzatAllApplied(null); }}
                   className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
                 >
-                  閉じる
+                  Close
                 </button>
               </div>
             </div>
