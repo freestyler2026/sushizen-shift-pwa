@@ -68,7 +68,7 @@ The Inventory channel has 10 pages covering counting, adjustments, production, t
 **Function:** `closeSelectedProduction()` (line ~1137)  
 **Issue:** The "Close Production" button on the history detail panel posts items to the ledger and deducts ingredients from CK stock immediately — no confirmation is shown. The success message ("Production closed. Product intake and ingredient consumption were posted to ledger.") only appears after the fact.  
 **Fix:** Add a confirmation modal before calling the close endpoint: "Close this production? Output will be posted to inventory, and {N} ingredients will be deducted from CK stock."  
-**Status:** [ ] pending
+**Status:** [x] done
 
 ---
 
@@ -80,7 +80,7 @@ The Inventory channel has 10 pages covering counting, adjustments, production, t
 - Add `unit` to the Delta and Balance columns (or at least show a sub-line with the unit)
 - Add a date-range filter (from/to date inputs) so users can look up historical movements
 - Remove or increase the implicit `limit=100`  
-**Status:** [ ] pending
+**Status:** [x] done
 
 ---
 
@@ -88,7 +88,7 @@ The Inventory channel has 10 pages covering counting, adjustments, production, t
 **File:** `src/app/admin/inventory/quantity-adjustments/page.tsx`  
 **Issue:** The `action_type` select defaults to "DECREASE". A user entering adjustments for items that need to be increased (e.g., receiving unrecorded stock) must actively change the field. One forgotten change creates a decrease instead of an increase — and there is no confirmation guard (see Issue 2).  
 **Fix:** Change default to "INCREASE", or remove the default so the user must make an explicit choice before the form enables the save button. Visually distinguish DECREASE in the UI (e.g., red text for DECREASE, green for INCREASE).  
-**Status:** [ ] pending
+**Status:** [x] done
 
 ---
 
@@ -99,7 +99,7 @@ The Inventory channel has 10 pages covering counting, adjustments, production, t
 - Rename the tab labels: "ALL" → "All", "ITEMS" → "Ingredients", "PRODUCTS" → "Products"
 - In the create form, rename the type options: "ITEM" → "Ingredient", "PRODUCT" → "Product (Finished Goods)"
 - Add a short descriptive label under the type selector: "Ingredients are raw materials; Products are finished goods produced by CK."  
-**Status:** [ ] pending
+**Status:** [x] done
 
 ---
 
@@ -113,7 +113,7 @@ The Inventory channel has 10 pages covering counting, adjustments, production, t
 - Make "Preview Sync" show an item-level diff list (added/removed rows), not just counts
 - Rename empty state: "No BOM rows found" → "No recipe lines found"
 - Add tooltip or label to "Yield" (amount kept after processing) and "Waste" (expected loss percentage)  
-**Status:** [ ] pending
+**Status:** [x] done
 
 ---
 

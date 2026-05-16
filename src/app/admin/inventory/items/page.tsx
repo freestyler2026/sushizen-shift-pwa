@@ -451,14 +451,17 @@ export default function InventoryItemsPage() {
               placeholder="Cost"
               className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             />
-            <select
-              value={createType}
-              onChange={(e) => setCreateType(e.target.value)}
-              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-            >
-              <option value="ITEM">ITEM (Raw ingredient)</option>
-              <option value="PRODUCT">PRODUCT (CK product)</option>
-            </select>
+            <div>
+              <select
+                value={createType}
+                onChange={(e) => setCreateType(e.target.value)}
+                className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              >
+                <option value="ITEM">Ingredient</option>
+                <option value="PRODUCT">Product (Finished Goods)</option>
+              </select>
+              <div className="mt-1 text-xs text-neutral-500">Ingredients are raw materials; Products are finished goods produced by CK.</div>
+            </div>
             <button
               type="button"
               onClick={() => void createItem()}
@@ -683,7 +686,7 @@ export default function InventoryItemsPage() {
                         <td className="px-3 py-2">{row.unit || "-"}</td>
                         <td className="px-3 py-2">
                           <span className={["rounded px-1.5 py-0.5 text-xs", row.item_type === "PRODUCT" ? "bg-purple-900/40 text-purple-300" : "bg-sky-900/40 text-sky-300"].join(" ")}>
-                            {row.item_type}
+                            {row.item_type === "PRODUCT" ? "Product" : "Ingredient"}
                           </span>
                         </td>
                         <td className="px-3 py-2 text-right">{Number(row.cost || 0).toFixed(2)}</td>
@@ -750,8 +753,8 @@ export default function InventoryItemsPage() {
                   onChange={(e) => setEditType(e.target.value)}
                   className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-neutral-100"
                 >
-                  <option value="ITEM">ITEM (Raw ingredient)</option>
-                  <option value="PRODUCT">PRODUCT (CK product)</option>
+                  <option value="ITEM">Ingredient</option>
+                  <option value="PRODUCT">Product (Finished Goods)</option>
                 </select>
               </div>
             </div>

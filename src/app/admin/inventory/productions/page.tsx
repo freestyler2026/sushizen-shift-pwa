@@ -175,6 +175,7 @@ export default function InventoryProductionsPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; confirmLabel: string; danger?: boolean; onConfirm: () => void } | null>(null);
   const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
   const [ingredientOptions, setIngredientOptions] = useState<IngredientOption[]>([]);
   const [staffOptions, setStaffOptions] = useState<string[]>([]);
@@ -1132,6 +1133,22 @@ ${pages}
     } finally {
       setSaving(false);
     }
+  }
+
+  function confirmCloseProduction() {
+    if (!selectedProductionId) return;
+    const outputCount = (selectedProduction?.items || []).filter((i) => i.entry_type === "OUTPUT").length;
+    const inputCount = (selectedProduction?.items || []).filter((i) => i.entry_type !== "OUTPUT").length;
+    const detail = inputCount > 0
+      ? `${outputCount} output item${outputCount !== 1 ? "s" : ""} will be posted to inventory and ${inputCount} ingredient${inputCount !== 1 ? "s" : ""} will be deducted from CK stock.`
+      : `${outputCount} output item${outputCount !== 1 ? "s" : ""} will be posted to inventory.`;
+    setConfirmModal({
+      title: "Close production and post to ledger?",
+      message: `Production ${selectedProduction?.production_no || ""} — ${detail} This cannot be undone.`,
+      confirmLabel: "Close & Post",
+      danger: true,
+      onConfirm: () => { setConfirmModal(null); void closeSelectedProduction(); },
+    });
   }
 
   async function closeSelectedProduction() {
@@ -2188,11 +2205,11 @@ ${pages}
                 </button>
                 <button
                   type="button"
-                  onClick={closeSelectedProduction}
+                  onClick={confirmCloseProduction}
                   disabled={!selectedProductionId || actionLoading || selectedProduction?.status === "CLOSED"}
                   className="rounded-lg border border-emerald-800 bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-200 disabled:opacity-50"
                 >
-                  {actionLoading ? "Processing..." : selectedProduction?.status === "CLOSED" ? "Closed" : "Close"}
+                  {actionLoading ? "Processing..." : selectedProduction?.status === "CLOSED" ? "Closed" : "Close & Post"}
                 </button>
               </div>
             </div>
@@ -2288,6 +2305,31 @@ ${pages}
           </div>
         </div>
       </section>
+
+      {confirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-neutral-700 bg-neutral-900 p-6 shadow-xl">
+            <h3 className="mb-2 text-base font-semibold text-white">{confirmModal.title}</h3>
+            <p className="mb-5 text-sm text-neutral-300">{confirmModal.message}</p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                className="rounded-lg border border-neutral-600 px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmModal.onConfirm}
+                className={`rounded-lg px-4 py-2 text-sm font-medium text-white ${confirmModal.danger ? "bg-red-700 hover:bg-red-600" : "bg-sky-700 hover:bg-sky-600"}`}
+              >
+                {confirmModal.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

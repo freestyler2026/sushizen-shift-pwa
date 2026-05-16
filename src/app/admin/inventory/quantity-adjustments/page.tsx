@@ -206,7 +206,7 @@ export default function InventoryQuantityAdjustmentsPage() {
         sku: item.sku,
         quantity: 1,
         unit_cost: Number(item.cost || 0),
-        action_type: "DECREASE",
+        action_type: "INCREASE",
         storage_unit: item.storage_unit || "",
         draftQtyText: "1",
       },
