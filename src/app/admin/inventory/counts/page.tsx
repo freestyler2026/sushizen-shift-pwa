@@ -97,6 +97,8 @@ export default function InventoryCountsPage() {
   const [editItemSupplier, setEditItemSupplier] = useState("");
   const [editItemMemo, setEditItemMemo] = useState("");
   const [editItemSaving, setEditItemSaving] = useState(false);
+  // Generic confirm modal
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; confirmLabel: string; danger?: boolean; onConfirm: () => void } | null>(null);
 
   const refreshLineWithBalance = useCallback((line: InventoryCountLine, balanceLookup: Record<string, number> = balancesMap): InventoryCountLine => {
     return withVariance({
@@ -324,9 +326,14 @@ export default function InventoryCountsPage() {
   function handleLoadTemplate() {
     if (!templatePickerId) return;
     if (draftLines.length > 0) {
-      if (!window.confirm("現在のDraft itemsはテンプレートの内容に置き換えられます。続けますか？\n(Current draft items will be replaced by the template. Continue?)")) {
-        return;
-      }
+      setConfirmModal({
+        title: "Replace current draft?",
+        message: `Your current draft (${draftLines.length} item${draftLines.length !== 1 ? "s" : ""}) will be replaced by the selected template. This cannot be undone.`,
+        confirmLabel: "Replace Draft",
+        danger: true,
+        onConfirm: () => { setConfirmModal(null); setSelectedCountSheetId(templatePickerId); },
+      });
+      return;
     }
     setSelectedCountSheetId(templatePickerId);
     // The useEffect watching selectedCountSheetId will auto-fetch & applySheetToDraft
@@ -473,6 +480,18 @@ export default function InventoryCountsPage() {
     }
   }
 
+  function confirmCloseCount() {
+    if (!selectedCountId) return;
+    const itemCount = (selectedCount?.items || []).length;
+    setConfirmModal({
+      title: "Close count and post to ledger?",
+      message: `Count ${selectedCount?.count_no || ""} (${itemCount} item${itemCount !== 1 ? "s" : ""}) will be closed and variances posted to the inventory ledger. This cannot be undone.`,
+      confirmLabel: "Close & Post",
+      danger: true,
+      onConfirm: () => { setConfirmModal(null); void closeSelectedCount(); },
+    });
+  }
+
   async function closeSelectedCount() {
     if (!selectedCountId) return;
     setActionLoading(true);
@@ -489,9 +508,18 @@ export default function InventoryCountsPage() {
     }
   }
 
+  function confirmReopenCount() {
+    if (!selectedCountId) return;
+    setConfirmModal({
+      title: "Reopen this count?",
+      message: "The count will be moved back to DRAFT status and become editable again.",
+      confirmLabel: "Reopen",
+      onConfirm: () => { setConfirmModal(null); void reopenSelectedCount(); },
+    });
+  }
+
   async function reopenSelectedCount() {
     if (!selectedCountId) return;
-    if (!confirm("このカウントをDRAFTに戻して編集可能にしますか？")) return;
     setActionLoading(true);
     setError("");
     setSuccess("");
@@ -565,7 +593,16 @@ export default function InventoryCountsPage() {
               onChange={(e) => {
                 const next = e.target.value as City;
                 if (next === city) return;
-                if (draftLines.length > 0 && !window.confirm("Switching city will clear your current draft. Continue?")) return;
+                if (draftLines.length > 0) {
+                  setConfirmModal({
+                    title: `Switch to ${next.charAt(0).toUpperCase() + next.slice(1)}?`,
+                    message: `Your current draft (${draftLines.length} item${draftLines.length !== 1 ? "s" : ""}) will be cleared.`,
+                    confirmLabel: "Switch & Clear Draft",
+                    danger: true,
+                    onConfirm: () => { setConfirmModal(null); setCity(next); },
+                  });
+                  return;
+                }
                 setCity(next);
               }}
             >
@@ -666,9 +703,14 @@ export default function InventoryCountsPage() {
                 setTemplatePickerId(newId);
                 if (!newId) return;
                 if (draftLines.length > 0) {
-                  if (!window.confirm("現在のDraft itemsはテンプレートの内容に置き換えられます。続けますか？\n(Current draft items will be replaced by the template. Continue?)")) {
-                    return;
-                  }
+                  setConfirmModal({
+                    title: "Replace current draft?",
+                    message: `Your current draft (${draftLines.length} item${draftLines.length !== 1 ? "s" : ""}) will be replaced by the selected template.`,
+                    confirmLabel: "Replace Draft",
+                    danger: true,
+                    onConfirm: () => { setConfirmModal(null); setSelectedCountSheetId(newId); },
+                  });
+                  return;
                 }
                 setSelectedCountSheetId(newId);
               }}
@@ -967,11 +1009,11 @@ export default function InventoryCountsPage() {
                 <button type="button" onClick={submitSelectedCount} disabled={!selectedCountId || actionLoading || selectedCount?.status !== "DRAFT"} className="rounded-lg border border-sky-800 bg-sky-950/30 px-3 py-1.5 text-xs text-sky-200 disabled:opacity-50">
                   Submit
                 </button>
-                <button type="button" onClick={reopenSelectedCount} disabled={!selectedCountId || actionLoading || selectedCount?.status !== "SUBMITTED"} className="rounded-lg border border-amber-700 bg-amber-950/30 px-3 py-1.5 text-xs text-amber-200 disabled:opacity-50" title="SUBMITTED → DRAFTに戻して修正可能にする">
+                <button type="button" onClick={confirmReopenCount} disabled={!selectedCountId || actionLoading || selectedCount?.status !== "SUBMITTED"} className="rounded-lg border border-amber-700 bg-amber-950/30 px-3 py-1.5 text-xs text-amber-200 disabled:opacity-50">
                   {actionLoading ? "..." : "Reopen"}
                 </button>
-                <button type="button" onClick={closeSelectedCount} disabled={!selectedCountId || actionLoading || selectedCount?.status === "CLOSED"} className="rounded-lg border border-emerald-800 bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-200 disabled:opacity-50">
-                  {actionLoading ? "Processing..." : selectedCount?.status === "CLOSED" ? "Closed" : "Close"}
+                <button type="button" onClick={confirmCloseCount} disabled={!selectedCountId || actionLoading || selectedCount?.status === "CLOSED"} className="rounded-lg border border-emerald-800 bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-200 disabled:opacity-50">
+                  {actionLoading ? "Processing..." : selectedCount?.status === "CLOSED" ? "Closed" : "Close & Post"}
                 </button>
               </div>
             </div>
@@ -1099,6 +1141,32 @@ export default function InventoryCountsPage() {
           </div>
         </div>
       </section>
+
+      {/* ── Generic Confirm Modal ───────────────────────────────────────── */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-sm rounded-2xl border border-neutral-700 bg-slate-900/95 p-6 shadow-2xl">
+            <div className="mb-2 text-base font-semibold text-neutral-100">{confirmModal.title}</div>
+            <div className="mb-5 text-sm text-neutral-400">{confirmModal.message}</div>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                className="rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmModal.onConfirm}
+                className={`rounded-xl px-4 py-2 text-sm font-semibold text-white ${confirmModal.danger ? "bg-rose-600 hover:bg-rose-500" : "bg-sky-600 hover:bg-sky-500"}`}
+              >
+                {confirmModal.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -90,6 +90,7 @@ export default function InventoryTransferOrdersPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; confirmLabel: string; danger?: boolean; onConfirm: () => void } | null>(null);
 
   const [fromBranch, setFromBranch] = useState<string>(BRANCHES[(auth?.city || "manila") as City][0]?.code || "BB");
   const [toBranch, setToBranch] = useState<string>(BRANCHES[(auth?.city || "manila") as City][1]?.code || BRANCHES[(auth?.city || "manila") as City][0]?.code || "BB");
@@ -351,7 +352,21 @@ export default function InventoryTransferOrdersPage() {
           <select
             className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
             value={city}
-            onChange={(e) => setCity(e.target.value as City)}
+            onChange={(e) => {
+              const next = e.target.value as City;
+              if (next === city) return;
+              if (draftItems.length > 0) {
+                setConfirmModal({
+                  title: `Switch to ${next.charAt(0).toUpperCase() + next.slice(1)}?`,
+                  message: `Your current draft (${draftItems.length} item${draftItems.length !== 1 ? "s" : ""}) will be cleared.`,
+                  confirmLabel: "Switch & Clear Draft",
+                  danger: true,
+                  onConfirm: () => { setConfirmModal(null); setCity(next); },
+                });
+                return;
+              }
+              setCity(next);
+            }}
           >
             <option value="dubai">Dubai</option>
             <option value="manila">Manila</option>
@@ -627,6 +642,23 @@ export default function InventoryTransferOrdersPage() {
           </div>
         </div>
       </section>
+
+      {confirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-sm rounded-2xl border border-neutral-700 bg-slate-900/95 p-6 shadow-2xl">
+            <div className="mb-2 text-base font-semibold text-neutral-100">{confirmModal.title}</div>
+            <div className="mb-5 text-sm text-neutral-400">{confirmModal.message}</div>
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={() => setConfirmModal(null)} className="rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-700">
+                Cancel
+              </button>
+              <button type="button" onClick={confirmModal.onConfirm} className={`rounded-xl px-4 py-2 text-sm font-semibold text-white ${confirmModal.danger ? "bg-rose-600 hover:bg-rose-500" : "bg-sky-600 hover:bg-sky-500"}`}>
+                {confirmModal.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -101,6 +101,7 @@ export default function InventoryQuantityAdjustmentsPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; confirmLabel: string; danger?: boolean; onConfirm: () => void } | null>(null);
   const [itemOptions, setItemOptions] = useState<InventoryItemOption[]>([]);
   const [draftItems, setDraftItems] = useState<DraftItem[]>([]);
   const [historyRows, setHistoryRows] = useState<QuantityAdjustmentRow[]>([]);
@@ -295,6 +296,18 @@ export default function InventoryQuantityAdjustmentsPage() {
     }
   }
 
+  function confirmCloseAdjustment() {
+    if (!selectedAdjustmentId) return;
+    const itemCount = (selectedAdjustment?.items || []).length;
+    setConfirmModal({
+      title: "Post adjustment to ledger?",
+      message: `Adjustment ${selectedAdjustment?.adjustment_no || ""} (${itemCount} item${itemCount !== 1 ? "s" : ""}) will be closed and posted to the inventory ledger. This cannot be undone.`,
+      confirmLabel: "Close & Post",
+      danger: true,
+      onConfirm: () => { setConfirmModal(null); void closeSelectedAdjustment(); },
+    });
+  }
+
   async function closeSelectedAdjustment() {
     if (!selectedAdjustmentId) return;
     setActionLoading(true);
@@ -386,7 +399,16 @@ export default function InventoryQuantityAdjustmentsPage() {
                 type="button"
                 onClick={() => {
                   if (c === city) return;
-                  if (draftItems.length > 0 && !window.confirm("Switching city will clear your current draft. Continue?")) return;
+                  if (draftItems.length > 0) {
+                    setConfirmModal({
+                      title: `Switch to ${c.charAt(0).toUpperCase() + c.slice(1)}?`,
+                      message: `Your current draft (${draftItems.length} item${draftItems.length !== 1 ? "s" : ""}) will be cleared.`,
+                      confirmLabel: "Switch & Clear Draft",
+                      danger: true,
+                      onConfirm: () => { setConfirmModal(null); setCity(c); },
+                    });
+                    return;
+                  }
                   setCity(c);
                 }}
                 className={[
@@ -813,7 +835,7 @@ export default function InventoryQuantityAdjustmentsPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={closeSelectedAdjustment}
+                    onClick={confirmCloseAdjustment}
                     disabled={actionLoading || selectedAdjustment.status === "CLOSED"}
                     className={[
                       "flex-1 rounded-xl py-2 text-xs font-semibold transition disabled:opacity-50",
@@ -830,6 +852,23 @@ export default function InventoryQuantityAdjustmentsPage() {
           </div>
         </div>
       </section>
+
+      {confirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-sm rounded-2xl border border-neutral-700 bg-slate-900/95 p-6 shadow-2xl">
+            <div className="mb-2 text-base font-semibold text-neutral-100">{confirmModal.title}</div>
+            <div className="mb-5 text-sm text-neutral-400">{confirmModal.message}</div>
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={() => setConfirmModal(null)} className="rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-700">
+                Cancel
+              </button>
+              <button type="button" onClick={confirmModal.onConfirm} className={`rounded-xl px-4 py-2 text-sm font-semibold text-white ${confirmModal.danger ? "bg-rose-600 hover:bg-rose-500" : "bg-sky-600 hover:bg-sky-500"}`}>
+                {confirmModal.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

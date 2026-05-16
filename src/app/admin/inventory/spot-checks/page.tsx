@@ -55,6 +55,7 @@ export default function InventorySpotChecksPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [confirmModal, setConfirmModal] = useState<{ title: string; message: string; confirmLabel: string; danger?: boolean; onConfirm: () => void } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -298,6 +299,18 @@ export default function InventorySpotChecksPage() {
     }
   }
 
+  function confirmCloseSpotCheck() {
+    if (!selectedSpotCheckId) return;
+    const itemCount = (selectedSpotCheck?.items || []).length;
+    setConfirmModal({
+      title: "Close spot check and post to ledger?",
+      message: `Spot check ${selectedSpotCheck?.spot_check_no || ""} (${itemCount} item${itemCount !== 1 ? "s" : ""}) will be closed and variances posted to the inventory ledger. This cannot be undone.`,
+      confirmLabel: "Close & Post",
+      danger: true,
+      onConfirm: () => { setConfirmModal(null); void closeSelectedSpotCheck(); },
+    });
+  }
+
   async function closeSelectedSpotCheck() {
     if (!selectedSpotCheckId) return;
     setActionLoading(true);
@@ -338,7 +351,16 @@ export default function InventorySpotChecksPage() {
                 type="button"
                 onClick={() => {
                   if (c === city) return;
-                  if (draftLines.length > 0 && !window.confirm("Switching city will clear your current draft. Continue?")) return;
+                  if (draftLines.length > 0) {
+                    setConfirmModal({
+                      title: `Switch to ${c.charAt(0).toUpperCase() + c.slice(1)}?`,
+                      message: `Your current draft (${draftLines.length} item${draftLines.length !== 1 ? "s" : ""}) will be cleared.`,
+                      confirmLabel: "Switch & Clear Draft",
+                      danger: true,
+                      onConfirm: () => { setConfirmModal(null); setCity(c); },
+                    });
+                    return;
+                  }
                   setCity(c);
                 }}
                 className={`rounded-lg px-4 py-1.5 text-sm font-semibold transition-all ${city === c ? "bg-violet-600 text-white shadow" : "text-neutral-400 hover:text-white"}`}
@@ -735,7 +757,7 @@ export default function InventorySpotChecksPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={closeSelectedSpotCheck}
+                    onClick={confirmCloseSpotCheck}
                     disabled={!selectedSpotCheckId || actionLoading || selectedSpotCheck?.status === "CLOSED"}
                     className="rounded-lg border border-emerald-800 bg-emerald-950/30 px-3 py-1.5 text-xs text-emerald-200 disabled:opacity-50"
                   >
@@ -770,6 +792,23 @@ export default function InventorySpotChecksPage() {
           </div>
         </div>
       </section>
+
+      {confirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-sm rounded-2xl border border-neutral-700 bg-slate-900/95 p-6 shadow-2xl">
+            <div className="mb-2 text-base font-semibold text-neutral-100">{confirmModal.title}</div>
+            <div className="mb-5 text-sm text-neutral-400">{confirmModal.message}</div>
+            <div className="flex justify-end gap-3">
+              <button type="button" onClick={() => setConfirmModal(null)} className="rounded-xl border border-neutral-700 bg-neutral-800 px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-700">
+                Cancel
+              </button>
+              <button type="button" onClick={confirmModal.onConfirm} className={`rounded-xl px-4 py-2 text-sm font-semibold text-white ${confirmModal.danger ? "bg-rose-600 hover:bg-rose-500" : "bg-sky-600 hover:bg-sky-500"}`}>
+                {confirmModal.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

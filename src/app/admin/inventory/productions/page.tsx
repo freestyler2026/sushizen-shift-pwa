@@ -1193,7 +1193,8 @@ ${pages}
           </tr>`,
       )
       .join("");
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>納品書 ${production.production_no}</title>
+    const printDate = new Date().toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Delivery Note ${production.production_no}</title>
     <style>
       body{font-family:'Helvetica Neue',Arial,sans-serif;color:#111;margin:0;padding:32px;}
       h1{font-size:22px;margin:0 0 4px;}
@@ -1207,22 +1208,23 @@ ${pages}
       .total-row{border-top:2px solid #111;}
       @media print{body{padding:16px;} button{display:none;}}
     </style></head><body>
-    <h1>納品書 / Delivery Note</h1>
+    <h1>Delivery Note</h1>
     <div class="sub">${production.production_no}</div>
     <div class="meta">
-      <div><div class="meta-label">納品日 / Date</div><div>${String(production.business_date || "").slice(0, 10)}</div></div>
-      <div><div class="meta-label">納品先 / Destination</div><div>${destLabel}</div></div>
-      <div><div class="meta-label">担当者 / Person</div><div>${production.creator_name || "-"}</div></div>
-      <div><div class="meta-label">ステータス / Status</div><div>${production.status || "-"}</div></div>
-      ${production.notes ? `<div style="grid-column:span 2"><div class="meta-label">備考 / Notes</div><div>${production.notes}</div></div>` : ""}
+      <div><div class="meta-label">Date</div><div>${String(production.business_date || "").slice(0, 10)}</div></div>
+      <div><div class="meta-label">Destination</div><div>${destLabel}</div></div>
+      <div><div class="meta-label">Responsible Staff</div><div>${production.creator_name || "-"}</div></div>
+      <div><div class="meta-label">Status</div><div>${production.status || "-"}</div></div>
+      ${production.notes ? `<div style="grid-column:span 2"><div class="meta-label">Notes</div><div>${production.notes}</div></div>` : ""}
+      <div style="grid-column:span 2;color:#aaa;font-size:11px;margin-top:4px;">Printed: ${printDate} · Sushi ZEN Workforce OS</div>
     </div>
     <table>
       <thead><tr>
-        <th>商品名 / Product</th><th>SKU</th><th>数量 / Qty</th><th>単価 / Unit Cost</th><th>金額 / Amount</th>
+        <th>Product</th><th>SKU</th><th>Qty</th><th>Unit Cost</th><th>Amount</th>
       </tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr class="total-row">
-        <td colspan="4" style="text-align:right;">合計 / Total</td>
+        <td colspan="4" style="text-align:right;">Total</td>
         <td style="text-align:right;">${totalCost.toFixed(2)}</td>
       </tr></tfoot>
     </table>
