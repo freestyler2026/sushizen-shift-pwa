@@ -119,6 +119,7 @@ export default function StoreProcurementReceivingPage() {
   // UI state
   const [busy, setBusy] = useState("");
   const [confirmTarget, setConfirmTarget] = useState("");
+  const [checkAllConfirm, setCheckAllConfirm] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [formError, setFormError] = useState("");
@@ -724,9 +725,17 @@ export default function StoreProcurementReceivingPage() {
                       </>
                     )}
                   </div>
-                  <button type="button" onClick={checkAll} className="text-xs text-violet-400 hover:text-violet-300 transition">
-                    All received
-                  </button>
+                  {checkAllConfirm ? (
+                    <span className="flex items-center gap-2 text-xs">
+                      <span className="text-amber-300">Mark all {Object.keys(itemChecks).length} items received?</span>
+                      <button type="button" onClick={() => { checkAll(); setCheckAllConfirm(false); }} className="rounded bg-violet-600 px-2 py-0.5 font-semibold text-white hover:bg-violet-500">Yes</button>
+                      <button type="button" onClick={() => setCheckAllConfirm(false)} className="rounded bg-white/10 px-2 py-0.5 text-white hover:bg-white/20">No</button>
+                    </span>
+                  ) : (
+                    <button type="button" onClick={() => setCheckAllConfirm(true)} className="text-xs text-violet-400 hover:text-violet-300 transition">
+                      All received
+                    </button>
+                  )}
                 </div>
 
                 {/* Step 2 label */}

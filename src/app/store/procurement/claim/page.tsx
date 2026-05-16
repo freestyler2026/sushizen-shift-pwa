@@ -230,9 +230,11 @@ export default function StoreProcurementClaimPage() {
         } catch {}
       }
       setInfo(claimNo ? `Claim created: ${claimNo}` : "Claim created successfully.");
-      setDescription("");
+      // Keep claimType, responsibleParty, description for quick follow-up claims on same delivery
+      setAmountImpact("0");
       setPhotoUrl("");
       setPhotoPreview("");
+      if (photoInputRef.current) photoInputRef.current.value = "";
       await loadClaims();
     } catch (e: any) {
       setError(friendlyProcurementError(e));

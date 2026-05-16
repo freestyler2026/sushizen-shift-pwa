@@ -109,6 +109,7 @@ export default function StoreProcurementRequestPage() {
   const [rows, setRows] = useState<ReqRow[]>([]);
   const [editRequestId, setEditRequestId] = useState("");
   const [editRequestNo, setEditRequestNo] = useState("");
+  const [editRequestItems, setEditRequestItems] = useState<Array<{ item_name: string; vendor_name: string; qty: number; unit: string; unit_price: number }>>([]);
   const [lastCreatedRequestId, setLastCreatedRequestId] = useState("");
   const [lastCreatedRequestNo, setLastCreatedRequestNo] = useState("");
   const [lastCreatedRequestAt, setLastCreatedRequestAt] = useState("");
@@ -117,6 +118,8 @@ export default function StoreProcurementRequestPage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [city, setCity] = useState((auth?.city || "manila").toLowerCase());
+  const [pendingCitySwitch, setPendingCitySwitch] = useState<string | null>(null);
+  const [showDateWarning, setShowDateWarning] = useState(false);
   const [showSubmitReview, setShowSubmitReview] = useState(false);
   const [reviewMode, setReviewMode] = useState<"draft" | "submit" | "">("");
   const [submitChecked, setSubmitChecked] = useState(false);
@@ -503,7 +506,7 @@ export default function StoreProcurementRequestPage() {
         if (queryEdit) {
           setEditRequestId(queryEdit);
           // Fetch request_no for the badge label (best-effort, non-blocking)
-          procurementJson<{ request?: { request_no?: string } }>(
+          procurementJson<{ request?: { request_no?: string; items?: Array<{ item_name?: string; vendor_name?: string; qty?: number; unit?: string; unit_price?: number }> } }>(
             `/api/admin/procurement/requests/${queryEdit}`,
             { method: "GET" },
             defaultProcurementName(),
@@ -511,6 +514,16 @@ export default function StoreProcurementRequestPage() {
           ).then((d) => {
             const no = String(d?.request?.request_no || "").trim();
             if (no) setEditRequestNo(no);
+            const rawItems = Array.isArray(d?.request?.items) ? d.request!.items : [];
+            if (rawItems.length > 0) {
+              setEditRequestItems(rawItems.map((it) => ({
+                item_name: String(it.item_name || "").trim().toLowerCase(),
+                vendor_name: String(it.vendor_name || "").trim().toLowerCase(),
+                qty: Number(it.qty || 0),
+                unit: String(it.unit || "").trim(),
+                unit_price: Number(it.unit_price || 0),
+              })));
+            }
           }).catch(() => { /* badge is still shown even without request_no */ });
         }
       }
@@ -546,22 +559,39 @@ export default function StoreProcurementRequestPage() {
   useEffect(() => {
     setItems((prev) => {
       const prevMap = new Map(prev.map((item) => [String(item.row_key || ""), item]));
+      // Build a lookup for edit-mode pre-fill: "item_name_lower::vendor_name_lower" → item
+      const editMap = new Map(
+        editRequestItems.map((it) => [`${it.item_name}::${it.vendor_name}`, it])
+      );
       return catalogGridItems.map((item) => {
         const existing = prevMap.get(String(item.row_key || ""));
-        if (!existing) return item;
-        return {
-          ...item,
-          qty: Number(existing.qty || 0),
-          unit: existing.unit || item.unit,
-          unit_price: Number(existing.unit_price || 0),
-          needed_by_date: existing.needed_by_date || item.needed_by_date,
-        };
+        if (existing) {
+          return {
+            ...item,
+            qty: Number(existing.qty || 0),
+            unit: existing.unit || item.unit,
+            unit_price: Number(existing.unit_price || 0),
+            needed_by_date: existing.needed_by_date || item.needed_by_date,
+          };
+        }
+        // Overlay from edit request items (match by item_name + vendor_name, case-insensitive)
+        const editKey = `${item.item_name.toLowerCase()}::${item.vendor_name.toLowerCase()}`;
+        const editItem = editMap.get(editKey);
+        if (editItem && Number(editItem.qty || 0) > 0) {
+          return {
+            ...item,
+            qty: Number(editItem.qty || 0),
+            unit: editItem.unit || item.unit,
+            unit_price: Number(editItem.unit_price || 0) || item.unit_price,
+          };
+        }
+        return item;
       });
     });
     setShowSubmitReview(false);
     setReviewMode("");
     setSubmitChecked(false);
-  }, [catalogGridItems]);
+  }, [catalogGridItems, editRequestItems]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -597,6 +627,13 @@ export default function StoreProcurementRequestPage() {
       <div className="mx-auto max-w-7xl space-y-4 px-4 py-8">
       {error ? <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-sm text-red-300">{error}</div> : null}
       {info ? <div className="rounded-xl border border-emerald-900/40 bg-emerald-950/20 px-3 py-2 text-sm text-emerald-300">{info}</div> : null}
+      {showDateWarning ? (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-700/40 bg-amber-950/20 px-3 py-2 text-sm text-amber-300">
+          <span className="shrink-0">⚠</span>
+          <span className="flex-1">Changing the date reloads the catalog — some entered quantities may be reset.</span>
+          <button type="button" onClick={() => setShowDateWarning(false)} className="shrink-0 text-amber-400 hover:text-amber-200">✕</button>
+        </div>
+      ) : null}
       {lastCreatedRequestId ? (
         <div className="rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-xs text-emerald-200">
           Last created request: <span className="font-mono">{lastCreatedRequestNo || lastCreatedRequestId}</span>
@@ -691,14 +728,19 @@ export default function StoreProcurementRequestPage() {
           value={city}
           onChange={(e) => {
             const nextCity = String(e.target.value || "manila").toLowerCase();
-            setCity(nextCity);
-            setStoreCode(nextCity === "dubai" ? "ALL" : "");
-            setCatalogCategories(nextCity === "dubai" ? DUBAI_CURATED_CATEGORIES : []);
-            setSelectedCatalogCategory("Kitchen Ingredients");
-            setCatalogSuppliers([]);
-            setItems([]);
-            void loadCatalogStores(nextCity);
-            void loadMyRequests(nextCity);
+            if (nextCity === city) return;
+            if (validItems.length > 0) {
+              setPendingCitySwitch(nextCity);
+            } else {
+              setCity(nextCity);
+              setStoreCode(nextCity === "dubai" ? "ALL" : "");
+              setCatalogCategories(nextCity === "dubai" ? DUBAI_CURATED_CATEGORIES : []);
+              setSelectedCatalogCategory("Kitchen Ingredients");
+              setCatalogSuppliers([]);
+              setItems([]);
+              void loadCatalogStores(nextCity);
+              void loadMyRequests(nextCity);
+            }
           }}
           className={FIELD_CLASS}
         >
@@ -713,7 +755,7 @@ export default function StoreProcurementRequestPage() {
             </option>
           ))}
         </select>
-        <input type="date" value={requestDate} onChange={(e) => setRequestDate(e.target.value)} className={FIELD_CLASS} />
+        <input type="date" value={requestDate} onChange={(e) => { setRequestDate(e.target.value); if (validItems.length > 0) setShowDateWarning(true); }} className={FIELD_CLASS} />
         <div className="flex items-center gap-3">
           <label className="inline-flex items-center gap-1.5 text-xs text-neutral-300 cursor-pointer">
             <input type="checkbox" checked={urgentFlag} onChange={(e) => setUrgentFlag(e.target.checked)} />
@@ -1297,6 +1339,47 @@ export default function StoreProcurementRequestPage() {
           </div>
         ) : null}
       </div>
+
+      {/* City-switch confirmation modal */}
+      {pendingCitySwitch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-sm rounded-2xl border border-amber-700/40 bg-slate-900/95 p-6 shadow-2xl">
+            <p className="mb-1 text-base font-semibold text-white">
+              Switch to {pendingCitySwitch.charAt(0).toUpperCase() + pendingCitySwitch.slice(1)}?
+            </p>
+            <p className="mb-5 text-sm text-neutral-400">
+              Your current cart ({validItems.length} {validItems.length === 1 ? "item" : "items"}) will be cleared.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                className="flex-1 rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-500"
+                onClick={() => {
+                  const nextCity = pendingCitySwitch;
+                  setPendingCitySwitch(null);
+                  setCity(nextCity);
+                  setStoreCode(nextCity === "dubai" ? "ALL" : "");
+                  setCatalogCategories(nextCity === "dubai" ? DUBAI_CURATED_CATEGORIES : []);
+                  setSelectedCatalogCategory("Kitchen Ingredients");
+                  setCatalogSuppliers([]);
+                  setItems([]);
+                  void loadCatalogStores(nextCity);
+                  void loadMyRequests(nextCity);
+                }}
+              >
+                Switch &amp; Clear Cart
+              </button>
+              <button
+                type="button"
+                className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
+                onClick={() => setPendingCitySwitch(null)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

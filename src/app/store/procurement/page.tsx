@@ -1294,7 +1294,7 @@ export default function StoreProcurementHomePage() {
             onClose={() => setSelectedRequestId(null)}
             onSubmitSuccess={(requestNo) => {
               setSelectedRequestId(null);
-              setSubmitSuccessMsg(`✓ ${requestNo} → IN REVIEW に変更されました`);
+              setSubmitSuccessMsg(`✓ ${requestNo} submitted — now IN REVIEW`);
               void loadMyRequests();
             }}
           />
