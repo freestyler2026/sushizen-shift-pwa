@@ -655,7 +655,7 @@ export default function InventoryTransferOrdersPage() {
                     {selectedOrder.status === "PENDING" && (
                       <button
                         type="button"
-                        onClick={() => void updateOrderStatus(selectedOrder.transfer_order_no, "RECEIVED")}
+                        onClick={() => void updateOrderStatus(selectedOrderId, "RECEIVED")}
                         disabled={statusUpdating}
                         className="rounded-lg border border-emerald-800 bg-emerald-950/30 px-3 py-1 text-xs text-emerald-300 hover:bg-emerald-900/30 disabled:opacity-50"
                       >
