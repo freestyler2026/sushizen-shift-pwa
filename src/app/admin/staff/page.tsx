@@ -75,6 +75,7 @@ type StaffRow = {
   notes?: string;
   skill_rank?: string;
   workforce_push_user_key?: string;
+  gps_exempt?: boolean;
 
   setup_required?: boolean;
   setup_completed?: boolean;
@@ -278,6 +279,7 @@ export default function AdminStaffPage() {
   const [pushKeyDrafts, setPushKeyDrafts] = useState<Record<string, string>>({});
   const [pushKeySavingName, setPushKeySavingName] = useState("");
   const [pushKeySavedName, setPushKeySavedName] = useState("");
+  const [gpsExemptSavingName, setGpsExemptSavingName] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const hasLoaded = useRef(false);
   const canOpenRoleManagement = canAccessRoleManagement(authed);
@@ -616,6 +618,33 @@ export default function AdminStaffPage() {
     } finally {
       setPushKeySavingName("");
       setLoading(false);
+    }
+  };
+
+  const saveGpsExempt = async (displayName: string, newValue: boolean) => {
+    setMsg(null);
+    const nm = norm(approverName);
+    const p = legacyPinOrEmpty(pin);
+    if (!nm) { setMsg({ kind: "err", text: "Approver name is required." }); return; }
+    if (!p && !getAuth()?.accessToken) { setMsg({ kind: "err", text: "PIN is required." }); return; }
+    const dn = norm(displayName);
+    const row = rows.find((x) => norm(x.display_name) === dn);
+    if (!row) return;
+    setGpsExemptSavingName(dn);
+    try {
+      await apiPost<{ ok: boolean }>("/api/admin/staff_master/set_gps_exempt", {
+        city: norm(row.city || city),
+        staff_name: dn,
+        gps_exempt: newValue,
+        approver_name: nm,
+        pin: p,
+      });
+      setMsg({ kind: "ok", text: `GPS exempt ${newValue ? "enabled" : "disabled"} for ${dn}` });
+      await load();
+    } catch (e: any) {
+      setMsg({ kind: "err", text: String(e?.message || e || "") });
+    } finally {
+      setGpsExemptSavingName("");
     }
   };
 
@@ -1219,6 +1248,19 @@ export default function AdminStaffPage() {
                             Reissue
                           </Link>
                         ) : null}
+                        <button
+                          type="button"
+                          title={r.gps_exempt ? "GPS Exempt ON — click to disable" : "GPS Exempt OFF — click to enable (e.g. Work From Home)"}
+                          onClick={() => void saveGpsExempt(dn, !r.gps_exempt)}
+                          className={[
+                            SMALL_BUTTON,
+                            "flex items-center gap-1 text-xs",
+                            r.gps_exempt ? "border-emerald-500/60 text-emerald-300" : "opacity-50",
+                          ].join(" ")}
+                          disabled={loading || gpsExemptSavingName === dn}
+                        >
+                          📍 {gpsExemptSavingName === dn ? "..." : r.gps_exempt ? "GPS Exempt" : "GPS Req'd"}
+                        </button>
                         {st === "ACTIVE" ? (
                           <button type="button" onClick={() => setStatusOnly(dn, "INACTIVE")} className={DANGER_BUTTON + " px-3 py-1.5 text-xs"} disabled={loading}>
                             Deactivate
