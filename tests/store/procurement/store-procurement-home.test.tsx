@@ -274,7 +274,7 @@ describe("StoreProcurementHomePage", () => {
       await renderPage();
       await waitFor(() => {
         expect(
-          screen.getByText(/central entry point for store request/i),
+          screen.getByText(/request, track, receive, and claim/i),
         ).toBeInTheDocument();
       });
     });
@@ -299,31 +299,32 @@ describe("StoreProcurementHomePage", () => {
       });
     });
 
-    it("renders Select Your Branch header", async () => {
+    it("renders Branch section header", async () => {
       await renderPage();
       await waitFor(() => {
-        expect(screen.getByText("Select Your Branch")).toBeInTheDocument();
+        expect(screen.getByText("Branch")).toBeInTheDocument();
       });
     });
 
-    it("shows 'Please select your branch' warning when no branch", async () => {
+    it("shows 'Select branch' warning when no branch", async () => {
       await renderPage();
       await waitFor(() => {
-        expect(screen.getByText(/please select your branch/i)).toBeInTheDocument();
+        // Multiple elements may match — just confirm at least one is present
+        expect(screen.getAllByText(/select branch/i).length).toBeGreaterThan(0);
       });
     });
 
-    it("renders My Recent Requests section with city label", async () => {
+    it("renders My Requests section with city label", async () => {
       await renderPage();
       await waitFor(() => {
-        expect(screen.getByText(/my recent requests.*manila/i)).toBeInTheDocument();
+        expect(screen.getByText(/my requests/i)).toBeInTheDocument();
       });
     });
 
-    it("renders Quick Actions section", async () => {
+    it("renders Quick Links section", async () => {
       await renderPage();
       await waitFor(() => {
-        expect(screen.getByText("Quick Actions")).toBeInTheDocument();
+        expect(screen.getByText("Quick Links")).toBeInTheDocument();
       });
     });
   });
@@ -364,10 +365,17 @@ describe("StoreProcurementHomePage", () => {
       });
     });
 
-    it("hides Central Kitchen (CK) branch", async () => {
+    it("shows Central Kitchen (CK) branch", async () => {
       await renderPage();
       await waitFor(() => {
-        expect(screen.queryByRole("button", { name: "Central Kitchen" })).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Central Kitchen" })).toBeInTheDocument();
+      });
+    });
+
+    it("shows Warehouse (WH) branch", async () => {
+      await renderPage();
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Warehouse" })).toBeInTheDocument();
       });
     });
 
@@ -410,10 +418,10 @@ describe("StoreProcurementHomePage", () => {
       });
     });
 
-    it("hides Central Kitchen (CK) in Dubai", async () => {
+    it("shows Central Kitchen (CK) in Dubai", async () => {
       await renderPage();
       await waitFor(() => {
-        expect(screen.queryByRole("button", { name: "Central Kitchen" })).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Central Kitchen" })).toBeInTheDocument();
       });
     });
 
@@ -538,11 +546,12 @@ describe("StoreProcurementHomePage", () => {
       });
     });
 
-    it("shows total request count in refresh area", async () => {
+    it("shows total request count in section header", async () => {
       await renderPage();
       await waitFor(() => {
-        expect(screen.getByText(/total:/i)).toBeInTheDocument();
-        expect(screen.getByText("5")).toBeInTheDocument();
+        // "My Requests (Manila · 5)" — count appears inside the section heading
+        expect(screen.getByText(/my requests/i)).toBeInTheDocument();
+        expect(screen.getByText(/Manila.*5|5.*Manila/i)).toBeInTheDocument();
       });
     });
   });
@@ -618,14 +627,15 @@ describe("StoreProcurementHomePage", () => {
       });
     });
 
-    it("shows 'Just created' badge for lastCreatedRequestId match", async () => {
+    it("shows 'New' badge for lastCreatedRequestId match", async () => {
       localStorage.setItem(
         "store_procurement_last_created_request",
         JSON.stringify({ id: "r1", request_no: "REQ-001", at: new Date().toISOString() }),
       );
       await renderPage();
       await waitFor(() => {
-        expect(screen.getAllByText(/just created/i).length).toBeGreaterThan(0);
+        // lastCreatedRequestId matches r1 — badge shows "New"
+        expect(screen.getAllByText("New").length).toBeGreaterThan(0);
       });
     });
 
@@ -646,27 +656,35 @@ describe("StoreProcurementHomePage", () => {
       });
     });
 
-    it("each row has a Receiving link with request_id param", async () => {
+    it("APPROVED row shows Receive Now action link", async () => {
       await renderPage();
       await waitFor(() => {
-        // Quick action "Receiving" also exists — filter by href containing request_id
-        const receivingLinks = screen.getAllByRole("link", { name: /^receiving$/i });
-        const rowLinks = receivingLinks.filter((l) =>
-          l.getAttribute("href")?.includes("request_id="),
-        );
-        expect(rowLinks.length).toBe(SAMPLE_ROWS.length);
+        // r3 is APPROVED → getStatusActionButton returns "Receive Now" link
+        expect(screen.getByRole("link", { name: /receive now/i })).toBeInTheDocument();
       });
     });
 
-    it("each row has a Claim link with request_id param", async () => {
+    it("DRAFT row shows Continue Draft action link", async () => {
       await renderPage();
       await waitFor(() => {
-        // Quick action "Claim" also exists — filter by href containing request_id
-        const claimLinks = screen.getAllByRole("link", { name: /^claim$/i });
-        const rowLinks = claimLinks.filter((l) =>
-          l.getAttribute("href")?.includes("request_id="),
-        );
-        expect(rowLinks.length).toBe(SAMPLE_ROWS.length);
+        // r1 is DRAFT → getStatusActionButton returns "Continue Draft"
+        expect(screen.getByRole("link", { name: /continue draft/i })).toBeInTheDocument();
+      });
+    });
+
+    it("RETURNED row shows Edit & Resubmit action link", async () => {
+      await renderPage();
+      await waitFor(() => {
+        // r4 is RETURNED → getStatusActionButton returns "Edit & Resubmit"
+        expect(screen.getByText(/edit.*resubmit/i)).toBeInTheDocument();
+      });
+    });
+
+    it("IN_REVIEW row shows Awaiting Approval text", async () => {
+      await renderPage();
+      await waitFor(() => {
+        // r2 is IN_REVIEW → getStatusActionButton returns "Awaiting Approval"
+        expect(screen.getAllByText(/awaiting approval/i).length).toBeGreaterThan(0);
       });
     });
   });
@@ -688,7 +706,7 @@ describe("StoreProcurementHomePage", () => {
       });
     });
 
-    it("shows timeline header when request activity exists", async () => {
+    it("shows 'Recent Activity' header when request activity exists", async () => {
       localStorage.setItem(
         "store_procurement_last_created_request",
         JSON.stringify({
@@ -700,7 +718,7 @@ describe("StoreProcurementHomePage", () => {
       await renderPage();
       await waitFor(() => {
         expect(
-          screen.getByText(/recent activity timeline/i),
+          screen.getByText(/recent activity/i),
         ).toBeInTheDocument();
       });
     });
@@ -1047,7 +1065,8 @@ describe("StoreProcurementHomePage", () => {
       });
     });
 
-    it("drawer footer has Receiving link pointing to receiving page", async () => {
+    it("drawer footer for DRAFT request shows Continue Draft link", async () => {
+      // SAMPLE_DETAIL has status DRAFT — footer now shows "Continue Draft → Submit" (Fix 1)
       await renderPage();
       await waitFor(() => {
         expect(screen.getByText("REQ-001")).toBeInTheDocument();
@@ -1056,12 +1075,13 @@ describe("StoreProcurementHomePage", () => {
       await waitFor(() => {
         expect(screen.getByText("Drawer Requester")).toBeInTheDocument();
       });
-      // Footer links are in the drawer — find Receiving link
-      const receivingLinks = screen.getAllByRole("link", { name: /^receiving$/i });
-      const drawerReceiving = receivingLinks.find((l) =>
-        l.getAttribute("href")?.includes("request_id=r1"),
-      );
-      expect(drawerReceiving).toBeTruthy();
+      // DRAFT footer → Continue Draft link pointing to /store/procurement/request?...edit=r1
+      const links = screen.getAllByRole("link");
+      const continueLink = links.find((l) => {
+        const href = l.getAttribute("href") || "";
+        return href.includes("/store/procurement/request") && href.includes("edit=r1");
+      });
+      expect(continueLink).toBeTruthy();
     });
   });
 
@@ -1073,22 +1093,24 @@ describe("StoreProcurementHomePage", () => {
       routedJson();
     });
 
-    it("renders city combobox defaulting to manila", async () => {
+    it("renders city select defaulting to manila", async () => {
       await renderPage();
       await waitFor(() => {
-        const select = screen.getByRole("combobox") as HTMLSelectElement;
-        expect(select.value).toBe("manila");
+        // Two city selects exist (left panel + session panel) — both default to manila
+        const selects = screen.getAllByDisplayValue("Manila") as HTMLSelectElement[];
+        expect(selects.length).toBeGreaterThan(0);
+        expect(selects[0].value).toBe("manila");
       });
     });
 
-    it("changes city to Dubai and updates badge", async () => {
+    it("changes city to Dubai and updates visible city text", async () => {
       await renderPage();
       await waitFor(() => {
-        expect(screen.getByRole("combobox")).toBeInTheDocument();
+        expect(screen.getAllByDisplayValue("Manila").length).toBeGreaterThan(0);
       });
-      fireEvent.change(screen.getByRole("combobox"), { target: { value: "dubai" } });
+      // Change the first city select (left panel)
+      fireEvent.change(screen.getAllByDisplayValue("Manila")[0], { target: { value: "dubai" } });
       await waitFor(() => {
-        // "Dubai" appears in both the badge and the select option
         expect(screen.getAllByText("Dubai").length).toBeGreaterThan(0);
       });
     });
@@ -1096,10 +1118,11 @@ describe("StoreProcurementHomePage", () => {
     it("triggers loadMyRequests when city changes", async () => {
       await renderPage();
       await waitFor(() => {
-        expect(screen.getByRole("combobox")).toBeInTheDocument();
+        expect(screen.getAllByDisplayValue("Manila").length).toBeGreaterThan(0);
       });
       const callsBefore = mockProcurementJson.mock.calls.length;
-      fireEvent.change(screen.getByRole("combobox"), { target: { value: "dubai" } });
+      // Change the first city select (left panel)
+      fireEvent.change(screen.getAllByDisplayValue("Manila")[0], { target: { value: "dubai" } });
       await waitFor(() => {
         expect(mockProcurementJson.mock.calls.length).toBeGreaterThan(callsBefore);
       });
@@ -1181,11 +1204,15 @@ describe("StoreProcurementHomePage", () => {
       routedJson();
     });
 
-    it("renders Request quick action link", async () => {
+    it("renders Request CTA link (Select Branch First / New Request)", async () => {
       await renderPage();
       await waitFor(() => {
-        const links = screen.getAllByRole("link", { name: /request/i });
-        expect(links.length).toBeGreaterThan(0);
+        // The CTA link always links to /store/procurement/request (text changes based on branch selection)
+        const links = screen.getAllByRole("link");
+        const requestCta = links.find((l) =>
+          l.getAttribute("href")?.includes("/store/procurement/request"),
+        );
+        expect(requestCta).toBeTruthy();
       });
     });
 
@@ -1212,14 +1239,15 @@ describe("StoreProcurementHomePage", () => {
       });
     });
 
-    it("Request quick action href includes city param", async () => {
+    it("Request CTA href includes city param", async () => {
       await renderPage();
       await waitFor(() => {
-        const links = screen.getAllByRole("link", { name: /request/i });
-        const requestLink = links.find((l) =>
-          l.getAttribute("href")?.includes("city=manila"),
-        );
-        expect(requestLink).toBeTruthy();
+        const links = screen.getAllByRole("link");
+        const requestCtaLink = links.find((l) => {
+          const href = l.getAttribute("href") || "";
+          return href.includes("/store/procurement/request") && href.includes("city=manila");
+        });
+        expect(requestCtaLink).toBeTruthy();
       });
     });
 
