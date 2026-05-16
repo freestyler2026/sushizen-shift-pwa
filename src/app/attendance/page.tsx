@@ -270,6 +270,9 @@ export default function AttendancePage() {
   const [correctionReason, setCorrectionReason] = useState("");
   const [correctionBusy, setCorrectionBusy] = useState(false);
   const [correctionDone, setCorrectionDone] = useState(false);
+  const [wfhToday, setWfhToday] = useState(false);
+  const [wfhBusy, setWfhBusy] = useState(false);
+  const wfhTodayRef = useRef(false);
 
   // ─── Auth guard ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -304,7 +307,29 @@ export default function AttendancePage() {
     }
   }, []);
 
-  useEffect(() => { if (auth) void fetchToday(); }, [auth, fetchToday]);
+  const fetchWfhStatus = useCallback(async () => {
+    const a = getAuth();
+    if (!a) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/attendance/wfh_status`, {
+        headers: getAuthHeaders(a),
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const j = await res.json() as { wfh_today?: boolean };
+        const v = !!j.wfh_today;
+        setWfhToday(v);
+        wfhTodayRef.current = v;
+      }
+    } catch { /* silent */ }
+  }, []);
+
+  useEffect(() => {
+    if (auth) {
+      void fetchToday();
+      void fetchWfhStatus();
+    }
+  }, [auth, fetchToday, fetchWfhStatus]);
 
   // ─── GPS acquisition ──────────────────────────────────────────────────────
   // maximumAge: 0  → always request a fresh fix; never accept a cached browser position.
@@ -381,6 +406,7 @@ export default function AttendancePage() {
   // doAction is memoised and would otherwise capture stale null values via closure.
   useEffect(() => { gpsPosRef.current = gpsPos; }, [gpsPos]);
   useEffect(() => { gpsAcquiredAtRef.current = gpsAcquiredAt; }, [gpsAcquiredAt]);
+  useEffect(() => { wfhTodayRef.current = wfhToday; }, [wfhToday]);
 
   // ─── GPS TTL checker — re-renders every 30 s to clear stale gpsPos ──────
   useEffect(() => {
@@ -420,8 +446,8 @@ export default function AttendancePage() {
         const lat = pos?.coords.latitude ?? null;
         const lng = pos?.coords.longitude ?? null;
 
-        // GPS is required for clock-in and clock-out
-        if ((action === "checkin" || action === "checkout") && !pos) {
+        // GPS is required for clock-in and clock-out (unless WFH mode is active)
+        if ((action === "checkin" || action === "checkout") && !pos && !wfhTodayRef.current) {
           throw new Error("GPS location is required. Please tap 'Get My Location' and ensure location access is allowed in your device settings.");
         }
 
@@ -534,6 +560,31 @@ export default function AttendancePage() {
     ? Math.max(0, minutesBetween(session!.check_in_at!, isCheckedOut ? session!.check_out_at! : new Date().toISOString()))
     : 0;
   const wauSupported = typeof window !== "undefined" && !!window.PublicKeyCredential;
+
+  // ─── WFH declaration ─────────────────────────────────────────────────────
+  async function declareWfh() {
+    const a = getAuth();
+    if (!a) return;
+    setWfhBusy(true); setError("");
+    try {
+      const res = await fetch(`${API_BASE}/api/attendance/wfh_declare`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders(a) },
+      });
+      if (res.ok) {
+        setWfhToday(true);
+        wfhTodayRef.current = true;
+        setSuccess("WFH mode activated — GPS not required today ✓");
+      } else {
+        const j = await res.json().catch(() => ({ detail: "Failed" })) as { detail?: string };
+        setError(j.detail || "Failed to declare WFH");
+      }
+    } catch {
+      setError("Failed to declare WFH — please try again");
+    } finally {
+      setWfhBusy(false);
+    }
+  }
 
   // ─── Correction submit ────────────────────────────────────────────────────
   async function submitCorrection() {
@@ -668,8 +719,19 @@ export default function AttendancePage() {
             </div>
           )}
 
+          {/* WFH badge — shown when WFH mode is active */}
+          {wfhToday && !isCheckedOut && (
+            <div className="flex items-center gap-2 rounded-xl bg-sky-900/40 border border-sky-700/40 px-3 py-2">
+              <span className="text-lg">🏠</span>
+              <div>
+                <p className="text-xs font-semibold text-sky-300">Working From Home Today</p>
+                <p className="text-[10px] text-sky-400/70">GPS not required — you can clock in/out from anywhere</p>
+              </div>
+            </div>
+          )}
+
           {/* GPS required — prominent call-to-action shown BEFORE the clock button */}
-          {!isCheckedOut && !gpsValid && (
+          {!isCheckedOut && !gpsValid && !wfhToday && (
             <div className="rounded-2xl border-2 border-violet-500 bg-violet-950/60 p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <Navigation size={18} className="text-violet-300 shrink-0" />
@@ -780,7 +842,7 @@ export default function AttendancePage() {
           )}
 
           {/* GPS acquired confirmation */}
-          {gpsValid && !isCheckedOut && (
+          {gpsValid && !isCheckedOut && !wfhToday && (
             <div className="space-y-0.5">
               <p className="text-xs text-emerald-400">
                 📍 Location acquired — ready to clock in/out
@@ -795,19 +857,31 @@ export default function AttendancePage() {
 
           {/* Main actions */}
           {!isCheckedIn && !isCheckedOut && (
-            <button
-              onClick={() => doAction("checkin")}
-              disabled={busy || !gpsValid}
-              className="w-full rounded-xl bg-violet-600 py-4 text-base font-bold text-white disabled:opacity-30 hover:bg-violet-500 transition-colors flex items-center justify-center gap-2"
-            >
-              <LogIn size={18} />
-              {busy ? "Authenticating..." : "Clock In"}
-            </button>
+            <div className="space-y-2">
+              {/* WFH declaration button — shown only when GPS not available and not yet WFH */}
+              {!wfhToday && (
+                <button
+                  onClick={() => void declareWfh()}
+                  disabled={wfhBusy}
+                  className="w-full rounded-xl border border-sky-600/50 bg-sky-900/30 py-2.5 text-sm font-medium text-sky-300 disabled:opacity-50 hover:bg-sky-900/50 transition-colors flex items-center justify-center gap-2"
+                >
+                  🏠 {wfhBusy ? "Activating..." : "Today is WFH (Work From Home)"}
+                </button>
+              )}
+              <button
+                onClick={() => void doAction("checkin")}
+                disabled={busy || (!gpsValid && !wfhToday)}
+                className="w-full rounded-xl bg-violet-600 py-4 text-base font-bold text-white disabled:opacity-30 hover:bg-violet-500 transition-colors flex items-center justify-center gap-2"
+              >
+                <LogIn size={18} />
+                {busy ? "Authenticating..." : "Clock In"}
+              </button>
+            </div>
           )}
           {isCheckedIn && !isCheckedOut && (
             <button
-              onClick={() => doAction("checkout")}
-              disabled={busy || !gpsValid}
+              onClick={() => void doAction("checkout")}
+              disabled={busy || (!gpsValid && !wfhToday)}
               className="w-full rounded-xl bg-rose-700 py-4 text-base font-bold text-white disabled:opacity-30 hover:bg-rose-600 transition-colors flex items-center justify-center gap-2"
             >
               <LogOut size={18} />
