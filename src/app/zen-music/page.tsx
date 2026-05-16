@@ -276,6 +276,16 @@ const TRACKS: Track[] = [
     glyph: "刻",
     category: "hype",
   },
+  {
+    id: 26,
+    title: "Ako Lang",
+    subtitle: "Sushi ZEN",
+    file: "/music/ako-lang.mp3",
+    accent: "from-violet-400 via-purple-500 to-indigo-700",
+    accentHex: "#8b5cf6",
+    glyph: "愛",
+    category: "ballad",
+  },
 ];
 
 function fmt(sec: number) {
