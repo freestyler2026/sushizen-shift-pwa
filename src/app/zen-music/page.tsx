@@ -124,7 +124,7 @@ const TRACKS: Track[] = [
     accent: "from-sky-400 via-blue-500 to-indigo-600",
     accentHex: "#0ea5e9",
     glyph: "和",
-    category: "hype",
+    category: "ballad",
   },
   {
     id: 11,
