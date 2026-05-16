@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProcurementStepper } from "@/components/ProcurementStepper";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
-import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
+import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson } from "@/lib/procurementClient";
 import { formatRelativeAge, getRecentBadgeMaxAgeMs, isOlderThan, useRelativeAgeNow } from "@/lib/timeAgo";
 
 type ReqItem = {
@@ -107,6 +107,8 @@ export default function StoreProcurementRequestPage() {
   const [newVendorFlag, setNewVendorFlag] = useState(false);
   const [items, setItems] = useState<ReqItem[]>([]);
   const [rows, setRows] = useState<ReqRow[]>([]);
+  const [editRequestId, setEditRequestId] = useState("");
+  const [editRequestNo, setEditRequestNo] = useState("");
   const [lastCreatedRequestId, setLastCreatedRequestId] = useState("");
   const [lastCreatedRequestNo, setLastCreatedRequestNo] = useState("");
   const [lastCreatedRequestAt, setLastCreatedRequestAt] = useState("");
@@ -199,7 +201,7 @@ export default function StoreProcurementRequestPage() {
       );
       setRows(Array.isArray(data?.rows) ? data.rows : []);
     } catch (e: any) {
-      setError(e?.message || String(e));
+      setError(friendlyProcurementError(e));
     }
   }, [city, pin, requestedBy]);
 
@@ -315,7 +317,7 @@ export default function StoreProcurementRequestPage() {
           if (preferredStore) setStoreCode(preferredStore);
         }
       } catch (e: any) {
-        setError(e?.message || String(e));
+        setError(friendlyProcurementError(e));
       }
     },
     [city, pin, requestedBy, selectedCatalogCategory, storeCode],
@@ -367,7 +369,7 @@ export default function StoreProcurementRequestPage() {
         setCatalogSuppliers(suppliers);
       } catch (e: any) {
         setCatalogSuppliers([]);
-        setError(e?.message || String(e));
+        setError(friendlyProcurementError(e));
       } finally {
         setCatalogBusy(false);
       }
@@ -475,7 +477,7 @@ export default function StoreProcurementRequestPage() {
       setSubmitChecked(false);
       await loadMyRequests();
     } catch (e: any) {
-      setError(e?.message || String(e));
+      setError(friendlyProcurementError(e));
     } finally {
       setBusy("");
     }
@@ -496,6 +498,21 @@ export default function StoreProcurementRequestPage() {
         if (queryStore) setStoreCode(queryStore);
         else if (savedBranch) setStoreCode(savedBranch);
         queryCategory = String(sp.get("catalog_category") || "").trim();
+        // Detect edit mode — ?edit=<requestId>
+        const queryEdit = String(sp.get("edit") || "").trim();
+        if (queryEdit) {
+          setEditRequestId(queryEdit);
+          // Fetch request_no for the badge label (best-effort, non-blocking)
+          procurementJson<{ request?: { request_no?: string } }>(
+            `/api/admin/procurement/requests/${queryEdit}`,
+            { method: "GET" },
+            defaultProcurementName(),
+            defaultProcurementPin(),
+          ).then((d) => {
+            const no = String(d?.request?.request_no || "").trim();
+            if (no) setEditRequestNo(no);
+          }).catch(() => { /* badge is still shown even without request_no */ });
+        }
       }
       const initialCity = queryCity || city || String(refreshed?.city || auth?.city || "manila").toLowerCase() || "manila";
       setCity(initialCity);
@@ -631,8 +648,21 @@ export default function StoreProcurementRequestPage() {
       {/* Page header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-light tracking-tight text-white">New Request</h1>
-          <p className="text-sm text-zinc-400 mt-1">Browse catalog, build your order, and submit for approval.</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-2xl font-light tracking-tight text-white">
+              {editRequestId ? "Edit Request" : "New Request"}
+            </h1>
+            {editRequestId && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-300">
+                ✏ Editing {editRequestNo ? `#${editRequestNo}` : "Draft"}
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-zinc-400 mt-1">
+            {editRequestId
+              ? "Update items and re-submit for approval when ready."
+              : "Browse catalog, build your order, and submit for approval."}
+          </p>
         </div>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-500/15 border border-violet-500/25 px-2.5 py-0.5 text-xs font-medium text-violet-400">
           {cityLabel}
@@ -1031,6 +1061,18 @@ export default function StoreProcurementRequestPage() {
 
       {showSubmitReview ? (
         <div className={`${SUB_PANEL} p-4`}>
+          {/* Mode badge — makes it immediately clear which path you're on */}
+          <div className="mb-3">
+            {reviewMode === "draft" ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/15 px-3 py-1 text-xs font-semibold text-amber-300">
+                🗒 Save as Draft
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300">
+                ✓ Submit for Approval
+              </span>
+            )}
+          </div>
           <div className="text-sm font-medium text-emerald-100">
             {reviewMode === "draft" ? "Step 2: Review Draft Items" : "Step 2: Review Selected Ingredients"}
           </div>

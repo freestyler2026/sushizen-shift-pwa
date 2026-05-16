@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertCircle, Camera, ChevronRight, RefreshCw, CheckCircle2, MapPin, Building2, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, Camera, ChevronRight, RefreshCw, CheckCircle2, MapPin, Building2, X } from "lucide-react";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
-import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
+import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson } from "@/lib/procurementClient";
 import { formatRelativeAge, getRecentBadgeMaxAgeMs, isOlderThan, useRelativeAgeNow } from "@/lib/timeAgo";
 import {
   GLASS_CARD,
@@ -123,7 +123,7 @@ export default function StoreProcurementClaimPage() {
       );
       setRequests(Array.isArray(data?.rows) ? data.rows : []);
     } catch (e: any) {
-      setError(e?.message || String(e));
+      setError(friendlyProcurementError(e));
     }
   }, [city, pin, requestedBy]);
 
@@ -142,7 +142,7 @@ export default function StoreProcurementClaimPage() {
       );
       setRows(Array.isArray(data?.rows) ? data.rows : []);
     } catch (e: any) {
-      setError(e?.message || String(e));
+      setError(friendlyProcurementError(e));
     }
   }, [pin, requestId, requestedBy, statusFilter]);
 
@@ -235,7 +235,7 @@ export default function StoreProcurementClaimPage() {
       setPhotoPreview("");
       await loadClaims();
     } catch (e: any) {
-      setError(e?.message || String(e));
+      setError(friendlyProcurementError(e));
     } finally {
       setBusy("");
     }
@@ -294,6 +294,18 @@ export default function StoreProcurementClaimPage() {
   }, []);
 
   const selectedRequest = requests.find((r) => r.id === requestId);
+
+  // Reload claims whenever requestId or statusFilter changes
+  useEffect(() => {
+    if (!requestId.trim() && !statusFilter.trim()) return;
+    void loadClaims();
+  }, [requestId, statusFilter, loadClaims]);
+
+  // Duplicate claim warning — any open (non-CLOSED/RESOLVED) claims for this request
+  const openExistingClaims = useMemo(
+    () => rows.filter((r) => !["CLOSED", "RESOLVED", "REJECTED"].includes(String(r.status || "").toUpperCase())),
+    [rows],
+  );
 
   return (
     <div className="min-h-screen text-white">
@@ -452,6 +464,22 @@ export default function StoreProcurementClaimPage() {
                 </div>
               )}
 
+              {/* Duplicate claim warning */}
+              {requestId && openExistingClaims.length > 0 && (
+                <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-3 text-sm text-amber-200">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                  <div>
+                    <div className="font-semibold">Open claim already exists</div>
+                    <div className="mt-0.5 text-xs text-amber-300/80">
+                      {openExistingClaims.length === 1
+                        ? `${openExistingClaims[0].claim_no} (${openExistingClaims[0].status}) is already open for this request.`
+                        : `${openExistingClaims.length} open claims exist for this request.`}
+                      {" "}You can still file another claim if this is a separate issue.
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {/* Claim type */}
                 <div>
@@ -606,9 +634,12 @@ export default function StoreProcurementClaimPage() {
                     {busy === "create" ? "Submitting…" : "Submit Claim"}
                   </button>
                   {requiresPhoto && !photoUrl && (
-                    <p className="mt-2 text-center text-xs text-amber-400/80">
-                      Attach a photo to enable submit for this claim type.
-                    </p>
+                    <div className="mt-2 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/8 px-3 py-2 text-xs text-amber-300">
+                      <span className="mt-0.5 shrink-0">⚠</span>
+                      <span>
+                        A photo is required for <strong>{claimType}</strong> claims. Scroll up and attach a photo to enable submit.
+                      </span>
+                    </div>
                   )}
                 </div>
               </div>

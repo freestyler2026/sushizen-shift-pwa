@@ -5,7 +5,7 @@ import Link from "next/link";
 import { CheckCircle2, Circle, Clock, Package, ChevronRight, CheckCheck, AlertTriangle, RefreshCw } from "lucide-react";
 import { ProcurementStepper } from "@/components/ProcurementStepper";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
-import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
+import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson } from "@/lib/procurementClient";
 import { formatRelativeAge, getRecentBadgeMaxAgeMs, isOlderThan, useRelativeAgeNow } from "@/lib/timeAgo";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -118,6 +118,7 @@ export default function StoreProcurementReceivingPage() {
 
   // UI state
   const [busy, setBusy] = useState("");
+  const [confirmTarget, setConfirmTarget] = useState("");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [formError, setFormError] = useState("");
@@ -141,7 +142,7 @@ export default function StoreProcurementReceivingPage() {
       );
       setRequests(Array.isArray(data?.rows) ? data.rows : []);
     } catch (e: any) {
-      setError(e?.message || String(e));
+      setError(friendlyProcurementError(e));
     }
   }, [city, pin, requestedBy]);
 
@@ -160,7 +161,7 @@ export default function StoreProcurementReceivingPage() {
       );
       setRows(Array.isArray(data?.rows) ? data.rows : []);
     } catch (e: any) {
-      setError(e?.message || String(e));
+      setError(friendlyProcurementError(e));
     }
   }, [pin, requestId, requestedBy]);
 
@@ -187,7 +188,7 @@ export default function StoreProcurementReceivingPage() {
         setItemChecks(init);
       }
     } catch (e: any) {
-      setError(e?.message || String(e));
+      setError(friendlyProcurementError(e));
     } finally {
       setDetailBusy(false);
     }
@@ -257,7 +258,7 @@ export default function StoreProcurementReceivingPage() {
       // Reload requests list to reflect new status
       await loadMyRequests();
     } catch (e: any) {
-      const msg = e?.message || String(e);
+      const msg = friendlyProcurementError(e);
       setFormError(msg);
       setError(msg);
     } finally {
@@ -310,6 +311,10 @@ export default function StoreProcurementReceivingPage() {
       setLastCreatedNo(createdNo);
       setLastCreatedRequestId(createdRequestId);
       setLastCreatedAt(createdAt);
+      // Scroll to receiving records after a short delay for render
+      requestAnimationFrame(() => {
+        document.getElementById("receiving-records")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
       if (typeof window !== "undefined") {
         try {
           window.localStorage.setItem(LAST_CREATED_KEY, JSON.stringify({ id: createdId, receiving_no: createdNo, request_id: createdRequestId, at: createdAt }));
@@ -320,7 +325,7 @@ export default function StoreProcurementReceivingPage() {
       setNotes("");
       await loadReceivings(requestId);
     } catch (e: any) {
-      const msg = (e?.message || String(e));
+      const msg = friendlyProcurementError(e);
       setFormError(msg);
       setError(msg);
     } finally {
@@ -348,7 +353,7 @@ export default function StoreProcurementReceivingPage() {
       setInfo(`Confirmed: ${String(res?.row?.receiving_no || receivingId)}`);
       await Promise.all([loadReceivings(), loadMyRequests()]);
     } catch (e: any) {
-      setError(e?.message || String(e));
+      setError(friendlyProcurementError(e));
     } finally {
       setBusy("");
     }
@@ -622,6 +627,12 @@ export default function StoreProcurementReceivingPage() {
               <div className="py-6 text-center text-sm text-zinc-500">Loading items…</div>
             ) : requestDetail?.items?.length ? (
               <>
+                {/* Step 1 label */}
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-500/30 text-[10px] font-bold text-violet-300">1</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Check Items Received</span>
+                </div>
+
                 {/* Items checklist */}
                 <div className="mb-4 overflow-hidden rounded-xl border border-white/8">
                   {/* Header row */}
@@ -716,6 +727,12 @@ export default function StoreProcurementReceivingPage() {
                   <button type="button" onClick={checkAll} className="text-xs text-violet-400 hover:text-violet-300 transition">
                     All received
                   </button>
+                </div>
+
+                {/* Step 2 label */}
+                <div className="mb-2 mt-5 flex items-center gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-500/30 text-[10px] font-bold text-violet-300">2</span>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Delivery Details</span>
                 </div>
 
                 {/* Delivery details */}
@@ -830,7 +847,7 @@ export default function StoreProcurementReceivingPage() {
 
         {/* ── Step 3: Receiving records ── */}
         {rows.length > 0 ? (
-          <div className="space-y-3">
+          <div id="receiving-records" className="space-y-3">
             <div className="px-1 text-sm font-semibold">Receiving Records</div>
             {rows.map((row) => {
               const isConfirmed = row.status === "CONFIRMED";
@@ -914,25 +931,50 @@ export default function StoreProcurementReceivingPage() {
 
                     {/* Right: action buttons */}
                     <div className="flex shrink-0 flex-col items-end gap-2">
-                      {/* CONFIRM button */}
+                      {/* CONFIRM button — two-step guard */}
                       {isConfirmed ? (
                         <div className="flex items-center gap-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-300">
                           <CheckCheck className="h-4 w-4" />
                           Confirmed
                         </div>
+                      ) : confirmTarget === row.id ? (
+                        <div className="flex flex-col items-end gap-1.5">
+                          <p className="text-xs text-amber-200 font-medium text-right">
+                            Finalize {row.receiving_no || "this delivery"}?
+                          </p>
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => { setConfirmTarget(""); void confirmReceiving(row.id); }}
+                              disabled={busy === row.id}
+                              className={BTN_CONFIRM}
+                            >
+                              {busy === row.id ? (
+                                <RefreshCw className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <CheckCheck className="h-4 w-4" />
+                              )}
+                              {busy === row.id ? "Confirming…" : "Yes, Confirm"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmTarget("")}
+                              disabled={busy === row.id}
+                              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-400 hover:bg-white/10 transition disabled:opacity-60"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
                       ) : (
                         <button
                           type="button"
-                          onClick={() => void confirmReceiving(row.id)}
+                          onClick={() => setConfirmTarget(row.id)}
                           disabled={busy === row.id}
                           className={BTN_CONFIRM}
                         >
-                          {busy === row.id ? (
-                            <RefreshCw className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <CheckCheck className="h-4 w-4" />
-                          )}
-                          {busy === row.id ? "Confirming…" : "Confirm"}
+                          <CheckCheck className="h-4 w-4" />
+                          Confirm
                         </button>
                       )}
 

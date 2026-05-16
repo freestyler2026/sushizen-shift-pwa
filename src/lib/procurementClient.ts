@@ -97,6 +97,27 @@ export async function procurementTokenHeaders(requestedBy: string, pin: string):
   };
 }
 
+/**
+ * Convert a caught error into a user-readable string.
+ * procurementJson already extracts FastAPI `detail` messages; this helper
+ * polishes edge cases like network failures and opaque 5xx strings.
+ */
+export function friendlyProcurementError(e: unknown): string {
+  const raw = e instanceof Error ? e.message : String(e ?? "Unknown error");
+  if (!raw || raw === "undefined" || raw === "null") return "Something went wrong. Please try again.";
+  // Network failure
+  if (/failed to fetch|networkerror|network request failed/i.test(raw))
+    return "Network error — please check your connection and try again.";
+  // Generic 5xx with no useful body
+  if (/request failed \(5\d\d\)/i.test(raw))
+    return "Server error — please try again in a moment.";
+  // Token / auth
+  if (/please login again|access token|unauthorized/i.test(raw))
+    return "Session expired — please enter your PIN and try again.";
+  // Keep backend detail messages as-is (they're already human-readable)
+  return raw;
+}
+
 export async function procurementJson<T>(
   url: string,
   init: RequestInit,

@@ -28,7 +28,7 @@ import {
 import { ProcurementStepper } from "@/components/ProcurementStepper";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
-import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
+import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson } from "@/lib/procurementClient";
 import { formatRelativeAge, getRecentBadgeMaxAgeMs, isOlderThan, parseIsoTimeMs, useRelativeAgeNow } from "@/lib/timeAgo";
 import {
   GLASS_CARD,
@@ -151,7 +151,7 @@ function RequestDetailDrawer({
       );
       onSubmitSuccess?.(detail?.request_no || requestId);
     } catch (e: unknown) {
-      setError((e as Error)?.message || String(e));
+      setError(friendlyProcurementError(e));
       setSubmitBusy(false);
       setSubmitConfirm(false);
     }
@@ -171,7 +171,7 @@ function RequestDetailDrawer({
         setDetail(data?.request ?? null);
       })
       .catch((e: unknown) => {
-        setError(String((e as Error)?.message || e));
+        setError(friendlyProcurementError(e));
       })
       .finally(() => setLoading(false));
   }, [requestId, requestedBy, pin]);
@@ -380,7 +380,7 @@ function RequestDetailDrawer({
               return (
                 <div className="border-t border-white/10 px-5 py-4 space-y-3">
                   <p className="text-center text-sm text-amber-200">
-                    <span className="font-mono font-semibold">{detail?.request_no}</span> を承認申請に提出します。よろしいですか？
+                    Submit <span className="font-mono font-semibold">{detail?.request_no}</span> for approval?
                   </p>
                   {error && (
                     <div className="rounded-xl border border-red-700/40 bg-red-900/20 px-3 py-2 text-xs text-red-300">
@@ -569,7 +569,7 @@ export default function StoreProcurementHomePage() {
       );
       setRows(Array.isArray(data?.rows) ? data.rows : []);
     } catch (e: any) {
-      setError(e?.message || String(e));
+      setError(friendlyProcurementError(e));
     } finally {
       setLoading(false);
     }
