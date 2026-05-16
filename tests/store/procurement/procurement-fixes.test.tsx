@@ -65,6 +65,8 @@ vi.mock("@/lib/procurementClient", () => ({
   defaultProcurementPin: () => "1234",
   saveProcurementSession: vi.fn(),
   clearProcurementSession: vi.fn(),
+  friendlyProcurementError: (e: unknown) =>
+    e instanceof Error ? e.message : String(e ?? "Unknown error"),
 }));
 
 vi.mock("@/lib/timeAgo", async (importOriginal) => {
@@ -289,6 +291,8 @@ describe("Fix 2: Admin Run Approval — DRAFT guard", () => {
       defaultProcurementPin: () => "1234",
       saveProcurementSession: vi.fn(),
       clearProcurementSession: vi.fn(),
+      friendlyProcurementError: (e: unknown) =>
+        e instanceof Error ? e.message : String(e ?? "Unknown error"),
     }));
 
     const mod = await import("@/app/admin/procurement/page");

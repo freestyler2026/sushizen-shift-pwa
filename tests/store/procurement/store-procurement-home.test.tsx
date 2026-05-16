@@ -58,6 +58,8 @@ vi.mock("@/lib/procurementClient", () => ({
   defaultProcurementPin: () => "1234",
   saveProcurementSession: vi.fn(),
   clearProcurementSession: vi.fn(),
+  friendlyProcurementError: (e: unknown) =>
+    e instanceof Error ? e.message : String(e ?? "Unknown error"),
 }));
 
 // ── timeAgo mock — real implementations, but stub useRelativeAgeNow ───────────
