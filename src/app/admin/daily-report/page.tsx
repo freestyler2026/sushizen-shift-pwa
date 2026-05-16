@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
@@ -40,8 +40,8 @@ type Lang = "en" | "ja";
 const TR = {
   en: {
     pageTitle: "Daily Operations Report",
-    subtitle: "All-in-one daily summary · Auto-generated daily at 1:30 PM PHT (previous day)",
-    refresh: "Refresh", generateNow: "Generate Now", generating: "Generating...",
+    subtitle: "All-in-one daily summary · Latest data auto-loaded on open · Auto-generated at 1:30 PM PHT",
+    refresh: "Refresh", generateNow: "Force Regenerate", generating: "Generating...",
     reportDate: "Report date", generatedAt: "Generated",
     noReports: "No report yet for today.", noReportsHint: "HQ/ADMIN can click \"Generate Now\" to build a report manually.",
     accessDenied: "Analytics permission required.",
@@ -84,8 +84,8 @@ const TR = {
   },
   ja: {
     pageTitle: "デイリー業務レポート",
-    subtitle: "全データ一覧 · 毎日13:30 PHT 自動生成（前日分）",
-    refresh: "更新", generateNow: "今すぐ生成", generating: "生成中...",
+    subtitle: "全データ一覧 · 開くたびに最新データを自動取得 · 毎日13:30 PHT 自動生成（前日分）",
+    refresh: "更新", generateNow: "強制再生成", generating: "生成中...",
     reportDate: "日付", generatedAt: "生成",
     noReports: "本日のレポートがまだありません。", noReportsHint: "HQ/ADMINが「今すぐ生成」で手動生成できます。",
     accessDenied: "Analytics権限が必要です。",
@@ -965,6 +965,8 @@ export default function DailyReportPage() {
   const [error, setError] = useState("");
   const [allowed, setAllowed] = useState(false);
   const [ready, setReady] = useState(false);
+  // Track which cities have been auto-generated this session (prevent duplicates)
+  const autoGenRef = useRef<Partial<Record<City, boolean>>>({});
 
   useEffect(() => {
     async function init() {
@@ -998,7 +1000,32 @@ export default function DailyReportPage() {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { if (ready) void fetchReports(city); }, [ready, city, fetchReports]);
+  useEffect(() => {
+    if (!ready) return;
+    void (async () => {
+      await fetchReports(city);
+      // Auto-generate the latest report silently on page load (HQ/ADMIN only)
+      // This ensures fresh data is always shown without requiring "Generate Now"
+      if (!auth || !["HQ", "ADMIN"].includes(String(auth.role || "").toUpperCase())) return;
+      if (autoGenRef.current[city]) return; // Already auto-generated for this city this session
+      autoGenRef.current[city] = true;
+      const d = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+      d.setDate(d.getDate() - 1);
+      const yesterday = d.toISOString().slice(0, 10);
+      setGenerating(true);
+      try {
+        await apiPost<{ ok: boolean }>(
+          `/api/admin/daily-report/generate?report_date=${encodeURIComponent(yesterday)}&city=${encodeURIComponent(city)}`, {}
+        );
+        await fetchReports(city);
+      } catch {
+        // Silent — if auto-generation fails, the user can manually press Generate Now
+      } finally {
+        setGenerating(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, city, fetchReports]);
 
   // Auto-refresh at 13:15 PHT and 15:15 PHT (= 05:15 UTC and 07:15 UTC)
   useEffect(() => {
