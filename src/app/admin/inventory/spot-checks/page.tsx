@@ -747,14 +747,19 @@ export default function InventorySpotChecksPage() {
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={loadSelectedSpotCheckToDraft}
-                    disabled={!selectedSpotCheck || actionLoading}
-                    className="rounded-lg border border-violet-700/70 bg-violet-950/30 px-3 py-1.5 text-xs font-medium text-violet-200 hover:bg-violet-900/30 disabled:opacity-50"
-                  >
-                    {selectedSpotCheckIsDraft ? "Load Draft ↑" : "Copy to Draft ↑"}
-                  </button>
+                  <div className="flex flex-col">
+                    <button
+                      type="button"
+                      onClick={loadSelectedSpotCheckToDraft}
+                      disabled={!selectedSpotCheck || actionLoading}
+                      className="rounded-lg border border-violet-700/70 bg-violet-950/30 px-3 py-1.5 text-xs font-medium text-violet-200 hover:bg-violet-900/30 disabled:opacity-50"
+                    >
+                      {selectedSpotCheckIsDraft ? "Edit Draft ↑" : "Copy as New Draft ↑"}
+                    </button>
+                    <span className="mt-1 text-[10px] text-neutral-600">
+                      {selectedSpotCheckIsDraft ? "Continue editing this draft" : "Replaces current draft with these items"}
+                    </span>
+                  </div>
                   <button
                     type="button"
                     onClick={confirmCloseSpotCheck}

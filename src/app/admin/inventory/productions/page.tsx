@@ -1367,7 +1367,7 @@ ${pages}
                 : "text-neutral-400 hover:text-neutral-200",
             ].join(" ")}
           >
-            ⚙️ Build
+            ⚙️ Custom Entry
             {draftOutputs.length > 0 && (
               <span className="ml-2 rounded-full bg-violet-500/30 px-2 py-0.5 text-xs font-bold text-violet-200">
                 {draftOutputs.length}
@@ -1829,7 +1829,10 @@ ${pages}
       {/* ── BUILD tab: Add Products + BOM + Ingredient Preview ───────────── */}
       {activeTab === "BUILD" && (<><section className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="text-sm font-semibold text-neutral-100">Add Products</div>
+          <div>
+            <div className="text-sm font-semibold text-neutral-100">Custom Entry</div>
+            <div className="mt-0.5 text-xs text-neutral-400">Create a production entry manually, or set up ingredient recipes (what ingredients each product uses) in the Recipe section below.</div>
+          </div>
           <div className="text-xs text-neutral-500">{productOptions.length} registered production products</div>
         </div>
 

@@ -107,6 +107,7 @@ export default function InventoryTransferOrdersPage() {
   const [historyRows, setHistoryRows] = useState<TransferOrderRow[]>([]);
   const [selectedOrderId, setSelectedOrderId] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<TransferOrderDetail | null>(null);
+  const [statusUpdating, setStatusUpdating] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -327,6 +328,32 @@ export default function InventoryTransferOrdersPage() {
       setError(e?.message || String(e));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function updateOrderStatus(orderId: string, newStatus: string) {
+    setStatusUpdating(true);
+    setError("");
+    try {
+      await inventoryPost(`/api/admin/inventory/transfer-orders/${encodeURIComponent(orderId)}/status`, {
+        city,
+        status: newStatus,
+      });
+      const historyRes = await inventoryGet<{ rows: TransferOrderRow[] }>(
+        `/api/admin/inventory/transfer-orders?city=${encodeURIComponent(city)}&limit=500`,
+      );
+      setHistoryRows(historyRes.rows || []);
+      if (selectedOrderId === orderId) {
+        const detailRes = await inventoryGet<{ row: TransferOrderDetail }>(
+          `/api/admin/inventory/transfer-orders/${encodeURIComponent(orderId)}?city=${encodeURIComponent(city)}`,
+        );
+        setSelectedOrder(detailRes.row || null);
+      }
+      setSuccess(`Transfer order marked as ${newStatus.charAt(0) + newStatus.slice(1).toLowerCase()}.`);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setStatusUpdating(false);
     }
   }
 
@@ -615,7 +642,28 @@ export default function InventoryTransferOrdersPage() {
                 </div>
                 <div>
                   <div className="text-xs text-neutral-500">Status</div>
-                  <div>{selectedOrder.status || "-"}</div>
+                  <div className="flex items-center gap-3">
+                    <span className={[
+                      "rounded-md px-2 py-0.5 text-xs font-medium",
+                      selectedOrder.status === "RECEIVED" ? "bg-emerald-900/40 text-emerald-300" :
+                      selectedOrder.status === "COMPLETED" ? "bg-sky-900/40 text-sky-300" :
+                      selectedOrder.status === "CANCELLED" ? "bg-neutral-800 text-neutral-500" :
+                      "bg-amber-900/30 text-amber-300",
+                    ].join(" ")}>
+                      {selectedOrder.status || "-"}
+                    </span>
+                    {selectedOrder.status === "PENDING" && (
+                      <button
+                        type="button"
+                        onClick={() => void updateOrderStatus(selectedOrder.transfer_order_no, "RECEIVED")}
+                        disabled={statusUpdating}
+                        className="rounded-lg border border-emerald-800 bg-emerald-950/30 px-3 py-1 text-xs text-emerald-300 hover:bg-emerald-900/30 disabled:opacity-50"
+                      >
+                        {statusUpdating ? "Updating..." : "✓ Mark as Received"}
+                      </button>
+                    )}
+                  </div>
+                  <div className="mt-1 text-xs text-neutral-600">PENDING → RECEIVED → COMPLETED</div>
                 </div>
                 <div>
                   <div className="text-xs text-neutral-500">Notes</div>

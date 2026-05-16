@@ -123,7 +123,7 @@ The Inventory channel has 10 pages covering counting, adjustments, production, t
 **File:** `src/app/admin/inventory/counts/page.tsx`  
 **Issue:** The count grid uses abbreviated column headers that staff cannot interpret. "Theo." (theoretical count calculated from sales/production data) and "Assets" (what does this mean in a count context?) are not self-explanatory.  
 **Fix:** Expand abbreviations: "Theo." → "Theoretical" (or "Expected"). Clarify or rename "Assets" to something like "Value" or "Est. Value". Add a column header legend or tooltip row.  
-**Status:** [ ] pending
+**Status:** [x] done
 
 ---
 
@@ -131,7 +131,7 @@ The Inventory channel has 10 pages covering counting, adjustments, production, t
 **File:** `src/app/admin/inventory/counts/page.tsx`  
 **Issue:** The "Sync Master" button has no inline label description — its purpose is only visible on hover (tooltip). On mobile/touch devices tooltips don't appear at all. New staff have no idea what "Sync Master" means or when to press it.  
 **Fix:** Add a short inline sub-label below the button: "Pull latest item list from master" or add an info icon with an always-visible description.  
-**Status:** [ ] pending
+**Status:** [x] done
 
 ---
 
@@ -139,7 +139,7 @@ The Inventory channel has 10 pages covering counting, adjustments, production, t
 **File:** `src/app/admin/inventory/count-sheets/page.tsx`  
 **Issue:** The navigation has both "Counts" (the actual counting session page) and "Count Sheets" (the template/master page). New users do not understand the difference. The relationship — that you pick a Count Sheet template when starting a Count session — is not explained anywhere in either page.  
 **Fix:** Rename "Count Sheets" in the nav to "Count Templates" for clarity. Add a note at the top of the Count Sheets page: "These templates are used as starting points when opening a new count session in the Counts module." Add a similar note at the top of the Counts page: "To load a template into a count, select a Count Template from the 'Template' dropdown."  
-**Status:** [ ] pending
+**Status:** [x] done
 
 ---
 
@@ -147,7 +147,7 @@ The Inventory channel has 10 pages covering counting, adjustments, production, t
 **File:** `src/app/admin/inventory/productions/page.tsx`  
 **Issue:** The 3 tabs are "📦 Stock", "🏪 Pending Orders", "⚙️ Build". "Build" is ambiguous — it is actually where you (a) configure production recipes (BOM) per product, and (b) create individual custom production entries. First-time users don't know what to do here.  
 **Fix:** Rename the tab to "⚙️ Custom Entry" or "⚙️ Recipe & Manual". Add a brief description inside the tab: "Use this tab to create a production entry manually, or to set up ingredient recipes (BOM) per product."  
-**Status:** [ ] pending
+**Status:** [x] done
 
 ---
 
@@ -155,7 +155,7 @@ The Inventory channel has 10 pages covering counting, adjustments, production, t
 **File:** `src/app/admin/inventory/transfer-orders/page.tsx`  
 **Issue:** Transfer orders are created with status "PENDING" but there is no UI to advance them to the next status (e.g., RECEIVED, COMPLETED, CANCELLED). The history table shows the status column but it is always "PENDING". Staff cannot close or acknowledge a transfer order from within the app.  
 **Fix:** Add a status-update button to the order detail view in the history panel: e.g., "Mark as Received" to advance PENDING → RECEIVED. Or at minimum, document the lifecycle in the page subtitle so staff know what "PENDING" means and what happens next.  
-**Status:** [ ] pending
+**Status:** [x] done
 
 ---
 
@@ -163,7 +163,7 @@ The Inventory channel has 10 pages covering counting, adjustments, production, t
 **File:** `src/app/admin/inventory/spot-checks/page.tsx`  
 **Issue:** Two similar-looking buttons appear near the item library: "Load Draft ↑" and "Copy to Draft ↑". The difference between loading (replacing the draft) and copying (merging into the draft) is not stated in the UI. Staff may press the wrong one and lose previously entered quantities.  
 **Fix:** Rename to be explicit: "Replace Draft ↑" (clears current draft and loads selected items) vs "Add to Draft ↑" (merges selected items into existing draft). Add a brief tooltip or sub-label for each.  
-**Status:** [ ] pending
+**Status:** [x] done
 
 ---
 

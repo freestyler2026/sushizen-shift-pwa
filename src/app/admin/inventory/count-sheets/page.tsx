@@ -579,7 +579,7 @@ export default function InventoryCountSheetsPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="text-lg font-semibold text-neutral-100">Count Templates</div>
-            <div className="mt-1 text-sm text-neutral-400">Build a reusable count sheet by picking items, then save as a template.</div>
+            <div className="mt-1 text-sm text-neutral-400">Build a reusable item list, then save as a template. These templates are used as starting points when opening a new count session in the Counts module.</div>
           </div>
           {/* City toggle */}
           <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-1">

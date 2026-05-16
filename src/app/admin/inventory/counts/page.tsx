@@ -579,7 +579,7 @@ export default function InventoryCountsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="text-lg font-semibold text-neutral-100">Full Inventory Count</div>
-            <div className="mt-1 text-sm text-neutral-400">Use for formal 15th and month-end inventory counts.</div>
+            <div className="mt-1 text-sm text-neutral-400">Use for formal 15th and month-end inventory counts. To pre-load an item list, select a Count Template from the Template dropdown below.</div>
           </div>
           <div className="text-xs text-neutral-500">{city.toUpperCase()} count workflow</div>
         </div>
@@ -816,10 +816,10 @@ export default function InventoryCountsPage() {
                         <tr>
                           <th className="px-3 py-2 text-left">Item</th>
                           <th className="px-3 py-2 text-left">Unit</th>
-                          <th className="px-3 py-2 text-right">Theo.</th>
+                          <th className="px-3 py-2 text-right" title="Expected quantity calculated from sales and production data">Expected</th>
                           <th className="px-3 py-2 text-right font-semibold text-neutral-200">Counted</th>
                           <th className="px-3 py-2 text-right">Variance</th>
-                          <th className="px-3 py-2 text-right">Assets</th>
+                          <th className="px-3 py-2 text-right" title="Estimated value based on counted quantity × unit cost">Est. Value</th>
                           <th className="px-3 py-2 text-left">Memo</th>
                           {showDetailColumns && <th className="px-3 py-2 text-right">Price</th>}
                           {showDetailColumns && <th className="px-3 py-2 text-left">Foodics</th>}
@@ -924,14 +924,16 @@ export default function InventoryCountsPage() {
               >
                 {saving ? "Saving…" : "Save Draft"}
               </button>
-              <button
-                type="button"
-                onClick={syncDraftWithMaster}
-                className="rounded-xl border border-sky-800 bg-sky-950/20 px-4 py-2 text-sm text-sky-300 hover:bg-sky-900/20"
-                title="Updates Unit / Price / Supplier from current item master. Counted quantities are preserved."
-              >
-                ↻ Sync Master
-              </button>
+              <div className="flex flex-col items-start">
+                <button
+                  type="button"
+                  onClick={syncDraftWithMaster}
+                  className="rounded-xl border border-sky-800 bg-sky-950/20 px-4 py-2 text-sm text-sky-300 hover:bg-sky-900/20"
+                >
+                  ↻ Refresh Item List
+                </button>
+                <span className="mt-1 text-xs text-neutral-500">Pull latest items &amp; prices from master</span>
+              </div>
               <div className="ml-auto text-right">
                 <div className={["text-sm font-semibold", countedLineCount === draftLines.length ? "text-emerald-400" : "text-amber-400"].join(" ")}>
                   {countedLineCount} / {draftLines.length}
