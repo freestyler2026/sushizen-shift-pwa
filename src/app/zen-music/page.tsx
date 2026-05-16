@@ -212,6 +212,15 @@ const TRACKS: Track[] = [
     accentHex: "#be185d",
     glyph: "歌",
   },
+  {
+    id: 23,
+    title: "ZEN Squad",
+    subtitle: "Sushi ZEN",
+    file: "/music/zen-squad.mp3",
+    accent: "from-cyan-400 via-blue-500 to-indigo-700",
+    accentHex: "#3b82f6",
+    glyph: "隊",
+  },
 ];
 
 function fmt(sec: number) {
