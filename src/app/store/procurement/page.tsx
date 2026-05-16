@@ -115,6 +115,7 @@ function RequestDetailDrawer({
   pin,
   currencyCode,
   onClose,
+  onSubmitSuccess,
 }: {
   requestId: string;
   city: string;
@@ -122,10 +123,39 @@ function RequestDetailDrawer({
   pin: string;
   currencyCode: string;
   onClose: () => void;
+  onSubmitSuccess?: (requestNo: string) => void;
 }) {
   const [detail, setDetail] = useState<RequestDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [submitConfirm, setSubmitConfirm] = useState(false);
+  const [submitBusy, setSubmitBusy] = useState(false);
+
+  const handleSubmitForApproval = async () => {
+    setSubmitBusy(true);
+    setError("");
+    try {
+      await procurementJson(
+        "/api/admin/procurement/requests/submit",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            request_id: requestId,
+            approver_name: requestedBy.trim(),
+            pin: pin.trim(),
+          }),
+        },
+        requestedBy,
+        pin,
+      );
+      onSubmitSuccess?.(detail?.request_no || requestId);
+    } catch (e: unknown) {
+      setError((e as Error)?.message || String(e));
+      setSubmitBusy(false);
+      setSubmitConfirm(false);
+    }
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -346,14 +376,53 @@ function RequestDetailDrawer({
         {detail && (() => {
           const s = String(detail.status || "").toUpperCase();
           if (s === "DRAFT") {
+            if (submitConfirm) {
+              return (
+                <div className="border-t border-white/10 px-5 py-4 space-y-3">
+                  <p className="text-center text-sm text-amber-200">
+                    <span className="font-mono font-semibold">{detail?.request_no}</span> を承認申請に提出します。よろしいですか？
+                  </p>
+                  {error && (
+                    <div className="rounded-xl border border-red-700/40 bg-red-900/20 px-3 py-2 text-xs text-red-300">
+                      {error}
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleSubmitForApproval()}
+                      disabled={submitBusy}
+                      className="flex-1 rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-60"
+                    >
+                      {submitBusy ? "Submitting…" : "✓ Confirm Submit"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setSubmitConfirm(false); setError(""); }}
+                      disabled={submitBusy}
+                      className="flex-1 rounded-xl border border-white/10 bg-white/5 py-2.5 text-sm text-zinc-400 transition hover:bg-white/10 disabled:opacity-60"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              );
+            }
             return (
-              <div className="border-t border-white/10 px-5 py-4 flex gap-3">
+              <div className="border-t border-white/10 px-5 py-4 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSubmitConfirm(true)}
+                  className="flex-1 rounded-xl bg-emerald-600 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-500"
+                >
+                  Submit for Approval
+                </button>
                 <Link
                   href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}&edit=${encodeURIComponent(requestId)}`}
                   onClick={onClose}
-                  className="flex-1 rounded-xl border border-amber-500/40 bg-amber-950/30 py-2.5 text-center text-sm font-semibold text-amber-300 transition hover:bg-amber-900/40"
+                  className="shrink-0 rounded-xl border border-amber-500/30 bg-amber-950/30 px-4 py-2.5 text-sm font-semibold text-amber-300 transition hover:bg-amber-900/40"
                 >
-                  Continue Draft → Submit
+                  Edit
                 </Link>
               </div>
             );
@@ -472,6 +541,7 @@ export default function StoreProcurementHomePage() {
   const [showAllRecentActivities, setShowAllRecentActivities] = useState(false);
   const [expandedActionsByItem, setExpandedActionsByItem] = useState<Record<string, boolean>>({});
   const [error, setError] = useState("");
+  const [submitSuccessMsg, setSubmitSuccessMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [canOpenAdminCase, setCanOpenAdminCase] = useState(false);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
@@ -505,6 +575,12 @@ export default function StoreProcurementHomePage() {
     }
   }, [city, pin, requestedBy]);
 
+
+  useEffect(() => {
+    if (!submitSuccessMsg) return;
+    const t = setTimeout(() => setSubmitSuccessMsg(""), 8000);
+    return () => clearTimeout(t);
+  }, [submitSuccessMsg]);
 
   useEffect(() => {
     if (initRef.current) return;
@@ -1011,6 +1087,13 @@ export default function StoreProcurementHomePage() {
 
           {error ? <div className="rounded-xl border border-red-700/40 bg-red-900/20 px-4 py-3 text-sm text-red-300">{error}</div> : null}
 
+          {submitSuccessMsg && (
+            <div className="rounded-xl border border-emerald-700/40 bg-emerald-900/20 px-4 py-3 text-sm font-semibold text-emerald-300 flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              {submitSuccessMsg}
+            </div>
+          )}
+
           {recentActivities.length ? (
             <div className={`${BLUSH_GLASS} px-4 py-3 text-xs text-neutral-200`}>
               <div className="mb-2 flex items-center justify-between gap-2">
@@ -1209,6 +1292,11 @@ export default function StoreProcurementHomePage() {
             pin={pin}
             currencyCode={currencyCode}
             onClose={() => setSelectedRequestId(null)}
+            onSubmitSuccess={(requestNo) => {
+              setSelectedRequestId(null);
+              setSubmitSuccessMsg(`✓ ${requestNo} → IN REVIEW に変更されました`);
+              void loadMyRequests();
+            }}
           />
         )}
       </AnimatePresence>
