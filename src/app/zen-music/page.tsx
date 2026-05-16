@@ -256,6 +256,26 @@ const TRACKS: Track[] = [
     glyph: "隊",
     category: "hype",
   },
+  {
+    id: 24,
+    title: "Pangarap Ko",
+    subtitle: "Sushi ZEN",
+    file: "/music/pangarap-ko.mp3",
+    accent: "from-rose-300 via-pink-400 to-fuchsia-600",
+    accentHex: "#fb7185",
+    glyph: "夢",
+    category: "ballad",
+  },
+  {
+    id: 25,
+    title: "ZEN O'Clock",
+    subtitle: "Sushi ZEN",
+    file: "/music/zen-oclock.mp3",
+    accent: "from-orange-400 via-amber-500 to-yellow-400",
+    accentHex: "#f97316",
+    glyph: "刻",
+    category: "hype",
+  },
 ];
 
 function fmt(sec: number) {
