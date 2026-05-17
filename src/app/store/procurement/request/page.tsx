@@ -126,7 +126,9 @@ export default function StoreProcurementRequestPage() {
   const [submitChecked, setSubmitChecked] = useState(false);
   const [catalogStores, setCatalogStores] = useState<string[]>([]);
   const [catalogCategories, setCatalogCategories] = useState<string[]>([]);
-  const [selectedCatalogCategory, setSelectedCatalogCategory] = useState("Kitchen Ingredients");
+  const [selectedCatalogCategory, setSelectedCatalogCategory] = useState(
+    (auth?.city || "manila").toLowerCase() === "dubai" ? "Kitchen Ingredients" : "All"
+  );
   const [catalogSuppliers, setCatalogSuppliers] = useState<SupplierCatalog[]>([]);
   const [catalogBusy, setCatalogBusy] = useState(false);
   const addCatalogItemFn = async () => {
@@ -425,6 +427,10 @@ export default function StoreProcurementRequestPage() {
             date_to: requestDate.trim(),
             limit: "3000",
           });
+          // For Manila, filter by category when a specific one is selected
+          if (selectedCatalogCategory && selectedCatalogCategory !== "All") {
+            qs.set("category", selectedCatalogCategory);
+          }
           data = await procurementJson<CatalogResponse>(
             `/api/admin/procurement/requests/item-catalog?${qs.toString()}`,
             { method: "GET" },
@@ -487,6 +493,7 @@ export default function StoreProcurementRequestPage() {
             request_date: requestDate.trim(),
             urgent_flag: urgentFlag,
             new_vendor_flag: newVendorFlag,
+            is_wh_order: city !== "dubai" && selectedCatalogCategory === "Warehouse",
             items: validItems.map((item) => ({
               item_name: item.item_name,
               category: item.category,
@@ -806,7 +813,7 @@ export default function StoreProcurementRequestPage() {
               setCity(nextCity);
               setStoreCode(nextCity === "dubai" ? "ALL" : "");
               setCatalogCategories(nextCity === "dubai" ? DUBAI_CURATED_CATEGORIES : []);
-              setSelectedCatalogCategory("Kitchen Ingredients");
+              setSelectedCatalogCategory(nextCity === "dubai" ? "Kitchen Ingredients" : "All");
               setCatalogSuppliers([]);
               setItems([]);
               void loadCatalogStores(nextCity);
@@ -866,6 +873,37 @@ export default function StoreProcurementRequestPage() {
           </div>
         ) : null}
         {/* Category selector — prominent buttons for staff */}
+        {city !== "dubai" ? (
+          <div className="mt-3">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Order From</div>
+            <div className="flex flex-wrap gap-2">
+              {(["All", "Warehouse", "CK"] as const).map((cat) => {
+                const active = selectedCatalogCategory === cat;
+                const colors: Record<string, { on: string; off: string; dot: string }> = {
+                  "All":       { on: "bg-violet-500/25 text-violet-100 border-violet-500/50 shadow-violet-500/15",   off: "bg-violet-950/30 text-violet-400 border-violet-800/40 hover:bg-violet-900/40 hover:text-violet-200",   dot: "bg-violet-400" },
+                  "Warehouse": { on: "bg-amber-500/25 text-amber-100 border-amber-500/50 shadow-amber-500/15",       off: "bg-amber-950/30 text-amber-400 border-amber-800/40 hover:bg-amber-900/40 hover:text-amber-200",       dot: "bg-amber-400" },
+                  "CK":        { on: "bg-emerald-500/25 text-emerald-100 border-emerald-500/50 shadow-emerald-500/15", off: "bg-emerald-950/30 text-emerald-400 border-emerald-800/40 hover:bg-emerald-900/40 hover:text-emerald-200", dot: "bg-emerald-400" },
+                };
+                const c = colors[cat];
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setSelectedCatalogCategory(cat)}
+                    className={[
+                      "inline-flex items-center gap-2 rounded-xl border px-5 py-3 text-sm font-bold transition-all duration-200 shadow-sm",
+                      active ? c.on + " shadow-md" : c.off,
+                    ].join(" ")}
+                  >
+                    <span className={["h-2.5 w-2.5 rounded-full shrink-0", c.dot].join(" ")} />
+                    {cat === "CK" ? "Central Kitchen" : cat}
+                    {active && <span className="ml-1 text-[10px] font-semibold opacity-70">▼ selected</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
         {city === "dubai" && catalogCategories.length > 0 ? (
           <div className="mt-3">
             <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Order From</div>
@@ -1471,7 +1509,7 @@ export default function StoreProcurementRequestPage() {
                   setCity(nextCity);
                   setStoreCode(nextCity === "dubai" ? "ALL" : "");
                   setCatalogCategories(nextCity === "dubai" ? DUBAI_CURATED_CATEGORIES : []);
-                  setSelectedCatalogCategory("Kitchen Ingredients");
+                  setSelectedCatalogCategory(nextCity === "dubai" ? "Kitchen Ingredients" : "All");
                   setCatalogSuppliers([]);
                   setItems([]);
                   void loadCatalogStores(nextCity);
