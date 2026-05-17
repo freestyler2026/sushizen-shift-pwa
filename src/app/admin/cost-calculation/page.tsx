@@ -584,7 +584,7 @@ function mapMenuItemDetail(raw: any): MenuItemDetail {
 function mapMasterComponent(raw: any): MasterComponentDetail {
   return {
     id: String(raw?.id || ""),
-    component_type: String(raw?.component_type || "ingredient") === "processed_item" ? "processed_item" : "ingredient",
+    component_type: (["processed_item", "menu_item"].includes(String(raw?.component_type || ""))) ? "processed_item" : "ingredient",
     ingredient_id: String(raw?.ingredient_id || ""),
     component_menu_item_id: String(raw?.component_menu_item_id || ""),
     name: String(raw?.name || raw?.component_name || ""),
@@ -3881,9 +3881,15 @@ export default function CostCalculationPage() {
                             <span className="text-[10px] uppercase tracking-wide text-zinc-500">Formula</span>
                             <button
                               type="button"
-                              title="コスト合計・Yield・Bufferから自動でFormulaを生成します"
+                              title={
+                                (masterEditorPreview?.raw_cost ?? 0) <= 0
+                                  ? "Component unit prices are all 0 — set ingredient prices first before using auto-fill"
+                                  : "Auto-generate formula from component total, Yield, and Buffer"
+                              }
+                              disabled={(masterEditorPreview?.raw_cost ?? 0) <= 0}
                               onClick={() => {
                                 const rawCost = masterEditorPreview?.raw_cost ?? 0;
+                                if (rawCost <= 0) return;
                                 const yieldRate = normalizeRateValue(masterEditor.yield_rate);
                                 const bufferRate = normalizeMenuBufferRate(masterEditor.buffer_rate);
                                 const outputQty = Number(masterEditor.output_qty || 1) > 0 ? Number(masterEditor.output_qty) : 1;
@@ -3924,7 +3930,7 @@ export default function CostCalculationPage() {
                                   cost_unit_price: evaluated != null ? evaluated : current.cost_unit_price,
                                 }));
                               }}
-                              className="rounded border border-sky-600/40 bg-sky-950/30 px-2 py-0.5 text-[10px] text-sky-300 hover:bg-sky-900/40 transition-colors"
+                              className={`rounded border px-2 py-0.5 text-[10px] transition-colors ${(masterEditorPreview?.raw_cost ?? 0) <= 0 ? "border-zinc-700/40 bg-zinc-900/30 text-zinc-600 cursor-not-allowed" : "border-sky-600/40 bg-sky-950/30 text-sky-300 hover:bg-sky-900/40"}`}
                             >
                               自動入力
                             </button>
