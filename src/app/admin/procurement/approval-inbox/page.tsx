@@ -81,8 +81,9 @@ export default function ProcurementApprovalInboxPage() {
     setError("");
     setLoading(true);
     try {
+      const qs = new URLSearchParams({ limit: "200", city });
       const data = await procurementJson<{ rows: CaseRow[] }>(
-        "/api/admin/procurement/cases?limit=200",
+        `/api/admin/procurement/cases?${qs.toString()}`,
         { method: "GET" },
         requestedBy,
         pin,
@@ -98,7 +99,7 @@ export default function ProcurementApprovalInboxPage() {
     } finally {
       setLoading(false);
     }
-  }, [pin, requestedBy]);
+  }, [city, pin, requestedBy]);
 
   const claim = async (caseId: string) => {
     setBusyId(caseId);
@@ -139,6 +140,12 @@ export default function ProcurementApprovalInboxPage() {
     void init();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Reload when city changes (user switches city in the selector)
+  useEffect(() => {
+    if (allowed) void load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city]);
 
   if (!allowed) {
     return (

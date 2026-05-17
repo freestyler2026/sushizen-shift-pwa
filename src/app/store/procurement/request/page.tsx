@@ -287,18 +287,62 @@ export default function StoreProcurementRequestPage() {
     }));
   }, [items]);
 
+  // Tracks which row_keys were pre-filled from the edit request (not user-entered)
+  const editPrefilledKeys = useMemo(() => {
+    if (!editRequestId || editRequestItems.length === 0) return new Set<string>();
+    const editMap = new Map(
+      editRequestItems.map((it) => [`${it.item_name}::${it.vendor_name}`, it]),
+    );
+    const keys = new Set<string>();
+    for (const item of catalogGridItems) {
+      const key = `${item.item_name.toLowerCase()}::${item.vendor_name.toLowerCase()}`;
+      const editItem = editMap.get(key);
+      if (editItem && Number(editItem.qty || 0) > 0) {
+        keys.add(String(item.row_key || ""));
+      }
+    }
+    return keys;
+  }, [editRequestId, editRequestItems, catalogGridItems]);
+
+  // Groups pre-filled items by supplier for the edit-mode navigation banner
+  const editPrefilledBySupplier = useMemo(() => {
+    if (editPrefilledKeys.size === 0) return [];
+    const map = new Map<string, string[]>();
+    for (const item of items) {
+      if (editPrefilledKeys.has(String(item.row_key || ""))) {
+        const s = String(item.vendor_name || "").trim() || "Unknown supplier";
+        map.set(s, [...(map.get(s) || []), item.item_name]);
+      }
+    }
+    return Array.from(map.entries()).map(([supplier, itemNames]) => ({
+      supplier,
+      anchor: toSupplierAnchor(supplier),
+      itemNames,
+    }));
+  }, [editPrefilledKeys, items]);
+
+  // Manila branches always shown, regardless of whether they have catalog history
+  const MANILA_BRANCH_CODES = ["PAR", "CUB", "TAFT", "CK", "WH", "BO"];
+
   const loadCatalogStores = useCallback(
-    async (cityOverride?: string) => {
+    async (cityOverride?: string, storeCodePreference?: string) => {
       try {
         const activeCity = String(cityOverride || city || "manila").trim().toLowerCase() || "manila";
+        // Use storeCodePreference when provided (avoids closure-capture race condition);
+        // otherwise fall back to the storeCode closure value.
+        const resolvedStore = storeCodePreference !== undefined ? storeCodePreference : storeCode;
+
         if (activeCity === "dubai") {
           setCatalogStores(DUBAI_CURATED_STORES);
           setCatalogCategories(DUBAI_CURATED_CATEGORIES);
-          if (!DUBAI_CURATED_STORES.includes(storeCode)) {
-            setStoreCode("ALL");
-          }
           if (!DUBAI_CURATED_CATEGORIES.includes(selectedCatalogCategory)) {
             setSelectedCatalogCategory(DUBAI_CURATED_CATEGORIES[0]);
+          }
+          // Apply preference (or fall back to ALL if not a valid Dubai store)
+          if (storeCodePreference !== undefined) {
+            setStoreCode(DUBAI_CURATED_STORES.includes(storeCodePreference) ? storeCodePreference : "ALL");
+          } else if (!DUBAI_CURATED_STORES.includes(resolvedStore)) {
+            setStoreCode("ALL");
           }
           return;
         }
@@ -312,17 +356,28 @@ export default function StoreProcurementRequestPage() {
           requestedBy,
           pin,
         );
-        const stores = Array.isArray(data?.stores) ? data.stores : [];
-        setCatalogStores(stores);
+        const apiStores = Array.isArray(data?.stores) ? data.stores : [];
+        // Always include all Manila branch codes so CK/WH appear even with no history
+        const allStores = [...new Set([...apiStores, ...MANILA_BRANCH_CODES])];
+        setCatalogStores(allStores);
         setCatalogCategories([]);
-        if (!storeCode.trim()) {
-          const preferredStore = stores.find((store) => String(store || "").trim().toUpperCase() === "ALL") || "";
-          if (preferredStore) setStoreCode(preferredStore);
+        if (storeCodePreference !== undefined) {
+          // Caller specified a preferred store — apply it, or fall back to first option
+          if (storeCodePreference.trim()) {
+            setStoreCode(storeCodePreference);
+          } else {
+            const defaultStore = allStores.find((s) => String(s || "").trim().toUpperCase() === "ALL") || allStores[0] || "";
+            if (defaultStore) setStoreCode(defaultStore);
+          }
+        } else if (!resolvedStore.trim()) {
+          const defaultStore = allStores.find((s) => String(s || "").trim().toUpperCase() === "ALL") || "";
+          if (defaultStore) setStoreCode(defaultStore);
         }
       } catch (e: any) {
         setError(friendlyProcurementError(e));
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [city, pin, requestedBy, selectedCatalogCategory, storeCode],
   );
 
@@ -493,13 +548,15 @@ export default function StoreProcurementRequestPage() {
       const refreshed = await refreshAuthFromApi(auth);
       let queryCity = "";
       let queryCategory = "";
+      let preferredStore = "";
       if (typeof window !== "undefined") {
         const sp = new URLSearchParams(window.location.search);
         queryCity = String(sp.get("city") || "").toLowerCase();
         const queryStore = String(sp.get("store") || sp.get("store_code") || "").trim();
-        const savedBranch = typeof window !== "undefined" ? (localStorage.getItem("store_proc_branch") || "") : "";
-        if (queryStore) setStoreCode(queryStore);
-        else if (savedBranch) setStoreCode(savedBranch);
+        const savedBranch = localStorage.getItem("store_proc_branch") || "";
+        // Determine preferred store — resolved BEFORE calling loadCatalogStores to avoid
+        // the closure race condition where loadCatalogStores sees storeCode="" and resets to "ALL".
+        preferredStore = queryStore || savedBranch;
         queryCategory = String(sp.get("catalog_category") || "").trim();
         // Detect edit mode — ?edit=<requestId>
         const queryEdit = String(sp.get("edit") || "").trim();
@@ -532,17 +589,13 @@ export default function StoreProcurementRequestPage() {
       if (initialCity === "dubai") {
         setCatalogCategories(DUBAI_CURATED_CATEGORIES);
         setSelectedCatalogCategory(queryCategory || DUBAI_CURATED_CATEGORIES[0]);
-        if (typeof window !== "undefined") {
-          const sp = new URLSearchParams(window.location.search);
-          if (!String(sp.get("store") || "").trim()) {
-            setStoreCode("ALL");
-          }
-        }
       }
       if ((refreshed?.staffName || "").trim() && !requestedBy.trim()) {
         setRequestedBy(String(refreshed?.staffName || "").trim());
       }
-      await loadCatalogStores(initialCity);
+      // Pass preferredStore to loadCatalogStores so it applies the correct branch
+      // without being overridden by the storeCode closure (which is still "" at this point).
+      await loadCatalogStores(initialCity, preferredStore);
       await loadMyRequests(initialCity);
     }
     void init();
@@ -875,6 +928,31 @@ export default function StoreProcurementRequestPage() {
         <div className="text-xs text-neutral-400">
           All items are shown per supplier. Rows with Qty 0 are excluded from the draft and submission.
         </div>
+
+        {/* Edit-mode navigation banner — shows pre-filled items from original request */}
+        {editRequestId && editPrefilledBySupplier.length > 0 && (
+          <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-950/20 p-3">
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-amber-300">
+              <span>✏</span>
+              <span>
+                {editPrefilledKeys.size} item{editPrefilledKeys.size !== 1 ? "s" : ""} pre-filled from your original request — highlighted below.
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {editPrefilledBySupplier.map(({ supplier, anchor, itemNames }) => (
+                <a
+                  key={anchor}
+                  href={`#${anchor}`}
+                  className="inline-flex flex-col rounded-lg border border-amber-500/25 bg-amber-900/20 px-3 py-1.5 text-[11px] text-amber-200 hover:bg-amber-900/35 transition-colors"
+                >
+                  <span className="font-semibold">{supplier}</span>
+                  <span className="text-amber-300/70">{itemNames.join(", ")}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="mt-3 space-y-4">
           {catalogBusy ? <div className="text-xs text-neutral-400">Loading catalog...</div> : null}
           {!catalogBusy && !supplierSections.length ? (
@@ -908,16 +986,31 @@ export default function StoreProcurementRequestPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {section.rows.map((item) => (
-                      <tr key={item.row_key || `${section.supplier}-${item.item_name}`} className="border-t border-white/8 bg-black/15">
-                        <td className="px-3 py-2 text-neutral-100">{item.item_name}</td>
+                    {section.rows.map((item) => {
+                      const isEditPrefilled = editPrefilledKeys.has(String(item.row_key || ""));
+                      return (
+                      <tr
+                        key={item.row_key || `${section.supplier}-${item.item_name}`}
+                        className={[
+                          "border-t border-white/8",
+                          isEditPrefilled
+                            ? "bg-amber-950/25 border-l-2 border-l-amber-500/60"
+                            : "bg-black/15",
+                        ].join(" ")}
+                      >
+                        <td className="px-3 py-2 text-neutral-100">
+                          {item.item_name}
+                          {isEditPrefilled && (
+                            <span className="ml-1.5 rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">from original</span>
+                          )}
+                        </td>
                         <td className="px-3 py-2 text-neutral-300">{item.category || "-"}</td>
                         <td className="px-2 py-2">
                           <input
                             type="number"
                             min="0"
-                            step="1"
-                            inputMode="numeric"
+                            step="0.01"
+                            inputMode="decimal"
                             placeholder="0"
                             value={item.qty || ""}
                             onFocus={(e) => e.target.select()}
@@ -948,7 +1041,8 @@ export default function StoreProcurementRequestPage() {
                           {(Number(item.qty || 0) * Number(item.unit_price || 0)).toFixed(2)}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
