@@ -7,6 +7,7 @@ import {
   GLASS_CARD,
   SECONDARY_BUTTON,
   INPUT_CLASS,
+  SELECT_CLASS,
   T_PAGE_TITLE,
   T_SECTION,
   T_CAPTION,
@@ -16,7 +17,7 @@ import {
   BADGE_ERROR,
   BADGE_INFO,
 } from "@/lib/ui-tokens";
-import { RefreshCw, AlertCircle, TrendingUp } from "lucide-react";
+import { RefreshCw, AlertCircle, TrendingUp, Building2 } from "lucide-react";
 
 type RequestListRow = {
   id: string;
@@ -227,6 +228,12 @@ export default function ProcurementQuotesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Reload when city changes (user switches city in the selector)
+  useEffect(() => {
+    if (allowed) void loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city]);
+
   const requestItems = Array.isArray(detail?.request?.items) ? detail.request.items : [];
 
   if (!allowed) {
@@ -263,7 +270,7 @@ export default function ProcurementQuotesPage() {
 
       {/* Session / Filter bar */}
       <div className={`${GLASS_CARD} p-4`}>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-6">
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Approver Name</label>
             <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Name" className={INPUT_CLASS} />
@@ -271,6 +278,13 @@ export default function ProcurementQuotesPage() {
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>PIN</label>
             <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="••••••••" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 flex items-center gap-1.5`}><Building2 className="h-3 w-3" />City</label>
+            <select value={city} onChange={(e) => setCity(e.target.value as "manila" | "dubai")} className={SELECT_CLASS}>
+              <option value="manila">Manila</option>
+              <option value="dubai">Dubai</option>
+            </select>
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Request ID</label>
