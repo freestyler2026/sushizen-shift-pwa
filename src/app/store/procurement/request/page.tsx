@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProcurementStepper } from "@/components/ProcurementStepper";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { BRANCHES } from "@/lib/branches";
 import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson } from "@/lib/procurementClient";
 import { formatRelativeAge, getRecentBadgeMaxAgeMs, isOlderThan, useRelativeAgeNow } from "@/lib/timeAgo";
 
@@ -321,8 +322,10 @@ export default function StoreProcurementRequestPage() {
     }));
   }, [editPrefilledKeys, items]);
 
-  // Manila branches always shown, regardless of whether they have catalog history
-  const MANILA_BRANCH_CODES = ["PAR", "CUB", "TAFT", "CK", "WH", "BO"];
+  // Branch code → human-readable name lookup (for Manila)
+  // The item catalog API indexes stores by human-readable name (e.g. "Paranaque"), not code (e.g. "PAR").
+  // This map lets us normalise a saved branch code back to the name the API expects.
+  const MANILA_CODE_TO_NAME = new Map(BRANCHES.manila.map((b) => [b.code, b.name]));
 
   const loadCatalogStores = useCallback(
     async (cityOverride?: string, storeCodePreference?: string) => {
@@ -346,10 +349,7 @@ export default function StoreProcurementRequestPage() {
           }
           return;
         }
-        const qs = new URLSearchParams({
-          city: activeCity,
-          limit: "300",
-        });
+        const qs = new URLSearchParams({ city: activeCity, limit: "300" });
         const data = await procurementJson<{ stores?: string[] }>(
           `/api/admin/procurement/requests/catalog-stores?${qs.toString()}`,
           { method: "GET" },
@@ -357,20 +357,29 @@ export default function StoreProcurementRequestPage() {
           pin,
         );
         const apiStores = Array.isArray(data?.stores) ? data.stores : [];
-        // Always include all Manila branch codes so CK/WH appear even with no history
-        const allStores = [...new Set([...apiStores, ...MANILA_BRANCH_CODES])];
+        // Supplement with branch names that are not already represented in the API result.
+        // Match both by name (exact, case-insensitive) and by code so we never double-add.
+        const apiLower = new Set(apiStores.map((s) => String(s || "").toLowerCase()));
+        const missingBranches = BRANCHES.manila
+          .filter((b) => !apiLower.has(b.name.toLowerCase()) && !apiLower.has(b.code.toLowerCase()))
+          .map((b) => b.name); // Use human-readable name — same format the API uses
+        const allStores = [...apiStores, ...missingBranches];
         setCatalogStores(allStores);
         setCatalogCategories([]);
+
+        // Normalise storeCodePreference: if caller passed a branch code (e.g. "PAR" from localStorage),
+        // convert it to the name the API uses (e.g. "Paranaque").
+        const normalise = (s: string): string => MANILA_CODE_TO_NAME.get(s.toUpperCase() as Parameters<typeof MANILA_CODE_TO_NAME["get"]>[0]) ?? s;
+
         if (storeCodePreference !== undefined) {
-          // Caller specified a preferred store — apply it, or fall back to first option
           if (storeCodePreference.trim()) {
-            setStoreCode(storeCodePreference);
+            setStoreCode(normalise(storeCodePreference));
           } else {
-            const defaultStore = allStores.find((s) => String(s || "").trim().toUpperCase() === "ALL") || allStores[0] || "";
+            const defaultStore = allStores[0] || "";
             if (defaultStore) setStoreCode(defaultStore);
           }
         } else if (!resolvedStore.trim()) {
-          const defaultStore = allStores.find((s) => String(s || "").trim().toUpperCase() === "ALL") || "";
+          const defaultStore = allStores[0] || "";
           if (defaultStore) setStoreCode(defaultStore);
         }
       } catch (e: any) {
@@ -616,6 +625,9 @@ export default function StoreProcurementRequestPage() {
       const editMap = new Map(
         editRequestItems.map((it) => [`${it.item_name}::${it.vendor_name}`, it])
       );
+      // Track which edit keys have already been applied so duplicate catalog rows
+      // (same item + vendor appearing multiple times in the catalog) only get pre-filled once.
+      const usedEditKeys = new Set<string>();
       return catalogGridItems.map((item) => {
         const existing = prevMap.get(String(item.row_key || ""));
         if (existing) {
@@ -628,9 +640,11 @@ export default function StoreProcurementRequestPage() {
           };
         }
         // Overlay from edit request items (match by item_name + vendor_name, case-insensitive)
+        // Only apply to the first matching catalog row — later duplicates stay at qty 0.
         const editKey = `${item.item_name.toLowerCase()}::${item.vendor_name.toLowerCase()}`;
         const editItem = editMap.get(editKey);
-        if (editItem && Number(editItem.qty || 0) > 0) {
+        if (editItem && Number(editItem.qty || 0) > 0 && !usedEditKeys.has(editKey)) {
+          usedEditKeys.add(editKey);
           return {
             ...item,
             qty: Number(editItem.qty || 0),
