@@ -38,7 +38,7 @@ const TRACKS: Track[] = [
   },
   {
     id: 2,
-    title: "ZEN Anthem",
+    title: "NEON ZEN",
     subtitle: "Sushi ZEN",
     file: "/music/sushi-zen-anthem.mp3",
     accent: "from-violet-500 via-indigo-600 to-blue-700",
