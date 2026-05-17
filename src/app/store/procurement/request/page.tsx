@@ -288,17 +288,21 @@ export default function StoreProcurementRequestPage() {
     }));
   }, [items]);
 
-  // Tracks which row_keys were pre-filled from the edit request (not user-entered)
+  // Tracks which row_keys were pre-filled from the edit request (not user-entered).
+  // Only the FIRST matching catalog row per item_name::vendor_name is included —
+  // duplicate catalog rows beyond the first are excluded (same logic as the pre-fill effect).
   const editPrefilledKeys = useMemo(() => {
     if (!editRequestId || editRequestItems.length === 0) return new Set<string>();
     const editMap = new Map(
       editRequestItems.map((it) => [`${it.item_name}::${it.vendor_name}`, it]),
     );
     const keys = new Set<string>();
+    const usedMatchKeys = new Set<string>();
     for (const item of catalogGridItems) {
-      const key = `${item.item_name.toLowerCase()}::${item.vendor_name.toLowerCase()}`;
-      const editItem = editMap.get(key);
-      if (editItem && Number(editItem.qty || 0) > 0) {
+      const matchKey = `${item.item_name.toLowerCase()}::${item.vendor_name.toLowerCase()}`;
+      const editItem = editMap.get(matchKey);
+      if (editItem && Number(editItem.qty || 0) > 0 && !usedMatchKeys.has(matchKey)) {
+        usedMatchKeys.add(matchKey);
         keys.add(String(item.row_key || ""));
       }
     }
@@ -1025,8 +1029,7 @@ export default function StoreProcurementRequestPage() {
                             min="0"
                             step="0.01"
                             inputMode="decimal"
-                            placeholder="0"
-                            value={item.qty || ""}
+                            value={item.qty}
                             onFocus={(e) => e.target.select()}
                             onChange={(e) => updateItem(String(item.row_key || ""), { qty: Number(e.target.value || 0) })}
                             className="w-20 rounded-lg border border-white/8 bg-black/20 px-2 py-1.5 text-right text-xs text-white focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
