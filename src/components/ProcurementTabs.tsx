@@ -46,6 +46,7 @@ const GROUPS: TabGroup[] = [
       { href: "/admin/procurement/price-search",     label: "Item Price Search", showTo: ["staff", "manager", "inventory", "full"] },
       { href: "/admin/procurement/quotes",           label: "Quotes",            showTo: ["manager", "full"] },
       { href: "/admin/procurement/pos",              label: "PO",                showTo: ["manager", "full"] },
+      { href: "/admin/procurement/ck-orders",        label: "CK Orders",         showTo: ["manager", "full"] },
       { href: "/admin/procurement/receiving",        label: "Confirm Delivery",  showTo: ["manager", "full"] },
     ],
   },
