@@ -659,36 +659,39 @@ ${pages}
         linked_request_id: req.id,   // ← update proc_requests status to IN_PRODUCTION
       });
       const productionId = String(created?.row?.id || "");
-      // Save matched items if any
-      const matchedItems = req.items.flatMap((item, index) => {
+      // Build output items from ALL PR items — matched items get inventory item_id,
+      // unmatched items are saved by name only (no item_id) so they still appear on the delivery note
+      const allOutputItems = req.items.map((item, index) => {
         const match = productOptions.find(
           (p) => p.name.trim().toLowerCase() === item.item_name.trim().toLowerCase(),
         );
-        if (!match) return [];
-        const unit = normalizeProductionOutputUnit(item.unit || match.storage_unit);
-        return [{
-          item_id: match.id,
-          item_name: match.name,
-          sku: match.sku,
+        const unit = normalizeProductionOutputUnit(item.unit || (match?.storage_unit ?? ""));
+        return {
+          item_id: match?.id ?? "",
+          item_name: match?.name ?? item.item_name,
+          sku: match?.sku ?? "",
           quantity: Number(Number(item.qty || 0).toFixed(3)),
           unit,
-          unit_cost: Number(item.unit_price || match.cost || 0),
-          total_cost: Number(item.qty || 0) * Number(item.unit_price || match.cost || 0),
+          unit_cost: Number(item.unit_price || match?.cost || 0),
+          total_cost: Number(item.qty || 0) * Number(item.unit_price || match?.cost || 0),
           entry_type: "OUTPUT",
           sort_order: index,
-        }];
+        };
       });
-      if (productionId && matchedItems.length > 0) {
+      const matchedItems = allOutputItems.filter((it) => it.item_id);
+      if (productionId && allOutputItems.length > 0) {
         await inventoryPost(`/api/admin/inventory/productions/${encodeURIComponent(productionId)}/items`, {
-          city, items: matchedItems,
+          city, items: allOutputItems,
         });
-        // Record CK inventory deductions (non-blocking)
-        void inventoryPost("/api/admin/inventory/ck-stock/deduct", {
-          city,
-          adj_date: businessDate,
-          production_id: productionId,
-          items: matchedItems.map((it) => ({ item_name: it.item_name, unit: it.unit, adj_qty: it.quantity })),
-        }).catch(() => {/* CK inventory deduction is best-effort */});
+        // Record CK inventory deductions only for matched items (non-blocking)
+        if (matchedItems.length > 0) {
+          void inventoryPost("/api/admin/inventory/ck-stock/deduct", {
+            city,
+            adj_date: businessDate,
+            production_id: productionId,
+            items: matchedItems.map((it) => ({ item_name: it.item_name, unit: it.unit, adj_qty: it.quantity })),
+          }).catch(() => {/* CK inventory deduction is best-effort */});
+        }
       }
       setCompletedOrderForPrint(null);
       setLinkedRequestId("");
