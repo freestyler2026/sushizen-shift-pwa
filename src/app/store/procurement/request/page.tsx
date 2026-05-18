@@ -1350,47 +1350,7 @@ export default function StoreProcurementRequestPage() {
             </table>
           </div>
           <div className="mt-2 text-right text-xs text-neutral-300">Total: {validItemsTotal.toFixed(2)} {currencyCode}</div>
-          <label className="mt-3 inline-flex items-start gap-2 text-xs text-amber-100">
-            <input
-              type="checkbox"
-              checked={submitChecked}
-              onChange={(e) => setSubmitChecked(e.target.checked)}
-              className="mt-0.5"
-            />
-            <span>
-              {reviewMode === "draft"
-                ? "I checked this draft for missing items and mistakes."
-                : "I checked this submission for missing items and mistakes."}
-            </span>
-          </label>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => void createRequest(reviewMode !== "draft")}
-              disabled={busy !== "" || !submitChecked}
-              className={PRIMARY_BUTTON}
-            >
-              {reviewMode === "draft"
-                ? busy === "create"
-                  ? "Creating..."
-                  : "Confirm and Create Draft"
-                : busy === "submit"
-                  ? "Submitting..."
-                  : "Confirm and Submit Request"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowSubmitReview(false);
-                setReviewMode("");
-                setSubmitChecked(false);
-              }}
-              disabled={busy !== ""}
-              className={SECONDARY_BUTTON}
-            >
-              Back to Edit
-            </button>
-          </div>
+          <p className="mt-3 text-xs text-zinc-500">Use the confirmation bar at the bottom of the screen to check and submit.</p>
         </div>
       ) : null}
 
@@ -1541,17 +1501,26 @@ export default function StoreProcurementRequestPage() {
       {/* Sticky confirm bar — visible when review panel is open */}
       {showSubmitReview && (
         <div className="no-print fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-slate-900/95 px-4 py-3 backdrop-blur-md">
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
-            <div className="flex items-center gap-3 text-xs text-zinc-300">
-              {submitChecked ? (
-                <span className="text-emerald-400">✓ Checked</span>
-              ) : (
-                <span className="text-amber-400">☐ Check the box above to confirm</span>
-              )}
-              <span className="text-zinc-500">·</span>
+          <div className="mx-auto flex max-w-7xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            {/* Checkbox lives here — always visible without scrolling */}
+            <label className="flex cursor-pointer items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={submitChecked}
+                onChange={(e) => setSubmitChecked(e.target.checked)}
+                className="h-4 w-4 rounded accent-violet-500"
+              />
+              <span className={submitChecked ? "text-emerald-400" : "text-amber-300"}>
+                {submitChecked
+                  ? "✓ Checked — ready to submit"
+                  : reviewMode === "draft"
+                    ? "I checked this draft for missing items and mistakes."
+                    : "I checked this submission for missing items and mistakes."}
+              </span>
+              <span className="ml-1 text-zinc-500">·</span>
               <span className="font-semibold text-amber-300">{currencyCode} {validItemsTotal.toFixed(2)}</span>
-            </div>
-            <div className="flex items-center gap-2">
+            </label>
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => {
