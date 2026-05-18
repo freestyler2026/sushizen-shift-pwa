@@ -102,6 +102,10 @@ export default function ProcurementCaseDetailPage() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptUploading, setReceiptUploading] = useState(false);
+  const [quoteUrl, setQuoteUrl] = useState("");
+  const [paymentConfirming, setPaymentConfirming] = useState(false);
 
   const currency = bundle.request?.currency || (city === "dubai" ? "AED" : "PHP");
   const APPROVAL_THRESHOLD = city === "dubai" ? 500 : 15000;
@@ -182,6 +186,81 @@ export default function ProcurementCaseDetailPage() {
     }
   };
 
+  const markPurchased = async () => {
+    setReceiptUploading(true);
+    setError("");
+    setSuccessMsg("");
+    try {
+      let receiptUrl = "";
+      if (receiptFile) {
+        const headers = await procurementTokenHeaders(requestedBy, pin);
+        const form = new FormData();
+        form.append("stage_code", "05_RECEIPT");
+        form.append("doc_type", "RECEIPT");
+        form.append("approver_name", requestedBy);
+        form.append("pin", pin);
+        form.append("file", receiptFile);
+        const res = await fetch(`/api/admin/procurement/cases/${caseId}/documents/upload`, {
+          method: "POST",
+          headers,
+          body: form,
+        });
+        const text = await res.text();
+        if (!res.ok) throw new Error(text || `Receipt upload failed (${res.status})`);
+        try {
+          const parsed = JSON.parse(text);
+          receiptUrl = String(parsed?.url || parsed?.document?.url || "");
+        } catch { /* ok */ }
+      }
+      const requestId = String(bundle.request?.id || "");
+      await procurementJson(
+        `/api/admin/procurement/requests/${requestId}/mark-purchased`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ approver_name: requestedBy, pin, receipt_url: receiptUrl }),
+        },
+        requestedBy,
+        pin,
+      );
+      setReceiptFile(null);
+      setSuccessMsg("Marked as purchased successfully.");
+      await load();
+      window.dispatchEvent(new Event("procurement-badge-refresh"));
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setReceiptUploading(false);
+    }
+  };
+
+  const confirmPayment = async () => {
+    setPaymentConfirming(true);
+    setError("");
+    setSuccessMsg("");
+    try {
+      const requestId = String(bundle.request?.id || "");
+      await procurementJson(
+        `/api/admin/procurement/requests/${requestId}/confirm-payment`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ approver_name: requestedBy, pin, quote_url: quoteUrl.trim() }),
+        },
+        requestedBy,
+        pin,
+      );
+      setQuoteUrl("");
+      setSuccessMsg("Payment confirmed. PO can now be issued.");
+      await load();
+      window.dispatchEvent(new Event("procurement-badge-refresh"));
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setPaymentConfirming(false);
+    }
+  };
+
   useEffect(() => {
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
@@ -226,6 +305,11 @@ export default function ProcurementCaseDetailPage() {
             {isHighValue && <span className={BADGE_WARNING}>⚠ High Value</span>}
             {bundle.request?.urgent_flag && <span className={BADGE_ERROR}>URGENT</span>}
             {bundle.request?.new_vendor_flag && <span className={BADGE_WARNING}>NEW VENDOR</span>}
+            {bundle.request?.purchase_type === "cash_purchase" && <span className={`${BADGE_ACCENT} bg-amber-500/20 text-amber-300 border-amber-500/30`}>💵 Cash &amp; Carry</span>}
+            {bundle.request?.purchase_type === "ec_purchase" && <span className={`${BADGE_ACCENT} bg-sky-500/20 text-sky-300 border-sky-500/30`}>🛒 EC / Online</span>}
+            {bundle.request?.purchase_type === "prepaid" && <span className={`${BADGE_ACCENT} bg-purple-500/20 text-purple-300 border-purple-500/30`}>💳 Pre-payment</span>}
+            {bundle.request?.status === "PURCHASED" && <span className={BADGE_SUCCESS}>✓ PURCHASED</span>}
+            {bundle.request?.purchase_type === "prepaid" && bundle.request?.payment_status === "PAYMENT_CONFIRMED" && <span className={BADGE_SUCCESS}>💳 Payment Confirmed</span>}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -454,6 +538,105 @@ export default function ProcurementCaseDetailPage() {
                   {busy === "escalate" ? "Escalating…" : "Escalate"}
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Mark as Purchased panel — cash & carry / EC orders only */}
+          {["cash_purchase", "ec_purchase"].includes(bundle.request?.purchase_type || "") && (
+            <div className="mt-4 rounded-xl border border-amber-500/25 bg-amber-500/8 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-amber-200">
+                  {bundle.request?.purchase_type === "ec_purchase" ? "🛒 EC / Online Purchase" : "💵 Cash & Carry Purchase"}
+                </span>
+                {bundle.request?.status === "PURCHASED" ? (
+                  <span className={BADGE_SUCCESS}>✓ Completed</span>
+                ) : (
+                  <span className={BADGE_WARNING}>Awaiting Purchase</span>
+                )}
+              </div>
+              {bundle.request?.ec_order_url && (
+                <div className="text-xs text-sky-300">
+                  Order URL: <a href={bundle.request.ec_order_url} target="_blank" rel="noopener noreferrer" className="underline break-all">{bundle.request.ec_order_url}</a>
+                </div>
+              )}
+              {bundle.request?.receipt_url && (
+                <div className="text-xs text-zinc-400">
+                  Receipt: <a href={bundle.request.receipt_url} target="_blank" rel="noopener noreferrer" className="text-sky-300 underline">View receipt</a>
+                </div>
+              )}
+              {bundle.request?.purchased_by && (
+                <div className="text-xs text-zinc-400">
+                  Purchased by: <span className="text-zinc-200">{bundle.request.purchased_by}</span>
+                  {bundle.request.purchased_at && <> · {new Date(bundle.request.purchased_at).toLocaleString()}</>}
+                </div>
+              )}
+              {bundle.request?.status === "APPROVED" && (
+                <div className="space-y-2">
+                  <div className="text-xs text-zinc-400">Upload receipt photo (optional) then mark as purchased:</div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <label className="flex items-center gap-1.5 cursor-pointer rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300 hover:bg-white/10 transition">
+                      <Upload className="h-3.5 w-3.5" />
+                      {receiptFile ? receiptFile.name : "Choose receipt photo"}
+                      <input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => void markPurchased()}
+                      disabled={receiptUploading}
+                      className="flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-200 transition hover:bg-amber-500/30 disabled:opacity-60"
+                    >
+                      <CheckCircle className="h-4 w-4" />
+                      {receiptUploading ? "Saving…" : "Mark as Purchased"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Payment confirmation panel — pre-payment suppliers only */}
+          {bundle.request?.purchase_type === "prepaid" && (
+            <div className="mt-4 rounded-xl border border-purple-500/25 bg-purple-500/8 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-purple-200">💳 Pre-payment Supplier</span>
+                {bundle.request?.payment_status === "PAYMENT_CONFIRMED" ? (
+                  <span className={BADGE_SUCCESS}>✓ Payment Confirmed</span>
+                ) : (
+                  <span className={BADGE_WARNING}>Awaiting Payment</span>
+                )}
+              </div>
+              {bundle.request?.purchased_by && (
+                <div className="text-xs text-zinc-400">
+                  Confirmed by: <span className="text-zinc-200">{bundle.request.purchased_by}</span>
+                  {bundle.request?.purchased_at && <> · {new Date(bundle.request.purchased_at).toLocaleString()}</>}
+                </div>
+              )}
+              {bundle.request?.receipt_url && (
+                <div className="text-xs text-zinc-400">
+                  Quote / Invoice: <a href={bundle.request.receipt_url} target="_blank" rel="noopener noreferrer" className="text-sky-300 underline">View document</a>
+                </div>
+              )}
+              {bundle.request?.status === "APPROVED" && bundle.request?.payment_status !== "PAYMENT_CONFIRMED" && (
+                <div className="space-y-2">
+                  <div className="text-xs text-zinc-400">Enter supplier quote / invoice URL (optional) then confirm payment:</div>
+                  <input
+                    type="url"
+                    value={quoteUrl}
+                    onChange={(e) => setQuoteUrl(e.target.value)}
+                    placeholder="Supplier quote or invoice URL (optional)"
+                    className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white placeholder-zinc-500 outline-none focus:border-purple-500/50"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void confirmPayment()}
+                    disabled={paymentConfirming}
+                    className="flex items-center gap-2 rounded-xl border border-purple-500/40 bg-purple-500/20 px-4 py-2 text-sm font-medium text-purple-200 transition hover:bg-purple-500/30 disabled:opacity-60"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    {paymentConfirming ? "Confirming…" : "Confirm Payment"}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

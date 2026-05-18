@@ -37,6 +37,8 @@ type CaseRow = {
   blocked_reason?: string;
   notification_status?: string;
   notification_failed_count?: number;
+  purchase_type?: string;
+  payment_status?: string;
 };
 
 function severityBadge(severity: string) {
@@ -255,6 +257,10 @@ export default function ProcurementApprovalInboxPage() {
                     {isHighValue && (
                       <span className={BADGE_WARNING}>⚠ High Value</span>
                     )}
+                    {row.purchase_type === "cash_purchase" && <span className="rounded-full border border-amber-500/30 bg-amber-500/15 px-2 py-0.5 text-xs text-amber-300">💵 Cash</span>}
+                    {row.purchase_type === "ec_purchase" && <span className="rounded-full border border-sky-500/30 bg-sky-500/15 px-2 py-0.5 text-xs text-sky-300">🛒 EC</span>}
+                    {row.purchase_type === "prepaid" && <span className="rounded-full border border-purple-500/30 bg-purple-500/15 px-2 py-0.5 text-xs text-purple-300">💳 Pre-pay</span>}
+                    {row.purchase_type === "prepaid" && row.payment_status === "PAYMENT_CONFIRMED" && <span className="rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-300">✓ Paid</span>}
                     {hasPushFail && (
                       <span className={BADGE_ERROR}>Push Failed ×{row.notification_failed_count}</span>
                     )}

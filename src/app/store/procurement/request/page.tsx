@@ -106,6 +106,8 @@ export default function StoreProcurementRequestPage() {
   const [requestDate, setRequestDate] = useState(todayIso());
   const [urgentFlag, setUrgentFlag] = useState(false);
   const [newVendorFlag, setNewVendorFlag] = useState(false);
+  const [purchaseType, setPurchaseType] = useState<"standard" | "cash_purchase" | "ec_purchase" | "prepaid">("standard");
+  const [ecOrderUrl, setEcOrderUrl] = useState("");
   const [items, setItems] = useState<ReqItem[]>([]);
   const [rows, setRows] = useState<ReqRow[]>([]);
   const [editRequestId, setEditRequestId] = useState("");
@@ -494,6 +496,8 @@ export default function StoreProcurementRequestPage() {
             urgent_flag: urgentFlag,
             new_vendor_flag: newVendorFlag,
             is_wh_order: city !== "dubai" && selectedCatalogCategory === "Warehouse",
+            purchase_type: purchaseType,
+            ec_order_url: ecOrderUrl.trim(),
             items: validItems.map((item) => ({
               item_name: item.item_name,
               category: item.category,
@@ -844,6 +848,51 @@ export default function StoreProcurementRequestPage() {
             New vendor
           </label>
         </div>
+        {city !== "dubai" && (
+          <div className="space-y-2">
+            <div className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Purchase Method</div>
+            <div className="flex gap-2 flex-wrap">
+              {(["standard", "cash_purchase", "ec_purchase", "prepaid"] as const).map((pt) => {
+                const labels: Record<string, string> = { standard: "Standard Order", cash_purchase: "Cash & Carry", ec_purchase: "EC / Online", prepaid: "Pre-payment" };
+                const active = purchaseType === pt;
+                return (
+                  <button
+                    key={pt}
+                    type="button"
+                    onClick={() => { setPurchaseType(pt); if (pt !== "ec_purchase") setEcOrderUrl(""); }}
+                    className={`rounded-full px-3 py-1 text-xs font-medium border transition ${active ? "bg-violet-600 border-violet-500 text-white" : "bg-white/5 border-white/10 text-neutral-400 hover:text-white"}`}
+                  >
+                    {labels[pt]}
+                  </button>
+                );
+              })}
+            </div>
+            {purchaseType === "cash_purchase" && (
+              <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs text-amber-300">
+                Cash &amp; Carry — Staff will purchase directly at the store. Receipt photo required after purchase.
+              </div>
+            )}
+            {purchaseType === "ec_purchase" && (
+              <div className="space-y-1.5">
+                <div className="rounded-lg bg-sky-500/10 border border-sky-500/20 px-3 py-2 text-xs text-sky-300">
+                  EC / Online — Purchase via Shopee, Lazada, or other online store. Receipt photo required after purchase.
+                </div>
+                <input
+                  type="url"
+                  value={ecOrderUrl}
+                  onChange={(e) => setEcOrderUrl(e.target.value)}
+                  placeholder="Product / cart URL (optional)"
+                  className="w-full rounded border border-white/10 bg-white/5 px-3 py-2 text-xs text-white placeholder-neutral-500 outline-none focus:border-sky-500/50"
+                />
+              </div>
+            )}
+            {purchaseType === "prepaid" && (
+              <div className="rounded-lg bg-purple-500/10 border border-purple-500/20 px-3 py-2 text-xs text-purple-300">
+                Pre-payment Supplier — Supplier requires payment before delivery. HQ will confirm payment before issuing the PO.
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* print-only styles */}
