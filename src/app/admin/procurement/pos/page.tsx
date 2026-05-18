@@ -213,14 +213,15 @@ export default function ProcurementPoPage() {
         }
         return next;
       });
-      setItemDrafts((prev) => {
-        const next = { ...prev };
+      // Auto-check all PR items and pre-fill qty/price from the request
+      setItemDrafts(() => {
+        const next: Record<string, { enabled: boolean; qty: string; unit_price: string }> = {};
         for (const supplier of suppliers) {
           for (const category of supplier.categories) {
             for (const item of category.items) {
               const key = itemKey(supplier.supplier, item);
-              next[key] = next[key] || {
-                enabled: false,
+              next[key] = {
+                enabled: true,
                 qty: String(item.suggested_qty || ""),
                 unit_price: String(item.suggested_unit_price || ""),
               };
