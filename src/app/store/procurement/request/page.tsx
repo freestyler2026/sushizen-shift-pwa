@@ -829,7 +829,17 @@ export default function StoreProcurementRequestPage() {
           <option value="manila">Manila</option>
           <option value="dubai">Dubai</option>
         </select>
-        <select value={storeCode} onChange={(e) => { const v = String(e.target.value || ""); setStoreCode(v); if (v && typeof window !== "undefined") localStorage.setItem("store_proc_branch", v); }} className={FIELD_CLASS}>
+        <select value={storeCode} onChange={(e) => {
+          const v = String(e.target.value || "");
+          setStoreCode(v);
+          if (v && typeof window !== "undefined") localStorage.setItem("store_proc_branch", v);
+          // Auto-select matching category when a pseudo-store is chosen
+          if (city !== "dubai") {
+            const vl = v.toLowerCase();
+            if (vl === "central kitchen") setSelectedCatalogCategory("CK");
+            else if (vl === "warehouse") setSelectedCatalogCategory("Warehouse");
+          }
+        }} className={FIELD_CLASS}>
           <option value="">Select store (required)</option>
           {catalogStores.map((store) => (
             <option key={store} value={store}>

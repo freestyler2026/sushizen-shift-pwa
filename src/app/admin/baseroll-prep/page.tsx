@@ -726,7 +726,7 @@ function PctSelectorOI({
 
 // ─── Inline backup form ───────────────────────────────────────────────────────
 
-const MANILA_BRANCHES = BRANCHES.manila.filter((b) => b.code !== "CK" && b.code !== "BO");
+const MANILA_BRANCHES = BRANCHES.manila.filter((b) => b.code !== "CK");
 const SHIFT_OPTS = [
   { value: "closing", label: "Closing" },
   { value: "morning", label: "Morning" },
