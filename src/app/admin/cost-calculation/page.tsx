@@ -269,7 +269,7 @@ type InvoiceItemMappingRow = {
   is_active: boolean;
 };
 
-const INGREDIENT_SHEET = "食材マスタ";
+const INGREDIENT_SHEET = "Ingredient Master";
 /** 500 matches legacy API `le=500`; we page with `offset` so all rows load after backend supports OFFSET. */
 const INGREDIENT_LIST_PAGE_SIZE = 500;
 
@@ -332,18 +332,18 @@ function ConversionPreview({ rule, invoiceUnit, ingredientUnit, invoiceUnitPrice
       {/* Implied count from price data */}
       {showImplied && (
         <div>
-          <div className="text-zinc-400 mb-0.5">現在の価格データから逆算：</div>
+          <div className="text-zinc-400 mb-0.5">Back-calculated from current price data:</div>
           <div className="flex items-center gap-1.5 text-sky-300">
             <span>{currency} {invoiceUnitPrice.toFixed(3)} / {invoiceUnit.toUpperCase()}</span>
             <span className="text-zinc-500">÷</span>
             <span>{currency} {ingredientUnitPrice.toFixed(4)} / {ingredientUnit}</span>
             <span className="text-zinc-500">=</span>
             <span className="font-semibold text-amber-300">
-              約 {Math.round(impliedCount)} {ingredientUnit} / {invoiceUnit.toUpperCase()}
+              Approx. {Math.round(impliedCount)} {ingredientUnit} / {invoiceUnit.toUpperCase()}
             </span>
           </div>
           <div className="mt-1 text-zinc-500">
-            → 変換ルール例: <span className="text-sky-400">1 {invoiceUnit.toUpperCase()} = {Math.round(impliedCount)} {ingredientUnit}</span>
+            → Conversion rule example: <span className="text-sky-400">1 {invoiceUnit.toUpperCase()} = {Math.round(impliedCount)} {ingredientUnit}</span>
           </div>
         </div>
       )}
@@ -357,16 +357,16 @@ function ConversionPreview({ rule, invoiceUnit, ingredientUnit, invoiceUnitPrice
           </div>
           {pricePerUnit !== null && (
             <div className="mt-0.5 text-zinc-300">
-              <span className="text-zinc-500">1 {parsed.toUnit} あたり = </span>
+              <span className="text-zinc-500">1 per {parsed.toUnit} = </span>
               <span className="font-semibold text-emerald-300">{currency} {pricePerUnit.toFixed(4)}</span>
               <span className="ml-2 text-zinc-500">({currency} {invoiceUnitPrice.toFixed(3)} ÷ {parsed.multiplier})</span>
             </div>
           )}
           {impliedCount !== null && (
             <div className="mt-0.5 text-zinc-500">
-              価格データからの推計: 約 {impliedCount.toFixed(1)} {ingredientUnit} / {invoiceUnit.toUpperCase()}
+              Estimate from price data: approx. {impliedCount.toFixed(1)} {ingredientUnit} / {invoiceUnit.toUpperCase()}
               {Math.abs(impliedCount - parsed.multiplier) > 1 && (
-                <span className="ml-1 text-amber-400">⚠ 入力値 ({parsed.multiplier}) と差があります</span>
+                <span className="ml-1 text-amber-400">⚠ Differs from entered value ({parsed.multiplier})</span>
               )}
             </div>
           )}
@@ -390,15 +390,15 @@ const SPREADSHEET_URLS: Record<"dubai" | "manila", string> = {
 
 const RECIPE_COLUMNS: SpreadsheetColumn[] = [
   { key: "row_num", label: "", width: 44, frozen: true, editable: false },
-  { key: "menu_name", label: "メニュー名", width: 160, editable: true },
-  { key: "ingredient", label: "食材名", width: 180, editable: true, type: "autocomplete" },
-  { key: "quantity", label: "使用量", width: 80, editable: true, type: "number", align: "right" },
-  { key: "unit", label: "単位", width: 60, editable: false },
-  { key: "unit_price", label: "単価", width: 90, editable: false, type: "number", align: "right" },
-  { key: "cost", label: "商品原価", width: 90, type: "formula", align: "right", formulaColor: "text-blue-300" },
-  { key: "selling_price", label: "売値", width: 90, editable: true, type: "number", align: "right" },
-  { key: "total_cost", label: "合計原価", width: 90, type: "subtotal", align: "right", formulaColor: "text-emerald-300" },
-  { key: "cost_ratio", label: "合計原価率", width: 90, type: "subtotal", align: "right" },
+  { key: "menu_name", label: "Menu Name", width: 160, editable: true },
+  { key: "ingredient", label: "Ingredient", width: 180, editable: true, type: "autocomplete" },
+  { key: "quantity", label: "Usage", width: 80, editable: true, type: "number", align: "right" },
+  { key: "unit", label: "Unit", width: 60, editable: false },
+  { key: "unit_price", label: "Unit Price", width: 90, editable: false, type: "number", align: "right" },
+  { key: "cost", label: "Item Cost", width: 90, type: "formula", align: "right", formulaColor: "text-blue-300" },
+  { key: "selling_price", label: "Selling Price", width: 90, editable: true, type: "number", align: "right" },
+  { key: "total_cost", label: "Total Cost", width: 90, type: "subtotal", align: "right", formulaColor: "text-emerald-300" },
+  { key: "cost_ratio", label: "Total Cost %", width: 90, type: "subtotal", align: "right" },
 ];
 
 function cx(...parts: Array<string | false | null | undefined>) {
@@ -660,7 +660,7 @@ function createEmptyMasterEditor(itemType: "processed" | "product" | "draft", ci
   return {
     id: "",
     city,
-    category: itemType === "processed" ? "加工品マスタ" : itemType === "draft" ? "新商品" : "商品マスタ",
+    category: itemType === "processed" ? "Processed Items" : itemType === "draft" ? "New Product" : "Products",
     name: "",
     description: "",
     item_type: itemType,
@@ -681,9 +681,9 @@ function createEmptyMasterEditor(itemType: "processed" | "product" | "draft", ci
 }
 
 function masterItemTypeLabel(itemType: MasterEditorDraft["item_type"]) {
-  if (itemType === "processed") return "加工品";
-  if (itemType === "draft") return "新商品";
-  return "商品";
+  if (itemType === "processed") return "Processed";
+  if (itemType === "draft") return "New Product";
+  return "Product";
 }
 
 function masterComponentOptionLabel(itemType: MasterEditorDraft["item_type"]) {
@@ -910,7 +910,7 @@ export default function CostCalculationPage() {
       { key: "category", label: "Category", width: 130, editable: true },
       { key: "name", label: "Name", width: 200, editable: true },
       { key: "unit", label: "Unit", width: 70, editable: true },
-      { key: "unit_price", label: `計算単価 (${currencyCode})`, width: 110, editable: true, type: "number", align: "right" },
+      { key: "unit_price", label: `Calculated Price (${currencyCode})`, width: 110, editable: true, type: "number", align: "right" },
       { key: "buffer_rate", label: "Buffer", width: 92, editable: true, type: "number", align: "right" },
       { key: "yield_rate", label: "Yield", width: 92, editable: true, type: "number", align: "right" },
       { key: "notes", label: "Notes", width: 220, editable: true },
@@ -1441,7 +1441,7 @@ export default function CostCalculationPage() {
 
   const moveMasterItemToProcessed = useCallback(async () => {
     if (!masterEditor?.id || masterEditor.item_type !== "product") return;
-    const confirmed = window.confirm(`"${masterEditor.name}" を 加工品マスタ へ移動しますか？`);
+    const confirmed = window.confirm(`Move "${masterEditor.name}" to Processed Master?`);
     if (!confirmed) return;
     try {
       setMasterActionBusy(true);
@@ -1467,8 +1467,8 @@ export default function CostCalculationPage() {
   const promoteIngredientToMaster = useCallback(async (ingredient: IngredientRow, targetType: "processed" | "product") => {
     const ingredientId = String(ingredient?.id || "");
     if (!ingredientId || ingredientId.startsWith("new-")) return;
-    const targetLabel = targetType === "processed" ? "加工品マスタ" : "商品マスタ";
-    const confirmed = window.confirm(`"${ingredient.name}" を ${targetLabel} へ移動しますか？`);
+    const targetLabel = targetType === "processed" ? "Processed Items" : "Products";
+    const confirmed = window.confirm(`"${ingredient.name}" — Move to ${targetLabel}?`);
     if (!confirmed) return;
     const promotionKey = `${targetType}:${ingredientId}`;
     try {
@@ -2919,7 +2919,7 @@ export default function CostCalculationPage() {
     const trimmedPriceInput = mappingCostPriceInput.trim();
     const numericPrice = trimmedPriceInput === "" ? null : Number(trimmedPriceInput);
     if (!trimmedFormula && (numericPrice == null || !Number.isFinite(numericPrice))) {
-      setMappingCostSaveError("数値単価を入れるか、計算式を入力してください。");
+      setMappingCostSaveError("Please enter a numeric unit price or a formula.");
       return;
     }
     try {
@@ -3016,11 +3016,11 @@ export default function CostCalculationPage() {
     const category = mappingNewIngredientCategory.trim();
     const unit = mappingNewIngredientUnit.trim();
     if (!name || !category || !unit) {
-      setMappingCreateIngredientError("Name / Category / Unit を入力してください。");
+      setMappingCreateIngredientError("Name, Category, and Unit are required.");
       return;
     }
     if (mappingNewIngredientExactMatch) {
-      setMappingCreateIngredientError("同じ名前の食材が既にあります。下の候補から選択してください。");
+      setMappingCreateIngredientError("An ingredient with this name already exists. Please select from the suggestions below.");
       await selectMappingIngredientOption(mappingNewIngredientExactMatch);
       return;
     }
@@ -3250,7 +3250,7 @@ export default function CostCalculationPage() {
         ...prev,
         {
           id: `new-ingredient-${Date.now()}`,
-          category: ingredientCategoryFilter !== "all" ? ingredientCategoryFilter : "野菜",
+          category: ingredientCategoryFilter !== "all" ? ingredientCategoryFilter : "Vegetables",
           name: "",
           unit: "",
           unit_price: 0,
@@ -3329,7 +3329,7 @@ export default function CostCalculationPage() {
       }
       await loadIngredients();
       setDirtyRows(new Set());
-      setImportMessage(`${sheetName(activeSheet)} を保存しました。`);
+      setImportMessage(`${sheetName(activeSheet)} saved.`);
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -3457,12 +3457,12 @@ export default function CostCalculationPage() {
         <div className="border-b border-white/10 bg-black/10 px-6 pt-3">
           <div className="flex items-end gap-1 overflow-x-auto">
             {[
-              { key: "ingredient" as CostSection, label: "食材マスタ" },
-              { key: "processed" as CostSection, label: "加工品マスタ" },
-              { key: "product" as CostSection, label: "商品マスタ" },
-              { key: "draft" as CostSection, label: "新商品用コスト計算" },
-              { key: "invoice" as CostSection, label: "仕入連動" },
-              { key: "cost-ratio" as CostSection, label: "原価率一覧" },
+              { key: "ingredient" as CostSection, label: "Ingredient Master" },
+              { key: "processed" as CostSection, label: "Processed Items" },
+              { key: "product" as CostSection, label: "Products" },
+              { key: "draft" as CostSection, label: "New Product Costing" },
+              { key: "invoice" as CostSection, label: "Invoice Sync" },
+              { key: "cost-ratio" as CostSection, label: "Cost Rate Overview" },
             ].map((section) => (
               <button
                 key={section.key}
@@ -3494,7 +3494,7 @@ export default function CostCalculationPage() {
               )}
             >
               <ShieldCheck className="h-3.5 w-3.5" />
-              連動チェック
+              Sync Check
             </Link>
           </div>
         </div>
@@ -3589,7 +3589,7 @@ export default function CostCalculationPage() {
                     type="button"
                   >
                     <Plus className="h-4 w-4" />
-                    食材を追加
+                    Add Ingredient
                   </button>
                   <button
                     className="inline-flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/15 px-3.5 py-2.5 text-sm font-medium text-emerald-200 transition hover:bg-emerald-500/25 disabled:cursor-not-allowed disabled:opacity-60"
@@ -3598,7 +3598,7 @@ export default function CostCalculationPage() {
                     disabled={busy}
                   >
                     <Save className="h-4 w-4" />
-                    保存
+                    Save
                     <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-xs font-mono text-emerald-100">
                       {dirtyCount}
                     </span>
@@ -3620,7 +3620,7 @@ export default function CostCalculationPage() {
                   className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-sm font-medium text-zinc-200 transition hover:bg-white/[0.08]"
                 >
                   <LayoutGrid className="h-4 w-4" />
-                  {showLegacyProductSheets ? "商品マスタを表示" : "既存カテゴリを表示"}
+                  {showLegacyProductSheets ? "Show Product Master" : "Show Existing Categories"}
                 </button>
               ) : null}
               {isMasterSection && (!showLegacyRecipeSection || activeSection !== "product") ? (
@@ -3630,7 +3630,7 @@ export default function CostCalculationPage() {
                   className="inline-flex items-center gap-2 rounded-md border border-violet-500/30 bg-violet-500/15 px-3.5 py-2.5 text-sm font-medium text-violet-200 transition hover:bg-violet-500/25"
                 >
                   <Plus className="h-4 w-4" />
-                  {activeSection === "processed" ? "加工品を追加" : activeSection === "draft" ? "Draft を追加" : "商品を追加"}
+                  {activeSection === "processed" ? "Add Processed Item" : activeSection === "draft" ? "Add Draft" : "Add Product"}
                 </button>
               ) : null}
               <button
@@ -3703,14 +3703,14 @@ export default function CostCalculationPage() {
                 <div className="mb-4 flex items-center justify-between gap-3">
                   <div>
                     <div className="text-lg font-semibold text-white">
-                      {activeSection === "processed" ? "加工品マスタ" : activeSection === "draft" ? "新商品用コスト計算" : "商品マスタ"}
+                      {activeSection === "processed" ? "Processed Items" : activeSection === "draft" ? "New Product Costing" : "Products"}
                     </div>
                     <div className="mt-1 text-xs text-zinc-500">
                       {activeSection === "processed"
-                        ? "食材と他の加工品を組み合わせた中間品を管理します。"
+                        ? "Manage intermediate items made by combining ingredients and other processed items."
                         : activeSection === "draft"
-                          ? "新商品の試算ドラフトを保存し、商品マスタへ publish できます。"
-                          : "食材と加工品を使う販売商品を管理します。"}
+                          ? "Save draft cost estimates for new products and publish to the product master."
+                          : "Manage products for sale using ingredients and processed items."}
                     </div>
                   </div>
                   {masterItemsLoading ? <Loader2 className="h-4 w-4 animate-spin text-violet-300" /> : null}
@@ -3738,7 +3738,7 @@ export default function CostCalculationPage() {
                             <div className="truncate font-medium text-white">{item.name}</div>
                             {item.item_type !== "draft" && !item.yield_configured ? (
                               <span className="inline-flex shrink-0 rounded-full border border-red-500/30 bg-red-500/12 px-2 py-0.5 text-[10px] font-semibold text-red-300">
-                                歩留未設定
+                                Yield Not Set
                               </span>
                             ) : null}
                           </div>
@@ -3770,7 +3770,7 @@ export default function CostCalculationPage() {
                           </div>
                           {masterEditor.item_type !== "draft" && !masterEditor.yield_configured ? (
                             <span className="inline-flex rounded-full border border-red-500/30 bg-red-500/12 px-2 py-0.5 text-[10px] font-semibold text-red-300">
-                              歩留未設定
+                              Yield Not Set
                             </span>
                           ) : null}
                         </div>
@@ -3796,7 +3796,7 @@ export default function CostCalculationPage() {
                             className="inline-flex items-center gap-2 rounded-md border border-violet-500/30 bg-violet-500/15 px-3 py-2 text-sm font-medium text-violet-200 hover:bg-violet-500/25 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             <SkipForward className="h-4 w-4" />
-                            加工品へ移動
+                            Move to Processed
                           </button>
                         ) : null}
                         {masterEditor.id ? (
@@ -3845,7 +3845,7 @@ export default function CostCalculationPage() {
                         <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">{masterItemTypeLabel(masterEditor.item_type)} Yield (%)</div>
                         <input type="number" value={masterEditor.yield_rate == null ? "" : Math.round(masterEditor.yield_rate * 100)} onChange={(e) => updateMasterEditor((current) => ({ ...current, yield_rate: e.target.value.trim() ? normalizeNumber(e.target.value) / 100 : null }))} className="w-full rounded border border-white/15 bg-white/5 px-3 py-2 text-sm font-mono text-white outline-none focus:border-violet-500/50" />
                         <div className="mt-1 text-[11px] text-zinc-500">
-                          {masterItemTypeLabel(masterEditor.item_type)}全体の歩留率です。各食材ごとに歩留やバッファー計算は入れず、食材マスタの単価を使って上部の歩留率とバッファーを{masterItemTypeLabel(masterEditor.item_type)}全体へ適用します。
+                          Overall yield rate for this {masterItemTypeLabel(masterEditor.item_type)}. No per-ingredient yield/buffer — applies the yield rate and buffer above to the entire {masterItemTypeLabel(masterEditor.item_type)} using ingredient unit prices from the Ingredient Master.
                         </div>
                       </div>
                       <div>
@@ -3873,7 +3873,7 @@ export default function CostCalculationPage() {
                             className="w-full rounded border border-white/15 bg-white/5 px-3 py-2 text-sm font-mono text-white outline-none focus:border-sky-500/50"
                           />
                           <div className="mt-1 text-[11px] text-zinc-500">
-                            空欄または 0 の場合は、下の材料原価から自動計算します。
+                            If blank or 0, auto-calculated from ingredient costs below.
                           </div>
                         </div>
                         <div>
@@ -3932,7 +3932,7 @@ export default function CostCalculationPage() {
                               }}
                               className={`rounded border px-2 py-0.5 text-[10px] transition-colors ${(masterEditorPreview?.raw_cost ?? 0) <= 0 ? "border-zinc-700/40 bg-zinc-900/30 text-zinc-600 cursor-not-allowed" : "border-sky-600/40 bg-sky-950/30 text-sky-300 hover:bg-sky-900/40"}`}
                             >
-                              自動入力
+                              Auto-Fill
                             </button>
                           </div>
                           <input
@@ -3953,7 +3953,7 @@ export default function CostCalculationPage() {
                             <div className={`mt-1 text-[11px] ${masterFormulaResult != null ? "text-emerald-300" : "text-rose-300"}`}>
                               {masterFormulaResult != null
                                 ? `Formula result: ${currencyCode} ${masterFormulaResult.toFixed(6)}`
-                                : "Formula を計算できません"}
+                                : "Cannot calculate formula"}
                             </div>
                           ) : null}
                         </div>
@@ -3963,7 +3963,7 @@ export default function CostCalculationPage() {
                             <input
                               value={masterEditor.cost_unit_price_formula_note}
                               onChange={(e) => updateMasterEditor((current) => ({ ...current, cost_unit_price_formula_note: e.target.value }))}
-                              placeholder="加工品自体の単価メモ"
+                              placeholder="Unit price note for this processed item"
                               className="w-full rounded border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
                             />
                           </div>
@@ -3973,11 +3973,11 @@ export default function CostCalculationPage() {
 
                     <div className="grid gap-3 md:grid-cols-2">
                       <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                        <div className="text-[10px] uppercase tracking-wide text-zinc-500">合計金額</div>
+                        <div className="text-[10px] uppercase tracking-wide text-zinc-500">Total Amount</div>
                         <div className="mt-2 font-mono text-lg text-white">{currencyCode} {masterComponentSummary.totalAmount.toFixed(2)}</div>
                       </div>
                       <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                        <div className="text-[10px] uppercase tracking-wide text-zinc-500">合計グラム数</div>
+                        <div className="text-[10px] uppercase tracking-wide text-zinc-500">Total Grams</div>
                         <div className="mt-2 font-mono text-lg text-white">{formatGramTotal(masterComponentSummary.totalGrams)}</div>
                       </div>
                     </div>
@@ -3992,7 +3992,7 @@ export default function CostCalculationPage() {
                         <div />
                       </div>
                       <div className="border-b border-white/5 bg-sky-500/5 px-3 py-2 text-xs text-sky-100/80">
-                        この画面では各構成食材ごとの歩留率やバッファー計算は設定しません。食材マスタの単価と、必要に応じて他の加工品マスタや商品マスタを使い、上部の {masterItemTypeLabel(masterEditor.item_type)} 用 Buffer / Yield を {masterItemTypeLabel(masterEditor.item_type)} 全体に適用します。
+                        Per-ingredient yield/buffer is not configured here. Uses ingredient unit prices from the master, plus any processed/product items, and applies the Buffer / Yield above to the entire {masterItemTypeLabel(masterEditor.item_type)}.
                       </div>
                       {masterEditor.components.map((component) => {
                         const suggestions = getMasterComponentSuggestions(component);
@@ -4092,7 +4092,7 @@ export default function CostCalculationPage() {
                                     {selectedOption.category} · {selectedOption.unit || "—"}
                                   </div>
                                 ) : component.name.trim() ? (
-                                  <div className="mt-1 text-[11px] text-amber-300">候補から選択してください</div>
+                                  <div className="mt-1 text-[11px] text-amber-300">Please select from suggestions</div>
                                 ) : null}
                               </div>
                               <input
@@ -4158,10 +4158,10 @@ export default function CostCalculationPage() {
               <div className="rounded-2xl border border-white/10 bg-[#0a101c] p-5">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-semibold text-white">仕入価格 → Cost Calculation 同期</div>
+                    <div className="text-sm font-semibold text-white">Invoice Price → Cost Calculation Sync</div>
                     <div className="mt-1 text-xs text-zinc-500">
-                      Google Sheetsの請求書データをもとに食材マスタの計算単価を自動更新します。<br />
-                      マッピングが登録済みの食材のみ更新されます。新規マッピングは「食材マスタ」タブで登録してください。
+                      Automatically updates ingredient unit prices in the Ingredient Master based on Google Sheets invoice data.<br />
+                      Only ingredients with registered mappings will be updated. Register new mappings in the "Ingredients" tab.
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -4172,7 +4172,7 @@ export default function CostCalculationPage() {
                       disabled={invoiceSyncBusy}
                       className="rounded-xl border border-violet-600/40 bg-violet-950/30 px-4 py-2 text-xs text-violet-300 transition hover:bg-violet-900/40 disabled:opacity-60"
                     >
-                      プレビュー
+                      Preview
                     </button>
                     <button
                       type="button"
@@ -4181,7 +4181,7 @@ export default function CostCalculationPage() {
                       className="rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-4 py-2 text-xs font-semibold text-white transition hover:from-violet-500 hover:to-purple-500 disabled:opacity-60"
                     >
                       <RotateCcw className="mr-1.5 inline h-3.5 w-3.5" />
-                      同期実行
+                      Run Sync
                     </button>
                   </div>
                 </div>
@@ -4195,19 +4195,19 @@ export default function CostCalculationPage() {
                   <div className="space-y-3">
                     {invoiceSyncResult.dry_run ? (
                       <div className="rounded-xl border border-amber-700/40 bg-amber-900/15 px-4 py-3 text-sm text-amber-300">
-                        ⚠️ プレビュー結果（実際の変更はまだ行われていません）
+                        ⚠️ Preview results (no changes applied yet)
                       </div>
                     ) : (
                       <div className="rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-300">
-                        ✅ 同期完了 — <span className="font-bold">{invoiceSyncResult.updated ?? "?"}</span> 件の食材単価を更新しました
+                        ✅ Sync complete — updated <span className="font-bold">{invoiceSyncResult.updated ?? "?"}</span> ingredient prices
                       </div>
                     )}
                     <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
                       {[
-                        { label: "請求書行数", value: invoiceSyncResult.total_rows ?? "—" },
-                        { label: "マッチ", value: invoiceSyncResult.matched ?? "—" },
-                        { label: "更新", value: invoiceSyncResult.updated ?? "—" },
-                        { label: "スキップ", value: (invoiceSyncResult.skipped_unmatched ?? 0) + (invoiceSyncResult.skipped_unit_conversion ?? 0) + (invoiceSyncResult.skipped_matched_but_unmapped ?? 0) },
+                        { label: "Invoice Rows", value: invoiceSyncResult.total_rows ?? "—" },
+                        { label: "Matched", value: invoiceSyncResult.matched ?? "—" },
+                        { label: "Updated", value: invoiceSyncResult.updated ?? "—" },
+                        { label: "Skipped", value: (invoiceSyncResult.skipped_unmatched ?? 0) + (invoiceSyncResult.skipped_unit_conversion ?? 0) + (invoiceSyncResult.skipped_matched_but_unmapped ?? 0) },
                       ].map((kpi) => (
                         <div key={kpi.label} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3">
                           <div className="text-[10px] uppercase tracking-wide text-zinc-500">{kpi.label}</div>
@@ -4218,9 +4218,9 @@ export default function CostCalculationPage() {
                     {Array.isArray(invoiceSyncResult.updates) && invoiceSyncResult.updates.length > 0 ? (
                       <div className="overflow-hidden rounded-xl border border-white/10">
                         <div className="grid grid-cols-[minmax(0,1fr)_90px_90px] bg-white/[0.04] px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">
-                          <div>食材</div>
-                          <div className="text-right">更新前</div>
-                          <div className="text-right">更新後</div>
+                          <div>Ingredient</div>
+                          <div className="text-right">Before</div>
+                          <div className="text-right">After</div>
                         </div>
                         {invoiceSyncResult.updates.map((u: any, i: number) => (
                           <div key={i} className="grid grid-cols-[minmax(0,1fr)_90px_90px] border-t border-white/5 px-3 py-2 text-sm">
@@ -4234,7 +4234,7 @@ export default function CostCalculationPage() {
                     {Array.isArray(invoiceSyncResult.skipped_items) && invoiceSyncResult.skipped_items.length > 0 ? (
                       <details className="rounded-xl border border-white/10">
                         <summary className="cursor-pointer px-4 py-2.5 text-xs text-zinc-500 hover:text-zinc-300">
-                          スキップ詳細 ({invoiceSyncResult.skipped_items.length} 件)
+                          Skip Details ({invoiceSyncResult.skipped_items.length} items)
                         </summary>
                         <div className="max-h-40 overflow-y-auto border-t border-white/5">
                           {invoiceSyncResult.skipped_items.map((item: any, i: number) => (
@@ -4256,12 +4256,12 @@ export default function CostCalculationPage() {
                 <div className="rounded-2xl border border-white/10 bg-[#0a101c] p-4">
                   <div className="mb-3 flex items-center justify-between">
                     <div>
-                      <div className="text-sm font-semibold text-white">登録済みマッピング</div>
-                      <div className="mt-1 text-xs text-zinc-500">これらの品目が同期対象になります。</div>
+                      <div className="text-sm font-semibold text-white">Registered Mappings</div>
+                      <div className="mt-1 text-xs text-zinc-500">These items will be included in sync.</div>
                     </div>
                     <div className="flex items-center gap-2">
                       {(invoiceMappingLoading || invoiceMappingSaving) ? <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-300" /> : null}
-                      <div className="text-xs font-mono text-zinc-500">{invoiceMappings.length} 件</div>
+                      <div className="text-xs font-mono text-zinc-500">{invoiceMappings.length} items</div>
                     </div>
                   </div>
                   <div className="max-h-[28rem] overflow-y-auto rounded-xl border border-white/10">
@@ -4270,7 +4270,7 @@ export default function CostCalculationPage() {
                         <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
                       </div>
                     ) : invoiceMappings.length === 0 ? (
-                      <div className="px-4 py-6 text-sm text-zinc-500">マッピングなし。</div>
+                      <div className="px-4 py-6 text-sm text-zinc-500">No mappings.</div>
                     ) : invoiceMappings.map((m) => (
                       <div
                         key={m.id}
@@ -4320,7 +4320,7 @@ export default function CostCalculationPage() {
                   <div className={cx("rounded-2xl border bg-[#0a101c] p-4", editingInvoiceMappingId ? "border-amber-500/20" : "border-sky-500/20")}>
                     <div className="mb-3 flex items-center justify-between gap-2">
                       <div className="text-sm font-semibold text-white">
-                        {editingInvoiceMappingId ? "マッピング編集" : "新規マッピング作成"}
+                        {editingInvoiceMappingId ? "Edit Mapping" : "Create New Mapping"}
                       </div>
                       <button
                         type="button"
@@ -4340,7 +4340,7 @@ export default function CostCalculationPage() {
                     <div className="space-y-3">
                       {/* Ingredient autocomplete */}
                       <div>
-                        <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">食材検索</div>
+                        <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Ingredient Search</div>
                         <div className="relative">
                           {/* Show selected ingredient as chip if confirmed */}
                           {selectedMappingIngredientId && !showMappingIngredientDropdown ? (
@@ -4374,7 +4374,7 @@ export default function CostCalculationPage() {
                               }}
                               onFocus={() => setShowMappingIngredientDropdown(true)}
                               onBlur={() => setTimeout(() => setShowMappingIngredientDropdown(false), 150)}
-                              placeholder="食材名を入力..."
+                              placeholder="Enter ingredient name..."
                               autoComplete="off"
                               className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none focus:border-sky-500/50"
                             />
@@ -4406,7 +4406,7 @@ export default function CostCalculationPage() {
                       {/* Units row */}
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">請求書単位</div>
+                          <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Invoice Unit</div>
                           <input
                             value={mappingSourceInvoiceUnit}
                             onChange={(e) => setMappingSourceInvoiceUnit(e.target.value)}
@@ -4415,7 +4415,7 @@ export default function CostCalculationPage() {
                           />
                         </div>
                         <div>
-                          <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">食材単位</div>
+                          <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Ingredient Unit</div>
                           <input
                             value={mappingIngredientUnit}
                             onChange={(e) => setMappingIngredientUnit(e.target.value)}
@@ -4427,7 +4427,7 @@ export default function CostCalculationPage() {
                       {/* Conversion rule */}
                       <div>
                         <div className="mb-1 flex items-center justify-between">
-                          <div className="text-[10px] uppercase tracking-wide text-zinc-500">変換ルール</div>
+                          <div className="text-[10px] uppercase tracking-wide text-zinc-500">Conversion Rule</div>
                           {mappingSourceInvoiceUnit ? (
                             <div className="text-[10px] text-sky-400/70">{(() => { const h = conversionRuleHint(mappingSourceInvoiceUnit); return h || null; })()}</div>
                           ) : null}
@@ -4449,7 +4449,7 @@ export default function CostCalculationPage() {
                       </div>
                       {/* Notes */}
                       <div>
-                        <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">メモ</div>
+                        <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Notes</div>
                         <input
                           value={mappingNotes}
                           onChange={(e) => setMappingNotes(e.target.value)}
@@ -4466,14 +4466,14 @@ export default function CostCalculationPage() {
                           disabled={invoiceMappingSaving || !selectedMappingIngredientId}
                           className="flex-1 rounded-lg bg-gradient-to-r from-violet-600 to-purple-600 py-2 text-xs font-semibold text-white disabled:opacity-60"
                         >
-                          {invoiceMappingSaving ? "保存中..." : "保存"}
+                          {invoiceMappingSaving ? "Saving..." : "Save"}
                         </button>
                         <button
                           type="button"
                           onClick={() => { setEditingInvoiceMappingId(null); setSelectedUnmatchedItemKey(""); setMappingMode("create"); }}
                           className="rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2 text-xs text-zinc-300 hover:bg-white/[0.08]"
                         >
-                          キャンセル
+                          Cancel
                         </button>
                       </div>
                     </div>
@@ -4482,10 +4482,10 @@ export default function CostCalculationPage() {
                   <div className="rounded-2xl border border-white/10 bg-[#0a101c] p-4">
                     <div className="mb-3 flex items-center justify-between">
                       <div>
-                        <div className="text-sm font-semibold text-white">未マッピング品目</div>
-                        <div className="mt-1 text-xs text-zinc-500">同期対象外。マッピング登録が必要です。</div>
+                        <div className="text-sm font-semibold text-white">Unmapped Items</div>
+                        <div className="mt-1 text-xs text-zinc-500">Not included in sync. Mapping registration required.</div>
                       </div>
-                      <div className="text-xs font-mono text-zinc-500">{unmatchedInvoiceItems.length} 件</div>
+                      <div className="text-xs font-mono text-zinc-500">{unmatchedInvoiceItems.length} items</div>
                     </div>
                     <div className="max-h-[28rem] overflow-y-auto rounded-xl border border-white/10">
                       {invoiceMappingLoading ? (
@@ -4493,7 +4493,7 @@ export default function CostCalculationPage() {
                           <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
                         </div>
                       ) : unmatchedInvoiceItems.length === 0 ? (
-                        <div className="px-4 py-6 text-sm text-zinc-500">未マッピング品目なし。</div>
+                        <div className="px-4 py-6 text-sm text-zinc-500">No unmatched items.</div>
                       ) : unmatchedInvoiceItems.map((item, i) => {
                         const itemKey = unmatchedInvoiceItemKey(item);
                         const isSelected = selectedUnmatchedItemKey === itemKey;
@@ -4541,14 +4541,14 @@ export default function CostCalculationPage() {
                                   onClick={() => void saveRenameUnmatchedItem()}
                                   className="shrink-0 rounded border border-emerald-500/40 bg-emerald-500/15 px-2 py-1 text-[10px] text-emerald-300 hover:bg-emerald-500/25 disabled:opacity-50"
                                 >
-                                  {renameSaving ? "…" : "保存"}
+                                  {renameSaving ? "…" : "Save"}
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => setRenamingUnmatchedKey("")}
                                   className="shrink-0 rounded border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-zinc-400 hover:bg-white/10"
                                 >
-                                  取消
+                                  Undo
                                 </button>
                               </div>
                             ) : (
@@ -4562,7 +4562,7 @@ export default function CostCalculationPage() {
                                 </div>
                                 <button
                                   type="button"
-                                  title="品目名を修正"
+                                  title="Edit item name"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setRenamingUnmatchedKey(itemKey);
@@ -4652,28 +4652,28 @@ export default function CostCalculationPage() {
                 {/* KPI row */}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                    <div className="text-[10px] uppercase tracking-wider text-zinc-500">商品数</div>
+                    <div className="text-[10px] uppercase tracking-wider text-zinc-500">Products</div>
                     <div className="mt-1 text-2xl font-bold text-white">{sorted.length}</div>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                    <div className="text-[10px] uppercase tracking-wider text-zinc-500">平均原価率</div>
+                    <div className="text-[10px] uppercase tracking-wider text-zinc-500">Avg Cost Rate</div>
                     <div className={cx("mt-1 text-2xl font-bold", ratioColor(avgRatio))}>
                       {avgRatio != null ? `${(avgRatio * 100).toFixed(1)}%` : "—"}
                     </div>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                    <div className="text-[10px] uppercase tracking-wider text-zinc-500">⚠ 32%超</div>
+                    <div className="text-[10px] uppercase tracking-wider text-zinc-500">⚠ Over 32%</div>
                     <div className="mt-1 text-2xl font-bold text-amber-400">{highCount}</div>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
-                    <div className="text-[10px] uppercase tracking-wider text-zinc-500">✓ 27%未満</div>
+                    <div className="text-[10px] uppercase tracking-wider text-zinc-500">✓ Under 27%</div>
                     <div className="mt-1 text-2xl font-bold text-emerald-400">{goodCount}</div>
                   </div>
                 </div>
 
                 {/* Filter */}
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-zinc-500">カテゴリ：</span>
+                  <span className="text-xs text-zinc-500">Category:</span>
                   {["all", ...categories].map((cat) => (
                     <button
                       key={cat}
@@ -4686,7 +4686,7 @@ export default function CostCalculationPage() {
                           : "border-white/10 text-zinc-400 hover:text-zinc-200",
                       )}
                     >
-                      {cat === "all" ? "すべて" : cat}
+                      {cat === "all" ? "All" : cat}
                     </button>
                   ))}
                 </div>
@@ -4695,12 +4695,12 @@ export default function CostCalculationPage() {
                 <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#0a101c]">
                   {/* Header */}
                   <div className="grid grid-cols-[minmax(0,1fr)_110px_90px_90px_110px_130px] gap-x-3 border-b border-white/10 px-4 py-2">
-                    <SortBtn col="name" label="商品名" />
-                    <SortBtn col="category" label="カテゴリ" />
-                    <div className="text-right"><SortBtn col="selling_price" label="売価" /></div>
-                    <div className="text-right"><SortBtn col="unit_cost" label="原価" /></div>
-                    <div className="text-right"><SortBtn col="cost_ratio" label="原価率" /></div>
-                    <div className="text-[10px] uppercase tracking-wider text-zinc-500">バー</div>
+                    <SortBtn col="name" label="Product" />
+                    <SortBtn col="category" label="Category" />
+                    <div className="text-right"><SortBtn col="selling_price" label="Selling Price" /></div>
+                    <div className="text-right"><SortBtn col="unit_cost" label="Cost" /></div>
+                    <div className="text-right"><SortBtn col="cost_ratio" label="Cost Rate" /></div>
+                    <div className="text-[10px] uppercase tracking-wider text-zinc-500">Bar</div>
                   </div>
 
                   {masterItemsLoading ? (
@@ -4710,7 +4710,7 @@ export default function CostCalculationPage() {
                       ))}
                     </div>
                   ) : sorted.length === 0 ? (
-                    <div className="flex h-32 items-center justify-center text-sm text-zinc-500">商品データがありません</div>
+                    <div className="flex h-32 items-center justify-center text-sm text-zinc-500">No product data</div>
                   ) : (
                     <div className="divide-y divide-white/5">
                       {sorted.map((item) => {
@@ -4753,10 +4753,10 @@ export default function CostCalculationPage() {
 
                 {/* Legend */}
                 <div className="flex flex-wrap gap-4 text-[11px] text-zinc-500">
-                  <span><span className="mr-1 text-emerald-400">●</span>27%未満（優）</span>
-                  <span><span className="mr-1 text-yellow-300">●</span>27〜32%（良）</span>
-                  <span><span className="mr-1 text-amber-400">●</span>32〜37%（要注意）</span>
-                  <span><span className="mr-1 text-red-400">●</span>37%超（高）</span>
+                  <span><span className="mr-1 text-emerald-400">●</span>&lt;27% (Good)</span>
+                  <span><span className="mr-1 text-yellow-300">●</span>27–32% (OK)</span>
+                  <span><span className="mr-1 text-amber-400">●</span>32–37% (Caution)</span>
+                  <span><span className="mr-1 text-red-400">●</span>&gt;37% (High)</span>
                 </div>
               </div>
             );
@@ -4773,7 +4773,7 @@ export default function CostCalculationPage() {
           ) : activeSheet === INGREDIENT_SHEET && filteredIngredientRows.length === 0 ? (
             <div className="flex h-48 flex-col items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] text-sm text-zinc-500">
               <Database className="h-8 w-8 text-zinc-700" />
-              <p>食材データがありません</p>
+              <p>No ingredient data</p>
             </div>
           ) : showLegacyRecipeSection ? (
             <div className="flex h-full flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-6">
@@ -5502,7 +5502,7 @@ export default function CostCalculationPage() {
                               <span>{String(value ?? "")}</span>
                               {!hasYieldRate((ingredientRow as any).yield_rate) ? (
                                 <span className="inline-flex rounded-full border border-red-500/30 bg-red-500/12 px-2 py-0.5 text-[10px] font-semibold text-red-300">
-                                  歩留未設定
+                                  Yield Not Set
                                 </span>
                               ) : null}
                             </div>
@@ -5512,7 +5512,7 @@ export default function CostCalculationPage() {
                             </span>
                           ) : activeSheet === INGREDIENT_SHEET && column.key === "yield_rate" ? (
                             <span className={cx("inline-flex rounded-full border px-2.5 py-1 text-xs font-mono font-semibold", yieldBadgeClass(normalizeRateValue((ingredientRow as any).yield_rate)))}>
-                              {formatRatePercent(normalizeRateValue((ingredientRow as any).yield_rate), "未設定")}
+                              {formatRatePercent(normalizeRateValue((ingredientRow as any).yield_rate), "Not set")}
                             </span>
                           ) : column.key === "cost_ratio" && value !== "" ? (
                             <span className={cx("inline-flex rounded-full border px-2.5 py-1 text-xs font-mono font-semibold", costRatioBadgeClass(Number(value || 0)))}>
@@ -5549,7 +5549,7 @@ export default function CostCalculationPage() {
                             disabled={ingredientPromotionKey != null}
                             className="inline-flex items-center rounded border border-violet-500/30 bg-violet-500/10 px-2 py-1 text-[11px] text-violet-200 hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            移動
+                            Move
                           </button>
                           <button
                             type="button"
@@ -5571,7 +5571,7 @@ export default function CostCalculationPage() {
                                 className="flex w-full items-center justify-center gap-1 rounded px-2 py-2 text-[11px] text-violet-200 hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 {ingredientPromotionKey === `processed:${ingredientRow.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                                加工品へ移動
+                                Move to Processed
                               </button>
                               <button
                                 type="button"
@@ -5583,7 +5583,7 @@ export default function CostCalculationPage() {
                                 className="flex w-full items-center justify-center gap-1 rounded px-2 py-2 text-[11px] text-emerald-200 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 {ingredientPromotionKey === `product:${ingredientRow.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                                商品へ移動
+                                Move to Product
                               </button>
                             </div>
                           ) : null}
@@ -5614,7 +5614,7 @@ export default function CostCalculationPage() {
                     <p className="text-xs text-zinc-400">{selectedIngredientDetail.category} · {selectedIngredientDetail.unit}</p>
                     {!hasYieldRate(selectedIngredientDetail.yield_rate) ? (
                       <span className="inline-flex rounded-full border border-red-500/30 bg-red-500/12 px-2 py-0.5 text-[10px] font-semibold text-red-300">
-                        歩留未設定
+                        Yield Not Set
                       </span>
                     ) : null}
                   </div>
@@ -5640,7 +5640,7 @@ export default function CostCalculationPage() {
                 <div className="rounded border border-white/8 bg-white/4 p-3">
                   <p className="mb-1 text-[10px] uppercase tracking-wider text-zinc-500">Yield</p>
                   <p className="text-xl font-bold font-mono text-white">
-                    {formatRatePercent(normalizeRateValue(selectedIngredientDetail.yield_rate), "未設定")}
+                    {formatRatePercent(normalizeRateValue(selectedIngredientDetail.yield_rate), "Not set")}
                   </p>
                 </div>
                 <div className="rounded border border-white/8 bg-white/4 p-3">
@@ -5670,7 +5670,7 @@ export default function CostCalculationPage() {
                 <div className="mb-4">
                   <p className="mb-3 text-[10px] uppercase tracking-wider text-zinc-500">Supplier Prices</p>
                   {!selectedIngredientDetail.supplier_prices?.length ? (
-                    <p className="rounded border border-white/6 bg-white/3 px-3 py-3 text-xs text-zinc-500">仕入先単価はありません</p>
+                    <p className="rounded border border-white/6 bg-white/3 px-3 py-3 text-xs text-zinc-500">No supplier prices</p>
                   ) : (
                     <div className="space-y-2">
                       {selectedIngredientDetail.supplier_prices.map((entry) => (
@@ -5695,13 +5695,13 @@ export default function CostCalculationPage() {
                   )}
                 </div>
 
-                <p className="mb-3 text-[10px] uppercase tracking-wider text-zinc-500">変更履歴</p>
+                <p className="mb-3 text-[10px] uppercase tracking-wider text-zinc-500">Change History</p>
                 {historyLoading ? (
                   <div className="flex justify-center py-8">
                     <Loader2 className="h-5 w-5 animate-spin text-violet-400" />
                   </div>
                 ) : priceHistory.length === 0 ? (
-                  <p className="py-8 text-center text-xs text-zinc-600">履歴がありません</p>
+                  <p className="py-8 text-center text-xs text-zinc-600">No history</p>
                 ) : (
                   <div className="space-y-2">
                     {priceHistory.map((entry) => {
@@ -5719,7 +5719,7 @@ export default function CostCalculationPage() {
                               </p>
                               {hasPrevious ? (
                                 <p className="mt-0.5 text-[10px] text-zinc-500">
-                                  前回: {currencyCode} {Number(entry.previous_price).toFixed(4)}
+                                  Previous: {currencyCode} {Number(entry.previous_price).toFixed(4)}
                                 </p>
                               ) : null}
                               {entry.unit_price_formula ? (
@@ -5764,7 +5764,7 @@ export default function CostCalculationPage() {
               </div>
 
               <div className="border-t border-white/8 p-4">
-                <p className="mb-2 text-[10px] text-zinc-500">計算単価を更新</p>
+                <p className="mb-2 text-[10px] text-zinc-500">Update Calculated Price</p>
                 <div className="space-y-3">
                   <div>
                     <p className="mb-1 text-[10px] uppercase tracking-wider text-zinc-500">Direct Unit Price</p>
@@ -5795,7 +5795,7 @@ export default function CostCalculationPage() {
                         step="0.01"
                         value={ingredientDetailYieldInput}
                         onChange={(e) => setIngredientDetailYieldInput(e.target.value)}
-                        placeholder="未設定"
+                        placeholder="Not set"
                         className="w-full rounded border border-white/15 bg-white/5 px-2 py-1.5 text-sm font-mono text-white focus:border-violet-500/50 focus:outline-none"
                       />
                     </div>
@@ -5809,7 +5809,7 @@ export default function CostCalculationPage() {
                       placeholder="65 / 1000 * 1.15"
                       className="w-full rounded border border-white/15 bg-white/5 px-2 py-1.5 text-sm font-mono text-white focus:border-violet-500/50 focus:outline-none"
                     />
-                    <p className="mt-1 text-[10px] text-zinc-500">四則演算と括弧のみ使えます。数式がある場合は、その計算結果を計算単価として保存します。</p>
+                    <p className="mt-1 text-[10px] text-zinc-500">Only basic arithmetic and parentheses are supported. If a formula is entered, the evaluated result will be saved as the calculated unit price.</p>
                   </div>
                   <div>
                     <p className="mb-1 text-[10px] uppercase tracking-wider text-zinc-500">Calculation Basis</p>
@@ -5836,15 +5836,15 @@ export default function CostCalculationPage() {
                         const numericBuffer = Number(trimmedBuffer);
                         const numericYield = trimmedYield === "" ? null : Number(trimmedYield);
                         if (!trimmedFormula && !Number.isFinite(numericPrice)) {
-                          setIngredientDetailSaveError("数値単価を入れるか、計算式を入力してください。");
+                          setIngredientDetailSaveError("Enter a numeric price or a formula.");
                           return;
                         }
                         if (!Number.isFinite(numericBuffer) || numericBuffer <= 0) {
-                          setIngredientDetailSaveError("Buffer は 0 より大きい数値で入力してください。");
+                          setIngredientDetailSaveError("Buffer must be a number greater than 0.");
                           return;
                         }
                         if (trimmedYield !== "" && (!Number.isFinite(numericYield) || Number(numericYield) <= 0)) {
-                          setIngredientDetailSaveError("Yield を入れる場合は 0 より大きい数値で入力してください。");
+                          setIngredientDetailSaveError("Yield must be a number greater than 0 if provided.");
                           return;
                         }
                         setIngredientDetailSaving(true);
@@ -5882,7 +5882,7 @@ export default function CostCalculationPage() {
                               },
                             );
                             const newId = created?.item?.id;
-                            if (!newId) throw new Error("登録に失敗しました。");
+                            if (!newId) throw new Error("Registration failed.");
                             ingredientIdForDetail = newId;
                           } else {
                             const payload: Record<string, unknown> = {

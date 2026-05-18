@@ -161,28 +161,28 @@ function KindBadge({ kind }: { kind: ComponentKind }) {
   if (kind === "linked") {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
-        ✓ 仕入連動
+        ✓ Invoice Linked
       </span>
     );
   }
   if (kind === "formula") {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] font-semibold text-blue-300">
-        ƒ 計算式
+        ƒ Formula
       </span>
     );
   }
   if (kind === "processed") {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-zinc-500/15 px-2 py-0.5 text-[10px] font-semibold text-zinc-500">
-        加工品
+        Processed
       </span>
     );
   }
   // manual / error
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
-      ⚠ 未設定
+      ⚠ Not Set
     </span>
   );
 }
@@ -215,7 +215,7 @@ function IngredientPanel({
             </span>
             {manualCount > 0 && (
               <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-400">
-                ⚠ {manualCount}件 未設定
+                ⚠ {manualCount} Not Set
               </span>
             )}
           </div>
@@ -233,7 +233,7 @@ function IngredientPanel({
               }}
               className="rounded-lg border border-white/10 bg-white/6 px-2.5 py-1 text-xs font-medium text-zinc-300 transition hover:border-violet-500/40 hover:bg-violet-500/10 hover:text-violet-200"
             >
-              商品マスタで編集 →
+              Edit in Products →
             </button>
             <button
               type="button"
@@ -247,26 +247,26 @@ function IngredientPanel({
 
         {/* 食材テーブル */}
         {componentStats.length === 0 ? (
-          <p className="text-xs text-zinc-600">食材が登録されていません</p>
+          <p className="text-xs text-zinc-600">No ingredients registered</p>
         ) : (
           <div className="overflow-x-auto rounded-xl border border-white/8 bg-white/3">
             <table className="min-w-full text-xs">
               <thead>
                 <tr className="border-b border-white/8">
                   <th className="py-2 pl-4 pr-3 text-left font-semibold uppercase tracking-wider text-zinc-600">
-                    食材名
+                    Ingredient
                   </th>
                   <th className="py-2 pr-3 text-left font-semibold uppercase tracking-wider text-zinc-600">
-                    カテゴリ
+                    Category
                   </th>
                   <th className="py-2 pr-3 text-right font-semibold uppercase tracking-wider text-zinc-600">
-                    数量
+                    Qty
                   </th>
                   <th className="py-2 pr-3 text-right font-semibold uppercase tracking-wider text-zinc-600">
-                    単位
+                    Unit
                   </th>
                   <th className="py-2 pr-4 text-left font-semibold uppercase tracking-wider text-zinc-600">
-                    状態
+                    Status
                   </th>
                 </tr>
               </thead>
@@ -331,9 +331,9 @@ function IngredientPanel({
         {/* 加工品サマリー */}
         {processedStats.length > 0 && (
           <p className="mt-2 text-[10px] text-zinc-600">
-            加工品コンポーネント {processedStats.length}件（個別チェック対象外）:
+            Processed components ({processedStats.length} items — not individually checked):
             {" "}
-            {processedStats.map((s) => s.component.name).join("、")}
+            {processedStats.map((s) => s.component.name).join(", ")}
           </p>
         )}
       </div>
@@ -522,10 +522,10 @@ function CostCheckPageInner() {
               </button>
             </div>
             <h1 className="text-2xl font-semibold tracking-tight text-white">
-              仕入連動チェック（商品マスタ）
+              Invoice Link Check (Products)
             </h1>
             <p className="mt-1 text-sm text-zinc-500">
-              Cost Calculationの商品マスタで、各食材が仕入連動しているかを確認します
+              Check whether each ingredient in the Cost Calculation product master is linked to invoice prices
             </p>
           </div>
           <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-1">
@@ -556,14 +556,14 @@ function CostCheckPageInner() {
               disabled={analyzing}
               className="rounded-xl bg-gradient-to-r from-violet-500 to-purple-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/25 transition hover:from-violet-400 hover:to-purple-400 disabled:opacity-50"
             >
-              {analyzing ? "分析中…" : stats.length ? "再分析" : "分析開始"}
+              {analyzing ? "Analyzing..." : stats.length ? "Re-analyze" : "Start Analysis"}
             </button>
 
             {analyzing && (
               <div className="flex items-center gap-3">
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
                 <span className="text-sm text-zinc-400">
-                  {progress.done} / {progress.total} 商品処理中…
+                  {progress.done} / {progress.total} products processing...
                 </span>
                 <div className="h-1.5 w-32 overflow-hidden rounded-full bg-white/8">
                   <div
@@ -575,7 +575,7 @@ function CostCheckPageInner() {
             )}
 
             {!analyzing && stats.length > 0 && (
-              <span className="text-xs text-zinc-500">{doneCount}件を分析済み</span>
+              <span className="text-xs text-zinc-500">{doneCount} analyzed</span>
             )}
           </div>
           {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
@@ -585,14 +585,14 @@ function CostCheckPageInner() {
         {stats.length > 0 && (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { label: "分析済み", value: doneCount, color: "text-white" },
-              { label: "連動OK", value: fullyLinked, color: "text-emerald-400" },
+              { label: "Analyzed", value: doneCount, color: "text-white" },
+              { label: "Linked OK", value: fullyLinked, color: "text-emerald-400" },
               {
-                label: "要確認",
+                label: "Needs Review",
                 value: hasIssuesCount,
                 color: hasIssuesCount > 0 ? "text-amber-400" : "text-zinc-500",
               },
-              { label: "食材なし", value: noComponents, color: "text-zinc-500" },
+              { label: "No Ingredients", value: noComponents, color: "text-zinc-500" },
             ].map(({ label, value, color }) => (
               <div key={label} className="rounded-xl border border-white/8 bg-white/5 px-4 py-3">
                 <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
@@ -620,8 +620,8 @@ function CostCheckPageInner() {
                 ].join(" ")}
               >
                 {f === "all"
-                  ? `全て (${sorted.filter((s) => s.loaded).length})`
-                  : `⚠ 要確認のみ (${hasIssuesCount})`}
+                  ? `All (${sorted.filter((s) => s.loaded).length})`
+                  : `⚠ Needs Review only (${hasIssuesCount})`}
               </button>
             ))}
           </div>
@@ -634,13 +634,13 @@ function CostCheckPageInner() {
               <thead>
                 <tr className="border-b border-white/8">
                   {[
-                    "商品名",
-                    "カテゴリ",
-                    "食材数",
-                    "✓ 仕入連動",
-                    "ƒ 計算式",
-                    "⚠ 手動",
-                    "加工品",
+                    "Product",
+                    "Category",
+                    "Ingredients",
+                    "✓ Invoice Linked",
+                    "ƒ Formula",
+                    "⚠ Manual",
+                    "Processed",
                     "",
                   ].map((h, i) => (
                     <th
@@ -817,13 +817,13 @@ function CostCheckPageInner() {
         {/* ── 凡例 ──────────────────────────────────────────────────────────── */}
         {stats.length > 0 && (
           <div className="rounded-xl border border-white/8 bg-white/3 px-4 py-3 text-xs text-zinc-500">
-            <span className="font-semibold text-zinc-400">凡例：</span>
+            <span className="font-semibold text-zinc-400">Legend:</span>
             {" "}
-            <span className="text-emerald-400">✓ 仕入連動</span> = supplier_prices 設定済み
-            <span className="text-blue-300">ƒ 計算式</span> = unit_price_formula 設定済み
-            <span className="text-amber-400">⚠ 手動</span> = 固定単価のみ（要設定）
-            <span className="text-zinc-500">加工品</span> = processed_item（再帰的チェック対象外）
-            <span className="ml-4 text-zinc-600">※ 行クリックで食材詳細を展開</span>
+            <span className="text-emerald-400">✓ Invoice Linked</span> = supplier_prices configured
+            <span className="text-blue-300">ƒ Formula</span> = unit_price_formula configured
+            <span className="text-amber-400">⚠ Manual</span> = fixed unit price only (needs setup)
+            <span className="text-zinc-500">Processed</span> = processed_item (not recursively checked)
+            <span className="ml-4 text-zinc-600">* Click a row to expand ingredient details</span>
           </div>
         )}
 
@@ -831,9 +831,9 @@ function CostCheckPageInner() {
         {!analyzing && stats.length === 0 && (
           <div className="rounded-2xl border border-white/10 bg-white/5 py-16 text-center">
             <div className="mb-3 text-2xl">🔍</div>
-            <p className="text-sm font-medium text-zinc-300">分析を開始してください</p>
+            <p className="text-sm font-medium text-zinc-300">Click to start analysis</p>
             <p className="mt-1 text-xs text-zinc-600">
-              Cost Calculationの商品マスタに登録された各商品の食材を仕入連動の観点でチェックします
+              Checks whether each ingredient in the Cost Calculation product master is linked to invoice prices
             </p>
           </div>
         )}
