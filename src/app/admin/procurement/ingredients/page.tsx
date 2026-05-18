@@ -65,37 +65,23 @@ const COLUMNS: Column[] = [
 ];
 
 const CATEGORY_OPTIONS = [
-  "鮮魚",
-  "野菜",
-  "米・麺・皮",
-  "肉類",
-  "加工肉・卵",
-  "調味料",
-  "乾物・他",
-  "CKソース",
-  "CK加工品",
-  "Kitchen加工品",
-  "包材",
+  "Fresh Fish",
+  "Vegetables",
+  "Rice / Noodles / Wrappers",
+  "Meat",
+  "Processed Meat / Eggs",
+  "Seasonings",
+  "Dry Goods / Other",
+  "CK Sauce",
+  "CK Processed",
+  "Kitchen Processed",
+  "Packaging",
   "Imported",
   "Uncategorized",
 ];
 
-// Display labels for categories (values stay in Japanese to match DB)
-const CATEGORY_LABEL: Record<string, string> = {
-  "鮮魚": "Fresh Fish",
-  "野菜": "Vegetables",
-  "米・麺・皮": "Rice / Noodles / Wrappers",
-  "肉類": "Meat",
-  "加工肉・卵": "Processed Meat / Eggs",
-  "調味料": "Seasonings",
-  "乾物・他": "Dry Goods / Other",
-  "CKソース": "CK Sauce",
-  "CK加工品": "CK Processed",
-  "Kitchen加工品": "Kitchen Processed",
-  "包材": "Packaging",
-};
 function displayCategory(cat: string): string {
-  return CATEGORY_LABEL[cat] || cat;
+  return cat;
 }
 
 const INGREDIENT_LIST_PAGE_SIZE = 500;
@@ -298,7 +284,7 @@ export default function ProcurementIngredientsPage() {
       {
         id: `new-ingredient-${Date.now()}`,
         city,
-        category: categoryFilter || "野菜",
+        category: categoryFilter || "Vegetables",
         name: "",
         unit: "",
         unit_price: 0,
