@@ -257,11 +257,11 @@ export default function AdminProcurementPage() {
     }
     const selectedStatus = String(selectedRequestDetail?.status || "").toUpperCase();
     if (selectedStatus === "DRAFT") {
-      setError("このリクエストはまだDRAFTです。店舗側でSubmitしてからApprovalを実行してください。");
+      setError("This request is still in DRAFT. Please have the store submit it first before running approval.");
       return;
     }
     if (selectedStatus && !["IN_REVIEW", "SUBMITTED"].includes(selectedStatus)) {
-      setError(`ステータスが "${selectedStatus}" のため、Approval Actionは実行できません。対象は IN_REVIEW / SUBMITTED のみです。`);
+      setError(`Approval action cannot be run on status "${selectedStatus}". Only IN_REVIEW or SUBMITTED requests are eligible.`);
       return;
     }
     setActionBusy(true);
@@ -601,7 +601,7 @@ export default function AdminProcurementPage() {
           </div>
           {selectedRequestDetail && String(selectedRequestDetail.status || "").toUpperCase() === "DRAFT" && (
             <div className="mb-3 flex items-center gap-2 rounded-xl border border-amber-700/40 bg-amber-900/15 px-3 py-2 text-sm text-amber-300">
-              ⚠ このリクエストはまだ <strong>DRAFT</strong> です。店舗側で「Continue Draft → Submit」を実行してからApprovalしてください。
+              ⚠ This request is still in <strong>DRAFT</strong>. Please have the store complete &ldquo;Continue Draft → Submit&rdquo; before approving.
             </div>
           )}
           <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">

@@ -675,7 +675,11 @@ export default function ProcurementCaseDetailPage() {
               ))}
             </select>
             <input value={uploadDocType} onChange={(e) => setUploadDocType(e.target.value)} placeholder="Doc type" className={INPUT_CLASS} />
-            <input type="file" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} className="col-span-2 rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs text-zinc-300 sm:col-span-1 file:mr-2 file:rounded-lg file:border-0 file:bg-violet-500/20 file:px-2 file:py-1 file:text-xs file:text-violet-300" />
+            <label className="col-span-2 sm:col-span-1 flex items-center gap-2 cursor-pointer rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-xs text-zinc-300 hover:bg-white/10 transition">
+              <span className="rounded-lg bg-violet-500/20 px-2 py-1 text-violet-300 shrink-0">Choose File</span>
+              <span className="truncate text-zinc-400">{uploadFile ? uploadFile.name : "No file chosen"}</span>
+              <input type="file" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} className="hidden" />
+            </label>
             <button
               type="button"
               onClick={() => void upload()}

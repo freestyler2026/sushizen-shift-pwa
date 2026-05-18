@@ -193,7 +193,7 @@ const SUPPLIER_SPREADSHEET_URLS: Record<"dubai" | "manila", string> = {
 };
 
 const DUBAI_BRANCH_OPTIONS = ["Al Barsha", "Al Mina", "B Bay", "JLT", "M City"];
-const UNKNOWN_BRANCH_OPTION = "branch name不明";
+const UNKNOWN_BRANCH_OPTION = "branch name unknown";
 
 const SUMMARY_EDIT_FIELDS: FieldConfig[] = [
   { key: "invoice_date", label: "Invoice Date", type: "date" },
