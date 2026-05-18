@@ -6057,7 +6057,7 @@ export default function AdminAnalyticsPage() {
             {salesStepUpReady ? (
               <div className="space-y-2 rounded-xl border border-neutral-700/50 bg-neutral-900/50 p-3">
                 <p className="text-xs text-neutral-500">
-                  ✨ Include a month in your question and the date range will be detected automatically (e.g. "in March", "last month"). If not specified, last month's data is used.
+                  ✨ Include a month in your question and the date range will be detected automatically (e.g. &ldquo;in March&rdquo;, &ldquo;last month&rdquo;). If not specified, last month&apos;s data is used.
                 </p>
               </div>
             ) : null}

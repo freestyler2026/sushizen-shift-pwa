@@ -686,7 +686,7 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
           <div className={`${BADGE_INFO} mt-4 space-y-2 px-4 py-3 text-left text-xs leading-relaxed text-neutral-200`}>
             <p className="font-semibold text-neutral-100">No data for this period / brand (all zeros)</p>
             <p>
-              If the manual import (Excel → Postgres) has not been run yet, the server's{" "}
+              If the manual import (Excel → Postgres) has not been run yet, the server&apos;s{" "}
               <code className="text-violet-300">dubai_order_counts</code> table is empty.
             </p>
             <p className="text-neutral-400">
