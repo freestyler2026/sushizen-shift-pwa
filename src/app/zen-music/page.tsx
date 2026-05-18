@@ -326,6 +326,16 @@ const TRACKS: Track[] = [
     glyph: "藍",
     category: "night",
   },
+  {
+    id: 31,
+    title: "ZEN Guitar Trance",
+    subtitle: "Sushi ZEN",
+    file: "/music/zen-guitar-trance.mp3",
+    accent: "from-violet-500 via-purple-600 to-indigo-800",
+    accentHex: "#7c3aed",
+    glyph: "弦",
+    category: "rock",
+  },
 ];
 
 function fmt(sec: number) {
