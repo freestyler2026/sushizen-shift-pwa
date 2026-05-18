@@ -505,7 +505,7 @@ export default function ProcurementAnalyticsSection() {
 
   const startSync = useCallback(async () => {
     if (!marketAllowed) {
-      setError("このデータへのアクセス権限がありません。");
+      setError("You do not have permission to access this data.");
       return;
     }
     setSyncing(true);
@@ -678,7 +678,7 @@ export default function ProcurementAnalyticsSection() {
       <main className={PAGE_SHELL}>
         <div className={PAGE_CONTAINER}>
           <div className={PAGE_CARD}>
-            <div className="py-8 text-center text-sm text-red-300">このデータへのアクセス権限がありません。</div>
+            <div className="py-8 text-center text-sm text-red-300">You do not have permission to access this data.</div>
           </div>
         </div>
       </main>

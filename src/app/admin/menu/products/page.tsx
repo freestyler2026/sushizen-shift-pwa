@@ -585,7 +585,7 @@ function MenuProductsPageInner() {
                 <input value={form.name} onChange={(e) => setForm((c) => ({ ...c, name: e.target.value }))} className={INPUT} placeholder="Product name" />
               </Field>
               <Field label="Localized Name">
-                <input value={form.name_localized} onChange={(e) => setForm((c) => ({ ...c, name_localized: e.target.value }))} className={INPUT} placeholder="e.g. ローカル名" />
+                <input value={form.name_localized} onChange={(e) => setForm((c) => ({ ...c, name_localized: e.target.value }))} className={INPUT} placeholder="e.g. Local name" />
               </Field>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="SKU">

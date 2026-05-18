@@ -567,7 +567,7 @@ export default function InventoryItemsPage() {
           <div>
             <div className="text-sm font-semibold text-violet-200">Sync from Cost Calculation</div>
             <div className="mt-0.5 text-xs text-neutral-200">
-              Find items in 食材マスタ / 加工品マスタ / 商品マスタ not yet registered here. Auto-assign SKUs on import.
+              Find items in Ingredient Master / Processed Goods Master / Product Master not yet registered here. Auto-assign SKUs on import.
             </div>
           </div>
           <div className="flex items-center gap-2">

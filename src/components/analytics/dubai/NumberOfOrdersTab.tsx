@@ -684,13 +684,13 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
         {error ? <p className="mt-3 text-sm text-red-400">{error}</p> : null}
         {hasNoImportedRows ? (
           <div className={`${BADGE_INFO} mt-4 space-y-2 px-4 py-3 text-left text-xs leading-relaxed text-neutral-200`}>
-            <p className="font-semibold text-neutral-100">この期間・ブランドにデータがありません（すべて 0）</p>
+            <p className="font-semibold text-neutral-100">No data for this period / brand (all zeros)</p>
             <p>
-              手動インポート（Excel → Postgres）をまだ実行していない場合、サーバの{" "}
-              <code className="text-violet-300">dubai_order_counts</code> テーブルは空です。
+              If the manual import (Excel → Postgres) has not been run yet, the server's{" "}
+              <code className="text-violet-300">dubai_order_counts</code> table is empty.
             </p>
             <p className="text-neutral-400">
-              既に取り込み済みの場合は期間を広げるか、別ブランドを試してください。1 日だけに絞ると、その日の行が無いと 0 のままです。
+              If data has already been imported, try widening the date range or selecting a different brand. Filtering to a single day will show 0 if there is no row for that day.
             </p>
             <button
               type="button"
@@ -705,7 +705,7 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
                 void fetchData({ from: r.from, to: r.to });
               }}
             >
-              期間を 2025-10-01 〜 今日に戻す
+              Reset to 2025-10-01 – today
             </button>
           </div>
         ) : null}

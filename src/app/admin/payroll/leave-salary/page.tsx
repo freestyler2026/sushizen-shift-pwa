@@ -621,7 +621,7 @@ export default function LeaveSalaryPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className={T_PAGE_TITLE}>Leave Salary</p>
-            <p className={`${T_BODY} mt-1`}>有給前払い申請・承認・支払い管理</p>
+            <p className={`${T_BODY} mt-1`}>Leave salary advance requests, approvals and payments</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {(["dubai","manila"] as const).map(c => (

@@ -189,7 +189,7 @@ export function ManilaOrderCountsTab({
         ) : error ? (
           <p className="text-sm text-rose-400">{error}</p>
         ) : !storeGroups.length ? (
-          <p className="text-sm text-neutral-500">期間内にデータがありません。Manila sales の同期を実行するか、日付範囲を広げてください。</p>
+          <p className="text-sm text-neutral-500">No data for this period. Run a Manila sales sync or widen the date range.</p>
         ) : (
           <div className="space-y-5">
             {/* Grand total hero */}

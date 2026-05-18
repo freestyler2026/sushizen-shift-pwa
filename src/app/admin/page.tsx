@@ -1015,17 +1015,17 @@ function AdminPageInner() {
     const text = String(raw || "").trim();
     const lower = text.toLowerCase();
     if (!text) return fallback;
-    if (lower.includes("invalid pin")) return "PINが正しくありません。";
-    if (lower.includes("forbidden") || lower.includes("permission")) return "同期権限がありません（HQ/ADMIN のPIN確認が必要です）。";
-    if (lower.includes("attendance drive source not found")) return "同期元設定が見つかりません。";
-    if (lower.includes("no attendance files found")) return "Driveフォルダに対象ファイルがありません。";
-    if (lower.includes("already imported") || lower.includes("duplicate")) return "最新ファイルは既に取り込み済みです。";
+    if (lower.includes("invalid pin")) return "Incorrect PIN.";
+    if (lower.includes("forbidden") || lower.includes("permission")) return "Sync permission denied (HQ/ADMIN PIN required).";
+    if (lower.includes("attendance drive source not found")) return "Sync source not configured.";
+    if (lower.includes("no attendance files found")) return "No attendance files found in Drive folder.";
+    if (lower.includes("already imported") || lower.includes("duplicate")) return "Latest file already imported.";
     return text;
   };
 
   const syncAttendanceNow = async () => {
     if (!approverName.trim() || !pin.trim()) {
-      setAttendanceSyncMessage("同期には approver name と PIN が必要です。");
+      setAttendanceSyncMessage("Approver name and PIN are required to sync.");
       return;
     }
     setAttendanceSyncing(true);
@@ -1038,14 +1038,14 @@ function AdminPageInner() {
       });
       const rawMsg = String(res?.message || "").trim();
       if (res?.duplicate) {
-        setAttendanceSyncMessage("最新ファイルは既に取り込み済みです。");
+        setAttendanceSyncMessage("Latest file already imported.");
       } else if (rawMsg) {
-        setAttendanceSyncMessage(normalizeAttendanceSyncMessage(rawMsg, "Bayzat同期が完了しました。"));
+        setAttendanceSyncMessage(normalizeAttendanceSyncMessage(rawMsg, "Bayzat sync complete."));
       } else {
-        setAttendanceSyncMessage("Bayzat同期が完了しました。");
+        setAttendanceSyncMessage("Bayzat sync complete.");
       }
     } catch (e: any) {
-      setAttendanceSyncMessage(normalizeAttendanceSyncMessage(String(e?.message || e || ""), "Bayzat同期に失敗しました。"));
+      setAttendanceSyncMessage(normalizeAttendanceSyncMessage(String(e?.message || e || ""), "Bayzat sync failed."));
     } finally {
       setAttendanceSyncing(false);
     }

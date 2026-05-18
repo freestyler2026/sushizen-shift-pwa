@@ -123,7 +123,7 @@ async function apiGet<T>(path: string): Promise<T> {
     }
     if (res.status === 405 || /method not allowed/i.test(detail)) {
       throw new Error(
-        "API が未デプロイか古い可能性があります（405）。aggregator-ratings / by-brand を含む FastAPI をデプロイしてください。",
+        "API may not be deployed or is outdated (405). Please deploy the FastAPI containing aggregator-ratings / by-brand.",
       );
     }
     throw new Error(detail || `GET ${path} failed`);

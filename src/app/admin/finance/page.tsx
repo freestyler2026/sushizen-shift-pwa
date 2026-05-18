@@ -1084,10 +1084,10 @@ export default function FinancePage() {
                         red:    { badge: "bg-rose-500/15 text-rose-300 border border-rose-500/30",           text: "text-rose-400",   label: "High" },
                       };
                       const METRIC_CONFIG = [
-                        { key: "F",   label: "Food",      sublabel: "食材費",     value: foodPct,  maxVal: 55, segs: [{ c: "bg-emerald-700", w: 36 }, { c: "bg-sky-700", w: 3 }, { c: "bg-amber-700", w: 3 }, { c: "bg-rose-700", w: 13 }] },
-                        { key: "L",   label: "Labor",     sublabel: "人件費",     value: laborPct, maxVal: 35, segs: [{ c: "bg-emerald-700", w: 22 }, { c: "bg-sky-700", w: 2 }, { c: "bg-amber-700", w: 2 }, { c: "bg-rose-700", w: 9  }] },
-                        { key: "R",   label: "Rent",      sublabel: "賃料",       value: rentPct,  maxVal: 18, segs: [{ c: "bg-emerald-700", w: 7  }, { c: "bg-sky-700", w: 2 }, { c: "bg-amber-700", w: 3 }, { c: "bg-rose-700", w: 6  }] },
-                        { key: "FLR", label: "FLR Total", sublabel: "F+L+R合計", value: flrPct,   maxVal: 85, segs: [{ c: "bg-emerald-700", w: 62 }, { c: "bg-sky-700", w: 4 }, { c: "bg-amber-700", w: 4 }, { c: "bg-rose-700", w: 15 }] },
+                        { key: "F",   label: "Food",      sublabel: "Food Cost",  value: foodPct,  maxVal: 55, segs: [{ c: "bg-emerald-700", w: 36 }, { c: "bg-sky-700", w: 3 }, { c: "bg-amber-700", w: 3 }, { c: "bg-rose-700", w: 13 }] },
+                        { key: "L",   label: "Labor",     sublabel: "Labor Cost", value: laborPct, maxVal: 35, segs: [{ c: "bg-emerald-700", w: 22 }, { c: "bg-sky-700", w: 2 }, { c: "bg-amber-700", w: 2 }, { c: "bg-rose-700", w: 9  }] },
+                        { key: "R",   label: "Rent",      sublabel: "Rent Cost",  value: rentPct,  maxVal: 18, segs: [{ c: "bg-emerald-700", w: 7  }, { c: "bg-sky-700", w: 2 }, { c: "bg-amber-700", w: 3 }, { c: "bg-rose-700", w: 6  }] },
+                        { key: "FLR", label: "FLR Total", sublabel: "FLR Total",  value: flrPct,   maxVal: 85, segs: [{ c: "bg-emerald-700", w: 62 }, { c: "bg-sky-700", w: 4 }, { c: "bg-amber-700", w: 4 }, { c: "bg-rose-700", w: 15 }] },
                       ];
                       return (
                         <div className="mt-4">

@@ -55,7 +55,7 @@ export default function GlobalError({
           gap: "16px",
         }}
       >
-        <p style={{ color: "#9ca3af", fontSize: "14px" }}>更新を読み込み中...</p>
+        <p style={{ color: "#9ca3af", fontSize: "14px" }}>Loading update...</p>
         <button
           onClick={hardReload}
           style={{
@@ -68,7 +68,7 @@ export default function GlobalError({
             fontSize: "14px",
           }}
         >
-          今すぐ再読み込み
+          Reload Now
         </button>
       </body>
     </html>

@@ -1112,7 +1112,7 @@ export default function MenuProductDetailPage() {
                 <th className="pb-2 pr-4">Quantity</th>
                 <th className="pb-2 pr-4">Unit Cost</th>
                 <th className="pb-2 pr-4">Total Cost</th>
-                <th className="pb-2 pr-4">仕入連動</th>
+                <th className="pb-2 pr-4">Supplier-Linked</th>
                 <th className="pb-2">Actions</th>
               </tr>
             </thead>
@@ -1143,7 +1143,7 @@ export default function MenuProductDetailPage() {
                     ) : hasSupplier ? (
                       <div className="space-y-1">
                         <span className="inline-flex items-center gap-1 rounded-full border border-emerald-700/60 bg-emerald-950/40 px-2 py-0.5 text-[11px] font-medium text-emerald-300">
-                          ✓ 仕入連動
+                          ✓ Supplier-Linked
                         </span>
                         <div className="text-[11px] text-neutral-400 leading-snug">
                           {topSupplier!.supplier_name}
@@ -1151,14 +1151,14 @@ export default function MenuProductDetailPage() {
                         <div className="text-[11px] text-neutral-500">
                           {topSupplier!.purchase_price.toFixed(2)} / {topSupplier!.purchase_qty}{topSupplier!.purchase_unit}
                           {link!.supplier_prices.length > 1 && (
-                            <span className="ml-1 text-neutral-600">+{link!.supplier_prices.length - 1}件</span>
+                            <span className="ml-1 text-neutral-600">+{link!.supplier_prices.length - 1} more</span>
                           )}
                         </div>
                       </div>
                     ) : hasFormula ? (
                       <div className="space-y-1">
                         <span className="inline-flex items-center gap-1 rounded-full border border-blue-700/60 bg-blue-950/40 px-2 py-0.5 text-[11px] font-medium text-blue-300">
-                          ƒ 計算式
+                          ƒ Formula
                         </span>
                         <div className="max-w-[160px] truncate text-[11px] text-neutral-400" title={link!.unit_price_formula || link!.cost_unit_price_formula}>
                           {link!.unit_price_formula || link!.cost_unit_price_formula}
@@ -1166,7 +1166,7 @@ export default function MenuProductDetailPage() {
                       </div>
                     ) : link !== null ? (
                       <span className="inline-flex items-center gap-1 rounded-full border border-neutral-700 bg-neutral-800/40 px-2 py-0.5 text-[11px] text-neutral-400">
-                        手動価格
+                        Manual Price
                       </span>
                     ) : (
                       <span className="text-xs text-neutral-600">—</span>

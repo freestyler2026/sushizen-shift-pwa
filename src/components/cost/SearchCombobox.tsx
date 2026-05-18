@@ -61,7 +61,7 @@ export default function SearchCombobox({
               setOpen(false);
             }
           }}
-          placeholder={placeholder || "検索..."}
+          placeholder={placeholder || "Search..."}
           className="h-8 w-full rounded-lg border border-white/15 bg-white/5 py-1.5 pl-8 pr-8 text-xs text-white outline-none transition-colors placeholder:text-zinc-600 focus:border-violet-500/50"
         />
         {value ? (
@@ -81,7 +81,7 @@ export default function SearchCombobox({
       {open && visibleItems.length > 0 ? (
         <div className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-xl border border-violet-500/20 bg-[#15142a] shadow-2xl shadow-black/40">
           <div className="border-b border-white/5 px-3 py-1.5 text-[10px] text-zinc-500">
-            {visibleItems.length}件の候補
+            {visibleItems.length} result{visibleItems.length !== 1 ? "s" : ""}
           </div>
           {visibleItems.map((item) => {
             const lowerLabel = item.label.toLowerCase();

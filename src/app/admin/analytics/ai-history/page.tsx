@@ -74,7 +74,7 @@ export default function AiHistoryPage() {
     setError("");
     fetchSnapshots(cityFilter)
       .then(setItems)
-      .catch((e) => setError(e?.message || "読み込みに失敗しました"))
+      .catch((e) => setError(e?.message || "Failed to load."))
       .finally(() => setLoading(false));
   }, [cityFilter]);
 
@@ -84,14 +84,14 @@ export default function AiHistoryPage() {
         {/* Header */}
         <div className="mb-6 flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-xl font-semibold text-neutral-100">AI 分析履歴</h1>
-            <p className="mt-0.5 text-xs text-neutral-500">保存した AI Analytics の回答一覧</p>
+            <h1 className="text-xl font-semibold text-neutral-100">AI Analysis History</h1>
+            <p className="mt-0.5 text-xs text-neutral-500">Saved AI Analytics responses</p>
           </div>
           <Link
             href="/admin/analytics?tab=ai"
             className="rounded-xl border border-neutral-700 px-4 py-2 text-xs text-neutral-400 transition hover:bg-neutral-800"
           >
-            ← AI Analytics に戻る
+            ← Back to AI Analytics
           </Link>
         </div>
 
@@ -109,23 +109,23 @@ export default function AiHistoryPage() {
                   : "border-neutral-700 text-neutral-400 hover:bg-neutral-800",
               ].join(" ")}
             >
-              {c === "" ? "すべて" : cityLabel(c)}
+              {c === "" ? "All" : cityLabel(c)}
             </button>
           ))}
         </div>
 
         {/* Content */}
         {loading ? (
-          <div className="py-16 text-center text-sm text-neutral-500">読み込み中...</div>
+          <div className="py-16 text-center text-sm text-neutral-500">Loading...</div>
         ) : error ? (
           <div className="rounded-xl border border-rose-700/40 bg-rose-950/20 px-4 py-3 text-sm text-rose-300">
             ❌ {error}
           </div>
         ) : items.length === 0 ? (
           <div className="py-16 text-center text-sm text-neutral-600">
-            保存された分析はまだありません。
+            No saved analyses yet.
             <br />
-            <span className="text-neutral-700">AI Analytics で回答の右下にある「💾 保存」ボタンから保存できます。</span>
+            <span className="text-neutral-700">Use the 💾 Save button on any AI Analytics response to save it here.</span>
           </div>
         ) : (
           <div className="space-y-3">
@@ -155,7 +155,7 @@ export default function AiHistoryPage() {
                           )}
                         </div>
                         <p className="truncate text-sm text-neutral-200 font-medium">
-                          {item.question || "（質問なし）"}
+                          {item.question || "(No question)"}
                         </p>
                         <p className="mt-0.5 line-clamp-2 text-xs text-neutral-500">
                           {item.answer.slice(0, 200)}...
@@ -164,7 +164,7 @@ export default function AiHistoryPage() {
                       <div className="shrink-0 text-right">
                         <p className="text-[11px] text-neutral-500">{formatDate(item.created_at)}</p>
                         <p className="text-[11px] text-neutral-600">{item.saved_by || "—"}</p>
-                        <p className="mt-1 text-[11px] text-neutral-700">{isExpanded ? "▲ 閉じる" : "▼ 全文を見る"}</p>
+                        <p className="mt-1 text-[11px] text-neutral-700">{isExpanded ? "▲ Collapse" : "▼ View Full"}</p>
                       </div>
                     </div>
                   </button>
@@ -174,23 +174,23 @@ export default function AiHistoryPage() {
                     <div className="border-t border-neutral-800 px-5 py-4">
                       {item.question && (
                         <div className="mb-3">
-                          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">質問</p>
+                          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Question</p>
                           <p className="rounded-xl border border-violet-600/20 bg-violet-600/10 px-4 py-2 text-sm text-violet-200">
                             {item.question}
                           </p>
                         </div>
                       )}
                       <div>
-                        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">AI 回答</p>
+                        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">AI Response</p>
                         <div className="rounded-xl border border-neutral-700/40 bg-neutral-800/60 px-4 py-3 text-sm text-neutral-200 leading-relaxed whitespace-pre-wrap">
                           {item.answer}
                         </div>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-neutral-600">
-                        <span>モデル: {item.model || "—"}</span>
-                        <span>入力 {item.input_tokens} tokens</span>
-                        <span>出力 {item.output_tokens} tokens</span>
-                        <span>保存者: {item.saved_by || "—"}</span>
+                        <span>Model: {item.model || "—"}</span>
+                        <span>Input {item.input_tokens} tokens</span>
+                        <span>Output {item.output_tokens} tokens</span>
+                        <span>Saved by: {item.saved_by || "—"}</span>
                       </div>
                     </div>
                   )}

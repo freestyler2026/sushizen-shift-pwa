@@ -1378,7 +1378,7 @@ export default function WhInventoryPage() {
                   type="text"
                   value={addCategory}
                   onChange={(e) => setAddCategory(e.target.value)}
-                  placeholder="e.g. 包材"
+                  placeholder="e.g. Packaging"
                   list="wh-categories"
                   className="w-full rounded-xl border border-neutral-700 bg-neutral-950 px-4 py-2.5 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-violet-600 focus:outline-none"
                 />

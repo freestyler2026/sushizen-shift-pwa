@@ -2198,7 +2198,7 @@ ${pages}
                     onClick={() => selectedProduction && printDeliveryNote(selectedProduction)}
                     className="rounded-lg border border-violet-700 bg-violet-950/30 px-3 py-1.5 text-xs text-violet-200 hover:bg-violet-900/30"
                   >
-                    🖨 納品書 Print
+                    🖨 Delivery Note Print
                   </button>
                 ) : null}
                 <button

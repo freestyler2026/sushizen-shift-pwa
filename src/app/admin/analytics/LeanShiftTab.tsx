@@ -205,10 +205,10 @@ function BranchCard({
   const hasBuiltinOt = totalReducibleOt > 0;
 
   const statusBadge = overBudget
-    ? { cls: "bg-red-500/20 border-red-500/40 text-red-300",   icon: "🔴", text: "OT予算超過" }
+    ? { cls: "bg-red-500/20 border-red-500/40 text-red-300",   icon: "🔴", text: "Over OT Budget" }
     : hasBuiltinOt
-    ? { cls: "bg-amber-500/20 border-amber-500/40 text-amber-300", icon: "⚠️", text: "削減余地あり" }
-    : { cls: "bg-emerald-500/15 border-emerald-500/30 text-emerald-300", icon: "✅", text: "問題なし" };
+    ? { cls: "bg-amber-500/20 border-amber-500/40 text-amber-300", icon: "⚠️", text: "Room to Reduce" }
+    : { cls: "bg-emerald-500/15 border-emerald-500/30 text-emerald-300", icon: "✅", text: "On Track" };
 
   const borderCls = overBudget
     ? "border-red-500/30 hover:border-red-500/50"
@@ -246,30 +246,30 @@ function BranchCard({
           {hasBuiltinOt ? (
             <>
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-zinc-500">削減可能OT合計</p>
+                <p className="text-[10px] uppercase tracking-wide text-zinc-500">Reducible OT Total</p>
                 <p className={`text-xl font-bold tabular-nums ${overBudget ? "text-red-400" : "text-amber-400"}`}>
                   {fmtMins(totalReducibleOt)}
                 </p>
-                <p className="text-[10px] text-zinc-600">対象期間内 全シフト合計</p>
+                <p className="text-[10px] text-zinc-600">All shifts in period</p>
               </div>
               {worstRow && (
                 <div>
-                  <p className="text-[10px] uppercase tracking-wide text-zinc-500">最もOTが多い日</p>
+                  <p className="text-[10px] uppercase tracking-wide text-zinc-500">Day with Most OT</p>
                   <p className="text-base font-bold text-white">{worstRow.day_name}</p>
-                  <p className="text-[10px] text-zinc-500">{fmtMins(worstRow.reducible_ot_per_shift)} / シフト</p>
+                  <p className="text-[10px] text-zinc-500">{fmtMins(worstRow.reducible_ot_per_shift)} / shift</p>
                 </div>
               )}
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-zinc-500">推奨スタート時刻</p>
+                <p className="text-[10px] uppercase tracking-wide text-zinc-500">Recommended Start Time</p>
                 <p className="text-base font-bold text-sky-300">{fmtHour(wavgLeanStart)}</p>
-                <p className="text-[10px] text-zinc-500">現在: {fmtHour(wavgCheckin)}</p>
+                <p className="text-[10px] text-zinc-500">Current: {fmtHour(wavgCheckin)}</p>
               </div>
             </>
           ) : (
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-emerald-400" />
               <p className="text-sm text-emerald-300">
-                スタート時刻は最適 — 削減可能なOTはありません
+                Start time is optimal — no reducible OT detected
               </p>
             </div>
           )}
@@ -278,14 +278,14 @@ function BranchCard({
         {/* Action proposal box */}
         {hasBuiltinOt && worstRow && (
           <div className="mb-3 rounded-xl border border-sky-500/20 bg-sky-500/8 p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-400">📋 改善提案</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-sky-400">📋 Improvement Suggestion</p>
             <p className="mt-1 text-xs text-zinc-200">
-              <span className="font-semibold text-white">{branch}</span> のシフト開始時刻を
-              {worstRow ? ` ${worstRow.day_name}` : ""}を中心に{" "}
+              Shifting start times for <span className="font-semibold text-white">{branch}</span>
+              {worstRow ? ` (especially ${worstRow.day_name})` : ""}{" "}
               <span className="font-semibold text-amber-300">{fmtHour(wavgCheckin)}</span> →{" "}
-              <span className="font-semibold text-sky-300">{fmtHour(wavgLeanStart)}</span> に変更することで、
-              週間約 <span className="font-bold text-emerald-300">{fmtMins(totalReducibleOt)}</span> の
-              不要OTを解消できます。
+              to <span className="font-semibold text-sky-300">{fmtHour(wavgLeanStart)}</span> could eliminate
+              approximately <span className="font-bold text-emerald-300">{fmtMins(totalReducibleOt)}</span>
+              of unnecessary OT per week.
             </p>
           </div>
         )}
@@ -300,7 +300,7 @@ function BranchCard({
           className="mt-3 flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300"
         >
           {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-          {expanded ? "詳細を隠す" : "曜日別データを表示"}
+          {expanded ? "Hide Details" : "Show Day-by-Day Data"}
         </button>
       </div>
 
@@ -310,13 +310,13 @@ function BranchCard({
           <table className="min-w-full border-collapse text-xs">
             <thead className="bg-white/[0.03]">
               <tr>
-                <th className={TABLE_HEADER}>曜日</th>
-                <th className={TABLE_HEADER}>シフト数</th>
-                <th className={TABLE_HEADER}>平均退勤</th>
-                <th className={TABLE_HEADER}>推奨出勤 (Lean)</th>
-                <th className={TABLE_HEADER}>現在の出勤</th>
-                <th className={TABLE_HEADER}>平均実働</th>
-                <th className={TABLE_HEADER}>削減可能OT/シフト</th>
+                <th className={TABLE_HEADER}>Day</th>
+                <th className={TABLE_HEADER}>Shifts</th>
+                <th className={TABLE_HEADER}>Avg Check-out</th>
+                <th className={TABLE_HEADER}>Recommended Start (Lean)</th>
+                <th className={TABLE_HEADER}>Current Start</th>
+                <th className={TABLE_HEADER}>Avg Hours Worked</th>
+                <th className={TABLE_HEADER}>Reducible OT / Shift</th>
               </tr>
             </thead>
             <tbody>
@@ -464,7 +464,7 @@ export default function LeanShiftTab({
             Lean Shift Calculator
           </h2>
           <p className="mt-0.5 text-xs text-zinc-400">
-            不要なOTを含むシフトを検出し、最適な出勤時刻を提案します
+            Detects shifts with unnecessary OT and suggests optimal start times
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -475,7 +475,7 @@ export default function LeanShiftTab({
             className={`${SECONDARY_BUTTON} flex items-center gap-1.5 text-xs`}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-            更新
+            Refresh
           </button>
           {data?.rows?.length ? (
             <button
@@ -484,7 +484,7 @@ export default function LeanShiftTab({
               className={`${PRIMARY_BUTTON} flex items-center gap-1.5 text-xs`}
             >
               <Download className="h-3.5 w-3.5" />
-              CSV出力
+              Export CSV
             </button>
           ) : null}
         </div>
@@ -499,7 +499,7 @@ export default function LeanShiftTab({
           />
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
-              OT予算 / ブランチ / 期間 (分)
+              OT Budget / Branch / Period (min)
             </span>
             <div className="flex items-center gap-1.5">
               <input
@@ -510,18 +510,18 @@ export default function LeanShiftTab({
                 onChange={(e) => setBudgetMins(Number(e.target.value))}
                 className={`h-8 w-24 ${INPUT_CLASS}`}
               />
-              <span className="text-[10px] text-zinc-500">= {Math.round(budgetMins / 60)}h/期間</span>
+              <span className="text-[10px] text-zinc-500">= {Math.round(budgetMins / 60)}h/period</span>
             </div>
           </div>
           <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">並び順</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Sort Order</span>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as "ot_desc" | "name")}
               className="h-8 rounded-lg border border-white/10 bg-white/5 px-2 text-xs text-white"
             >
-              <option value="ot_desc">削減OT多い順</option>
-              <option value="name">ブランチ名順</option>
+              <option value="ot_desc">Most Reducible OT</option>
+              <option value="name">Branch Name</option>
             </select>
           </div>
         </div>
@@ -544,25 +544,25 @@ export default function LeanShiftTab({
           {/* Summary strip */}
           <div className="grid grid-cols-3 gap-3">
             <div className={`${GLASS_CARD} p-3 text-center`}>
-              <p className="text-[10px] uppercase tracking-wide text-zinc-500">削減可能OT合計</p>
+              <p className="text-[10px] uppercase tracking-wide text-zinc-500">Reducible OT Total</p>
               <p className={`mt-1 text-2xl font-bold tabular-nums ${totalReducible > 0 ? "text-amber-400" : "text-emerald-400"}`}>
                 {totalReducible > 0 ? fmtMins(totalReducible) : "0"}
               </p>
-              <p className="mt-0.5 text-[10px] text-zinc-600">全ブランチ × 全シフト合計</p>
+              <p className="mt-0.5 text-[10px] text-zinc-600">All branches × all shifts</p>
             </div>
             <div className={`${GLASS_CARD} p-3 text-center`}>
-              <p className="text-[10px] uppercase tracking-wide text-zinc-500">OT削減対象ブランチ</p>
+              <p className="text-[10px] uppercase tracking-wide text-zinc-500">Branches with Reducible OT</p>
               <p className={`mt-1 text-2xl font-bold tabular-nums ${branchesWithOt > 0 ? "text-red-400" : "text-emerald-400"}`}>
                 {branchesWithOt} <span className="text-base text-zinc-500">/ {summary?.total_branches ?? 0}</span>
               </p>
-              <p className="mt-0.5 text-[10px] text-zinc-600">built-in OT が検出されたブランチ</p>
+              <p className="mt-0.5 text-[10px] text-zinc-600">Branches where built-in OT was detected</p>
             </div>
             <div className={`${GLASS_CARD} p-3 text-center`}>
-              <p className="text-[10px] uppercase tracking-wide text-zinc-500">公式</p>
+              <p className="text-[10px] uppercase tracking-wide text-zinc-500">Formula</p>
               <p className="mt-1 text-xs font-mono text-sky-300">
                 Lean Start<br />= Avg Checkout − 9h
               </p>
-              <p className="mt-0.5 text-[10px] text-zinc-600">退勤時刻 - 9時間 = 理想の出勤時刻</p>
+              <p className="mt-0.5 text-[10px] text-zinc-600">Check-out time − 9 hours = ideal start time</p>
             </div>
           </div>
 

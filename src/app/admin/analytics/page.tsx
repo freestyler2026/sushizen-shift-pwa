@@ -155,11 +155,11 @@ function normalizeAttendanceSyncMessage(raw: string, fallback: string) {
   const text = String(raw || "").trim();
   const lower = text.toLowerCase();
   if (!text) return fallback;
-  if (lower.includes("invalid pin")) return "PINが正しくありません。";
-  if (lower.includes("forbidden") || lower.includes("permission")) return "同期権限がありません（HQ/ADMIN のPIN確認が必要です）。";
-  if (lower.includes("attendance drive source not found")) return "同期元設定が見つかりません。";
-  if (lower.includes("no attendance files found")) return "Driveフォルダに対象ファイルがありません。";
-  if (lower.includes("already imported") || lower.includes("duplicate")) return "最新ファイルは既に取り込み済みです。";
+  if (lower.includes("invalid pin")) return "Incorrect PIN.";
+  if (lower.includes("forbidden") || lower.includes("permission")) return "Sync permission denied (HQ/ADMIN PIN required).";
+  if (lower.includes("attendance drive source not found")) return "Sync source not configured.";
+  if (lower.includes("no attendance files found")) return "No attendance files found in Drive folder.";
+  if (lower.includes("already imported") || lower.includes("duplicate")) return "Latest file already imported.";
   return text;
 }
 
@@ -3939,15 +3939,15 @@ export default function AdminAnalyticsPage() {
       });
       const rawMsg = String(res?.message || "").trim();
       if (res?.duplicate) {
-        setAttendanceSyncMessage("最新ファイルは既に取り込み済みです。");
+        setAttendanceSyncMessage("Latest file already imported.");
       } else if (rawMsg) {
-        setAttendanceSyncMessage(normalizeAttendanceSyncMessage(rawMsg, "Bayzat同期が完了しました。"));
+        setAttendanceSyncMessage(normalizeAttendanceSyncMessage(rawMsg, "Bayzat sync complete."));
       } else {
-        setAttendanceSyncMessage("Bayzat同期が完了しました。");
+        setAttendanceSyncMessage("Bayzat sync complete.");
       }
       await loadAll("staff");
     } catch (e: any) {
-      setAttendanceSyncMessage(normalizeAttendanceSyncMessage(String(e?.message || e || ""), "Bayzat同期に失敗しました。"));
+      setAttendanceSyncMessage(normalizeAttendanceSyncMessage(String(e?.message || e || ""), "Bayzat sync failed."));
     } finally {
       setAttendanceSyncing(false);
     }
@@ -3967,7 +3967,7 @@ export default function AdminAnalyticsPage() {
         }
       );
       const msg = String(res?.message || "").trim();
-      const folderNote = res?.resolved_folder_url ? ` (フォルダ: ${res.resolved_folder_url})` : "";
+      const folderNote = res?.resolved_folder_url ? ` (Folder: ${res.resolved_folder_url})` : "";
       if (msg) {
         setPayrollSyncMessage(msg + folderNote);
       } else if (res?.duplicate) {
@@ -5120,7 +5120,7 @@ export default function AdminAnalyticsPage() {
         const reasons = cityResults
           .flatMap((r) => (r.data_quality.missing_sources || []).map((m: any) => `${cityLabels[r.city as AiCityKey]}:${m.source}`))
           .join(", ");
-        throw new Error(`分析に必要なデータが取得できませんでした。${reasons ? ` (${reasons})` : ""}`);
+        throw new Error(`Could not retrieve required data for analysis.${reasons ? ` (${reasons})` : ""}`);
       }
       const citiesPayload = cityResults.reduce<Record<string, any>>((acc, r) => {
         acc[r.city] = r.metrics;
@@ -5231,7 +5231,7 @@ export default function AdminAnalyticsPage() {
       if (!streamRes.ok) {
         const errText = await streamRes.text();
         const detail = parseApiErrorDetail(errText);
-        throw new Error(normalizeApiErrorMessage(detail || errText, "AI との通信に失敗しました"));
+        throw new Error(normalizeApiErrorMessage(detail || errText, "Failed to connect to AI"));
       }
 
       const reader = streamRes.body?.getReader();
@@ -5289,7 +5289,7 @@ export default function AdminAnalyticsPage() {
         )
       );
     } catch (e: any) {
-      setAiError(e?.message || "AI との通信に失敗しました");
+      setAiError(e?.message || "Failed to connect to AI");
     } finally {
       setAiLoading(false);
       window.setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
@@ -6027,19 +6027,19 @@ export default function AdminAnalyticsPage() {
                 <div>
                   <div className="text-base font-bold text-neutral-100">AI Analytics Consultant</div>
                   <div className="text-xs text-neutral-500">
-                    現在表示中のアナリティクスデータを基に、Claude AI が分析・提言を行います。
+                    Claude AI analyses and provides recommendations based on the currently displayed analytics data.
                   </div>
                 </div>
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
                 {[
-                  "今月の勤怠状況を総括して",
-                  "遅刻・欠勤の多いスタッフへの対策を提案して",
-                  "ブランチ別のパフォーマンスを比較分析して",
-                  "売上と労働時間の関係を分析して",
-                  "来月のシフト計画で注意すべき点は？",
-                  "コスト削減のために改善できる点を教えて",
+                  "Summarize this month's attendance",
+                  "Suggest actions for high-absence staff",
+                  "Compare performance across branches",
+                  "Analyse the relationship between sales and hours worked",
+                  "What should we watch for in next month's schedule?",
+                  "What can we improve to reduce costs?",
                 ].map((q) => (
                   <button
                     key={q}
@@ -6057,8 +6057,7 @@ export default function AdminAnalyticsPage() {
             {salesStepUpReady ? (
               <div className="space-y-2 rounded-xl border border-neutral-700/50 bg-neutral-900/50 p-3">
                 <p className="text-xs text-neutral-500">
-                  ✨ 質問に月を含めると自動で期間を検出します（例:「3月の」「先月の」）。
-                  指定がない場合は先月のデータを使用します。
+                  ✨ Include a month in your question and the date range will be detected automatically (e.g. "in March", "last month"). If not specified, last month's data is used.
                 </p>
               </div>
             ) : null}
@@ -6066,7 +6065,7 @@ export default function AdminAnalyticsPage() {
             <div className="max-h-[500px] min-h-[300px] space-y-4 overflow-y-auto rounded-2xl border border-neutral-800 bg-neutral-900/30 p-4">
               {aiMessages.length === 0 ? (
                 <div className="flex h-full items-center justify-center py-12 text-sm text-neutral-600">
-                  上のボタンを押すか、質問を入力してください
+                  Press a button above or type a question to get started
                 </div>
               ) : null}
 
@@ -6098,7 +6097,7 @@ export default function AdminAnalyticsPage() {
                       </div>
                       {msg.role === "assistant" && !(msg as any).streaming && (
                         msg.saved ? (
-                          <span className="text-[11px] text-emerald-500">✅ 保存済み</span>
+                          <span className="text-[11px] text-emerald-500">✅ Saved</span>
                         ) : (
                           <button
                             type="button"
@@ -6126,12 +6125,12 @@ export default function AdminAnalyticsPage() {
                                   )
                                 );
                               } catch {
-                                alert("保存に失敗しました。");
+                                alert("Failed to save.");
                               }
                             }}
                             className="rounded-lg border border-neutral-600/40 bg-neutral-700/40 px-2 py-0.5 text-[11px] text-neutral-300 transition hover:bg-neutral-600/60"
                           >
-                            💾 保存
+                            💾 Save
                           </button>
                         )
                       )}
@@ -6145,7 +6144,7 @@ export default function AdminAnalyticsPage() {
                   <div className="rounded-2xl border border-neutral-700/40 bg-neutral-800/60 px-4 py-3">
                     <div className="flex items-center gap-2 text-sm text-neutral-400">
                       <Spinner size="sm" />
-                      分析中...
+                      Analysing...
                     </div>
                   </div>
                 </div>
@@ -6165,7 +6164,7 @@ export default function AdminAnalyticsPage() {
                 type="text"
                 value={aiInput}
                 onChange={(e) => setAiInput(e.target.value)}
-                placeholder="質問を入力（例：Business Bay の遅刻率が高い原因は？）"
+                placeholder="Enter a question (e.g. Why is the late rate high at Business Bay?)"
                 disabled={aiLoading || !salesStepUpReady}
                 className="flex-1 rounded-xl border border-neutral-800 bg-neutral-900/40 px-4 py-3 text-sm text-neutral-200 placeholder:text-neutral-600 transition focus:border-violet-500/60 focus:outline-none disabled:opacity-50"
               />
@@ -6175,7 +6174,7 @@ export default function AdminAnalyticsPage() {
                 disabled={aiLoading || !aiInput.trim() || !salesStepUpReady}
                 className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:opacity-50"
               >
-                送信
+                Send
               </button>
               {aiMessages.length > 0 ? (
                 <button
@@ -6186,23 +6185,23 @@ export default function AdminAnalyticsPage() {
                   }}
                   className="rounded-xl border border-neutral-800 px-4 py-3 text-xs text-neutral-400 transition hover:bg-neutral-900/40"
                 >
-                  クリア
+                  Clear
                 </button>
               ) : null}
             </div>
 
             {!salesStepUpReady ? (
               <div className="text-[10px] text-neutral-600">
-                Security セクションで MFA / PIN step-up を完了すると AI Analyst を利用できます。
+                Complete MFA / PIN step-up in the Security section to access AI Analyst.
               </div>
             ) : (
               <div className="flex items-center justify-between text-[10px] text-neutral-600">
-                <span>Powered by Claude (Anthropic) • 回答はデータに基づく参考情報です</span>
+                <span>Powered by Claude (Anthropic) • Responses are for reference only and based on available data</span>
                 <a
                   href="/admin/analytics/ai-history"
                   className="text-violet-400 hover:text-violet-300 hover:underline"
                 >
-                  過去の分析履歴 →
+                  Analysis History →
                 </a>
               </div>
             )}
@@ -9549,7 +9548,7 @@ export default function AdminAnalyticsPage() {
                   }}
                   className={SECONDARY_BUTTON + " text-sm"}
                 >
-                  今月（月初〜今日）
+                  This Month (1st–Today)
                 </button>
                 <button
                   type="button"
@@ -9670,7 +9669,7 @@ export default function AdminAnalyticsPage() {
                 </div>
               ) : null}
               {attendanceSyncMessage ? (
-                <div className={`${attendanceSyncMessage.includes("既に取り込み済み") ? BADGE_INFO : BADGE_SUCCESS} mt-3 px-3 py-2 text-xs`}>
+                <div className={`${attendanceSyncMessage.includes("already imported") ? BADGE_INFO : BADGE_SUCCESS} mt-3 px-3 py-2 text-xs`}>
                   {attendanceSyncMessage}
                 </div>
               ) : null}

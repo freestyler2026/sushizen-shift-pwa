@@ -539,7 +539,7 @@ export default function LoansPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className={T_PAGE_TITLE}>Employee Loans</p>
-            <p className={`${T_BODY} mt-1`}>ローン申請・承認・分割返済管理</p>
+            <p className={`${T_BODY} mt-1`}>Loan applications, approvals and repayment management</p>
           </div>
           <div className="flex items-center gap-2">
             {["dubai", "manila"].map(c => (

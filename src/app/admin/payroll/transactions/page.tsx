@@ -509,7 +509,7 @@ function PayrollTransactionsInner() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className={T_PAGE_TITLE}>Payroll Transactions</p>
-            <p className={`${T_BODY} mt-1`}>月次クローズ・支払い管理・給与明細</p>
+            <p className={`${T_BODY} mt-1`}>Monthly close, payment management and payslips</p>
           </div>
           <div className="flex gap-2">
             {["dubai", "manila"].map(c => (
