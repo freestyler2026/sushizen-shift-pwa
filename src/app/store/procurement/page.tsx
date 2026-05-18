@@ -520,7 +520,17 @@ export default function StoreProcurementHomePage() {
   const auth = useMemo(() => getAuth(), []);
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
-  const [city, setCity] = useState((auth?.city || "manila").toLowerCase());
+  const [city, setCity] = useState(() => {
+    // Determine city from stored branch first; fall back to auth.city
+    const storedBranch = (typeof window !== "undefined" ? localStorage.getItem("store_proc_branch") || "" : "").toUpperCase();
+    if (storedBranch) {
+      const inManila = BRANCHES.manila.some((b) => b.code === storedBranch);
+      const inDubai  = BRANCHES.dubai.some((b) => b.code === storedBranch);
+      if (inManila && !inDubai) return "manila";
+      if (inDubai  && !inManila) return "dubai";
+    }
+    return (auth?.city || "manila").toLowerCase();
+  });
   const [storeCode, setStoreCode] = useState(() => {
     if (typeof window !== "undefined") return localStorage.getItem("store_proc_branch") || "";
     return "";
