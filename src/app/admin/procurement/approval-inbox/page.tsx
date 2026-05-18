@@ -39,6 +39,7 @@ type CaseRow = {
   notification_failed_count?: number;
   purchase_type?: string;
   payment_status?: string;
+  city?: string;
 };
 
 function severityBadge(severity: string) {
@@ -269,10 +270,13 @@ export default function ProcurementApprovalInboxPage() {
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
                     <span>By <span className="text-zinc-200">{row.requested_by || "-"}</span></span>
                     <span>Store <span className="text-zinc-200">{row.store_code || "-"}</span></span>
+                    {row.city && row.city.toLowerCase() !== city.toLowerCase() && (
+                      <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-medium text-sky-300 uppercase">{row.city}</span>
+                    )}
                     <span>
                       Amount{" "}
                       <span className={`font-semibold ${isHighValue ? "text-amber-300" : "text-zinc-200"}`}>
-                        {Number(row.total_amount || 0).toFixed(2)} {currencyCode}
+                        {Number(row.total_amount || 0).toFixed(2)} {String(row.city || city).toLowerCase() === "dubai" ? "AED" : "PHP"}
                       </span>
                     </span>
                   </div>
