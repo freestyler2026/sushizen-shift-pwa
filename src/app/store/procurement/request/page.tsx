@@ -706,7 +706,7 @@ export default function StoreProcurementRequestPage() {
 
   return (
     <div className={PAGE_BG}>
-      <div className="mx-auto max-w-7xl space-y-4 px-4 py-8">
+      <div className={`mx-auto max-w-7xl space-y-4 px-4 py-8${validItems.length > 0 && !showSubmitReview ? " pb-28" : ""}`}>
       {error ? <div className="rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-sm text-red-300">{error}</div> : null}
       {info ? <div className="rounded-xl border border-emerald-900/40 bg-emerald-950/20 px-3 py-2 text-sm text-emerald-300">{info}</div> : null}
       {showDateWarning ? (
@@ -1537,6 +1537,51 @@ export default function StoreProcurementRequestPage() {
           </div>
         ) : null}
       </div>
+
+      {/* Sticky submit bar — visible whenever items are in cart and review is not open */}
+      {validItems.length > 0 && !showSubmitReview && (
+        <div className="no-print fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-slate-900/95 px-4 py-3 backdrop-blur-md">
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
+            <div className="text-sm text-zinc-300">
+              <span className="font-semibold text-white">{validItems.length}</span> item{validItems.length !== 1 ? "s" : ""}
+              <span className="ml-2 text-zinc-400">·</span>
+              <span className="ml-2 font-semibold text-amber-300">
+                {currencyCode} {validItemsTotal.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!storeCode.trim()) { setError("Store selection is required."); return; }
+                  setError("");
+                  setReviewMode("draft");
+                  setShowSubmitReview(true);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                disabled={busy !== ""}
+                className="rounded-xl border border-white/15 bg-white/8 px-4 py-2 text-xs font-medium text-zinc-200 transition hover:bg-white/15 disabled:opacity-50"
+              >
+                Save Draft
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!storeCode.trim()) { setError("Store selection is required."); return; }
+                  setError("");
+                  setReviewMode("submit");
+                  setShowSubmitReview(true);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                disabled={busy !== ""}
+                className="rounded-xl bg-violet-600 px-5 py-2 text-xs font-semibold text-white transition hover:bg-violet-500 disabled:opacity-50"
+              >
+                Review &amp; Submit →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* City-switch confirmation modal */}
       {pendingCitySwitch && (
