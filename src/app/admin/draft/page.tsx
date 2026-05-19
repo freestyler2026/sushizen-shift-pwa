@@ -414,6 +414,13 @@ async function apiGet<T = any>(path: string): Promise<T> {
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
 
+class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 async function apiPost<T = any>(path: string, body?: any): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
@@ -422,12 +429,9 @@ async function apiPost<T = any>(path: string, body?: any): Promise<T> {
   });
   const text = await res.text();
   if (!res.ok) {
-    try {
-      const j = JSON.parse(text);
-      throw new Error(j?.detail || text || `POST ${path} failed`);
-    } catch {
-      throw new Error(text || `POST ${path} failed`);
-    }
+    let msg = text || `POST ${path} failed`;
+    try { msg = JSON.parse(text)?.detail || msg; } catch { /* non-JSON */ }
+    throw new ApiError(res.status, msg);
   }
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
@@ -1110,6 +1114,14 @@ export default function AdminDraftPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  // 409 guard: when generate_month returns 409 (already sent to Manual Shift),
+  // store the blocked payload here so the user can confirm force-replace.
+  const [replaceGuard, setReplaceGuard] = useState<{
+    city: string;
+    branch_codes: string[];
+    target_month: string;
+    blockedBranches: string[];
+  } | null>(null);
 
   const [versions, setVersions] = useState<BatchDraftVersion[]>([]);
   const [activeBranchCode, setActiveBranchCode] = useState<string>("");
@@ -1388,6 +1400,7 @@ export default function AdminDraftPage() {
       let totalOvertimeHours = 0;
       let totalUnresolvedHours = 0;
 
+      const blockedBranches: string[] = [];
       for (const code of prepared.branch_codes) {
         try {
           const res = (await apiPost(`/api/draft/generate_month`, {
@@ -1409,11 +1422,27 @@ export default function AdminDraftPage() {
           totalOvertimeHours += Number(res.summary?.total_overtime_hours || 0);
           totalUnresolvedHours += Number(res.summary?.total_unresolved_hours || 0);
         } catch (branchError: any) {
-          failedBranches.push({
-            branch_code: code,
-            detail: String(branchError?.message || branchError || "Failed"),
-          });
+          if (branchError instanceof ApiError && branchError.status === 409) {
+            blockedBranches.push(code);
+          } else {
+            failedBranches.push({
+              branch_code: code,
+              detail: String(branchError?.message || branchError || "Failed"),
+            });
+          }
         }
+      }
+
+      // If any branches were blocked by SENT_TO_MANUAL guard, show confirm modal
+      if (blockedBranches.length > 0) {
+        setReplaceGuard({
+          city: prepared.city,
+          branch_codes: prepared.branch_codes,
+          target_month: prepared.target_month,
+          blockedBranches,
+        });
+        setLoading(false);
+        if (!nextVersions.length) return; // all blocked, stop here
       }
 
       if (!nextVersions.length) {
@@ -1490,6 +1519,63 @@ export default function AdminDraftPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  // Called when user confirms "Replace All" in the 409 guard modal
+  async function handleForceReplace() {
+    if (!replaceGuard) return;
+    setReplaceGuard(null);
+    setLoading(true);
+    setError("");
+    const nextVersions: BatchDraftVersion[] = [];
+    const failedBranches: Array<{ branch_code: string; detail: string }> = [];
+    let totalRowsInserted = 0;
+    for (const code of replaceGuard.branch_codes) {
+      try {
+        const res = (await apiPost(`/api/draft/generate_month`, {
+          city: replaceGuard.city,
+          branch_code: code,
+          target_month: replaceGuard.target_month,
+          created_by: approverName || "AI",
+          force_replace: true,
+        })) as DraftGenerateMonthResult;
+        nextVersions.push({
+          branch_code: res.branch_code,
+          branch_name: labelOf("dubai", res.branch_code),
+          version_id: res.version_id,
+          version_week_start: res.version_week_start,
+          rows_inserted: res.rows_inserted,
+          days_generated: res.days_generated,
+          summary: res.summary,
+        });
+        totalRowsInserted += Number(res.rows_inserted || 0);
+      } catch (branchError: any) {
+        failedBranches.push({
+          branch_code: code,
+          detail: String(branchError?.message || branchError || "Failed"),
+        });
+      }
+    }
+    if (nextVersions.length) {
+      setVersions(nextVersions);
+      setActiveBranchCode(nextVersions[0]?.branch_code || "");
+      setGenerateResult({
+        ok: failedBranches.length === 0,
+        city: replaceGuard.city,
+        target_month: replaceGuard.target_month,
+        branches_generated: nextVersions.length,
+        total_rows_inserted: totalRowsInserted,
+        total_overtime_hours: 0,
+        total_unresolved_hours: 0,
+        versions: nextVersions,
+        failed_branches: failedBranches,
+      });
+      setApplyMonth(replaceGuard.target_month);
+    }
+    if (failedBranches.length) {
+      setError(failedBranches.map((f) => `${f.branch_code}: ${f.detail}`).join("\n"));
+    }
+    setLoading(false);
   }
 
   function startEditRow(r: DraftRow) {
@@ -2173,6 +2259,47 @@ export default function AdminDraftPage() {
         : "Draft exported to Google Sheets";
 
   return (
+    <>
+    {/* ── 409 Replace Guard Modal ──────────────────────────────────────────── */}
+    {replaceGuard && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+        <div className="w-full max-w-md rounded-2xl border border-amber-300 bg-white p-6 shadow-2xl">
+          <div className="mb-4 flex items-start gap-3">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-amber-100">
+              <span className="text-xl">⚠️</span>
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-gray-900">Draft already sent to Manual Shift</h3>
+              <p className="mt-1 text-sm text-gray-600">
+                The following branches for <strong>{replaceGuard.target_month}</strong> have already been loaded
+                into Manual Shift. Regenerating will overwrite any manual edits made there.
+              </p>
+            </div>
+          </div>
+          <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 mb-1">Blocked branches</p>
+            <p className="text-sm text-amber-900 font-medium">{replaceGuard.blockedBranches.join(", ")}</p>
+          </div>
+          <p className="mb-5 text-sm text-gray-600">
+            Are you sure you want to <strong>replace all</strong> and regenerate from scratch?
+          </p>
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={() => setReplaceGuard(null)}
+              className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleForceReplace}
+              className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+            >
+              Replace All &amp; Regenerate
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
@@ -3302,5 +3429,6 @@ export default function AdminDraftPage() {
         </>
       )}
     </motion.div>
+    </>
   );
 }

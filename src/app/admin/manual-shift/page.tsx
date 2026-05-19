@@ -430,6 +430,7 @@ export default function ManualShiftPage() {
   const [bayzatImporting, setBayzatImporting] = useState(false);
   const [bayzatAllApplied, setBayzatAllApplied] = useState<string[] | null>(null);
   const [dbImporting, setDbImporting] = useState(false);
+  const [draftImporting, setDraftImporting] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -823,6 +824,65 @@ export default function ManualShiftPage() {
     }
   }
 
+  // ─── Load from AI Draft ───────────────────────────────────────────────────────
+  async function handleLoadFromDraft() {
+    if (!branchCode) { setError("Branch not selected"); return; }
+
+    const existingKeys = Object.keys(gridData);
+    const hasExistingData = existingKeys.length > 0;
+    if (hasExistingData) {
+      if (!window.confirm(
+        `Load AI Draft shifts into ${labelOf(city, branchCode)} for week of ${weekStart}?\n\n` +
+        `This will overwrite any existing data in the grid for this week. Continue?`
+      )) return;
+    }
+
+    setDraftImporting(true);
+    setError("");
+    try {
+      const res = await apiFetch<{
+        ok: boolean;
+        version_id: string;
+        rows: Array<{ work_date: string; staff_name: string; role: string; start_hour: number; end_hour: number }>;
+      }>(
+        `/api/admin/draft/rows_for_week?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}&week_start=${encodeURIComponent(weekStart)}`
+      );
+
+      if (!res.ok || !res.rows?.length) {
+        setError("No draft rows found for this branch and week.");
+        return;
+      }
+
+      // Build a GridData from draft rows
+      const newGrid: GridData = {};
+      for (const r of res.rows) {
+        if (!newGrid[r.staff_name]) newGrid[r.staff_name] = {};
+        const cell: ShiftCell = { start_hour: r.start_hour, end_hour: r.end_hour, role: r.role || "STAFF" };
+        const existing = newGrid[r.staff_name][r.work_date];
+        if (existing == null) {
+          newGrid[r.staff_name][r.work_date] = cell;
+        } else {
+          const arr = Array.isArray(existing) ? existing : [existing];
+          const merged = [...arr, cell].sort((a, b) => a.start_hour - b.start_hour);
+          newGrid[r.staff_name][r.work_date] = merged.length === 1 ? merged[0] : merged;
+        }
+      }
+
+      saveDraft(city, branchCode, weekStart, newGrid);
+      setHasDraft(true);
+      // Trigger a re-render of the grid by reloading staff + shifts
+      const staffOk = await loadStaff();
+      if (!staffOk) return;
+      await loadExistingShifts(false);
+      setError("");
+      alert(`Loaded ${res.rows.length} draft shifts into the grid for ${labelOf(city, branchCode)}.\n\nReview and publish when ready.`);
+    } catch (ex: unknown) {
+      setError(ex instanceof Error ? ex.message : "Load from Draft failed");
+    } finally {
+      setDraftImporting(false);
+    }
+  }
+
   // ─── Apply Bayzat rows for ALL branches in the file at once ─────────────────
   // Saves each branch's Bayzat data to localStorage (draft). When the user
   // switches to any branch that branch's draft will be auto-loaded, so they
@@ -1200,6 +1260,17 @@ export default function ManualShiftPage() {
                   className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-medium text-violet-700 transition hover:bg-violet-100 disabled:opacity-50"
                 >
                   {dbImporting ? "Loading…" : "🗄️ Load from DB"}
+                </button>
+              )}
+              {staffList.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleLoadFromDraft}
+                  disabled={draftImporting || loading}
+                  title="Load AI-generated draft shifts for this week into the grid for editing"
+                  className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100 disabled:opacity-50"
+                >
+                  {draftImporting ? "Loading…" : "🤖 Load AI Draft"}
                 </button>
               )}
             </div>
