@@ -133,6 +133,7 @@ export default function StoreProcurementRequestPage() {
   );
   const [catalogSuppliers, setCatalogSuppliers] = useState<SupplierCatalog[]>([]);
   const [catalogBusy, setCatalogBusy] = useState(false);
+  const [supplierFilter, setSupplierFilter] = useState<string>("");
   const addCatalogItemFn = async () => {
     if (!addItemName.trim()) { setAddCatalogError("Item name is required."); return; }
     if (!addSupplier.trim()) { setAddCatalogError("Supplier is required."); return; }
@@ -446,8 +447,10 @@ export default function StoreProcurementRequestPage() {
           setCatalogCategories(categories.length ? categories : DUBAI_CURATED_CATEGORIES);
         }
         setCatalogSuppliers(suppliers);
+        setSupplierFilter("");
       } catch (e: any) {
         setCatalogSuppliers([]);
+        setSupplierFilter("");
         setError(friendlyProcurementError(e));
       } finally {
         setCatalogBusy(false);
@@ -1024,16 +1027,36 @@ export default function StoreProcurementRequestPage() {
           )}
         </div>
         {supplierSections.length ? (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {supplierSections.map((section) => (
-              <a
-                key={section.anchor}
-                href={`#${section.anchor}`}
-                className="rounded-full border border-violet-500/25 bg-violet-500/12 px-3 py-1 text-[11px] text-violet-200 hover:bg-violet-500/18"
+          <div className="mt-3 flex flex-wrap gap-2 items-center">
+            <span className="text-[11px] text-neutral-500 mr-1">Filter supplier:</span>
+            {supplierSections.map((section) => {
+              const isActive = supplierFilter === section.supplier;
+              return (
+                <button
+                  key={section.anchor}
+                  type="button"
+                  onClick={() => setSupplierFilter(isActive ? "" : section.supplier)}
+                  className={[
+                    "rounded-full border px-3 py-1 text-[11px] font-medium transition-all",
+                    isActive
+                      ? "border-violet-400 bg-violet-500/30 text-violet-100 shadow-sm"
+                      : "border-violet-500/25 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20",
+                  ].join(" ")}
+                >
+                  {section.supplier} ({section.enteredCount}/{section.rows.length})
+                  {isActive && <span className="ml-1.5 opacity-60">✕</span>}
+                </button>
+              );
+            })}
+            {supplierFilter && (
+              <button
+                type="button"
+                onClick={() => setSupplierFilter("")}
+                className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[11px] text-neutral-400 hover:text-neutral-200 transition-colors"
               >
-                {section.supplier} ({section.enteredCount}/{section.rows.length})
-              </a>
-            ))}
+                Show all
+              </button>
+            )}
           </div>
         ) : null}
       </div>
@@ -1077,7 +1100,7 @@ export default function StoreProcurementRequestPage() {
                 : "Select a store to load the supplier item list."}
             </div>
           ) : null}
-          {supplierSections.map((section) => (
+          {supplierSections.filter(s => !supplierFilter || s.supplier === supplierFilter).map((section) => (
             <section key={section.anchor} id={section.anchor} className={`${SUB_PANEL}`}>
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/8 px-4 py-3">
                 <div>

@@ -39,6 +39,7 @@ type CaseRow = {
   notification_failed_count?: number;
   purchase_type?: string;
   payment_status?: string;
+  request_status?: string;
   city?: string;
 };
 
@@ -76,9 +77,37 @@ export default function ProcurementApprovalInboxPage() {
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState<"needs_approval" | "awaiting_execution">("needs_approval");
 
   const currencyCode = city === "dubai" ? "AED" : "PHP";
   const APPROVAL_THRESHOLD = city === "dubai" ? 500 : 15000;
+
+  // "Needs Approval": open cases not yet approved/rejected/returned
+  const needsApprovalRows = useMemo(
+    () => rows.filter((r) => !["APPROVED", "REJECTED", "RETURNED"].includes((r.status || "").toUpperCase())),
+    [rows],
+  );
+
+  // "Awaiting Execution": approved cases where the underlying request still needs action
+  // - Cash/EC: request not yet PURCHASED/RECEIVED/CLOSED
+  // - Prepaid: payment not yet confirmed
+  const EXECUTED_REQ_STATUSES = ["PURCHASED", "RECEIVED", "CLOSED", "PAYMENT_CONFIRMED"];
+  const awaitingExecutionRows = useMemo(
+    () =>
+      rows.filter((r) => {
+        if ((r.status || "").toUpperCase() !== "APPROVED") return false;
+        const pt = (r.purchase_type || "").toLowerCase();
+        if (pt === "cash_purchase" || pt === "ec_purchase") {
+          return !EXECUTED_REQ_STATUSES.includes((r.request_status || "").toUpperCase());
+        }
+        if (pt === "prepaid") {
+          return (r.payment_status || "").toUpperCase() !== "PAYMENT_CONFIRMED";
+        }
+        return false;
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows],
+  );
 
   const load = useCallback(async () => {
     setError("");
@@ -91,10 +120,11 @@ export default function ProcurementApprovalInboxPage() {
         requestedBy,
         pin,
       );
-      const CLOSED_STATUSES = ["REJECTED", "APPROVED", "RETURNED"];
+      // Keep APPROVED cases for "Awaiting Execution" tab; discard only REJECTED/RETURNED
+      const DISCARD_STATUSES = ["REJECTED", "RETURNED"];
       setRows(
         Array.isArray(data?.rows)
-          ? data.rows.filter((r) => !CLOSED_STATUSES.includes((r.status || "").toUpperCase()))
+          ? data.rows.filter((r) => !DISCARD_STATUSES.includes((r.status || "").toUpperCase()))
           : [],
       );
     } catch (e: any) {
@@ -169,7 +199,7 @@ export default function ProcurementApprovalInboxPage() {
           <p className="mt-1 text-sm text-zinc-400">Pending procurement cases awaiting review or action.</p>
         </div>
         <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/25 bg-violet-500/15 px-2.5 py-0.5 text-xs font-medium text-violet-400">
-          <Inbox className="h-3 w-3" />{rows.length} pending
+          <Inbox className="h-3 w-3" />{needsApprovalRows.length} pending
         </span>
       </div>
 
@@ -213,6 +243,50 @@ export default function ProcurementApprovalInboxPage() {
         </div>
       )}
 
+      {/* Tabs */}
+      <div className="flex gap-1 rounded-2xl border border-white/8 bg-black/20 p-1">
+        <button
+          type="button"
+          onClick={() => setActiveTab("needs_approval")}
+          className={[
+            "flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all",
+            activeTab === "needs_approval"
+              ? "bg-violet-600/30 text-violet-100 shadow-sm border border-violet-500/30"
+              : "text-zinc-400 hover:text-zinc-200",
+          ].join(" ")}
+        >
+          Needs Approval
+          {needsApprovalRows.length > 0 && (
+            <span className={[
+              "rounded-full px-2 py-0.5 text-[11px] font-bold",
+              activeTab === "needs_approval" ? "bg-violet-500/40 text-violet-100" : "bg-white/10 text-zinc-300",
+            ].join(" ")}>
+              {needsApprovalRows.length}
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("awaiting_execution")}
+          className={[
+            "flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all",
+            activeTab === "awaiting_execution"
+              ? "bg-amber-600/20 text-amber-100 shadow-sm border border-amber-500/25"
+              : "text-zinc-400 hover:text-zinc-200",
+          ].join(" ")}
+        >
+          Awaiting Execution
+          {awaitingExecutionRows.length > 0 && (
+            <span className={[
+              "rounded-full px-2 py-0.5 text-[11px] font-bold",
+              activeTab === "awaiting_execution" ? "bg-amber-500/40 text-amber-100" : "bg-white/10 text-zinc-300",
+            ].join(" ")}>
+              {awaitingExecutionRows.length}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* Loading skeleton */}
       {loading && !rows.length && (
         <div className={`${GLASS_CARD} p-8 flex items-center justify-center gap-3 text-zinc-500`}>
@@ -222,15 +296,25 @@ export default function ProcurementApprovalInboxPage() {
       )}
 
       {/* Case list */}
-      {!loading && !rows.length && (
+      {!loading && activeTab === "needs_approval" && !needsApprovalRows.length && (
         <div className={`${GLASS_CARD} p-10 flex flex-col items-center gap-3`}>
           <Inbox className="h-8 w-8 text-zinc-600" />
           <p className={T_CAPTION}>No pending approval cases.</p>
         </div>
       )}
 
+      {!loading && activeTab === "awaiting_execution" && !awaitingExecutionRows.length && (
+        <div className={`${GLASS_CARD} p-10 flex flex-col items-center gap-3`}>
+          <Inbox className="h-8 w-8 text-zinc-600" />
+          <p className={T_CAPTION}>No approved orders awaiting execution.</p>
+          <p className="text-xs text-zinc-500 text-center max-w-xs">
+            Cash &amp; Carry and EC orders that have been approved but not yet purchased will appear here.
+          </p>
+        </div>
+      )}
+
       <div className="space-y-3">
-        {rows.map((row) => {
+        {(activeTab === "needs_approval" ? needsApprovalRows : awaitingExecutionRows).map((row) => {
           const isHighValue = Number(row.total_amount || 0) > APPROVAL_THRESHOLD;
           const hasPushFail = Number(row.notification_failed_count || 0) > 0;
           return (
@@ -254,6 +338,11 @@ export default function ProcurementApprovalInboxPage() {
                       {row.parent_case_no || row.request_no}
                     </span>
                     {statusBadge(row.status)}
+                    {activeTab === "awaiting_execution" && (
+                      <span className="rounded-full border border-amber-500/40 bg-amber-950/30 px-2 py-0.5 text-[11px] font-semibold text-amber-300">
+                        ⚡ Action Required
+                      </span>
+                    )}
                     {severityBadge(row.severity)}
                     {isHighValue && (
                       <span className={BADGE_WARNING}>⚠ High Value</span>
@@ -295,20 +384,49 @@ export default function ProcurementApprovalInboxPage() {
 
                 {/* Right: actions */}
                 <div className="flex shrink-0 flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void claim(row.id)}
-                    disabled={busyId === row.id}
-                    className={`${PRIMARY_BUTTON} px-4 py-2 text-xs`}
-                  >
-                    {busyId === row.id ? "Claiming…" : "Claim"}
-                  </button>
-                  <Link
-                    href={`/admin/procurement/cases/${row.id}`}
-                    className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-2 text-xs font-medium text-violet-300 transition hover:bg-violet-500/20"
-                  >
-                    Open Case →
-                  </Link>
+                  {activeTab === "needs_approval" ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void claim(row.id)}
+                        disabled={busyId === row.id}
+                        className={`${PRIMARY_BUTTON} px-4 py-2 text-xs`}
+                      >
+                        {busyId === row.id ? "Claiming…" : "Claim"}
+                      </button>
+                      <Link
+                        href={`/admin/procurement/cases/${row.id}`}
+                        className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-2 text-xs font-medium text-violet-300 transition hover:bg-violet-500/20"
+                      >
+                        Open Case →
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      {(row.purchase_type === "cash_purchase" || row.purchase_type === "ec_purchase") && (
+                        <Link
+                          href={`/admin/procurement/cases/${row.id}`}
+                          className="rounded-xl border border-amber-500/30 bg-amber-500/15 px-4 py-2 text-xs font-medium text-amber-200 transition hover:bg-amber-500/25"
+                        >
+                          Mark Purchased →
+                        </Link>
+                      )}
+                      {row.purchase_type === "prepaid" && (
+                        <Link
+                          href={`/admin/procurement/cases/${row.id}`}
+                          className="rounded-xl border border-purple-500/30 bg-purple-500/15 px-4 py-2 text-xs font-medium text-purple-200 transition hover:bg-purple-500/25"
+                        >
+                          Confirm Payment →
+                        </Link>
+                      )}
+                      <Link
+                        href={`/admin/procurement/cases/${row.id}`}
+                        className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-2 text-xs font-medium text-violet-300 transition hover:bg-violet-500/20"
+                      >
+                        Open Case →
+                      </Link>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
