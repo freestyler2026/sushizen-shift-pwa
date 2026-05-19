@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import InventoryTabs from "@/components/InventoryTabs";
 import { canAccessInventoryWorkspace, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, labelOf, type City } from "@/lib/branches";
@@ -99,6 +99,10 @@ export default function InventoryTransferOrdersPage() {
   const [selectedItemId, setSelectedItemId] = useState("");
   const [selectedQty, setSelectedQty] = useState("1");
   const [selectedUnit, setSelectedUnit] = useState<string>("pcs");
+  // Ingredient searchable combobox
+  const [ingredientSearch, setIngredientSearch] = useState("");
+  const [ingredientOpen, setIngredientOpen] = useState(false);
+  const ingredientRef = useRef<HTMLDivElement>(null);
 
   const [staffOptions, setStaffOptions] = useState<string[]>([]);
   const [itemOptions, setItemOptions] = useState<InventoryItemOption[]>([]);
@@ -154,7 +158,11 @@ export default function InventoryTransferOrdersPage() {
           }),
         ]);
         if (cancelled) return;
-        setItemOptions((itemsRes.rows || []).filter((item) => item.status !== "DELETED"));
+        setItemOptions(
+          (itemsRes.rows || [])
+            .filter((item) => item.status !== "DELETED")
+            .sort((a, b) => a.name.localeCompare(b.name))
+        );
         setHistoryRows(historyRes.rows || []);
         setStaffOptions(Array.isArray(staffRes.names) ? staffRes.names : []);
       } catch (e: any) {
@@ -205,6 +213,29 @@ export default function InventoryTransferOrdersPage() {
     setSelectedUnit(normalizeTransferUnit(selectedItem.storage_unit));
   }, [selectedItem]);
 
+  // Filtered ingredient list for combobox (max 100 to keep dropdown snappy)
+  const filteredIngredients = useMemo(() => {
+    const q = ingredientSearch.trim().toLowerCase();
+    if (!q) return itemOptions.slice(0, 100);
+    return itemOptions.filter(
+      (item) =>
+        item.name.toLowerCase().includes(q) ||
+        (item.sku || "").toLowerCase().includes(q)
+    ).slice(0, 100);
+  }, [itemOptions, ingredientSearch]);
+
+  // Close ingredient dropdown on outside click
+  useEffect(() => {
+    if (!ingredientOpen) return;
+    function handleOutside(e: MouseEvent) {
+      if (ingredientRef.current && !ingredientRef.current.contains(e.target as Node)) {
+        setIngredientOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [ingredientOpen]);
+
   const selectedQtyStep = getInventoryQuantityStep(selectedUnit);
 
   function addDraftItem() {
@@ -238,6 +269,7 @@ export default function InventoryTransferOrdersPage() {
       ];
     });
     setSelectedItemId("");
+    setIngredientSearch("");
     setSelectedQty("1");
     setSelectedUnit("pcs");
   }
@@ -454,18 +486,66 @@ export default function InventoryTransferOrdersPage() {
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_140px_140px_140px]">
-          <select
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-            value={selectedItemId}
-            onChange={(e) => setSelectedItemId(e.target.value)}
-          >
-            <option value="">Select an ingredient item</option>
-            {itemOptions.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name} {item.sku ? `(${item.sku})` : ""}
-              </option>
-            ))}
-          </select>
+          {/* ── Searchable ingredient combobox ── */}
+          <div ref={ingredientRef} className="relative">
+            <input
+              type="text"
+              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm placeholder-neutral-500 focus:outline-none focus:ring-1 focus:ring-neutral-600"
+              placeholder={selectedItem ? `${selectedItem.name}${selectedItem.sku ? ` (${selectedItem.sku})` : ""}` : "Search ingredient…"}
+              value={ingredientSearch}
+              onChange={(e) => {
+                setIngredientSearch(e.target.value);
+                setIngredientOpen(true);
+                if (!e.target.value) setSelectedItemId("");
+              }}
+              onFocus={() => setIngredientOpen(true)}
+              autoComplete="off"
+            />
+            {/* Clear button when an item is selected */}
+            {selectedItem && (
+              <button
+                type="button"
+                onClick={() => { setSelectedItemId(""); setIngredientSearch(""); setIngredientOpen(false); }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-200"
+                tabIndex={-1}
+                title="Clear selection"
+              >
+                ✕
+              </button>
+            )}
+            {/* Dropdown */}
+            {ingredientOpen && (
+              <div className="absolute z-50 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-neutral-700 bg-neutral-900 shadow-xl">
+                {filteredIngredients.length === 0 ? (
+                  <div className="px-3 py-2 text-xs text-neutral-500">No matches</div>
+                ) : (
+                  filteredIngredients.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault(); // prevent blur before click registers
+                        setSelectedItemId(item.id);
+                        setIngredientSearch("");
+                        setIngredientOpen(false);
+                      }}
+                      className={`w-full px-3 py-2 text-left text-sm hover:bg-neutral-800 ${
+                        item.id === selectedItemId ? "bg-neutral-800 text-emerald-300" : "text-neutral-200"
+                      }`}
+                    >
+                      <span className="font-medium">{item.name}</span>
+                      {item.sku && <span className="ml-1.5 text-xs text-neutral-500">({item.sku})</span>}
+                    </button>
+                  ))
+                )}
+                {itemOptions.length > 100 && filteredIngredients.length === 100 && (
+                  <div className="border-t border-neutral-800 px-3 py-1.5 text-xs text-neutral-500">
+                    Type to narrow down ({itemOptions.length} total)
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           <input
             type="text"
             inputMode="decimal"
