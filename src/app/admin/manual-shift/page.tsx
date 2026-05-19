@@ -828,8 +828,11 @@ export default function ManualShiftPage() {
   async function handleLoadFromDraft() {
     if (!branchCode) { setError("Branch not selected"); return; }
 
-    const existingKeys = Object.keys(gridData);
-    const hasExistingData = existingKeys.length > 0;
+    // Only warn if staff actually have shift cells — empty staff rows (loaded from
+    // staff master) do not count as "existing data" that would be overwritten.
+    const hasExistingData = Object.values(gridData).some(
+      (days) => Object.keys(days ?? {}).length > 0
+    );
     if (hasExistingData) {
       if (!window.confirm(
         `Load AI Draft shifts into ${labelOf(city, branchCode)} for week of ${weekStart}?\n\n` +

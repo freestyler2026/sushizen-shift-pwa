@@ -70,6 +70,8 @@ function makeFetch(
       return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
     if (u.includes("/api/admin/shifts/publish_from_base"))
       return new Response(JSON.stringify({ ok: true, rows_copied: 5 }), { status: 200, headers: { "Content-Type": "application/json" } });
+    if (u.includes("/api/admin/draft/rows_for_week"))
+      return new Response(JSON.stringify({ ok: true, version_id: "v-draft-1", rows: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
     return new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } });
   });
 }
@@ -937,6 +939,125 @@ describe("ManualShiftPage — helper utilities via rendering", () => {
     ["CK", "SV", "BA", "HK", "SC", "MGR"].forEach((role) => {
       expect(screen.getByRole("option", { name: role })).toBeInTheDocument();
     });
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────
+describe("ManualShiftPage — Load AI Draft button", () => {
+  afterEach(() => { vi.unstubAllGlobals(); localStorage.clear(); });
+
+  it("does NOT show Load AI Draft button before staff loads", async () => {
+    await renderPage();
+    expect(screen.queryByRole("button", { name: /🤖 Load AI Draft/i })).toBeNull();
+  });
+
+  it("shows Load AI Draft button after staff loads", async () => {
+    await renderPage();
+    await loadStaff();
+    await waitFor(() => {
+      expect(screen.getByTitle(/Load AI-generated draft shifts/i)).toBeInTheDocument();
+    });
+  });
+
+  it("Load AI Draft button is disabled while loading", async () => {
+    // The button is disabled during draftImporting state — check initial enabled state
+    await renderPage();
+    await loadStaff();
+    const btn = screen.getByTitle(/Load AI-generated draft shifts/i);
+    expect(btn).not.toBeDisabled();
+  });
+
+  it("Load AI Draft calls /api/admin/draft/rows_for_week with correct params", async () => {
+    // Draft rows — staff names match STAFF_NAMES so they can land in the grid
+    const weekStart = (() => {
+      const d = new Date();
+      const diff = d.getDay() === 0 ? -6 : 1 - d.getDay();
+      d.setDate(d.getDate() + diff);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    })();
+    const draftRow = {
+      work_date: weekStart,
+      staff_name: "Alice Cohen",
+      role: "CK",
+      start_hour: 9,
+      end_hour: 17,
+    };
+    const fetchMock = makeFetch([
+      {
+        match: "/api/admin/draft/rows_for_week",
+        body: { ok: true, version_id: "v-test-1", rows: [draftRow] },
+      },
+    ]);
+    vi.stubGlobal("confirm", () => true); // auto-confirm overwrite dialog
+    await renderPage(fetchMock);
+    await loadStaff();
+
+    fireEvent.click(screen.getByTitle(/Load AI-generated draft shifts/i));
+    await waitFor(() => {
+      const calls = (fetchMock as ReturnType<typeof vi.fn>).mock.calls;
+      const draftCall = calls.find(([url]: [string]) => String(url).includes("/api/admin/draft/rows_for_week"));
+      expect(draftCall).toBeDefined();
+      const url = String(draftCall![0]);
+      expect(url).toContain("city=dubai");
+      expect(url).toContain("branch_code=");
+      expect(url).toContain("week_start=");
+    }, { timeout: 5000 });
+  });
+
+  it("Load AI Draft shows alert when rows loaded successfully", async () => {
+    const weekStart = (() => {
+      const d = new Date();
+      const diff = d.getDay() === 0 ? -6 : 1 - d.getDay();
+      d.setDate(d.getDate() + diff);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    })();
+    const draftRows = [
+      { work_date: weekStart, staff_name: "Alice Cohen", role: "CK", start_hour: 9, end_hour: 17 },
+      { work_date: weekStart, staff_name: "Bob Smith (AL)", role: "SV", start_hour: 12, end_hour: 21 },
+    ];
+    const fetchMock = makeFetch([
+      { match: "/api/admin/draft/rows_for_week", body: { ok: true, version_id: "v-2", rows: draftRows } },
+    ]);
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => {});
+    vi.stubGlobal("confirm", () => true);
+    await renderPage(fetchMock);
+    await loadStaff();
+
+    fireEvent.click(screen.getByTitle(/Load AI-generated draft shifts/i));
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining("2 draft shifts"));
+    }, { timeout: 5000 });
+    alertSpy.mockRestore();
+  });
+
+  it("Load AI Draft shows error when API returns 404 (no draft found)", async () => {
+    const fetchMock = makeFetch([
+      {
+        match: "/api/admin/draft/rows_for_week",
+        body: { detail: "No draft found for dubai/BB covering week 2026-06-01" },
+        status: 404,
+      },
+    ]);
+    await renderPage(fetchMock);
+    await loadStaff();
+
+    fireEvent.click(screen.getByTitle(/Load AI-generated draft shifts/i));
+    await waitFor(() => {
+      expect(screen.getByText(/No draft found/i)).toBeInTheDocument();
+    }, { timeout: 5000 });
+  });
+
+  it("Load AI Draft shows error when API returns empty rows", async () => {
+    const fetchMock = makeFetch([
+      { match: "/api/admin/draft/rows_for_week", body: { ok: true, version_id: "v-empty", rows: [] } },
+    ]);
+    await renderPage(fetchMock);
+    await loadStaff();
+
+    fireEvent.click(screen.getByTitle(/Load AI-generated draft shifts/i));
+    await waitFor(() => {
+      expect(screen.getByText(/No draft rows found/i)).toBeInTheDocument();
+    }, { timeout: 5000 });
   });
 });
 

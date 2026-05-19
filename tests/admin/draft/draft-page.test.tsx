@@ -43,6 +43,10 @@ vi.mock("lucide-react", () => ({
   ChevronUp:       () => <svg data-testid="icon-chevron-up" />,
   ClipboardList:   () => <svg data-testid="icon-clipboard" />,
   ExternalLink:    () => <svg data-testid="icon-external-link" />,
+  // ShiftMasterPanel also imports these three:
+  FileSpreadsheet: () => <svg data-testid="icon-file-spreadsheet" />,
+  Upload:          () => <svg data-testid="icon-upload" />,
+  X:               () => <svg data-testid="icon-x" />,
   InboxIcon:       () => <svg data-testid="icon-inbox" />,
   Info:            () => <svg data-testid="icon-info" />,
   PencilLine:      () => <svg data-testid="icon-pencil" />,
@@ -809,6 +813,141 @@ describe("AdminDraftPage — helper utility functions (via rendering)", () => {
     fireEvent.change(getCitySelect(), { target: { value: "manila" } });
     fireEvent.click(screen.getAllByText("Forecast Settings")[0].closest("button")!);
     await screen.findByText(/Sat–Sun/i, {}, { timeout: 3000 });
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────
+describe("AdminDraftPage — 409 SENT_TO_MANUAL guard modal", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  /** Helper: reach the Confirm Generate button with a 409-returning mock. */
+  async function setupAndTrigger409() {
+    const { getAuth, canAccessAdminNav } = await import("@/lib/auth");
+    vi.mocked(getAuth).mockReturnValue(ADMIN_AUTH as any);
+    vi.mocked(canAccessAdminNav).mockReturnValue(true);
+    vi.stubGlobal("fetch", makeDraftFetch([
+      { match: "/api/auth/verify", body: { ok: true, role: "HQ" } },
+      {
+        match: "/api/draft/generate_month",
+        method: "POST",
+        body: {
+          detail: "A draft for dubai/BB 2026-07 has already been sent to Manual Shift (version v-old). Pass force_replace=true to overwrite.",
+        },
+        status: 409,
+      },
+    ]));
+    render(<AdminDraftPage />);
+    await waitForPage();
+    fireEvent.click(screen.getByRole("button", { name: /Draft Management/i }));
+    await screen.findByText("Generate Draft", {}, { timeout: 3000 });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Prepare Generate/i })).not.toBeDisabled();
+    }, { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: /Prepare Generate/i }));
+    await screen.findByText(/Prepared:.*Dubai stores/i, {}, { timeout: 5000 });
+    const checkboxes = screen.getAllByRole("checkbox");
+    const unchecked = checkboxes.find((cb) => !(cb as HTMLInputElement).checked);
+    if (unchecked) fireEvent.click(unchecked);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Confirm Generate/i })).not.toBeDisabled();
+    }, { timeout: 2000 });
+    fireEvent.click(screen.getByRole("button", { name: /Confirm Generate/i }));
+  }
+
+  it("shows 409 guard modal when generate returns 409 for all branches", async () => {
+    await setupAndTrigger409();
+    await screen.findByText(/Draft already sent to Manual Shift/i, {}, { timeout: 8000 });
+  });
+
+  it("409 modal shows 'Replace All & Regenerate' and 'Cancel' buttons", async () => {
+    await setupAndTrigger409();
+    await screen.findByText(/Draft already sent to Manual Shift/i, {}, { timeout: 8000 });
+    expect(screen.getByRole("button", { name: /Replace All.*Regenerate/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Cancel/i })).toBeInTheDocument();
+  });
+
+  it("clicking Cancel in 409 modal dismisses it without regenerating", async () => {
+    await setupAndTrigger409();
+    await screen.findByText(/Draft already sent to Manual Shift/i, {}, { timeout: 8000 });
+    // The fetch spy — capture calls before Cancel
+    const fetchSpy = (window.fetch as ReturnType<typeof vi.fn>);
+    const callsBefore = fetchSpy.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: /Cancel/i }));
+    await waitFor(() => {
+      expect(screen.queryByText(/Draft already sent to Manual Shift/i)).toBeNull();
+    }, { timeout: 3000 });
+    // No additional generate_month call should have been made
+    const newGenerateCalls = fetchSpy.mock.calls
+      .slice(callsBefore)
+      .filter(([u]: [string]) => String(u).includes("/api/draft/generate_month"));
+    expect(newGenerateCalls).toHaveLength(0);
+  });
+
+  it("clicking Replace All calls generate_month with force_replace=true", async () => {
+    const fetchSpy = makeDraftFetch([
+      { match: "/api/auth/verify", body: { ok: true, role: "HQ" } },
+      // First call returns 409
+      {
+        match: "/api/draft/generate_month",
+        method: "POST",
+        body: { detail: "draft already sent" },
+        status: 409,
+      },
+    ]);
+    // After modal confirms, we need force_replace calls to succeed:
+    // Override so force_replace=true requests succeed
+    const originalFetch = fetchSpy;
+    let callCount = 0;
+    const smartFetch = vi.fn(async (url: string, opts?: RequestInit) => {
+      const body = opts?.body ? JSON.parse(opts.body as string) : {};
+      if (String(url).includes("/api/draft/generate_month") && body.force_replace === true) {
+        callCount++;
+        return new Response(
+          JSON.stringify({
+            ok: true, version_id: "v-force-1", city: "dubai", branch_code: "BB",
+            rows_inserted: 10, days_generated: 31, version_week_start: "2026-06-30", source_days: [],
+            summary: { avg_branch_reliability: 0.9, total_overtime_hours: 0, total_unresolved_hours: 0 },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      return originalFetch(url, opts);
+    });
+
+    const { getAuth, canAccessAdminNav } = await import("@/lib/auth");
+    vi.mocked(getAuth).mockReturnValue(ADMIN_AUTH as any);
+    vi.mocked(canAccessAdminNav).mockReturnValue(true);
+    vi.stubGlobal("fetch", smartFetch);
+    render(<AdminDraftPage />);
+    await waitForPage();
+    fireEvent.click(screen.getByRole("button", { name: /Draft Management/i }));
+    await screen.findByText("Generate Draft", {}, { timeout: 3000 });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Prepare Generate/i })).not.toBeDisabled();
+    }, { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: /Prepare Generate/i }));
+    await screen.findByText(/Prepared:.*Dubai stores/i, {}, { timeout: 5000 });
+    const checkboxes = screen.getAllByRole("checkbox");
+    const unchecked = checkboxes.find((cb) => !(cb as HTMLInputElement).checked);
+    if (unchecked) fireEvent.click(unchecked);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Confirm Generate/i })).not.toBeDisabled();
+    }, { timeout: 2000 });
+    fireEvent.click(screen.getByRole("button", { name: /Confirm Generate/i }));
+
+    // Wait for the modal to appear
+    await screen.findByText(/Draft already sent to Manual Shift/i, {}, { timeout: 8000 });
+
+    // Click Replace All
+    fireEvent.click(screen.getByRole("button", { name: /Replace All.*Regenerate/i }));
+
+    // Modal should disappear and a force_replace call should have been made
+    await waitFor(() => {
+      expect(callCount).toBeGreaterThan(0);
+    }, { timeout: 8000 });
+    await waitFor(() => {
+      expect(screen.queryByText(/Draft already sent to Manual Shift/i)).toBeNull();
+    }, { timeout: 3000 });
   });
 });
 
