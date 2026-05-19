@@ -41,6 +41,7 @@ const GROUPS: TabGroup[] = [
     label: "Operations",
     sublabel: "Daily work",
     tabs: [
+      { href: "/admin/procurement/hub",               label: "Hub",               showTo: ["manager", "full"] },
       { href: "/admin/procurement",                  label: "Requests",          showTo: ["staff", "manager", "inventory", "full"] },
       { href: "/admin/procurement/approval-inbox",   label: "Needs My Approval", showTo: ["staff", "manager", "inventory", "full"] },
       { href: "/admin/procurement/price-search",     label: "Item Price Search", showTo: ["staff", "manager", "inventory", "full"] },
