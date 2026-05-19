@@ -79,7 +79,6 @@ export default function ProcurementApprovalInboxPage() {
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<"needs_approval" | "awaiting_execution">("needs_approval");
 
-  const currencyCode = city === "dubai" ? "AED" : "PHP";
   const APPROVAL_THRESHOLD = city === "dubai" ? 500 : 15000;
 
   // "Needs Approval": open cases not yet approved/rejected/returned

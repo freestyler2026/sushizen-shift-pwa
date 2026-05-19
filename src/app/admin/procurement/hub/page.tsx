@@ -124,8 +124,8 @@ function rowAction(row: HubRow): { label: string; href: string; style: string } 
     style: "border-amber-500/40 bg-amber-950/20 text-amber-200 hover:bg-amber-950/35",
   };
 
-  // Approved prepaid — needs payment confirmation
-  if (rs === "APPROVED" && pt === "prepaid") return {
+  // Approved prepaid — needs payment confirmation (only if not yet confirmed)
+  if (rs === "APPROVED" && pt === "prepaid" && row.payment_status !== "PAYMENT_CONFIRMED") return {
     label: "Confirm Payment →",
     href: row.case_id ? `/admin/procurement/cases/${row.case_id}?from=hub` : "#",
     style: "border-purple-500/40 bg-purple-950/20 text-purple-200 hover:bg-purple-950/35",
@@ -172,9 +172,12 @@ function classifyRow(row: HubRow): StatusGroup {
   const rs = (row.request_status || "").toUpperCase();
   const cs = (row.case_status || "").toUpperCase();
   const pt = (row.purchase_type || "").toLowerCase();
-  const DONE = new Set(["RECEIVED", "CLOSED", "CANCELLED", "REJECTED", "PURCHASED", "PAYMENT_CONFIRMED"]);
+  const DONE = new Set(["RECEIVED", "CLOSED", "CANCELLED", "REJECTED", "PURCHASED"]);
   if (DONE.has(rs)) return "completed";
-  if (rs === "APPROVED" && (pt === "cash_purchase" || pt === "ec_purchase" || pt === "prepaid")) return "action_needed";
+  // Prepaid: payment_status is the execution signal (r.status stays APPROVED after confirm)
+  if (pt === "prepaid" && row.payment_status === "PAYMENT_CONFIRMED") return "completed";
+  if (rs === "APPROVED" && (pt === "cash_purchase" || pt === "ec_purchase")) return "action_needed";
+  if (rs === "APPROVED" && pt === "prepaid") return "action_needed"; // payment_status already excluded above
   if (cs === "OPEN" || cs === "CLAIMED" || cs === "IN_REVIEW" || cs === "ESCALATED" || rs === "SUBMITTED") return "in_review";
   if (rs === "DRAFT") return "in_review";
   return "completed";
@@ -203,7 +206,7 @@ export default function ProcurementHubPage() {
   type DetailCache = { items: DetailItem[]; receipt_url: string; notes: string; loading: boolean };
   const [expandedId, setExpandedId] = useState<string>("");
   const detailCache = useRef<Record<string, DetailCache>>({});
-  const [detailTick, setDetailTick] = useState(0); // force re-render after cache update
+  const [, setDetailTick] = useState(0); // force re-render after cache update
 
   const toggleExpand = useCallback(async (rowId: string) => {
     if (expandedId === rowId) { setExpandedId(""); return; }
@@ -231,8 +234,6 @@ export default function ProcurementHubPage() {
   }, [expandedId, pin, requestedBy]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const currencyCode = city === "dubai" ? "AED" : "PHP";
 
   const load = useCallback(async () => {
     setError("");
