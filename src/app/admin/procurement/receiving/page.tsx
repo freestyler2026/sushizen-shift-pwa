@@ -73,6 +73,9 @@ export default function ProcurementReceivingPage() {
   const [allowed, setAllowed] = useState(false);
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
+  const [city, setCity] = useState<"dubai" | "manila">(
+    String(auth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila"
+  );
 
   // Filter state
   const [filterRequestId, setFilterRequestId] = useState("");
@@ -102,6 +105,7 @@ export default function ProcurementReceivingPage() {
     setLoading(true);
     try {
       const qs = new URLSearchParams();
+      qs.set("city", city);
       if (filterRequestId.trim()) qs.set("request_id", filterRequestId.trim());
       if (statusFilter.trim()) qs.set("status", statusFilter.trim());
       qs.set("limit", "200");
@@ -117,7 +121,7 @@ export default function ProcurementReceivingPage() {
     } finally {
       setLoading(false);
     }
-  }, [filterRequestId, pin, requestedBy, statusFilter]);
+  }, [city, filterRequestId, pin, requestedBy, statusFilter]);
 
   const createReceiving = async () => {
     if (!createRequestId.trim()) { setError("Request ID is required."); return; }
@@ -194,6 +198,11 @@ export default function ProcurementReceivingPage() {
   }, []);
 
   useEffect(() => {
+    if (!allowed) return;
+    void load();
+  }, [allowed, city, load]);
+
+  useEffect(() => {
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
       const resolvedAuth = refreshed || auth;
@@ -202,7 +211,6 @@ export default function ProcurementReceivingPage() {
         String(resolvedAuth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
       );
       setAllowed(can);
-      if (can) await load();
     }
     void init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -221,12 +229,30 @@ export default function ProcurementReceivingPage() {
     <div className="space-y-5">
 
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h2 className={T_PAGE_TITLE}>Receiving Records</h2>
           <p className="mt-1 text-sm text-zinc-400">Record and confirm delivery of procurement orders.</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* City toggle */}
+          <div className="flex rounded-xl overflow-hidden border border-white/10">
+            {(["dubai", "manila"] as const).map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setCity(c)}
+                className={[
+                  "px-3 py-1.5 text-xs font-semibold transition-colors",
+                  city === c
+                    ? "bg-violet-600/70 text-white"
+                    : "bg-white/5 text-zinc-400 hover:bg-white/10",
+                ].join(" ")}
+              >
+                {c === "dubai" ? "Dubai" : "Manila"}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             onClick={() => setShowCreateForm((v) => !v)}

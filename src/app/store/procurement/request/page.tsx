@@ -178,6 +178,8 @@ export default function StoreProcurementRequestPage() {
   };
 
   const initRef = useRef(false);
+  // Track last city+category loaded so supplier filter is only cleared on meaningful scope changes.
+  const lastCatalogScopeRef = useRef<string>("");
   const cityLabel = city === "dubai" ? "Dubai" : "Manila";
   const currencyCode = city === "dubai" ? "AED" : "PHP";
   const APPROVAL_THRESHOLD = city === "dubai" ? 500 : 15000;
@@ -447,7 +449,12 @@ export default function StoreProcurementRequestPage() {
           setCatalogCategories(categories.length ? categories : DUBAI_CURATED_CATEGORIES);
         }
         setCatalogSuppliers(suppliers);
-        setSupplierFilter("");
+        // Only reset supplier filter when the scope (city or category) changes — not on store-only reloads.
+        const scopeKey = `${activeCity}::${selectedCatalogCategory}`;
+        if (lastCatalogScopeRef.current !== scopeKey) {
+          lastCatalogScopeRef.current = scopeKey;
+          setSupplierFilter("");
+        }
       } catch (e: any) {
         setCatalogSuppliers([]);
         setSupplierFilter("");
