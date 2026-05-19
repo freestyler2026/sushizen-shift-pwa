@@ -106,6 +106,7 @@ function findActiveGroup(path: string): string | null {
 // ─── Badge summary ────────────────────────────────────────────────────────────
 type BadgeSummary = {
   incoming_requests_count: number;
+  action_needed_count: number;
   issue_count: number;
   issue_critical_count: number;
   price_check_pending_count: number;
@@ -161,9 +162,10 @@ export default function ProcurementTabs() {
       if (!res.ok) return;
       const json = JSON.parse(await res.text() || "{}");
       setSummary({
-        incoming_requests_count:  Number(json?.incoming_requests_count  || 0),
-        issue_count:              Number(json?.issue_count              || 0),
-        issue_critical_count:     Number(json?.issue_critical_count     || 0),
+        incoming_requests_count:   Number(json?.incoming_requests_count   || 0),
+        action_needed_count:       Number(json?.action_needed_count       || 0),
+        issue_count:               Number(json?.issue_count               || 0),
+        issue_critical_count:      Number(json?.issue_critical_count      || 0),
         price_check_pending_count: Number(json?.price_check_pending_count || 0),
         price_check_overdue_count: Number(json?.price_check_overdue_count || 0),
       });
@@ -184,6 +186,10 @@ export default function ProcurementTabs() {
 
   // Badge map: href → { count, critical }
   const badgeMap = useMemo<Record<string, { count: number; critical: boolean }>>(() => ({
+    "/admin/procurement/hub": {
+      count: Number(summary?.action_needed_count || 0),
+      critical: Number(summary?.action_needed_count || 0) > 0,
+    },
     "/admin/procurement/approval-inbox": {
       count: Number(summary?.incoming_requests_count || 0),
       critical: false,

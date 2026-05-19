@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
 import {
@@ -18,7 +18,7 @@ import {
   BADGE_ERROR,
   BADGE_INFO,
 } from "@/lib/ui-tokens";
-import { RefreshCw, LayoutDashboard, AlertCircle, Building2, Filter, X } from "lucide-react";
+import { RefreshCw, LayoutDashboard, AlertCircle, Building2, Filter, X, ChevronDown, ChevronRight, ImageIcon } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -197,6 +197,38 @@ export default function ProcurementHubPage() {
   const [filterGroup, setFilterGroup] = useState<StatusGroup>("all");
 
   const [rows, setRows] = useState<HubRow[]>([]);
+
+  // Expandable rows — id → { items, receipt_url } cache
+  type DetailItem = { id: string; item_name: string; vendor_name: string; qty: number; unit: string; unit_price: number; line_total: number; category?: string };
+  type DetailCache = { items: DetailItem[]; receipt_url: string; notes: string; loading: boolean };
+  const [expandedId, setExpandedId] = useState<string>("");
+  const detailCache = useRef<Record<string, DetailCache>>({});
+  const [detailTick, setDetailTick] = useState(0); // force re-render after cache update
+
+  const toggleExpand = useCallback(async (rowId: string) => {
+    if (expandedId === rowId) { setExpandedId(""); return; }
+    setExpandedId(rowId);
+    if (detailCache.current[rowId]) return; // already loaded
+    detailCache.current[rowId] = { items: [], receipt_url: "", notes: "", loading: true };
+    setDetailTick((n) => n + 1);
+    try {
+      const data = await procurementJson<{ id: string; items?: DetailItem[]; receipt_url?: string; notes?: string }>(
+        `/api/admin/procurement/requests/${rowId}`,
+        { method: "GET" },
+        requestedBy,
+        pin,
+      );
+      detailCache.current[rowId] = {
+        items: Array.isArray(data?.items) ? data.items : [],
+        receipt_url: String(data?.receipt_url || ""),
+        notes: String((data as any)?.notes || ""),
+        loading: false,
+      };
+    } catch {
+      detailCache.current[rowId] = { items: [], receipt_url: "", notes: "", loading: false };
+    }
+    setDetailTick((n) => n + 1);
+  }, [expandedId, pin, requestedBy]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -428,16 +460,30 @@ export default function ProcurementHubPage() {
       )}
 
       {/* Request list */}
+      {/* detailTick is used to force re-render after async cache update: {detailTick} */}
       <div className="space-y-2">
         {displayRows.map((row) => {
           const action = rowAction(row);
           const currCode = String(row.city || city).toLowerCase() === "dubai" ? "AED" : "PHP";
+          const isExpanded = expandedId === row.id;
+          const detail = detailCache.current[row.id];
+
           return (
             <div
               key={row.id}
-              className={`rounded-2xl border p-4 transition-all ${rowHighlight(row)}`}
+              className={`rounded-2xl border transition-all ${rowHighlight(row)}`}
             >
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
+              {/* ── Summary row ── */}
+              <div
+                className="flex cursor-pointer select-none flex-col gap-3 p-4 lg:flex-row lg:items-center lg:gap-4"
+                onClick={() => void toggleExpand(row.id)}
+              >
+                {/* Expand chevron */}
+                <div className="shrink-0 text-zinc-500">
+                  {isExpanded
+                    ? <ChevronDown className="h-4 w-4 text-violet-400" />
+                    : <ChevronRight className="h-4 w-4" />}
+                </div>
 
                 {/* Left — identifiers + badges */}
                 <div className="min-w-0 flex-1 space-y-2">
@@ -481,8 +527,8 @@ export default function ProcurementHubPage() {
                   )}
                 </div>
 
-                {/* Right — action */}
-                <div className="flex shrink-0 items-center gap-2">
+                {/* Right — action (stop propagation so click doesn't toggle expand) */}
+                <div className="flex shrink-0 items-center gap-2" onClick={(e) => e.stopPropagation()}>
                   {action ? (
                     <Link
                       href={action.href}
@@ -502,6 +548,93 @@ export default function ProcurementHubPage() {
                   )}
                 </div>
               </div>
+
+              {/* ── Expanded detail panel ── */}
+              {isExpanded && (
+                <div className="border-t border-white/8 px-4 pb-4 pt-3">
+                  {detail?.loading && (
+                    <div className="flex items-center gap-2 text-xs text-zinc-500 py-2">
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Loading items…
+                    </div>
+                  )}
+
+                  {detail && !detail.loading && (
+                    <div className="space-y-4">
+                      {/* Items table */}
+                      {detail.items.length > 0 ? (
+                        <div>
+                          <div className="mb-2 text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                            Items ({detail.items.length})
+                          </div>
+                          <div className="overflow-x-auto rounded-xl border border-white/8">
+                            <table className="min-w-full text-xs">
+                              <thead className="bg-black/30 text-zinc-400">
+                                <tr>
+                                  <th className="px-3 py-2 text-left font-medium">Item</th>
+                                  <th className="px-3 py-2 text-left font-medium">Supplier</th>
+                                  <th className="px-3 py-2 text-right font-medium">Qty</th>
+                                  <th className="px-3 py-2 text-left font-medium">Unit</th>
+                                  <th className="px-3 py-2 text-right font-medium">Unit Price</th>
+                                  <th className="px-3 py-2 text-right font-medium">Total</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {detail.items.map((item, idx) => (
+                                  <tr key={item.id || idx} className="border-t border-white/6 bg-black/10">
+                                    <td className="px-3 py-2 text-zinc-100">{item.item_name}</td>
+                                    <td className="px-3 py-2 text-zinc-400">{item.vendor_name || "—"}</td>
+                                    <td className="px-3 py-2 text-right text-zinc-200">{item.qty}</td>
+                                    <td className="px-3 py-2 text-zinc-400">{item.unit}</td>
+                                    <td className="px-3 py-2 text-right text-zinc-200">
+                                      {Number(item.unit_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </td>
+                                    <td className="px-3 py-2 text-right font-semibold text-zinc-100">
+                                      {Number(item.line_total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-zinc-500 py-1">No items recorded.</p>
+                      )}
+
+                      {/* Receipt photo */}
+                      {detail.receipt_url && (
+                        <div>
+                          <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                            <ImageIcon className="h-3 w-3" /> Receipt / Document
+                          </div>
+                          <a
+                            href={detail.receipt_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/25 bg-emerald-950/20 px-3 py-2 text-xs text-emerald-300 hover:bg-emerald-950/35 transition"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <ImageIcon className="h-3.5 w-3.5" />
+                            View Receipt →
+                          </a>
+                          {/* Inline preview if it looks like an image URL */}
+                          {/\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(detail.receipt_url) && (
+                            <div className="mt-2">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={detail.receipt_url}
+                                alt="Receipt"
+                                className="max-h-48 rounded-xl border border-white/10 object-contain"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
