@@ -120,28 +120,28 @@ function rowAction(row: HubRow): { label: string; href: string; style: string } 
   // Approved cash/EC — needs to be purchased
   if (rs === "APPROVED" && (pt === "cash_purchase" || pt === "ec_purchase")) return {
     label: "Mark Purchased →",
-    href: row.case_id ? `/admin/procurement/cases/${row.case_id}` : "#",
+    href: row.case_id ? `/admin/procurement/cases/${row.case_id}?from=hub` : "#",
     style: "border-amber-500/40 bg-amber-950/20 text-amber-200 hover:bg-amber-950/35",
   };
 
   // Approved prepaid — needs payment confirmation
   if (rs === "APPROVED" && pt === "prepaid") return {
     label: "Confirm Payment →",
-    href: row.case_id ? `/admin/procurement/cases/${row.case_id}` : "#",
+    href: row.case_id ? `/admin/procurement/cases/${row.case_id}?from=hub` : "#",
     style: "border-purple-500/40 bg-purple-950/20 text-purple-200 hover:bg-purple-950/35",
   };
 
   // Has an active case — open it
   if (row.case_id && cs && !["REJECTED", "APPROVED"].includes(cs)) return {
     label: "Open Case →",
-    href: `/admin/procurement/cases/${row.case_id}`,
+    href: `/admin/procurement/cases/${row.case_id}?from=hub`,
     style: "border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20",
   };
 
   // Has an approved/rejected case or completed request — view
   if (row.case_id) return {
     label: "View →",
-    href: `/admin/procurement/cases/${row.case_id}`,
+    href: `/admin/procurement/cases/${row.case_id}?from=hub`,
     style: "border-white/10 bg-white/5 text-zinc-400 hover:bg-white/8",
   };
 
@@ -539,7 +539,7 @@ export default function ProcurementHubPage() {
                   ) : (
                     row.case_id && (
                       <Link
-                        href={`/admin/procurement/cases/${row.case_id}`}
+                        href={`/admin/procurement/cases/${row.case_id}?from=hub`}
                         className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-zinc-400 hover:text-zinc-200 transition"
                       >
                         View →

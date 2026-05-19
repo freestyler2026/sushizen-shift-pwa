@@ -395,7 +395,7 @@ export default function ProcurementApprovalInboxPage() {
                         {busyId === row.id ? "Claiming…" : "Claim"}
                       </button>
                       <Link
-                        href={`/admin/procurement/cases/${row.id}`}
+                        href={`/admin/procurement/cases/${row.id}?from=inbox`}
                         className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-2 text-xs font-medium text-violet-300 transition hover:bg-violet-500/20"
                       >
                         Open Case →
@@ -405,7 +405,7 @@ export default function ProcurementApprovalInboxPage() {
                     <>
                       {(row.purchase_type === "cash_purchase" || row.purchase_type === "ec_purchase") && (
                         <Link
-                          href={`/admin/procurement/cases/${row.id}`}
+                          href={`/admin/procurement/cases/${row.id}?from=inbox`}
                           className="rounded-xl border border-amber-500/30 bg-amber-500/15 px-4 py-2 text-xs font-medium text-amber-200 transition hover:bg-amber-500/25"
                         >
                           Mark Purchased →
@@ -413,14 +413,14 @@ export default function ProcurementApprovalInboxPage() {
                       )}
                       {row.purchase_type === "prepaid" && (
                         <Link
-                          href={`/admin/procurement/cases/${row.id}`}
+                          href={`/admin/procurement/cases/${row.id}?from=inbox`}
                           className="rounded-xl border border-purple-500/30 bg-purple-500/15 px-4 py-2 text-xs font-medium text-purple-200 transition hover:bg-purple-500/25"
                         >
                           Confirm Payment →
                         </Link>
                       )}
                       <Link
-                        href={`/admin/procurement/cases/${row.id}`}
+                        href={`/admin/procurement/cases/${row.id}?from=inbox`}
                         className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-2 text-xs font-medium text-violet-300 transition hover:bg-violet-500/20"
                       >
                         Open Case →

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson, procurementTokenHeaders } from "@/lib/procurementClient";
@@ -86,6 +86,8 @@ function actionBadge(action: string) {
 export default function ProcurementCaseDetailPage() {
   const auth = useMemo(() => getAuth(), []);
   const params = useParams<{ caseId: string }>();
+  const searchParams = useSearchParams();
+  const fromParam = searchParams?.get("from") ?? "";
   const caseId = String(params?.caseId || "");
 
   const [allowed, setAllowed] = useState(false);
@@ -289,6 +291,12 @@ export default function ProcurementCaseDetailPage() {
 
   const caseStatus = String(bundle.case?.status || "").toUpperCase();
   const isClosed = ["APPROVED", "REJECTED"].includes(caseStatus);
+  const purchaseType = (bundle.request?.purchase_type || "").toLowerCase();
+  const EXEC_TYPES = ["cash_purchase", "ec_purchase", "prepaid"];
+  const isExecuted =
+    bundle.request?.status === "PURCHASED" ||
+    (purchaseType === "prepaid" && bundle.request?.payment_status === "PAYMENT_CONFIRMED");
+  const needsExecution = caseStatus === "APPROVED" && EXEC_TYPES.includes(purchaseType) && !isExecuted;
 
   return (
     <div className="space-y-5">
@@ -323,9 +331,15 @@ export default function ProcurementCaseDetailPage() {
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </button>
-          <Link href="/admin/procurement/approval-inbox" className={`${SMALL_BUTTON} flex items-center gap-1.5`}>
-            ← Inbox
-          </Link>
+          {fromParam === "hub" ? (
+            <Link href="/admin/procurement/hub" className={`${SMALL_BUTTON} flex items-center gap-1.5`}>
+              ← Hub
+            </Link>
+          ) : (
+            <Link href="/admin/procurement/approval-inbox" className={`${SMALL_BUTTON} flex items-center gap-1.5`}>
+              ← Inbox
+            </Link>
+          )}
         </div>
       </div>
 
@@ -359,6 +373,72 @@ export default function ProcurementCaseDetailPage() {
       {successMsg && !error && (
         <div className="flex items-center gap-2 rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-300">
           <CheckCircle className="h-4 w-4 shrink-0" />{successMsg}
+        </div>
+      )}
+
+      {/* ⚡ Execution Required Banner */}
+      {needsExecution && (
+        <div className="rounded-xl border-2 border-amber-500/55 bg-amber-950/30 p-5 space-y-4">
+          <div className="flex items-start gap-3">
+            <span className="text-xl mt-0.5">⚡</span>
+            <div className="min-w-0">
+              <p className="text-base font-bold text-amber-200">Execution Required</p>
+              <p className="mt-1 text-sm text-amber-400/90">
+                {purchaseType === "cash_purchase"
+                  ? "This request is approved and ready for purchasing. Upload the receipt and mark as purchased to move it forward."
+                  : purchaseType === "ec_purchase"
+                  ? "This online order is approved. Place the order, then upload confirmation and mark as purchased."
+                  : "This pre-payment request is approved. Enter the supplier quote or invoice URL and confirm payment."}
+              </p>
+            </div>
+          </div>
+
+          {(purchaseType === "cash_purchase" || purchaseType === "ec_purchase") && (
+            <div className="space-y-3 pl-9">
+              {bundle.request?.ec_order_url && (
+                <div className="text-xs text-sky-300">
+                  Order URL: <a href={bundle.request.ec_order_url} target="_blank" rel="noopener noreferrer" className="underline break-all">{bundle.request.ec_order_url}</a>
+                </div>
+              )}
+              <div className="flex items-center gap-2 flex-wrap">
+                <label className="flex items-center gap-1.5 cursor-pointer rounded-lg border border-amber-500/35 bg-amber-950/25 px-3 py-2 text-xs text-amber-200 hover:bg-amber-950/50 transition">
+                  <Upload className="h-3.5 w-3.5" />
+                  {receiptFile ? receiptFile.name : "Choose receipt photo"}
+                  <input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => setReceiptFile(e.target.files?.[0] ?? null)} />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void markPurchased()}
+                  disabled={receiptUploading}
+                  className="flex items-center gap-2 rounded-xl border-2 border-amber-500/60 bg-amber-500/25 px-5 py-2 text-sm font-bold text-amber-100 transition hover:bg-amber-500/40 disabled:opacity-60"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  {receiptUploading ? "Saving…" : "Mark as Purchased"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {purchaseType === "prepaid" && (
+            <div className="space-y-3 pl-9">
+              <input
+                type="url"
+                value={quoteUrl}
+                onChange={(e) => setQuoteUrl(e.target.value)}
+                placeholder="Supplier quote or invoice URL (optional)"
+                className="w-full rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-sm text-white placeholder-zinc-600 outline-none focus:border-amber-500/60"
+              />
+              <button
+                type="button"
+                onClick={() => void confirmPayment()}
+                disabled={paymentConfirming}
+                className="flex items-center gap-2 rounded-xl border-2 border-amber-500/60 bg-amber-500/25 px-5 py-2 text-sm font-bold text-amber-100 transition hover:bg-amber-500/40 disabled:opacity-60"
+              >
+                <CheckCircle className="h-4 w-4" />
+                {paymentConfirming ? "Confirming…" : "Confirm Payment"}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
