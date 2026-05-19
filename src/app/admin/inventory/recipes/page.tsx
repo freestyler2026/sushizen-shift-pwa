@@ -25,6 +25,24 @@ type SyncPreview = {
   active_inv_menu_recipe_row_count_after?: number;
 };
 
+type DedupeGroup = {
+  key: string;
+  variants: string[];
+  total_rows: number;
+};
+
+type DedupePreview = {
+  duplicate_groups: number;
+  groups: DedupeGroup[];
+};
+
+type DedupeResult = {
+  groups_merged: number;
+  rows_renamed: number;
+  rows_deleted: number;
+  canonical_names: string[];
+};
+
 export default function InventoryRecipesPage() {
   const auth = useMemo(() => getAuth(), []);
   const [ready, setReady] = useState(false);
@@ -39,6 +57,11 @@ export default function InventoryRecipesPage() {
   const [syncError, setSyncError] = useState("");
   const [previewResult, setPreviewResult] = useState<SyncPreview | null>(null);
   const [confirmApply, setConfirmApply] = useState(false);
+  const [dedupeBusy, setDedupeBusy] = useState(false);
+  const [dedupePreview, setDedupePreview] = useState<DedupePreview | null>(null);
+  const [dedupeResult, setDedupeResult] = useState<DedupeResult | null>(null);
+  const [dedupeError, setDedupeError] = useState("");
+  const [confirmDedupe, setConfirmDedupe] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +141,42 @@ export default function InventoryRecipesPage() {
     }
   }
 
+  async function previewDedupe() {
+    setDedupeBusy(true);
+    setDedupeError("");
+    setDedupePreview(null);
+    setDedupeResult(null);
+    setConfirmDedupe(false);
+    try {
+      const res = await inventoryPost<DedupePreview>("/api/admin/inventory/recipes/deduplicate/preview", { city });
+      setDedupePreview(res);
+    } catch (e: unknown) {
+      setDedupeError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDedupeBusy(false);
+    }
+  }
+
+  async function applyDedupe() {
+    setConfirmDedupe(false);
+    setDedupeBusy(true);
+    setDedupeError("");
+    setDedupePreview(null);
+    setDedupeResult(null);
+    try {
+      const res = await inventoryPost<DedupeResult>("/api/admin/inventory/recipes/deduplicate/apply", { city });
+      setDedupeResult(res);
+      const updated = await inventoryGet<{ rows: RecipeRow[] }>(
+        `/api/admin/inventory/recipes?city=${encodeURIComponent(city)}&menu_item_name=&limit=500`,
+      );
+      setRows(updated.rows || []);
+    } catch (e: unknown) {
+      setDedupeError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDedupeBusy(false);
+    }
+  }
+
   if (!ready) return <div className="text-sm text-neutral-500">Loading recipes...</div>;
   if (!allowed) return <div className="text-sm text-neutral-500">You do not have permission to open inventory.</div>;
 
@@ -137,8 +196,16 @@ export default function InventoryRecipesPage() {
             <div className="text-xs text-neutral-500">{city.toUpperCase()} · {rows.length} lines · {groupedCount} items</div>
             <button
               type="button"
+              onClick={() => void previewDedupe()}
+              disabled={dedupeBusy || syncBusy}
+              className="rounded-xl border border-amber-600/40 bg-amber-950/20 px-3 py-1.5 text-xs text-amber-300 transition hover:bg-amber-900/30 disabled:opacity-60"
+            >
+              {dedupeBusy && !confirmDedupe ? "Scanning..." : "🔧 Deduplicate Names"}
+            </button>
+            <button
+              type="button"
               onClick={() => void previewSync()}
-              disabled={syncBusy}
+              disabled={syncBusy || dedupeBusy}
               className="rounded-xl border border-violet-600/40 bg-violet-950/30 px-3 py-1.5 text-xs text-violet-300 transition hover:bg-violet-900/40 disabled:opacity-60"
             >
               {syncBusy && !confirmApply ? "Checking..." : "Preview Changes"}
@@ -146,7 +213,7 @@ export default function InventoryRecipesPage() {
             <button
               type="button"
               onClick={() => setConfirmApply(true)}
-              disabled={syncBusy}
+              disabled={syncBusy || dedupeBusy}
               className="rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:from-violet-500 hover:to-purple-500 disabled:opacity-60"
             >
               {syncBusy && confirmApply ? "Syncing..." : "🔄 Sync from Menu Builder"}
@@ -183,6 +250,56 @@ export default function InventoryRecipesPage() {
             ✅ Sync complete — <span className="font-bold">{syncResult.synced_menu_item_count ?? "?"}</span> menu items,{" "}
             <span className="font-bold">{syncResult.inserted_recipe_row_count ?? syncResult.active_inv_menu_recipe_row_count_after ?? "?"}</span> recipe lines
             {syncResult.deleted_recipe_row_count ? ` (${syncResult.deleted_recipe_row_count} old lines removed)` : ""}.
+          </div>
+        ) : null}
+
+        {/* Deduplicate preview */}
+        {dedupePreview ? (
+          <div className="mt-3 rounded-xl border border-amber-700/40 bg-amber-900/10 px-4 py-3 text-sm text-amber-200">
+            {dedupePreview.duplicate_groups === 0 ? (
+              <div className="font-semibold text-emerald-300">✅ No duplicate names found — recipes are clean.</div>
+            ) : (
+              <>
+                <div className="font-semibold mb-2">
+                  Found {dedupePreview.duplicate_groups} group{dedupePreview.duplicate_groups !== 1 ? "s" : ""} of duplicate names:
+                </div>
+                <ul className="mb-3 space-y-1 text-xs text-amber-300">
+                  {dedupePreview.groups.map((g) => (
+                    <li key={g.key}>
+                      <span className="text-neutral-400">{g.key}</span>
+                      {" → "}
+                      {g.variants.map((v, i) => (
+                        <span key={v}>
+                          <span className={i === g.variants.length - 1 ? "font-bold text-white" : "line-through text-neutral-500"}>
+                            {v}
+                          </span>
+                          {i < g.variants.length - 1 && <span className="text-neutral-500">, </span>}
+                        </span>
+                      ))}
+                      <span className="ml-1 text-neutral-500">({g.total_rows} rows)</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="text-xs text-neutral-400 mb-3">The <span className="font-bold text-white">bold</span> name will be kept as canonical (most rows; uppercase preferred on tie).</div>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDedupe(true)}
+                  className="rounded-lg bg-amber-700 px-4 py-1.5 text-xs font-semibold text-white hover:bg-amber-600"
+                >
+                  Merge duplicates now
+                </button>
+              </>
+            )}
+          </div>
+        ) : null}
+
+        {/* Deduplicate result */}
+        {dedupeError ? (
+          <div className="mt-3 rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2 text-sm text-red-300">❌ {dedupeError}</div>
+        ) : dedupeResult ? (
+          <div className="mt-3 rounded-xl border border-emerald-700/40 bg-emerald-900/15 px-4 py-3 text-sm text-emerald-300">
+            ✅ Deduplication complete — {dedupeResult.groups_merged} group{dedupeResult.groups_merged !== 1 ? "s" : ""} merged,{" "}
+            {dedupeResult.rows_renamed} rows renamed, {dedupeResult.rows_deleted} duplicate rows removed.
           </div>
         ) : null}
 
@@ -268,6 +385,35 @@ export default function InventoryRecipesPage() {
       </section>
 
       <InventoryRegistrationHelp />
+
+      {/* Deduplicate confirmation modal */}
+      {confirmDedupe && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-amber-700 bg-neutral-900 p-6 shadow-xl">
+            <h3 className="mb-2 text-base font-semibold text-white">Merge duplicate recipe names?</h3>
+            <p className="mb-4 text-sm text-neutral-300">
+              Duplicate name variants (e.g. &ldquo;7up&rdquo; and &ldquo;7 UP&rdquo;) will be consolidated into a single
+              canonical name. Conflicting ingredient rows will be removed. This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmDedupe(false)}
+                className="rounded-lg border border-neutral-600 px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void applyDedupe()}
+                className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600"
+              >
+                Merge Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sync confirmation modal */}
       {confirmApply && (
