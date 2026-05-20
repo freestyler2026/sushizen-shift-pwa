@@ -683,6 +683,7 @@ export default function StoreProcurementRequestPage() {
     setShowSubmitReview(false);
     setReviewMode("");
     setSubmitChecked(false);
+    setSupplierFilter("");
   }, [catalogGridItems, editRequestItems]);
 
   useEffect(() => {
