@@ -129,12 +129,12 @@ export default function StoreProcurementReceivingPage() {
   const cityLabel = city === "dubai" ? "Dubai" : "Manila";
   const currencyCode = city === "dubai" ? "AED" : "PHP";
 
-  // ── Load my requests ──────────────────────────────────────────────────────
+  // ── Load approved requests (all requesters) ──────────────────────────────
 
   const loadMyRequests = useCallback(async (cityOverride?: string) => {
     try {
       const activeCity = String(cityOverride || city || "manila").toLowerCase();
-      const qs = new URLSearchParams({ city: activeCity, requested_by: requestedBy.trim(), limit: "200" });
+      const qs = new URLSearchParams({ city: activeCity, status: "APPROVED", limit: "200" });
       const data = await procurementJson<{ rows: RequestRow[] }>(
         `/api/admin/procurement/requests?${qs}`,
         { method: "GET" },
@@ -472,7 +472,7 @@ export default function StoreProcurementReceivingPage() {
           <div className="mb-3 flex items-center justify-between">
             <div>
               <div className="text-sm font-semibold">Step 1 — Select Request</div>
-              <div className="text-xs text-zinc-500">Tap a request to start receiving.</div>
+              <div className="text-xs text-zinc-500">All approved requests for {cityLabel}.</div>
             </div>
             {requestId && (
               <button type="button" onClick={() => { setRequestId(""); setRequestDetail(null); setRows([]); setDuplicateWarningConfirmed(false); }} className="text-xs text-zinc-500 underline">
@@ -513,15 +513,20 @@ export default function StoreProcurementReceivingPage() {
                       {row.status}
                     </span>
                   </div>
-                  <div className="mt-1.5 flex items-center justify-between pl-6">
-                    <span className="text-xs text-zinc-400">{row.store_code || "-"} · {formatDate(row.request_date)}</span>
-                    <span className="text-xs font-medium text-violet-300">{Number(row.total_amount || 0).toFixed(2)} {currencyCode}</span>
+                  <div className="mt-1.5 pl-6 space-y-0.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-zinc-400">{row.store_code || "-"} · {formatDate(row.request_date)}</span>
+                      <span className="text-xs font-medium text-violet-300">{Number(row.total_amount || 0).toFixed(2)} {currencyCode}</span>
+                    </div>
+                    {row.requested_by ? (
+                      <div className="text-[11px] text-zinc-500">Requested by: {row.requested_by}</div>
+                    ) : null}
                   </div>
                 </button>
               );
             })}
             {!requests.length ? (
-              <div className="py-4 text-center text-sm text-zinc-500">No requests found for {requestedBy || "this user"}.</div>
+              <div className="py-4 text-center text-sm text-zinc-500">No approved requests found for {cityLabel}.</div>
             ) : null}
           </div>
         </div>{/* end request selector */}
