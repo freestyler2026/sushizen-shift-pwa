@@ -83,7 +83,7 @@ export default function InventoryPosSyncPage() {
             <div className="mt-1 text-sm text-neutral-400">Sync UrbanPiper orders-by-item CSV files into inventory staging.</div>
           </div>
           <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 px-3 py-2 text-xs text-neutral-500">
-            Recommended: run with `1` group to stay inside request limits.
+            Set to <span className="text-neutral-300">500</span> to import all available files at once.
           </div>
         </div>
 
@@ -103,14 +103,23 @@ export default function InventoryPosSyncPage() {
             title="Google Drive folder ID is fixed for this sync."
             className="rounded-xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-neutral-400"
           />
-          <input
-            type="number"
-            min={1}
-            max={20}
-            value={maxGroups}
-            onChange={(e) => setMaxGroups(Math.max(1, Math.min(20, Number(e.target.value || 1))))}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
-          />
+          <div className="flex gap-2">
+            <input
+              type="number"
+              min={1}
+              max={500}
+              value={maxGroups}
+              onChange={(e) => setMaxGroups(Math.max(1, Math.min(500, Number(e.target.value || 1))))}
+              className="w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            />
+            <button
+              type="button"
+              onClick={() => setMaxGroups(500)}
+              className="whitespace-nowrap rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-2 text-xs text-neutral-300 hover:bg-neutral-800"
+            >
+              All
+            </button>
+          </div>
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2">
