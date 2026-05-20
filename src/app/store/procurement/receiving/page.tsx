@@ -229,8 +229,12 @@ export default function StoreProcurementReceivingPage() {
       return s + (chk?.checked ? (chk.qty_received ?? it.qty) : 0);
     }, 0);
     const checkedCount = items.filter((it) => itemChecks[it.id]?.checked).length;
+    const zeroQtyCheckedCount = items.filter((it) => {
+      const chk = itemChecks[it.id];
+      return chk?.checked && (!chk.qty_received || chk.qty_received === 0);
+    }).length;
     const totalCount = items.length;
-    return { qtyExpected, qtyReceived, checkedCount, totalCount };
+    return { qtyExpected, qtyReceived, checkedCount, zeroQtyCheckedCount, totalCount };
   }, [itemChecks, requestDetail]);
 
   // ── Submit request (DRAFT → SUBMITTED, creates approval case) ────────────
@@ -597,20 +601,26 @@ export default function StoreProcurementReceivingPage() {
 
             {/* Already confirmed — show success state (unless user wants to add another) */}
             {!showNewForm && rows.length > 0 && rows.every((r) => r.status === "CONFIRMED") ? (
-              <div className="flex flex-col items-center gap-3 py-8 text-center">
+              <div className="flex flex-col items-center gap-4 py-6 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-emerald-500/40 bg-emerald-500/15">
                   <CheckCheck className="h-7 w-7 text-emerald-400" />
                 </div>
                 <div>
                   <div className="text-base font-semibold text-emerald-300">Delivery Confirmed</div>
-                  <div className="mt-1 text-xs text-zinc-500">All receiving records are confirmed. See details below.</div>
+                  <div className="mt-1 text-xs text-zinc-400">
+                    {rows.length} delivery record{rows.length !== 1 ? "s" : ""} confirmed for this request.
+                  </div>
+                  <div className="mt-2 text-xs text-zinc-500">
+                    If a new shipment has arrived (e.g. back-ordered items), tap the button below to record it.
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowNewForm(true)}
-                  className="mt-1 text-xs text-violet-400 underline hover:text-violet-300"
+                  className="flex items-center gap-2 rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-2 text-sm font-medium text-violet-300 hover:bg-violet-500/20 transition"
                 >
-                  + Record another delivery for this request
+                  <Package className="h-4 w-4" />
+                  Record additional delivery
                 </button>
               </div>
             ) : !showNewForm && rows.length > 0 && rows.some((r) => r.status === "DRAFT") ? (
@@ -646,12 +656,13 @@ export default function StoreProcurementReceivingPage() {
                   {/* Item rows */}
                   {requestDetail.items.map((item) => {
                     const chk = itemChecks[item.id] ?? { checked: true, qty_received: item.qty };
+                    const isZeroQty = chk.checked && (chk.qty_received === 0 || !chk.qty_received);
                     return (
                       <div
                         key={item.id}
                         className={[
                           "grid grid-cols-[auto_1fr_auto] items-center gap-2 border-b border-white/5 px-3 py-3 last:border-0 transition-colors",
-                          chk.checked ? "bg-emerald-900/5" : "bg-black/10 opacity-60",
+                          isZeroQty ? "bg-amber-900/8" : chk.checked ? "bg-emerald-900/5" : "bg-black/10 opacity-60",
                         ].join(" ")}
                       >
                         {/* Checkbox */}
@@ -661,7 +672,7 @@ export default function StoreProcurementReceivingPage() {
                           className="flex h-6 w-6 shrink-0 items-center justify-center transition"
                         >
                           {chk.checked ? (
-                            <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                            <CheckCircle2 className={`h-5 w-5 ${isZeroQty ? "text-amber-400" : "text-emerald-400"}`} />
                           ) : (
                             <Circle className="h-5 w-5 text-zinc-600" />
                           )}
@@ -669,14 +680,24 @@ export default function StoreProcurementReceivingPage() {
 
                         {/* Item info */}
                         <div className="min-w-0">
-                          <div className={`truncate text-sm font-medium ${chk.checked ? "text-white" : "text-zinc-500 line-through"}`}>
+                          <div className={`truncate text-sm font-medium ${chk.checked ? (isZeroQty ? "text-amber-200" : "text-white") : "text-zinc-500 line-through"}`}>
                             {item.item_name}
+                            {isZeroQty && (
+                              <span className="ml-2 inline-block rounded-md border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
+                                0 received
+                              </span>
+                            )}
                           </div>
                           <div className="mt-0.5 flex items-center gap-2 text-[11px] text-zinc-500">
                             <span>{item.vendor_name || "-"}</span>
                             <span>·</span>
                             <span>Ordered: {item.qty} {item.unit}</span>
                           </div>
+                          {isZeroQty && (
+                            <div className="mt-0.5 text-[11px] text-amber-400/80">
+                              Not delivered? Uncheck this item to mark it as skipped.
+                            </div>
+                          )}
                         </div>
 
                         {/* Qty received input */}
@@ -686,13 +707,13 @@ export default function StoreProcurementReceivingPage() {
                               <input
                                 type="number"
                                 min="0"
-                                step="1"
-                                inputMode="numeric"
+                                step="0.01"
+                                inputMode="decimal"
                                 value={chk.qty_received || ""}
                                 placeholder="0"
                                 onFocus={(e) => e.target.select()}
                                 onChange={(e) => setItemQty(item.id, Number(e.target.value || 0))}
-                                className="w-16 rounded-lg border border-white/8 bg-black/30 px-2 py-1 text-right text-xs text-white focus:border-emerald-500/50 focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                                className={`w-16 rounded-lg border bg-black/30 px-2 py-1 text-right text-xs text-white outline-none focus:ring-2 ${isZeroQty ? "border-amber-500/40 focus:border-amber-500/50 focus:ring-amber-500/20" : "border-white/8 focus:border-emerald-500/50 focus:ring-emerald-500/20"}`}
                               />
                               <span className="text-[11px] text-zinc-500">{item.unit}</span>
                             </div>
@@ -818,12 +839,37 @@ export default function StoreProcurementReceivingPage() {
                   </div>
                 ) : null}
 
+                {/* Zero-qty warning */}
+                {computedTotals.zeroQtyCheckedCount > 0 && (
+                  <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/8 px-3 py-2.5 text-xs text-amber-200">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                    <div>
+                      <span className="font-semibold">{computedTotals.zeroQtyCheckedCount} item{computedTotals.zeroQtyCheckedCount !== 1 ? "s" : ""} checked with qty 0.</span>
+                      <span className="ml-1 text-amber-300/80">If an item was not delivered, uncheck it instead of entering 0.</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Inline form error */}
                 {formError ? (
-                  <div className="flex items-center gap-2 rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2.5 text-sm text-red-300">
-                    <AlertTriangle className="h-4 w-4 shrink-0" />
-                    {formError}
-                  </div>
+                  formError.toLowerCase().includes("cannot receive your own") ? (
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/8 p-3">
+                      <div className="flex items-start gap-2 text-sm text-amber-200">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                        <div>
+                          <div className="font-semibold">Cannot confirm your own order</div>
+                          <div className="mt-1 text-xs text-amber-300/80">
+                            For security, the person who created this order cannot confirm receipt. Please ask your manager or another staff member to log in and confirm this delivery.
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 rounded-xl border border-red-900/40 bg-red-950/20 px-3 py-2.5 text-sm text-red-300">
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                      {formError}
+                    </div>
+                  )
                 ) : null}
 
                 {/* Submit button */}
