@@ -777,22 +777,30 @@ export default function StoreProcurementRequestPage() {
 
       {/* Page header */}
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-2xl font-light tracking-tight text-white">
-              {editRequestId ? "Edit Request" : "New Request"}
-            </h1>
-            {editRequestId && (
-              <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-300">
-                ✏ Editing {editRequestNo ? `#${editRequestNo}` : "Draft"}
-              </span>
-            )}
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/store/procurement?city=${encodeURIComponent(city || "manila")}`}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/6 px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/10 hover:text-white"
+          >
+            ← Back
+          </Link>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-2xl font-light tracking-tight text-white">
+                {editRequestId ? "Edit Request" : "New Request"}
+              </h1>
+              {editRequestId && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-300">
+                  ✏ Editing {editRequestNo ? `#${editRequestNo}` : "Draft"}
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-zinc-400 mt-1">
+              {editRequestId
+                ? "Update items and re-submit for approval when ready."
+                : "Browse catalog, build your order, and submit for approval."}
+            </p>
           </div>
-          <p className="text-sm text-zinc-400 mt-1">
-            {editRequestId
-              ? "Update items and re-submit for approval when ready."
-              : "Browse catalog, build your order, and submit for approval."}
-          </p>
         </div>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-500/15 border border-violet-500/25 px-2.5 py-0.5 text-xs font-medium text-violet-400">
           {cityLabel}

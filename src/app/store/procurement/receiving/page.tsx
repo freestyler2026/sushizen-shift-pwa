@@ -433,9 +433,17 @@ export default function StoreProcurementReceivingPage() {
         {/* ── Page header + stepper (full-width) ── */}
         <div className="mb-5">
           <div className="mb-4 flex items-start justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-light tracking-tight text-white">Store Receiving</h1>
-              <p className="text-sm text-zinc-400 mt-1">Record deliveries and confirm received items.</p>
+            <div className="flex items-center gap-3">
+              <Link
+                href={`/store/procurement?city=${encodeURIComponent(city || "manila")}`}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/6 px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/10 hover:text-white"
+              >
+                ← Back
+              </Link>
+              <div>
+                <h1 className="text-2xl font-light tracking-tight text-white">Store Receiving</h1>
+                <p className="text-sm text-zinc-400 mt-1">Record deliveries and confirm received items.</p>
+              </div>
             </div>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-500/15 border border-violet-500/25 px-2.5 py-0.5 text-xs font-medium text-violet-400">
               <Package className="h-3 w-3" />{cityLabel}

@@ -315,9 +315,17 @@ export default function StoreProcurementClaimPage() {
 
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className={T_PAGE_TITLE}>File a Claim</h1>
-            <p className={T_BODY}>Report shortage, excess, quality issues, or invoice variance.</p>
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}${requestId ? `&request_id=${encodeURIComponent(requestId)}` : ""}`}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/6 px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/10 hover:text-white"
+            >
+              ← Back to Receiving
+            </Link>
+            <div>
+              <h1 className={T_PAGE_TITLE}>File a Claim</h1>
+              <p className={T_BODY}>Report shortage, excess, quality issues, or invoice variance.</p>
+            </div>
           </div>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-violet-500/15 border border-violet-500/25 px-2.5 py-0.5 text-xs font-medium text-violet-400">
             <MapPin className="h-3 w-3" />{cityLabel}
