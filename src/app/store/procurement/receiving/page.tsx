@@ -387,7 +387,7 @@ export default function StoreProcurementReceivingPage() {
         {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ approver_name: requestedBy.trim(), pin: pin.trim() }),
+          body: JSON.stringify({ receiving_id: receivingId, approver_name: requestedBy.trim(), pin: pin.trim() }),
         },
         requestedBy,
         pin,
