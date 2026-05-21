@@ -954,6 +954,15 @@ export default function StoreProcurementReceivingPage() {
                         </span>
                       </div>
 
+                      {/* Request ID tag */}
+                      {row.request_no && (
+                        <div className="mt-1.5">
+                          <span className="inline-flex items-center rounded-md border border-violet-500/25 bg-violet-500/10 px-2 py-0.5 font-mono text-[11px] font-medium text-violet-300">
+                            {row.request_no}
+                          </span>
+                        </div>
+                      )}
+
                       {/* Stats row */}
                       <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-3">
                         <div>
@@ -968,7 +977,13 @@ export default function StoreProcurementReceivingPage() {
                         ) : null}
                         <div>
                           <span className="text-zinc-500">Amount</span>
-                          <span className="ml-1 font-medium text-white">{Number(row.amount_received || 0).toFixed(2)} {currencyCode}</span>
+                          <span className={[
+                            "ml-1 font-medium",
+                            Number(row.amount_received || 0) === 0 ? "text-amber-300" : "text-white",
+                          ].join(" ")}>
+                            {Number(row.amount_received || 0).toFixed(2)} {currencyCode}
+                            {Number(row.amount_received || 0) === 0 && <span className="ml-1 text-[10px] text-amber-400">⚠ 要確認</span>}
+                          </span>
                         </div>
                         <div>
                           <span className="text-zinc-500">Quality</span>
@@ -1008,6 +1023,13 @@ export default function StoreProcurementReceivingPage() {
                         <div className="flex items-center gap-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-sm font-semibold text-emerald-300">
                           <CheckCheck className="h-4 w-4" />
                           Confirmed
+                        </div>
+                      ) : Number(row.amount_received || 0) === 0 ? (
+                        <div className="flex flex-col items-end gap-1.5">
+                          <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-200 text-right max-w-[200px]">
+                            <div className="font-semibold mb-0.5">⚠ Amount が 0.00 です</div>
+                            <div className="text-amber-300/80 text-[11px]">このレコードを削除して、正しい金額で再作成してください。</div>
+                          </div>
                         </div>
                       ) : confirmTarget === row.id ? (
                         <div className="flex flex-col items-end gap-1.5">
