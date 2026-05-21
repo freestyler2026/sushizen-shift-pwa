@@ -60,6 +60,7 @@ type RequestRow = {
   request_date: string;
   total_amount: number;
   status: string;
+  receiving_status?: string;
   current_approval_level: number;
 };
 
@@ -83,6 +84,7 @@ type RequestDetail = {
   request_date: string;
   total_amount: number;
   status: string;
+  receiving_status?: string;
   current_approval_level: number;
   currency: string;
   requested_by: string;
@@ -450,6 +452,20 @@ function RequestDetailDrawer({
             );
           }
           if (s === "APPROVED") {
+            const rs = String(detail.receiving_status || "").toUpperCase();
+            if (rs === "CONFIRMED") {
+              return (
+                <div className="border-t border-white/10 px-5 py-4 flex gap-3">
+                  <Link
+                    href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(requestId)}`}
+                    onClick={onClose}
+                    className="flex-1 rounded-xl border border-cyan-500/30 bg-cyan-950/30 py-2.5 text-center text-sm font-semibold text-cyan-300 transition hover:bg-cyan-900/40"
+                  >
+                    ✓ Received — File Claim
+                  </Link>
+                </div>
+              );
+            }
             return (
               <div className="border-t border-white/10 px-5 py-4 flex gap-3">
                 <Link
@@ -828,7 +844,24 @@ export default function StoreProcurementHomePage() {
 
   const getStatusActionButton = (row: RequestRow) => {
     const s = String(row.status || "").toUpperCase();
+    const rs = String(row.receiving_status || "").toUpperCase();
     if (s === "APPROVED") {
+      // If receiving is already confirmed, show "Continue to Claim" instead of "Receive Now"
+      if (rs === "CONFIRMED") {
+        return (
+          <Link
+            href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`}
+            className="rounded-xl border border-cyan-500/30 bg-cyan-950/30 px-4 py-2 text-sm font-semibold text-cyan-300 transition hover:bg-cyan-900/40"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4" />
+              Received — File Claim
+              <ChevronRight className="h-3.5 w-3.5" />
+            </span>
+          </Link>
+        );
+      }
       return (
         <Link
           href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`}
