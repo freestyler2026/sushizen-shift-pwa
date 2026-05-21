@@ -286,6 +286,18 @@ export default function StoreProcurementReceivingPage() {
       const vendorName = vendors.join(", ");
       const firstUnit = items[0]?.unit ?? "";
 
+      // Calculate effective unit price from checked items' line totals
+      // effectiveUnitPrice = totalValue / totalQtyReceived so that
+      // amount_received = qtyReceived * effectiveUnitPrice = totalValue (correct)
+      const checkedItems = items.filter((it) => itemChecks[it.id]?.checked);
+      const totalValue = checkedItems.reduce((s, it) => {
+        const chk = itemChecks[it.id];
+        const qtyR = chk?.qty_received ?? it.qty;
+        return s + qtyR * (it.unit_price || 0);
+      }, 0);
+      const effectiveUnitPrice =
+        computedTotals.qtyReceived > 0 ? totalValue / computedTotals.qtyReceived : 0;
+
       const res = await procurementJson<{ row?: ReceivingRow }>(
         "/api/admin/procurement/receiving",
         {
@@ -298,7 +310,7 @@ export default function StoreProcurementReceivingPage() {
             qty_expected: computedTotals.qtyExpected,
             qty_received: computedTotals.qtyReceived,
             unit: firstUnit,
-            unit_price: 0,
+            unit_price: effectiveUnitPrice,
             quality_status: overallQuality,
             variance_reason: notes.trim(),
             approver_name: requestedBy.trim(),
