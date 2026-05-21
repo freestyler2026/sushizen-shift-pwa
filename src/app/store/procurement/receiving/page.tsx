@@ -119,6 +119,7 @@ export default function StoreProcurementReceivingPage() {
   // UI state
   const [busy, setBusy] = useState("");
   const [confirmTarget, setConfirmTarget] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState("");
   const [checkAllConfirm, setCheckAllConfirm] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
@@ -368,6 +369,30 @@ export default function StoreProcurementReceivingPage() {
         pin,
       );
       setInfo(`Confirmed: ${String(res?.row?.receiving_no || receivingId)}`);
+      await Promise.all([loadReceivings(), loadMyRequests()]);
+    } catch (e: any) {
+      setError(friendlyProcurementError(e));
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const deleteReceiving = async (receivingId: string) => {
+    setBusy(receivingId);
+    setError("");
+    setDeleteTarget("");
+    try {
+      await procurementJson<{ ok: boolean }>(
+        `/api/admin/procurement/receiving/${receivingId}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ approver_name: requestedBy.trim(), pin: pin.trim() }),
+        },
+        requestedBy,
+        pin,
+      );
+      setInfo("Record deleted. You can now re-create it with the correct amount.");
       await Promise.all([loadReceivings(), loadMyRequests()]);
     } catch (e: any) {
       setError(friendlyProcurementError(e));
@@ -931,6 +956,7 @@ export default function StoreProcurementReceivingPage() {
             <div className="px-1 text-sm font-semibold">Receiving Records</div>
             {rows.map((row) => {
               const isConfirmed = row.status === "CONFIRMED";
+              const isDraft = row.status === "DRAFT";
               const isNew = row.id === lastCreatedId;
               return (
                 <div
@@ -1034,10 +1060,53 @@ export default function StoreProcurementReceivingPage() {
                         </div>
                       ) : Number(row.amount_received || 0) === 0 ? (
                         <div className="flex flex-col items-end gap-1.5">
-                          <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-200 text-right max-w-[200px]">
-                            <div className="font-semibold mb-0.5">⚠ Amount が 0.00 です</div>
-                            <div className="text-amber-300/80 text-[11px]">このレコードを削除して、正しい金額で再作成してください。</div>
-                          </div>
+                          {isDraft ? (
+                            /* DRAFT + Amount=0 → show Delete button */
+                            deleteTarget === row.id ? (
+                              <div className="flex flex-col items-end gap-1.5">
+                                <p className="text-xs text-red-200 font-medium text-right max-w-[200px]">
+                                  Delete this record? This cannot be undone.
+                                </p>
+                                <div className="flex gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setDeleteTarget("")}
+                                    className="rounded-lg border border-white/15 bg-white/6 px-3 py-1.5 text-xs text-zinc-300 transition hover:bg-white/10"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void deleteReceiving(row.id)}
+                                    disabled={busy === row.id}
+                                    className="rounded-lg border border-red-500/40 bg-red-900/30 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-900/50"
+                                  >
+                                    {busy === row.id ? "Deleting…" : "Yes, Delete"}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-end gap-1.5">
+                                <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-200 text-right max-w-[200px]">
+                                  <div className="font-semibold mb-0.5">⚠ Amount is 0.00</div>
+                                  <div className="text-amber-300/80 text-[11px]">Delete this record and re-create with the correct amount.</div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setDeleteTarget(row.id)}
+                                  className="rounded-lg border border-red-500/40 bg-red-900/20 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-900/40"
+                                >
+                                  🗑 Delete Record
+                                </button>
+                              </div>
+                            )
+                          ) : (
+                            /* CONFIRMED + Amount=0 → ask admin to void */
+                            <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-200 text-right max-w-[200px]">
+                              <div className="font-semibold mb-0.5">⚠ Amount is 0.00</div>
+                              <div className="text-amber-300/80 text-[11px]">Ask your admin (HQ/Admin) to void this record so it can be re-created.</div>
+                            </div>
+                          )}
                         </div>
                       ) : confirmTarget === row.id ? (
                         <div className="flex flex-col items-end gap-1.5">
