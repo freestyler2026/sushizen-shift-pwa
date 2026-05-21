@@ -624,6 +624,22 @@ export default function StoreProcurementReceivingPage() {
               ) : null}
             </div>
 
+            {/* Maker-Checker warning — cannot receive your own request */}
+            {selectedRequest && selectedRequest.requested_by &&
+              requestedBy.trim() &&
+              selectedRequest.requested_by.trim().toLowerCase() === requestedBy.trim().toLowerCase() && (
+              <div className="mb-4 rounded-xl border border-orange-500/40 bg-orange-950/20 px-4 py-3 flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-orange-400" />
+                <div>
+                  <div className="text-sm font-semibold text-orange-200">You cannot receive your own request</div>
+                  <div className="mt-1 text-xs text-orange-300/80">
+                    <span className="font-mono font-semibold">{selectedRequest.request_no}</span> was created by you.
+                    Please ask another staff member to receive this delivery.
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Duplicate receiving warning */}
             {selectedRequest && String(selectedRequest.status || "").toUpperCase() === "RECEIVED" && rows.length > 0 && !duplicateWarningConfirmed && (
               <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-950/20 px-4 py-4">
