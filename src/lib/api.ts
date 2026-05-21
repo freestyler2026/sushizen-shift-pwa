@@ -50,6 +50,17 @@ export function qs(params: Record<string, any>) {
   return s ? `?${s}` : "";
 }
 
+function _extractErrorMessage(text: string, status: number): string {
+  try {
+    const j = JSON.parse(text);
+    const msg = j?.detail || j?.message;
+    if (msg && typeof msg === "string") return msg;
+  } catch {
+    // not JSON
+  }
+  return text || `HTTP ${status}`;
+}
+
 export async function apiGet<T>(path: string): Promise<T> {
   const url = `${API_BASE}${path}`;
   const doFetch = () =>
@@ -60,6 +71,7 @@ export async function apiGet<T>(path: string): Promise<T> {
     });
 
   let res = await doFetch();
+  // Retry on 401 (expired token) — backend also returns 401 when no valid token is present
   if (res.status === 401) {
     const refreshed = await tryRefreshAccessToken();
     if (refreshed) res = await doFetch();
@@ -68,12 +80,7 @@ export async function apiGet<T>(path: string): Promise<T> {
   const text = await res.text();
 
   if (!res.ok) {
-    try {
-      const j = JSON.parse(text);
-      throw new Error(j?.detail || j?.message || text || `HTTP ${res.status}`);
-    } catch {
-      throw new Error(text || `HTTP ${res.status}`);
-    }
+    throw new Error(_extractErrorMessage(text, res.status));
   }
 
   return (text ? JSON.parse(text) : {}) as T;
@@ -98,12 +105,7 @@ export async function apiPost<T>(path: string, body: any): Promise<T> {
   const text = await res.text();
 
   if (!res.ok) {
-    try {
-      const j = JSON.parse(text);
-      throw new Error(j?.detail || j?.message || text || `HTTP ${res.status}`);
-    } catch {
-      throw new Error(text || `HTTP ${res.status}`);
-    }
+    throw new Error(_extractErrorMessage(text, res.status));
   }
 
   return (text ? JSON.parse(text) : {}) as T;
