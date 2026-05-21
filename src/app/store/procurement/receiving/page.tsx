@@ -624,10 +624,11 @@ export default function StoreProcurementReceivingPage() {
               ) : null}
             </div>
 
-            {/* Maker-Checker warning — cannot receive your own request */}
+            {/* Maker-Checker warning — cannot receive your own request (skipped for HQ / ADMIN) */}
             {selectedRequest && selectedRequest.requested_by &&
               requestedBy.trim() &&
-              selectedRequest.requested_by.trim().toLowerCase() === requestedBy.trim().toLowerCase() && (
+              selectedRequest.requested_by.trim().toLowerCase() === requestedBy.trim().toLowerCase() &&
+              !["HQ", "ADMIN"].includes(String(auth?.role || "").toUpperCase()) && (
               <div className="mb-4 rounded-xl border border-orange-500/40 bg-orange-950/20 px-4 py-3 flex items-start gap-3">
                 <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-orange-400" />
                 <div>
