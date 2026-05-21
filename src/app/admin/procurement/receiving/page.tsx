@@ -21,7 +21,7 @@ import {
   BADGE_ERROR,
   BADGE_INFO,
 } from "@/lib/ui-tokens";
-import { RefreshCw, AlertCircle, CheckCircle, ChevronRight } from "lucide-react";
+import { RefreshCw, AlertCircle, CheckCircle, ChevronRight, XCircle } from "lucide-react";
 
 type ReceivingRow = {
   id: string;
@@ -65,12 +65,14 @@ function statusBadge(status: string) {
   const s = String(status || "").toUpperCase();
   if (s === "CONFIRMED") return <span className={BADGE_SUCCESS}>CONFIRMED</span>;
   if (s === "DRAFT")     return <span className={BADGE_WARNING}>DRAFT</span>;
+  if (s === "VOID")      return <span className="inline-flex items-center rounded-full bg-zinc-700/60 px-2 py-0.5 text-xs font-semibold text-zinc-400">VOID</span>;
   return <span className={BADGE_INFO}>{status || "-"}</span>;
 }
 
 export default function ProcurementReceivingPage() {
   const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
+  const [isHqAdmin, setIsHqAdmin] = useState(false);
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
   const [city, setCity] = useState<"dubai" | "manila">(
@@ -187,6 +189,32 @@ export default function ProcurementReceivingPage() {
     }
   };
 
+  const voidReceiving = async (row: ReceivingRow) => {
+    const msg = `Void receiving record ${row.receiving_no}?\n\nThis will cancel the existing record and allow a new receiving record to be created for the same order.\n\nThis action cannot be undone.`;
+    if (!window.confirm(msg)) return;
+    setBusy(`void-${row.id}`);
+    setError("");
+    setSuccessMsg("");
+    try {
+      await procurementJson(
+        `/api/admin/procurement/receiving/${row.id}/void`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ receiving_id: row.id, approver_name: requestedBy, pin }),
+        },
+        requestedBy,
+        pin,
+      );
+      setSuccessMsg(`${row.receiving_no} has been voided. You can now create a new receiving record.`);
+      await load();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setBusy("");
+    }
+  };
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const sp = new URLSearchParams(window.location.search);
@@ -206,11 +234,13 @@ export default function ProcurementReceivingPage() {
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
       const resolvedAuth = refreshed || auth;
+      const role = String(resolvedAuth?.role || "").toUpperCase();
       const can = canAccessProcurementAdmin(
-        String(resolvedAuth?.role || ""),
+        role,
         String(resolvedAuth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila",
       );
       setAllowed(can);
+      setIsHqAdmin(role === "HQ" || role === "ADMIN");
     }
     void init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -297,6 +327,7 @@ export default function ProcurementReceivingPage() {
               <option value="">All statuses</option>
               <option value="DRAFT">DRAFT</option>
               <option value="CONFIRMED">CONFIRMED</option>
+              <option value="VOID">VOID</option>
             </select>
           </div>
           <div className="flex items-end">
@@ -394,14 +425,18 @@ export default function ProcurementReceivingPage() {
       {/* Records list */}
       <div className="space-y-3">
         {rows.map((row) => {
+          const statusUpper = String(row.status || "").toUpperCase();
+          const isConfirmed = statusUpper === "CONFIRMED";
+          const isVoid = statusUpper === "VOID";
           const hasVariance = Number(row.shortage_qty || 0) > 0 || Number(row.excess_qty || 0) > 0 || row.quality_status !== "ACCEPTED";
-          const isConfirmed = String(row.status || "").toUpperCase() === "CONFIRMED";
           return (
             <div
               key={row.id}
               className={[
                 "rounded-2xl border p-4 transition-all",
-                hasVariance && !isConfirmed
+                isVoid
+                  ? "border-white/5 bg-white/2 opacity-60"
+                  : hasVariance && !isConfirmed
                   ? "border-amber-500/30 bg-amber-950/10"
                   : "border-white/8 bg-white/4",
               ].join(" ")}
@@ -411,33 +446,40 @@ export default function ProcurementReceivingPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-sm font-semibold text-white">{row.receiving_no}</span>
                     {statusBadge(row.status)}
-                    {qualityBadge(row.quality_status)}
-                    {hasVariance && !isConfirmed && <span className={BADGE_WARNING}>⚠ Variance</span>}
+                    {!isVoid && qualityBadge(row.quality_status)}
+                    {hasVariance && !isConfirmed && !isVoid && <span className={BADGE_WARNING}>⚠ Variance</span>}
                   </div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
                     <span>Req: <span className="text-zinc-200">{row.request_no || row.parent_case_no || "-"}</span></span>
                     <span>Vendor: <span className="text-zinc-200">{row.vendor_name || "-"}</span></span>
                     <span>Store: <span className="text-zinc-200">{row.store_code || "-"}</span></span>
                   </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
-                    <span>Expected: <span className="text-zinc-300">{Number(row.qty_expected || 0).toFixed(2)} {row.unit}</span></span>
-                    <span>Received: <span className="text-zinc-300">{Number(row.qty_received || 0).toFixed(2)}</span></span>
-                    {Number(row.shortage_qty || 0) > 0 && <span className="text-red-400">Short: {Number(row.shortage_qty || 0).toFixed(2)}</span>}
-                    {Number(row.excess_qty || 0) > 0 && <span className="text-amber-400">Excess: {Number(row.excess_qty || 0).toFixed(2)}</span>}
-                    <span>Amount: <span className="text-zinc-300">{Number(row.amount_received || 0).toFixed(2)}</span></span>
-                  </div>
-                  {isConfirmed && (
+                  {!isVoid && (
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
+                      <span>Expected: <span className="text-zinc-300">{Number(row.qty_expected || 0).toFixed(2)} {row.unit}</span></span>
+                      <span>Received: <span className="text-zinc-300">{Number(row.qty_received || 0).toFixed(2)}</span></span>
+                      {Number(row.shortage_qty || 0) > 0 && <span className="text-red-400">Short: {Number(row.shortage_qty || 0).toFixed(2)}</span>}
+                      {Number(row.excess_qty || 0) > 0 && <span className="text-amber-400">Excess: {Number(row.excess_qty || 0).toFixed(2)}</span>}
+                      <span>Amount: <span className="text-zinc-300">{Number(row.amount_received || 0).toFixed(2)}</span></span>
+                    </div>
+                  )}
+                  {isConfirmed && !isVoid && (
                     <p className="text-xs text-zinc-500">
                       Confirmed by {row.confirmed_by || "-"} at {formatDateTime(row.confirmed_at)}
                     </p>
                   )}
-                  {row.variance_reason && (
+                  {isVoid && (
+                    <p className="text-xs text-zinc-500">
+                      Voided by {row.confirmed_by || "-"} at {formatDateTime(row.confirmed_at)}
+                    </p>
+                  )}
+                  {row.variance_reason && !isVoid && (
                     <p className="text-sm text-amber-300">{row.variance_reason}</p>
                   )}
                 </div>
 
                 <div className="flex shrink-0 flex-wrap gap-2">
-                  {row.case_id && (
+                  {row.case_id && !isVoid && (
                     <Link
                       href={`/admin/procurement/cases/${row.case_id}`}
                       className={`${SMALL_BUTTON} flex items-center gap-1`}
@@ -445,19 +487,34 @@ export default function ProcurementReceivingPage() {
                       Case <ChevronRight className="h-3 w-3" />
                     </Link>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => void confirmReceiving(row.id)}
-                    disabled={busy === row.id || isConfirmed}
-                    className={
-                      isConfirmed
-                        ? `${SMALL_BUTTON} opacity-50 cursor-not-allowed flex items-center gap-1.5`
-                        : `${PRIMARY_BUTTON} flex items-center gap-1.5 px-4 py-2 text-xs`
-                    }
-                  >
-                    <CheckCircle className="h-3.5 w-3.5" />
-                    {busy === row.id ? "Confirming…" : isConfirmed ? "Confirmed" : "Confirm"}
-                  </button>
+                  {/* Confirm button — only for DRAFT records */}
+                  {!isVoid && (
+                    <button
+                      type="button"
+                      onClick={() => void confirmReceiving(row.id)}
+                      disabled={busy === row.id || isConfirmed}
+                      className={
+                        isConfirmed
+                          ? `${SMALL_BUTTON} opacity-50 cursor-not-allowed flex items-center gap-1.5`
+                          : `${PRIMARY_BUTTON} flex items-center gap-1.5 px-4 py-2 text-xs`
+                      }
+                    >
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      {busy === row.id ? "Confirming…" : isConfirmed ? "Confirmed" : "Confirm"}
+                    </button>
+                  )}
+                  {/* Void button — HQ/Admin only, not already void */}
+                  {isHqAdmin && !isVoid && (
+                    <button
+                      type="button"
+                      onClick={() => void voidReceiving(row)}
+                      disabled={busy === `void-${row.id}`}
+                      className="flex items-center gap-1.5 rounded-lg border border-red-700/40 bg-red-900/20 px-3 py-1.5 text-xs font-semibold text-red-400 transition-colors hover:bg-red-900/40 disabled:opacity-50"
+                    >
+                      <XCircle className="h-3.5 w-3.5" />
+                      {busy === `void-${row.id}` ? "Voiding…" : "Void"}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
