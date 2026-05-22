@@ -2,8 +2,26 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { ChevronRight, AlertTriangle, CheckCircle2, Clock, ArrowLeft } from "lucide-react";
 
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
+import {
+  GLASS_CARD,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  INPUT_CLASS,
+  SELECT_CLASS,
+  T_PAGE_TITLE,
+  T_LABEL,
+  T_SECTION,
+  TABLE_HEADER,
+  TABLE_ROW,
+  TABLE_CELL,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  BADGE_ERROR,
+  BADGE_INFO,
+} from "@/lib/ui-tokens";
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
 
@@ -40,6 +58,19 @@ interface ReportHeader {
   staff_name: string;
   status: string;
   submitted_at: string | null;
+}
+
+interface ReportEntry {
+  id: number;
+  report_id: number;
+  item_code: string;
+  qty: number | null;
+  unit: string | null;
+  note: string | null;
+}
+
+interface ReportDetail extends ReportHeader {
+  entries: ReportEntry[];
 }
 
 function todayYmd() {
@@ -80,6 +111,7 @@ async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   return new Response(text, { status: res.status, statusText: res.statusText, headers: res.headers });
 }
 
+/* ── Status badge for input form ── */
 function StatusBadge({
   qty,
   minLevel,
@@ -90,15 +122,240 @@ function StatusBadge({
   parLevel: number | null;
 }) {
   const num = parseFloat(qty);
-  if (!qty || Number.isNaN(num)) return <span className="text-xs text-neutral-500">—</span>;
-  if (minLevel !== null && num < minLevel) return <span className="text-xs font-bold text-red-400">🔴 LOW</span>;
-  if (parLevel !== null && num < parLevel) return <span className="text-xs font-semibold text-amber-400">🟡 WARN</span>;
-  return <span className="text-xs text-emerald-400">🟢 OK</span>;
+  if (!qty || Number.isNaN(num)) return <span className="text-xs text-zinc-600">—</span>;
+  if (minLevel !== null && num < minLevel)
+    return <span className={BADGE_ERROR}>🔴 LOW</span>;
+  if (parLevel !== null && num < parLevel)
+    return <span className={BADGE_WARNING}>🟡 WARN</span>;
+  return <span className={BADGE_SUCCESS}>🟢 OK</span>;
+}
+
+/* ── Status badge for detail view (uses number qty) ── */
+function DetailStatusBadge({
+  qty,
+  minLevel,
+  parLevel,
+}: {
+  qty: number | null;
+  minLevel: number | null;
+  parLevel: number | null;
+}) {
+  if (qty === null) return <span className="text-xs text-zinc-600">—</span>;
+  if (minLevel !== null && qty < minLevel)
+    return <span className={BADGE_ERROR}>🔴 LOW</span>;
+  if (parLevel !== null && qty < parLevel)
+    return <span className={BADGE_WARNING}>🟡 WARN</span>;
+  return <span className={BADGE_SUCCESS}>🟢 OK</span>;
 }
 
 function effectiveStaffName(staffChoice: string, customStaff: string): string {
   if (staffChoice === STAFF_OTHER) return customStaff.trim();
   return staffChoice.trim();
+}
+
+function formatDate(d: string) {
+  if (!d) return "—";
+  const [y, m, day] = d.split("-");
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${parseInt(day, 10)} ${months[parseInt(m, 10) - 1]} ${y}`;
+}
+
+/* ── Report Detail View ── */
+function ReportDetailView({
+  detail,
+  items,
+  onBack,
+}: {
+  detail: ReportDetail;
+  items: InvItem[];
+  onBack: () => void;
+}) {
+  const entryMap: Record<string, ReportEntry> = {};
+  detail.entries.forEach((e) => { entryMap[e.item_code] = e; });
+
+  // Compute alerts
+  const lowItems: { item: InvItem; entry: ReportEntry }[] = [];
+  const warnItems: { item: InvItem; entry: ReportEntry }[] = [];
+  items.forEach((item) => {
+    const entry = entryMap[item.item_code];
+    if (!entry || entry.qty === null) return;
+    if (item.min_level !== null && entry.qty < item.min_level) {
+      lowItems.push({ item, entry });
+    } else if (item.par_level !== null && entry.qty < item.par_level) {
+      warnItems.push({ item, entry });
+    }
+  });
+
+  const sections = ["KITCHEN", "CK"] as const;
+  const filledCount = detail.entries.filter((e) => e.qty !== null).length;
+
+  return (
+    <div className="space-y-5">
+      {/* Header card */}
+      <div className={`${GLASS_CARD} p-5`}>
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className={T_LABEL}>Report Detail</p>
+            <h2 className="mt-1 text-xl font-semibold text-white">
+              {detail.branch} — {formatDate(detail.report_date)} · {detail.shift}
+            </h2>
+            <p className="mt-1 text-sm text-zinc-400">Staff: {detail.staff_name}</p>
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            <span className={detail.status === "SUBMITTED" ? BADGE_SUCCESS : BADGE_WARNING}>
+              {detail.status === "SUBMITTED" ? <CheckCircle2 className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+              {detail.status}
+            </span>
+            {detail.submitted_at && (
+              <p className="text-xs text-zinc-500">
+                Submitted {new Date(detail.submitted_at).toLocaleString()}
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-4 border-t border-white/5 pt-3">
+          <p className="text-sm text-zinc-400">
+            <span className="font-semibold text-white">{filledCount}</span> items recorded
+          </p>
+          {lowItems.length > 0 && (
+            <span className={BADGE_ERROR}>{lowItems.length} LOW</span>
+          )}
+          {warnItems.length > 0 && (
+            <span className={BADGE_WARNING}>{warnItems.length} WATCH</span>
+          )}
+        </div>
+      </div>
+
+      {/* Low stock alert */}
+      {lowItems.length > 0 && (
+        <div className="rounded-2xl border border-red-500/30 bg-red-500/8 p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-red-400" />
+            <p className="text-sm font-semibold text-red-300">
+              Low Stock Alert — {lowItems.length} item{lowItems.length > 1 ? "s" : ""} below minimum
+            </p>
+          </div>
+          <ul className="space-y-1">
+            {lowItems.map(({ item, entry }) => (
+              <li key={item.item_code} className="text-xs text-red-200/80">
+                <span className="font-medium text-red-200">{item.item_name}</span>
+                {" "}— {entry.qty} {entry.unit ?? item.default_unit}
+                {item.min_level !== null && (
+                  <span className="text-red-400/70"> (min {item.min_level} {entry.unit ?? item.default_unit})</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Watch alert */}
+      {warnItems.length > 0 && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/8 p-4">
+          <div className="mb-2 flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-400" />
+            <p className="text-sm font-semibold text-amber-300">
+              Needs Attention — {warnItems.length} item{warnItems.length > 1 ? "s" : ""} below par level
+            </p>
+          </div>
+          <ul className="space-y-1">
+            {warnItems.map(({ item, entry }) => (
+              <li key={item.item_code} className="text-xs text-amber-200/80">
+                <span className="font-medium text-amber-200">{item.item_name}</span>
+                {" "}— {entry.qty} {entry.unit ?? item.default_unit}
+                {item.par_level !== null && (
+                  <span className="text-amber-400/70"> (par {item.par_level} {entry.unit ?? item.default_unit})</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Entries by section */}
+      {sections.map((sec) => {
+        const sectionItems = items.filter((i) => i.section === sec);
+        const sectionEntries = sectionItems.filter((i) => entryMap[i.item_code]);
+        if (sectionEntries.length === 0) return null;
+        return (
+          <div key={sec} className={GLASS_CARD}>
+            <div className="flex items-center justify-between border-b border-white/5 px-5 py-3">
+              <h3 className={T_SECTION}>
+                {sec === "KITCHEN" ? "🍱 Kitchen" : "🧊 CK (Cold Kitchen)"}
+              </h3>
+              <span className="text-xs text-zinc-500">{sectionEntries.length} entries</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/5">
+                    <th className={`${TABLE_HEADER} px-5 py-3 text-left`}>Item</th>
+                    <th className={`${TABLE_HEADER} px-3 py-3 text-right`}>Qty</th>
+                    <th className={`${TABLE_HEADER} px-3 py-3 text-left`}>Unit</th>
+                    <th className={`${TABLE_HEADER} px-3 py-3 text-center`}>Status</th>
+                    <th className={`${TABLE_HEADER} px-5 py-3 text-left`}>Note</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sectionItems.map((item) => {
+                    const entry = entryMap[item.item_code];
+                    if (!entry) return null;
+                    const isLow = item.min_level !== null && entry.qty !== null && entry.qty < item.min_level;
+                    const isWarn = !isLow && item.par_level !== null && entry.qty !== null && entry.qty < item.par_level;
+                    return (
+                      <tr
+                        key={item.item_code}
+                        className={[
+                          TABLE_ROW,
+                          isLow ? "bg-red-500/5" : isWarn ? "bg-amber-500/5" : "",
+                        ].join(" ")}
+                      >
+                        <td className={`${TABLE_CELL} px-5`}>
+                          <span className={isLow ? "text-red-300" : isWarn ? "text-amber-300" : "text-zinc-200"}>
+                            {item.item_name}
+                          </span>
+                          {item.par_level !== null && (
+                            <span className="ml-2 text-xs text-zinc-600">
+                              par {item.par_level}
+                            </span>
+                          )}
+                        </td>
+                        <td className={`${TABLE_CELL} px-3 text-right font-mono`}>
+                          {entry.qty ?? "—"}
+                        </td>
+                        <td className={`${TABLE_CELL} px-3 text-zinc-400`}>
+                          {entry.unit ?? item.default_unit}
+                        </td>
+                        <td className={`${TABLE_CELL} px-3 text-center`}>
+                          <DetailStatusBadge
+                            qty={entry.qty}
+                            minLevel={item.min_level}
+                            parLevel={item.par_level}
+                          />
+                        </td>
+                        <td className={`${TABLE_CELL} px-5 text-zinc-500`}>
+                          {entry.note || "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })}
+
+      <button
+        type="button"
+        onClick={onBack}
+        className={`${SECONDARY_BUTTON} flex items-center gap-2 text-sm`}
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to History
+      </button>
+    </div>
+  );
 }
 
 export default function AdminDailyInventoryTab() {
@@ -140,9 +397,12 @@ export default function AdminDailyInventoryTab() {
   const [saveMsg, setSaveMsg] = useState("");
   const [error, setError] = useState("");
 
-  const [historyTab, setHistoryTab] = useState(false);
+  // view: "form" | "history" | "detail"
+  const [view, setView] = useState<"form" | "history" | "detail">("form");
   const [history, setHistory] = useState<ReportHeader[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [selectedDetail, setSelectedDetail] = useState<ReportDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const [staffNames, setStaffNames] = useState<string[]>([]);
   const [staffNamesLoading, setStaffNamesLoading] = useState(true);
@@ -179,9 +439,7 @@ export default function AdminDailyInventoryTab() {
         if (!cancelled) setStaffNamesLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [branch]);
 
   useEffect(() => {
@@ -195,27 +453,17 @@ export default function AdminDailyInventoryTab() {
           try {
             const j = JSON.parse(text) as { detail?: unknown };
             if (j?.detail !== undefined) detail = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
-          } catch {
-            /* keep raw text */
-          }
+          } catch { /* keep raw text */ }
           throw new Error(detail);
         }
         let data: unknown;
-        try {
-          data = JSON.parse(text || "[]");
-        } catch {
-          throw new Error("Invalid JSON from items API");
-        }
-        if (!Array.isArray(data)) {
-          throw new Error("Items API returned non-array (check API URL and auth)");
-        }
+        try { data = JSON.parse(text || "[]"); } catch { throw new Error("Invalid JSON from items API"); }
+        if (!Array.isArray(data)) throw new Error("Items API returned non-array");
         const rows = data as InvItem[];
         if (cancelled) return;
         setItems(rows);
         const init: EntryMap = {};
-        rows.forEach((item) => {
-          init[item.item_code] = { qty: "", unit: item.default_unit, note: "" };
-        });
+        rows.forEach((item) => { init[item.item_code] = { qty: "", unit: item.default_unit, note: "" }; });
         setEntries(init);
       } catch (e) {
         if (!cancelled) {
@@ -224,9 +472,7 @@ export default function AdminDailyInventoryTab() {
         }
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   const doSave = useCallback(async (showMsg: boolean): Promise<number | null> => {
@@ -264,7 +510,7 @@ export default function AdminDailyInventoryTab() {
       const data = JSON.parse(text) as { report_id: number };
       setCurrentReportId(data.report_id);
       if (showMsg) {
-        setSaveMsg(`Saved (report ID: ${data.report_id})`);
+        setSaveMsg(`Draft saved`);
         setTimeout(() => setSaveMsg(""), 3000);
       }
       return data.report_id;
@@ -294,8 +540,6 @@ export default function AdminDailyInventoryTab() {
     if (!rid) {
       rid = await doSave(false);
       if (!rid) {
-        // doSave already set a network error in the catch block;
-        // only fall back to the generic message if no error was set (e.g. missing staff with showMsg=false)
         setError((prev) => prev || "Save first (select staff and enter quantities if needed).");
         return;
       }
@@ -323,15 +567,11 @@ export default function AdminDailyInventoryTab() {
   const loadHistory = async () => {
     setHistoryLoading(true);
     try {
-      const res = await apiFetch(`/api/daily-inventory/reports?branch=${encodeURIComponent(branch)}&limit=20`);
+      const res = await apiFetch(`/api/daily-inventory/reports?branch=${encodeURIComponent(branch)}&limit=30`);
       const text = await res.text();
       if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
       let parsed: unknown;
-      try {
-        parsed = JSON.parse(text || "[]");
-      } catch {
-        throw new Error("Invalid JSON from history API");
-      }
+      try { parsed = JSON.parse(text || "[]"); } catch { throw new Error("Invalid JSON from history API"); }
       setHistory(Array.isArray(parsed) ? (parsed as ReportHeader[]) : []);
     } catch {
       setError("Failed to load history.");
@@ -340,10 +580,28 @@ export default function AdminDailyInventoryTab() {
     }
   };
 
+  const loadDetail = async (reportId: number) => {
+    setDetailLoading(true);
+    setError("");
+    try {
+      const res = await apiFetch(`/api/daily-inventory/reports/${reportId}`);
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
+      const data = JSON.parse(text) as ReportDetail;
+      setSelectedDetail(data);
+      setView("detail");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(`Failed to load report: ${msg}`);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (historyTab) void loadHistory();
+    if (view === "history") void loadHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [historyTab, branch]);
+  }, [view, branch]);
 
   const sections = ["KITCHEN", "CK"] as const;
   const countBySection = (sec: string) => {
@@ -359,7 +617,7 @@ export default function AdminDailyInventoryTab() {
     return !Number.isNaN(num) && item.min_level !== null && num < item.min_level;
   });
 
-  /** Dock title + history toggle below real header height (avoids overlap with z-50 nav stealing taps). */
+  /** Dock title below real header height */
   const toolbarDockRef = useRef<HTMLDivElement>(null);
   const [toolbarTopPx, setToolbarTopPx] = useState(88);
   const [toolbarHeightPx, setToolbarHeightPx] = useState(64);
@@ -377,9 +635,7 @@ export default function AdminDailyInventoryTab() {
     };
     const run = () => {
       measureTop();
-      requestAnimationFrame(() => {
-        measureHeight();
-      });
+      requestAnimationFrame(() => { measureHeight(); });
     };
     run();
     window.addEventListener("resize", run);
@@ -388,26 +644,27 @@ export default function AdminDailyInventoryTab() {
       window.removeEventListener("resize", run);
       window.removeEventListener("scroll", run, true);
     };
-  }, [submitted, historyTab]);
+  }, [submitted, view]);
 
+  /* ── Submitted success screen ── */
   if (submitted) {
     return (
       <div className="mx-auto flex max-w-4xl flex-col items-center justify-center gap-4 py-20">
-        <div className="text-5xl">✅</div>
-        <h2 className="text-xl font-bold text-emerald-400">Report submitted</h2>
-        <p className="text-sm text-neutral-500">Report ID: {currentReportId}</p>
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-500/15 border border-emerald-500/25">
+          <CheckCircle2 className="h-10 w-10 text-emerald-400" />
+        </div>
+        <h2 className="text-xl font-bold text-white">Report Submitted</h2>
+        <p className="text-sm text-zinc-500">Report ID: {currentReportId}</p>
         <button
           type="button"
           onClick={() => {
             setSubmitted(false);
             setCurrentReportId(null);
             const init: EntryMap = {};
-            items.forEach((item) => {
-              init[item.item_code] = { qty: "", unit: item.default_unit, note: "" };
-            });
+            items.forEach((item) => { init[item.item_code] = { qty: "", unit: item.default_unit, note: "" }; });
             setEntries(init);
           }}
-          className="mt-4 rounded-lg bg-violet-600 px-6 py-2 text-sm font-medium text-white hover:bg-violet-500"
+          className={`mt-4 ${PRIMARY_BUTTON} text-sm`}
         >
           Start a new report
         </button>
@@ -415,32 +672,34 @@ export default function AdminDailyInventoryTab() {
     );
   }
 
+  /* ── Fixed toolbar portal ── */
   const toolbarPortal =
     typeof document !== "undefined" && !submitted
       ? createPortal(
           <div
             ref={toolbarDockRef}
-            className="fixed inset-x-0 z-[45] border-b border-neutral-800 bg-neutral-950/98 shadow-md [touch-action:manipulation] pointer-events-auto"
+            className="fixed inset-x-0 z-[45] border-b border-white/8 bg-slate-950/95 shadow-lg shadow-black/30 backdrop-blur-xl pointer-events-auto [touch-action:manipulation]"
             style={{ top: toolbarTopPx }}
           >
-            <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-2 sm:px-6">
-              <h1 className="text-xl font-bold text-neutral-100 sm:text-2xl">📦 Daily Inventory Report</h1>
+            <div className="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+              <h1 className="text-lg font-semibold text-white sm:text-xl">📦 Daily Inventory Report</h1>
               <div className="flex shrink-0 gap-2">
-                {historyTab ? (
+                {view === "form" && (
                   <button
                     type="button"
-                    onClick={() => setHistoryTab(false)}
-                    className="touch-manipulation rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 sm:py-1.5"
-                  >
-                    Back to form
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setHistoryTab(true)}
-                    className="touch-manipulation rounded-lg bg-neutral-800 px-4 py-2 text-sm font-medium text-neutral-200 hover:bg-neutral-700 sm:py-1.5"
+                    onClick={() => setView("history")}
+                    className={`${SECONDARY_BUTTON} touch-manipulation py-2 text-sm`}
                   >
                     History
+                  </button>
+                )}
+                {(view === "history" || view === "detail") && (
+                  <button
+                    type="button"
+                    onClick={() => { setView("form"); setSelectedDetail(null); }}
+                    className={`${PRIMARY_BUTTON} touch-manipulation py-2 text-sm`}
+                  >
+                    Back to form
                   </button>
                 )}
               </div>
@@ -450,16 +709,17 @@ export default function AdminDailyInventoryTab() {
         )
       : null;
 
+  /* ── Fixed action bar (form only) ── */
   const actionBar =
-    typeof document !== "undefined" && !historyTab
+    typeof document !== "undefined" && view === "form"
       ? createPortal(
-          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-neutral-800 bg-neutral-950/95 px-4 py-3 backdrop-blur [padding-bottom:max(12px,env(safe-area-inset-bottom,0px))] pointer-events-auto [touch-action:manipulation]">
+          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/8 bg-slate-950/95 px-4 py-3 backdrop-blur-xl [padding-bottom:max(12px,env(safe-area-inset-bottom,0px))] pointer-events-auto [touch-action:manipulation]">
             <div className="mx-auto flex max-w-4xl justify-end gap-3">
               <button
                 type="button"
                 onClick={() => void doSave(true)}
                 disabled={saving}
-                className="touch-manipulation rounded-lg bg-neutral-800 px-5 py-2 text-sm font-medium text-neutral-200 hover:bg-neutral-700 disabled:opacity-50"
+                className={`${SECONDARY_BUTTON} touch-manipulation py-2 text-sm disabled:opacity-50`}
               >
                 {saving ? "Saving…" : "💾 Save draft"}
               </button>
@@ -467,7 +727,7 @@ export default function AdminDailyInventoryTab() {
                 type="button"
                 onClick={() => void handleSubmit()}
                 disabled={submitting || saving}
-                className="touch-manipulation rounded-lg bg-violet-600 px-6 py-2 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-50"
+                className={`${PRIMARY_BUTTON} touch-manipulation py-2 text-sm disabled:opacity-50`}
               >
                 {submitting ? "Submitting…" : "✅ Submit report"}
               </button>
@@ -482,207 +742,246 @@ export default function AdminDailyInventoryTab() {
       <div aria-hidden className="w-full" style={{ height: toolbarHeightPx }} />
       {toolbarPortal}
 
-      {error ? (
-        <div className="mb-3 rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-sm text-red-200">{error}</div>
-      ) : null}
-      {saveMsg ? (
-        <div className="mb-3 rounded-lg border border-emerald-500/40 bg-emerald-950/30 px-3 py-2 text-sm text-emerald-200">
-          {saveMsg}
+      {/* Messages */}
+      {error && (
+        <div className="mb-4 rounded-2xl border border-red-500/30 bg-red-500/8 px-4 py-3 text-sm text-red-300">
+          {error}
         </div>
-      ) : null}
+      )}
+      {saveMsg && (
+        <div className="mb-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/8 px-4 py-3 text-sm text-emerald-300">
+          ✓ {saveMsg}
+        </div>
+      )}
 
-      {historyTab ? (
-        <div>
-          <h2 className="mb-3 text-lg font-semibold text-neutral-200">History ({branch})</h2>
+      {/* ── Detail view ── */}
+      {view === "detail" && selectedDetail && (
+        <ReportDetailView
+          detail={selectedDetail}
+          items={items}
+          onBack={() => { setSelectedDetail(null); setView("history"); }}
+        />
+      )}
+
+      {/* ── History view ── */}
+      {view === "history" && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className={T_SECTION}>History — {branch}</h2>
+            <span className="text-xs text-zinc-500">{history.length} reports</span>
+          </div>
+
           {historyLoading ? (
-            <div className="py-8 text-center text-neutral-500">Loading…</div>
+            <div className={`${GLASS_CARD} py-12 text-center text-zinc-500`}>Loading…</div>
           ) : history.length === 0 ? (
-            <div className="py-8 text-center text-neutral-500">No reports yet</div>
+            <div className={`${GLASS_CARD} py-12 text-center text-zinc-500`}>No reports yet for {branch}</div>
           ) : (
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border border-neutral-700 bg-neutral-900 text-neutral-400">
-                  <th className="border border-neutral-700 p-2 text-left">Date</th>
-                  <th className="border border-neutral-700 p-2 text-left">Shift</th>
-                  <th className="border border-neutral-700 p-2 text-left">Staff</th>
-                  <th className="border border-neutral-700 p-2 text-left">Status</th>
-                  <th className="border border-neutral-700 p-2 text-left">Submitted</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((r) => (
-                  <tr key={r.id} className="border-b border-neutral-800 hover:bg-neutral-900/80">
-                    <td className="border border-neutral-800 p-2">{r.report_date}</td>
-                    <td className="border border-neutral-800 p-2">{r.shift}</td>
-                    <td className="border border-neutral-800 p-2">{r.staff_name}</td>
-                    <td className="border border-neutral-800 p-2">
-                      <span
-                        className={`rounded px-2 py-0.5 text-xs font-medium ${
-                          r.status === "SUBMITTED" ? "bg-emerald-500/20 text-emerald-300" : "bg-amber-500/20 text-amber-200"
-                        }`}
-                      >
-                        {r.status}
-                      </span>
-                    </td>
-                    <td className="border border-neutral-800 p-2 text-neutral-500">
-                      {r.submitted_at ? new Date(r.submitted_at).toLocaleString() : "—"}
-                    </td>
+            <div className={GLASS_CARD}>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-white/5">
+                    <th className={`${TABLE_HEADER} px-5 py-3 text-left`}>Date</th>
+                    <th className={`${TABLE_HEADER} px-3 py-3 text-left`}>Shift</th>
+                    <th className={`${TABLE_HEADER} px-3 py-3 text-left`}>Staff</th>
+                    <th className={`${TABLE_HEADER} px-3 py-3 text-left`}>Status</th>
+                    <th className={`${TABLE_HEADER} px-5 py-3 text-left`}>Submitted</th>
+                    <th className={`${TABLE_HEADER} px-4 py-3 text-center`}></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {history.map((r) => (
+                    <tr
+                      key={r.id}
+                      className={`${TABLE_ROW} cursor-pointer`}
+                      onClick={() => void loadDetail(r.id)}
+                    >
+                      <td className={`${TABLE_CELL} px-5 font-medium text-white`}>
+                        {formatDate(r.report_date)}
+                      </td>
+                      <td className={`${TABLE_CELL} px-3`}>{r.shift}</td>
+                      <td className={`${TABLE_CELL} px-3`}>{r.staff_name}</td>
+                      <td className={`${TABLE_CELL} px-3`}>
+                        <span className={r.status === "SUBMITTED" ? BADGE_SUCCESS : BADGE_WARNING}>
+                          {r.status === "SUBMITTED"
+                            ? <><CheckCircle2 className="h-3 w-3" /> SUBMITTED</>
+                            : <><Clock className="h-3 w-3" /> DRAFT</>
+                          }
+                        </span>
+                      </td>
+                      <td className={`${TABLE_CELL} px-5 text-zinc-500`}>
+                        {r.submitted_at ? new Date(r.submitted_at).toLocaleString() : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {detailLoading ? (
+                          <span className="text-xs text-zinc-600">…</span>
+                        ) : (
+                          <ChevronRight className="mx-auto h-4 w-4 text-zinc-600" />
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
-      ) : (
+      )}
+
+      {/* ── Form view ── */}
+      {view === "form" && (
         <>
-          <div className="mb-4 rounded-xl border border-neutral-800 bg-neutral-900/50 p-4">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {/* Header fields */}
+          <div className={`${GLASS_CARD} mb-5 p-5`}>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <div>
-                <label className="mb-1 block text-xs text-neutral-500">Branch *</label>
+                <label className={`${T_LABEL} mb-1.5 block`}>Branch</label>
                 <select
                   value={branch}
                   onChange={(e) => setBranch(e.target.value)}
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+                  className={SELECT_CLASS}
                 >
-                  {BRANCHES.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
+                  {BRANCHES.map((b) => <option key={b} value={b}>{b}</option>)}
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs text-neutral-500">Date *</label>
+                <label className={`${T_LABEL} mb-1.5 block`}>Date</label>
                 <input
                   type="date"
                   value={reportDate}
                   onChange={(e) => setReportDate(e.target.value)}
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+                  className={INPUT_CLASS}
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-neutral-500">Shift *</label>
+                <label className={`${T_LABEL} mb-1.5 block`}>Shift</label>
                 <select
                   value={shift}
                   onChange={(e) => setShift(e.target.value)}
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white"
+                  className={SELECT_CLASS}
                 >
-                  {SHIFTS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
+                  {SHIFTS.map((s) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div className="sm:col-span-2">
-                <label className="mb-1 block text-xs text-neutral-500">Staff *</label>
+                <label className={`${T_LABEL} mb-1.5 block`}>Staff</label>
                 <select
                   value={staffChoice}
                   onChange={(e) => setStaffChoice(e.target.value)}
                   disabled={staffNamesLoading}
-                  className="w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white disabled:opacity-60"
+                  className={`${SELECT_CLASS} disabled:opacity-60`}
                 >
                   <option value="">{staffNamesLoading ? "Loading staff…" : "— Select —"}</option>
-                  {staffNames.map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
+                  {staffNames.map((n) => <option key={n} value={n}>{n}</option>)}
                   <option value={STAFF_OTHER}>{STAFF_OTHER}</option>
                 </select>
-                {staffChoice === STAFF_OTHER ? (
+                {staffChoice === STAFF_OTHER && (
                   <input
                     type="text"
                     value={customStaff}
                     onChange={(e) => setCustomStaff(e.target.value)}
                     placeholder="Enter name"
-                    className="mt-2 w-full rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white placeholder:text-neutral-600"
+                    className={`${INPUT_CLASS} mt-2`}
                   />
-                ) : null}
-                {staffListError ? (
-                  <p className="mt-1 text-xs text-amber-400">{staffListError}</p>
-                ) : null}
+                )}
+                {staffListError && (
+                  <p className="mt-1.5 text-xs text-amber-400">{staffListError}</p>
+                )}
               </div>
             </div>
           </div>
 
-          {lowItems.length > 0 ? (
-            <div className="mb-4 rounded-lg border border-red-500/40 bg-red-950/30 px-3 py-2 text-sm text-red-200">
-              🔴 <strong>LOW stock ({lowItems.length}):</strong> {lowItems.map((i) => i.item_name).join(", ")}
+          {/* Low stock alert (live as user types) */}
+          {lowItems.length > 0 && (
+            <div className="mb-5 rounded-2xl border border-red-500/30 bg-red-500/8 p-4">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0 text-red-400" />
+                <p className="text-sm font-semibold text-red-300">
+                  Low Stock ({lowItems.length}):
+                  <span className="ml-1 font-normal text-red-200/80">
+                    {lowItems.map((i) => i.item_name).join(", ")}
+                  </span>
+                </p>
+              </div>
             </div>
-          ) : null}
+          )}
 
+          {/* Item sections */}
           {sections.map((sec) => {
             const sectionItems = items.filter((i) => i.section === sec);
             if (sectionItems.length === 0) return null;
             const { total, filled } = countBySection(sec);
             return (
-              <div key={sec} className="mb-6">
-                <div className="mb-2 flex items-center justify-between">
-                  <h2 className="text-base font-semibold text-neutral-200">
+              <div key={sec} className={`${GLASS_CARD} mb-5`}>
+                <div className="flex items-center justify-between border-b border-white/5 px-5 py-3">
+                  <h2 className={T_SECTION}>
                     {sec === "KITCHEN" ? "🍱 Kitchen" : "🧊 CK (Cold Kitchen)"}
                   </h2>
-                  <span className="text-xs text-neutral-500">
-                    {filled} / {total} filled
-                  </span>
+                  <span className="text-xs text-zinc-500">{filled} / {total} filled</span>
                 </div>
-                <div className="overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900/40">
+                <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-neutral-700 bg-neutral-900 text-neutral-400">
-                        <th className="border-b border-neutral-700 p-2 text-left">Item</th>
-                        <th className="border-b border-neutral-700 p-2 text-left">Qty</th>
-                        <th className="border-b border-neutral-700 p-2 text-left">Unit</th>
-                        <th className="border-b border-neutral-700 p-2 text-center">Status</th>
-                        <th className="border-b border-neutral-700 p-2 text-left">Note</th>
+                      <tr className="border-b border-white/5">
+                        <th className={`${TABLE_HEADER} px-5 py-3 text-left`}>Item</th>
+                        <th className={`${TABLE_HEADER} px-3 py-3 text-left`}>Qty</th>
+                        <th className={`${TABLE_HEADER} px-3 py-3 text-left`}>Unit</th>
+                        <th className={`${TABLE_HEADER} px-3 py-3 text-center`}>Status</th>
+                        <th className={`${TABLE_HEADER} px-5 py-3 text-left`}>Note</th>
                       </tr>
                     </thead>
                     <tbody>
                       {sectionItems.map((item) => {
                         const entry = entries[item.item_code] || { qty: "", unit: item.default_unit, note: "" };
+                        const num = parseFloat(entry.qty);
+                        const isLow = !Number.isNaN(num) && item.min_level !== null && num < item.min_level;
+                        const isWarn = !isLow && !Number.isNaN(num) && item.par_level !== null && num < item.par_level;
                         return (
-                          <tr key={item.item_code} className="border-b border-neutral-800 last:border-0 hover:bg-neutral-900/60">
-                            <td className="p-2">
-                              <span className="font-medium text-neutral-100">{item.item_name}</span>
-                              {item.par_level !== null ? (
-                                <span className="ml-2 text-xs text-neutral-500">
+                          <tr
+                            key={item.item_code}
+                            className={[
+                              TABLE_ROW,
+                              isLow ? "bg-red-500/5" : isWarn ? "bg-amber-500/5" : "",
+                            ].join(" ")}
+                          >
+                            <td className={`${TABLE_CELL} px-5`}>
+                              <span className={isLow ? "font-medium text-red-300" : isWarn ? "font-medium text-amber-300" : "text-zinc-200"}>
+                                {item.item_name}
+                              </span>
+                              {item.par_level !== null && (
+                                <span className="ml-2 text-xs text-zinc-600">
                                   Par: {item.par_level} {entry.unit}
                                 </span>
-                              ) : null}
+                              )}
                             </td>
-                            <td className="p-2">
+                            <td className="px-3 py-3">
                               <input
                                 type="number"
                                 step="0.1"
                                 min={0}
                                 value={entry.qty}
                                 onChange={(e) => handleEntryChange(item.item_code, "qty", e.target.value)}
-                                className="w-full max-w-[8rem] rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-right text-sm text-white"
+                                className="w-full max-w-[7rem] rounded-xl border border-white/10 bg-white/6 px-3 py-1.5 text-right text-sm text-white placeholder:text-zinc-600 outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
                                 placeholder="0"
                               />
                             </td>
-                            <td className="p-2">
+                            <td className="px-3 py-3">
                               <select
                                 value={entry.unit}
                                 onChange={(e) => handleEntryChange(item.item_code, "unit", e.target.value)}
-                                className="w-full max-w-[6rem] rounded border border-neutral-700 bg-neutral-950 px-1 py-1 text-sm text-white"
+                                className="w-full max-w-[5.5rem] appearance-none cursor-pointer rounded-xl border border-white/10 bg-white/6 px-2 py-1.5 text-sm text-white outline-none focus:border-violet-500/50"
                               >
-                                {UNITS.map((u) => (
-                                  <option key={u} value={u}>
-                                    {u}
-                                  </option>
-                                ))}
+                                {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
                               </select>
                             </td>
-                            <td className="p-2 text-center">
+                            <td className="px-3 py-3 text-center">
                               <StatusBadge qty={entry.qty} minLevel={item.min_level} parLevel={item.par_level} />
                             </td>
-                            <td className="p-2">
+                            <td className="px-5 py-3">
                               <input
                                 type="text"
                                 value={entry.note}
                                 onChange={(e) => handleEntryChange(item.item_code, "note", e.target.value)}
-                                className="w-full rounded border border-neutral-700 bg-neutral-950 px-2 py-1 text-xs text-white"
+                                className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-white placeholder:text-zinc-600 outline-none focus:border-violet-500/50"
                                 placeholder="—"
                               />
                             </td>
