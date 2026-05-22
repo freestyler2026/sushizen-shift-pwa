@@ -40,6 +40,7 @@ interface InvItem {
   min_level: number | null;
   par_level: number | null;
   sort_order: number;
+  is_commissary: boolean;
 }
 
 interface EntryState {
@@ -445,9 +446,12 @@ export default function AdminDailyInventoryTab() {
 
   useEffect(() => {
     let cancelled = false;
+    setItemsLoading(true);
     void (async () => {
       try {
-        const res = await apiFetch("/api/daily-inventory/items");
+        const res = await apiFetch(
+          `/api/daily-inventory/items?branch=${encodeURIComponent(branch)}`,
+        );
         const text = await res.text();
         if (!res.ok) {
           let detail = text || `HTTP ${res.status}`;
@@ -476,7 +480,7 @@ export default function AdminDailyInventoryTab() {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [branch]);
 
   const doSave = useCallback(async (showMsg: boolean): Promise<number | null> => {
     const h = headerRef.current;
@@ -716,7 +720,7 @@ export default function AdminDailyInventoryTab() {
   const actionBar =
     typeof document !== "undefined" && view === "form"
       ? createPortal(
-          <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/8 bg-slate-950/95 px-4 py-3 backdrop-blur-xl [padding-bottom:max(12px,env(safe-area-inset-bottom,0px))] pointer-events-auto [touch-action:manipulation]">
+          <div className="fixed inset-x-0 bottom-14 md:bottom-0 z-[60] border-t border-white/8 bg-slate-950/95 px-4 py-3 backdrop-blur-xl [padding-bottom:max(12px,env(safe-area-inset-bottom,0px))] pointer-events-auto [touch-action:manipulation]">
             <div className="mx-auto flex max-w-4xl justify-end gap-3">
               <button
                 type="button"
@@ -741,7 +745,7 @@ export default function AdminDailyInventoryTab() {
       : null;
 
   return (
-    <div className="relative mx-auto max-w-4xl pb-28 text-white">
+    <div className="relative mx-auto max-w-4xl pb-40 text-white">
       <div aria-hidden className="w-full" style={{ height: toolbarHeightPx }} />
       {toolbarPortal}
 
@@ -966,11 +970,16 @@ export default function AdminDailyInventoryTab() {
                             </td>
                             <td className="px-3 py-3">
                               <input
-                                type="number"
-                                step="0.1"
-                                min={0}
+                                type="text"
+                                inputMode="decimal"
                                 value={entry.qty}
-                                onChange={(e) => handleEntryChange(item.item_code, "qty", e.target.value)}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  // Allow digits, single decimal point, and empty string
+                                  if (v === "" || /^\d*\.?\d*$/.test(v)) {
+                                    handleEntryChange(item.item_code, "qty", v);
+                                  }
+                                }}
                                 className="w-full max-w-[7rem] rounded-xl border border-white/10 bg-white/6 px-3 py-1.5 text-right text-sm text-white placeholder:text-zinc-600 outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
                                 placeholder="0"
                               />
