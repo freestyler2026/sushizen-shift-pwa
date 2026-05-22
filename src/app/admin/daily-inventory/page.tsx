@@ -91,9 +91,5 @@ export default function DailyInventoryPage() {
     return null;
   }
 
-  return (
-    <main className="min-h-screen bg-neutral-950 p-4 text-white">
-      <AdminDailyInventoryTab />
-    </main>
-  );
+  return <AdminDailyInventoryTab />;
 }

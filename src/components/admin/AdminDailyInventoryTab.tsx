@@ -396,6 +396,7 @@ export default function AdminDailyInventoryTab() {
   const [submitted, setSubmitted] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
   const [error, setError] = useState("");
+  const [itemsLoading, setItemsLoading] = useState(true);
 
   // view: "form" | "history" | "detail"
   const [view, setView] = useState<"form" | "history" | "detail">("form");
@@ -470,6 +471,8 @@ export default function AdminDailyInventoryTab() {
           const msg = e instanceof Error ? e.message : String(e);
           setError(`Failed to load item list: ${msg}`);
         }
+      } finally {
+        if (!cancelled) setItemsLoading(false);
       }
     })();
     return () => { cancelled = true; };
@@ -905,8 +908,16 @@ export default function AdminDailyInventoryTab() {
             </div>
           )}
 
+          {/* Item loading state */}
+          {itemsLoading && (
+            <div className={`${GLASS_CARD} mb-5 flex items-center gap-3 px-5 py-6`}>
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+              <span className="text-sm text-zinc-400">Loading inventory items…</span>
+            </div>
+          )}
+
           {/* Item sections */}
-          {sections.map((sec) => {
+          {!itemsLoading && sections.map((sec) => {
             const sectionItems = items.filter((i) => i.section === sec);
             if (sectionItems.length === 0) return null;
             const { total, filled } = countBySection(sec);
