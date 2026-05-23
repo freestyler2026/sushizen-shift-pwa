@@ -235,7 +235,16 @@ export default function StoreProcurementReceivingPage() {
       return chk?.checked && (!chk.qty_received || chk.qty_received === 0);
     }).length;
     const totalCount = items.length;
-    return { qtyExpected, qtyReceived, checkedCount, zeroQtyCheckedCount, totalCount };
+    // Delivery value: use unit_price if set, otherwise proportion of line_total
+    const totalValue = items.reduce((s, it) => {
+      const chk = itemChecks[it.id];
+      if (!chk?.checked) return s;
+      const qtyR = chk.qty_received ?? it.qty;
+      if (it.unit_price) return s + qtyR * it.unit_price;
+      if (it.line_total && it.qty) return s + (qtyR / it.qty) * it.line_total;
+      return s;
+    }, 0);
+    return { qtyExpected, qtyReceived, checkedCount, zeroQtyCheckedCount, totalCount, totalValue };
   }, [itemChecks, requestDetail]);
 
   // ── Submit request (DRAFT → SUBMITTED, creates approval case) ────────────
@@ -294,7 +303,10 @@ export default function StoreProcurementReceivingPage() {
       const totalValue = checkedItems.reduce((s, it) => {
         const chk = itemChecks[it.id];
         const qtyR = chk?.qty_received ?? it.qty;
-        return s + qtyR * (it.unit_price || 0);
+        // Prefer unit_price; fall back to proportional line_total when unit_price is 0/null
+        if (it.unit_price) return s + qtyR * it.unit_price;
+        if (it.line_total && it.qty) return s + (qtyR / it.qty) * it.line_total;
+        return s;
       }, 0);
       const effectiveUnitPrice =
         computedTotals.qtyReceived > 0 ? totalValue / computedTotals.qtyReceived : 0;
@@ -618,8 +630,15 @@ export default function StoreProcurementReceivingPage() {
             <div className="mb-4">
               <div className="text-sm font-semibold">Step 2 — Check Delivered Items</div>
               {selectedRequest ? (
-                <div className="mt-1 text-xs text-zinc-400">
-                  {selectedRequest.request_no} · {selectedRequest.store_code} · {Number(selectedRequest.total_amount || 0).toFixed(2)} {currencyCode}
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-zinc-400">
+                  <span>{selectedRequest.request_no} · {selectedRequest.store_code}</span>
+                  <span className="text-zinc-600">·</span>
+                  <span>PR Total: {Number(selectedRequest.total_amount || 0).toFixed(2)} {currencyCode}</span>
+                  {computedTotals.checkedCount > 0 && (
+                    <span className="font-medium text-emerald-400">
+                      · Delivery: {computedTotals.totalValue.toFixed(2)} {currencyCode}
+                    </span>
+                  )}
                 </div>
               ) : null}
             </div>
@@ -1075,55 +1094,28 @@ export default function StoreProcurementReceivingPage() {
                           <CheckCheck className="h-4 w-4" />
                           Confirmed
                         </div>
-                      ) : Number(row.amount_received || 0) === 0 ? (
+                      ) : deleteTarget === row.id ? (
                         <div className="flex flex-col items-end gap-1.5">
-                          {isDraft ? (
-                            /* DRAFT + Amount=0 → show Delete button */
-                            deleteTarget === row.id ? (
-                              <div className="flex flex-col items-end gap-1.5">
-                                <p className="text-xs text-red-200 font-medium text-right max-w-[200px]">
-                                  Delete this record? This cannot be undone.
-                                </p>
-                                <div className="flex gap-1.5">
-                                  <button
-                                    type="button"
-                                    onClick={() => setDeleteTarget("")}
-                                    className="rounded-lg border border-white/15 bg-white/6 px-3 py-1.5 text-xs text-zinc-300 transition hover:bg-white/10"
-                                  >
-                                    Cancel
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => void deleteReceiving(row.id)}
-                                    disabled={busy === row.id}
-                                    className="rounded-lg border border-red-500/40 bg-red-900/30 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-900/50"
-                                  >
-                                    {busy === row.id ? "Deleting…" : "Yes, Delete"}
-                                  </button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex flex-col items-end gap-1.5">
-                                <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-200 text-right max-w-[200px]">
-                                  <div className="font-semibold mb-0.5">⚠ Amount is 0.00</div>
-                                  <div className="text-amber-300/80 text-[11px]">Delete this record and re-create with the correct amount.</div>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => setDeleteTarget(row.id)}
-                                  className="rounded-lg border border-red-500/40 bg-red-900/20 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-900/40"
-                                >
-                                  🗑 Delete Record
-                                </button>
-                              </div>
-                            )
-                          ) : (
-                            /* CONFIRMED + Amount=0 → ask admin to void */
-                            <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-xs text-amber-200 text-right max-w-[200px]">
-                              <div className="font-semibold mb-0.5">⚠ Amount is 0.00</div>
-                              <div className="text-amber-300/80 text-[11px]">Ask your admin (HQ/Admin) to void this record so it can be re-created.</div>
-                            </div>
-                          )}
+                          <p className="text-xs text-red-200 font-medium text-right max-w-[200px]">
+                            Delete this record? This cannot be undone.
+                          </p>
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget("")}
+                              className="rounded-lg border border-white/15 bg-white/6 px-3 py-1.5 text-xs text-zinc-300 transition hover:bg-white/10"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void deleteReceiving(row.id)}
+                              disabled={busy === row.id}
+                              className="rounded-lg border border-red-500/40 bg-red-900/30 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-900/50"
+                            >
+                              {busy === row.id ? "Deleting…" : "Yes, Delete"}
+                            </button>
+                          </div>
                         </div>
                       ) : confirmTarget === row.id ? (
                         <div className="flex flex-col items-end gap-1.5">
@@ -1155,15 +1147,38 @@ export default function StoreProcurementReceivingPage() {
                           </div>
                         </div>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => setConfirmTarget(row.id)}
-                          disabled={busy === row.id}
-                          className={BTN_CONFIRM}
-                        >
-                          <CheckCheck className="h-4 w-4" />
-                          Confirm
-                        </button>
+                        <div className="flex flex-col items-end gap-2">
+                          {/* Confirm button — always shown for DRAFT records */}
+                          <button
+                            type="button"
+                            onClick={() => setConfirmTarget(row.id)}
+                            disabled={busy === row.id}
+                            className={BTN_CONFIRM}
+                          >
+                            <CheckCheck className="h-4 w-4" />
+                            Confirm
+                          </button>
+                          {/* Amount-0 warning + delete option shown alongside Confirm */}
+                          {Number(row.amount_received || 0) === 0 && isDraft && (
+                            <div className="flex flex-col items-end gap-1">
+                              <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 px-2 py-1 text-[11px] text-amber-300 text-right max-w-[180px]">
+                                ⚠ Amount recorded as 0.00
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setDeleteTarget(row.id)}
+                                className="rounded-lg border border-red-500/30 bg-red-900/15 px-2.5 py-1 text-[11px] font-medium text-red-400 transition hover:bg-red-900/30"
+                              >
+                                🗑 Delete &amp; Re-create
+                              </button>
+                            </div>
+                          )}
+                          {Number(row.amount_received || 0) === 0 && !isDraft && (
+                            <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 px-2 py-1 text-[11px] text-amber-300 text-right max-w-[180px]">
+                              ⚠ Amount is 0.00 — ask admin to void if needed
+                            </div>
+                          )}
+                        </div>
                       )}
 
                       {/* Claim link */}
