@@ -441,6 +441,7 @@ function PastReports({ city, isAdmin }: { city: City; isAdmin: boolean }) {
   const [reports, setReports] = useState<DisposalReport[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [permissionDenied, setPermissionDenied] = useState(false);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [deletingLineId, setDeletingLineId] = useState<number | null>(null);
   const [dateFrom, setDateFrom] = useState(() => {
@@ -456,11 +457,22 @@ function PastReports({ city, isAdmin }: { city: City; isAdmin: boolean }) {
       const params = new URLSearchParams({ city, date_from: dateFrom, date_to: dateTo, limit: "100" });
       const data = await apiFetch<{ reports: DisposalReport[] }>(`/api/admin/disposal/reports?${params}`);
       setReports(data.reports ?? []);
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : String(e)); }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // 403 permission error — silently hide this section for staff without read access
+      if (msg.toLowerCase().includes("permission") || msg.includes("403")) {
+        setPermissionDenied(true);
+      } else {
+        setError(msg);
+      }
+    }
     finally { setLoading(false); }
   }, [city, dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Staff without analytics read access — hide the section entirely
+  if (permissionDenied) return null;
 
   const handleDeleteReport = async (id: number) => {
     if (!confirm("Delete this entire disposal report?")) return;
@@ -626,7 +638,7 @@ export default function DisposalPage() {
   const [reportedBy, setReportedBy] = useState(auth?.staffName ?? "");
   const [shift, setShift] = useState<Shift>("closing");
   const [headerNotes, setHeaderNotes] = useState("");
-  const [lines, setLines] = useState<DisposalLine[]>([emptyLine()]);
+  const [lines, setLines] = useState<DisposalLine[]>([]);
   const [draftRestored, setDraftRestored] = useState(false);
 
   // ── Staff list for autocomplete ──
