@@ -277,13 +277,17 @@ function LoginInner() {
                       <button
                         key={name}
                         type="button"
+                        onPointerDown={(e) => {
+                          // Prevent input blur from firing before click on mobile/touch
+                          e.preventDefault();
+                        }}
                         onClick={() => {
                           setStaffName(name);
                           setShowSuggestions(false);
                           setError("");
                           requestAnimationFrame(() => pinInputRef.current?.focus());
                         }}
-                        className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-900"
+                        className="flex w-full items-center rounded-lg px-3 py-2 text-left text-sm text-neutral-200 hover:bg-neutral-900 active:bg-neutral-800"
                       >
                         {name}
                       </button>
