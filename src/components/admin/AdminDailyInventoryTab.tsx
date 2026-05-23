@@ -187,7 +187,8 @@ function ReportDetailView({
     }
   });
 
-  const sections = ["KITCHEN", "CK"] as const;
+  // CK (Cold Kitchen) section is only shown for CUBAO branch
+  const sections = (detail.branch === "CUBAO" ? ["KITCHEN", "CK"] : ["KITCHEN"]) as ("KITCHEN" | "CK")[];
   const filledCount = detail.entries.filter((e) => e.qty !== null).length;
 
   return (
@@ -610,7 +611,8 @@ export default function AdminDailyInventoryTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, branch]);
 
-  const sections = ["KITCHEN", "CK"] as const;
+  // CK (Cold Kitchen) section is only shown for CUBAO branch
+  const sections = (branch === "CUBAO" ? ["KITCHEN", "CK"] : ["KITCHEN"]) as ("KITCHEN" | "CK")[];
   const countBySection = (sec: string) => {
     const sectionItems = items.filter((i) => i.section === sec);
     const filled = sectionItems.filter((i) => entries[i.item_code]?.qty !== "").length;
