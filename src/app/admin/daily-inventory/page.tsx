@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import AdminDailyInventoryTab from "@/components/admin/AdminDailyInventoryTab";
-import { canAccessDailyInventoryAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
   return new Promise<T>((resolve) => {
@@ -50,32 +50,24 @@ export default function DailyInventoryPage() {
           return;
         }
 
-        const hasAccess = canAccessDailyInventoryAdmin(resolved);
-        if (!hasAccess) {
-          setAllowed(false);
-          setReady(true);
-          router.replace("/week");
-          return;
-        }
-
+        // All authenticated staff can access Daily Inventory
         setAllowed(true);
         setReady(true);
       } catch {
         if (cancelled) return;
 
         const fallback = getAuth() || initialAuth || null;
-        const hasAccess = Boolean(fallback?.staffName && fallback?.accessToken && canAccessDailyInventoryAdmin(fallback));
-
-        setAllowed(hasAccess);
-        setReady(true);
 
         if (!fallback?.staffName) {
+          setAllowed(false);
+          setReady(true);
           router.replace(`/login?next=${encodeURIComponent("/admin/daily-inventory")}`);
           return;
         }
-        if (!hasAccess) {
-          router.replace("/week");
-        }
+
+        // Any staff with a valid token is allowed
+        setAllowed(Boolean(fallback?.accessToken));
+        setReady(true);
       }
     }
     void init();
