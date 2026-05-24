@@ -851,6 +851,7 @@ export default function CostCalculationPage() {
   const [renameText, setRenameText] = useState("");
   const [renameSaving, setRenameSaving] = useState(false);
   const [invoiceMappings, setInvoiceMappings] = useState<InvoiceItemMappingRow[]>([]);
+  const [invoiceMappingSearch, setInvoiceMappingSearch] = useState("");
   const [invoiceMappingLoading, setInvoiceMappingLoading] = useState(false);
   const [invoiceMappingSaving, setInvoiceMappingSaving] = useState(false);
   const [invoiceSyncBusy, setInvoiceSyncBusy] = useState(false);
@@ -4257,12 +4258,21 @@ export default function CostCalculationPage() {
                   <div className="mb-3 flex items-center justify-between">
                     <div>
                       <div className="text-sm font-semibold text-white">Registered Mappings</div>
-                      <div className="mt-1 text-xs text-zinc-500">These items will be included in sync.</div>
+                      <div className="mt-1 text-xs text-zinc-500">Click a row to view or edit. These items are included in sync.</div>
                     </div>
                     <div className="flex items-center gap-2">
                       {(invoiceMappingLoading || invoiceMappingSaving) ? <Loader2 className="h-3.5 w-3.5 animate-spin text-violet-300" /> : null}
                       <div className="text-xs font-mono text-zinc-500">{invoiceMappings.length} items</div>
                     </div>
+                  </div>
+                  {/* Search filter */}
+                  <div className="mb-2">
+                    <input
+                      value={invoiceMappingSearch}
+                      onChange={(e) => setInvoiceMappingSearch(e.target.value)}
+                      placeholder="Search by supplier, item name, or ingredient…"
+                      className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white placeholder:text-zinc-600 outline-none focus:border-sky-500/50"
+                    />
                   </div>
                   <div className="max-h-[28rem] overflow-y-auto rounded-xl border border-white/10">
                     {invoiceMappingLoading ? (
@@ -4270,48 +4280,76 @@ export default function CostCalculationPage() {
                         <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
                       </div>
                     ) : invoiceMappings.length === 0 ? (
-                      <div className="px-4 py-6 text-sm text-zinc-500">No mappings.</div>
-                    ) : invoiceMappings.map((m) => (
-                      <div
-                        key={m.id}
-                        className={cx(
-                          "border-b border-white/5 px-3 py-3 last:border-b-0",
-                          editingInvoiceMappingId === m.id ? "bg-amber-500/8" : "",
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-xs font-medium text-white">{m.invoice_item_description}</div>
-                            <div className="mt-0.5 text-[10px] text-zinc-500">
-                              {m.supplier_name || "—"} · {m.invoice_unit || "—"} → {m.ingredient_name_snapshot || "—"} ({m.ingredient_unit || "—"})
+                      <div className="px-4 py-6 text-sm text-zinc-500">No mappings registered yet.</div>
+                    ) : (() => {
+                      const q = invoiceMappingSearch.trim().toLowerCase();
+                      const filtered = q
+                        ? invoiceMappings.filter((m) =>
+                            (m.invoice_item_description || "").toLowerCase().includes(q) ||
+                            (m.supplier_name || "").toLowerCase().includes(q) ||
+                            (m.ingredient_name_snapshot || "").toLowerCase().includes(q)
+                          )
+                        : invoiceMappings;
+                      if (filtered.length === 0) {
+                        return <div className="px-4 py-6 text-sm text-zinc-500">No results for &quot;{invoiceMappingSearch}&quot;</div>;
+                      }
+                      return filtered.map((m) => (
+                        <div
+                          key={m.id}
+                          onClick={() => startEditingInvoiceMapping(m)}
+                          className={cx(
+                            "cursor-pointer border-b border-white/5 px-3 py-3 last:border-b-0 transition",
+                            editingInvoiceMappingId === m.id
+                              ? "bg-amber-500/10 border-l-2 border-l-amber-400"
+                              : "hover:bg-white/[0.04]",
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              {/* Supplier name badge */}
+                              {m.supplier_name ? (
+                                <div className="mb-1 inline-block rounded bg-white/[0.06] px-1.5 py-0.5 text-[10px] text-zinc-400">{m.supplier_name}</div>
+                              ) : null}
+                              {/* Invoice item description */}
+                              <div className="truncate text-xs font-medium text-white">{m.invoice_item_description}</div>
+                              {/* Mapping arrow */}
+                              <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px]">
+                                <span className="text-zinc-500">{m.invoice_unit || "—"}</span>
+                                <span className="text-zinc-600">→</span>
+                                <span className="font-medium text-emerald-400">{m.ingredient_name_snapshot || "—"}</span>
+                                <span className="text-zinc-500">({m.ingredient_unit || "—"})</span>
+                              </div>
+                              {m.conversion_rule ? (
+                                <div className="mt-0.5 font-mono text-[10px] text-sky-500/70">{m.conversion_rule}</div>
+                              ) : null}
+                              {m.notes ? (
+                                <div className="mt-0.5 text-[10px] italic text-zinc-600">{m.notes}</div>
+                              ) : null}
                             </div>
-                            {m.conversion_rule ? (
-                              <div className="mt-0.5 font-mono text-[10px] text-zinc-600">{m.conversion_rule}</div>
-                            ) : null}
-                          </div>
-                          <div className="flex shrink-0 gap-1">
-                            <button
-                              type="button"
-                              onClick={() => startEditingInvoiceMapping(m)}
-                              disabled={invoiceMappingSaving}
-                              className="inline-flex items-center gap-1 rounded border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-[10px] text-sky-300 hover:bg-sky-500/20 disabled:opacity-60"
-                            >
-                              <Pencil className="h-3 w-3" />
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void disableInvoiceItemMapping(m.id)}
-                              disabled={invoiceMappingSaving}
-                              className="inline-flex items-center gap-1 rounded border border-red-500/30 bg-red-500/10 px-2 py-1 text-[10px] text-red-300 hover:bg-red-500/20 disabled:opacity-60"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                              Off
-                            </button>
+                            <div className="flex shrink-0 flex-col gap-1" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={() => startEditingInvoiceMapping(m)}
+                                disabled={invoiceMappingSaving}
+                                className="inline-flex items-center gap-1 rounded border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-[10px] text-sky-300 hover:bg-sky-500/20 disabled:opacity-60"
+                              >
+                                <Pencil className="h-3 w-3" />
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void disableInvoiceItemMapping(m.id)}
+                                disabled={invoiceMappingSaving}
+                                className="inline-flex items-center gap-1 rounded border border-red-500/30 bg-red-500/10 px-2 py-1 text-[10px] text-red-300 hover:bg-red-500/20 disabled:opacity-60"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                                Remove
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      ));
+                    })()}
                   </div>
                 </div>
 
