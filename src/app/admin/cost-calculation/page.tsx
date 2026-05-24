@@ -3462,7 +3462,7 @@ export default function CostCalculationPage() {
               { key: "processed" as CostSection, label: "Processed Items" },
               { key: "product" as CostSection, label: "Products" },
               { key: "draft" as CostSection, label: "New Product Costing" },
-              { key: "invoice" as CostSection, label: "Invoice Sync" },
+              { key: "invoice" as CostSection, label: "Invoice Mapping" },
               { key: "cost-ratio" as CostSection, label: "Cost Rate Overview" },
             ].map((section) => (
               <button
