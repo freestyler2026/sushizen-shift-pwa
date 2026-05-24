@@ -1104,12 +1104,37 @@ export default function CostCalculationPage() {
     setInvoiceSyncError("");
     setInvoiceSyncResult(null);
     try {
-      const res = await costJson<any>(
+      // Start the async job — returns {job_id, status:"running"} immediately
+      const started = await costJson<any>(
         `/api/admin/cost/sync-invoice-prices?city=${encodeURIComponent(city)}&dry_run=${dryRun}`,
         { method: "POST", body: JSON.stringify({}) },
       );
-      setInvoiceSyncResult(res);
-      if (!dryRun) void loadInvoiceMappingData();
+
+      // If the backend returned a direct result (old-style), handle it
+      if (!started?.job_id) {
+        setInvoiceSyncResult(started);
+        if (!dryRun) void loadInvoiceMappingData();
+        return;
+      }
+
+      // Poll the job status endpoint every 3 seconds
+      const jobId = started.job_id as string;
+      const maxWait = 120_000; // 2 minutes max
+      const start = Date.now();
+      while (Date.now() - start < maxWait) {
+        await new Promise((r) => window.setTimeout(r, 3000));
+        const poll = await costJson<any>(`/api/admin/cost/sync-job/${encodeURIComponent(jobId)}`);
+        if (poll?.status === "done") {
+          setInvoiceSyncResult(poll.result);
+          if (!dryRun) void loadInvoiceMappingData();
+          return;
+        }
+        if (poll?.status === "error") {
+          throw new Error(poll.error || "Sync failed");
+        }
+        // status === "running" → keep polling
+      }
+      throw new Error("Sync timed out after 2 minutes");
     } catch (e: any) {
       setInvoiceSyncError(e?.message || String(e));
     } finally {
