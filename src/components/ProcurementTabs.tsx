@@ -56,10 +56,11 @@ const GROUPS: TabGroup[] = [
     label: "Financials",
     sublabel: "Billing & payments",
     tabs: [
-      { href: "/admin/procurement/invoices",     label: "Invoices",     showTo: ["inventory", "full"] },
-      { href: "/admin/procurement/claims",       label: "Claims",       showTo: ["full"] },
-      { href: "/admin/procurement/payments",     label: "Payments",     showTo: ["inventory", "full"] },
-      { href: "/admin/procurement/price-checks", label: "Price Checks", showTo: ["inventory", "full"] },
+      { href: "/admin/procurement/invoices",               label: "Invoices",      showTo: ["inventory", "full"] },
+      { href: "/admin/procurement/invoices/intelligence", label: "Intelligence",   showTo: ["inventory", "full"] },
+      { href: "/admin/procurement/claims",                label: "Claims",         showTo: ["full"] },
+      { href: "/admin/procurement/payments",              label: "Payments",       showTo: ["inventory", "full"] },
+      { href: "/admin/procurement/price-checks",          label: "Price Checks",   showTo: ["inventory", "full"] },
     ],
   },
   {
