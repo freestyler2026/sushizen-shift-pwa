@@ -447,7 +447,7 @@ export default function ProcurementInvoicesPage() {
   const [paymentTrackerOpen, setPaymentTrackerOpen] = useState(false);
   const [paymentBucketOpen, setPaymentBucketOpen] = useState<Record<string, boolean>>({});
   const [vendorAlertData, setVendorAlertData] = useState<VendorAlertData>(EMPTY_VENDOR_DATA);
-  const [alertBannerOpen, setAlertBannerOpen] = useState(true);
+  const [alertBannerOpen, setAlertBannerOpen] = useState(false);
   const [alertSectionOpen, setAlertSectionOpen] = useState<Record<string, boolean>>({});
   const [expandedAlertKeys, setExpandedAlertKeys] = useState<Record<string, boolean>>({});
   const [alertComments, setAlertComments] = useState<Record<string, string>>(() => {
@@ -1425,7 +1425,7 @@ export default function ProcurementInvoicesPage() {
                   grouped[a.alert_type].push(a);
                 }
                 const sectionKey = "__integrity_section__";
-                const sectionOpen = alertSectionOpen[sectionKey] !== false;
+                const sectionOpen = alertSectionOpen[sectionKey] === true;
                 return (
                   <div>
                     <button
@@ -1440,7 +1440,7 @@ export default function ProcurementInvoicesPage() {
                       <div className="space-y-2">
                         {Object.entries(grouped).map(([alertType, items]) => {
                           const meta = ALERT_TYPE_META[alertType] ?? { label: alertType, description: "" };
-                          const isOpen = alertSectionOpen[alertType] !== false;
+                          const isOpen = alertSectionOpen[alertType] === true;
                           const sev = items[0]?.severity ?? "info";
                           const headerCls = sev === "critical" ? "text-rose-300" : sev === "warning" ? "text-amber-300" : "text-sky-300";
                           const iconCls = sev === "critical" ? "text-rose-400" : sev === "warning" ? "text-amber-400" : "text-sky-400";
@@ -1531,7 +1531,7 @@ export default function ProcurementInvoicesPage() {
               {/* ── Section: New Vendors & Items ────────────────────────── */}
               {vendorAlertData.counts.total > 0 && (() => {
                 const sectionKey = "__vendor_section__";
-                const sectionOpen = alertSectionOpen[sectionKey] !== false;
+                const sectionOpen = alertSectionOpen[sectionKey] === true;
                 const { new_suppliers, new_items, reappeared_suppliers, counts } = vendorAlertData;
                 return (
                   <div>
@@ -1548,7 +1548,7 @@ export default function ProcurementInvoicesPage() {
                         {/* New Suppliers */}
                         {new_suppliers.length > 0 && (() => {
                           const key = "__new_suppliers__";
-                          const isOpen = alertSectionOpen[key] !== false;
+                          const isOpen = alertSectionOpen[key] === true;
                           return (
                             <div className="rounded-xl border border-violet-900/40 bg-violet-950/20">
                               <button
@@ -1586,7 +1586,7 @@ export default function ProcurementInvoicesPage() {
                         {/* New Items */}
                         {new_items.length > 0 && (() => {
                           const key = "__new_items__";
-                          const isOpen = alertSectionOpen[key] !== false;
+                          const isOpen = alertSectionOpen[key] === true;
                           return (
                             <div className="rounded-xl border border-indigo-900/40 bg-indigo-950/20">
                               <button
@@ -1626,7 +1626,7 @@ export default function ProcurementInvoicesPage() {
                         {/* Reappeared Suppliers */}
                         {reappeared_suppliers.length > 0 && (() => {
                           const key = "__reappeared__";
-                          const isOpen = alertSectionOpen[key] !== false;
+                          const isOpen = alertSectionOpen[key] === true;
                           return (
                             <div className="rounded-xl border border-sky-900/40 bg-sky-950/20">
                               <button
@@ -1674,7 +1674,7 @@ export default function ProcurementInvoicesPage() {
                   grouped[a.alert_type].push(a);
                 }
                 const sectionKey = "__price_section__";
-                const sectionOpen = alertSectionOpen[sectionKey] !== false;
+                const sectionOpen = alertSectionOpen[sectionKey] === true;
                 return (
                   <div>
                     <button
@@ -1689,7 +1689,7 @@ export default function ProcurementInvoicesPage() {
                       <div className="space-y-2">
                         {Object.entries(grouped).map(([alertType, items]) => {
                           const meta = PRICE_ALERT_TYPE_META[alertType] ?? { label: alertType, description: "" };
-                          const isOpen = alertSectionOpen[`price_${alertType}`] !== false;
+                          const isOpen = alertSectionOpen[`price_${alertType}`] === true;
                           const isOpportunity = meta.opportunity === true;
                           const sev = isOpportunity ? "opportunity" : (items[0]?.severity ?? "info");
                           const headerCls = isOpportunity ? "text-emerald-300" : sev === "critical" ? "text-rose-300" : sev === "warning" ? "text-amber-300" : "text-sky-300";
