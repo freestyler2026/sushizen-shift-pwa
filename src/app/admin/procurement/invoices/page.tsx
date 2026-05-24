@@ -267,6 +267,47 @@ const EMPTY_PAYMENT_DATA: PaymentDueData = {
   amounts: { overdue: 0, due_soon: 0, due_week: 0 },
 };
 
+// ── Phase 5: New vendor / item alert types ────────────────────────────────────
+type NewSupplierAlert = {
+  supplier_name: string;
+  first_invoice_date: string;
+  invoice_no: string;
+  amount: number;
+  currency: string;
+};
+
+type NewItemAlert = {
+  item_description: string;
+  supplier_name: string;
+  first_invoice_date: string;
+  unit_price: number | null;
+  unit: string;
+  currency: string;
+};
+
+type ReappearedSupplier = {
+  supplier_name: string;
+  last_seen_before: string;
+  latest_invoice_date: string;
+  invoice_no: string;
+};
+
+type VendorAlertData = {
+  new_suppliers: NewSupplierAlert[];
+  new_items: NewItemAlert[];
+  reappeared_suppliers: ReappearedSupplier[];
+  counts: { new_suppliers: number; new_items: number; reappeared_suppliers: number; total: number };
+  week_digest: { new_suppliers_this_week: NewSupplierAlert[]; new_items_this_week: NewItemAlert[] };
+};
+
+const EMPTY_VENDOR_DATA: VendorAlertData = {
+  new_suppliers: [],
+  new_items: [],
+  reappeared_suppliers: [],
+  counts: { new_suppliers: 0, new_items: 0, reappeared_suppliers: 0, total: 0 },
+  week_digest: { new_suppliers_this_week: [], new_items_this_week: [] },
+};
+
 const DUBAI_BRANCH_OPTIONS = ["Al Barsha", "Al Mina", "B Bay", "JLT", "M City"];
 const UNKNOWN_BRANCH_OPTION = "branch name unknown";
 
@@ -405,6 +446,7 @@ export default function ProcurementInvoicesPage() {
   const [paymentData, setPaymentData] = useState<PaymentDueData>(EMPTY_PAYMENT_DATA);
   const [paymentTrackerOpen, setPaymentTrackerOpen] = useState(false);
   const [paymentBucketOpen, setPaymentBucketOpen] = useState<Record<string, boolean>>({});
+  const [vendorAlertData, setVendorAlertData] = useState<VendorAlertData>(EMPTY_VENDOR_DATA);
   const [alertBannerOpen, setAlertBannerOpen] = useState(true);
   const [alertSectionOpen, setAlertSectionOpen] = useState<Record<string, boolean>>({});
   const detailKeyFor = useCallback((market: string, value: string) => `${market}:${value}`, []);
@@ -460,7 +502,10 @@ export default function ProcurementInvoicesPage() {
       const paymentQs = new URLSearchParams();
       paymentQs.set("market", city);
 
-      const [data, qualityData, reportData, alertData, priceAlertData, paymentAlertData] = await Promise.all([
+      const vendorQs = new URLSearchParams();
+      vendorQs.set("market", city);
+
+      const [data, qualityData, reportData, alertData, priceAlertData, paymentAlertData, vendorAlertRaw] = await Promise.all([
         procurementJson<{ rows?: InvoiceRow[] }>(
           `/api/admin/procurement/invoices?${invoiceQs.toString()}`,
           { method: "GET" },
@@ -501,6 +546,12 @@ export default function ProcurementInvoicesPage() {
           requestedBy,
           pin,
         ).catch(() => ({ ...EMPTY_PAYMENT_DATA })),
+        procurementJson<Partial<VendorAlertData> & { ok?: boolean }>(
+          `/api/admin/procurement/analytics/supplier-invoices/new-vendor-alerts?${vendorQs.toString()}`,
+          { method: "GET" },
+          requestedBy,
+          pin,
+        ).catch(() => ({ ...EMPTY_VENDOR_DATA })),
       ]);
       setRows(Array.isArray(data?.rows) ? data.rows : []);
       setQualityRows(Array.isArray(qualityData?.rows) ? qualityData.rows : []);
@@ -547,6 +598,21 @@ export default function ProcurementInvoicesPage() {
           due_week: Number(paymentAlertData?.amounts?.due_week || 0),
         },
       });
+      setVendorAlertData({
+        new_suppliers:       Array.isArray(vendorAlertRaw?.new_suppliers)       ? (vendorAlertRaw.new_suppliers as NewSupplierAlert[])       : [],
+        new_items:           Array.isArray(vendorAlertRaw?.new_items)           ? (vendorAlertRaw.new_items as NewItemAlert[])               : [],
+        reappeared_suppliers:Array.isArray(vendorAlertRaw?.reappeared_suppliers)? (vendorAlertRaw.reappeared_suppliers as ReappearedSupplier[]): [],
+        counts: {
+          new_suppliers:        Number(vendorAlertRaw?.counts?.new_suppliers        || 0),
+          new_items:            Number(vendorAlertRaw?.counts?.new_items            || 0),
+          reappeared_suppliers: Number(vendorAlertRaw?.counts?.reappeared_suppliers || 0),
+          total:                Number(vendorAlertRaw?.counts?.total                || 0),
+        },
+        week_digest: {
+          new_suppliers_this_week: Array.isArray(vendorAlertRaw?.week_digest?.new_suppliers_this_week) ? (vendorAlertRaw.week_digest.new_suppliers_this_week as NewSupplierAlert[]) : [],
+          new_items_this_week:     Array.isArray(vendorAlertRaw?.week_digest?.new_items_this_week)     ? (vendorAlertRaw.week_digest.new_items_this_week     as NewItemAlert[])     : [],
+        },
+      });
     } catch (e: any) {
       setRows([]);
       setQualityRows([]);
@@ -559,6 +625,7 @@ export default function ProcurementInvoicesPage() {
       setPriceAlerts([]);
       setPriceAlertCounts({ critical: 0, warning: 0, info: 0, total: 0 });
       setPaymentData(EMPTY_PAYMENT_DATA);
+      setVendorAlertData(EMPTY_VENDOR_DATA);
       setError(e?.message || String(e));
     } finally {
       setLoading(false);
@@ -985,6 +1052,15 @@ export default function ProcurementInvoicesPage() {
     return set;
   }, [priceAlerts]);
 
+  // Set of supplier_names that are new (for row badges)
+  const newSupplierNames = useMemo<Set<string>>(() => {
+    const set = new Set<string>();
+    for (const s of vendorAlertData.new_suppliers) {
+      if (s.supplier_name) set.add(s.supplier_name);
+    }
+    return set;
+  }, [vendorAlertData.new_suppliers]);
+
   if (!allowed) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
@@ -1288,8 +1364,8 @@ export default function ProcurementInvoicesPage() {
         );
       })()}
 
-      {/* ── Procurement Alert Banner (Integrity + Price) ─────────────────── */}
-      {(integrityAlertCounts.total > 0 || priceAlertCounts.total > 0) && (
+      {/* ── Procurement Alert Banner (Integrity + Price + New Vendors) ─────── */}
+      {(integrityAlertCounts.total > 0 || priceAlertCounts.total > 0 || vendorAlertData.counts.total > 0) && (
         <div className="rounded-2xl border border-amber-700/40 bg-amber-900/10">
           {/* Banner header */}
           <button
@@ -1314,6 +1390,11 @@ export default function ProcurementInvoicesPage() {
                 {(integrityAlertCounts.info + priceAlertCounts.info) > 0 && (
                   <span className="rounded-full border border-sky-700/60 bg-sky-900/30 px-2 py-0.5 text-[10px] font-bold text-sky-300">
                     {integrityAlertCounts.info + priceAlertCounts.info} info
+                  </span>
+                )}
+                {vendorAlertData.counts.total > 0 && (
+                  <span className="rounded-full border border-violet-700/60 bg-violet-900/30 px-2 py-0.5 text-[10px] font-bold text-violet-300">
+                    {vendorAlertData.counts.total} new vendors/items
                   </span>
                 )}
               </div>
@@ -1388,6 +1469,144 @@ export default function ProcurementInvoicesPage() {
                             </div>
                           );
                         })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* ── Section: New Vendors & Items ────────────────────────── */}
+              {vendorAlertData.counts.total > 0 && (() => {
+                const sectionKey = "__vendor_section__";
+                const sectionOpen = alertSectionOpen[sectionKey] !== false;
+                const { new_suppliers, new_items, reappeared_suppliers, counts } = vendorAlertData;
+                return (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setAlertSectionOpen((prev) => ({ ...prev, [sectionKey]: !sectionOpen }))}
+                      className="flex w-full items-center justify-between gap-2 mb-2"
+                    >
+                      <span className="text-xs font-semibold uppercase tracking-wide text-violet-400">New Vendors &amp; Items ({counts.total})</span>
+                      <ChevronDown className={`h-3.5 w-3.5 text-zinc-500 transition-transform ${sectionOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {sectionOpen && (
+                      <div className="space-y-2">
+                        {/* New Suppliers */}
+                        {new_suppliers.length > 0 && (() => {
+                          const key = "__new_suppliers__";
+                          const isOpen = alertSectionOpen[key] !== false;
+                          return (
+                            <div className="rounded-xl border border-violet-900/40 bg-violet-950/20">
+                              <button
+                                type="button"
+                                onClick={() => setAlertSectionOpen((prev) => ({ ...prev, [key]: !isOpen }))}
+                                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <AlertCircle className="h-3.5 w-3.5 text-violet-400" />
+                                  <span className="text-xs font-semibold text-violet-300">New Suppliers</span>
+                                  <span className="text-xs text-zinc-500">({new_suppliers.length})</span>
+                                </div>
+                                <ChevronDown className={`h-3.5 w-3.5 text-zinc-500 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                              </button>
+                              {isOpen && (
+                                <div className="border-t border-white/5 px-3 pb-3 pt-1 space-y-1">
+                                  <p className="text-[11px] text-zinc-500 mb-2">Suppliers invoicing for the first time in the last 30 days</p>
+                                  {new_suppliers.map((s, idx) => (
+                                    <div key={idx} className="flex items-start gap-2 rounded-lg border border-white/5 bg-black/20 px-3 py-2">
+                                      <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                        <span className="text-xs font-medium text-white">{s.supplier_name}</span>
+                                        <span className="text-[11px] text-zinc-500">#{s.invoice_no}</span>
+                                        <span className="text-[11px] text-zinc-600">{s.first_invoice_date?.slice(0, 10)}</span>
+                                        {s.amount > 0 && <span className="text-[11px] text-zinc-400">{s.currency} {Number(s.amount).toFixed(2)}</span>}
+                                        <span className="rounded-full border border-violet-700/60 bg-violet-900/30 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-300">NEW SUPPLIER</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+
+                        {/* New Items */}
+                        {new_items.length > 0 && (() => {
+                          const key = "__new_items__";
+                          const isOpen = alertSectionOpen[key] !== false;
+                          return (
+                            <div className="rounded-xl border border-indigo-900/40 bg-indigo-950/20">
+                              <button
+                                type="button"
+                                onClick={() => setAlertSectionOpen((prev) => ({ ...prev, [key]: !isOpen }))}
+                                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <AlertTriangle className="h-3.5 w-3.5 text-indigo-400" />
+                                  <span className="text-xs font-semibold text-indigo-300">New Items from Existing Suppliers</span>
+                                  <span className="text-xs text-zinc-500">({new_items.length})</span>
+                                </div>
+                                <ChevronDown className={`h-3.5 w-3.5 text-zinc-500 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                              </button>
+                              {isOpen && (
+                                <div className="border-t border-white/5 px-3 pb-3 pt-1 space-y-1">
+                                  <p className="text-[11px] text-zinc-500 mb-2">Items not seen from this supplier in the prior 90 days</p>
+                                  {new_items.map((item, idx) => (
+                                    <div key={idx} className="flex items-start gap-2 rounded-lg border border-white/5 bg-black/20 px-3 py-2">
+                                      <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                        <span className="text-xs font-medium text-white">{item.item_description}</span>
+                                        <span className="text-[11px] text-zinc-400">{item.supplier_name}</span>
+                                        <span className="text-[11px] text-zinc-600">{item.first_invoice_date?.slice(0, 10)}</span>
+                                        {item.unit_price !== null && item.unit_price !== undefined && (
+                                          <span className="text-[11px] text-zinc-400">{item.currency} {Number(item.unit_price).toFixed(2)}/{item.unit || "unit"}</span>
+                                        )}
+                                        <span className="rounded-full border border-indigo-700/60 bg-indigo-900/30 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-indigo-300">NEW ITEM</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
+
+                        {/* Reappeared Suppliers */}
+                        {reappeared_suppliers.length > 0 && (() => {
+                          const key = "__reappeared__";
+                          const isOpen = alertSectionOpen[key] !== false;
+                          return (
+                            <div className="rounded-xl border border-sky-900/40 bg-sky-950/20">
+                              <button
+                                type="button"
+                                onClick={() => setAlertSectionOpen((prev) => ({ ...prev, [key]: !isOpen }))}
+                                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <AlertTriangle className="h-3.5 w-3.5 text-sky-400" />
+                                  <span className="text-xs font-semibold text-sky-300">Reappeared Suppliers</span>
+                                  <span className="text-xs text-zinc-500">({reappeared_suppliers.length})</span>
+                                </div>
+                                <ChevronDown className={`h-3.5 w-3.5 text-zinc-500 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                              </button>
+                              {isOpen && (
+                                <div className="border-t border-white/5 px-3 pb-3 pt-1 space-y-1">
+                                  <p className="text-[11px] text-zinc-500 mb-2">Suppliers absent for an extended period, now billing again</p>
+                                  {reappeared_suppliers.map((s, idx) => (
+                                    <div key={idx} className="flex items-start gap-2 rounded-lg border border-white/5 bg-black/20 px-3 py-2">
+                                      <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                        <span className="text-xs font-medium text-white">{s.supplier_name}</span>
+                                        <span className="text-[11px] text-zinc-500">#{s.invoice_no}</span>
+                                        <span className="text-[11px] text-zinc-600">last seen {s.last_seen_before?.slice(0, 10)}</span>
+                                        <span className="text-[11px] text-zinc-600">back {s.latest_invoice_date?.slice(0, 10)}</span>
+                                        <span className="rounded-full border border-sky-700/60 bg-sky-900/30 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-sky-300">REAPPEARED</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
                   </div>
@@ -1530,6 +1749,9 @@ export default function ProcurementInvoicesPage() {
                       <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-violet-200">{row.market}</span>
                       {spikeInvoiceNos.has(row.invoice_no) && (
                         <span className="rounded-full border border-rose-700/60 bg-rose-900/20 px-2 py-0.5 text-[10px] font-bold text-rose-300">↑ price alert</span>
+                      )}
+                      {newSupplierNames.has(row.supplier_name) && (
+                        <span className="rounded-full border border-violet-700/60 bg-violet-900/20 px-2 py-0.5 text-[10px] font-bold text-violet-300">✦ new supplier</span>
                       )}
                     </div>
                     <div className="mt-2 text-xs text-zinc-400">

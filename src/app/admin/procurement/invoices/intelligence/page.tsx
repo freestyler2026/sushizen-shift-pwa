@@ -49,6 +49,18 @@ type BenchmarkRow = {
   data_points: number;
 };
 
+// ── Phase 5: New vendor / item types (for week digest) ────────────────────────
+type NewSupplierRow = { supplier_name: string; first_invoice_date: string; invoice_no: string; amount: number; currency: string };
+type NewItemRow = { item_description: string; supplier_name: string; first_invoice_date: string; unit_price: number | null; unit: string; currency: string };
+type ReappearedRow = { supplier_name: string; last_seen_before: string; latest_invoice_date: string; invoice_no: string };
+type VendorAlertSummary = {
+  new_suppliers: NewSupplierRow[];
+  new_items: NewItemRow[];
+  reappeared_suppliers: ReappearedRow[];
+  counts: { new_suppliers: number; new_items: number; reappeared_suppliers: number; total: number };
+  week_digest: { new_suppliers_this_week: NewSupplierRow[]; new_items_this_week: NewItemRow[] };
+};
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function fmt(amount: number, currency: string): string {
@@ -89,6 +101,8 @@ export default function ProcurementIntelligencePage() {
   const [benchmarkSearch, setBenchmarkSearch] = useState("");
   const [benchmarkLoading, setBenchmarkLoading] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<string | null>(null);
+  const [vendorData, setVendorData] = useState<VendorAlertSummary | null>(null);
+  const [vendorLoading, setVendorLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -133,6 +147,38 @@ export default function ProcurementIntelligencePage() {
     }
   }, [pin, requestedBy]);
 
+  const loadVendor = useCallback(async () => {
+    setVendorLoading(true);
+    try {
+      const qs = new URLSearchParams({ market: city });
+      const data = await procurementJson<Partial<VendorAlertSummary> & { ok?: boolean }>(
+        `/api/admin/procurement/analytics/supplier-invoices/new-vendor-alerts?${qs.toString()}`,
+        { method: "GET" },
+        requestedBy,
+        pin,
+      );
+      setVendorData({
+        new_suppliers:        Array.isArray(data?.new_suppliers)        ? (data.new_suppliers as NewSupplierRow[])        : [],
+        new_items:            Array.isArray(data?.new_items)            ? (data.new_items as NewItemRow[])                : [],
+        reappeared_suppliers: Array.isArray(data?.reappeared_suppliers) ? (data.reappeared_suppliers as ReappearedRow[])  : [],
+        counts: {
+          new_suppliers:        Number(data?.counts?.new_suppliers        || 0),
+          new_items:            Number(data?.counts?.new_items            || 0),
+          reappeared_suppliers: Number(data?.counts?.reappeared_suppliers || 0),
+          total:                Number(data?.counts?.total                || 0),
+        },
+        week_digest: {
+          new_suppliers_this_week: Array.isArray(data?.week_digest?.new_suppliers_this_week) ? (data.week_digest.new_suppliers_this_week as NewSupplierRow[]) : [],
+          new_items_this_week:     Array.isArray(data?.week_digest?.new_items_this_week)     ? (data.week_digest.new_items_this_week     as NewItemRow[])     : [],
+        },
+      });
+    } catch {
+      setVendorData(null);
+    } finally {
+      setVendorLoading(false);
+    }
+  }, [city, pin, requestedBy]);
+
   useEffect(() => {
     async function init() {
       const currentAuth = getAuth();
@@ -154,6 +200,11 @@ export default function ProcurementIntelligencePage() {
     if (!allowed) return;
     void loadBenchmark("");
   }, [allowed, loadBenchmark]);
+
+  useEffect(() => {
+    if (!allowed) return;
+    void loadVendor();
+  }, [allowed, loadVendor]);
 
   // ── Derived chart data ──────────────────────────────────────────────────────
 
@@ -425,6 +476,140 @@ export default function ProcurementIntelligencePage() {
           </div>
         </div>
       )}
+
+      {/* ── Section 5: New Vendor & Item Radar ──────────────────────────────── */}
+      <div className="rounded-2xl border border-violet-900/40 bg-violet-950/10 p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <AlertCircle className="h-4 w-4 text-violet-400" />
+          <span className="text-sm font-semibold text-white">New Vendor &amp; Item Radar</span>
+          <span className="text-xs text-zinc-500">— last 30 days</span>
+          {vendorLoading && <RefreshCw className="h-3.5 w-3.5 text-zinc-500 animate-spin ml-auto" />}
+          {vendorData && vendorData.counts.total > 0 && (
+            <span className="ml-auto rounded-full border border-violet-700/60 bg-violet-900/30 px-2 py-0.5 text-[10px] font-bold text-violet-300">
+              {vendorData.counts.total} new signals
+            </span>
+          )}
+        </div>
+
+        {/* Week digest summary */}
+        {(vendorData?.week_digest.new_suppliers_this_week.length ?? 0) + (vendorData?.week_digest.new_items_this_week.length ?? 0) > 0 ? (
+          <div className="mb-4 rounded-xl border border-violet-700/40 bg-violet-900/15 p-3">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-violet-400 mb-2">This Week</div>
+            <div className="flex flex-wrap gap-2">
+              {vendorData!.week_digest.new_suppliers_this_week.map((s, idx) => (
+                <span key={idx} className="rounded-full border border-violet-700/50 bg-violet-900/30 px-2.5 py-1 text-[11px] text-violet-200">
+                  ✦ {s.supplier_name}
+                  <span className="ml-1 text-violet-500 text-[9px]">NEW SUPPLIER</span>
+                </span>
+              ))}
+              {vendorData!.week_digest.new_items_this_week.map((item, idx) => (
+                <span key={idx} className="rounded-full border border-indigo-700/50 bg-indigo-900/30 px-2.5 py-1 text-[11px] text-indigo-200">
+                  {item.item_description}
+                  <span className="ml-1 text-indigo-500 text-[9px]">{item.supplier_name}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {/* Full 30-day listings */}
+        {vendorData && vendorData.counts.total > 0 ? (
+          <div className="space-y-4">
+            {/* New Suppliers */}
+            {vendorData.new_suppliers.length > 0 && (
+              <div>
+                <div className="text-xs font-semibold text-violet-300 mb-2">New Suppliers ({vendorData.new_suppliers.length})</div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[11px]">
+                    <thead>
+                      <tr className="border-b border-white/5 text-zinc-500">
+                        <th className="px-3 py-1.5 text-left font-normal">Supplier</th>
+                        <th className="px-3 py-1.5 text-left font-normal">Invoice</th>
+                        <th className="px-3 py-1.5 text-left font-normal">First Invoice Date</th>
+                        <th className="px-3 py-1.5 text-right font-normal">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {vendorData.new_suppliers.map((s, idx) => (
+                        <tr key={idx} className="border-b border-white/5 hover:bg-white/3">
+                          <td className="px-3 py-1.5 font-medium text-white">{s.supplier_name}</td>
+                          <td className="px-3 py-1.5 text-zinc-500">#{s.invoice_no}</td>
+                          <td className="px-3 py-1.5 text-zinc-400">{s.first_invoice_date?.slice(0, 10)}</td>
+                          <td className="px-3 py-1.5 text-right text-zinc-300">{s.amount > 0 ? `${s.currency} ${Number(s.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* New Items */}
+            {vendorData.new_items.length > 0 && (
+              <div>
+                <div className="text-xs font-semibold text-indigo-300 mb-2">New Items from Existing Suppliers ({vendorData.new_items.length})</div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[11px]">
+                    <thead>
+                      <tr className="border-b border-white/5 text-zinc-500">
+                        <th className="px-3 py-1.5 text-left font-normal">Item</th>
+                        <th className="px-3 py-1.5 text-left font-normal">Supplier</th>
+                        <th className="px-3 py-1.5 text-left font-normal">First Seen</th>
+                        <th className="px-3 py-1.5 text-right font-normal">Unit Price</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {vendorData.new_items.map((item, idx) => (
+                        <tr key={idx} className="border-b border-white/5 hover:bg-white/3">
+                          <td className="px-3 py-1.5 font-medium text-white max-w-[200px] truncate">{item.item_description}</td>
+                          <td className="px-3 py-1.5 text-zinc-400">{item.supplier_name}</td>
+                          <td className="px-3 py-1.5 text-zinc-500">{item.first_invoice_date?.slice(0, 10)}</td>
+                          <td className="px-3 py-1.5 text-right text-zinc-300">
+                            {item.unit_price !== null && item.unit_price !== undefined ? `${item.currency} ${Number(item.unit_price).toFixed(2)}/${item.unit || "unit"}` : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Reappeared Suppliers */}
+            {vendorData.reappeared_suppliers.length > 0 && (
+              <div>
+                <div className="text-xs font-semibold text-sky-300 mb-2">Reappeared Suppliers ({vendorData.reappeared_suppliers.length})</div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[11px]">
+                    <thead>
+                      <tr className="border-b border-white/5 text-zinc-500">
+                        <th className="px-3 py-1.5 text-left font-normal">Supplier</th>
+                        <th className="px-3 py-1.5 text-left font-normal">Invoice</th>
+                        <th className="px-3 py-1.5 text-left font-normal">Last Seen Before</th>
+                        <th className="px-3 py-1.5 text-left font-normal">Latest Invoice</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {vendorData.reappeared_suppliers.map((s, idx) => (
+                        <tr key={idx} className="border-b border-white/5 hover:bg-white/3">
+                          <td className="px-3 py-1.5 font-medium text-white">{s.supplier_name}</td>
+                          <td className="px-3 py-1.5 text-zinc-500">#{s.invoice_no}</td>
+                          <td className="px-3 py-1.5 text-zinc-400">{s.last_seen_before?.slice(0, 10)}</td>
+                          <td className="px-3 py-1.5 text-zinc-300">{s.latest_invoice_date?.slice(0, 10)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-sm text-zinc-500">
+            {vendorLoading ? "Loading..." : "No new suppliers or items detected in the last 30 days."}
+          </div>
+        )}
+      </div>
 
       {/* ── Section 4: Dubai ↔ Manila Price Benchmark ────────────────────── */}
       <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
