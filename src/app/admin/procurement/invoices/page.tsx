@@ -1467,7 +1467,14 @@ export default function ProcurementInvoicesPage() {
                                     const isItemOpen = expandedAlertKeys[itemKey] === true;
                                     const comment = alertComments[itemKey] || "";
                                     return (
-                                      <div key={idx} className={`rounded-lg border ${isItemOpen ? "border-white/15 bg-black/30" : "border-white/5 bg-black/20"}`}>
+                                      <div
+                                        key={idx}
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={(e) => { e.stopPropagation(); setExpandedAlertKeys((prev) => ({ ...prev, [itemKey]: !isItemOpen })); }}
+                                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpandedAlertKeys((prev) => ({ ...prev, [itemKey]: !isItemOpen })); } }}
+                                        className={`cursor-pointer rounded-lg border transition ${isItemOpen ? "border-white/15 bg-black/30" : "border-white/5 bg-black/20 hover:border-white/10 hover:bg-black/25"}`}
+                                      >
                                         {/* Always-visible row */}
                                         <div className="flex items-start gap-2 px-3 py-2">
                                           <div className="min-w-0 flex-1">
@@ -1487,17 +1494,16 @@ export default function ProcurementInvoicesPage() {
                                               <p className="mt-0.5 text-[11px] text-emerald-400/80 italic">{'"'}{comment}{'"'}</p>
                                             )}
                                           </div>
-                                          <button
-                                            type="button"
-                                            onClick={() => setExpandedAlertKeys((prev) => ({ ...prev, [itemKey]: !isItemOpen }))}
-                                            className={`shrink-0 rounded-lg border px-2 py-1 text-[10px] font-medium transition ${isItemOpen ? "border-violet-600/50 bg-violet-900/30 text-violet-300" : "border-white/10 bg-white/5 text-zinc-500 hover:text-zinc-300"}`}
-                                          >
+                                          <span className={`shrink-0 rounded-lg border px-2 py-1 text-[10px] font-medium ${isItemOpen ? "border-violet-600/50 bg-violet-900/30 text-violet-300" : "border-white/10 bg-white/5 text-zinc-500"}`}>
                                             {isItemOpen ? "▲ close" : "✎ note"}
-                                          </button>
+                                          </span>
                                         </div>
                                         {/* Expandable note */}
                                         {isItemOpen && (
-                                          <div className="border-t border-white/5 px-3 pb-3 pt-2">
+                                          <div
+                                            className="border-t border-white/5 px-3 pb-3 pt-2"
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
                                             <div className="mb-1 text-[10px] uppercase tracking-[0.15em] text-zinc-500">Note / Action taken</div>
                                             <textarea
                                               value={comment}
@@ -1711,7 +1717,14 @@ export default function ProcurementInvoicesPage() {
                                     const isItemOpen = expandedAlertKeys[itemKey] === true;
                                     const comment = alertComments[itemKey] || "";
                                     return (
-                                      <div key={idx} className={`rounded-lg border ${isItemOpen ? "border-white/15 bg-black/30" : "border-white/5 bg-black/20"}`}>
+                                      <div
+                                        key={idx}
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={(e) => { e.stopPropagation(); setExpandedAlertKeys((prev) => ({ ...prev, [itemKey]: !isItemOpen })); }}
+                                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setExpandedAlertKeys((prev) => ({ ...prev, [itemKey]: !isItemOpen })); } }}
+                                        className={`cursor-pointer rounded-lg border transition ${isItemOpen ? "border-white/15 bg-black/30" : "border-white/5 bg-black/20 hover:border-white/10 hover:bg-black/25"}`}
+                                      >
                                         {/* Always-visible row */}
                                         <div className="flex items-start gap-2 px-3 py-2">
                                           <div className="min-w-0 flex-1">
@@ -1737,17 +1750,16 @@ export default function ProcurementInvoicesPage() {
                                               <p className="mt-0.5 text-[11px] text-emerald-400/80 italic">{'"'}{comment}{'"'}</p>
                                             )}
                                           </div>
-                                          <button
-                                            type="button"
-                                            onClick={() => setExpandedAlertKeys((prev) => ({ ...prev, [itemKey]: !isItemOpen }))}
-                                            className={`shrink-0 rounded-lg border px-2 py-1 text-[10px] font-medium transition ${isItemOpen ? "border-violet-600/50 bg-violet-900/30 text-violet-300" : "border-white/10 bg-white/5 text-zinc-500 hover:text-zinc-300"}`}
-                                          >
+                                          <span className={`shrink-0 rounded-lg border px-2 py-1 text-[10px] font-medium ${isItemOpen ? "border-violet-600/50 bg-violet-900/30 text-violet-300" : "border-white/10 bg-white/5 text-zinc-500"}`}>
                                             {isItemOpen ? "▲ close" : "✎ note"}
-                                          </button>
+                                          </span>
                                         </div>
                                         {/* Expandable note */}
                                         {isItemOpen && (
-                                          <div className="border-t border-white/5 px-3 pb-3 pt-2">
+                                          <div
+                                            className="border-t border-white/5 px-3 pb-3 pt-2"
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
                                             <div className="mb-1 text-[10px] uppercase tracking-[0.15em] text-zinc-500">Note / Action taken</div>
                                             <textarea
                                               value={comment}
