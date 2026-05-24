@@ -238,6 +238,35 @@ const PRICE_ALERT_TYPE_META: Record<string, { label: string; description: string
   RISING_TREND:       { label: "Rising Price Trends",     description: "Items whose price has increased 3 months in a row" },
 };
 
+// ── Phase 3: Payment due alert types ─────────────────────────────────────────
+type PaymentDueRow = {
+  invoice_no: string;
+  supplier_name: string;
+  invoice_date: string;
+  due_date: string | null;
+  expected_due_date?: string | null;
+  amount: number;
+  currency: string;
+  payment_terms: string;
+  days_remaining: number | null;
+  days_overdue?: number;
+};
+
+type PaymentDueData = {
+  overdue: PaymentDueRow[];
+  due_soon: PaymentDueRow[];
+  due_week: PaymentDueRow[];
+  no_due_date: PaymentDueRow[];
+  counts: { overdue: number; due_soon: number; due_week: number; no_due_date: number; total: number };
+  amounts: { overdue: number; due_soon: number; due_week: number };
+};
+
+const EMPTY_PAYMENT_DATA: PaymentDueData = {
+  overdue: [], due_soon: [], due_week: [], no_due_date: [],
+  counts: { overdue: 0, due_soon: 0, due_week: 0, no_due_date: 0, total: 0 },
+  amounts: { overdue: 0, due_soon: 0, due_week: 0 },
+};
+
 const DUBAI_BRANCH_OPTIONS = ["Al Barsha", "Al Mina", "B Bay", "JLT", "M City"];
 const UNKNOWN_BRANCH_OPTION = "branch name unknown";
 
@@ -373,6 +402,9 @@ export default function ProcurementInvoicesPage() {
   const [integrityAlertCounts, setIntegrityAlertCounts] = useState<IntegrityAlertCounts>({ critical: 0, warning: 0, info: 0, total: 0 });
   const [priceAlerts, setPriceAlerts] = useState<PriceAlert[]>([]);
   const [priceAlertCounts, setPriceAlertCounts] = useState<PriceAlertCounts>({ critical: 0, warning: 0, info: 0, total: 0 });
+  const [paymentData, setPaymentData] = useState<PaymentDueData>(EMPTY_PAYMENT_DATA);
+  const [paymentTrackerOpen, setPaymentTrackerOpen] = useState(false);
+  const [paymentBucketOpen, setPaymentBucketOpen] = useState<Record<string, boolean>>({});
   const [alertBannerOpen, setAlertBannerOpen] = useState(true);
   const [alertSectionOpen, setAlertSectionOpen] = useState<Record<string, boolean>>({});
   const detailKeyFor = useCallback((market: string, value: string) => `${market}:${value}`, []);
@@ -425,7 +457,10 @@ export default function ProcurementInvoicesPage() {
       if (dateFrom) priceQs.set("date_from", dateFrom);
       if (dateTo) priceQs.set("date_to", dateTo);
 
-      const [data, qualityData, reportData, alertData, priceAlertData] = await Promise.all([
+      const paymentQs = new URLSearchParams();
+      paymentQs.set("market", city);
+
+      const [data, qualityData, reportData, alertData, priceAlertData, paymentAlertData] = await Promise.all([
         procurementJson<{ rows?: InvoiceRow[] }>(
           `/api/admin/procurement/invoices?${invoiceQs.toString()}`,
           { method: "GET" },
@@ -460,6 +495,12 @@ export default function ProcurementInvoicesPage() {
           requestedBy,
           pin,
         ).catch(() => ({ alerts: [] as PriceAlert[], counts: undefined, total: 0 })),
+        procurementJson<Partial<PaymentDueData> & { ok?: boolean }>(
+          `/api/admin/procurement/analytics/supplier-invoices/payment-alerts?${paymentQs.toString()}`,
+          { method: "GET" },
+          requestedBy,
+          pin,
+        ).catch(() => ({ ...EMPTY_PAYMENT_DATA })),
       ]);
       setRows(Array.isArray(data?.rows) ? data.rows : []);
       setQualityRows(Array.isArray(qualityData?.rows) ? qualityData.rows : []);
@@ -488,6 +529,24 @@ export default function ProcurementInvoicesPage() {
         info: Number(priceAlertData?.counts?.info || 0),
         total: Number(priceAlertData?.total || 0),
       });
+      setPaymentData({
+        overdue:     Array.isArray(paymentAlertData?.overdue)     ? paymentAlertData.overdue     : [],
+        due_soon:    Array.isArray(paymentAlertData?.due_soon)    ? paymentAlertData.due_soon    : [],
+        due_week:    Array.isArray(paymentAlertData?.due_week)    ? paymentAlertData.due_week    : [],
+        no_due_date: Array.isArray(paymentAlertData?.no_due_date) ? paymentAlertData.no_due_date : [],
+        counts: {
+          overdue:     Number(paymentAlertData?.counts?.overdue     || 0),
+          due_soon:    Number(paymentAlertData?.counts?.due_soon    || 0),
+          due_week:    Number(paymentAlertData?.counts?.due_week    || 0),
+          no_due_date: Number(paymentAlertData?.counts?.no_due_date || 0),
+          total:       Number(paymentAlertData?.counts?.total       || 0),
+        },
+        amounts: {
+          overdue:  Number(paymentAlertData?.amounts?.overdue  || 0),
+          due_soon: Number(paymentAlertData?.amounts?.due_soon || 0),
+          due_week: Number(paymentAlertData?.amounts?.due_week || 0),
+        },
+      });
     } catch (e: any) {
       setRows([]);
       setQualityRows([]);
@@ -499,6 +558,7 @@ export default function ProcurementInvoicesPage() {
       setIntegrityAlertCounts({ critical: 0, warning: 0, info: 0, total: 0 });
       setPriceAlerts([]);
       setPriceAlertCounts({ critical: 0, warning: 0, info: 0, total: 0 });
+      setPaymentData(EMPTY_PAYMENT_DATA);
       setError(e?.message || String(e));
     } finally {
       setLoading(false);
@@ -1082,6 +1142,151 @@ export default function ProcurementInvoicesPage() {
         <DatePicker value={dateFrom} onChange={setDateFrom} />
         <DatePicker value={dateTo} onChange={setDateTo} />
       </div>
+
+      {/* ── Payment Tracker ──────────────────────────────────────────────── */}
+      {(() => {
+        const { counts, amounts } = paymentData;
+        const hasSomething = counts.overdue > 0 || counts.due_soon > 0 || counts.due_week > 0 || counts.no_due_date > 0;
+        if (!hasSomething) return null;
+        const currency = city === "dubai" ? "AED" : "PHP";
+        const buckets = [
+          {
+            key: "overdue",
+            label: "Overdue",
+            count: counts.overdue,
+            amount: amounts.overdue,
+            rows: paymentData.overdue,
+            color: { border: "border-rose-700/50", bg: "bg-rose-900/15", badge: "border-rose-700/60 bg-rose-900/30 text-rose-300", header: "text-rose-300", amt: "text-rose-400" },
+            dayLabel: (r: PaymentDueRow) => r.days_overdue !== undefined ? `${r.days_overdue}d overdue` : "",
+            dayColor: "text-rose-400",
+          },
+          {
+            key: "due_soon",
+            label: "Due within 3 days",
+            count: counts.due_soon,
+            amount: amounts.due_soon,
+            rows: paymentData.due_soon,
+            color: { border: "border-orange-700/50", bg: "bg-orange-900/15", badge: "border-orange-700/60 bg-orange-900/30 text-orange-300", header: "text-orange-300", amt: "text-orange-400" },
+            dayLabel: (r: PaymentDueRow) => r.days_remaining !== null && r.days_remaining !== undefined ? (r.days_remaining === 0 ? "today" : `${r.days_remaining}d left`) : "",
+            dayColor: "text-orange-400",
+          },
+          {
+            key: "due_week",
+            label: "Due this week",
+            count: counts.due_week,
+            amount: amounts.due_week,
+            rows: paymentData.due_week,
+            color: { border: "border-amber-700/50", bg: "bg-amber-900/15", badge: "border-amber-700/60 bg-amber-900/30 text-amber-300", header: "text-amber-300", amt: "text-amber-400" },
+            dayLabel: (r: PaymentDueRow) => r.days_remaining !== null && r.days_remaining !== undefined ? `${r.days_remaining}d left` : "",
+            dayColor: "text-amber-400",
+          },
+          {
+            key: "no_due_date",
+            label: "No due date set",
+            count: counts.no_due_date,
+            amount: 0,
+            rows: paymentData.no_due_date,
+            color: { border: "border-sky-700/50", bg: "bg-sky-900/15", badge: "border-sky-700/60 bg-sky-900/30 text-sky-300", header: "text-sky-300", amt: "text-sky-400" },
+            dayLabel: (r: PaymentDueRow) => r.expected_due_date ? `est. ${r.expected_due_date}` : "",
+            dayColor: "text-sky-500",
+          },
+        ].filter((b) => b.count > 0);
+
+        return (
+          <div className={`rounded-2xl border ${counts.overdue > 0 ? "border-rose-700/40 bg-rose-900/8" : "border-amber-700/30 bg-amber-900/8"}`}>
+            <button
+              type="button"
+              onClick={() => setPaymentTrackerOpen((v) => !v)}
+              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+            >
+              <div className="flex items-center gap-2 flex-wrap">
+                <AlertCircle className={`h-4 w-4 ${counts.overdue > 0 ? "text-rose-400" : "text-amber-400"}`} />
+                <span className={`text-sm font-semibold ${counts.overdue > 0 ? "text-rose-300" : "text-amber-300"}`}>Payment Tracker</span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {counts.overdue > 0 && (
+                    <span className="rounded-full border border-rose-700/60 bg-rose-900/30 px-2 py-0.5 text-[10px] font-bold text-rose-300">
+                      {counts.overdue} overdue
+                    </span>
+                  )}
+                  {counts.due_soon > 0 && (
+                    <span className="rounded-full border border-orange-700/60 bg-orange-900/30 px-2 py-0.5 text-[10px] font-bold text-orange-300">
+                      {counts.due_soon} due soon
+                    </span>
+                  )}
+                  {counts.due_week > 0 && (
+                    <span className="rounded-full border border-amber-700/60 bg-amber-900/30 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+                      {counts.due_week} this week
+                    </span>
+                  )}
+                </div>
+              </div>
+              <ChevronDown className={`h-4 w-4 transition-transform ${counts.overdue > 0 ? "text-rose-500" : "text-amber-500"} ${paymentTrackerOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {paymentTrackerOpen && (
+              <div className="border-t border-white/10 px-4 pb-4 pt-3 space-y-3">
+                {buckets.map((bucket) => {
+                  const isOpen = paymentBucketOpen[bucket.key] !== false;
+                  return (
+                    <div key={bucket.key} className={`rounded-xl border ${bucket.color.border} ${bucket.color.bg}`}>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentBucketOpen((prev) => ({ ...prev, [bucket.key]: !isOpen }))}
+                        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
+                      >
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-xs font-semibold ${bucket.color.header}`}>{bucket.label}</span>
+                          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${bucket.color.badge}`}>{bucket.count}</span>
+                          {bucket.amount > 0 && (
+                            <span className={`text-[11px] font-medium ${bucket.color.amt}`}>
+                              {currency} {bucket.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} at risk
+                            </span>
+                          )}
+                        </div>
+                        <ChevronDown className={`h-3.5 w-3.5 text-zinc-500 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                      </button>
+                      {isOpen && (
+                        <div className="border-t border-white/5 overflow-x-auto">
+                          <table className="w-full text-[11px]">
+                            <thead>
+                              <tr className="border-b border-white/5 text-zinc-500">
+                                <th className="px-3 py-1.5 text-left font-normal">Invoice</th>
+                                <th className="px-3 py-1.5 text-left font-normal">Supplier</th>
+                                <th className="px-3 py-1.5 text-left font-normal">Inv. Date</th>
+                                <th className="px-3 py-1.5 text-left font-normal">Due Date</th>
+                                <th className="px-3 py-1.5 text-right font-normal">Amount</th>
+                                <th className="px-3 py-1.5 text-right font-normal">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {bucket.rows.map((r, idx) => (
+                                <tr key={idx} className="border-b border-white/5 hover:bg-white/3">
+                                  <td className="px-3 py-1.5 font-medium text-white">{r.invoice_no || "-"}</td>
+                                  <td className="px-3 py-1.5 text-zinc-400 max-w-[180px] truncate">{r.supplier_name || "-"}</td>
+                                  <td className="px-3 py-1.5 text-zinc-500">{r.invoice_date?.slice(0, 10) || "-"}</td>
+                                  <td className="px-3 py-1.5 text-zinc-400">
+                                    {r.due_date?.slice(0, 10) || (r.expected_due_date ? `~${r.expected_due_date}` : "-")}
+                                  </td>
+                                  <td className="px-3 py-1.5 text-right text-zinc-300">
+                                    {r.amount > 0 ? `${r.currency || currency} ${Number(r.amount).toFixed(2)}` : "-"}
+                                  </td>
+                                  <td className={`px-3 py-1.5 text-right font-semibold ${bucket.dayColor}`}>
+                                    {bucket.dayLabel(r) || "-"}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Procurement Alert Banner (Integrity + Price) ─────────────────── */}
       {(integrityAlertCounts.total > 0 || priceAlertCounts.total > 0) && (
