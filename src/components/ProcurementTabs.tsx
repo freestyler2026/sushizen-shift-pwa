@@ -111,6 +111,8 @@ type BadgeSummary = {
   issue_critical_count: number;
   price_check_pending_count: number;
   price_check_overdue_count: number;
+  invoice_integrity_alert_count: number;
+  invoice_integrity_critical_count: number;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -162,12 +164,14 @@ export default function ProcurementTabs() {
       if (!res.ok) return;
       const json = JSON.parse(await res.text() || "{}");
       setSummary({
-        incoming_requests_count:   Number(json?.incoming_requests_count   || 0),
-        action_needed_count:       Number(json?.action_needed_count       || 0),
-        issue_count:               Number(json?.issue_count               || 0),
-        issue_critical_count:      Number(json?.issue_critical_count      || 0),
-        price_check_pending_count: Number(json?.price_check_pending_count || 0),
-        price_check_overdue_count: Number(json?.price_check_overdue_count || 0),
+        incoming_requests_count:          Number(json?.incoming_requests_count          || 0),
+        action_needed_count:              Number(json?.action_needed_count              || 0),
+        issue_count:                      Number(json?.issue_count                      || 0),
+        issue_critical_count:             Number(json?.issue_critical_count             || 0),
+        price_check_pending_count:        Number(json?.price_check_pending_count        || 0),
+        price_check_overdue_count:        Number(json?.price_check_overdue_count        || 0),
+        invoice_integrity_alert_count:    Number(json?.invoice_integrity_alert_count    || 0),
+        invoice_integrity_critical_count: Number(json?.invoice_integrity_critical_count || 0),
       });
     } catch { /* keep tabs usable if badge load fails */ }
   }, []);
@@ -201,6 +205,10 @@ export default function ProcurementTabs() {
     "/admin/procurement/price-checks": {
       count: Number(summary?.price_check_pending_count || 0),
       critical: Number(summary?.price_check_overdue_count || 0) > 0,
+    },
+    "/admin/procurement/invoices": {
+      count: Number(summary?.invoice_integrity_alert_count || 0),
+      critical: Number(summary?.invoice_integrity_critical_count || 0) > 0,
     },
   }), [summary]);
 

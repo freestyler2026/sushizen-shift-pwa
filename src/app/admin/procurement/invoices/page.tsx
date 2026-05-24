@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Database, Download, ExternalLink, RefreshCw, Save, SquarePen, Upload, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, ChevronDown, ChevronRight, Database, Download, ExternalLink, RefreshCw, Save, ShieldAlert, SquarePen, Upload, X } from "lucide-react";
 import { TAB_ACTIVE, TAB_INACTIVE, TAB_CONTAINER } from "@/lib/ui-tokens";
 import { type ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
@@ -135,6 +135,27 @@ type ProblemReportSummary = {
   flagged_invoice_count: number;
   flagged_line_count: number;
   supplier_count: number;
+};
+
+type IntegrityAlert = {
+  alert_type: string;
+  severity: "critical" | "warning" | "info";
+  invoice_no: string;
+  supplier_name: string;
+  invoice_date: string;
+  detail: string;
+  amount: number | null;
+  currency: string;
+};
+
+type IntegrityAlertCounts = { critical: number; warning: number; info: number; total: number };
+
+const ALERT_TYPE_META: Record<string, { label: string; description: string }> = {
+  DUPLICATE_CONTENT:   { label: "Duplicate Billing",      description: "Same amount billed twice with different invoice numbers" },
+  DUPLICATE_INVOICE_NO:{ label: "Orphan Invoice Data",    description: "Line items exist with no matching summary record" },
+  NO_PO_NUMBER:        { label: "No PO Number",           description: "Invoices not linked to an approved purchase order" },
+  FUTURE_DATE:         { label: "Future Invoice Date",    description: "Invoice date is set in the future" },
+  STALE_DATE:          { label: "Old Invoice (6+ months)","description": "Invoice date is more than 6 months ago — possible late submission" },
 };
 
 type FieldConfig = {
@@ -323,6 +344,10 @@ export default function ProcurementInvoicesPage() {
   const [uploadBusy, setUploadBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [integrityAlerts, setIntegrityAlerts] = useState<IntegrityAlert[]>([]);
+  const [integrityAlertCounts, setIntegrityAlertCounts] = useState<IntegrityAlertCounts>({ critical: 0, warning: 0, info: 0, total: 0 });
+  const [alertBannerOpen, setAlertBannerOpen] = useState(true);
+  const [alertSectionOpen, setAlertSectionOpen] = useState<Record<string, boolean>>({});
   const detailKeyFor = useCallback((market: string, value: string) => `${market}:${value}`, []);
   const normalizedBranchOptions = useMemo(() => {
     const unique = new Set<string>();
@@ -363,7 +388,12 @@ export default function ProcurementInvoicesPage() {
       if (dateFrom) qualityQs.set("date_from", dateFrom);
       if (dateTo) qualityQs.set("date_to", dateTo);
 
-      const [data, qualityData, reportData] = await Promise.all([
+      const alertQs = new URLSearchParams();
+      alertQs.set("market", city);
+      if (dateFrom) alertQs.set("date_from", dateFrom);
+      if (dateTo) alertQs.set("date_to", dateTo);
+
+      const [data, qualityData, reportData, alertData] = await Promise.all([
         procurementJson<{ rows?: InvoiceRow[] }>(
           `/api/admin/procurement/invoices?${invoiceQs.toString()}`,
           { method: "GET" },
@@ -386,6 +416,12 @@ export default function ProcurementInvoicesPage() {
           requestedBy,
           pin,
         ),
+        procurementJson<{ alerts?: IntegrityAlert[]; counts?: IntegrityAlertCounts; total?: number }>(
+          `/api/admin/procurement/analytics/supplier-invoices/integrity-alerts?${alertQs.toString()}`,
+          { method: "GET" },
+          requestedBy,
+          pin,
+        ).catch(() => ({ alerts: [] as IntegrityAlert[], counts: undefined, total: 0 })),
       ]);
       setRows(Array.isArray(data?.rows) ? data.rows : []);
       setQualityRows(Array.isArray(qualityData?.rows) ? qualityData.rows : []);
@@ -400,6 +436,13 @@ export default function ProcurementInvoicesPage() {
         flagged_line_count: Number(reportData?.summary?.flagged_line_count || 0),
         supplier_count: Number(reportData?.summary?.supplier_count || 0),
       });
+      setIntegrityAlerts(Array.isArray(alertData?.alerts) ? alertData.alerts : []);
+      setIntegrityAlertCounts({
+        critical: Number(alertData?.counts?.critical || 0),
+        warning: Number(alertData?.counts?.warning || 0),
+        info: Number(alertData?.counts?.info || 0),
+        total: Number(alertData?.total || 0),
+      });
     } catch (e: any) {
       setRows([]);
       setQualityRows([]);
@@ -407,6 +450,8 @@ export default function ProcurementInvoicesPage() {
       setProblemReportRows([]);
       setProblemSupplierSummary([]);
       setProblemReportSummary({ flagged_invoice_count: 0, flagged_line_count: 0, supplier_count: 0 });
+      setIntegrityAlerts([]);
+      setIntegrityAlertCounts({ critical: 0, warning: 0, info: 0, total: 0 });
       setError(e?.message || String(e));
     } finally {
       setLoading(false);
@@ -979,6 +1024,119 @@ export default function ProcurementInvoicesPage() {
         <DatePicker value={dateFrom} onChange={setDateFrom} />
         <DatePicker value={dateTo} onChange={setDateTo} />
       </div>
+
+      {/* ── Integrity Alert Banner ───────────────────────────────────────── */}
+      {integrityAlertCounts.total > 0 && (
+        <div className="rounded-2xl border border-amber-700/40 bg-amber-900/10">
+          {/* Banner header */}
+          <button
+            type="button"
+            onClick={() => setAlertBannerOpen((v) => !v)}
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+          >
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 text-amber-400" />
+              <span className="text-sm font-semibold text-amber-300">Data Integrity Alerts</span>
+              <div className="flex items-center gap-1.5">
+                {integrityAlertCounts.critical > 0 && (
+                  <span className="rounded-full border border-rose-700/60 bg-rose-900/30 px-2 py-0.5 text-[10px] font-bold text-rose-300">
+                    {integrityAlertCounts.critical} critical
+                  </span>
+                )}
+                {integrityAlertCounts.warning > 0 && (
+                  <span className="rounded-full border border-amber-700/60 bg-amber-900/30 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+                    {integrityAlertCounts.warning} warning
+                  </span>
+                )}
+                {integrityAlertCounts.info > 0 && (
+                  <span className="rounded-full border border-sky-700/60 bg-sky-900/30 px-2 py-0.5 text-[10px] font-bold text-sky-300">
+                    {integrityAlertCounts.info} info
+                  </span>
+                )}
+              </div>
+            </div>
+            <ChevronDown className={`h-4 w-4 text-amber-500 transition-transform ${alertBannerOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {/* Banner body */}
+          {alertBannerOpen && (() => {
+            // Group alerts by type
+            const grouped: Record<string, IntegrityAlert[]> = {};
+            for (const a of integrityAlerts) {
+              if (!grouped[a.alert_type]) grouped[a.alert_type] = [];
+              grouped[a.alert_type].push(a);
+            }
+            const alertTypes = Object.keys(grouped);
+            return (
+              <div className="border-t border-amber-700/20 px-4 pb-4 pt-2 space-y-3">
+                {alertTypes.map((alertType) => {
+                  const items = grouped[alertType];
+                  const meta = ALERT_TYPE_META[alertType] ?? { label: alertType, description: "" };
+                  const isOpen = alertSectionOpen[alertType] !== false; // default open
+                  const firstItem = items[0];
+                  const sev = firstItem?.severity ?? "info";
+                  const headerCls =
+                    sev === "critical" ? "text-rose-300 border-rose-700/40" :
+                    sev === "warning"  ? "text-amber-300 border-amber-700/40" :
+                                         "text-sky-300 border-sky-700/40";
+                  const iconCls =
+                    sev === "critical" ? "text-rose-400" :
+                    sev === "warning"  ? "text-amber-400" :
+                                         "text-sky-400";
+                  const rowBorderCls =
+                    sev === "critical" ? "border-rose-900/30 bg-rose-950/20" :
+                    sev === "warning"  ? "border-amber-900/30 bg-amber-950/20" :
+                                         "border-sky-900/30 bg-sky-950/20";
+                  return (
+                    <div key={alertType} className={`rounded-xl border ${rowBorderCls}`}>
+                      <button
+                        type="button"
+                        onClick={() => setAlertSectionOpen((prev) => ({ ...prev, [alertType]: !isOpen }))}
+                        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
+                      >
+                        <div className="flex items-center gap-2">
+                          {sev === "critical" ? (
+                            <AlertCircle className={`h-3.5 w-3.5 ${iconCls}`} />
+                          ) : (
+                            <AlertTriangle className={`h-3.5 w-3.5 ${iconCls}`} />
+                          )}
+                          <span className={`text-xs font-semibold ${headerCls}`}>{meta.label}</span>
+                          <span className="text-xs text-zinc-500">({items.length})</span>
+                        </div>
+                        <ChevronDown className={`h-3.5 w-3.5 text-zinc-500 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                      </button>
+                      {isOpen && (
+                        <div className="border-t border-white/5 px-3 pb-3 pt-1 space-y-1">
+                          <p className="text-[11px] text-zinc-500 mb-2">{meta.description}</p>
+                          {items.map((alert, idx) => (
+                            <div key={idx} className="flex items-start gap-2 rounded-lg border border-white/5 bg-black/20 px-3 py-2">
+                              <div className="min-w-0 flex-1">
+                                {alert.invoice_no && (
+                                  <span className="mr-2 text-xs font-medium text-white">{alert.invoice_no}</span>
+                                )}
+                                {alert.supplier_name && (
+                                  <span className="mr-2 text-xs text-zinc-400">{alert.supplier_name}</span>
+                                )}
+                                {alert.invoice_date && (
+                                  <span className="mr-2 text-[11px] text-zinc-600">{alert.invoice_date.slice(0, 10)}</span>
+                                )}
+                                {alert.amount !== null && alert.amount !== undefined && alert.amount > 0 && (
+                                  <span className="mr-2 text-[11px] text-zinc-500">{alert.currency} {Number(alert.amount).toFixed(2)}</span>
+                                )}
+                                <p className="mt-0.5 text-[11px] text-zinc-400">{alert.detail}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
