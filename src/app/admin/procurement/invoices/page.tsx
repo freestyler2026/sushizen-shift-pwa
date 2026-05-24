@@ -213,6 +213,31 @@ const SUPPLIER_SPREADSHEET_URLS: Record<"dubai" | "manila", string> = {
   manila: "https://docs.google.com/spreadsheets/d/1kFdSqLMtr1Clr2IT6cELXhQPlIsthtFjQ4G-lFzhreE/edit?gid=1190036959#gid=1190036959",
 };
 
+// ── Phase 2: Price alert types ───────────────────────────────────────────────
+type PriceAlert = {
+  alert_type: "PRICE_SPIKE" | "ALL_TIME_HIGH" | "CROSS_SUPPLIER_GAP" | "RISING_TREND";
+  severity: "critical" | "warning" | "info";
+  invoice_no: string;
+  supplier_name: string;
+  item_description: string;
+  invoice_date: string;
+  current_price: number;
+  reference_price: number | null;
+  pct_diff: number | null;
+  currency: string;
+  unit: string;
+  detail: string;
+};
+
+type PriceAlertCounts = { critical: number; warning: number; info: number; total: number };
+
+const PRICE_ALERT_TYPE_META: Record<string, { label: string; description: string; opportunity?: boolean }> = {
+  PRICE_SPIKE:        { label: "Price Spikes",            description: "Items priced significantly above their 90-day average" },
+  ALL_TIME_HIGH:      { label: "All-Time High Prices",    description: "Items at their highest recorded price" },
+  CROSS_SUPPLIER_GAP: { label: "Price Opportunities",     description: "Same item purchased at different prices across suppliers — possible savings", opportunity: true },
+  RISING_TREND:       { label: "Rising Price Trends",     description: "Items whose price has increased 3 months in a row" },
+};
+
 const DUBAI_BRANCH_OPTIONS = ["Al Barsha", "Al Mina", "B Bay", "JLT", "M City"];
 const UNKNOWN_BRANCH_OPTION = "branch name unknown";
 
@@ -346,6 +371,8 @@ export default function ProcurementInvoicesPage() {
   const [notice, setNotice] = useState("");
   const [integrityAlerts, setIntegrityAlerts] = useState<IntegrityAlert[]>([]);
   const [integrityAlertCounts, setIntegrityAlertCounts] = useState<IntegrityAlertCounts>({ critical: 0, warning: 0, info: 0, total: 0 });
+  const [priceAlerts, setPriceAlerts] = useState<PriceAlert[]>([]);
+  const [priceAlertCounts, setPriceAlertCounts] = useState<PriceAlertCounts>({ critical: 0, warning: 0, info: 0, total: 0 });
   const [alertBannerOpen, setAlertBannerOpen] = useState(true);
   const [alertSectionOpen, setAlertSectionOpen] = useState<Record<string, boolean>>({});
   const detailKeyFor = useCallback((market: string, value: string) => `${market}:${value}`, []);
@@ -393,7 +420,12 @@ export default function ProcurementInvoicesPage() {
       if (dateFrom) alertQs.set("date_from", dateFrom);
       if (dateTo) alertQs.set("date_to", dateTo);
 
-      const [data, qualityData, reportData, alertData] = await Promise.all([
+      const priceQs = new URLSearchParams();
+      priceQs.set("market", city);
+      if (dateFrom) priceQs.set("date_from", dateFrom);
+      if (dateTo) priceQs.set("date_to", dateTo);
+
+      const [data, qualityData, reportData, alertData, priceAlertData] = await Promise.all([
         procurementJson<{ rows?: InvoiceRow[] }>(
           `/api/admin/procurement/invoices?${invoiceQs.toString()}`,
           { method: "GET" },
@@ -422,6 +454,12 @@ export default function ProcurementInvoicesPage() {
           requestedBy,
           pin,
         ).catch(() => ({ alerts: [] as IntegrityAlert[], counts: undefined, total: 0 })),
+        procurementJson<{ alerts?: PriceAlert[]; counts?: PriceAlertCounts; total?: number }>(
+          `/api/admin/procurement/analytics/supplier-invoices/price-alerts?${priceQs.toString()}`,
+          { method: "GET" },
+          requestedBy,
+          pin,
+        ).catch(() => ({ alerts: [] as PriceAlert[], counts: undefined, total: 0 })),
       ]);
       setRows(Array.isArray(data?.rows) ? data.rows : []);
       setQualityRows(Array.isArray(qualityData?.rows) ? qualityData.rows : []);
@@ -443,6 +481,13 @@ export default function ProcurementInvoicesPage() {
         info: Number(alertData?.counts?.info || 0),
         total: Number(alertData?.total || 0),
       });
+      setPriceAlerts(Array.isArray(priceAlertData?.alerts) ? priceAlertData.alerts : []);
+      setPriceAlertCounts({
+        critical: Number(priceAlertData?.counts?.critical || 0),
+        warning: Number(priceAlertData?.counts?.warning || 0),
+        info: Number(priceAlertData?.counts?.info || 0),
+        total: Number(priceAlertData?.total || 0),
+      });
     } catch (e: any) {
       setRows([]);
       setQualityRows([]);
@@ -452,6 +497,8 @@ export default function ProcurementInvoicesPage() {
       setProblemReportSummary({ flagged_invoice_count: 0, flagged_line_count: 0, supplier_count: 0 });
       setIntegrityAlerts([]);
       setIntegrityAlertCounts({ critical: 0, warning: 0, info: 0, total: 0 });
+      setPriceAlerts([]);
+      setPriceAlertCounts({ critical: 0, warning: 0, info: 0, total: 0 });
       setError(e?.message || String(e));
     } finally {
       setLoading(false);
@@ -867,6 +914,17 @@ export default function ProcurementInvoicesPage() {
     return JSON.stringify(problemDraft) !== JSON.stringify(problemBaseDraft);
   }, [problemBaseDraft, problemDraft]);
 
+  // Set of invoice_nos that have a price spike (critical or warning) for row badges
+  const spikeInvoiceNos = useMemo<Set<string>>(() => {
+    const set = new Set<string>();
+    for (const a of priceAlerts) {
+      if ((a.alert_type === "PRICE_SPIKE" || a.alert_type === "ALL_TIME_HIGH") && a.invoice_no) {
+        set.add(a.invoice_no);
+      }
+    }
+    return set;
+  }, [priceAlerts]);
+
   if (!allowed) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
@@ -1025,8 +1083,8 @@ export default function ProcurementInvoicesPage() {
         <DatePicker value={dateTo} onChange={setDateTo} />
       </div>
 
-      {/* ── Integrity Alert Banner ───────────────────────────────────────── */}
-      {integrityAlertCounts.total > 0 && (
+      {/* ── Procurement Alert Banner (Integrity + Price) ─────────────────── */}
+      {(integrityAlertCounts.total > 0 || priceAlertCounts.total > 0) && (
         <div className="rounded-2xl border border-amber-700/40 bg-amber-900/10">
           {/* Banner header */}
           <button
@@ -1034,23 +1092,23 @@ export default function ProcurementInvoicesPage() {
             onClick={() => setAlertBannerOpen((v) => !v)}
             className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <ShieldAlert className="h-4 w-4 text-amber-400" />
-              <span className="text-sm font-semibold text-amber-300">Data Integrity Alerts</span>
-              <div className="flex items-center gap-1.5">
-                {integrityAlertCounts.critical > 0 && (
+              <span className="text-sm font-semibold text-amber-300">Procurement Alerts</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {(integrityAlertCounts.critical + priceAlertCounts.critical) > 0 && (
                   <span className="rounded-full border border-rose-700/60 bg-rose-900/30 px-2 py-0.5 text-[10px] font-bold text-rose-300">
-                    {integrityAlertCounts.critical} critical
+                    {integrityAlertCounts.critical + priceAlertCounts.critical} critical
                   </span>
                 )}
-                {integrityAlertCounts.warning > 0 && (
+                {(integrityAlertCounts.warning + priceAlertCounts.warning) > 0 && (
                   <span className="rounded-full border border-amber-700/60 bg-amber-900/30 px-2 py-0.5 text-[10px] font-bold text-amber-300">
-                    {integrityAlertCounts.warning} warning
+                    {integrityAlertCounts.warning + priceAlertCounts.warning} warning
                   </span>
                 )}
-                {integrityAlertCounts.info > 0 && (
+                {(integrityAlertCounts.info + priceAlertCounts.info) > 0 && (
                   <span className="rounded-full border border-sky-700/60 bg-sky-900/30 px-2 py-0.5 text-[10px] font-bold text-sky-300">
-                    {integrityAlertCounts.info} info
+                    {integrityAlertCounts.info + priceAlertCounts.info} info
                   </span>
                 )}
               </div>
@@ -1059,82 +1117,158 @@ export default function ProcurementInvoicesPage() {
           </button>
 
           {/* Banner body */}
-          {alertBannerOpen && (() => {
-            // Group alerts by type
-            const grouped: Record<string, IntegrityAlert[]> = {};
-            for (const a of integrityAlerts) {
-              if (!grouped[a.alert_type]) grouped[a.alert_type] = [];
-              grouped[a.alert_type].push(a);
-            }
-            const alertTypes = Object.keys(grouped);
-            return (
-              <div className="border-t border-amber-700/20 px-4 pb-4 pt-2 space-y-3">
-                {alertTypes.map((alertType) => {
-                  const items = grouped[alertType];
-                  const meta = ALERT_TYPE_META[alertType] ?? { label: alertType, description: "" };
-                  const isOpen = alertSectionOpen[alertType] !== false; // default open
-                  const firstItem = items[0];
-                  const sev = firstItem?.severity ?? "info";
-                  const headerCls =
-                    sev === "critical" ? "text-rose-300 border-rose-700/40" :
-                    sev === "warning"  ? "text-amber-300 border-amber-700/40" :
-                                         "text-sky-300 border-sky-700/40";
-                  const iconCls =
-                    sev === "critical" ? "text-rose-400" :
-                    sev === "warning"  ? "text-amber-400" :
-                                         "text-sky-400";
-                  const rowBorderCls =
-                    sev === "critical" ? "border-rose-900/30 bg-rose-950/20" :
-                    sev === "warning"  ? "border-amber-900/30 bg-amber-950/20" :
-                                         "border-sky-900/30 bg-sky-950/20";
-                  return (
-                    <div key={alertType} className={`rounded-xl border ${rowBorderCls}`}>
-                      <button
-                        type="button"
-                        onClick={() => setAlertSectionOpen((prev) => ({ ...prev, [alertType]: !isOpen }))}
-                        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
-                      >
-                        <div className="flex items-center gap-2">
-                          {sev === "critical" ? (
-                            <AlertCircle className={`h-3.5 w-3.5 ${iconCls}`} />
-                          ) : (
-                            <AlertTriangle className={`h-3.5 w-3.5 ${iconCls}`} />
-                          )}
-                          <span className={`text-xs font-semibold ${headerCls}`}>{meta.label}</span>
-                          <span className="text-xs text-zinc-500">({items.length})</span>
-                        </div>
-                        <ChevronDown className={`h-3.5 w-3.5 text-zinc-500 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-                      </button>
-                      {isOpen && (
-                        <div className="border-t border-white/5 px-3 pb-3 pt-1 space-y-1">
-                          <p className="text-[11px] text-zinc-500 mb-2">{meta.description}</p>
-                          {items.map((alert, idx) => (
-                            <div key={idx} className="flex items-start gap-2 rounded-lg border border-white/5 bg-black/20 px-3 py-2">
-                              <div className="min-w-0 flex-1">
-                                {alert.invoice_no && (
-                                  <span className="mr-2 text-xs font-medium text-white">{alert.invoice_no}</span>
-                                )}
-                                {alert.supplier_name && (
-                                  <span className="mr-2 text-xs text-zinc-400">{alert.supplier_name}</span>
-                                )}
-                                {alert.invoice_date && (
-                                  <span className="mr-2 text-[11px] text-zinc-600">{alert.invoice_date.slice(0, 10)}</span>
-                                )}
-                                {alert.amount !== null && alert.amount !== undefined && alert.amount > 0 && (
-                                  <span className="mr-2 text-[11px] text-zinc-500">{alert.currency} {Number(alert.amount).toFixed(2)}</span>
-                                )}
-                                <p className="mt-0.5 text-[11px] text-zinc-400">{alert.detail}</p>
-                              </div>
+          {alertBannerOpen && (
+            <div className="border-t border-amber-700/20 px-4 pb-4 pt-2 space-y-4">
+
+              {/* ── Section: Data Integrity ─────────────────────────────── */}
+              {integrityAlertCounts.total > 0 && (() => {
+                const grouped: Record<string, IntegrityAlert[]> = {};
+                for (const a of integrityAlerts) {
+                  if (!grouped[a.alert_type]) grouped[a.alert_type] = [];
+                  grouped[a.alert_type].push(a);
+                }
+                const sectionKey = "__integrity_section__";
+                const sectionOpen = alertSectionOpen[sectionKey] !== false;
+                return (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setAlertSectionOpen((prev) => ({ ...prev, [sectionKey]: !sectionOpen }))}
+                      className="flex w-full items-center justify-between gap-2 mb-2"
+                    >
+                      <span className="text-xs font-semibold uppercase tracking-wide text-amber-400">Data Integrity ({integrityAlertCounts.total})</span>
+                      <ChevronDown className={`h-3.5 w-3.5 text-zinc-500 transition-transform ${sectionOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {sectionOpen && (
+                      <div className="space-y-2">
+                        {Object.entries(grouped).map(([alertType, items]) => {
+                          const meta = ALERT_TYPE_META[alertType] ?? { label: alertType, description: "" };
+                          const isOpen = alertSectionOpen[alertType] !== false;
+                          const sev = items[0]?.severity ?? "info";
+                          const headerCls = sev === "critical" ? "text-rose-300" : sev === "warning" ? "text-amber-300" : "text-sky-300";
+                          const iconCls = sev === "critical" ? "text-rose-400" : sev === "warning" ? "text-amber-400" : "text-sky-400";
+                          const rowBorderCls = sev === "critical" ? "border-rose-900/30 bg-rose-950/20" : sev === "warning" ? "border-amber-900/30 bg-amber-950/20" : "border-sky-900/30 bg-sky-950/20";
+                          return (
+                            <div key={alertType} className={`rounded-xl border ${rowBorderCls}`}>
+                              <button
+                                type="button"
+                                onClick={() => setAlertSectionOpen((prev) => ({ ...prev, [alertType]: !isOpen }))}
+                                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
+                              >
+                                <div className="flex items-center gap-2">
+                                  {sev === "critical" ? <AlertCircle className={`h-3.5 w-3.5 ${iconCls}`} /> : <AlertTriangle className={`h-3.5 w-3.5 ${iconCls}`} />}
+                                  <span className={`text-xs font-semibold ${headerCls}`}>{meta.label}</span>
+                                  <span className="text-xs text-zinc-500">({items.length})</span>
+                                </div>
+                                <ChevronDown className={`h-3.5 w-3.5 text-zinc-500 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                              </button>
+                              {isOpen && (
+                                <div className="border-t border-white/5 px-3 pb-3 pt-1 space-y-1">
+                                  <p className="text-[11px] text-zinc-500 mb-2">{meta.description}</p>
+                                  {items.map((alert, idx) => (
+                                    <div key={idx} className="flex items-start gap-2 rounded-lg border border-white/5 bg-black/20 px-3 py-2">
+                                      <div className="min-w-0 flex-1">
+                                        {alert.invoice_no && <span className="mr-2 text-xs font-medium text-white">{alert.invoice_no}</span>}
+                                        {alert.supplier_name && <span className="mr-2 text-xs text-zinc-400">{alert.supplier_name}</span>}
+                                        {alert.invoice_date && <span className="mr-2 text-[11px] text-zinc-600">{alert.invoice_date.slice(0, 10)}</span>}
+                                        {alert.amount !== null && alert.amount !== undefined && alert.amount > 0 && (
+                                          <span className="mr-2 text-[11px] text-zinc-500">{alert.currency} {Number(alert.amount).toFixed(2)}</span>
+                                        )}
+                                        <p className="mt-0.5 text-[11px] text-zinc-400">{alert.detail}</p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* ── Section: Price Alerts ───────────────────────────────── */}
+              {priceAlertCounts.total > 0 && (() => {
+                const grouped: Record<string, PriceAlert[]> = {};
+                for (const a of priceAlerts) {
+                  if (!grouped[a.alert_type]) grouped[a.alert_type] = [];
+                  grouped[a.alert_type].push(a);
+                }
+                const sectionKey = "__price_section__";
+                const sectionOpen = alertSectionOpen[sectionKey] !== false;
+                return (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setAlertSectionOpen((prev) => ({ ...prev, [sectionKey]: !sectionOpen }))}
+                      className="flex w-full items-center justify-between gap-2 mb-2"
+                    >
+                      <span className="text-xs font-semibold uppercase tracking-wide text-orange-400">Price Intelligence ({priceAlertCounts.total})</span>
+                      <ChevronDown className={`h-3.5 w-3.5 text-zinc-500 transition-transform ${sectionOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {sectionOpen && (
+                      <div className="space-y-2">
+                        {Object.entries(grouped).map(([alertType, items]) => {
+                          const meta = PRICE_ALERT_TYPE_META[alertType] ?? { label: alertType, description: "" };
+                          const isOpen = alertSectionOpen[`price_${alertType}`] !== false;
+                          const isOpportunity = meta.opportunity === true;
+                          const sev = isOpportunity ? "opportunity" : (items[0]?.severity ?? "info");
+                          const headerCls = isOpportunity ? "text-emerald-300" : sev === "critical" ? "text-rose-300" : sev === "warning" ? "text-amber-300" : "text-sky-300";
+                          const iconCls = isOpportunity ? "text-emerald-400" : sev === "critical" ? "text-rose-400" : sev === "warning" ? "text-amber-400" : "text-sky-400";
+                          const rowBorderCls = isOpportunity ? "border-emerald-900/30 bg-emerald-950/20" : sev === "critical" ? "border-rose-900/30 bg-rose-950/20" : sev === "warning" ? "border-amber-900/30 bg-amber-950/20" : "border-sky-900/30 bg-sky-950/20";
+                          return (
+                            <div key={alertType} className={`rounded-xl border ${rowBorderCls}`}>
+                              <button
+                                type="button"
+                                onClick={() => setAlertSectionOpen((prev) => ({ ...prev, [`price_${alertType}`]: !isOpen }))}
+                                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left"
+                              >
+                                <div className="flex items-center gap-2">
+                                  {isOpportunity ? <AlertTriangle className={`h-3.5 w-3.5 ${iconCls}`} /> : sev === "critical" ? <AlertCircle className={`h-3.5 w-3.5 ${iconCls}`} /> : <AlertTriangle className={`h-3.5 w-3.5 ${iconCls}`} />}
+                                  <span className={`text-xs font-semibold ${headerCls}`}>{meta.label}</span>
+                                  <span className="text-xs text-zinc-500">({items.length})</span>
+                                </div>
+                                <ChevronDown className={`h-3.5 w-3.5 text-zinc-500 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                              </button>
+                              {isOpen && (
+                                <div className="border-t border-white/5 px-3 pb-3 pt-1 space-y-1">
+                                  <p className="text-[11px] text-zinc-500 mb-2">{meta.description}</p>
+                                  {items.map((alert, idx) => (
+                                    <div key={idx} className="flex items-start gap-2 rounded-lg border border-white/5 bg-black/20 px-3 py-2">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                          {alert.item_description && <span className="text-xs font-medium text-white">{alert.item_description}</span>}
+                                          {alert.supplier_name && <span className="text-xs text-zinc-400">{alert.supplier_name}</span>}
+                                          {alert.invoice_no && <span className="text-[11px] text-zinc-600">#{alert.invoice_no}</span>}
+                                          {alert.invoice_date && <span className="text-[11px] text-zinc-600">{alert.invoice_date.slice(0, 10)}</span>}
+                                          {alert.current_price > 0 && (
+                                            <span className="text-[11px] font-medium text-white">{alert.currency} {Number(alert.current_price).toFixed(2)}/{alert.unit || "unit"}</span>
+                                          )}
+                                          {alert.pct_diff !== null && alert.pct_diff !== undefined && (
+                                            <span className={`text-[11px] font-bold ${isOpportunity ? "text-emerald-400" : alert.pct_diff > 0 ? "text-rose-400" : "text-sky-400"}`}>
+                                              {alert.pct_diff > 0 ? "+" : ""}{Number(alert.pct_diff).toFixed(1)}%
+                                            </span>
+                                          )}
+                                        </div>
+                                        <p className="mt-0.5 text-[11px] text-zinc-400">{alert.detail}</p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+            </div>
+          )}
         </div>
       )}
 
@@ -1189,6 +1323,9 @@ export default function ProcurementInvoicesPage() {
                       {isExpanded ? <ChevronDown className="h-4 w-4 text-violet-300" /> : <ChevronRight className="h-4 w-4 text-zinc-500" />}
                       <span>{row.invoice_no}</span>
                       <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-[10px] uppercase tracking-wide text-violet-200">{row.market}</span>
+                      {spikeInvoiceNos.has(row.invoice_no) && (
+                        <span className="rounded-full border border-rose-700/60 bg-rose-900/20 px-2 py-0.5 text-[10px] font-bold text-rose-300">↑ price alert</span>
+                      )}
                     </div>
                     <div className="mt-2 text-xs text-zinc-400">
                       {row.supplier_name || "-"} | Invoice {formatDate(row.invoice_date)} | Due {formatDate(row.due_date)} | Branch {row.branch || "-"} | PO {row.po_number || "-"}

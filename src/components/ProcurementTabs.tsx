@@ -113,6 +113,10 @@ type BadgeSummary = {
   price_check_overdue_count: number;
   invoice_integrity_alert_count: number;
   invoice_integrity_critical_count: number;
+  invoice_price_alert_count: number;
+  invoice_price_critical_count: number;
+  invoice_alert_total: number;
+  invoice_alert_has_critical: boolean;
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -172,6 +176,10 @@ export default function ProcurementTabs() {
         price_check_overdue_count:        Number(json?.price_check_overdue_count        || 0),
         invoice_integrity_alert_count:    Number(json?.invoice_integrity_alert_count    || 0),
         invoice_integrity_critical_count: Number(json?.invoice_integrity_critical_count || 0),
+        invoice_price_alert_count:        Number(json?.invoice_price_alert_count        || 0),
+        invoice_price_critical_count:     Number(json?.invoice_price_critical_count     || 0),
+        invoice_alert_total:              Number(json?.invoice_alert_total              || 0),
+        invoice_alert_has_critical:       Boolean(json?.invoice_alert_has_critical),
       });
     } catch { /* keep tabs usable if badge load fails */ }
   }, []);
@@ -207,8 +215,8 @@ export default function ProcurementTabs() {
       critical: Number(summary?.price_check_overdue_count || 0) > 0,
     },
     "/admin/procurement/invoices": {
-      count: Number(summary?.invoice_integrity_alert_count || 0),
-      critical: Number(summary?.invoice_integrity_critical_count || 0) > 0,
+      count: Number(summary?.invoice_alert_total || summary?.invoice_integrity_alert_count || 0),
+      critical: Boolean(summary?.invoice_alert_has_critical) || Number(summary?.invoice_integrity_critical_count || 0) > 0,
     },
   }), [summary]);
 
