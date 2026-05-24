@@ -1484,7 +1484,7 @@ export default function ProcurementInvoicesPage() {
                                             <p className="mt-1 text-[11px] leading-relaxed text-amber-100/75">{alert.detail}</p>
                                             {/* User note preview (when collapsed) */}
                                             {!isItemOpen && comment && (
-                                              <p className="mt-0.5 text-[11px] text-emerald-400/80 italic">"{comment}"</p>
+                                              <p className="mt-0.5 text-[11px] text-emerald-400/80 italic">{'"'}{comment}{'"'}</p>
                                             )}
                                           </div>
                                           <button
@@ -1734,7 +1734,7 @@ export default function ProcurementInvoicesPage() {
                                             <p className="mt-1 text-[11px] leading-relaxed text-amber-100/75">{alert.detail}</p>
                                             {/* User note preview when collapsed */}
                                             {!isItemOpen && comment && (
-                                              <p className="mt-0.5 text-[11px] text-emerald-400/80 italic">"{comment}"</p>
+                                              <p className="mt-0.5 text-[11px] text-emerald-400/80 italic">{'"'}{comment}{'"'}</p>
                                             )}
                                           </div>
                                           <button
