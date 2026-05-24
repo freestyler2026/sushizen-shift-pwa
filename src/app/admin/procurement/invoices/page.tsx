@@ -449,6 +449,17 @@ export default function ProcurementInvoicesPage() {
   const [vendorAlertData, setVendorAlertData] = useState<VendorAlertData>(EMPTY_VENDOR_DATA);
   const [alertBannerOpen, setAlertBannerOpen] = useState(true);
   const [alertSectionOpen, setAlertSectionOpen] = useState<Record<string, boolean>>({});
+  const [expandedAlertKeys, setExpandedAlertKeys] = useState<Record<string, boolean>>({});
+  const [alertComments, setAlertComments] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem("procAlertComments") || "{}"); } catch { return {}; }
+  });
+  const saveAlertComment = useCallback((key: string, text: string) => {
+    setAlertComments((prev) => {
+      const next = { ...prev, [key]: text };
+      try { localStorage.setItem("procAlertComments", JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
   const detailKeyFor = useCallback((market: string, value: string) => `${market}:${value}`, []);
   const normalizedBranchOptions = useMemo(() => {
     const unique = new Set<string>();
@@ -1451,19 +1462,55 @@ export default function ProcurementInvoicesPage() {
                               {isOpen && (
                                 <div className="border-t border-white/5 px-3 pb-3 pt-1 space-y-1">
                                   <p className="text-[11px] text-zinc-500 mb-2">{meta.description}</p>
-                                  {items.map((alert, idx) => (
-                                    <div key={idx} className="flex items-start gap-2 rounded-lg border border-white/5 bg-black/20 px-3 py-2">
-                                      <div className="min-w-0 flex-1">
-                                        {alert.invoice_no && <span className="mr-2 text-xs font-medium text-white">{alert.invoice_no}</span>}
-                                        {alert.supplier_name && <span className="mr-2 text-xs text-zinc-400">{alert.supplier_name}</span>}
-                                        {alert.invoice_date && <span className="mr-2 text-[11px] text-zinc-600">{alert.invoice_date.slice(0, 10)}</span>}
-                                        {alert.amount !== null && alert.amount !== undefined && alert.amount > 0 && (
-                                          <span className="mr-2 text-[11px] text-zinc-500">{alert.currency} {Number(alert.amount).toFixed(2)}</span>
+                                  {items.map((alert, idx) => {
+                                    const itemKey = `integrity_${alertType}_${alert.invoice_no || idx}`;
+                                    const isItemOpen = expandedAlertKeys[itemKey] === true;
+                                    const comment = alertComments[itemKey] || "";
+                                    return (
+                                      <div key={idx} className={`rounded-lg border ${isItemOpen ? "border-white/15 bg-black/30" : "border-white/5 bg-black/20"}`}>
+                                        {/* Always-visible row */}
+                                        <div className="flex items-start gap-2 px-3 py-2">
+                                          <div className="min-w-0 flex-1">
+                                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                              {alert.invoice_no && <span className="text-xs font-semibold text-white">{alert.invoice_no}</span>}
+                                              {alert.supplier_name && <span className="text-xs text-zinc-300">{alert.supplier_name}</span>}
+                                              {alert.invoice_date && <span className="text-[11px] text-zinc-500">{alert.invoice_date.slice(0, 10)}</span>}
+                                              {alert.amount !== null && alert.amount !== undefined && alert.amount > 0 && (
+                                                <span className="text-[11px] font-medium text-zinc-300">{alert.currency} {Number(alert.amount).toFixed(2)}</span>
+                                              )}
+                                              {comment && <span className="rounded border border-emerald-700/50 bg-emerald-900/20 px-1.5 py-0.5 text-[9px] text-emerald-300">✓ noted</span>}
+                                            </div>
+                                            {/* Problem description — always visible */}
+                                            <p className="mt-1 text-[11px] leading-relaxed text-amber-100/75">{alert.detail}</p>
+                                            {/* User note preview (when collapsed) */}
+                                            {!isItemOpen && comment && (
+                                              <p className="mt-0.5 text-[11px] text-emerald-400/80 italic">"{comment}"</p>
+                                            )}
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => setExpandedAlertKeys((prev) => ({ ...prev, [itemKey]: !isItemOpen }))}
+                                            className={`shrink-0 rounded-lg border px-2 py-1 text-[10px] font-medium transition ${isItemOpen ? "border-violet-600/50 bg-violet-900/30 text-violet-300" : "border-white/10 bg-white/5 text-zinc-500 hover:text-zinc-300"}`}
+                                          >
+                                            {isItemOpen ? "▲ close" : "✎ note"}
+                                          </button>
+                                        </div>
+                                        {/* Expandable note */}
+                                        {isItemOpen && (
+                                          <div className="border-t border-white/5 px-3 pb-3 pt-2">
+                                            <div className="mb-1 text-[10px] uppercase tracking-[0.15em] text-zinc-500">Note / Action taken</div>
+                                            <textarea
+                                              value={comment}
+                                              onChange={(e) => saveAlertComment(itemKey, e.target.value)}
+                                              placeholder="e.g. Confirmed duplicate — same PO split into 2 deliveries. No action needed."
+                                              rows={2}
+                                              className="w-full resize-none rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-violet-500/50"
+                                            />
+                                          </div>
                                         )}
-                                        <p className="mt-0.5 text-[11px] text-zinc-400">{alert.detail}</p>
                                       </div>
-                                    </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               )}
                             </div>
@@ -1659,27 +1706,61 @@ export default function ProcurementInvoicesPage() {
                               {isOpen && (
                                 <div className="border-t border-white/5 px-3 pb-3 pt-1 space-y-1">
                                   <p className="text-[11px] text-zinc-500 mb-2">{meta.description}</p>
-                                  {items.map((alert, idx) => (
-                                    <div key={idx} className="flex items-start gap-2 rounded-lg border border-white/5 bg-black/20 px-3 py-2">
-                                      <div className="min-w-0 flex-1">
-                                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                                          {alert.item_description && <span className="text-xs font-medium text-white">{alert.item_description}</span>}
-                                          {alert.supplier_name && <span className="text-xs text-zinc-400">{alert.supplier_name}</span>}
-                                          {alert.invoice_no && <span className="text-[11px] text-zinc-600">#{alert.invoice_no}</span>}
-                                          {alert.invoice_date && <span className="text-[11px] text-zinc-600">{alert.invoice_date.slice(0, 10)}</span>}
-                                          {alert.current_price > 0 && (
-                                            <span className="text-[11px] font-medium text-white">{alert.currency} {Number(alert.current_price).toFixed(2)}/{alert.unit || "unit"}</span>
-                                          )}
-                                          {alert.pct_diff !== null && alert.pct_diff !== undefined && (
-                                            <span className={`text-[11px] font-bold ${isOpportunity ? "text-emerald-400" : alert.pct_diff > 0 ? "text-rose-400" : "text-sky-400"}`}>
-                                              {alert.pct_diff > 0 ? "+" : ""}{Number(alert.pct_diff).toFixed(1)}%
-                                            </span>
-                                          )}
+                                  {items.map((alert, idx) => {
+                                    const itemKey = `price_${alertType}_${alert.invoice_no || ""}_${idx}`;
+                                    const isItemOpen = expandedAlertKeys[itemKey] === true;
+                                    const comment = alertComments[itemKey] || "";
+                                    return (
+                                      <div key={idx} className={`rounded-lg border ${isItemOpen ? "border-white/15 bg-black/30" : "border-white/5 bg-black/20"}`}>
+                                        {/* Always-visible row */}
+                                        <div className="flex items-start gap-2 px-3 py-2">
+                                          <div className="min-w-0 flex-1">
+                                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                              {alert.item_description && <span className="text-xs font-semibold text-white">{alert.item_description}</span>}
+                                              {alert.supplier_name && <span className="text-xs text-zinc-300">{alert.supplier_name}</span>}
+                                              {alert.invoice_no && <span className="text-[11px] text-zinc-500">#{alert.invoice_no}</span>}
+                                              {alert.invoice_date && <span className="text-[11px] text-zinc-500">{alert.invoice_date.slice(0, 10)}</span>}
+                                              {alert.current_price > 0 && (
+                                                <span className="text-[11px] font-semibold text-white">{alert.currency} {Number(alert.current_price).toFixed(2)}/{alert.unit || "unit"}</span>
+                                              )}
+                                              {alert.pct_diff !== null && alert.pct_diff !== undefined && (
+                                                <span className={`text-[11px] font-bold ${isOpportunity ? "text-emerald-400" : alert.pct_diff > 0 ? "text-rose-400" : "text-sky-400"}`}>
+                                                  {alert.pct_diff > 0 ? "+" : ""}{Number(alert.pct_diff).toFixed(1)}%
+                                                </span>
+                                              )}
+                                              {comment && <span className="rounded border border-emerald-700/50 bg-emerald-900/20 px-1.5 py-0.5 text-[9px] text-emerald-300">✓ noted</span>}
+                                            </div>
+                                            {/* Problem description — always visible */}
+                                            <p className="mt-1 text-[11px] leading-relaxed text-amber-100/75">{alert.detail}</p>
+                                            {/* User note preview when collapsed */}
+                                            {!isItemOpen && comment && (
+                                              <p className="mt-0.5 text-[11px] text-emerald-400/80 italic">"{comment}"</p>
+                                            )}
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => setExpandedAlertKeys((prev) => ({ ...prev, [itemKey]: !isItemOpen }))}
+                                            className={`shrink-0 rounded-lg border px-2 py-1 text-[10px] font-medium transition ${isItemOpen ? "border-violet-600/50 bg-violet-900/30 text-violet-300" : "border-white/10 bg-white/5 text-zinc-500 hover:text-zinc-300"}`}
+                                          >
+                                            {isItemOpen ? "▲ close" : "✎ note"}
+                                          </button>
                                         </div>
-                                        <p className="mt-0.5 text-[11px] text-zinc-400">{alert.detail}</p>
+                                        {/* Expandable note */}
+                                        {isItemOpen && (
+                                          <div className="border-t border-white/5 px-3 pb-3 pt-2">
+                                            <div className="mb-1 text-[10px] uppercase tracking-[0.15em] text-zinc-500">Note / Action taken</div>
+                                            <textarea
+                                              value={comment}
+                                              onChange={(e) => saveAlertComment(itemKey, e.target.value)}
+                                              placeholder="e.g. Price spike confirmed — emergency sourcing. Approved by manager."
+                                              rows={2}
+                                              className="w-full resize-none rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white outline-none placeholder:text-zinc-600 focus:border-violet-500/50"
+                                            />
+                                          </div>
+                                        )}
                                       </div>
-                                    </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               )}
                             </div>
