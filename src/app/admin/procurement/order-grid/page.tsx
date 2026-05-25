@@ -12,7 +12,6 @@ import {
   T_PAGE_TITLE,
   T_LABEL,
   BADGE_WARNING,
-  BADGE_SUCCESS,
 } from "@/lib/ui-tokens";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -173,7 +172,7 @@ export default function OrderGridPage() {
           store_code: store,
           order_type: orderType,
           order_date: orderDate,
-          requested_by: auth?.name || auth?.staff_name || "",
+          requested_by: auth?.staffName || "",
           items,
         }),
       });
