@@ -20,7 +20,7 @@ import {
   T_LABEL,
   BADGE_SUCCESS,
 } from "@/lib/ui-tokens";
-import { RefreshCw, AlertCircle, CheckCircle, Upload, ArrowLeft } from "lucide-react";
+import { RefreshCw, AlertCircle, CheckCircle, Upload, ArrowLeft, FileSpreadsheet } from "lucide-react";
 
 type ImportBatchRow = {
   id: string;
@@ -88,6 +88,8 @@ export default function ProcurementImportsPage() {
   const [createdRequests, setCreatedRequests] = useState<CreatedRequestResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
@@ -171,6 +173,40 @@ export default function ProcurementImportsPage() {
     }
   };
 
+  const handleUpload = async () => {
+    if (!uploadFile) { setError("Please select an Excel file first."); return; }
+    if (!requestedBy.trim()) { setError("Approver name is required."); return; }
+    if (!pin.trim()) { setError("PIN is required."); return; }
+    setUploading(true);
+    setError("");
+    setSuccessMsg("");
+    try {
+      const formData = new FormData();
+      formData.append("file", uploadFile);
+      formData.append("approver_name", requestedBy.trim());
+      formData.append("pin", pin.trim());
+      formData.append("city", city);
+      formData.append("skip_zero_quantity", "true");
+      const authState = getAuth();
+      const token = authState?.accessToken || "";
+      const res = await fetch("/api/admin/procurement/import/orders-excel", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.detail || data?.message || `Upload failed (${res.status})`);
+      const count = data.record_count ?? data.rows_inserted ?? 0;
+      setSuccessMsg(`Imported ${count} rows from "${uploadFile.name}". Refresh to see them below.`);
+      setUploadFile(null);
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setUploading(false);
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     async function init() {
@@ -209,6 +245,41 @@ export default function ProcurementImportsPage() {
         <Link href="/admin/procurement" className="inline-flex items-center gap-1.5 text-xs text-violet-400 hover:text-violet-300 transition-colors">
           <ArrowLeft className="h-3.5 w-3.5" />Back to Requests
         </Link>
+      </div>
+
+      {/* Upload new Excel file */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <p className={`${T_SECTION} mb-1`}>Upload Order Workbook</p>
+        <p className={`${T_CAPTION} mb-3`}>Upload a Sushi ZEN order Excel file (.xlsx). All tabs (WH, Supplier, CK, CK WH to supplier, etc.) will be parsed automatically.</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="flex-1">
+            <label className={`${T_LABEL} mb-1.5 block`}>Excel File (.xlsx)</label>
+            <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-white/20 bg-white/3 px-4 py-3 text-sm text-zinc-300 hover:border-violet-400/50 hover:bg-white/5 transition-colors">
+              <FileSpreadsheet className="h-4 w-4 shrink-0 text-violet-400" />
+              <span className="truncate">{uploadFile ? uploadFile.name : "Click to choose file…"}</span>
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  setUploadFile(f);
+                  setError("");
+                  setSuccessMsg("");
+                }}
+              />
+            </label>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleUpload()}
+            disabled={uploading || !uploadFile}
+            className={`${PRIMARY_BUTTON} flex shrink-0 items-center gap-2 self-end`}
+          >
+            <Upload className="h-4 w-4" />
+            {uploading ? "Uploading…" : "Upload & Import"}
+          </button>
+        </div>
       </div>
 
       {/* Error / Success */}
