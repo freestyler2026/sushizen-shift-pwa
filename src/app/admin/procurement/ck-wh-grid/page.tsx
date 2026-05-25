@@ -28,6 +28,9 @@ type CatalogRow = {
   fast_running: boolean;
 };
 
+type HistoryEntry = { qty: number; unit: string; request_date: string };
+type HistoryMap = Record<string, HistoryEntry[]>;
+
 type QtyMap = Record<string, string>;
 
 const ORIGINS = [
@@ -35,11 +38,21 @@ const ORIGINS = [
   { value: "WH", label: "Warehouse (WH)" },
 ];
 
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
+function today() { return new Date().toISOString().slice(0, 10); }
 function fmt(n: number) {
   return n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function parseMinQty(s: string): number | null {
+  if (!s) return null;
+  const m = s.match(/^(\d+(?:\.\d+)?)/);
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  return isNaN(n) ? null : n;
+}
+function formatDate(d: string) {
+  if (!d) return "";
+  const parts = d.slice(0, 10).split("-");
+  return `${parts[1]}/${parts[2]}`;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -51,6 +64,7 @@ export default function CkWhGridPage() {
   const [search, setSearch]     = useState("");
 
   const [catalog, setCatalog]   = useState<CatalogRow[]>([]);
+  const [history, setHistory]   = useState<HistoryMap>({});
   const [loading, setLoading]   = useState(false);
   const [loadErr, setLoadErr]   = useState("");
 
@@ -68,11 +82,12 @@ export default function CkWhGridPage() {
     authRef.current = auth;
   }, [router]);
 
-  // ── Load CK_WH_to_supplier catalog
+  // ── Load catalog + history in parallel
   const loadCatalog = useCallback(async () => {
     setLoading(true);
     setLoadErr("");
     setCatalog([]);
+    setHistory({});
     setQty({});
     setSubmitted([]);
     setSubmitErr("");
@@ -81,24 +96,31 @@ export default function CkWhGridPage() {
       const refreshed = await refreshAuthFromApi(auth);
       auth = refreshed || auth;
       authRef.current = auth;
-      const params = new URLSearchParams({
-        city: "manila",
-        order_type: "CK_WH_to_supplier",
-        active_only: "true",
-        limit: "5000",
+      const headers = { Authorization: `Bearer ${auth?.accessToken || ""}` };
+      const catParams = new URLSearchParams({
+        city: "manila", order_type: "CK_WH_to_supplier",
+        active_only: "true", limit: "5000",
       });
-      const res = await fetch(`/api/admin/procurement/catalog/curated?${params}`, {
-        headers: { Authorization: `Bearer ${auth?.accessToken || ""}` },
+      const histParams = new URLSearchParams({
+        city: "manila", store_code: origin, days: "90",
       });
-      if (!res.ok) throw new Error(await res.text());
-      const json = await res.json();
-      setCatalog((json.rows || []) as CatalogRow[]);
+      const [catRes, histRes] = await Promise.all([
+        fetch(`/api/admin/procurement/catalog/curated?${catParams}`, { headers }),
+        fetch(`/api/admin/procurement/order-grid/item-history?${histParams}`, { headers }),
+      ]);
+      if (!catRes.ok) throw new Error(await catRes.text());
+      const catJson = await catRes.json();
+      setCatalog((catJson.rows || []) as CatalogRow[]);
+      if (histRes.ok) {
+        const histJson = await histRes.json();
+        setHistory((histJson.history || {}) as HistoryMap);
+      }
     } catch (e: unknown) {
       setLoadErr(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [origin]);
 
   useEffect(() => { void loadCatalog(); }, [loadCatalog]);
 
@@ -344,10 +366,13 @@ export default function CkWhGridPage() {
                     <table className="w-full">
                       <tbody>
                         {rows.map((row) => {
-                          const qtyVal = qty[row.id] || "";
-                          const qtyNum = parseFloat(qtyVal || "0");
+                          const qtyVal    = qty[row.id] || "";
+                          const qtyNum    = parseFloat(qtyVal || "0");
                           const lineTotal = qtyNum * row.unit_price;
-                          const hasQty = qtyNum > 0;
+                          const hasQty    = qtyNum > 0;
+                          const minQty    = parseMinQty(row.min_stock_qty);
+                          const belowMin  = hasQty && minQty !== null && qtyNum < minQty;
+                          const itemHist  = history[row.item_name.trim().toLowerCase()] || [];
 
                           return (
                             <tr
@@ -357,9 +382,9 @@ export default function CkWhGridPage() {
                                 hasQty ? "bg-amber-500/8" : "hover:bg-white/3",
                               ].join(" ")}
                             >
-                              {/* Item name */}
+                              {/* Item name + history */}
                               <td className="px-4 py-2.5">
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-1.5">
                                   <span className="text-sm text-zinc-200">{row.item_name}</span>
                                   {row.fast_running && (
                                     <span className={BADGE_WARNING} style={{ fontSize: 9 }}>Fast</span>
@@ -367,46 +392,51 @@ export default function CkWhGridPage() {
                                 </div>
                                 {(row.package_spec || row.min_stock_qty) && (
                                   <div className="mt-0.5 text-[11px] text-zinc-600">
-                                    {[
-                                      row.package_spec,
-                                      row.min_stock_qty && `min: ${row.min_stock_qty}`,
-                                    ]
-                                      .filter(Boolean)
-                                      .join(" · ")}
+                                    {[row.package_spec, row.min_stock_qty && `min: ${row.min_stock_qty}`].filter(Boolean).join(" · ")}
+                                  </div>
+                                )}
+                                {itemHist.length > 0 && (
+                                  <div className="mt-1 flex flex-wrap gap-1.5">
+                                    {itemHist.slice(0, 3).map((h, i) => (
+                                      <span key={i} className="rounded border border-white/8 bg-white/5 px-1.5 py-0.5 text-[10px] tabular-nums text-zinc-500">
+                                        {h.qty}{h.unit ? ` ${h.unit}` : ""} <span className="text-zinc-700">{formatDate(h.request_date)}</span>
+                                      </span>
+                                    ))}
                                   </div>
                                 )}
                               </td>
 
                               {/* Unit */}
-                              <td className="w-16 px-2 py-2.5 text-center text-xs text-zinc-500">
-                                {row.unit}
-                              </td>
+                              <td className="w-16 px-2 py-2.5 text-center text-xs text-zinc-500">{row.unit}</td>
 
                               {/* Unit price */}
-                              <td className="w-28 px-2 py-2.5 text-right text-xs tabular-nums text-zinc-400">
-                                ₱{fmt(row.unit_price)}
-                              </td>
+                              <td className="w-28 px-2 py-2.5 text-right text-xs tabular-nums text-zinc-400">₱{fmt(row.unit_price)}</td>
 
-                              {/* Qty */}
+                              {/* Qty + warning */}
                               <td className="w-24 px-2 py-1.5">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.5"
-                                  placeholder="0"
-                                  value={qtyVal}
-                                  onChange={(e) => setItemQty(row.id, e.target.value)}
-                                  className="w-full rounded-lg border border-white/10 bg-white/6 px-2 py-1.5 text-center text-sm text-white outline-none transition focus:border-amber-500/60 focus:ring-1 focus:ring-amber-500/30"
-                                />
+                                <div className="space-y-0.5">
+                                  <input
+                                    type="number" min="0" step="0.5" placeholder="0"
+                                    value={qtyVal}
+                                    onChange={(e) => setItemQty(row.id, e.target.value)}
+                                    className={[
+                                      "w-full rounded-lg border px-2 py-1.5 text-center text-sm text-white outline-none transition focus:ring-1",
+                                      belowMin
+                                        ? "border-amber-500/60 bg-amber-900/20 focus:border-amber-400 focus:ring-amber-500/30"
+                                        : "border-white/10 bg-white/6 focus:border-amber-500/60 focus:ring-amber-500/30",
+                                    ].join(" ")}
+                                  />
+                                  {belowMin && (
+                                    <div className="text-center text-[9px] font-medium text-amber-400">⚠ min {row.min_stock_qty}</div>
+                                  )}
+                                </div>
                               </td>
 
                               {/* Line total */}
                               <td className="w-28 px-4 py-2.5 text-right text-xs tabular-nums">
-                                {hasQty ? (
-                                  <span className="font-semibold text-amber-300">₱{fmt(lineTotal)}</span>
-                                ) : (
-                                  <span className="text-zinc-700">—</span>
-                                )}
+                                {hasQty
+                                  ? <span className="font-semibold text-amber-300">₱{fmt(lineTotal)}</span>
+                                  : <span className="text-zinc-700">—</span>}
                               </td>
                             </tr>
                           );
