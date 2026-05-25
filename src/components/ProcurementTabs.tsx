@@ -82,8 +82,9 @@ const GROUPS: TabGroup[] = [
     tabs: [
       { href: "/admin/procurement/vendors",         label: "Vendors",           showTo: ["full"] },
       { href: "/admin/procurement/ingredients",     label: "Ingredients",       showTo: ["full"] },
-      { href: "/admin/procurement/catalog",         label: "Order Catalog",     showTo: ["full"] },
-      { href: "/admin/procurement/approval-matrix", label: "Approval Matrix",   showTo: ["full"] },
+      { href: "/admin/procurement/catalog",             label: "Order Catalog",      showTo: ["full"] },
+      { href: "/admin/procurement/delivery-schedule",  label: "Delivery Schedule",  showTo: ["full"] },
+      { href: "/admin/procurement/approval-matrix",    label: "Approval Matrix",    showTo: ["full"] },
       { href: "/admin/procurement/imports",         label: "Imports",           showTo: ["full"] },
       { href: "/admin/procurement/whitelist",       label: "Emergency Vendors", showTo: ["full"] },
       { href: "/admin/procurement/exceptions",      label: "Alerts",            showTo: ["full"] },
