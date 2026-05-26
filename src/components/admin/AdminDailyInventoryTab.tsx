@@ -974,13 +974,20 @@ export default function AdminDailyInventoryTab() {
                               <input
                                 type="text"
                                 inputMode="decimal"
+                                autoComplete="off"
+                                autoCorrect="off"
+                                autoCapitalize="none"
+                                spellCheck={false}
                                 value={entry.qty}
                                 onChange={(e) => {
-                                  const v = e.target.value;
-                                  // Allow digits, single decimal point, and empty string
-                                  if (v === "" || /^\d*\.?\d*$/.test(v)) {
-                                    handleEntryChange(item.item_code, "qty", v);
-                                  }
+                                  // Sanitize rather than block — always update state so
+                                  // React can re-sync the DOM value on iOS Safari
+                                  const v = e.target.value.replace(/[^\d.]/g, "");
+                                  const parts = v.split(".");
+                                  const sanitized = parts.length > 2
+                                    ? parts[0] + "." + parts.slice(1).join("")
+                                    : v;
+                                  handleEntryChange(item.item_code, "qty", sanitized);
                                 }}
                                 className="w-full max-w-[7rem] rounded-xl border border-white/10 bg-white/6 px-3 py-1.5 text-right text-sm text-white placeholder:text-zinc-600 outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
                                 placeholder="0"
