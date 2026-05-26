@@ -852,13 +852,13 @@ export default function AdminDailyInventoryTab() {
                   {BRANCHES.map((b) => <option key={b} value={b}>{b}</option>)}
                 </select>
               </div>
-              <div>
+              <div className="min-w-0 overflow-hidden">
                 <label className={`${T_LABEL} mb-1.5 block`}>Date</label>
                 <input
                   type="date"
                   value={reportDate}
                   onChange={(e) => setReportDate(e.target.value)}
-                  className={INPUT_CLASS}
+                  className={`${INPUT_CLASS} appearance-none`}
                 />
               </div>
               <div>
@@ -939,11 +939,11 @@ export default function AdminDailyInventoryTab() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-white/5">
-                        <th className={`${TABLE_HEADER} px-5 py-3 text-left`}>Item</th>
-                        <th className={`${TABLE_HEADER} px-3 py-3 text-left`}>Qty</th>
-                        <th className={`${TABLE_HEADER} px-3 py-3 text-left`}>Unit</th>
-                        <th className={`${TABLE_HEADER} px-3 py-3 text-center`}>Status</th>
-                        <th className={`${TABLE_HEADER} px-5 py-3 text-left`}>Note</th>
+                        <th className={`${TABLE_HEADER} px-3 py-3 text-left`}>Item</th>
+                        <th className={`${TABLE_HEADER} px-2 py-3 text-right`}>Qty</th>
+                        <th className={`${TABLE_HEADER} px-2 py-3 text-left`}>Unit</th>
+                        <th className={`${TABLE_HEADER} px-2 py-3 text-center`}>Status</th>
+                        <th className={`${TABLE_HEADER} hidden sm:table-cell px-3 py-3 text-left`}>Note</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -960,53 +960,41 @@ export default function AdminDailyInventoryTab() {
                               isLow ? "bg-red-500/5" : isWarn ? "bg-amber-500/5" : "",
                             ].join(" ")}
                           >
-                            <td className={`${TABLE_CELL} px-5`}>
+                            <td className={`${TABLE_CELL} px-3`}>
                               <span className={isLow ? "font-medium text-red-300" : isWarn ? "font-medium text-amber-300" : "text-zinc-200"}>
                                 {item.item_name}
                               </span>
                               {item.par_level !== null && (
-                                <span className="ml-2 text-xs text-zinc-600">
+                                <div className="text-xs text-zinc-600">
                                   Par: {item.par_level} {entry.unit}
-                                </span>
+                                </div>
                               )}
                             </td>
-                            <td className="px-3 py-3">
+                            <td className="px-2 py-3">
                               <input
-                                type="text"
+                                type="number"
                                 inputMode="decimal"
-                                autoComplete="off"
-                                autoCorrect="off"
-                                autoCapitalize="none"
-                                spellCheck={false}
+                                step="any"
+                                min="0"
                                 value={entry.qty}
-                                onChange={(e) => {
-                                  // Sanitize rather than block — always update state so
-                                  // React can re-sync the DOM value on iOS Safari
-                                  const v = e.target.value.replace(/[^\d.]/g, "");
-                                  const parts = v.split(".");
-                                  const sanitized = parts.length > 2
-                                    ? parts[0] + "." + parts.slice(1).join("")
-                                    : v;
-                                  handleEntryChange(item.item_code, "qty", sanitized);
-                                }}
-                                style={{ WebkitTextFillColor: "white", color: "white" }}
-                                className="w-full max-w-[7rem] appearance-none rounded-xl border border-white/10 bg-white/6 px-3 py-1.5 text-right text-sm text-white placeholder:text-zinc-600 outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
+                                onChange={(e) => handleEntryChange(item.item_code, "qty", e.target.value)}
+                                className="w-16 appearance-none rounded-xl border border-white/10 bg-white/6 px-2 py-1.5 text-right text-sm text-white outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                 placeholder="0"
                               />
                             </td>
-                            <td className="px-3 py-3">
+                            <td className="px-2 py-3">
                               <select
                                 value={entry.unit}
                                 onChange={(e) => handleEntryChange(item.item_code, "unit", e.target.value)}
-                                className="w-full max-w-[5.5rem] appearance-none cursor-pointer rounded-xl border border-white/10 bg-white/6 px-2 py-1.5 text-sm text-white outline-none focus:border-violet-500/50"
+                                className="w-full max-w-[5rem] appearance-none cursor-pointer rounded-xl border border-white/10 bg-white/6 px-2 py-1.5 text-sm text-white outline-none focus:border-violet-500/50"
                               >
                                 {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
                               </select>
                             </td>
-                            <td className="px-3 py-3 text-center">
+                            <td className="px-2 py-3 text-center">
                               <StatusBadge qty={entry.qty} minLevel={item.min_level} parLevel={item.par_level} />
                             </td>
-                            <td className="px-5 py-3">
+                            <td className="hidden sm:table-cell px-3 py-3">
                               <input
                                 type="text"
                                 value={entry.note}
