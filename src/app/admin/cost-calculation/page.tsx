@@ -270,8 +270,8 @@ type InvoiceItemMappingRow = {
 };
 
 const INGREDIENT_SHEET = "Ingredient Master";
-/** 500 matches legacy API `le=500`; we page with `offset` so all rows load after backend supports OFFSET. */
-const INGREDIENT_LIST_PAGE_SIZE = 500;
+/** 20 = confirmed working page size; backend returns 500 for limit>=500 (under investigation). */
+const INGREDIENT_LIST_PAGE_SIZE = 20;
 
 function conversionRuleHint(invoiceUnit: string): string {
   const u = (invoiceUnit || "").trim().toLowerCase();
@@ -998,7 +998,14 @@ export default function CostCalculationPage() {
       ingredientsLoadedRef.current = true;
     } catch (e: any) {
       console.error("Failed to load ingredients:", e);
-      setIngredients((prev) => prev.filter((row) => row._new)); // keep new rows on error
+      if (ingredientsLoadedRef.current) {
+        // Background refresh failed (e.g. 503 on dyno restart) — preserve the
+        // previously-loaded rows so the table stays visible instead of going blank.
+        // The visibility/focus handler will retry automatically.
+      } else {
+        // Initial load failed — keep only locally-added new rows (list was empty anyway).
+        setIngredients((prev) => prev.filter((row) => row._new));
+      }
       // Do NOT clear allIngredientOptions on load failure — preserve the last known list
       // so that master-item component search continues to work. Also do not surface this
       // as the global error because it persists and blocks the master-item save flow.
@@ -4836,7 +4843,16 @@ export default function CostCalculationPage() {
           ) : activeSheet === INGREDIENT_SHEET && filteredIngredientRows.length === 0 ? (
             <div className="flex h-48 flex-col items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] text-sm text-zinc-500">
               <Database className="h-8 w-8 text-zinc-700" />
-              <p>No ingredient data</p>
+              <p>{ingredientCategoryFilter !== "all" ? "No items in this category." : "No ingredient data"}</p>
+              {ingredientCategoryFilter === "all" && (
+                <button
+                  onClick={() => void loadIngredients()}
+                  className="flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-zinc-400 transition hover:bg-white/[0.08] hover:text-zinc-200"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Retry
+                </button>
+              )}
             </div>
           ) : showLegacyRecipeSection ? (
             <div className="flex h-full flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-6">
