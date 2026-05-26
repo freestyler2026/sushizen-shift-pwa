@@ -3507,6 +3507,7 @@ export default function CostCalculationPage() {
                 key={section.key}
                 type="button"
                 onClick={() => {
+                  setError("");
                   setActiveSection(section.key);
                   if (section.key === "ingredient") {
                     setActiveSheet(INGREDIENT_SHEET);
