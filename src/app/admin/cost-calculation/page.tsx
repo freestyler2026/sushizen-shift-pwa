@@ -997,18 +997,15 @@ export default function CostCalculationPage() {
       setAllIngredientOptions(merged);
       ingredientsLoadedRef.current = true;
     } catch (e: any) {
-      console.error("Failed to load ingredients:", e);
+      const errMsg = e?.message || String(e);
+      console.error("Failed to load ingredients:", errMsg);
+      setError(`Ingredient load failed: ${errMsg}`);
       if (ingredientsLoadedRef.current) {
-        // Background refresh failed (e.g. 503 on dyno restart) — preserve the
-        // previously-loaded rows so the table stays visible instead of going blank.
-        // The visibility/focus handler will retry automatically.
+        // Background refresh failed — preserve the previously-loaded rows.
       } else {
-        // Initial load failed — keep only locally-added new rows (list was empty anyway).
+        // Initial load failed — keep only locally-added new rows.
         setIngredients((prev) => prev.filter((row) => row._new));
       }
-      // Do NOT clear allIngredientOptions on load failure — preserve the last known list
-      // so that master-item component search continues to work. Also do not surface this
-      // as the global error because it persists and blocks the master-item save flow.
     } finally {
       setLoading(false);
     }
