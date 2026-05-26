@@ -121,7 +121,7 @@ export default function InventoryCountsPage() {
       const master = itemMasterById[line.item_id];
       const merged: InventoryCountLine = master ? {
         ...line,
-        storage_unit: master.storage_unit || line.storage_unit,
+        storage_unit: line.storage_unit || master.storage_unit,
         unit_price: Number(master.cost ?? line.unit_price),
         supplier_name: master.supplier_name || line.supplier_name,
         category: master.category_name || line.category,
@@ -350,7 +350,7 @@ export default function InventoryCountsPage() {
     if (!master) return { ...line, sort_order: index + 1 };
     return {
       ...line,
-      storage_unit: master.storage_unit || line.storage_unit,
+      storage_unit: line.storage_unit || master.storage_unit,
       unit_price: Number(master.cost ?? line.unit_price),
       supplier_name: master.supplier_name || line.supplier_name,
       category: master.category_name || line.category,
@@ -391,7 +391,7 @@ export default function InventoryCountsPage() {
           const master = freshMap[line.item_id];
           const merged: InventoryCountLine = master ? {
             ...line,
-            storage_unit: master.storage_unit || line.storage_unit,
+            storage_unit: line.storage_unit || master.storage_unit,
             unit_price: Number(master.cost ?? line.unit_price),
             supplier_name: master.supplier_name || line.supplier_name,
             category: master.category_name || line.category,
