@@ -972,9 +972,18 @@ export default function CostCalculationPage() {
       const merged: IngredientRow[] = [];
       let offset = 0;
       for (let page = 0; page < 400; page += 1) {
-        const res = await costJson<{ items?: IngredientRow[]; ingredients?: IngredientRow[] }>(
-          `/api/cost/ingredients?city=${encodeURIComponent(city)}&limit=${INGREDIENT_LIST_PAGE_SIZE}&offset=${offset}`,
-        );
+        let res: { items?: IngredientRow[]; ingredients?: IngredientRow[] };
+        try {
+          res = await costJson<{ items?: IngredientRow[]; ingredients?: IngredientRow[] }>(
+            `/api/cost/ingredients?city=${encodeURIComponent(city)}&limit=${INGREDIENT_LIST_PAGE_SIZE}&offset=${offset}`,
+          );
+        } catch (pageErr: any) {
+          // A single-page failure on page > 0 should not discard already-fetched rows.
+          // Break out of the loop and use what we have so far.
+          if (page === 0) throw pageErr; // first page failing = real error, let outer catch handle
+          console.warn(`Ingredient page ${page} (offset=${offset}) failed — stopping pagination:`, pageErr?.message);
+          break;
+        }
         const source = Array.isArray(res?.items) ? res.items : Array.isArray(res?.ingredients) ? res.ingredients : [];
         let added = 0;
         for (const row of source) {
