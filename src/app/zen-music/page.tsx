@@ -396,6 +396,26 @@ const TRACKS: Track[] = [
     glyph: "昇",
     category: "rock",
   },
+  {
+    id: 38,
+    title: "ZEN Orange Shore",
+    subtitle: "Sushi ZEN",
+    file: "/music/zen-orange-shore.mp3",
+    accent: "from-orange-300 via-amber-400 to-yellow-500",
+    accentHex: "#fb923c",
+    glyph: "浜",
+    category: "chill",
+  },
+  {
+    id: 39,
+    title: "ZEN Westside Vibe",
+    subtitle: "Sushi ZEN",
+    file: "/music/zen-westside-vibe.mp3",
+    accent: "from-teal-400 via-cyan-500 to-sky-600",
+    accentHex: "#14b8a6",
+    glyph: "西",
+    category: "chill",
+  },
 ];
 
 function fmt(sec: number) {
