@@ -989,7 +989,8 @@ export default function AdminDailyInventoryTab() {
                                     : v;
                                   handleEntryChange(item.item_code, "qty", sanitized);
                                 }}
-                                className="w-full max-w-[7rem] rounded-xl border border-white/10 bg-white/6 px-3 py-1.5 text-right text-sm text-white placeholder:text-zinc-600 outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
+                                style={{ WebkitTextFillColor: "white", color: "white" }}
+                                className="w-full max-w-[7rem] appearance-none rounded-xl border border-white/10 bg-white/6 px-3 py-1.5 text-right text-sm text-white placeholder:text-zinc-600 outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
                                 placeholder="0"
                               />
                             </td>
