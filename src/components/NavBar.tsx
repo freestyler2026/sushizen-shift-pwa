@@ -58,6 +58,7 @@ import {
   canAccessBackofficeEvaluationAdmin,
   canAccessCostAdmin,
   canAccessDailyInventoryAdmin,
+  canAccessTravelPathAdmin,
   canAccessDraftAdmin,
   canAccessFinancePage,
   canAccessIncidentReport,
@@ -115,6 +116,7 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/admin/disposal", label: "Disposal Report", icon: Trash2, match: "prefix" },
   { href: "/admin/backup", label: "Backup Report", icon: ArchiveRestore, match: "prefix" },
   { href: "/admin/daily-inventory", label: "Daily Inventory", icon: Warehouse, match: "exact" },
+  { href: "/admin/travel-path", label: "Travel Path", icon: ClipboardList, match: "exact" },
   { href: "/store/procurement", label: "Store Procurement", icon: ShoppingCart, match: "prefix" },
   { href: "/swap-approve", label: "Swap Approve", icon: ArrowLeftRight, match: "exact" },
   { href: "/change-pin", label: "Change PIN", icon: KeyRound, match: "exact" },
@@ -251,6 +253,7 @@ export default function NavBar() {
     if (href === "/admin/ai-analytics-pro") return canAccessAiAnalyticsProAdmin(auth);
     if (href === "/admin/inventory") return canAccessInventoryAdminNav(auth);
     if (href === "/admin/daily-inventory") return canAccessDailyInventoryAdmin(auth);
+    if (href === "/admin/travel-path") return canAccessTravelPathAdmin(auth);
     if (href === "/admin/menu") return canAccessMenuAdmin(auth);
     if (href === "/admin/private-reports") return canAccessPrivateReportAdmin(auth);
     if (href === "/admin/procurement") return canAccessProcurementAdmin(auth, auth.city);
