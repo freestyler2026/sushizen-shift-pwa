@@ -668,6 +668,7 @@ export default function ZenMusicPage() {
     const a = audioRef.current;
     if (!a) return;
     a.src = track.file;
+    a.load();
     setCurrentTime(0);
     setDuration(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -678,9 +679,18 @@ export default function ZenMusicPage() {
     const a = audioRef.current;
     if (!a) return;
     if (playing) {
-      a.play().catch((e: unknown) => {
-        if ((e as DOMException).name !== "AbortError") setPlaying(false);
-      });
+      const tryPlay = () =>
+        a.play().catch((e: unknown) => {
+          if ((e as DOMException).name !== "AbortError") setPlaying(false);
+        });
+      // If src was just changed (readyState < HAVE_FUTURE_DATA),
+      // wait for canplay before calling play() — avoids silent AbortError
+      // that occurs when play() is called before the audio has loaded.
+      if (a.readyState < 3) {
+        a.addEventListener("canplay", tryPlay, { once: true });
+        return () => a.removeEventListener("canplay", tryPlay);
+      }
+      tryPlay();
     } else {
       a.pause();
     }
