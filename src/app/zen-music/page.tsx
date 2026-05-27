@@ -416,6 +416,16 @@ const TRACKS: Track[] = [
     glyph: "西",
     category: "chill",
   },
+  {
+    id: 40,
+    title: "ZEN Sushi Caper",
+    subtitle: "Sushi ZEN",
+    file: "/music/zen-sushi-caper.mp3",
+    accent: "from-yellow-400 via-orange-500 to-red-500",
+    accentHex: "#f97316",
+    glyph: "祭",
+    category: "hype",
+  },
 ];
 
 function fmt(sec: number) {
