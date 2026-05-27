@@ -325,10 +325,9 @@ export function canAccessDailyInventoryAdmin(a?: Auth | null): boolean {
   return hasChannelAccess("admin.daily_inventory", ["view", "write"], a);
 }
 
-/** Travel Path Checklist — all authenticated Manila staff can access. */
+/** Travel Path Checklist — matches `admin.travel_path` channel in `app/access_control.py`. */
 export function canAccessTravelPathAdmin(a?: Auth | null): boolean {
-  const x = a ?? getAuth();
-  return x != null && Boolean(x.accessToken);
+  return hasChannelAccess("admin.travel_path", ["view", "write"], a);
 }
 
 /** Renewals admin — matches `admin.renewals` channel in `app/access_control.py`. */
