@@ -25,9 +25,38 @@ import {
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
 
-const BRANCHES = ["PARANAQUE", "CUBAO", "TAFT"] as const;
+const BRANCHES = ["PARANAQUE", "CUBAO", "TAFT", "CENTRAL KITCHEN"] as const;
 const SHIFTS = ["AM", "PM", "OVERNIGHT"] as const;
-const UNITS = ["kg", "g", "ml", "L", "Box", "Bag", "pcs", "pkt", "Tray", "Case"] as const;
+const UNITS = [
+  "kg", "g", "ml", "L",
+  "Box", "Bag", "Bottle", "Sack", "Can", "Tin",
+  "pcs", "pkt", "Tray", "Case",
+  "Portion", "Batch", "Block", "Slab",
+] as const;
+
+// Display labels for inventory sections
+const SECTION_LABELS: Record<string, string> = {
+  KITCHEN:          "🍱 Kitchen",
+  SUSHI_SAUCE:      "🍶 Sushi Sauce",
+  COLD_SECTION:     "🧊 Cold Section",
+  HOT_SAUCE:        "🔥 Hot Sauce",
+  HOT_SECTION:      "♨️ Hot Section",
+  FROZEN_ITEMS:     "❄️ Frozen Items",
+  DRY_ITEMS:        "📦 Dry Items",
+  DRINKS:           "🥤 Drinks",
+  SUSHI_SAUCE_BASE: "🍯 Sushi Sauce Base",
+  HOT_SAUCE_BASE:   "🌶️ Hot Sauce Base",
+  VEGETABLE:        "🥦 Vegetables",
+  INGREDIENTS:      "🧂 Ingredients",
+  RAMEN_ITEMS:      "🍜 Ramen Items",
+  MEAT_ITEMS:       "🥩 Meat Items",
+};
+// Preferred display order for Central Kitchen sections
+const CK_SECTION_ORDER = [
+  "SUSHI_SAUCE", "COLD_SECTION", "HOT_SAUCE", "HOT_SECTION",
+  "FROZEN_ITEMS", "DRY_ITEMS", "DRINKS", "SUSHI_SAUCE_BASE", "HOT_SAUCE_BASE",
+  "VEGETABLE", "INGREDIENTS", "RAMEN_ITEMS", "MEAT_ITEMS",
+];
 
 const STAFF_OTHER = "Other";
 
@@ -187,8 +216,14 @@ function ReportDetailView({
     }
   });
 
-  // CK (Cold Kitchen) section is only shown for CUBAO branch
-  const sections = (detail.branch === "CUBAO" ? ["KITCHEN", "CK"] : ["KITCHEN"]) as ("KITCHEN" | "CK")[];
+  // Central Kitchen shows sections derived from actual item data; other branches show KITCHEN only
+  const sections: string[] = detail.branch === "CENTRAL KITCHEN"
+    ? [...new Set(items.map((i) => i.section))].sort((a, b) => {
+        const ai = CK_SECTION_ORDER.indexOf(a);
+        const bi = CK_SECTION_ORDER.indexOf(b);
+        return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+      })
+    : ["KITCHEN"];
   const filledCount = detail.entries.filter((e) => e.qty !== null).length;
 
   return (
@@ -283,7 +318,7 @@ function ReportDetailView({
           <div key={sec} className={GLASS_CARD}>
             <div className="flex items-center justify-between border-b border-white/5 px-5 py-3">
               <h3 className={T_SECTION}>
-                {sec === "KITCHEN" ? "🍱 Kitchen" : "🧊 CK (Cold Kitchen)"}
+                {SECTION_LABELS[sec] ?? sec}
               </h3>
               <span className="text-xs text-zinc-500">{sectionEntries.length} entries</span>
             </div>
@@ -611,8 +646,14 @@ export default function AdminDailyInventoryTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, branch]);
 
-  // CK (Cold Kitchen) section is only shown for CUBAO branch
-  const sections = (branch === "CUBAO" ? ["KITCHEN", "CK"] : ["KITCHEN"]) as ("KITCHEN" | "CK")[];
+  // Central Kitchen shows sections derived from loaded items; other branches show KITCHEN only
+  const sections: string[] = branch === "CENTRAL KITCHEN"
+    ? [...new Set(items.map((i) => i.section))].sort((a, b) => {
+        const ai = CK_SECTION_ORDER.indexOf(a);
+        const bi = CK_SECTION_ORDER.indexOf(b);
+        return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+      })
+    : ["KITCHEN"];
   const countBySection = (sec: string) => {
     const sectionItems = items.filter((i) => i.section === sec);
     const filled = sectionItems.filter((i) => entries[i.item_code]?.qty !== "").length;
@@ -931,7 +972,7 @@ export default function AdminDailyInventoryTab() {
               <div key={sec} className={`${GLASS_CARD} mb-5`}>
                 <div className="flex items-center justify-between border-b border-white/5 px-5 py-3">
                   <h2 className={T_SECTION}>
-                    {sec === "KITCHEN" ? "🍱 Kitchen" : "🧊 CK (Cold Kitchen)"}
+                    {SECTION_LABELS[sec] ?? sec}
                   </h2>
                   <span className="text-xs text-zinc-500">{filled} / {total} filled</span>
                 </div>
