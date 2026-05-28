@@ -547,10 +547,12 @@ export default function AdminStaffPage() {
     setResetPinLoading(true);
     setResetPinError("");
     try {
-      const nm = norm(approverName);
+      const auth = getAuth();
+      // For token-auth (WebAuthn) users, use the logged-in staff name if approverName is blank
+      const nm = norm(approverName) || norm(auth?.staffName);
       const p = legacyPinOrEmpty(pin);
-      if (!nm) throw new Error("Approver name is required.");
-      if (!p && !getAuth()?.accessToken) throw new Error("PIN is required.");
+      if (!nm && !auth?.accessToken) throw new Error("Approver name is required.");
+      if (!p && !auth?.accessToken) throw new Error("PIN is required.");
       const res = await apiPost<{ ok: boolean; setup_code: string; expires_at?: string }>(
         "/api/admin/staff/setup/reset-pin",
         { staff_name: resetPinModal.staffName, approver_name: nm, pin: p },
