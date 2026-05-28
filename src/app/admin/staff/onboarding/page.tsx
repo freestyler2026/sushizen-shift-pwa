@@ -574,7 +574,7 @@ export default function StaffOnboardingDashboardPage() {
                 Reset PIN for <span className="font-semibold text-white">{resetModal.staffName}</span>?
               </p>
               <p className="mb-5 text-xs text-neutral-500">
-                Their current PIN will be cleared immediately. A new setup code will be generated — share it with the staff member so they can set a new PIN.
+                Their PIN will be reset to the default <span className="font-mono text-neutral-300">1111</span>. Share this with the staff member so they can log in immediately.
               </p>
 
               {resetError ? (
@@ -606,7 +606,7 @@ export default function StaffOnboardingDashboardPage() {
               <p className="mb-1 text-sm text-emerald-300">
                 ✓ PIN reset for <span className="font-semibold text-white">{resetModal.staffName}</span>.
               </p>
-              <p className="mb-4 text-xs text-neutral-500">Share this setup code with the staff member. They will use it to set a new PIN.</p>
+              <p className="mb-4 text-xs text-neutral-500">Their PIN has been reset to the default below. Share it with the staff member so they can log in.</p>
 
               <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
                 <span className="flex-1 font-mono text-2xl font-bold tracking-widest text-amber-200">
@@ -623,7 +623,7 @@ export default function StaffOnboardingDashboardPage() {
               </div>
 
               <p className="mt-3 text-xs text-neutral-500">
-                Setup link: <span className="text-neutral-300">/setup-pin</span> — expires in 72 hours.
+                Staff can log in immediately with this PIN.
               </p>
 
               <button

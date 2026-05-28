@@ -1414,7 +1414,7 @@ export default function AdminStaffPage() {
                 ✓ PIN reset for <span className="font-semibold text-white">{resetPinModal.staffName}</span>.
               </p>
               <p className="mb-4 text-xs text-neutral-500">
-                Share this setup code with the staff member. They will use it to set a new PIN.
+                Their PIN has been reset to the default below. Share it with the staff member so they can log in.
               </p>
               <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
                 <span className="flex-1 font-mono text-2xl font-bold tracking-widest text-amber-200">
@@ -1430,7 +1430,7 @@ export default function AdminStaffPage() {
                 </button>
               </div>
               <p className="mt-3 text-xs text-neutral-500">
-                Setup link: <span className="text-neutral-300">/setup-pin</span> — expires in 72 hours.
+                Staff can log in immediately with this PIN.
               </p>
               <button
                 type="button"
