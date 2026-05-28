@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { ClipboardList, Clock, KeyRound, X } from "lucide-react";
+import { ClipboardList, Clock, KeyRound, RotateCcw, Copy, Check, X } from "lucide-react";
 import { canAccessRoleManagement, getAuth } from "@/lib/auth";
 import { fmtNum } from "@/lib/formatters";
 import {
@@ -115,6 +115,62 @@ export default function StaffOnboardingDashboardPage() {
   const [setupError, setSetupError] = useState("");
   const [setupSuccess, setSetupSuccess] = useState("");
   const pinRef = useRef<HTMLInputElement>(null);
+
+  // Reset PIN modal
+  const [resetModal, setResetModal] = useState<{ staffName: string } | null>(null);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError] = useState("");
+  const [resetResultCode, setResetResultCode] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  function openResetModal(staffName: string) {
+    setResetModal({ staffName });
+    setResetError("");
+    setResetResultCode(null);
+    setCopied(false);
+  }
+
+  function closeResetModal() {
+    setResetModal(null);
+    setResetError("");
+    setResetResultCode(null);
+    setCopied(false);
+  }
+
+  async function submitResetPin() {
+    if (!resetModal) return;
+    setResetLoading(true);
+    setResetError("");
+    try {
+      const res = await apiPost<{ ok: boolean; setup_code: string; expires_at?: string }>(
+        "/api/admin/staff/setup/reset-pin",
+        {
+          staff_name: resetModal.staffName,
+          approver_name: approverName.trim(),
+          pin: pin.trim(),
+        },
+      );
+      setResetResultCode(res.setup_code);
+      // Reflect status change in the table
+      setRows((prev) =>
+        prev.map((r) =>
+          r.display_name === resetModal.staffName
+            ? { ...r, setup_completed: false, setup_required: true }
+            : r,
+        ),
+      );
+    } catch (e: any) {
+      setResetError(String(e?.message || "Failed to reset PIN"));
+    } finally {
+      setResetLoading(false);
+    }
+  }
+
+  function copyCode(code: string) {
+    void navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   function openSetupModal(staffName: string) {
     setSetupModal({ staffName });
@@ -400,7 +456,7 @@ export default function StaffOnboardingDashboardPage() {
                   className="grid grid-cols-1 gap-3 border-b border-white/5 bg-white/5 px-4 py-4 text-sm md:grid-cols-7 md:items-start"
                 >
                   <div>
-                    <div className="font-medium">{row.display_name}</div>
+                    <div className="font-medium text-white">{row.display_name}</div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {canOpenRoleManagement ? (
                         <a
@@ -428,12 +484,21 @@ export default function StaffOnboardingDashboardPage() {
                           Setup PIN
                         </button>
                       ) : null}
+
+                      <button
+                        type="button"
+                        onClick={() => openResetModal(row.display_name)}
+                        className="flex items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2.5 py-1 text-[11px] font-medium text-rose-300 transition hover:bg-rose-500/20"
+                      >
+                        <RotateCcw className="h-3 w-3" />
+                        Reset PIN
+                      </button>
                     </div>
                   </div>
 
-                  <div>{row.branch_code}</div>
+                  <div className="text-zinc-200">{row.branch_code}</div>
 
-                  <div>{row.role}</div>
+                  <div className="text-zinc-200">{row.role}</div>
 
                   <div>
                     <span className={row.setup_completed ? BADGE_SUCCESS : row.setup_required ? BADGE_WARNING : BADGE_ERROR}>
@@ -488,6 +553,91 @@ export default function StaffOnboardingDashboardPage() {
           </div>
         </div>
     </motion.div>
+
+    {/* Reset PIN Modal */}
+    {resetModal ? (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+        <div className="w-full max-w-md rounded-2xl border border-rose-500/30 bg-neutral-950 p-6 shadow-2xl">
+          <div className="mb-5 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-rose-400" />
+              <h3 className="text-base font-semibold text-white">Reset PIN</h3>
+            </div>
+            <button type="button" onClick={closeResetModal} className="text-neutral-500 hover:text-white">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {!resetResultCode ? (
+            <>
+              <p className="mb-2 text-sm text-neutral-300">
+                Reset PIN for <span className="font-semibold text-white">{resetModal.staffName}</span>?
+              </p>
+              <p className="mb-5 text-xs text-neutral-500">
+                Their current PIN will be cleared immediately. A new setup code will be generated — share it with the staff member so they can set a new PIN.
+              </p>
+
+              {resetError ? (
+                <div className="mb-4 rounded-xl border border-rose-800/40 bg-rose-950/20 px-3 py-2 text-sm text-rose-300">
+                  {resetError}
+                </div>
+              ) : null}
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={closeResetModal}
+                  className="flex-1 rounded-xl border border-neutral-700 bg-neutral-900 py-2.5 text-sm text-neutral-300 hover:bg-neutral-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void submitResetPin()}
+                  disabled={resetLoading}
+                  className="flex-1 rounded-xl bg-rose-600 py-2.5 text-sm font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
+                >
+                  {resetLoading ? "Resetting…" : "Confirm Reset"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="mb-1 text-sm text-emerald-300">
+                ✓ PIN reset for <span className="font-semibold text-white">{resetModal.staffName}</span>.
+              </p>
+              <p className="mb-4 text-xs text-neutral-500">Share this setup code with the staff member. They will use it to set a new PIN.</p>
+
+              <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+                <span className="flex-1 font-mono text-2xl font-bold tracking-widest text-amber-200">
+                  {resetResultCode}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => copyCode(resetResultCode)}
+                  className="flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-500/20"
+                >
+                  {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copied ? "Copied!" : "Copy"}
+                </button>
+              </div>
+
+              <p className="mt-3 text-xs text-neutral-500">
+                Setup link: <span className="text-neutral-300">/setup-pin</span> — expires in 72 hours.
+              </p>
+
+              <button
+                type="button"
+                onClick={closeResetModal}
+                className="mt-5 w-full rounded-xl border border-neutral-700 bg-neutral-900 py-2.5 text-sm text-neutral-300 hover:bg-neutral-800"
+              >
+                Done
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    ) : null}
 
     {/* HQ Setup PIN Modal */}
 
