@@ -155,7 +155,7 @@ export default function StaffOnboardingDashboardPage() {
       setRows((prev) =>
         prev.map((r) =>
           r.display_name === resetModal.staffName
-            ? { ...r, setup_completed: false, setup_required: true }
+            ? { ...r, setup_completed: true, setup_required: false }
             : r,
         ),
       );

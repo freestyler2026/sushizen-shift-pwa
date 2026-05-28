@@ -561,7 +561,7 @@ export default function AdminStaffPage() {
       setRows((prev) =>
         prev.map((r) =>
           norm(r.display_name) === norm(resetPinModal.staffName)
-            ? { ...r, setup_completed: false, setup_required: true }
+            ? { ...r, setup_completed: true, setup_required: false }
             : r,
         ),
       );
