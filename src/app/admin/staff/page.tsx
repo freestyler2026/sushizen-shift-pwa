@@ -7,11 +7,14 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   BarChart2,
+  Check,
   ClipboardList,
   ClockAlert,
+  Copy,
   Download,
   KeyRound,
   Pencil,
+  RotateCcw,
   ScrollText,
   Settings2,
   ShieldCheck,
@@ -284,6 +287,13 @@ export default function AdminStaffPage() {
   const hasLoaded = useRef(false);
   const canOpenRoleManagement = canAccessRoleManagement(authed);
 
+  // Reset PIN modal
+  const [resetPinModal, setResetPinModal] = useState<{ staffName: string } | null>(null);
+  const [resetPinLoading, setResetPinLoading] = useState(false);
+  const [resetPinError, setResetPinError] = useState("");
+  const [resetPinResultCode, setResetPinResultCode] = useState<string | null>(null);
+  const [resetPinCopied, setResetPinCopied] = useState(false);
+
   useEffect(() => {
     // Only auto-reload if the user has already authenticated and
     // loaded data at least once — prevents firing before login
@@ -517,6 +527,54 @@ export default function AdminStaffPage() {
       setLoading(false);
     }
   };
+
+  function openResetPinModal(staffName: string) {
+    setResetPinModal({ staffName });
+    setResetPinError("");
+    setResetPinResultCode(null);
+    setResetPinCopied(false);
+  }
+
+  function closeResetPinModal() {
+    setResetPinModal(null);
+    setResetPinError("");
+    setResetPinResultCode(null);
+    setResetPinCopied(false);
+  }
+
+  async function submitResetPin() {
+    if (!resetPinModal) return;
+    setResetPinLoading(true);
+    setResetPinError("");
+    try {
+      const nm = norm(approverName);
+      const p = legacyPinOrEmpty(pin);
+      if (!nm) throw new Error("Approver name is required.");
+      if (!p && !getAuth()?.accessToken) throw new Error("PIN is required.");
+      const res = await apiPost<{ ok: boolean; setup_code: string; expires_at?: string }>(
+        "/api/admin/staff/setup/reset-pin",
+        { staff_name: resetPinModal.staffName, approver_name: nm, pin: p },
+      );
+      setResetPinResultCode(res.setup_code);
+      setRows((prev) =>
+        prev.map((r) =>
+          norm(r.display_name) === norm(resetPinModal.staffName)
+            ? { ...r, setup_completed: false, setup_required: true }
+            : r,
+        ),
+      );
+    } catch (e: any) {
+      setResetPinError(String(e?.message || "Failed to reset PIN"));
+    } finally {
+      setResetPinLoading(false);
+    }
+  }
+
+  function copyResetCode(code: string) {
+    void navigator.clipboard.writeText(code);
+    setResetPinCopied(true);
+    setTimeout(() => setResetPinCopied(false), 2000);
+  }
 
   const saveAll = async (displayName: string) => {
     setMsg(null);
@@ -772,6 +830,7 @@ export default function AdminStaffPage() {
   if (!authed) return <div className="p-6 text-sm text-neutral-400">Loading...</div>;
 
   return (
+    <>
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
@@ -1230,7 +1289,7 @@ export default function AdminStaffPage() {
                       <div className="flex flex-wrap gap-1.5">
                         <button type="button" onClick={() => void saveAll(dn)} className={SMALL_BUTTON + " flex items-center gap-1"} disabled={loading}>
                           <Pencil className="h-3 w-3" />
-                          {infoSavingName === dn ? "Saving..." : "Edit"}
+                          {infoSavingName === dn ? "Saving..." : "Save"}
                         </button>
                         {canOpenRoleManagement ? (
                           <Link href={`/admin/staff/roles?staff_name=${encodeURIComponent(dn)}`} className={SMALL_BUTTON + " flex items-center gap-1"}>
@@ -1248,6 +1307,14 @@ export default function AdminStaffPage() {
                             Reissue
                           </Link>
                         ) : null}
+                        <button
+                          type="button"
+                          onClick={() => openResetPinModal(dn)}
+                          className="flex items-center gap-1 rounded-lg border border-rose-500/40 bg-rose-500/10 px-2 py-1 text-[11px] font-medium text-rose-300 transition hover:bg-rose-500/20"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          Reset PIN
+                        </button>
                         <button
                           type="button"
                           title={r.gps_exempt ? "GPS Exempt ON — click to disable" : "GPS Exempt OFF — click to enable (e.g. Work From Home)"}
@@ -1293,5 +1360,88 @@ export default function AdminStaffPage() {
 
       <div className={DIVIDER} />
     </motion.div>
+
+    {/* Reset PIN Modal */}
+    {resetPinModal ? (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
+        <div className="w-full max-w-md rounded-2xl border border-rose-500/30 bg-neutral-950 p-6 shadow-2xl">
+          <div className="mb-5 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-rose-400" />
+              <h3 className="text-base font-semibold text-white">Reset PIN</h3>
+            </div>
+            <button type="button" onClick={closeResetPinModal} className="text-neutral-500 hover:text-white">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          {!resetPinResultCode ? (
+            <>
+              <p className="mb-2 text-sm text-neutral-300">
+                Reset PIN for <span className="font-semibold text-white">{resetPinModal.staffName}</span>?
+              </p>
+              <p className="mb-5 text-xs text-neutral-500">
+                Their current PIN will be cleared immediately. A new setup code will be generated — share it with the staff member so they can set a new PIN.
+              </p>
+              {resetPinError ? (
+                <div className="mb-4 rounded-xl border border-rose-800/40 bg-rose-950/20 px-3 py-2 text-sm text-rose-300">
+                  {resetPinError}
+                </div>
+              ) : null}
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={closeResetPinModal}
+                  className="flex-1 rounded-xl border border-neutral-700 bg-neutral-900 py-2.5 text-sm text-neutral-300 hover:bg-neutral-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void submitResetPin()}
+                  disabled={resetPinLoading}
+                  className="flex-1 rounded-xl bg-rose-600 py-2.5 text-sm font-semibold text-white hover:bg-rose-500 disabled:opacity-50"
+                >
+                  {resetPinLoading ? "Resetting…" : "Confirm Reset"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="mb-1 text-sm text-emerald-300">
+                ✓ PIN reset for <span className="font-semibold text-white">{resetPinModal.staffName}</span>.
+              </p>
+              <p className="mb-4 text-xs text-neutral-500">
+                Share this setup code with the staff member. They will use it to set a new PIN.
+              </p>
+              <div className="flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+                <span className="flex-1 font-mono text-2xl font-bold tracking-widest text-amber-200">
+                  {resetPinResultCode}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => copyResetCode(resetPinResultCode)}
+                  className="flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs text-amber-300 hover:bg-amber-500/20"
+                >
+                  {resetPinCopied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  {resetPinCopied ? "Copied!" : "Copy"}
+                </button>
+              </div>
+              <p className="mt-3 text-xs text-neutral-500">
+                Setup link: <span className="text-neutral-300">/setup-pin</span> — expires in 72 hours.
+              </p>
+              <button
+                type="button"
+                onClick={closeResetPinModal}
+                className="mt-5 w-full rounded-xl border border-neutral-700 bg-neutral-900 py-2.5 text-sm text-neutral-300 hover:bg-neutral-800"
+              >
+                Done
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    ) : null}
+    </>
   );
 }
