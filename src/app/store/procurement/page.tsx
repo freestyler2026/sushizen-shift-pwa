@@ -577,14 +577,14 @@ export default function StoreProcurementHomePage() {
   const APPROVAL_THRESHOLD = city === "dubai" ? 500 : 15000;
   const isHighValue = (row: RequestRow) => Number(row.total_amount || 0) > APPROVAL_THRESHOLD;
 
-  const loadMyRequests = useCallback(async (cityOverride?: string) => {
+  const loadMyRequests = useCallback(async (cityOverride?: string, requestedByOverride?: string) => {
     setLoading(true);
     setError("");
     try {
       const activeCity = String(cityOverride || city || "manila").trim().toLowerCase() || "manila";
       const qs = new URLSearchParams({
         city: activeCity,
-        requested_by: requestedBy.trim(),
+        requested_by: (requestedByOverride ?? requestedBy).trim(),
         limit: "200",
       });
       const data = await procurementJson<{ rows: RequestRow[] }>(
@@ -624,10 +624,12 @@ export default function StoreProcurementHomePage() {
       const initialCity = queryCity || city || String(refreshed?.city || auth?.city || "manila").toLowerCase() || "manila";
       setCanOpenAdminCase(canAccessProcurementAdmin(String((refreshed || auth)?.role || ""), initialCity === "dubai" ? "dubai" : "manila"));
       setCity(initialCity);
-      if ((refreshed?.staffName || "").trim() && !requestedBy.trim()) {
-        setRequestedBy(String(refreshed?.staffName || "").trim());
+      const resolvedName = (refreshed?.staffName || auth?.staffName || "").trim();
+      if (resolvedName && !requestedBy.trim()) {
+        setRequestedBy(resolvedName);
       }
-      await loadMyRequests(initialCity);
+      // Pass the resolved name directly to avoid stale closure
+      await loadMyRequests(initialCity, resolvedName || requestedBy.trim());
     }
     void init();
   }, [auth, city, loadMyRequests, requestedBy, router]);

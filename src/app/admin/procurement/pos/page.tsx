@@ -63,6 +63,8 @@ type RequestSummary = {
   request_date: string;
   status: string;
   total_amount: number;
+  city?: string;
+  suggested_delivery_address?: string;
 };
 
 type CatalogItem = {
@@ -233,6 +235,10 @@ export default function ProcurementPoPage() {
       if (!paymentTerms.trim()) {
         const suggestedTerms = suppliers.map((row) => row.payment_terms).find((value) => String(value || "").trim());
         if (suggestedTerms) setPaymentTerms(String(suggestedTerms));
+      }
+      // Auto-populate delivery address from the request's branch if not yet filled
+      if (!deliveryAddress.trim() && catalogData?.request?.suggested_delivery_address) {
+        setDeliveryAddress(String(catalogData.request.suggested_delivery_address));
       }
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -526,15 +532,64 @@ export default function ProcurementPoPage() {
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>VAT Treatment</label>
-            <input value={vatTreatment} onChange={(e) => setVatTreatment(e.target.value)} placeholder="e.g. VAT-inclusive" className={INPUT_CLASS} />
+            <select
+              value={vatTreatment}
+              onChange={(e) => setVatTreatment(e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white focus:border-violet-500/60 focus:outline-none"
+            >
+              <option value="">— Select —</option>
+              {city === "dubai" ? (
+                <>
+                  <option value="VAT-inclusive">VAT-inclusive</option>
+                  <option value="VAT-exclusive">VAT-exclusive</option>
+                  <option value="VAT-exempt">VAT-exempt</option>
+                  <option value="Zero-rated">Zero-rated</option>
+                  <option value="Non-VAT">Non-VAT</option>
+                </>
+              ) : (
+                <>
+                  <option value="VAT-inclusive">VAT-inclusive</option>
+                  <option value="VAT-exclusive">VAT-exclusive</option>
+                  <option value="VAT-exempt">VAT-exempt</option>
+                  <option value="Zero-rated">Zero-rated</option>
+                  <option value="Non-VAT">Non-VAT</option>
+                </>
+              )}
+            </select>
           </div>
           <div className="sm:col-span-2">
-            <label className={`${T_LABEL} mb-1.5 block`}>Delivery Address</label>
+            <label className={`${T_LABEL} mb-1.5 block`}>
+              Delivery Address
+              {requestSummary?.suggested_delivery_address && deliveryAddress !== requestSummary.suggested_delivery_address && (
+                <button
+                  type="button"
+                  onClick={() => setDeliveryAddress(requestSummary.suggested_delivery_address!)}
+                  className="ml-2 text-[10px] font-normal text-violet-400 underline hover:text-violet-300"
+                >
+                  Use branch address
+                </button>
+              )}
+            </label>
             <input value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} placeholder="Delivery address" className={INPUT_CLASS} />
           </div>
           <div className="sm:col-span-2">
             <label className={`${T_LABEL} mb-1.5 block`}>Payment Terms</label>
-            <input value={paymentTerms} onChange={(e) => setPaymentTerms(e.target.value)} placeholder="Payment terms" className={INPUT_CLASS} />
+            <select
+              value={paymentTerms}
+              onChange={(e) => setPaymentTerms(e.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-slate-800/60 px-3 py-2 text-sm text-white focus:border-violet-500/60 focus:outline-none"
+            >
+              <option value="">— Select —</option>
+              <option value="Prepaid">Prepaid</option>
+              <option value="COD">COD (Cash on Delivery)</option>
+              <option value="NET 7">NET 7</option>
+              <option value="NET 15">NET 15</option>
+              <option value="NET 30">NET 30</option>
+              <option value="NET 45">NET 45</option>
+              <option value="NET 60">NET 60</option>
+              <option value="30 days credit">30 days credit</option>
+              <option value="60 days credit">60 days credit</option>
+            </select>
           </div>
         </div>
 
