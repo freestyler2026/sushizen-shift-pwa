@@ -64,7 +64,7 @@ type CatalogResponse = {
   categories?: string[];
 };
 
-const DUBAI_CURATED_STORES = ["ALL", "Al Barsha", "Al Mina", "B Bay", "JLT", "M City"];
+const DUBAI_CURATED_STORES = ["ALL", "Al Barsha", "Al Mina", "B Bay", "JLT", "M City", "Central Kitchen", "Warehouse"];
 const DUBAI_CURATED_CATEGORIES = ["Kitchen Ingredients", "Warehouse", "Central Kitchen"];
 
 function todayIso(): string {

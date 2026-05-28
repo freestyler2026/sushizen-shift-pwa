@@ -25,6 +25,7 @@ export const BRANCHES: Record<City, Branch[]> = {
     { code: "AM", name: "Al Mina" },
     { code: "AB", name: "Al Barsha" },
     { code: "CK", name: "Central Kitchen" },
+    { code: "WH", name: "Warehouse" },
     { code: "DRIVER", name: "Delivery" },
   ],
   manila: [
@@ -72,6 +73,7 @@ export function normalizeBranchCode(city: City, v: string): BranchCode | string 
     if (low.includes("barsha")) return "AB";
     if (low.includes("driver") || low.includes("delivery")) return "DRIVER";
     if (low.includes("ck") || low.includes("central")) return "CK";
+    if (low.includes("warehouse") || low === "wh") return "WH";
   }
 
   return u || s;
