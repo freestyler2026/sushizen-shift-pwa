@@ -200,6 +200,17 @@ export default function ProcurementPoPage() {
           : Promise.resolve({ request: undefined, suppliers: [] }),
       ]);
       setRows(Array.isArray(poData?.rows) ? poData.rows : []);
+      // City mismatch guard — reject cross-city request IDs
+      if (trimmedRequestId && catalogData?.request?.city) {
+        const reqCity = String(catalogData.request.city).toLowerCase();
+        if (reqCity !== city) {
+          const reqLabel = reqCity === "dubai" ? "Dubai" : "Manila";
+          const curLabel = city === "dubai" ? "Dubai" : "Manila";
+          setError(`This request belongs to ${reqLabel}, but you are currently in ${curLabel} mode. Please switch the City selector above to ${reqLabel} and try again.`);
+          setLoading(false);
+          return;
+        }
+      }
       setRequestSummary(catalogData?.request || null);
       const suppliers = Array.isArray(catalogData?.suppliers) ? catalogData.suppliers : [];
       setCatalogSuppliers(suppliers);

@@ -64,7 +64,7 @@ type CatalogResponse = {
   categories?: string[];
 };
 
-const DUBAI_CURATED_STORES = ["ALL", "Al Barsha", "Al Mina", "B Bay", "JLT", "M City", "Central Kitchen", "Warehouse"];
+const DUBAI_CURATED_STORES = ["Al Barsha", "Al Mina", "B Bay", "JLT", "M City", "Central Kitchen", "Warehouse"];
 const DUBAI_CURATED_CATEGORIES = ["Kitchen Ingredients", "Warehouse", "Central Kitchen"];
 
 function todayIso(): string {
@@ -106,6 +106,7 @@ export default function StoreProcurementRequestPage() {
   const [requestDate, setRequestDate] = useState(todayIso());
   const [urgentFlag, setUrgentFlag] = useState(false);
   const [newVendorFlag, setNewVendorFlag] = useState(false);
+  const [allStoresFlag, setAllStoresFlag] = useState(false);
   const [purchaseType, setPurchaseType] = useState<"standard" | "cash_purchase" | "ec_purchase" | "prepaid">("standard");
   const [ecOrderUrl, setEcOrderUrl] = useState("");
   const [items, setItems] = useState<ReqItem[]>([]);
@@ -596,15 +597,30 @@ export default function StoreProcurementRequestPage() {
         const queryEdit = String(sp.get("edit") || "").trim();
         if (queryEdit) {
           setEditRequestId(queryEdit);
-          // Fetch request_no for the badge label (best-effort, non-blocking)
-          procurementJson<{ request?: { request_no?: string; items?: Array<{ item_name?: string; vendor_name?: string; qty?: number; unit?: string; unit_price?: number }> } }>(
-            `/api/admin/procurement/requests/${queryEdit}`,
-            { method: "GET" },
-            defaultProcurementName(),
-            defaultProcurementPin(),
-          ).then((d) => {
+          // Await request detail so we can apply store_code / city BEFORE loadCatalogStores
+          try {
+            const d = await procurementJson<{
+              request?: {
+                request_no?: string;
+                store_code?: string;
+                city?: string;
+                items?: Array<{ item_name?: string; vendor_name?: string; qty?: number; unit?: string; unit_price?: number }>;
+              };
+            }>(
+              `/api/admin/procurement/requests/${queryEdit}`,
+              { method: "GET" },
+              defaultProcurementName(),
+              defaultProcurementPin(),
+            );
             const no = String(d?.request?.request_no || "").trim();
             if (no) setEditRequestNo(no);
+            // Override preferred store with the original request's store_code
+            const reqStore = String(d?.request?.store_code || "").trim();
+            if (reqStore) preferredStore = reqStore;
+            // Override city from the request if not specified in the URL
+            if (!queryCity && d?.request?.city) {
+              queryCity = String(d.request.city).toLowerCase();
+            }
             const rawItems = Array.isArray(d?.request?.items) ? d.request!.items : [];
             if (rawItems.length > 0) {
               setEditRequestItems(rawItems.map((it) => ({
@@ -615,7 +631,7 @@ export default function StoreProcurementRequestPage() {
                 unit_price: Number(it.unit_price || 0),
               })));
             }
-          }).catch(() => { /* badge is still shown even without request_no */ });
+          } catch { /* badge is still shown even on fetch failure */ }
         }
       }
       const initialCity = queryCity || city || String(refreshed?.city || auth?.city || "manila").toLowerCase() || "manila";
@@ -848,26 +864,34 @@ export default function StoreProcurementRequestPage() {
           <option value="manila">Manila</option>
           <option value="dubai">Dubai</option>
         </select>
-        <select value={storeCode} onChange={(e) => {
-          const v = String(e.target.value || "");
-          setStoreCode(v);
-          if (v && typeof window !== "undefined") localStorage.setItem("store_proc_branch", v);
-          // Auto-select matching category when a pseudo-store is chosen
-          if (city !== "dubai") {
-            const vl = v.toLowerCase();
-            if (vl === "central kitchen") setSelectedCatalogCategory("CK");
-            else if (vl === "warehouse") setSelectedCatalogCategory("Warehouse");
+        <select
+          value={allStoresFlag ? "ALL" : storeCode}
+          disabled={allStoresFlag}
+          onChange={(e) => {
+            const v = String(e.target.value || "");
+            setStoreCode(v);
+            if (v && typeof window !== "undefined") localStorage.setItem("store_proc_branch", v);
+            // Auto-select matching category when a pseudo-store is chosen
+            if (city !== "dubai") {
+              const vl = v.toLowerCase();
+              if (vl === "central kitchen") setSelectedCatalogCategory("CK");
+              else if (vl === "warehouse") setSelectedCatalogCategory("Warehouse");
+            }
+          }}
+          className={`${FIELD_CLASS} ${allStoresFlag ? "opacity-50 cursor-not-allowed" : ""}`}
+        >
+          {allStoresFlag
+            ? <option value="ALL">All Stores (global order)</option>
+            : <>
+                <option value="">Select store (required)</option>
+                {catalogStores.map((store) => (
+                  <option key={store} value={store}>{store}</option>
+                ))}
+              </>
           }
-        }} className={FIELD_CLASS}>
-          <option value="">Select store (required)</option>
-          {catalogStores.map((store) => (
-            <option key={store} value={store}>
-              {store}
-            </option>
-          ))}
         </select>
         <input type="date" value={requestDate} onChange={(e) => { setRequestDate(e.target.value); if (validItems.length > 0) setShowDateWarning(true); }} className={FIELD_CLASS} />
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <label className="inline-flex items-center gap-1.5 text-xs text-neutral-300 cursor-pointer">
             <input type="checkbox" checked={urgentFlag} onChange={(e) => setUrgentFlag(e.target.checked)} />
             Urgent
@@ -875,6 +899,19 @@ export default function StoreProcurementRequestPage() {
           <label className="inline-flex items-center gap-1.5 text-xs text-neutral-300 cursor-pointer">
             <input type="checkbox" checked={newVendorFlag} onChange={(e) => setNewVendorFlag(e.target.checked)} />
             New vendor
+          </label>
+          <label className="inline-flex items-center gap-1.5 text-xs text-amber-300 cursor-pointer" title="Use only for orders that apply to all stores. Do not use for single-store orders.">
+            <input
+              type="checkbox"
+              checked={allStoresFlag}
+              onChange={(e) => {
+                const v = e.target.checked;
+                setAllStoresFlag(v);
+                if (v) setStoreCode("ALL");
+                else setStoreCode("");
+              }}
+            />
+            📦 For All Stores
           </label>
         </div>
         {city !== "dubai" && (
