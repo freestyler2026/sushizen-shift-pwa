@@ -17,7 +17,7 @@ import {
   BADGE_WARNING,
   BADGE_INFO,
 } from "@/lib/ui-tokens";
-import { RefreshCw, AlertCircle, CheckCircle, Search, Zap, Package } from "lucide-react";
+import { RefreshCw, AlertCircle, CheckCircle, Search, Zap, Package, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 type CatalogRow = {
@@ -61,7 +61,7 @@ export default function ProcurementCatalogPage() {
   const [allowed, setAllowed] = useState(false);
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
-  const [city] = useState("manila");
+  const [city, setCity] = useState("manila");
 
   const [rows, setRows] = useState<CatalogRow[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -83,7 +83,7 @@ export default function ProcurementCatalogPage() {
 
   useEffect(() => {
     const role = auth?.role || "";
-    if (canAccessProcurementAdmin(auth, "manila") || role === "HQ" || role === "ADMIN") {
+    if (canAccessProcurementAdmin(auth, "manila") || canAccessProcurementAdmin(auth, "dubai") || role === "HQ" || role === "ADMIN") {
       setAllowed(true);
     } else {
       router.replace("/week");
@@ -154,6 +154,32 @@ export default function ProcurementCatalogPage() {
     setError("");
   }
 
+  function openAddNew() {
+    const blank: Partial<CatalogRow> = {
+      id: "",
+      city,
+      catalog_category: "",
+      store_scope: "ALL",
+      supplier_name: "",
+      sku: "",
+      item_name: "",
+      unit: "",
+      unit_price: 0,
+      currency_code: city === "dubai" ? "AED" : "PHP",
+      sort_order: 0,
+      active: true,
+      section: "",
+      order_type: "Supplier",
+      min_stock_qty: "",
+      package_spec: "",
+      fast_running: false,
+    };
+    setEditRow({} as CatalogRow); // non-null sentinel to open modal
+    setEditForm(blank);
+    setSuccessMsg("");
+    setError("");
+  }
+
   async function saveEdit() {
     if (!editRow || !editForm.item_name) return;
     setSaving(true);
@@ -194,15 +220,28 @@ export default function ProcurementCatalogPage() {
             Master catalog of all items across store order types (CK, WH, Supplier, CK/WH→Supplier).
           </p>
         </div>
-        <button onClick={() => void load()} disabled={busy} className={SECONDARY_BUTTON}>
-          <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
-          Refresh
-        </button>
+        <div className="flex gap-2">
+          <button onClick={openAddNew} className={PRIMARY_BUTTON}>
+            <Plus className="h-4 w-4" />
+            Add Item
+          </button>
+          <button onClick={() => void load()} disabled={busy} className={SECONDARY_BUTTON}>
+            <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Auth row */}
       <div className={`${GLASS_CARD} p-4`}>
         <div className="flex flex-wrap gap-3">
+          <div>
+            <label className={`${T_LABEL} mb-1 block`}>City</label>
+            <select className={SELECT_CLASS} value={city} onChange={(e) => setCity(e.target.value)}>
+              <option value="manila">Manila</option>
+              <option value="dubai">Dubai</option>
+            </select>
+          </div>
           <div>
             <label className={`${T_LABEL} mb-1 block`}>Approver Name</label>
             <input className={INPUT_CLASS} value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Name" />
@@ -353,7 +392,7 @@ export default function ProcurementCatalogPage() {
                       <td className="px-3 py-2 text-zinc-300">{r.supplier_name || "—"}</td>
                       <td className="px-3 py-2 text-zinc-400">{r.unit || "—"}</td>
                       <td className="px-3 py-2 text-zinc-300">
-                        {r.unit_price > 0 ? `₱${r.unit_price.toLocaleString()}` : "—"}
+                        {r.unit_price > 0 ? `${city === "dubai" ? "AED" : "₱"}${r.unit_price.toLocaleString()}` : "—"}
                       </td>
                       <td className="px-3 py-2 text-zinc-400">{r.min_stock_qty || "—"}</td>
                       <td className="px-3 py-2 text-zinc-400">{r.package_spec || "—"}</td>
@@ -393,11 +432,11 @@ export default function ProcurementCatalogPage() {
         </div>
       )}
 
-      {/* Edit Modal */}
-      {editRow && (
+      {/* Edit / Add Modal */}
+      {editRow !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg rounded-2xl bg-zinc-900 border border-white/10 p-6 space-y-4">
-            <h2 className={T_CARD_TITLE}>Edit Catalog Item</h2>
+            <h2 className={T_CARD_TITLE}>{editForm.id ? "Edit Catalog Item" : "Add New Catalog Item"}</h2>
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2">
                 <label className={`${T_LABEL} mb-1 block`}>Item Name</label>
@@ -420,7 +459,7 @@ export default function ProcurementCatalogPage() {
                 <input className={INPUT_CLASS} value={editForm.unit ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, unit: e.target.value }))} />
               </div>
               <div>
-                <label className={`${T_LABEL} mb-1 block`}>Unit Price (₱)</label>
+                <label className={`${T_LABEL} mb-1 block`}>Unit Price ({city === "dubai" ? "AED" : "₱"})</label>
                 <input className={INPUT_CLASS} type="number" value={editForm.unit_price ?? 0} onChange={(e) => setEditForm((f) => ({ ...f, unit_price: parseFloat(e.target.value) || 0 }))} />
               </div>
               <div>
@@ -444,9 +483,24 @@ export default function ProcurementCatalogPage() {
                 <label className={`${T_LABEL} mb-1 block`}>Store Scope</label>
                 <select className={SELECT_CLASS} value={editForm.store_scope ?? "ALL"} onChange={(e) => setEditForm((f) => ({ ...f, store_scope: e.target.value }))}>
                   <option value="ALL">ALL</option>
-                  <option value="Paranaque">Paranaque</option>
-                  <option value="Taft">Taft</option>
-                  <option value="Cubao">Cubao</option>
+                  {city === "dubai" ? (
+                    <>
+                      <option value="B Bay">Business Bay</option>
+                      <option value="JLT">JLT</option>
+                      <option value="Arjan">Arjan</option>
+                      <option value="Al Mina">Al Mina</option>
+                      <option value="Al Barsha">Al Barsha</option>
+                      <option value="Central Kitchen">Central Kitchen</option>
+                      <option value="Warehouse">Warehouse</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="Paranaque">Paranaque</option>
+                      <option value="Taft">Taft</option>
+                      <option value="Cubao">Cubao</option>
+                      <option value="Central Kitchen">Central Kitchen</option>
+                    </>
+                  )}
                 </select>
               </div>
               <div className="col-span-2 flex items-center gap-4">
