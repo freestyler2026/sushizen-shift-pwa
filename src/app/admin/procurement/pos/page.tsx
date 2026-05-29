@@ -256,7 +256,7 @@ export default function ProcurementPoPage() {
     } finally {
       setLoading(false);
     }
-  }, [paymentTerms, pin, requestId, requestedBy]);
+  }, [city, deliveryAddress, paymentTerms, pin, requestId, requestedBy]);
 
   const loadDeliveryStatus = async (poId: string) => {
     setBusy(true);
