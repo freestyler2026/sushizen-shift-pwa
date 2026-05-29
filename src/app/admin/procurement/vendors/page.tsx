@@ -24,6 +24,7 @@ import { RefreshCw, AlertCircle, CheckCircle, Building2 } from "lucide-react";
 type VendorRow = {
   id: string;
   vendor_code: string;
+  city: string;
   registered_name: string;
   trade_name: string;
   tin: string;
@@ -45,6 +46,7 @@ type VendorRow = {
 
 const EMPTY_FORM = {
   vendor_code: "",
+  city: "",
   registered_name: "",
   trade_name: "",
   tin: "",
@@ -84,17 +86,20 @@ export default function ProcurementVendorsPage() {
   const [requestedBy, setRequestedBy] = useState(defaultProcurementName());
   const [pin, setPin] = useState(defaultProcurementPin());
   const [statusFilter, setStatusFilter] = useState("");
+  const [cityFilter, setCityFilter] = useState("");
   const [rows, setRows] = useState<VendorRow[]>([]);
-  const [selectedCode, setSelectedCode] = useState("");
+  const [selectedKey, setSelectedKey] = useState("");  // "vendor_code::city"
   const [form, setForm] = useState(EMPTY_FORM);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
+  const rowKey = (row: VendorRow) => `${row.vendor_code}::${row.city}`;
   const selectedRow = useMemo(
-    () => rows.find((row) => row.vendor_code === selectedCode) || null,
-    [rows, selectedCode],
+    () => rows.find((row) => rowKey(row) === selectedKey) || null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rows, selectedKey],
   );
 
   const load = useCallback(async () => {
@@ -103,7 +108,8 @@ export default function ProcurementVendorsPage() {
     try {
       const qs = new URLSearchParams();
       if (statusFilter.trim()) qs.set("status", statusFilter.trim());
-      qs.set("limit", "300");
+      if (cityFilter.trim()) qs.set("city", cityFilter.trim());
+      qs.set("limit", "500");
       const data = await procurementJson<{ rows: VendorRow[] }>(
         `/api/admin/procurement/vendors?${qs.toString()}`,
         { method: "GET" },
@@ -116,14 +122,15 @@ export default function ProcurementVendorsPage() {
     } finally {
       setLoading(false);
     }
-  }, [pin, requestedBy, statusFilter]);
+  }, [pin, requestedBy, statusFilter, cityFilter]);
 
-  const resetForm = () => { setSelectedCode(""); setForm(EMPTY_FORM); };
+  const resetForm = () => { setSelectedKey(""); setForm(EMPTY_FORM); };
 
   const editRow = (row: VendorRow) => {
-    setSelectedCode(row.vendor_code);
+    setSelectedKey(rowKey(row));
     setForm({
       vendor_code: row.vendor_code || "",
+      city: row.city || "",
       registered_name: row.registered_name || "",
       trade_name: row.trade_name || "",
       tin: row.tin || "",
@@ -143,8 +150,8 @@ export default function ProcurementVendorsPage() {
   };
 
   const save = async () => {
-    if (!form.vendor_code.trim() || !form.registered_name.trim()) {
-      setError("Vendor code and registered name are required.");
+    if (!form.vendor_code.trim() || !form.registered_name.trim() || !form.city.trim()) {
+      setError("Vendor code, city, and registered name are required.");
       return;
     }
     setBusy(true);
@@ -181,7 +188,35 @@ export default function ProcurementVendorsPage() {
       );
       setSuccessMsg(selectedRow ? "Vendor updated." : "Vendor created.");
       await load();
-      setSelectedCode(form.vendor_code.trim().toUpperCase());
+      setSelectedKey(`${form.vendor_code.trim().toUpperCase()}::${form.city.trim().toLowerCase()}`);
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteVendor = async () => {
+    if (!selectedRow) return;
+    const label = selectedRow.registered_name || selectedRow.vendor_code;
+    if (!window.confirm(`Delete "${label}"? This cannot be undone.`)) return;
+    setBusy(true);
+    setError("");
+    setSuccessMsg("");
+    try {
+      await procurementJson(
+        "/api/admin/procurement/vendors/delete",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ approver_name: requestedBy, pin, vendor_id: selectedRow.id }),
+        },
+        requestedBy,
+        pin,
+      );
+      setSuccessMsg("Vendor deleted.");
+      resetForm();
+      await load();
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -241,7 +276,7 @@ export default function ProcurementVendorsPage() {
 
       {/* Session + Filter */}
       <div className={`${GLASS_CARD} p-4`}>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Approver Name</label>
             <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Name" className={INPUT_CLASS} />
@@ -249,6 +284,14 @@ export default function ProcurementVendorsPage() {
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>PIN</label>
             <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="••••••••" className={INPUT_CLASS} />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>City</label>
+            <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} className={SELECT_CLASS}>
+              <option value="">All cities</option>
+              <option value="dubai">Dubai</option>
+              <option value="manila">Manila</option>
+            </select>
           </div>
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Status</label>
@@ -295,7 +338,7 @@ export default function ProcurementVendorsPage() {
               onClick={() => editRow(row)}
               className={[
                 "w-full rounded-2xl border p-4 text-left transition-all",
-                selectedCode === row.vendor_code
+                rowKey(row) === selectedKey
                   ? "border-violet-500/50 bg-violet-500/10"
                   : "border-white/8 bg-white/4 hover:border-violet-500/30 hover:bg-violet-500/8",
               ].join(" ")}
@@ -303,6 +346,9 @@ export default function ProcurementVendorsPage() {
               <div className="flex flex-wrap items-center gap-2">
                 {statusBadge(row.status)}
                 {riskBadge(row.risk_level)}
+                {row.city && (
+                  <span className={BADGE_INFO}>{row.city.charAt(0).toUpperCase() + row.city.slice(1)}</span>
+                )}
                 <span className="font-mono text-xs text-zinc-500">{row.vendor_code}</span>
               </div>
               <p className="mt-1.5 text-sm font-medium text-white">{row.registered_name}</p>
@@ -311,6 +357,7 @@ export default function ProcurementVendorsPage() {
               )}
               <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-zinc-500">
                 {row.payment_terms && <span>Terms: {row.payment_terms}</span>}
+                {row.email && <span className="text-violet-400">✉ {row.email}</span>}
                 {row.bank_name && <span>Bank: {row.bank_name}</span>}
                 <span>BIR: {row.bir_registered ? "✓" : "✗"}</span>
                 <span>Updated: {String(row.updated_at || "").slice(0, 10)}</span>
@@ -330,9 +377,19 @@ export default function ProcurementVendorsPage() {
           </div>
 
           <div className="space-y-3">
-            <div>
-              <label className={`${T_LABEL} mb-1.5 block`}>Vendor Code *</label>
-              <input value={form.vendor_code} onChange={(e) => setForm((p) => ({ ...p, vendor_code: e.target.value }))} placeholder="e.g. VENDOR001" className={INPUT_CLASS} />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={`${T_LABEL} mb-1.5 block`}>Vendor Code *</label>
+                <input value={form.vendor_code} onChange={(e) => setForm((p) => ({ ...p, vendor_code: e.target.value }))} placeholder="e.g. VENDOR001" className={INPUT_CLASS} />
+              </div>
+              <div>
+                <label className={`${T_LABEL} mb-1.5 block`}>City *</label>
+                <select value={form.city} onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))} className={SELECT_CLASS}>
+                  <option value="">Select city</option>
+                  <option value="dubai">Dubai</option>
+                  <option value="manila">Manila</option>
+                </select>
+              </div>
             </div>
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Registered Name *</label>
@@ -412,14 +469,26 @@ export default function ProcurementVendorsPage() {
               <label className={`${T_LABEL} mb-1.5 block`}>Notes / Watchlist Memo</label>
               <textarea value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} placeholder="Context, watchlist flags, special terms…" className={`${TEXTAREA_CLASS} min-h-16`} />
             </div>
-            <button
-              type="button"
-              onClick={() => void save()}
-              disabled={busy}
-              className={`${PRIMARY_BUTTON} w-full flex items-center justify-center gap-2`}
-            >
-              {busy ? <><RefreshCw className="h-4 w-4 animate-spin" />Saving…</> : (selectedRow ? "Update Vendor" : "Create Vendor")}
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => void save()}
+                disabled={busy}
+                className={`${PRIMARY_BUTTON} flex-1 flex items-center justify-center gap-2`}
+              >
+                {busy ? <><RefreshCw className="h-4 w-4 animate-spin" />Saving…</> : (selectedRow ? "Update Vendor" : "Create Vendor")}
+              </button>
+              {selectedRow && (
+                <button
+                  type="button"
+                  onClick={() => void deleteVendor()}
+                  disabled={busy}
+                  className="rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-900/30 transition-colors disabled:opacity-50"
+                >
+                  Delete
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
