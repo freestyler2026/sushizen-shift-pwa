@@ -5936,19 +5936,33 @@ export default function CostCalculationPage() {
                     ) : (
                       <ul className="space-y-1">
                         {ingredientUsages.map((u) => (
-                          <li key={`${u.id}-${u.ref_type}`} className="flex items-start gap-2 text-xs">
-                            <span className={[
-                              "mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase",
-                              u.item_type === "processed"
-                                ? "bg-violet-500/15 text-violet-300"
-                                : u.item_type === "product"
-                                  ? "bg-emerald-500/15 text-emerald-300"
-                                  : "bg-zinc-500/15 text-zinc-400",
-                            ].join(" ")}>
-                              {u.item_type === "processed" ? "加工" : u.item_type === "product" ? "商品" : u.item_type}
-                            </span>
-                            <span className="text-zinc-300">{u.name}</span>
-                            {u.category ? <span className="text-zinc-600">· {u.category}</span> : null}
+                          <li key={`${u.id}-${u.ref_type}`}>
+                            <button
+                              type="button"
+                              className="flex w-full items-start gap-2 rounded px-1 py-0.5 text-left text-xs hover:bg-white/5 transition-colors"
+                              onClick={() => {
+                                setActiveSection(u.item_type === "processed" ? "processed" : "product");
+                                setSelectedIngredientDetail(null);
+                                setHighlightedIngredientId(null);
+                                void loadMasterDetail(String(u.id));
+                              }}
+                            >
+                              <span className={[
+                                "mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase",
+                                u.item_type === "processed"
+                                  ? "bg-violet-500/15 text-violet-300"
+                                  : u.item_type === "product"
+                                    ? "bg-emerald-500/15 text-emerald-300"
+                                    : "bg-zinc-500/15 text-zinc-400",
+                              ].join(" ")}>
+                                {u.item_type === "processed" ? "加工" : u.item_type === "product" ? "商品" : u.item_type}
+                              </span>
+                              <span className={u.is_active === false ? "text-zinc-500 line-through" : "text-zinc-300 underline decoration-zinc-600 underline-offset-2"}>{u.name}</span>
+                              {u.is_active === false && (
+                                <span className="shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold uppercase bg-zinc-700/60 text-zinc-500">非表示</span>
+                              )}
+                              {u.category ? <span className="text-zinc-600">· {u.category}</span> : null}
+                            </button>
                           </li>
                         ))}
                       </ul>
