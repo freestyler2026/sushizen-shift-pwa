@@ -183,7 +183,8 @@ export default function DubaiMonthlySummaryTable({
   const maxNet = useMemo(() => Math.max(...goodRows.map((r) => r.net), 1), [goodRows]);
   const suspiciousCount = useMemo(() => (rows || []).filter((r) => r.suspicious).length, [rows]);
 
-  if (!canLoad) return null;
+  // Never return null — always render the section so it's visible in the DOM.
+  // If auth isn't ready, show a waiting state instead of hiding entirely.
 
   return (
     <div className="mt-6 border-t border-white/8 pt-6">
@@ -213,7 +214,9 @@ export default function DubaiMonthlySummaryTable({
         </button>
       </div>
 
-      {loading && !rows ? (
+      {!canLoad ? (
+        <p className="text-sm text-neutral-500">Complete Security (MFA) and enter approver + PIN to load.</p>
+      ) : loading && !rows ? (
         <div className="flex items-center justify-center gap-3 py-10 text-neutral-500">
           <Spinner size="md" />
           <span className="text-sm">Loading monthly data…</span>
