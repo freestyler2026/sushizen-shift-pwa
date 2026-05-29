@@ -428,6 +428,9 @@ export function canAccessMenuAdmin(a?: Auth | null): boolean {
 }
 
 export function canAccessCostAdmin(a?: Auth | null): boolean {
+  const x = a ?? getAuth();
+  const role = (x?.role || "").toUpperCase();
+  if (role === "ADMIN" || role === "HQ") return true;
   return hasAnyPermission(["channel.admin.cost_calculation.view", "channel.admin.cost_calculation.write", "cost.read", "cost.write"], a);
 }
 
