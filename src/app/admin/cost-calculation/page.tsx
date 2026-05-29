@@ -839,6 +839,8 @@ export default function CostCalculationPage() {
   const [ingredientDetailSaveError, setIngredientDetailSaveError] = useState("");
   const [ingredientDetailSaving, setIngredientDetailSaving] = useState(false);
   const [ingredientDetailDeleting, setIngredientDetailDeleting] = useState(false);
+  const [ingredientUsages, setIngredientUsages] = useState<Array<{ id: number; name: string; item_type: string; category: string; is_active: boolean; ref_type: string }>>([]);
+  const [ingredientUsagesLoading, setIngredientUsagesLoading] = useState(false);
   const [expandedMenuItemId, setExpandedMenuItemId] = useState<string | null>(null);
   const [menuDetails, setMenuDetails] = useState<Record<string, MenuItemDetail>>({});
   const [menuDetailLoadingId, setMenuDetailLoadingId] = useState<string | null>(null);
@@ -2229,6 +2231,18 @@ export default function CostCalculationPage() {
   const openIngredientDetail = useCallback(async (ingredient: IngredientRow) => {
     setHistoryLoading(true);
     setIngredientDetailSaveError("");
+    setIngredientUsages([]);
+    setIngredientUsagesLoading(true);
+    // Fetch usages in background (non-blocking)
+    costJson<{ usages?: Array<{ id: number; name: string; item_type: string; category: string; is_active: boolean; ref_type: string }> }>(
+      `/api/cost/ingredients/${ingredient.id}/usages`,
+    ).then((res) => {
+      setIngredientUsages(Array.isArray(res?.usages) ? res.usages : []);
+    }).catch(() => {
+      setIngredientUsages([]);
+    }).finally(() => {
+      setIngredientUsagesLoading(false);
+    });
     try {
       const res = await costJson<{ item?: IngredientDetail }>(
         `/api/cost/ingredients/${ingredient.id}`,
@@ -5906,6 +5920,39 @@ export default function CostCalculationPage() {
                       placeholder="67 AED/kg with 1.15 buffer"
                       className="w-full rounded border border-white/15 bg-white/5 px-2 py-1.5 text-sm text-white focus:border-violet-500/50 focus:outline-none"
                     />
+                  </div>
+                  {/* WHERE USED */}
+                  <div className="rounded border border-white/8 bg-white/3 p-3">
+                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                      Where Used
+                      {!ingredientUsagesLoading && (
+                        <span className="ml-1.5 text-zinc-600">({ingredientUsages.length})</span>
+                      )}
+                    </p>
+                    {ingredientUsagesLoading ? (
+                      <p className="text-xs text-zinc-600">Loading…</p>
+                    ) : ingredientUsages.length === 0 ? (
+                      <p className="text-xs text-zinc-600">Not used in any recipe or product.</p>
+                    ) : (
+                      <ul className="space-y-1">
+                        {ingredientUsages.map((u) => (
+                          <li key={`${u.id}-${u.ref_type}`} className="flex items-start gap-2 text-xs">
+                            <span className={[
+                              "mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase",
+                              u.item_type === "processed"
+                                ? "bg-violet-500/15 text-violet-300"
+                                : u.item_type === "product"
+                                  ? "bg-emerald-500/15 text-emerald-300"
+                                  : "bg-zinc-500/15 text-zinc-400",
+                            ].join(" ")}>
+                              {u.item_type === "processed" ? "加工" : u.item_type === "product" ? "商品" : u.item_type}
+                            </span>
+                            <span className="text-zinc-300">{u.name}</span>
+                            {u.category ? <span className="text-zinc-600">· {u.category}</span> : null}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                   {ingredientDetailSaveError ? (
                     <p className="rounded border border-red-500/20 bg-red-500/10 px-2 py-2 text-xs text-red-300">{ingredientDetailSaveError}</p>
