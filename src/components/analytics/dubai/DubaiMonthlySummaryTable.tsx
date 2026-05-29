@@ -69,15 +69,20 @@ function lastCompleteMonthKey(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+/** Local-timezone YYYY-MM-DD string (avoids UTC shift from toISOString). */
+function localIso(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 /** Returns date range covering the 12 complete months ending at lastCompleteMonthKey. */
 function buildFetchRange(): { from: string; to: string } {
   const d = new Date();
-  // End = last day of previous month
-  const endD = new Date(d.getFullYear(), d.getMonth(), 0);
-  const to = endD.toISOString().slice(0, 10);
-  // Start = first day of (current month - 12 months)
-  const startD = new Date(d.getFullYear(), d.getMonth() - 12, 1);
-  const from = startD.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = d.getMonth(); // 0-indexed current month
+  // End = last day of previous month (month = m, day = 0 means last day of month m-1)
+  const to = localIso(new Date(y, m, 0));
+  // Start = first day of 12 months before current month
+  const from = localIso(new Date(y, m - 12, 1));
   return { from, to };
 }
 
@@ -120,7 +125,7 @@ export default function DubaiMonthlySummaryTable({ approverName, pin, stepUpRead
         date_to: fetchRange.to,
         branch_code: branchCode,
         brand_name: brandName,
-        limit: "2000",
+        limit: "1000",
         approver_name: approverName.trim(),
         pin: pin.trim(),
       });
