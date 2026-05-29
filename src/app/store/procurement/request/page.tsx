@@ -396,10 +396,17 @@ export default function StoreProcurementRequestPage() {
         }
       } catch (e: any) {
         setError(friendlyProcurementError(e));
+        // Even if the catalog-stores API fails, still apply the store preference
+        // so that edit mode can pre-fill the store and trigger loadItemCatalog.
+        if (storeCodePreference?.trim()) {
+          const normalise = (s: string): string =>
+            MANILA_CODE_TO_NAME.get(s.toUpperCase() as Parameters<typeof MANILA_CODE_TO_NAME["get"]>[0]) ?? s;
+          setStoreCode(normalise(storeCodePreference));
+        }
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [city, pin, requestedBy, selectedCatalogCategory, storeCode],
+    [city, pin, requestedBy, selectedCatalogCategory, storeCode, MANILA_CODE_TO_NAME],
   );
 
   const loadItemCatalog = useCallback(
@@ -630,6 +637,12 @@ export default function StoreProcurementRequestPage() {
                 unit: String(it.unit || "").trim(),
                 unit_price: Number(it.unit_price || 0),
               })));
+            }
+            // Eagerly set the store code from the draft so the catalog loads
+            // even if loadCatalogStores' API call later fails.
+            if (reqStore) {
+              const codeMap = new Map(BRANCHES.manila.map((b) => [b.code.toUpperCase(), b.name]));
+              setStoreCode(codeMap.get(reqStore.toUpperCase()) ?? reqStore);
             }
           } catch { /* badge is still shown even on fetch failure */ }
         }
