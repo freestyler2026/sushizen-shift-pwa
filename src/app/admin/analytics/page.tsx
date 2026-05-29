@@ -101,6 +101,7 @@ import { ManilaGrabOfflineTab } from "@/components/analytics/ManilaGrabOfflineTa
 import { ManilaOverallRatingsTab } from "@/components/analytics/ManilaOverallRatingsTab";
 import NumberOfOrdersTab from "@/components/analytics/dubai/NumberOfOrdersTab";
 import { ManilaOrderCountsTab } from "@/components/analytics/ManilaOrderCountsTab";
+import DubaiMonthlySummaryTable from "@/components/analytics/dubai/DubaiMonthlySummaryTable";
 import { ManilaSalesDataTab } from "@/components/analytics/ManilaSalesDataTab";
 import { ManilaCashierEvaluationTab } from "@/components/analytics/ManilaCashierEvaluationTab";
 import { ManilaCancellationsTab } from "@/components/analytics/ManilaCancellationsTab";
@@ -7138,6 +7139,17 @@ export default function AdminAnalyticsPage() {
                       );
                     })()}
                   </div>
+
+                  {/* Monthly history — Dubai only */}
+                  {salesCity === "dubai" ? (
+                    <DubaiMonthlySummaryTable
+                      approverName={approverName}
+                      pin={pin}
+                      stepUpReady={salesStepUpReady}
+                      branchCode={summaryBranchCode}
+                      brandName={summaryBrandName}
+                    />
+                  ) : null}
                 </div>
               </>
             ) : null}
