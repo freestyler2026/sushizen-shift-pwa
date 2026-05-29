@@ -90,6 +90,8 @@ type CatalogCategory = {
 type SupplierCatalog = {
   supplier: string;
   payment_terms: string;
+  email: string;
+  cc_emails: string;
   category_count: number;
   item_count: number;
   categories: CatalogCategory[];
@@ -217,12 +219,21 @@ export default function ProcurementPoPage() {
       setSupplierDrafts((prev) => {
         const next = { ...prev };
         for (const supplier of suppliers) {
-          next[supplier.supplier] = next[supplier.supplier] || {
-            recipient_email: "",
-            cc_raw: "",
-            message: "",
-            send_email: true,
-          };
+          if (!next[supplier.supplier]) {
+            next[supplier.supplier] = {
+              recipient_email: supplier.email || "",
+              cc_raw: supplier.cc_emails || "",
+              message: "",
+              send_email: true,
+            };
+          } else if (!next[supplier.supplier].recipient_email && supplier.email) {
+            // Already exists but email was blank — back-fill from master
+            next[supplier.supplier] = {
+              ...next[supplier.supplier],
+              recipient_email: supplier.email,
+              cc_raw: next[supplier.supplier].cc_raw || supplier.cc_emails || "",
+            };
+          }
         }
         return next;
       });

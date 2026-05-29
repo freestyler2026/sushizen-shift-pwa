@@ -36,6 +36,9 @@ type VendorRow = {
   risk_level: string;
   status: string;
   notes: string;
+  email: string;
+  cc_emails: string;
+  catalog_aliases: string;
   created_at: string;
   updated_at: string;
 };
@@ -54,6 +57,9 @@ const EMPTY_FORM = {
   risk_level: "GREEN",
   status: "ACTIVE",
   notes: "",
+  email: "",
+  cc_emails: "",
+  catalog_aliases: "",
 };
 
 function statusBadge(status: string) {
@@ -130,6 +136,9 @@ export default function ProcurementVendorsPage() {
       risk_level: row.risk_level || "GREEN",
       status: row.status || "ACTIVE",
       notes: row.notes || "",
+      email: row.email || "",
+      cc_emails: row.cc_emails || "",
+      catalog_aliases: row.catalog_aliases || "",
     });
   };
 
@@ -386,6 +395,18 @@ export default function ProcurementVendorsPage() {
                   BIR Registered
                 </label>
               </div>
+            </div>
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Supplier Email</label>
+              <input type="email" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} placeholder="orders@supplier.com" className={INPUT_CLASS} />
+            </div>
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>CC Emails <span className="text-zinc-400 font-normal">(comma-separated)</span></label>
+              <input type="text" value={form.cc_emails} onChange={(e) => setForm((p) => ({ ...p, cc_emails: e.target.value }))} placeholder="ap@supplier.com, manager@supplier.com" className={INPUT_CLASS} />
+            </div>
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Catalog Aliases <span className="text-zinc-400 font-normal">(comma-separated, for auto-matching)</span></label>
+              <input type="text" value={form.catalog_aliases} onChange={(e) => setForm((p) => ({ ...p, catalog_aliases: e.target.value }))} placeholder="Alt Supplier Name, Another Name" className={INPUT_CLASS} />
             </div>
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Notes / Watchlist Memo</label>
