@@ -5,6 +5,7 @@ import { getAuth, getAuthHeaders, refreshAuthFromApi, tryRefreshAccessToken } fr
 import { GLASS_CARD, SECONDARY_BUTTON, T_CAPTION, T_SECTION } from "@/lib/ui-tokens";
 import { Spinner } from "@/components/ui/Spinner";
 import { ShoppingBag } from "lucide-react";
+import MonthPicker from "@/components/MonthPicker";
 
 function getApiBase() {
   if (process.env.NODE_ENV !== "production") return "http://127.0.0.1:8000";
@@ -59,6 +60,51 @@ function formatPhp(n: number): string {
   return new Intl.NumberFormat("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(n));
 }
 
+const MONTH_NAMES_DISP = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function monthDisplayLabel(mk: string): string {
+  const parts = mk.split("-").map(Number);
+  const y = parts[0]; const m = parts[1];
+  if (!y || !m) return mk;
+  return `${MONTH_NAMES_DISP[m - 1]} ${y}`;
+}
+
+function monthToRange(mk: string): { from: string; to: string } {
+  const parts = mk.split("-").map(Number);
+  const y = parts[0]; const m = parts[1];
+  const from = `${y}-${String(m).padStart(2, "0")}-01`;
+  const lastDay = new Date(y, m, 0).getDate();
+  const to = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  return { from, to };
+}
+
+function shiftMonthKey(mk: string, delta: number): string {
+  const parts = mk.split("-").map(Number);
+  const d = new Date(parts[0], parts[1] - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function ManilaComparisonCard({ label, current, previous, prevLabel }: {
+  label: string; current: number; previous: number; prevLabel: string;
+}) {
+  const diff = previous > 0 ? ((current - previous) / previous) * 100 : null;
+  const isUp = diff !== null && diff > 0;
+  const isDown = diff !== null && diff < 0;
+  return (
+    <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-neutral-500">{label}</p>
+      {diff !== null ? (
+        <p className={`text-2xl font-bold ${isUp ? "text-emerald-400" : isDown ? "text-red-400" : "text-neutral-300"}`}>
+          {isUp ? "+" : ""}{diff.toFixed(1)}%
+        </p>
+      ) : (
+        <p className="text-2xl font-bold text-neutral-500">—</p>
+      )}
+      <p className="mt-1 text-xs text-neutral-600">vs {prevLabel}: {previous.toLocaleString()} orders</p>
+    </div>
+  );
+}
+
 type OrderRow = {
   store_name: string;
   transaction_channel: string;
@@ -105,14 +151,25 @@ export function ManilaOrderCountsTab({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [data, setData] = useState<ApiResp | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
+  const [overrideDateFrom, setOverrideDateFrom] = useState<string>("");
+  const [overrideDateTo, setOverrideDateTo] = useState<string>("");
+  const [prevMonthOrders, setPrevMonthOrders] = useState<number | null>(null);
+  const [prevYearOrders, setPrevYearOrders] = useState<number | null>(null);
+  const [compLoading, setCompLoading] = useState(false);
+
+  const effectiveDateFrom = selectedMonth && overrideDateFrom ? overrideDateFrom : dateFrom;
+  const effectiveDateTo = selectedMonth && overrideDateTo ? overrideDateTo : dateTo;
 
   const canLoad = Boolean(approverName.trim() && pin.trim() && stepUpReady);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (overFrom?: string, overTo?: string) => {
     if (!canLoad) { setError("Enter approver name, PIN, and complete Security (MFA) for Manila analytics."); return; }
     setLoading(true); setError("");
     try {
-      const qs = new URLSearchParams({ approver_name: approverName.trim(), pin: pin.trim(), date_from: dateFrom, date_to: dateTo });
+      const df = overFrom !== undefined ? overFrom : effectiveDateFrom;
+      const dt = overTo !== undefined ? overTo : effectiveDateTo;
+      const qs = new URLSearchParams({ approver_name: approverName.trim(), pin: pin.trim(), date_from: df, date_to: dt });
       const res = await apiGet<ApiResp>(`/api/admin/analytics/manila/order-counts?${qs.toString()}`);
       setData(res);
     } catch (e) {
@@ -121,9 +178,45 @@ export function ManilaOrderCountsTab({
     } finally {
       setLoading(false);
     }
-  }, [approverName, pin, canLoad, dateFrom, dateTo]);
+  }, [approverName, pin, canLoad, effectiveDateFrom, effectiveDateTo]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const fetchTotalForRange = useCallback(async (from: string, to: string): Promise<number> => {
+    const qs = new URLSearchParams({ approver_name: approverName.trim(), pin: pin.trim(), date_from: from, date_to: to });
+    const res = await apiGet<ApiResp>(`/api/admin/analytics/manila/order-counts?${qs.toString()}`);
+    return res.grand_total_transactions ?? 0;
+  }, [approverName, pin]);
+
+  const fetchComparisons = useCallback(async (mk: string) => {
+    if (!mk) return;
+    setCompLoading(true);
+    setPrevMonthOrders(null);
+    setPrevYearOrders(null);
+    try {
+      const prevMk = shiftMonthKey(mk, -1);
+      const prevYearMk = shiftMonthKey(mk, -12);
+      const [prev, prevYear] = await Promise.all([
+        fetchTotalForRange(monthToRange(prevMk).from, monthToRange(prevMk).to),
+        fetchTotalForRange(monthToRange(prevYearMk).from, monthToRange(prevYearMk).to),
+      ]);
+      setPrevMonthOrders(prev);
+      setPrevYearOrders(prevYear);
+    } catch {
+      /* ignore */
+    } finally {
+      setCompLoading(false);
+    }
+  }, [fetchTotalForRange]);
+
+  const handleMonthSelect = useCallback((mk: string) => {
+    const range = monthToRange(mk);
+    setSelectedMonth(mk);
+    setOverrideDateFrom(range.from);
+    setOverrideDateTo(range.to);
+    void load(range.from, range.to);
+    void fetchComparisons(mk);
+  }, [load, fetchComparisons]);
 
   // Group items by store
   const storeGroups = useMemo(() => {
@@ -176,9 +269,23 @@ export function ManilaOrderCountsTab({
             <p className={T_CAPTION}>Channel × store transaction counts from manila_daily_sales.</p>
           </div>
         </div>
-        <button type="button" onClick={() => void load()} disabled={loading || !canLoad} className={SECONDARY_BUTTON}>
-          {loading ? <Spinner size="sm" /> : "Refresh"}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="w-48">
+            <MonthPicker value={selectedMonth} onChange={handleMonthSelect} />
+          </div>
+          {selectedMonth ? (
+            <button
+              type="button"
+              onClick={() => { setSelectedMonth(""); setOverrideDateFrom(""); setOverrideDateTo(""); setPrevMonthOrders(null); setPrevYearOrders(null); }}
+              className="text-xs text-neutral-500 hover:text-neutral-300 transition-colors"
+            >
+              Clear
+            </button>
+          ) : null}
+          <button type="button" onClick={() => void load()} disabled={loading || !canLoad} className={SECONDARY_BUTTON}>
+            {loading ? <Spinner size="sm" /> : "Refresh"}
+          </button>
+        </div>
       </div>
 
       <div className="p-5">
@@ -198,6 +305,33 @@ export function ManilaOrderCountsTab({
               <div className="mt-1 text-4xl font-bold text-white">{formatInt(grandTotal)}</div>
               <div className="mt-0.5 text-xs text-neutral-500">transactions across all stores</div>
             </div>
+
+            {/* Month comparison cards */}
+            {selectedMonth && compLoading ? (
+              <div className="flex items-center gap-2 text-xs text-neutral-500">
+                <Spinner size="sm" />
+                <span>Loading comparisons…</span>
+              </div>
+            ) : selectedMonth && grandTotal > 0 && (prevMonthOrders !== null || prevYearOrders !== null) ? (
+              <div className="grid grid-cols-2 gap-3">
+                {prevMonthOrders !== null ? (
+                  <ManilaComparisonCard
+                    label="前月比 (MoM)"
+                    current={grandTotal}
+                    previous={prevMonthOrders}
+                    prevLabel={monthDisplayLabel(shiftMonthKey(selectedMonth, -1))}
+                  />
+                ) : null}
+                {prevYearOrders !== null ? (
+                  <ManilaComparisonCard
+                    label="前年同期間比 (YoY)"
+                    current={grandTotal}
+                    previous={prevYearOrders}
+                    prevLabel={monthDisplayLabel(shiftMonthKey(selectedMonth, -12))}
+                  />
+                ) : null}
+              </div>
+            ) : null}
 
             {/* Store breakdown cards */}
             <div className="grid gap-3 sm:grid-cols-3">

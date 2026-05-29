@@ -17,6 +17,7 @@ import { MapPin, Package, RefreshCw, ShoppingBag, TrendingUp, Trophy } from "luc
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { BADGE_INFO, SECONDARY_BUTTON } from "@/lib/ui-tokens";
 import { Spinner } from "@/components/ui/Spinner";
+import MonthPicker from "@/components/MonthPicker";
 
 const BRANDS = ["Sushi Zen", "Ramen Zen", "All Veggie Sushi", "J-Deli"] as const;
 const ALL_BRAND_TABS = ["Overall", ...BRANDS] as const;
@@ -282,6 +283,51 @@ function defaultWideRange() {
   return { from: "2025-10-01", to: to.toISOString().slice(0, 10) };
 }
 
+const MONTH_NAMES_DISPLAY = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function monthDisplayLabel(mk: string): string {
+  const parts = mk.split("-").map(Number);
+  const y = parts[0]; const m = parts[1];
+  if (!y || !m) return mk;
+  return `${MONTH_NAMES_DISPLAY[m - 1]} ${y}`;
+}
+
+function monthToRange(mk: string): { from: string; to: string } {
+  const parts = mk.split("-").map(Number);
+  const y = parts[0]; const m = parts[1];
+  const from = `${y}-${String(m).padStart(2, "0")}-01`;
+  const lastDay = new Date(y, m, 0).getDate();
+  const to = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  return { from, to };
+}
+
+function shiftMonthKey(mk: string, delta: number): string {
+  const parts = mk.split("-").map(Number);
+  const d = new Date(parts[0], parts[1] - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function ComparisonCard({ label, current, previous, prevLabel }: {
+  label: string; current: number; previous: number; prevLabel: string;
+}) {
+  const diff = previous > 0 ? ((current - previous) / previous) * 100 : null;
+  const isUp = diff !== null && diff > 0;
+  const isDown = diff !== null && diff < 0;
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur-sm">
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-neutral-500">{label}</p>
+      {diff !== null ? (
+        <p className={`text-2xl font-bold ${isUp ? "text-emerald-400" : isDown ? "text-red-400" : "text-neutral-300"}`}>
+          {isUp ? "+" : ""}{diff.toFixed(1)}%
+        </p>
+      ) : (
+        <p className="text-2xl font-bold text-neutral-500">—</p>
+      )}
+      <p className="mt-1 text-xs text-neutral-600">vs {prevLabel}: {previous.toLocaleString()} orders</p>
+    </div>
+  );
+}
+
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
   const h = hex.replace("#", "");
   return {
@@ -304,6 +350,10 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
   const [dateFrom, setDateFrom] = useState(() => externalDateFrom || defaultWideRange().from);
   const [dateTo, setDateTo] = useState(() => externalDateTo || defaultWideRange().to);
   const [activePreset, setActivePreset] = useState<(typeof DATE_PRESETS)[number]["label"] | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
+  const [prevMonthOrders, setPrevMonthOrders] = useState<number | null>(null);
+  const [prevYearOrders, setPrevYearOrders] = useState<number | null>(null);
+  const [compLoading, setCompLoading] = useState(false);
   const [chartMode, setChartMode] = useState<"Total" | "By Aggregator">("Total");
   const [data, setData] = useState<DubaiOrderCountsResp | null>(null);
   const [loading, setLoading] = useState(false);
@@ -380,6 +430,58 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
     if (!canLoad) return;
     void fetchData();
   }, [brand, fetchData, canLoad]);
+
+  const fetchTotalForRange = useCallback(async (from: string, to: string): Promise<number> => {
+    if (brand === "Overall") {
+      const results = await Promise.all(
+        BRANDS.map(async (b) => {
+          const qs = new URLSearchParams({ brand: b, approver_name: approverName.trim(), pin: pin.trim() });
+          if (from) qs.set("date_from", from);
+          if (to) qs.set("date_to", to);
+          const r = await apiGet<DubaiOrderCountsResp>(`/api/admin/analytics/dubai/order-counts?${qs}`);
+          return r.summary?.total_orders ?? 0;
+        })
+      );
+      return results.reduce((s, v) => s + v, 0);
+    } else {
+      const qs = new URLSearchParams({ brand, approver_name: approverName.trim(), pin: pin.trim() });
+      if (from) qs.set("date_from", from);
+      if (to) qs.set("date_to", to);
+      const r = await apiGet<DubaiOrderCountsResp>(`/api/admin/analytics/dubai/order-counts?${qs}`);
+      return r.summary?.total_orders ?? 0;
+    }
+  }, [brand, approverName, pin]);
+
+  const fetchComparisons = useCallback(async (mk: string) => {
+    if (!mk) return;
+    setCompLoading(true);
+    setPrevMonthOrders(null);
+    setPrevYearOrders(null);
+    try {
+      const prevMk = shiftMonthKey(mk, -1);
+      const prevYearMk = shiftMonthKey(mk, -12);
+      const [prev, prevYear] = await Promise.all([
+        fetchTotalForRange(monthToRange(prevMk).from, monthToRange(prevMk).to),
+        fetchTotalForRange(monthToRange(prevYearMk).from, monthToRange(prevYearMk).to),
+      ]);
+      setPrevMonthOrders(prev);
+      setPrevYearOrders(prevYear);
+    } catch {
+      /* ignore comparison errors */
+    } finally {
+      setCompLoading(false);
+    }
+  }, [fetchTotalForRange]);
+
+  const handleMonthSelect = useCallback((mk: string) => {
+    setSelectedMonth(mk);
+    setActivePreset(null);
+    const range = monthToRange(mk);
+    setDateFrom(range.from);
+    setDateTo(range.to);
+    void fetchData({ from: range.from, to: range.to });
+    void fetchComparisons(mk);
+  }, [fetchData, fetchComparisons]);
 
   // Filter fetched data by the page-level Store selection
   const displayData = useMemo(() => {
@@ -486,6 +588,9 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
 
   const applyPreset = (p: (typeof DATE_PRESETS)[number]) => {
     setActivePreset(p.label);
+    setSelectedMonth("");
+    setPrevMonthOrders(null);
+    setPrevYearOrders(null);
     if (p.days === null) {
       setDateFrom("");
       setDateTo("");
@@ -652,6 +757,9 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
               onChange={(e) => {
                 setDateFrom(e.target.value);
                 setActivePreset(null);
+                setSelectedMonth("");
+                setPrevMonthOrders(null);
+                setPrevYearOrders(null);
               }}
               className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-neutral-200 transition-colors focus:border-indigo-500 focus:outline-none"
             />
@@ -662,6 +770,9 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
               onChange={(e) => {
                 setDateTo(e.target.value);
                 setActivePreset(null);
+                setSelectedMonth("");
+                setPrevMonthOrders(null);
+                setPrevYearOrders(null);
               }}
               className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-neutral-200 transition-colors focus:border-indigo-500 focus:outline-none"
             />
@@ -674,6 +785,26 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
               Apply
             </button>
           </div>
+        </div>
+
+        {/* Month Quick Select */}
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <label className="text-[10px] uppercase tracking-wide text-neutral-500">Month</label>
+          <div className="w-52">
+            <MonthPicker
+              value={selectedMonth}
+              onChange={handleMonthSelect}
+            />
+          </div>
+          {selectedMonth ? (
+            <button
+              type="button"
+              onClick={() => { setSelectedMonth(""); setPrevMonthOrders(null); setPrevYearOrders(null); }}
+              className="text-xs text-neutral-500 hover:text-neutral-300 transition-colors"
+            >
+              Clear
+            </button>
+          ) : null}
         </div>
 
         {!canLoad ? (
@@ -745,6 +876,33 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
                   </div>
                 ))}
               </div>
+
+              {/* Month comparison cards */}
+              {selectedMonth && compLoading ? (
+                <div className="flex items-center gap-2 text-xs text-neutral-500">
+                  <Spinner size="sm" />
+                  <span>Loading comparisons…</span>
+                </div>
+              ) : selectedMonth && summary && (prevMonthOrders !== null || prevYearOrders !== null) ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {prevMonthOrders !== null ? (
+                    <ComparisonCard
+                      label="前月比 (MoM)"
+                      current={summary.total_orders}
+                      previous={prevMonthOrders}
+                      prevLabel={monthDisplayLabel(shiftMonthKey(selectedMonth, -1))}
+                    />
+                  ) : null}
+                  {prevYearOrders !== null ? (
+                    <ComparisonCard
+                      label="前年同期間比 (YoY)"
+                      current={summary.total_orders}
+                      previous={prevYearOrders}
+                      prevLabel={monthDisplayLabel(shiftMonthKey(selectedMonth, -12))}
+                    />
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
