@@ -200,9 +200,10 @@ export default function StoreProcurementRequestPage() {
     setError("");
     try {
       const activeCity = String(cityOverride || city || "manila").trim().toLowerCase() || "manila";
+      // No requested_by filter — fetch all staff orders for the city so everyone
+      // can see branch-wide request history, not just their own.
       const qs = new URLSearchParams({
         city: activeCity,
-        requested_by: requestedBy.trim(),
         limit: "200",
       });
       const data = await procurementJson<{ rows: ReqRow[] }>(
@@ -211,7 +212,16 @@ export default function StoreProcurementRequestPage() {
         requestedBy,
         pin,
       );
-      setRows(Array.isArray(data?.rows) ? data.rows : []);
+      const allRows = Array.isArray(data?.rows) ? data.rows : [];
+      // Sort: own requests first, then others by date descending
+      const myName = requestedBy.trim().toLowerCase();
+      allRows.sort((a, b) => {
+        const aMine = (a.requested_by || "").toLowerCase() === myName ? 0 : 1;
+        const bMine = (b.requested_by || "").toLowerCase() === myName ? 0 : 1;
+        if (aMine !== bMine) return aMine - bMine;
+        return (b.request_date || "").localeCompare(a.request_date || "");
+      });
+      setRows(allRows);
     } catch (e: any) {
       setError(friendlyProcurementError(e));
     }
@@ -1340,7 +1350,7 @@ export default function StoreProcurementRequestPage() {
           <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Your name" className={FIELD_CLASS} />
           <input type="password" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="PIN" className={FIELD_CLASS} />
           <button type="button" onClick={() => void loadMyRequests()} className={`${SECONDARY_BUTTON} w-full text-sm`}>
-            Refresh My Requests
+            Refresh Requests
           </button>
         </div>
 
@@ -1487,41 +1497,69 @@ export default function StoreProcurementRequestPage() {
       ) : null}
 
       <div className={`${GLASS_PANEL} p-4`}>
-        <div className="text-sm font-medium">My Recent Requests ({cityLabel})</div>
+        <div className="flex items-center justify-between">
+          <div className="text-sm font-medium">Recent Requests ({cityLabel})</div>
+          <div className="text-[11px] text-neutral-500">All staff · own orders shown first</div>
+        </div>
         <div className="mt-3 space-y-2">
-          {rows.map((row) => (
-            <div
-              key={row.id}
-              className={`rounded-xl border p-3 ${
-                row.id === lastCreatedRequestId
-                  ? "border-emerald-700/60 bg-emerald-900/20"
-                  : "border-white/8 bg-black/15"
-              }`}
-            >
-              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-2 text-sm text-neutral-100">
-                  <span>{row.request_no}</span>
-                  {row.id === lastCreatedRequestId ? (
-                    <span className="rounded-full border border-emerald-700/60 bg-emerald-900/30 px-2 py-0.5 text-[10px] text-emerald-200">
-                      Just created
-                    </span>
-                  ) : null}
+          {rows.map((row) => {
+            const myName = requestedBy.trim().toLowerCase();
+            const isOwn = (row.requested_by || "").toLowerCase() === myName;
+            const isDraft = (row.status || "").toUpperCase() === "DRAFT";
+            const isJustCreated = row.id === lastCreatedRequestId;
+            const borderClass = isJustCreated
+              ? "border-emerald-700/60 bg-emerald-900/20"
+              : isOwn
+              ? "border-violet-500/30 bg-violet-900/15"
+              : "border-white/8 bg-black/15";
+            return (
+              <div key={row.id} className={`rounded-xl border p-3 ${borderClass}`}>
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-neutral-100">
+                    <span>{row.request_no}</span>
+                    {isOwn && (
+                      <span className="rounded-full border border-violet-500/40 bg-violet-900/40 px-2 py-0.5 text-[10px] text-violet-300">
+                        Mine
+                      </span>
+                    )}
+                    {isJustCreated && (
+                      <span className="rounded-full border border-emerald-700/60 bg-emerald-900/30 px-2 py-0.5 text-[10px] text-emerald-200">
+                        Just created
+                      </span>
+                    )}
+                    {isDraft && isOwn && (
+                      <span className="rounded-full border border-amber-600/50 bg-amber-900/30 px-2 py-0.5 text-[10px] text-amber-300">
+                        Draft
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="text-xs text-neutral-400">{row.status} | Level {row.current_approval_level || 0}</div>
+                    {isDraft && isOwn && (
+                      <Link
+                        href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}&edit=${encodeURIComponent(row.id)}`}
+                        className="rounded-xl border border-amber-600/40 bg-amber-900/25 px-3 py-1.5 text-xs text-amber-200 transition-all hover:border-amber-500/60 hover:bg-amber-900/40"
+                      >
+                        Continue Draft
+                      </Link>
+                    )}
+                    <Link href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`} className={SMALL_LINK}>
+                      Receiving
+                    </Link>
+                    <Link href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`} className={SMALL_LINK}>
+                      Claim
+                    </Link>
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="text-xs text-neutral-400">{row.status} | Level {row.current_approval_level || 0}</div>
-                  <Link href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`} className={SMALL_LINK}>
-                    Receiving
-                  </Link>
-                  <Link href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.id)}`} className={SMALL_LINK}>
-                    Claim
-                  </Link>
+                <div className="mt-1 flex items-center justify-between text-xs text-neutral-500">
+                  <span>{row.store_code || "-"} | {row.request_date || "-"} | {Number(row.total_amount || 0).toFixed(2)} {currencyCode}</span>
+                  {!isOwn && row.requested_by && (
+                    <span className="text-neutral-600">{row.requested_by}</span>
+                  )}
                 </div>
               </div>
-              <div className="mt-1 text-xs text-neutral-500">
-                {row.store_code || "-"} | {row.request_date || "-"} | {Number(row.total_amount || 0).toFixed(2)} {currencyCode}
-              </div>
-            </div>
-          ))}
+            );
+          })}
           {!rows.length ? <div className="text-sm text-neutral-500">No requests yet.</div> : null}
         </div>
       </div>
