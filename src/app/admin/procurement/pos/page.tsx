@@ -701,7 +701,7 @@ export default function ProcurementPoPage() {
                             const key = itemKey(supplier.supplier, item);
                             const draft = itemDrafts[key] || { enabled: false, qty: String(item.suggested_qty || ""), unit_price: String(item.suggested_unit_price || "") };
                             return (
-                              <div key={key} className="grid grid-cols-1 gap-2 rounded-xl border border-white/6 bg-white/4 p-3 sm:grid-cols-[minmax(0,1.5fr)_100px_110px_minmax(0,1fr)]">
+                              <div key={key} className="grid grid-cols-1 gap-2 rounded-xl border border-white/6 bg-white/4 p-3 sm:grid-cols-[minmax(0,1fr)_90px_120px]">
                                 <label className="inline-flex cursor-pointer items-start gap-2 text-sm text-zinc-200">
                                   <input
                                     type="checkbox"
@@ -716,20 +716,13 @@ export default function ProcurementPoPage() {
                                     </span>
                                   </span>
                                 </label>
-                                <input
-                                  value={draft.qty}
-                                  onChange={(e) => setItemDrafts((prev) => ({ ...prev, [key]: { ...draft, qty: e.target.value } }))}
-                                  placeholder="Qty"
-                                  className={INPUT_CLASS}
-                                />
-                                <input
-                                  value={draft.unit_price}
-                                  onChange={(e) => setItemDrafts((prev) => ({ ...prev, [key]: { ...draft, unit_price: e.target.value } }))}
-                                  placeholder="Unit price"
-                                  className={INPUT_CLASS}
-                                />
-                                <div className="rounded-xl border border-white/6 bg-white/4 px-3 py-2 text-xs text-zinc-400">
-                                  Suggested: {item.suggested_qty || 0} &times; {currency} {money(item.suggested_unit_price || 0)}
+                                <div className="rounded-xl border border-white/8 bg-white/3 px-3 py-2 text-sm text-zinc-300 tabular-nums">
+                                  {item.suggested_qty || 0}
+                                  <span className={`block text-[10px] ${T_CAPTION}`}>qty</span>
+                                </div>
+                                <div className="rounded-xl border border-white/8 bg-white/3 px-3 py-2 text-sm text-zinc-300 tabular-nums">
+                                  {currency} {money(item.suggested_unit_price || 0)}
+                                  <span className={`block text-[10px] ${T_CAPTION}`}>unit price</span>
                                 </div>
                               </div>
                             );
