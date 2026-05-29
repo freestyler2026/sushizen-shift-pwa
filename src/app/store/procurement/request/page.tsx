@@ -130,7 +130,7 @@ export default function StoreProcurementRequestPage() {
   const [catalogStores, setCatalogStores] = useState<string[]>([]);
   const [catalogCategories, setCatalogCategories] = useState<string[]>([]);
   const [selectedCatalogCategory, setSelectedCatalogCategory] = useState(
-    (auth?.city || "manila").toLowerCase() === "dubai" ? "Kitchen Ingredients" : "Warehouse"
+    (auth?.city || "manila").toLowerCase() === "dubai" ? "Kitchen Ingredients" : ""
   );
   const [catalogSuppliers, setCatalogSuppliers] = useState<SupplierCatalog[]>([]);
   const [catalogBusy, setCatalogBusy] = useState(false);
@@ -663,9 +663,9 @@ export default function StoreProcurementRequestPage() {
         setCatalogCategories(DUBAI_CURATED_CATEGORIES);
         setSelectedCatalogCategory(queryCategory || DUBAI_CURATED_CATEGORIES[0]);
       } else {
-        // Ensure Manila always starts with "Warehouse" regardless of auth.city initial state
+        // Ensure Manila always starts with no filter (all suppliers) regardless of auth.city initial state
         // (prevents Dubai users from seeing "Kitchen Ingredients" filter in Manila mode)
-        setSelectedCatalogCategory(queryCategory || "Warehouse");
+        setSelectedCatalogCategory(queryCategory || "");
       }
       if ((refreshed?.staffName || "").trim() && !requestedBy.trim()) {
         setRequestedBy(String(refreshed?.staffName || "").trim());
@@ -908,7 +908,7 @@ export default function StoreProcurementRequestPage() {
               setCity(nextCity);
               setStoreCode(nextCity === "dubai" ? "ALL" : "");
               setCatalogCategories(nextCity === "dubai" ? DUBAI_CURATED_CATEGORIES : []);
-              setSelectedCatalogCategory(nextCity === "dubai" ? "Kitchen Ingredients" : "Warehouse");
+              setSelectedCatalogCategory(nextCity === "dubai" ? "Kitchen Ingredients" : "");
               setCatalogSuppliers([]);
               setItems([]);
               void loadCatalogStores(nextCity);
@@ -1059,7 +1059,7 @@ export default function StoreProcurementRequestPage() {
                   <button
                     key={cat}
                     type="button"
-                    onClick={() => setSelectedCatalogCategory(cat)}
+                    onClick={() => setSelectedCatalogCategory(active ? "" : cat)}
                     className={[
                       "inline-flex items-center gap-2 rounded-xl border px-5 py-3 text-sm font-bold transition-all duration-200 shadow-sm",
                       active ? c.on + " shadow-md" : c.off,
@@ -1782,7 +1782,7 @@ export default function StoreProcurementRequestPage() {
                   setCity(nextCity);
                   setStoreCode(nextCity === "dubai" ? "ALL" : "");
                   setCatalogCategories(nextCity === "dubai" ? DUBAI_CURATED_CATEGORIES : []);
-                  setSelectedCatalogCategory(nextCity === "dubai" ? "Kitchen Ingredients" : "Warehouse");
+                  setSelectedCatalogCategory(nextCity === "dubai" ? "Kitchen Ingredients" : "");
                   setCatalogSuppliers([]);
                   setItems([]);
                   void loadCatalogStores(nextCity);
