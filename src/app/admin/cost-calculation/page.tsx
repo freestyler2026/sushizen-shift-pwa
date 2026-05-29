@@ -5766,7 +5766,8 @@ export default function CostCalculationPage() {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4">
+              <div className="flex-1 overflow-y-auto">
+                <div className="p-4">
                 <div className="mb-4">
                   <p className="mb-3 text-[10px] uppercase tracking-wider text-zinc-500">Supplier Prices</p>
                   {!selectedIngredientDetail.supplier_prices?.length ? (
@@ -6094,6 +6095,7 @@ export default function CostCalculationPage() {
                     </button>
                   </div>
                 </div>
+              </div>
               </div>
             </div>
           </div>
