@@ -652,6 +652,10 @@ export default function StoreProcurementRequestPage() {
       if (initialCity === "dubai") {
         setCatalogCategories(DUBAI_CURATED_CATEGORIES);
         setSelectedCatalogCategory(queryCategory || DUBAI_CURATED_CATEGORIES[0]);
+      } else {
+        // Ensure Manila always starts with "All" regardless of auth.city initial state
+        // (prevents Dubai users from seeing "Kitchen Ingredients" filter in Manila mode)
+        setSelectedCatalogCategory(queryCategory || "All");
       }
       if ((refreshed?.staffName || "").trim() && !requestedBy.trim()) {
         setRequestedBy(String(refreshed?.staffName || "").trim());
@@ -682,7 +686,7 @@ export default function StoreProcurementRequestPage() {
       // Track which edit keys have already been applied so duplicate catalog rows
       // (same item + vendor appearing multiple times in the catalog) only get pre-filled once.
       const usedEditKeys = new Set<string>();
-      return catalogGridItems.map((item) => {
+      const catalogMapped = catalogGridItems.map((item) => {
         const existing = prevMap.get(String(item.row_key || ""));
         if (existing) {
           return {
@@ -708,6 +712,35 @@ export default function StoreProcurementRequestPage() {
         }
         return item;
       });
+
+      // Edit-mode fallback: if some original items were not matched to any catalog row
+      // (catalog empty or item no longer in catalog), inject them as standalone rows
+      // so the user can still view and adjust quantities before re-submitting.
+      const fallbackRows: ReqItem[] = editRequestItems
+        .filter(
+          (it) =>
+            !usedEditKeys.has(`${it.item_name}::${it.vendor_name}`) &&
+            Number(it.qty || 0) > 0,
+        )
+        .map((it, idx) => {
+          const fallbackKey = `edit-fallback::${it.vendor_name}::${it.item_name}::${idx}`;
+          const preserved = prevMap.get(fallbackKey);
+          return {
+            row_key: fallbackKey,
+            item_name: it.item_name,
+            category: "Uncategorized",
+            spec: "",
+            qty: preserved ? Number(preserved.qty ?? it.qty) : Number(it.qty || 0),
+            unit: preserved ? (preserved.unit || it.unit) : (it.unit || ""),
+            unit_price: preserved
+              ? Number(preserved.unit_price ?? it.unit_price)
+              : Number(it.unit_price || 0),
+            vendor_name: it.vendor_name,
+            needed_by_date: preserved ? (preserved.needed_by_date || "") : "",
+          };
+        });
+
+      return fallbackRows.length > 0 ? [...catalogMapped, ...fallbackRows] : catalogMapped;
     });
     setShowSubmitReview(false);
     setReviewMode("");
