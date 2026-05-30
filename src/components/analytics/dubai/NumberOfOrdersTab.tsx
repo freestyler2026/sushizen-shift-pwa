@@ -346,7 +346,7 @@ function heatmapBg(value: number, max: number, brandHex: string): CSSProperties 
 }
 
 export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, externalDateFrom, externalDateTo, externalBranchCode }: Props) {
-  const [brand, setBrand] = useState<BrandTab>("Sushi Zen");
+  const [brand, setBrand] = useState<BrandTab>("Overall");
   const [dateFrom, setDateFrom] = useState(() => externalDateFrom || defaultWideRange().from);
   const [dateTo, setDateTo] = useState(() => externalDateTo || defaultWideRange().to);
   const [activePreset, setActivePreset] = useState<(typeof DATE_PRESETS)[number]["label"] | null>(null);

@@ -84,6 +84,18 @@ function shiftMonthKey(mk: string, delta: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function addDays(isoDate: string, days: number): string {
+  const d = new Date(isoDate);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+const DATE_PRESETS = [
+  { label: "7D",  days: 7 },
+  { label: "30D", days: 30 },
+  { label: "90D", days: 90 },
+] as const;
+
 function ManilaComparisonCard({ label, current, previous, prevLabel }: {
   label: string; current: number; previous: number; prevLabel: string;
 }) {
@@ -152,23 +164,36 @@ export function ManilaOrderCountsTab({
   const [error, setError] = useState("");
   const [data, setData] = useState<ApiResp | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
-  const [overrideDateFrom, setOverrideDateFrom] = useState<string>("");
-  const [overrideDateTo, setOverrideDateTo] = useState<string>("");
+
+  // Local date inputs (independent of parent props after first mount)
+  const [localFrom, setLocalFrom] = useState(dateFrom);
+  const [localTo, setLocalTo] = useState(dateTo);
+  const [activePreset, setActivePreset] = useState<string | null>("30D");
+
   const [prevMonthOrders, setPrevMonthOrders] = useState<number | null>(null);
   const [prevYearOrders, setPrevYearOrders] = useState<number | null>(null);
   const [compLoading, setCompLoading] = useState(false);
 
-  const effectiveDateFrom = selectedMonth && overrideDateFrom ? overrideDateFrom : dateFrom;
-  const effectiveDateTo = selectedMonth && overrideDateTo ? overrideDateTo : dateTo;
+  // Sync local state when parent props change (e.g. city switch)
+  useEffect(() => {
+    setLocalFrom(dateFrom);
+    setLocalTo(dateTo);
+    setSelectedMonth("");
+    setActivePreset("30D");
+  }, [dateFrom, dateTo]);
+
+  // Effective range: month override takes priority over local range
+  const effectiveDateFrom = selectedMonth ? monthToRange(selectedMonth).from : localFrom;
+  const effectiveDateTo   = selectedMonth ? monthToRange(selectedMonth).to   : localTo;
 
   const canLoad = Boolean(approverName.trim() && pin.trim() && stepUpReady);
 
-  const load = useCallback(async (overFrom?: string, overTo?: string) => {
+  const load = useCallback(async (from?: string, to?: string) => {
     if (!canLoad) { setError("Enter approver name, PIN, and complete Security (MFA) for Manila analytics."); return; }
     setLoading(true); setError("");
     try {
-      const df = overFrom !== undefined ? overFrom : effectiveDateFrom;
-      const dt = overTo !== undefined ? overTo : effectiveDateTo;
+      const df = from ?? effectiveDateFrom;
+      const dt = to   ?? effectiveDateTo;
       const qs = new URLSearchParams({ approver_name: approverName.trim(), pin: pin.trim(), date_from: df, date_to: dt });
       const res = await apiGet<ApiResp>(`/api/admin/analytics/manila/order-counts?${qs.toString()}`);
       setData(res);
@@ -210,13 +235,47 @@ export function ManilaOrderCountsTab({
   }, [fetchTotalForRange]);
 
   const handleMonthSelect = useCallback((mk: string) => {
-    const range = monthToRange(mk);
     setSelectedMonth(mk);
-    setOverrideDateFrom(range.from);
-    setOverrideDateTo(range.to);
+    setActivePreset(null);
+    const range = monthToRange(mk);
+    setLocalFrom(range.from);
+    setLocalTo(range.to);
     void load(range.from, range.to);
     void fetchComparisons(mk);
   }, [load, fetchComparisons]);
+
+  const applyPreset = useCallback((label: string, days: number) => {
+    const to = new Date();
+    to.setDate(to.getDate() - 2); // 前々日
+    const from = new Date(to);
+    from.setDate(from.getDate() - (days - 1));
+    const toStr   = to.toISOString().slice(0, 10);
+    const fromStr = from.toISOString().slice(0, 10);
+    setLocalFrom(fromStr);
+    setLocalTo(toStr);
+    setSelectedMonth("");
+    setActivePreset(label);
+    setPrevMonthOrders(null);
+    setPrevYearOrders(null);
+    void load(fromStr, toStr);
+  }, [load]);
+
+  const applyCustomRange = useCallback(() => {
+    if (!localFrom || !localTo) return;
+    setSelectedMonth("");
+    setActivePreset(null);
+    setPrevMonthOrders(null);
+    setPrevYearOrders(null);
+    void load(localFrom, localTo);
+  }, [localFrom, localTo, load]);
+
+  const clearMonth = useCallback(() => {
+    setSelectedMonth("");
+    setPrevMonthOrders(null);
+    setPrevYearOrders(null);
+    // Restore to 30D default
+    applyPreset("30D", 30);
+  }, [applyPreset]);
 
   // Group items by store
   const storeGroups = useMemo(() => {
@@ -227,11 +286,9 @@ export function ManilaOrderCountsTab({
       if (!map.has(label)) map.set(label, []);
       map.get(label)!.push(row);
     }
-    // Sort channels within each store by orders desc
     for (const rows of map.values()) {
       rows.sort((a, b) => (b.total_transactions || 0) - (a.total_transactions || 0));
     }
-    // Sort stores
     return Array.from(map.entries()).sort(([a], [b]) => {
       const ai = STORE_ORDER.indexOf(a);
       const bi = STORE_ORDER.indexOf(b);
@@ -248,7 +305,6 @@ export function ManilaOrderCountsTab({
     return Math.max(...totals, 1);
   }, [data?.store_totals]);
 
-  // Build store total lookup
   const storeTotalMap = useMemo(() => {
     const m = new Map<string, number>();
     for (const st of data?.store_totals || []) {
@@ -257,6 +313,12 @@ export function ManilaOrderCountsTab({
     }
     return m;
   }, [data?.store_totals]);
+
+  const displayDays = useMemo(() => {
+    if (!effectiveDateFrom || !effectiveDateTo) return null;
+    const ms = new Date(effectiveDateTo).getTime() - new Date(effectiveDateFrom).getTime();
+    return Math.round(ms / 86400000) + 1;
+  }, [effectiveDateFrom, effectiveDateTo]);
 
   return (
     <div id="sales-order-counts" className={GLASS_CARD}>
@@ -269,23 +331,74 @@ export function ManilaOrderCountsTab({
             <p className={T_CAPTION}>Channel × store transaction counts from manila_daily_sales.</p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="w-48">
-            <MonthPicker value={selectedMonth} onChange={handleMonthSelect} />
-          </div>
-          {selectedMonth ? (
+        <button type="button" onClick={() => void load()} disabled={loading || !canLoad} className={SECONDARY_BUTTON}>
+          {loading ? <Spinner size="sm" /> : "Refresh"}
+        </button>
+      </div>
+
+      {/* Date controls */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-neutral-800 px-5 py-3">
+        {/* Presets */}
+        <div className="flex items-center gap-1">
+          {DATE_PRESETS.map((p) => (
             <button
+              key={p.label}
               type="button"
-              onClick={() => { setSelectedMonth(""); setOverrideDateFrom(""); setOverrideDateTo(""); setPrevMonthOrders(null); setPrevYearOrders(null); }}
-              className="text-xs text-neutral-500 hover:text-neutral-300 transition-colors"
+              onClick={() => applyPreset(p.label, p.days)}
+              className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                activePreset === p.label
+                  ? "bg-violet-600 text-white"
+                  : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-neutral-200"
+              }`}
             >
-              Clear
+              {p.label}
             </button>
-          ) : null}
-          <button type="button" onClick={() => void load()} disabled={loading || !canLoad} className={SECONDARY_BUTTON}>
-            {loading ? <Spinner size="sm" /> : "Refresh"}
-          </button>
+          ))}
         </div>
+
+        <span className="text-neutral-700">|</span>
+
+        {/* FROM / TO inputs */}
+        <span className="text-xs font-medium text-neutral-500">FROM</span>
+        <input
+          type="date"
+          value={localFrom}
+          max={localTo || undefined}
+          onChange={(e) => { setLocalFrom(e.target.value); setActivePreset(null); setSelectedMonth(""); }}
+          className="rounded border border-neutral-700 bg-neutral-800 px-2 py-1 text-xs text-neutral-200 focus:border-violet-500 focus:outline-none"
+        />
+        <span className="text-xs font-medium text-neutral-500">TO</span>
+        <input
+          type="date"
+          value={localTo}
+          min={localFrom || undefined}
+          onChange={(e) => { setLocalTo(e.target.value); setActivePreset(null); setSelectedMonth(""); }}
+          className="rounded border border-neutral-700 bg-neutral-800 px-2 py-1 text-xs text-neutral-200 focus:border-violet-500 focus:outline-none"
+        />
+        <button
+          type="button"
+          onClick={applyCustomRange}
+          disabled={!localFrom || !localTo}
+          className="rounded bg-violet-600 px-3 py-1 text-xs font-semibold text-white hover:bg-violet-500 disabled:opacity-40 transition-colors"
+        >
+          Apply
+        </button>
+
+        <span className="text-neutral-700">|</span>
+
+        {/* Month picker */}
+        <div className="w-44">
+          <MonthPicker value={selectedMonth} onChange={handleMonthSelect} />
+        </div>
+        {selectedMonth ? (
+          <button
+            type="button"
+            onClick={clearMonth}
+            className="text-xs text-neutral-500 hover:text-neutral-300 transition-colors"
+          >
+            Clear
+          </button>
+        ) : null}
       </div>
 
       <div className="p-5">
@@ -303,7 +416,9 @@ export function ManilaOrderCountsTab({
             <div className="rounded-2xl border border-violet-500/20 bg-violet-500/5 px-5 py-4">
               <div className="text-xs font-semibold uppercase tracking-[0.15em] text-violet-400">Grand Total</div>
               <div className="mt-1 text-4xl font-bold text-white">{formatInt(grandTotal)}</div>
-              <div className="mt-0.5 text-xs text-neutral-500">transactions across all stores</div>
+              <div className="mt-0.5 text-xs text-neutral-500">
+                transactions across all stores{displayDays ? ` · ${displayDays} days` : ""}
+              </div>
             </div>
 
             {/* Month comparison cards */}
@@ -347,11 +462,9 @@ export function ManilaOrderCountsTab({
                       <div className="text-2xl font-bold text-white">{formatInt(storeTotal)}</div>
                       <div className="mb-0.5 text-xs text-neutral-500">{pct.toFixed(1)}%</div>
                     </div>
-                    {/* Store share bar */}
                     <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-neutral-800">
                       <div className="h-full rounded-full bg-violet-500" style={{ width: `${barPct}%` }} />
                     </div>
-                    {/* Channel breakdown */}
                     <div className="mt-3 space-y-1.5">
                       {rows.map((row) => {
                         const cfg = channelConfig(row.transaction_channel);
