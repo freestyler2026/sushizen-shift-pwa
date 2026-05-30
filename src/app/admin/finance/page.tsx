@@ -712,7 +712,7 @@ export default function FinancePage() {
 
   if (!authReady) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-neutral-950">
+      <div className="flex min-h-screen items-center justify-center">
         <Spinner size="lg" />
       </div>
     );
@@ -720,7 +720,7 @@ export default function FinancePage() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-neutral-950 px-4 pb-20 pt-6 text-white">
+    <div className="px-4 pb-20 pt-6 text-white">
       <div className="mx-auto max-w-7xl">
 
         {/* Header */}
