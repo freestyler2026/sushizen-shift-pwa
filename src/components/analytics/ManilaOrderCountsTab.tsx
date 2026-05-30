@@ -173,6 +173,17 @@ type OrderRow = {
   net_sales?: number;
 };
 
+type MonthHistoryRow = {
+  month_key: string;
+  label: string;
+  orders: number;
+  net_sales: number;
+  days: number;
+  avg_net_per_order: number;
+  mom_orders: number | null;
+  mom_net_sales: number | null;
+};
+
 type ApiResp = {
   ok: boolean;
   items: OrderRow[];
@@ -216,6 +227,9 @@ export function ManilaOrderCountsTab({
   const [prevData, setPrevData] = useState<ApiResp | null>(null);
   const [prevLabel, setPrevLabel] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<string>("");
+
+  const [historyRows, setHistoryRows] = useState<MonthHistoryRow[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   // Local date inputs
   const [localFrom, setLocalFrom] = useState(dateFrom);
@@ -263,6 +277,24 @@ export function ManilaOrderCountsTab({
   }, [canLoad, effectiveDateFrom, effectiveDateTo, fetchRange]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const loadHistory = useCallback(async () => {
+    if (!canLoad) return;
+    setHistoryLoading(true);
+    try {
+      const qs = new URLSearchParams({ approver_name: approverName.trim(), pin: pin.trim(), months: "12" });
+      const resp = await apiGet<{ ok: boolean; months: MonthHistoryRow[] }>(
+        `/api/admin/analytics/manila/monthly-history?${qs.toString()}`
+      );
+      setHistoryRows(resp.months || []);
+    } catch {
+      setHistoryRows([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [canLoad, approverName, pin]);
+
+  useEffect(() => { void loadHistory(); }, [loadHistory]);
 
   const handleMonthSelect = useCallback((mk: string) => {
     const range = monthToRange(mk);
@@ -562,6 +594,86 @@ export function ManilaOrderCountsTab({
           </div>
         )}
       </div>
+
+      {/* Monthly History — always shown when auth ready */}
+      {canLoad ? (
+        <div className="border-t border-neutral-800 px-5 pb-6 pt-5">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-neutral-400">Monthly History — Last 12 Complete Months</p>
+              <p className="text-[10px] text-neutral-600 mt-0.5">Orders + net sales from manila_daily_sales · complete months only</p>
+            </div>
+            {historyLoading ? <Spinner size="sm" /> : null}
+          </div>
+          {historyRows.length > 0 ? (
+            <div className="overflow-x-auto rounded-xl border border-neutral-800">
+              <table className="min-w-full text-sm">
+                <thead className="bg-neutral-900/80">
+                  <tr>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-neutral-500">Month</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">Net Sales (PHP)</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">MoM</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">Orders</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">MoM (orders)</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">Avg/Order</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500">Days</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold uppercase tracking-wider text-neutral-500 w-24">Bar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    const maxSales = Math.max(...historyRows.map(r => r.net_sales), 1);
+                    return historyRows.map((row) => {
+                      const barW = Math.round((row.net_sales / maxSales) * 100);
+                      const momSales = row.mom_net_sales;
+                      const momOrd   = row.mom_orders;
+                      const momCell = (v: number | null) => {
+                        if (v === null) return <span className="text-neutral-600">—</span>;
+                        const cls = v > 0 ? "text-emerald-400" : v < 0 ? "text-red-400" : "text-neutral-400";
+                        return (
+                          <span className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            v > 0 ? "bg-emerald-500/10" : v < 0 ? "bg-red-500/10" : "bg-neutral-800"
+                          } ${cls}`}>
+                            {v > 0 ? "↑" : v < 0 ? "↓" : ""}{v > 0 ? "+" : ""}{v.toFixed(1)}%
+                          </span>
+                        );
+                      };
+                      return (
+                        <tr key={row.month_key} className="border-t border-neutral-800/60 hover:bg-neutral-800/20 transition-colors">
+                          <td className="px-4 py-2.5 font-medium text-neutral-200">{row.label}</td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-neutral-100 font-semibold">
+                            {formatPhp(row.net_sales)}
+                          </td>
+                          <td className="px-4 py-2.5 text-right">
+                            {momCell(momSales)}
+                          </td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-neutral-300">
+                            {formatInt(row.orders)}
+                          </td>
+                          <td className="px-4 py-2.5 text-right">
+                            {momCell(momOrd)}
+                          </td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-neutral-400">
+                            {formatPhp(row.avg_net_per_order)}
+                          </td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-neutral-500">{row.days}</td>
+                          <td className="px-4 py-2.5">
+                            <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-800">
+                              <div className="h-full rounded-full bg-violet-500" style={{ width: `${barW}%` }} />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    });
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          ) : historyLoading ? null : (
+            <p className="text-xs text-neutral-600">No complete-month data found.</p>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
