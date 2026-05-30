@@ -31,7 +31,12 @@ import MonthPicker from "@/components/MonthPicker";
 import { fmtNum, fmtNumTitle } from "@/lib/formatters";
 import { FlashValue } from "@/components/ui/FlashValue";
 import { Spinner } from "@/components/ui/Spinner";
-import { TABLE_HEADER, TABLE_ROW, TABLE_CELL } from "@/lib/ui-tokens";
+import {
+  GLASS_CARD, KPI_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON,
+  TAB_CONTAINER, TAB_ACTIVE, TAB_INACTIVE,
+  INPUT_CLASS, SELECT_CLASS,
+  TABLE_HEADER, TABLE_ROW, TABLE_CELL,
+} from "@/lib/ui-tokens";
 
 // ─── API helpers ─────────────────────────────────────────────────────────────
 
@@ -747,7 +752,7 @@ export default function FinancePage() {
                   placeholder="Session PIN"
                   value={pin}
                   onChange={(e) => setPin(e.target.value)}
-                  className="w-36 rounded-xl border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm text-white placeholder:text-neutral-600 outline-none focus:border-violet-500/50"
+                  className="w-36 rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
                 />
                 <button
                   type="button"
@@ -781,12 +786,12 @@ export default function FinancePage() {
         )}
 
         {/* Controls */}
-        <div className="mb-4 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+        <div className={`mb-4 ${GLASS_CARD} p-5`}>
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[200px] flex-1 text-sm font-semibold">Management P&amp;L (Target-based)</div>
             <div className="w-full sm:w-auto">
               <div className="mb-1 text-xs text-neutral-400">City</div>
-              <select value={city} onChange={(e) => setCity(e.target.value)} className="w-full min-w-[180px] rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white">
+              <select value={city} onChange={(e) => setCity(e.target.value)} className={`${SELECT_CLASS} min-w-[180px]`}>
                 <option value="dubai">Dubai</option>
                 <option value="manila">Manila</option>
               </select>
@@ -797,7 +802,7 @@ export default function FinancePage() {
                 type="text"
                 value={approverName}
                 onChange={(e) => setApproverName(e.target.value)}
-                className="w-full min-w-[180px] rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
+                className={`${INPUT_CLASS} min-w-[180px]`}
                 placeholder="Your name"
               />
             </div>
@@ -812,7 +817,7 @@ export default function FinancePage() {
               </label>
               <label className="text-xs text-neutral-400">
                 Store scope (P&amp;L)
-                <select value={plStoreName} onChange={(e) => setPlStoreName(e.target.value)} className="mt-1 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white">
+                <select value={plStoreName} onChange={(e) => setPlStoreName(e.target.value)} className={`mt-1 ${SELECT_CLASS}`}>
                   <option value="">Company total</option>
                   {plStoreOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                 </select>
@@ -822,7 +827,7 @@ export default function FinancePage() {
               type="button"
               onClick={() => void loadData()}
               disabled={loading || !approverName.trim() || !financeStepUpReady}
-              className="ml-auto rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
+              className={`ml-auto ${PRIMARY_BUTTON}`}
             >
               {loading ? <span className="inline-flex items-center gap-2"><Spinner size="sm" /> Loading...</span> : "Refresh P&L"}
             </button>
@@ -832,15 +837,12 @@ export default function FinancePage() {
           </div>
 
           {/* Section navigation */}
-          <div className="mt-4 rounded-2xl border border-neutral-800/80 bg-neutral-950/50 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-            <div className="flex flex-wrap gap-2">
+          <div className={`mt-4 ${TAB_CONTAINER}`}>
+            <div className="flex flex-wrap gap-1">
               {(["all", ...FINANCE_SECTION_OPTIONS.map(s => s.value)] as const).map((v) => (
                 <button key={v} type="button" onClick={() => setFinanceSectionView(v === "all" ? "all" : v)}
                   aria-pressed={financeSectionView === v}
-                  className={financeSectionView === v
-                    ? "inline-flex min-h-11 items-center justify-center rounded-xl border border-violet-400/70 bg-gradient-to-r from-violet-500/25 to-fuchsia-500/20 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(139,92,246,0.18)] transition"
-                    : "inline-flex min-h-11 items-center justify-center rounded-xl border border-transparent bg-neutral-900/70 px-4 py-2.5 text-sm font-medium text-neutral-300 transition hover:border-neutral-700 hover:bg-neutral-800 hover:text-white"
-                  }
+                  className={financeSectionView === v ? TAB_ACTIVE : TAB_INACTIVE}
                 >
                   {v === "all" ? "All" : FINANCE_SECTION_OPTIONS.find(s => s.value === v)?.label ?? v}
                 </button>
@@ -854,7 +856,7 @@ export default function FinancePage() {
               <span className="font-semibold text-neutral-300">Sync monthly P&amp;L (Google)</span>
               <p className="mt-1 max-w-xl leading-relaxed">Reads all month tabs from the PL Google Sheet for the selected city and upserts them to the app DB.</p>
               <button type="button" onClick={() => void syncPlFromGoogle()} disabled={plSyncing || !approverName.trim() || !financeStepUpReady}
-                className="mt-2 rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-xs font-semibold text-white transition hover:bg-neutral-900 disabled:opacity-60">
+                className={`mt-2 ${SECONDARY_BUTTON} text-xs py-2 px-3`}>
                 {plSyncing ? "Syncing..." : "Sync P&L from Google"}
               </button>
               {plSyncMessage && <span className="mt-1 block text-xs text-amber-200/90">{plSyncMessage}</span>}
@@ -882,17 +884,17 @@ export default function FinancePage() {
             {(financeSectionView === "all" || financeSectionView === "summary") && (
               <div id="finance-summary">
                 <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-                  <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div className={`flex min-h-[120px] flex-col ${KPI_CARD}`}>
                     <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Revenue (P&amp;L imported)</div>
                     <MetricValue className={NUMERIC_FINANCE_KPI_VALUE} value={plHeadline ? plHeadline.revenue : isStoreScopedView ? "—" : Number(financeRatio?.sales_total ?? 0)} />
                     {plHeadline && plHeadline.revenue > 0 && <div className="mt-1 text-[10px] text-neutral-500">100% of revenue</div>}
                   </div>
-                  <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div className={`flex min-h-[120px] flex-col ${KPI_CARD}`}>
                     <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Opex (P&amp;L rollup)</div>
                     <MetricValue className={NUMERIC_FINANCE_KPI_VALUE} value={plHeadline ? plHeadline.opex : isStoreScopedView ? "—" : financeBreakdown ? financeBreakdown.totalModeledCost : "—"} />
                     {plHeadline && plHeadline.revenue > 0 && <div className="mt-1 text-[10px] text-neutral-500">{formatPct((plHeadline.opex / plHeadline.revenue) * 100)} of revenue</div>}
                   </div>
-                  <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div className={`flex min-h-[120px] flex-col ${KPI_CARD}`}>
                     <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Operating profit (P&amp;L)</div>
                     <MetricValue
                       className={plHeadline ? (plHeadline.profit >= 0 ? `${NUMERIC_FINANCE_KPI_VALUE} text-emerald-400` : `${NUMERIC_FINANCE_KPI_VALUE} text-rose-400`) : NUMERIC_FINANCE_KPI_VALUE}
@@ -900,17 +902,17 @@ export default function FinancePage() {
                     />
                     {plHeadline && plHeadline.revenue > 0 && <div className="mt-1 text-[10px] text-neutral-500">{formatPct((plHeadline.profit / plHeadline.revenue) * 100)} margin</div>}
                   </div>
-                  <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div className={`flex min-h-[120px] flex-col ${KPI_CARD}`}>
                     <div className="min-h-[32px] text-xs leading-4 text-neutral-500">FLR cost total</div>
                     <MetricValue className={NUMERIC_FINANCE_KPI_VALUE} value={plHeadline ? plHeadline.flrCost : "—"} />
                     {plHeadline && plHeadline.revenue > 0 && <div className="mt-1 text-[10px] text-neutral-500">{formatPct((plHeadline.flrCost / plHeadline.revenue) * 100)} of revenue</div>}
                   </div>
-                  <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div className={`flex min-h-[120px] flex-col ${KPI_CARD}`}>
                     <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Other expenses total</div>
                     <MetricValue className={NUMERIC_FINANCE_KPI_VALUE} value={plHeadline ? plHeadline.otherExpenses : "—"} />
                     {plHeadline && plHeadline.revenue > 0 && <div className="mt-1 text-[10px] text-neutral-500">{formatPct((plHeadline.otherExpenses / plHeadline.revenue) * 100)} of revenue</div>}
                   </div>
-                  <div className="flex min-h-[120px] flex-col rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div className={`flex min-h-[120px] flex-col ${KPI_CARD}`}>
                     <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Labor ratio (P&amp;L labor ÷ revenue)</div>
                     <div className={NUMERIC_FINANCE_KPI_VALUE}>
                       {plHeadline ? formatPct(plHeadline.laborRatioPct) : isStoreScopedView ? "—" : formatPct(Number(financeRatio?.labor_ratio || 0) * 100)}
@@ -1022,7 +1024,7 @@ export default function FinancePage() {
                         { label: "Safety margin", value: breakEven.summary.margin_of_safety_pct != null ? formatPct(Number(breakEven.summary.margin_of_safety_pct || 0) * 100) : "—" },
                         { label: "Days to break-even", value: formatBreakEvenDays(breakEven.summary.days_to_break_even) },
                       ].map(({ label, value }) => (
-                        <div key={label} className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                        <div key={label} className={KPI_CARD}>
                           <div className="min-h-[32px] text-xs leading-4 text-neutral-500">{label}</div>
                           <div className={NUMERIC_BLOCK_VALUE}>{value}</div>
                         </div>
@@ -1035,7 +1037,7 @@ export default function FinancePage() {
                         { label: "Contribution margin %", value: breakEven.summary.contribution_margin_ratio != null ? formatPct(Number(breakEven.summary.contribution_margin_ratio || 0) * 100) : "—" },
                         { label: "Orders in period", value: formatCount(Number(breakEven.summary.orders || 0)) },
                       ].map(({ label, value }) => (
-                        <div key={label} className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                        <div key={label} className={KPI_CARD}>
                           <div className="min-h-[32px] text-xs leading-4 text-neutral-500">{label}</div>
                           <div className={NUMERIC_SMALL_BLOCK_VALUE}>{value}</div>
                         </div>
@@ -1098,7 +1100,7 @@ export default function FinancePage() {
                               const meta = ZONE_META[zone];
                               const cursorPos = Math.min((value / maxVal) * 100, 100);
                               return (
-                                <div key={key} className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                                <div key={key} className={KPI_CARD}>
                                   <div className="mb-1 flex items-center justify-between">
                                     <div className="text-[11px] font-semibold uppercase tracking-widest text-neutral-500">{label}</div>
                                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${meta.badge}`}>{meta.label}</span>
@@ -1208,7 +1210,7 @@ export default function FinancePage() {
                       { name: "Other", actual: bkts?.other ? Number(bkts.other.actual_pct_of_net_sales_pos) : 0, target: bkts?.other ? Number(bkts.other.target_pct) * 100 : 0 },
                     ];
                     return (
-                      <div className="mb-3 rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
+                      <div className={`mb-3 ${GLASS_CARD} p-3`}>
                         <div className="mb-1 text-[10px] text-neutral-500">Cost buckets: Actual vs Target (% of revenue)</div>
                         <ResponsiveContainer width="100%" height={110}>
                           <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
@@ -1309,17 +1311,17 @@ export default function FinancePage() {
                   <div className="w-full sm:w-auto sm:min-w-[240px]">
                     <label className="text-xs text-neutral-400">
                       Staff
-                      <select value={payrollStaffName} onChange={(e) => setPayrollStaffName(e.target.value)} className="mt-1 w-full rounded-xl border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm text-white">
+                      <select value={payrollStaffName} onChange={(e) => setPayrollStaffName(e.target.value)} className={`mt-1 ${SELECT_CLASS}`}>
                         <option value="">All Staff</option>
                         {payrollStaffOptions.map((name) => <option key={name} value={name}>{name}</option>)}
                       </select>
                     </label>
                   </div>
                   <div className="ml-auto flex gap-2">
-                    <button type="button" onClick={() => void loadData()} disabled={loading || !approverName.trim() || !financeStepUpReady} className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60">
+                    <button type="button" onClick={() => void loadData()} disabled={loading || !approverName.trim() || !financeStepUpReady} className={PRIMARY_BUTTON}>
                       {loading ? <span className="inline-flex items-center gap-2"><Spinner size="sm" /> Loading...</span> : "Refresh Payroll"}
                     </button>
-                    <button type="button" onClick={() => void syncPayrollNow()} disabled={payrollSyncing || !approverName.trim() || !financeStepUpReady} className="rounded-2xl border border-sky-700 bg-sky-950/30 px-4 py-3 text-sm font-semibold text-sky-200 transition hover:bg-sky-900/40 disabled:opacity-60">
+                    <button type="button" onClick={() => void syncPayrollNow()} disabled={payrollSyncing || !approverName.trim() || !financeStepUpReady} className={SECONDARY_BUTTON}>
                       {payrollSyncing ? "Syncing..." : "Sync Payroll Folder"}
                     </button>
                   </div>
@@ -1333,7 +1335,7 @@ export default function FinancePage() {
                     { label: "Transportation",          value: payrollSummary.transportation },
                     { label: "Staff Rows",              value: payrollSummary.rowCount },
                   ].map(({ label, value }) => (
-                    <div key={label} className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                    <div key={label} className={KPI_CARD}>
                       <div className="text-xs text-neutral-500">{label}</div>
                       <MetricValue className={NUMERIC_BLOCK_VALUE} value={value} />
                     </div>
@@ -1347,12 +1349,12 @@ export default function FinancePage() {
                     { label: "Net additions",      value: payrollSummary.netAdditions },
                     { label: "Net deductions",     value: payrollSummary.netDeductions },
                   ].map(({ label, value }) => (
-                    <div key={label} className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                    <div key={label} className={KPI_CARD}>
                       <div className="text-xs text-neutral-500">{label}</div>
                       <MetricValue className={NUMERIC_SMALL_BLOCK_VALUE} value={value} />
                     </div>
                   ))}
-                  <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                  <div className={KPI_CARD}>
                     <div className="text-xs text-neutral-500">Arrears + / -</div>
                     <div className="mt-1 text-xl font-bold tabular-nums">{formatMoney(payrollSummary.arrearsAddition - payrollSummary.arrearsDeduction)}</div>
                   </div>
@@ -1370,7 +1372,7 @@ export default function FinancePage() {
                   const deptData = Object.entries(deptMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 8);
                   return (
                     <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                      <div className={KPI_CARD}>
                         <div className="mb-2 text-xs font-medium text-neutral-300">Salary composition (gross)</div>
                         <div className="flex items-center gap-4">
                           <PieChart width={120} height={120}>
@@ -1390,7 +1392,7 @@ export default function FinancePage() {
                         </div>
                       </div>
                       {deptData.length > 0 && (
-                        <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
+                        <div className={KPI_CARD}>
                           <div className="mb-2 text-xs font-medium text-neutral-300">Net pay by department</div>
                           <ResponsiveContainer width="100%" height={120}>
                             <BarChart data={deptData} layout="vertical" margin={{ top: 0, right: 40, left: 70, bottom: 0 }}>
@@ -1405,7 +1407,7 @@ export default function FinancePage() {
                     </div>
                   );
                 })()}
-                <div className="mt-3 rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
+                <div className={`mt-3 ${GLASS_CARD} p-4`}>
                   <div className="mb-2 text-sm font-semibold">Payroll Staff Details</div>
                   <div className="overflow-x-auto">
                     <table className="min-w-[900px] text-left text-sm">
