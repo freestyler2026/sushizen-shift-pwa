@@ -60,6 +60,12 @@ function formatPhp(n: number): string {
   return new Intl.NumberFormat("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(n));
 }
 
+function formatPhpM(n: number): string {
+  if (n >= 1_000_000) return `₱${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `₱${(n / 1_000).toFixed(1)}K`;
+  return `₱${formatPhp(n)}`;
+}
+
 const MONTH_NAMES_DISP = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 function monthDisplayLabel(mk: string): string {
@@ -84,10 +90,26 @@ function shiftMonthKey(mk: string, delta: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function addDays(isoDate: string, days: number): string {
-  const d = new Date(isoDate);
+/** Shift an ISO date string by `days` days */
+function shiftDate(iso: string, days: number): string {
+  const d = new Date(iso);
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
+}
+
+/** Compute the "same-length window immediately before" a given [from, to] range */
+function previousPeriod(from: string, to: string): { from: string; to: string; label: string } {
+  const msPerDay = 86400000;
+  const days = Math.round((new Date(to).getTime() - new Date(from).getTime()) / msPerDay) + 1;
+  const prevTo   = shiftDate(from, -1);
+  const prevFrom = shiftDate(prevTo, -(days - 1));
+  // Build a human-readable label
+  const fmt = (iso: string) => {
+    const d = new Date(iso);
+    return `${MONTH_NAMES_DISP[d.getMonth()]} ${d.getDate()}`;
+  };
+  const label = `${fmt(prevFrom)} – ${fmt(prevTo)}`;
+  return { from: prevFrom, to: prevTo, label };
 }
 
 const DATE_PRESETS = [
@@ -96,23 +118,49 @@ const DATE_PRESETS = [
   { label: "90D", days: 90 },
 ] as const;
 
-function ManilaComparisonCard({ label, current, previous, prevLabel }: {
-  label: string; current: number; previous: number; prevLabel: string;
+function ComparisonCard({
+  label,
+  currentOrders, prevOrders,
+  currentSales, prevSales,
+  prevLabel,
+}: {
+  label: string;
+  currentOrders: number; prevOrders: number;
+  currentSales: number;  prevSales: number;
+  prevLabel: string;
 }) {
-  const diff = previous > 0 ? ((current - previous) / previous) * 100 : null;
-  const isUp = diff !== null && diff > 0;
-  const isDown = diff !== null && diff < 0;
+  const ordDiff  = prevOrders  > 0 ? ((currentOrders  - prevOrders)  / prevOrders)  * 100 : null;
+  const salesDiff = prevSales  > 0 ? ((currentSales   - prevSales)   / prevSales)   * 100 : null;
+
+  const pct = (diff: number | null) =>
+    diff !== null
+      ? <span className={`text-xl font-bold ${diff > 0 ? "text-emerald-400" : diff < 0 ? "text-red-400" : "text-neutral-300"}`}>
+          {diff > 0 ? "+" : ""}{diff.toFixed(1)}%
+        </span>
+      : <span className="text-xl font-bold text-neutral-500">—</span>;
+
   return (
-    <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4">
-      <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-neutral-500">{label}</p>
-      {diff !== null ? (
-        <p className={`text-2xl font-bold ${isUp ? "text-emerald-400" : isDown ? "text-red-400" : "text-neutral-300"}`}>
-          {isUp ? "+" : ""}{diff.toFixed(1)}%
-        </p>
-      ) : (
-        <p className="text-2xl font-bold text-neutral-500">—</p>
-      )}
-      <p className="mt-1 text-xs text-neutral-600">vs {prevLabel}: {previous.toLocaleString()} orders</p>
+    <div className="rounded-xl border border-neutral-800 bg-neutral-900/40 p-4 space-y-3">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">{label}</p>
+      <div className="grid grid-cols-2 gap-3">
+        {/* Orders */}
+        <div>
+          <p className="text-[10px] text-neutral-600 mb-0.5">Orders</p>
+          {pct(ordDiff)}
+          <p className="text-xs text-neutral-600 mt-0.5">
+            {formatInt(currentOrders)} vs {formatInt(prevOrders)}
+          </p>
+        </div>
+        {/* Net Sales */}
+        <div>
+          <p className="text-[10px] text-neutral-600 mb-0.5">Net Sales</p>
+          {pct(salesDiff)}
+          <p className="text-xs text-neutral-600 mt-0.5">
+            {formatPhpM(currentSales)} vs {formatPhpM(prevSales)}
+          </p>
+        </div>
+      </div>
+      <p className="text-[10px] text-neutral-700">vs {prevLabel}</p>
     </div>
   );
 }
@@ -130,6 +178,7 @@ type ApiResp = {
   items: OrderRow[];
   store_totals?: { store_name: string; total_transactions: number }[];
   grand_total_transactions?: number;
+  grand_total_net_sales?: number;
   notes?: string[];
   date_from?: string;
   date_to?: string;
@@ -137,9 +186,10 @@ type ApiResp = {
 
 // Channel color config
 const CHANNEL_CONFIG: Record<string, { bar: string; badge: string; dot: string }> = {
-  grabfood:  { bar: "bg-emerald-500", badge: "bg-emerald-500/15 text-emerald-300", dot: "bg-emerald-400" },
-  foodpanda: { bar: "bg-pink-500",    badge: "bg-pink-500/15 text-pink-300",       dot: "bg-pink-400" },
-  "dine-in": { bar: "bg-blue-500",    badge: "bg-blue-500/15 text-blue-300",       dot: "bg-blue-400" },
+  grabfood:     { bar: "bg-emerald-500", badge: "bg-emerald-500/15 text-emerald-300", dot: "bg-emerald-400" },
+  foodpanda:    { bar: "bg-pink-500",    badge: "bg-pink-500/15 text-pink-300",       dot: "bg-pink-400" },
+  "dine-in":    { bar: "bg-blue-500",    badge: "bg-blue-500/15 text-blue-300",       dot: "bg-blue-400" },
+  beepdelivery: { bar: "bg-neutral-400", badge: "bg-neutral-700/40 text-neutral-400", dot: "bg-neutral-400" },
 };
 
 function channelKey(ch: string) { return ch.toLowerCase().replace(/\s/g, ""); }
@@ -160,21 +210,19 @@ export function ManilaOrderCountsTab({
   pin: string;
   stepUpReady: boolean;
 }) {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [data, setData] = useState<ApiResp | null>(null);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState("");
+  const [data, setData]         = useState<ApiResp | null>(null);
+  const [prevData, setPrevData] = useState<ApiResp | null>(null);
+  const [prevLabel, setPrevLabel] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<string>("");
 
-  // Local date inputs (independent of parent props after first mount)
+  // Local date inputs
   const [localFrom, setLocalFrom] = useState(dateFrom);
-  const [localTo, setLocalTo] = useState(dateTo);
+  const [localTo, setLocalTo]     = useState(dateTo);
   const [activePreset, setActivePreset] = useState<string | null>("30D");
 
-  const [prevMonthOrders, setPrevMonthOrders] = useState<number | null>(null);
-  const [prevYearOrders, setPrevYearOrders] = useState<number | null>(null);
-  const [compLoading, setCompLoading] = useState(false);
-
-  // Sync local state when parent props change (e.g. city switch)
+  // Sync when parent changes (city switch)
   useEffect(() => {
     setLocalFrom(dateFrom);
     setLocalTo(dateTo);
@@ -182,67 +230,51 @@ export function ManilaOrderCountsTab({
     setActivePreset("30D");
   }, [dateFrom, dateTo]);
 
-  // Effective range: month override takes priority over local range
   const effectiveDateFrom = selectedMonth ? monthToRange(selectedMonth).from : localFrom;
   const effectiveDateTo   = selectedMonth ? monthToRange(selectedMonth).to   : localTo;
 
   const canLoad = Boolean(approverName.trim() && pin.trim() && stepUpReady);
 
+  const fetchRange = useCallback(async (from: string, to: string): Promise<ApiResp> => {
+    const qs = new URLSearchParams({ approver_name: approverName.trim(), pin: pin.trim(), date_from: from, date_to: to });
+    return apiGet<ApiResp>(`/api/admin/analytics/manila/order-counts?${qs.toString()}`);
+  }, [approverName, pin]);
+
   const load = useCallback(async (from?: string, to?: string) => {
     if (!canLoad) { setError("Enter approver name, PIN, and complete Security (MFA) for Manila analytics."); return; }
+    const df = from ?? effectiveDateFrom;
+    const dt = to   ?? effectiveDateTo;
     setLoading(true); setError("");
     try {
-      const df = from ?? effectiveDateFrom;
-      const dt = to   ?? effectiveDateTo;
-      const qs = new URLSearchParams({ approver_name: approverName.trim(), pin: pin.trim(), date_from: df, date_to: dt });
-      const res = await apiGet<ApiResp>(`/api/admin/analytics/manila/order-counts?${qs.toString()}`);
-      setData(res);
+      const [current, prev] = await Promise.all([
+        fetchRange(df, dt),
+        fetchRange(previousPeriod(df, dt).from, previousPeriod(df, dt).to),
+      ]);
+      setData(current);
+      setPrevData(prev);
+      setPrevLabel(previousPeriod(df, dt).label);
     } catch (e) {
       setData(null);
+      setPrevData(null);
       setError(e instanceof Error ? e.message : "Failed to load order counts");
     } finally {
       setLoading(false);
     }
-  }, [approverName, pin, canLoad, effectiveDateFrom, effectiveDateTo]);
+  }, [canLoad, effectiveDateFrom, effectiveDateTo, fetchRange]);
 
   useEffect(() => { void load(); }, [load]);
 
-  const fetchTotalForRange = useCallback(async (from: string, to: string): Promise<number> => {
-    const qs = new URLSearchParams({ approver_name: approverName.trim(), pin: pin.trim(), date_from: from, date_to: to });
-    const res = await apiGet<ApiResp>(`/api/admin/analytics/manila/order-counts?${qs.toString()}`);
-    return res.grand_total_transactions ?? 0;
-  }, [approverName, pin]);
-
-  const fetchComparisons = useCallback(async (mk: string) => {
-    if (!mk) return;
-    setCompLoading(true);
-    setPrevMonthOrders(null);
-    setPrevYearOrders(null);
-    try {
-      const prevMk = shiftMonthKey(mk, -1);
-      const prevYearMk = shiftMonthKey(mk, -12);
-      const [prev, prevYear] = await Promise.all([
-        fetchTotalForRange(monthToRange(prevMk).from, monthToRange(prevMk).to),
-        fetchTotalForRange(monthToRange(prevYearMk).from, monthToRange(prevYearMk).to),
-      ]);
-      setPrevMonthOrders(prev);
-      setPrevYearOrders(prevYear);
-    } catch {
-      /* ignore */
-    } finally {
-      setCompLoading(false);
-    }
-  }, [fetchTotalForRange]);
-
   const handleMonthSelect = useCallback((mk: string) => {
+    const range = monthToRange(mk);
     setSelectedMonth(mk);
     setActivePreset(null);
-    const range = monthToRange(mk);
     setLocalFrom(range.from);
     setLocalTo(range.to);
+    // For month selection, prev label is the previous month name
+    const prevMk = shiftMonthKey(mk, -1);
+    setPrevLabel(monthDisplayLabel(prevMk));
     void load(range.from, range.to);
-    void fetchComparisons(mk);
-  }, [load, fetchComparisons]);
+  }, [load]);
 
   const applyPreset = useCallback((label: string, days: number) => {
     const to = new Date();
@@ -255,8 +287,6 @@ export function ManilaOrderCountsTab({
     setLocalTo(toStr);
     setSelectedMonth("");
     setActivePreset(label);
-    setPrevMonthOrders(null);
-    setPrevYearOrders(null);
     void load(fromStr, toStr);
   }, [load]);
 
@@ -264,16 +294,11 @@ export function ManilaOrderCountsTab({
     if (!localFrom || !localTo) return;
     setSelectedMonth("");
     setActivePreset(null);
-    setPrevMonthOrders(null);
-    setPrevYearOrders(null);
     void load(localFrom, localTo);
   }, [localFrom, localTo, load]);
 
   const clearMonth = useCallback(() => {
     setSelectedMonth("");
-    setPrevMonthOrders(null);
-    setPrevYearOrders(null);
-    // Restore to 30D default
     applyPreset("30D", 30);
   }, [applyPreset]);
 
@@ -290,8 +315,7 @@ export function ManilaOrderCountsTab({
       rows.sort((a, b) => (b.total_transactions || 0) - (a.total_transactions || 0));
     }
     return Array.from(map.entries()).sort(([a], [b]) => {
-      const ai = STORE_ORDER.indexOf(a);
-      const bi = STORE_ORDER.indexOf(b);
+      const ai = STORE_ORDER.indexOf(a), bi = STORE_ORDER.indexOf(b);
       if (ai === -1 && bi === -1) return a.localeCompare(b);
       if (ai === -1) return 1;
       if (bi === -1) return -1;
@@ -299,7 +323,11 @@ export function ManilaOrderCountsTab({
     });
   }, [data?.items]);
 
-  const grandTotal = data?.grand_total_transactions ?? 0;
+  const grandTotal     = data?.grand_total_transactions ?? 0;
+  const grandNetSales  = data?.grand_total_net_sales ?? (data?.items || []).reduce((s, r) => s + (Number(r.net_sales) || 0), 0);
+  const prevTotal      = prevData?.grand_total_transactions ?? 0;
+  const prevNetSales   = prevData?.grand_total_net_sales ?? (prevData?.items || []).reduce((s, r) => s + (Number(r.net_sales) || 0), 0);
+
   const maxStoreTotal = useMemo(() => {
     const totals = (data?.store_totals || []).map((s) => s.total_transactions);
     return Math.max(...totals, 1);
@@ -320,6 +348,8 @@ export function ManilaOrderCountsTab({
     return Math.round(ms / 86400000) + 1;
   }, [effectiveDateFrom, effectiveDateTo]);
 
+  const showComparison = Boolean(data && (prevTotal > 0 || prevNetSales > 0));
+
   return (
     <div id="sales-order-counts" className={GLASS_CARD}>
       {/* Header */}
@@ -338,7 +368,6 @@ export function ManilaOrderCountsTab({
 
       {/* Date controls */}
       <div className="flex flex-wrap items-center gap-2 border-b border-neutral-800 px-5 py-3">
-        {/* Presets */}
         <div className="flex items-center gap-1">
           {DATE_PRESETS.map((p) => (
             <button
@@ -355,10 +384,7 @@ export function ManilaOrderCountsTab({
             </button>
           ))}
         </div>
-
         <span className="text-neutral-700">|</span>
-
-        {/* FROM / TO inputs */}
         <span className="text-xs font-medium text-neutral-500">FROM</span>
         <input
           type="date"
@@ -383,19 +409,12 @@ export function ManilaOrderCountsTab({
         >
           Apply
         </button>
-
         <span className="text-neutral-700">|</span>
-
-        {/* Month picker */}
         <div className="w-44">
           <MonthPicker value={selectedMonth} onChange={handleMonthSelect} />
         </div>
         {selectedMonth ? (
-          <button
-            type="button"
-            onClick={clearMonth}
-            className="text-xs text-neutral-500 hover:text-neutral-300 transition-colors"
-          >
+          <button type="button" onClick={clearMonth} className="text-xs text-neutral-500 hover:text-neutral-300 transition-colors">
             Clear
           </button>
         ) : null}
@@ -415,44 +434,40 @@ export function ManilaOrderCountsTab({
             {/* Grand total hero */}
             <div className="rounded-2xl border border-violet-500/20 bg-violet-500/5 px-5 py-4">
               <div className="text-xs font-semibold uppercase tracking-[0.15em] text-violet-400">Grand Total</div>
-              <div className="mt-1 text-4xl font-bold text-white">{formatInt(grandTotal)}</div>
-              <div className="mt-0.5 text-xs text-neutral-500">
-                transactions across all stores{displayDays ? ` · ${displayDays} days` : ""}
+              <div className="flex flex-wrap items-end gap-6 mt-1">
+                <div>
+                  <div className="text-4xl font-bold text-white">{formatInt(grandTotal)}</div>
+                  <div className="mt-0.5 text-xs text-neutral-500">
+                    orders{displayDays ? ` · ${displayDays} days` : ""}
+                  </div>
+                </div>
+                {grandNetSales > 0 ? (
+                  <div>
+                    <div className="text-2xl font-semibold text-emerald-300">{formatPhpM(grandNetSales)}</div>
+                    <div className="mt-0.5 text-xs text-neutral-500">net sales</div>
+                  </div>
+                ) : null}
               </div>
             </div>
 
-            {/* Month comparison cards */}
-            {selectedMonth && compLoading ? (
-              <div className="flex items-center gap-2 text-xs text-neutral-500">
-                <Spinner size="sm" />
-                <span>Loading comparisons…</span>
-              </div>
-            ) : selectedMonth && grandTotal > 0 && (prevMonthOrders !== null || prevYearOrders !== null) ? (
-              <div className="grid grid-cols-2 gap-3">
-                {prevMonthOrders !== null ? (
-                  <ManilaComparisonCard
-                    label="前月比 (MoM)"
-                    current={grandTotal}
-                    previous={prevMonthOrders}
-                    prevLabel={monthDisplayLabel(shiftMonthKey(selectedMonth, -1))}
-                  />
-                ) : null}
-                {prevYearOrders !== null ? (
-                  <ManilaComparisonCard
-                    label="前年同期間比 (YoY)"
-                    current={grandTotal}
-                    previous={prevYearOrders}
-                    prevLabel={monthDisplayLabel(shiftMonthKey(selectedMonth, -12))}
-                  />
-                ) : null}
-              </div>
+            {/* Period comparison — always shown when prev data available */}
+            {showComparison ? (
+              <ComparisonCard
+                label={`vs Previous Period (${prevLabel})`}
+                currentOrders={grandTotal}
+                prevOrders={prevTotal}
+                currentSales={grandNetSales}
+                prevSales={prevNetSales}
+                prevLabel={prevLabel}
+              />
             ) : null}
 
             {/* Store breakdown cards */}
             <div className="grid gap-3 sm:grid-cols-3">
               {storeGroups.map(([storeName, rows]) => {
                 const storeTotal = storeTotalMap.get(storeName) ?? rows.reduce((s, r) => s + r.total_transactions, 0);
-                const pct = grandTotal > 0 ? (storeTotal / grandTotal) * 100 : 0;
+                const storeNetSales = rows.reduce((s, r) => s + (Number(r.net_sales) || 0), 0);
+                const pct    = grandTotal > 0 ? (storeTotal / grandTotal) * 100 : 0;
                 const barPct = maxStoreTotal > 0 ? (storeTotal / maxStoreTotal) * 100 : 0;
 
                 return (
@@ -462,17 +477,20 @@ export function ManilaOrderCountsTab({
                       <div className="text-2xl font-bold text-white">{formatInt(storeTotal)}</div>
                       <div className="mb-0.5 text-xs text-neutral-500">{pct.toFixed(1)}%</div>
                     </div>
+                    {storeNetSales > 0 ? (
+                      <div className="text-xs text-emerald-400/80 mt-0.5">{formatPhpM(storeNetSales)}</div>
+                    ) : null}
                     <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-neutral-800">
                       <div className="h-full rounded-full bg-violet-500" style={{ width: `${barPct}%` }} />
                     </div>
                     <div className="mt-3 space-y-1.5">
                       {rows.map((row) => {
-                        const cfg = channelConfig(row.transaction_channel);
+                        const cfg   = channelConfig(row.transaction_channel);
                         const chPct = storeTotal > 0 ? (row.total_transactions / storeTotal) * 100 : 0;
                         return (
                           <div key={row.transaction_channel}>
                             <div className="mb-0.5 flex items-center justify-between text-xs">
-                              <span className={`flex items-center gap-1.5`}>
+                              <span className="flex items-center gap-1.5">
                                 <span className={`inline-block h-2 w-2 rounded-full ${cfg.dot}`} />
                                 <span className="text-neutral-400">{row.transaction_channel}</span>
                               </span>
@@ -506,7 +524,7 @@ export function ManilaOrderCountsTab({
                   {storeGroups.map(([storeName, rows]) => {
                     const storeTotal = storeTotalMap.get(storeName) ?? rows.reduce((s, r) => s + r.total_transactions, 0);
                     return rows.map((row, ri) => {
-                      const cfg = channelConfig(row.transaction_channel);
+                      const cfg   = channelConfig(row.transaction_channel);
                       const chPct = storeTotal > 0 ? (row.total_transactions / storeTotal) * 100 : 0;
                       return (
                         <tr key={`${storeName}-${row.transaction_channel}`} className={`border-t border-neutral-800/60 ${ri === 0 ? "bg-neutral-800/20" : ""}`}>

@@ -247,6 +247,7 @@ type OverviewResp = {
     total_gross_profit: number;
     avg_gross_profit_pct: number;
     total_transactions: number;
+    mds_order_count?: number;
   };
   top_products: ProductRow[];
   channel_breakdown: ChannelRow[];
@@ -861,7 +862,7 @@ export function ManilaSalesSection({
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
         <KpiCard title="Total Sales" value={Number(overview?.summary.total_sales || 0)} hint="Gross sales across the selected Manila store scope." />
         <KpiCard title="Net Sales" value={Number(overview?.summary.total_net_sales || 0)} hint="Net sales currently available from Manila files." />
-        <KpiCard title="Transactions" value={Number(overview?.summary.total_transactions || 0)} hint="Transaction count from the Manila channel exports." />
+        <KpiCard title="Transactions" value={Number(overview?.summary.mds_order_count ?? overview?.summary.total_transactions ?? 0)} hint="Order count from manila_daily_sales (authoritative). Channel exports may differ." />
       </div>
 
       <div className="my-8 border-t border-white/5" />
