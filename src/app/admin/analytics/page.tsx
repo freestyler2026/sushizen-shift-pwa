@@ -2926,8 +2926,9 @@ export default function AdminAnalyticsPage() {
   }
 
   useEffect(() => {
-    const r = CITY_DEFAULT_RANGE[city] || { from: "2025-11-01", to: "2026-03-31" };
-    const baseTo = new Date(r.to || todayIso());
+    // Default range: 30 days ending 2 days ago (前々日)
+    const baseTo = new Date();
+    baseTo.setDate(baseTo.getDate() - 2);
     setDateTo(baseTo.toISOString().slice(0, 10));
     setDateFrom(addDaysIso(baseTo, -29));
     const dr = previousCalendarMonthRangeIso();
@@ -8445,8 +8446,8 @@ export default function AdminAnalyticsPage() {
                 ) : null}
                 {salesSectionView === "all" || salesSectionView === "orderCounts" ? (
                   <ManilaOrderCountsTab
-                    dateFrom={summaryDateFrom}
-                    dateTo={summaryDateTo}
+                    dateFrom={dateFrom}
+                    dateTo={dateTo}
                     approverName={approverName}
                     pin={pin}
                     stepUpReady={salesStepUpReady}
