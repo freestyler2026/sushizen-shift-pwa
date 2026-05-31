@@ -168,13 +168,47 @@ export default function StoreProcurementRequestPage() {
         pin,
       );
       setAddCatalogSuccess(`"${addItemName.trim()}" added to ${addCategory} catalog.`);
-      setAddItemName(""); setAddSupplier(""); setAddUnit(""); setAddUnitPrice("0");
+      setAddItemName(""); setAddUnit(""); setAddUnitPrice("0");
+      if (!addItemForSupplier) setAddSupplier("");
       // Reload catalog
       void loadItemCatalog();
     } catch (e: unknown) {
       setAddCatalogError(e instanceof Error ? e.message : String(e));
     } finally {
       setAddCatalogBusy(false);
+    }
+  };
+
+  const renameSupplierFn = async (supplierName: string, category: string) => {
+    if (!renameNewName.trim()) { setRenameError("New name is required."); return; }
+    if (!pin.trim()) { setRenameError("PIN is required."); return; }
+    setRenameBusy(true); setRenameError(""); setRenameSuccess("");
+    try {
+      await procurementJson(
+        "/api/admin/procurement/catalog/supplier/rename",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            approver_name: requestedBy.trim(),
+            pin: pin.trim(),
+            city: city || "dubai",
+            catalog_category: category,
+            old_supplier_name: supplierName,
+            new_supplier_name: renameNewName.trim(),
+          }),
+        },
+        requestedBy,
+        pin,
+      );
+      setRenameSuccess(`Renamed to "${renameNewName.trim()}".`);
+      setRenamingSupplier("");
+      setRenameNewName("");
+      void loadItemCatalog();
+    } catch (e: unknown) {
+      setRenameError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRenameBusy(false);
     }
   };
 
@@ -195,6 +229,14 @@ export default function StoreProcurementRequestPage() {
   const [addUnit, setAddUnit] = useState("");
   const [addUnitPrice, setAddUnitPrice] = useState("0");
   const [addCategory, setAddCategory] = useState("Kitchen Ingredients");
+
+  // ── Per-supplier inline edit state ───────────────────────────────────────
+  const [addItemForSupplier, setAddItemForSupplier] = useState(""); // supplier name with open add-item panel
+  const [renamingSupplier, setRenamingSupplier] = useState("");     // supplier name being renamed
+  const [renameNewName, setRenameNewName] = useState("");
+  const [renameBusy, setRenameBusy] = useState(false);
+  const [renameError, setRenameError] = useState("");
+  const [renameSuccess, setRenameSuccess] = useState("");
 
   const loadMyRequests = useCallback(async (cityOverride?: string) => {
     setError("");
@@ -1210,14 +1252,130 @@ export default function StoreProcurementRequestPage() {
           ) : null}
           {supplierSections.filter(s => !supplierFilter || s.supplier === supplierFilter).map((section) => (
             <section key={section.anchor} id={section.anchor} className={`${SUB_PANEL}`}>
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/8 px-4 py-3">
-                <div>
-                  <div className="text-sm font-medium text-violet-200">{section.supplier}</div>
-                  <div className="text-[11px] text-neutral-400">
-                    {section.enteredCount} / {section.rows.length} rows selected
+              <div className="border-b border-white/8">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+                  <div>
+                    <div className="text-sm font-medium text-violet-200">{section.supplier}</div>
+                    <div className="text-[11px] text-neutral-400">
+                      {section.enteredCount} / {section.rows.length} rows selected
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] text-neutral-400">Editable: Qty / Unit / Unit Price</span>
+                    <button
+                      type="button"
+                      title="Rename supplier"
+                      onClick={() => {
+                        if (renamingSupplier === section.supplier) {
+                          setRenamingSupplier(""); setRenameNewName(""); setRenameError(""); setRenameSuccess("");
+                        } else {
+                          setRenamingSupplier(section.supplier);
+                          setRenameNewName(section.supplier);
+                          setRenameError(""); setRenameSuccess("");
+                          setAddItemForSupplier("");
+                        }
+                      }}
+                      className="rounded-lg border border-violet-400/25 bg-violet-950/40 px-2 py-1 text-[11px] text-violet-300 hover:bg-violet-900/50 hover:text-violet-100 transition-colors"
+                    >
+                      ✏ Rename
+                    </button>
+                    <button
+                      type="button"
+                      title="Add item to this supplier"
+                      onClick={() => {
+                        if (addItemForSupplier === section.supplier) {
+                          setAddItemForSupplier(""); setAddCatalogError(""); setAddCatalogSuccess(""); setAddItemName("");
+                        } else {
+                          setAddItemForSupplier(section.supplier);
+                          setAddSupplier(section.supplier);
+                          setAddCategory(selectedCatalogCategory || "Kitchen Ingredients");
+                          setAddItemName(""); setAddUnit(""); setAddUnitPrice("0");
+                          setAddCatalogError(""); setAddCatalogSuccess("");
+                          setRenamingSupplier("");
+                        }
+                      }}
+                      className="rounded-lg border border-emerald-400/25 bg-emerald-950/30 px-2 py-1 text-[11px] text-emerald-300 hover:bg-emerald-900/40 hover:text-emerald-100 transition-colors"
+                    >
+                      + Add Item
+                    </button>
                   </div>
                 </div>
-                <div className="text-[11px] text-neutral-400">Editable: Qty / Unit / Unit Price</div>
+                {renamingSupplier === section.supplier && (
+                  <div className="border-t border-violet-500/20 bg-violet-950/20 px-4 py-3">
+                    <div className="mb-2 text-[11px] font-semibold text-violet-300">Rename Supplier</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        value={renameNewName}
+                        onChange={(e) => setRenameNewName(e.target.value)}
+                        placeholder="New supplier name"
+                        className="min-w-[180px] flex-1 rounded-lg border border-white/8 bg-black/20 px-3 py-1.5 text-xs text-white placeholder:text-zinc-500 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void renameSupplierFn(section.supplier, selectedCatalogCategory || "Kitchen Ingredients")}
+                        disabled={renameBusy || !renameNewName.trim()}
+                        className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-violet-500 disabled:opacity-60"
+                      >
+                        {renameBusy ? "Saving..." : "Save"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setRenamingSupplier(""); setRenameNewName(""); setRenameError(""); setRenameSuccess(""); }}
+                        className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-neutral-400 transition-colors hover:text-white"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    {renameError && <div className="mt-1.5 text-[11px] text-red-400">{renameError}</div>}
+                    {renameSuccess && <div className="mt-1.5 text-[11px] text-emerald-400">{renameSuccess}</div>}
+                  </div>
+                )}
+                {addItemForSupplier === section.supplier && (
+                  <div className="border-t border-emerald-500/20 bg-emerald-950/10 px-4 py-3">
+                    <div className="mb-2 text-[11px] font-semibold text-emerald-300">Add Item — {section.supplier}</div>
+                    <div className="flex flex-wrap gap-2">
+                      <input
+                        value={addItemName}
+                        onChange={(e) => setAddItemName(e.target.value)}
+                        placeholder="Item name *"
+                        className="min-w-[160px] flex-1 rounded-lg border border-white/8 bg-black/20 px-3 py-1.5 text-xs text-white placeholder:text-zinc-500 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
+                      />
+                      <input
+                        value={addUnit}
+                        onChange={(e) => setAddUnit(e.target.value)}
+                        placeholder="Unit (kg, pcs…)"
+                        className="w-28 rounded-lg border border-white/8 bg-black/20 px-3 py-1.5 text-xs text-white placeholder:text-zinc-500 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputMode="decimal"
+                        value={addUnitPrice}
+                        onChange={(e) => setAddUnitPrice(e.target.value)}
+                        placeholder="Unit price"
+                        className="w-28 rounded-lg border border-white/8 bg-black/20 px-3 py-1.5 text-right text-xs text-white placeholder:text-zinc-500 focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => void addCatalogItemFn()}
+                        disabled={addCatalogBusy || !addItemName.trim()}
+                        className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-600 disabled:opacity-60"
+                      >
+                        {addCatalogBusy ? "Saving..." : "Add"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setAddItemForSupplier(""); setAddCatalogError(""); setAddCatalogSuccess(""); setAddItemName(""); }}
+                        className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-neutral-400 transition-colors hover:text-white"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    {addCatalogError && <div className="mt-1.5 text-[11px] text-red-400">{addCatalogError}</div>}
+                    {addCatalogSuccess && <div className="mt-1.5 text-[11px] text-emerald-400">{addCatalogSuccess}</div>}
+                  </div>
+                )}
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full text-xs">
