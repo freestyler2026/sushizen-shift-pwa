@@ -841,6 +841,8 @@ export default function CostCalculationPage() {
   const [ingredientDetailDeleting, setIngredientDetailDeleting] = useState(false);
   const [ingredientUsages, setIngredientUsages] = useState<Array<{ id: number; name: string; item_type: string; category: string; is_active: boolean; ref_type: string }>>([]);
   const [ingredientUsagesLoading, setIngredientUsagesLoading] = useState(false);
+  const [processedItemUsages, setProcessedItemUsages] = useState<Array<{ id: number; name: string; item_type: string; category: string; is_active: boolean }>>([]);
+  const [processedItemUsagesLoading, setProcessedItemUsagesLoading] = useState(false);
   const [expandedMenuItemId, setExpandedMenuItemId] = useState<string | null>(null);
   const [menuDetails, setMenuDetails] = useState<Record<string, MenuItemDetail>>({});
   const [menuDetailLoadingId, setMenuDetailLoadingId] = useState<string | null>(null);
@@ -1260,6 +1262,7 @@ export default function CostCalculationPage() {
   const loadMasterDetail = useCallback(async (id: string) => {
     if (!id) return;
     setMasterDetailLoadingId(id);
+    setProcessedItemUsages([]);
     try {
       const res = await costJson<{ item?: any }>(`/api/cost/master-items/${id}`);
       if (res?.item) {
@@ -1286,6 +1289,19 @@ export default function CostCalculationPage() {
           selling_price: detail.selling_price,
           components: detail.components,
         });
+        // Fetch "Where Used" in background for processed items
+        if (detail.item_type === "processed" && detail.id) {
+          setProcessedItemUsagesLoading(true);
+          costJson<{ usages?: Array<{ id: number; name: string; item_type: string; category: string; is_active: boolean }> }>(
+            `/api/cost/master-items/${detail.id}/usages`,
+          ).then((r) => {
+            setProcessedItemUsages(Array.isArray(r?.usages) ? r.usages : []);
+          }).catch(() => {
+            setProcessedItemUsages([]);
+          }).finally(() => {
+            setProcessedItemUsagesLoading(false);
+          });
+        }
       }
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -1326,6 +1342,8 @@ export default function CostCalculationPage() {
   const createNewMasterEditor = useCallback((itemType: "processed" | "product" | "draft") => {
     setSelectedMasterItemId(null);
     setMasterEditor(createEmptyMasterEditor(itemType, city));
+    setProcessedItemUsages([]);
+    setProcessedItemUsagesLoading(false);
   }, [city]);
 
   const addMasterComponentRow = useCallback((componentType: MasterComponentType = "ingredient") => {
@@ -4177,6 +4195,54 @@ export default function CostCalculationPage() {
                         {masterEditor.item_type === "processed" ? "Add Processed Item" : "Add Master Item"}
                       </button>
                     </div>
+
+                    {/* WHERE USED — processed items only */}
+                    {masterEditor.item_type === "processed" && masterEditor.id ? (
+                      <div className="rounded border border-white/8 bg-white/3 p-3">
+                        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                          Where Used
+                          {!processedItemUsagesLoading && (
+                            <span className="ml-1.5 text-zinc-600">({processedItemUsages.length})</span>
+                          )}
+                        </p>
+                        {processedItemUsagesLoading ? (
+                          <p className="text-xs text-zinc-600">Loading…</p>
+                        ) : processedItemUsages.length === 0 ? (
+                          <p className="text-xs text-zinc-600">Not used as a component in any product or processed item.</p>
+                        ) : (
+                          <ul className="space-y-1">
+                            {processedItemUsages.map((u) => (
+                              <li key={u.id}>
+                                <button
+                                  type="button"
+                                  className="flex w-full items-start gap-2 rounded px-1 py-0.5 text-left text-xs hover:bg-white/5 transition-colors"
+                                  onClick={() => {
+                                    setActiveSection(u.item_type === "processed" ? "processed" : "product");
+                                    void loadMasterDetail(String(u.id));
+                                  }}
+                                >
+                                  <span className={[
+                                    "mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase",
+                                    u.item_type === "processed"
+                                      ? "bg-violet-500/15 text-violet-300"
+                                      : u.item_type === "product"
+                                        ? "bg-emerald-500/15 text-emerald-300"
+                                        : "bg-zinc-500/15 text-zinc-400",
+                                  ].join(" ")}>
+                                    {u.item_type === "processed" ? "加工" : u.item_type === "product" ? "商品" : u.item_type}
+                                  </span>
+                                  <span className={u.is_active === false ? "text-zinc-500 line-through" : "text-zinc-300 underline decoration-zinc-600 underline-offset-2"}>{u.name}</span>
+                                  {u.is_active === false && (
+                                    <span className="shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold uppercase bg-zinc-700/60 text-zinc-500">非表示</span>
+                                  )}
+                                  {u.category ? <span className="text-zinc-600">· {u.category}</span> : null}
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ) : null}
 
                     <div className="grid gap-3 md:grid-cols-4">
                       <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
