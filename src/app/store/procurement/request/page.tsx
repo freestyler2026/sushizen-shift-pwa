@@ -786,10 +786,12 @@ export default function StoreProcurementRequestPage() {
         if (existing) {
           return {
             ...item,
-            qty: Number(existing.qty || 0),
+            qty: Number(existing.qty ?? 0),
             unit: existing.unit || item.unit,
-            unit_price: Number(existing.unit_price || 0),
+            // Use != null so that user-entered 0 is preserved (|| would treat 0 as falsy and reset to catalog price)
+            unit_price: existing.unit_price != null ? existing.unit_price : item.unit_price,
             needed_by_date: existing.needed_by_date || item.needed_by_date,
+            // catalog_item_id and catalog_price always come from fresh catalog data (via ...item spread above)
           };
         }
         // Overlay from edit request items (match by item_name + vendor_name, case-insensitive)
@@ -1478,9 +1480,9 @@ export default function StoreProcurementRequestPage() {
                               min="0"
                               step="0.01"
                               inputMode="decimal"
-                              value={item.unit_price || ""}
+                              value={item.unit_price ?? ""}
                               onFocus={(e) => e.target.select()}
-                              onChange={(e) => updateItem(String(item.row_key || ""), { unit_price: Number(e.target.value || 0) })}
+                              onChange={(e) => updateItem(String(item.row_key || ""), { unit_price: e.target.value === "" ? 0 : Number(e.target.value) })}
                               className="w-24 rounded-lg border border-white/8 bg-black/20 px-2 py-1.5 text-right text-xs text-white focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
                             />
                             {item.catalog_item_id && item.unit_price !== item.catalog_price && (
