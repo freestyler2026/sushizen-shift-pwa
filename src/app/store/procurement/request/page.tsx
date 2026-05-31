@@ -18,6 +18,9 @@ type ReqItem = {
   unit_price: number;
   vendor_name: string;
   needed_by_date: string;
+  // Curated catalog metadata — not sent to API, used for "Save to catalog" UX
+  catalog_item_id?: string;
+  catalog_price?: number;
 };
 
 type ReqRow = {
@@ -212,6 +215,37 @@ export default function StoreProcurementRequestPage() {
     }
   };
 
+  const updateCatalogPriceFn = async (rowKey: string, catalogItemId: string, price: number) => {
+    if (!catalogItemId || !pin.trim()) return;
+    setSavingCatalogPrice((prev) => ({ ...prev, [rowKey]: true }));
+    setSavedCatalogPriceStatus((prev) => { const n = { ...prev }; delete n[rowKey]; return n; });
+    try {
+      await procurementJson(
+        "/api/admin/procurement/catalog/item/update-price",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            approver_name: requestedBy.trim(),
+            pin: pin.trim(),
+            city: city || "dubai",
+            catalog_item_id: catalogItemId,
+            unit_price: price,
+          }),
+        },
+        requestedBy,
+        pin,
+      );
+      setSavedCatalogPriceStatus((prev) => ({ ...prev, [rowKey]: "ok" }));
+      // Update the item's catalog_price so the button disappears after save
+      setItems((prev) => prev.map((it) => it.row_key === rowKey ? { ...it, catalog_price: price } : it));
+    } catch (e: unknown) {
+      setSavedCatalogPriceStatus((prev) => ({ ...prev, [rowKey]: "err" }));
+    } finally {
+      setSavingCatalogPrice((prev) => { const n = { ...prev }; delete n[rowKey]; return n; });
+    }
+  };
+
   const initRef = useRef(false);
   // Track last city+category loaded so supplier filter is only cleared on meaningful scope changes.
   const lastCatalogScopeRef = useRef<string>("");
@@ -237,6 +271,12 @@ export default function StoreProcurementRequestPage() {
   const [renameBusy, setRenameBusy] = useState(false);
   const [renameError, setRenameError] = useState("");
   const [renameSuccess, setRenameSuccess] = useState("");
+
+  // ── Save-price-to-catalog state ──────────────────────────────────────────
+  // keyed by row_key: true = saving in-progress, absent/false = idle
+  const [savingCatalogPrice, setSavingCatalogPrice] = useState<Record<string, boolean>>({});
+  // keyed by row_key: "ok" = saved, "err" = error
+  const [savedCatalogPriceStatus, setSavedCatalogPriceStatus] = useState<Record<string, "ok" | "err">>({});
 
   const loadMyRequests = useCallback(async (cityOverride?: string) => {
     setError("");
@@ -326,6 +366,9 @@ export default function StoreProcurementRequestPage() {
             unit_price: Number(item.suggested_unit_price || 0),
             vendor_name: supplier.supplier,
             needed_by_date: requestDate,
+            // Curated catalog metadata for "Save price to catalog" feature
+            catalog_item_id: item.source_row_id || "",
+            catalog_price: Number(item.suggested_unit_price || 0),
           })),
         ),
       ),
@@ -1429,16 +1472,29 @@ export default function StoreProcurementRequestPage() {
                           />
                         </td>
                         <td className="px-2 py-2">
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            inputMode="decimal"
-                            value={item.unit_price || ""}
-                            onFocus={(e) => e.target.select()}
-                            onChange={(e) => updateItem(String(item.row_key || ""), { unit_price: Number(e.target.value || 0) })}
-                            className="w-28 rounded-lg border border-white/8 bg-black/20 px-2 py-1.5 text-right text-xs text-white focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
-                          />
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              inputMode="decimal"
+                              value={item.unit_price || ""}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => updateItem(String(item.row_key || ""), { unit_price: Number(e.target.value || 0) })}
+                              className="w-24 rounded-lg border border-white/8 bg-black/20 px-2 py-1.5 text-right text-xs text-white focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20"
+                            />
+                            {item.catalog_item_id && item.unit_price !== item.catalog_price && (
+                              <button
+                                type="button"
+                                title="Save this price to catalog (future orders will use this price)"
+                                disabled={!!savingCatalogPrice[String(item.row_key || "")]}
+                                onClick={() => updateCatalogPriceFn(String(item.row_key || ""), item.catalog_item_id!, item.unit_price)}
+                                className="shrink-0 rounded-md border border-amber-400/30 bg-amber-950/40 px-1.5 py-1 text-[10px] text-amber-300 hover:bg-amber-900/50 hover:text-amber-100 transition-colors disabled:opacity-50"
+                              >
+                                {savingCatalogPrice[String(item.row_key || "")] ? "…" : savedCatalogPriceStatus[String(item.row_key || "")] === "ok" ? "✓" : savedCatalogPriceStatus[String(item.row_key || "")] === "err" ? "✗" : "💾"}
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="px-2 py-2 text-right text-neutral-300">
                           {(Number(item.qty || 0) * Number(item.unit_price || 0)).toFixed(2)}
