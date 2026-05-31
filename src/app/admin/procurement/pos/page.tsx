@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
 import DatePicker from "@/components/DatePicker";
@@ -424,6 +424,9 @@ export default function ProcurementPoPage() {
     }
   };
 
+  // Ref to prevent double auto-load when requestId arrives from URL
+  const didAutoLoadRef = useRef(false);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const sp = new URLSearchParams(window.location.search);
@@ -434,8 +437,16 @@ export default function ProcurementPoPage() {
   useEffect(() => {
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
-      const resolvedCity: "manila" | "dubai" =
-        String((refreshed || auth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
+      // Determine city: URL city param > request_no prefix (MAN-/DUB-) > user auth city
+      const sp = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+      const urlCity = (sp?.get("city") || "").toLowerCase();
+      const urlRequestId = (sp?.get("request_id") || "").toUpperCase();
+      let resolvedCity: "manila" | "dubai";
+      if (urlCity === "dubai") resolvedCity = "dubai";
+      else if (urlCity === "manila") resolvedCity = "manila";
+      else if (urlRequestId.startsWith("MAN-")) resolvedCity = "manila";
+      else if (urlRequestId.startsWith("DUB-")) resolvedCity = "dubai";
+      else resolvedCity = String((refreshed || auth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
       setCity(resolvedCity);
       const can = canAccessProcurementAdmin(
         String((refreshed || auth)?.role || ""),
@@ -447,6 +458,14 @@ export default function ProcurementPoPage() {
     void init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-load when requestId arrives from URL and auth is ready (first time only)
+  useEffect(() => {
+    if (!requestId || !allowed || didAutoLoadRef.current) return;
+    didAutoLoadRef.current = true;
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestId, allowed]);
 
   if (!allowed) {
     return (

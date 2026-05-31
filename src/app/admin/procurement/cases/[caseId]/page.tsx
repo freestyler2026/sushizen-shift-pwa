@@ -723,12 +723,12 @@ export default function ProcurementCaseDetailPage() {
           {/* Quick links */}
           <div className="mt-4 flex flex-wrap gap-2 border-t border-white/8 pt-4">
             {[
-              { label: "PO Screen", href: `/admin/procurement/pos?request_id=${encodeURIComponent(bundle.request?.id || "")}` },
-              { label: "Receiving", href: `/admin/procurement/receiving?request_id=${encodeURIComponent(bundle.request?.id || "")}` },
-              { label: "Claims", href: `/admin/procurement/claims?request_id=${encodeURIComponent(bundle.request?.id || "")}` },
-              { label: "Invoices", href: `/admin/procurement/invoices?request_id=${encodeURIComponent(bundle.request?.id || "")}` },
-              { label: "Payments", href: `/admin/procurement/payments?request_id=${encodeURIComponent(bundle.request?.id || "")}` },
-              { label: "Audit Log", href: `/admin/procurement/audit?request_id=${encodeURIComponent(bundle.request?.id || "")}` },
+              { label: "PO Screen", href: `/admin/procurement/pos?request_id=${encodeURIComponent(bundle.request?.request_no || bundle.request?.id || "")}&city=${encodeURIComponent(bundle.request?.city || "")}` },
+              { label: "Receiving", href: `/admin/procurement/receiving?request_id=${encodeURIComponent(bundle.request?.request_no || bundle.request?.id || "")}` },
+              { label: "Claims", href: `/admin/procurement/claims?request_id=${encodeURIComponent(bundle.request?.request_no || bundle.request?.id || "")}` },
+              { label: "Invoices", href: `/admin/procurement/invoices?request_id=${encodeURIComponent(bundle.request?.request_no || bundle.request?.id || "")}` },
+              { label: "Payments", href: `/admin/procurement/payments?request_id=${encodeURIComponent(bundle.request?.request_no || bundle.request?.id || "")}` },
+              { label: "Audit Log", href: `/admin/procurement/audit?request_id=${encodeURIComponent(bundle.request?.request_no || bundle.request?.id || "")}` },
             ].map(({ label, href }) => (
               <Link
                 key={label}
