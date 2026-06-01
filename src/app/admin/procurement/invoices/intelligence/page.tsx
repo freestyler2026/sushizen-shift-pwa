@@ -182,6 +182,8 @@ export default function ProcurementIntelligencePage() {
   useEffect(() => {
     async function init() {
       const currentAuth = getAuth();
+      const _mkt: "dubai" | "manila" = String(currentAuth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
+      if (canAccessProcurementAdmin(String(currentAuth?.role || ""), _mkt)) setAllowed(true);
       const refreshed = await refreshAuthFromApi(currentAuth);
       const nextCity: "dubai" | "manila" = String((refreshed || currentAuth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
       const can = canAccessProcurementAdmin(String((refreshed || currentAuth)?.role || ""), nextCity);

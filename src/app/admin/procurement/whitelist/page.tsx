@@ -194,6 +194,8 @@ export default function ProcurementWhitelistPage() {
 
   useEffect(() => {
     async function init() {
+      const _mkt: "dubai" | "manila" = String(auth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
+      if (canAccessProcurementAdmin(String(auth?.role || ""), _mkt)) setAllowed(true);
       const refreshed = await refreshAuthFromApi(auth);
       const can = canAccessProcurementAdmin(
         String((refreshed || auth)?.role || ""),

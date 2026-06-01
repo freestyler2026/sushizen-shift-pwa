@@ -189,6 +189,9 @@ export default function ProcurementPaymentsPage() {
 
   useEffect(() => {
     async function init() {
+      // Immediate check from cached role — prevents false "denied" flash while API refreshes
+      const _mkt: "dubai" | "manila" = String(auth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
+      if (canAccessProcurementAdmin(String(auth?.role || ""), _mkt)) setAllowed(true);
       const refreshed = await refreshAuthFromApi(auth);
       const resolvedAuth = refreshed || auth;
       const resolvedCity = String(resolvedAuth?.city || "manila").toLowerCase();

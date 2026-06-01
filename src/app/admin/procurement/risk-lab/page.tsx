@@ -393,6 +393,8 @@ export default function ProcurementRiskLabPage() {
 
   useEffect(() => {
     async function init() {
+      const _mkt: "dubai" | "manila" = String(auth?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
+      if (canAccessProcurementAdmin(String(auth?.role || ""), _mkt)) setAllowed(true);
       const refreshed = await refreshAuthFromApi(auth);
       const resolvedCity: "manila" | "dubai" =
         String((refreshed || auth)?.city || "").toLowerCase() === "dubai" ? "dubai" : "manila";
