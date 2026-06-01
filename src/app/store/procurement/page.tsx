@@ -11,6 +11,8 @@ import {
   AlertCircle,
   RefreshCw,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   MapPin,
   Building2,
   ClipboardList,
@@ -24,6 +26,8 @@ import {
   CalendarDays,
   Hash,
   PlusCircle,
+  Truck,
+  ImageIcon,
 } from "lucide-react";
 import { ProcurementStepper } from "@/components/ProcurementStepper";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
@@ -107,6 +111,20 @@ type RecentActivityItem = {
 type TimelineAction = {
   label: string;
   href: string;
+};
+
+type CkDispatchRow = {
+  id: string;
+  po_no: string;
+  vendor_name: string;
+  amount: number;
+  line_items_json: { item_name: string; qty: number; unit: string }[];
+  status: string;
+  delivery_date?: string;
+  request_no: string;
+  store_code: string;
+  city: string;
+  request_id: string;
 };
 
 
@@ -571,11 +589,83 @@ export default function StoreProcurementHomePage() {
   const [loading, setLoading] = useState(false);
   const [canOpenAdminCase, setCanOpenAdminCase] = useState(false);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  // CK Dispatch state
+  const [ckDispatchRows, setCkDispatchRows] = useState<CkDispatchRow[]>([]);
+  const [ckDispatchLoading, setCkDispatchLoading] = useState(false);
+  const [ckDispatchExpanded, setCkDispatchExpanded] = useState<string | null>(null);
+  const [ckDispatchNote, setCkDispatchNote] = useState<Record<string, string>>({});
+  const [ckDispatchPhoto, setCkDispatchPhoto] = useState<Record<string, File | null>>({});
+  const [ckDispatchPhotoPreview, setCkDispatchPhotoPreview] = useState<Record<string, string>>({});
+  const [ckDispatchBusy, setCkDispatchBusy] = useState<Record<string, boolean>>({});
+  const [ckDispatchSuccess, setCkDispatchSuccess] = useState<Record<string, string>>({});
+  const [ckDispatchError, setCkDispatchError] = useState<Record<string, string>>({});
+  const [ckDispatchSectionOpen, setCkDispatchSectionOpen] = useState(true);
   const initRef = useRef(false);
   const cityLabel = city === "dubai" ? "Dubai" : "Manila";
   const currencyCode = city === "dubai" ? "AED" : "PHP";
   const APPROVAL_THRESHOLD = city === "dubai" ? 500 : 15000;
   const isHighValue = (row: RequestRow) => Number(row.total_amount || 0) > APPROVAL_THRESHOLD;
+
+  const loadCkDispatch = useCallback(async (cityOverride?: string) => {
+    const activeCity = cityOverride ?? city;
+    if (!requestedBy.trim() || !pin.trim()) return;
+    setCkDispatchLoading(true);
+    try {
+      const qs = new URLSearchParams({
+        city: activeCity,
+        approver_name: requestedBy.trim(),
+        pin: pin.trim(),
+      });
+      const data = await procurementJson<{ rows: CkDispatchRow[] }>(
+        `/api/admin/procurement/ck-dispatch/pending?${qs}`,
+        { method: "GET" },
+        requestedBy,
+        pin,
+      );
+      setCkDispatchRows(Array.isArray(data?.rows) ? data.rows : []);
+    } catch {
+      // Non-critical: silently ignore if user lacks dispatch access
+      setCkDispatchRows([]);
+    } finally {
+      setCkDispatchLoading(false);
+    }
+  }, [city, pin, requestedBy]);
+
+  const handleCkDispatch = async (poId: string) => {
+    setCkDispatchBusy((p) => ({ ...p, [poId]: true }));
+    setCkDispatchError((p) => ({ ...p, [poId]: "" }));
+    try {
+      const fd = new FormData();
+      fd.append("approver_name", requestedBy.trim());
+      fd.append("pin", pin.trim());
+      fd.append("delivery_note", (ckDispatchNote[poId] || "").trim());
+      const photoFile = ckDispatchPhoto[poId];
+      if (photoFile) fd.append("file", photoFile);
+
+      const headers = await (await import("@/lib/procurementClient")).procurementTokenHeaders(requestedBy, pin);
+      const res = await fetch(`/api/admin/procurement/ck-dispatch/${encodeURIComponent(poId)}`, {
+        method: "POST",
+        body: fd,
+        headers,
+        cache: "no-store",
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        let msg = text || `Request failed (${res.status})`;
+        try { const j = JSON.parse(text); if (j?.detail) msg = j.detail; } catch {}
+        throw new Error(msg);
+      }
+      setCkDispatchSuccess((p) => ({ ...p, [poId]: "✓ Marked as dispatched" }));
+      setCkDispatchExpanded(null);
+      setTimeout(() => {
+        setCkDispatchRows((prev) => prev.filter((r) => r.id !== poId));
+      }, 2500);
+    } catch (e: unknown) {
+      setCkDispatchError((p) => ({ ...p, [poId]: friendlyProcurementError(e) }));
+    } finally {
+      setCkDispatchBusy((p) => ({ ...p, [poId]: false }));
+    }
+  };
 
   const loadMyRequests = useCallback(async (cityOverride?: string, requestedByOverride?: string) => {
     setLoading(true);
@@ -630,9 +720,11 @@ export default function StoreProcurementHomePage() {
       }
       // Pass the resolved name directly to avoid stale closure
       await loadMyRequests(initialCity, resolvedName || requestedBy.trim());
+      // Load CK dispatch (non-blocking, silently fails if no access)
+      void loadCkDispatch(initialCity);
     }
     void init();
-  }, [auth, city, loadMyRequests, requestedBy, router]);
+  }, [auth, city, loadCkDispatch, loadMyRequests, requestedBy, router]);
 
 
   useEffect(() => {
@@ -1129,6 +1221,203 @@ export default function StoreProcurementHomePage() {
 
         {/* ─── RIGHT PANEL ─── */}
         <div className="flex min-w-0 flex-1 flex-col gap-4">
+
+          {/* ── CK Dispatch Section ── */}
+          <div className={`${BLUSH_GLASS} overflow-hidden`}>
+            <button
+              type="button"
+              className="w-full px-5 py-3.5 flex items-center justify-between gap-3"
+              onClick={() => setCkDispatchSectionOpen((v) => !v)}
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500/15 border border-orange-500/30">
+                  <Truck className="h-4 w-4 text-orange-400" />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-semibold text-white flex items-center gap-2">
+                    CK Dispatch
+                    {ckDispatchRows.length > 0 && (
+                      <span className="inline-flex items-center justify-center rounded-full bg-orange-500/20 border border-orange-500/40 px-2 py-0.5 text-[11px] font-bold text-orange-300">
+                        {ckDispatchRows.length}
+                      </span>
+                    )}
+                    {ckDispatchLoading && <RefreshCw className="h-3 w-3 animate-spin text-zinc-500" />}
+                  </p>
+                  <p className="text-xs text-zinc-500">Mark CK orders as dispatched</p>
+                </div>
+              </div>
+              {ckDispatchSectionOpen
+                ? <ChevronUp className="h-4 w-4 text-zinc-500 shrink-0" />
+                : <ChevronDown className="h-4 w-4 text-zinc-500 shrink-0" />}
+            </button>
+
+            <AnimatePresence initial={false}>
+              {ckDispatchSectionOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="border-t border-white/8 px-5 pb-4 pt-3">
+                    {ckDispatchRows.length === 0 && !ckDispatchLoading ? (
+                      <div className="flex items-center gap-2 py-3 text-sm text-zinc-500">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500/60" />
+                        No CK orders pending dispatch.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {ckDispatchRows.map((row) => {
+                          const isExp = ckDispatchExpanded === row.id;
+                          const busy = ckDispatchBusy[row.id] || false;
+                          const success = ckDispatchSuccess[row.id] || "";
+                          const err = ckDispatchError[row.id] || "";
+                          const photoFile = ckDispatchPhoto[row.id] || null;
+                          const photoPreview = ckDispatchPhotoPreview[row.id] || "";
+
+                          return (
+                            <div
+                              key={row.id}
+                              className={`rounded-xl border overflow-hidden transition-all duration-200 ${
+                                success
+                                  ? "border-emerald-700/50 bg-emerald-900/15"
+                                  : isExp
+                                    ? "border-orange-500/40 bg-orange-950/15"
+                                    : "border-white/8 bg-white/3 hover:border-orange-500/25"
+                              }`}
+                            >
+                              <button
+                                type="button"
+                                className="w-full px-3 py-2.5 flex items-start justify-between gap-2 text-left"
+                                onClick={() => setCkDispatchExpanded(isExp ? null : row.id)}
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-semibold text-white font-mono flex items-center gap-2">
+                                    {row.po_no}
+                                    {success && <span className="text-[10px] font-normal text-emerald-400">{success}</span>}
+                                  </p>
+                                  <div className="mt-0.5 flex flex-wrap gap-2 text-xs text-zinc-500">
+                                    <span>{row.store_code || row.city}</span>
+                                    {row.delivery_date && <span>📅 {row.delivery_date}</span>}
+                                    <span>{(row.line_items_json || []).length} item{(row.line_items_json || []).length !== 1 ? "s" : ""}</span>
+                                  </div>
+                                </div>
+                                <div className="shrink-0 pt-0.5">
+                                  {isExp
+                                    ? <ChevronUp className="h-3.5 w-3.5 text-orange-400" />
+                                    : <ChevronDown className="h-3.5 w-3.5 text-zinc-500" />}
+                                </div>
+                              </button>
+
+                              <AnimatePresence>
+                                {isExp && !success && (
+                                  <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.15 }}
+                                    className="overflow-hidden"
+                                  >
+                                    <div className="border-t border-white/8 px-3 pb-3 pt-2.5 space-y-2.5">
+                                      {/* Items summary */}
+                                      {(row.line_items_json || []).length > 0 && (
+                                        <div className="space-y-1">
+                                          {row.line_items_json.map((li, i) => (
+                                            <p key={i} className="text-xs text-zinc-400">
+                                              · {li.item_name} — {li.qty} {li.unit}
+                                            </p>
+                                          ))}
+                                        </div>
+                                      )}
+
+                                      {/* Delivery note */}
+                                      <div>
+                                        <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-1">
+                                          Delivery Note
+                                        </label>
+                                        <input
+                                          value={ckDispatchNote[row.id] || ""}
+                                          onChange={(e) => setCkDispatchNote((p) => ({ ...p, [row.id]: e.target.value }))}
+                                          placeholder="Invoice no., note…"
+                                          className={INPUT_CLASS}
+                                        />
+                                      </div>
+
+                                      {/* Photo upload */}
+                                      <div>
+                                        <label className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-1">
+                                          Invoice Photo
+                                        </label>
+                                        {photoPreview ? (
+                                          <div className="flex items-center gap-2">
+                                            <img src={photoPreview} alt="preview" className="h-12 w-12 rounded-lg object-cover border border-white/10" />
+                                            <div className="flex-1 min-w-0">
+                                              <p className="text-xs text-zinc-400 truncate">{photoFile?.name || "photo"}</p>
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setCkDispatchPhoto((p) => ({ ...p, [row.id]: null }));
+                                                setCkDispatchPhotoPreview((p) => ({ ...p, [row.id]: "" }));
+                                              }}
+                                              className="rounded-lg border border-white/10 p-1 text-zinc-500 hover:text-white transition-colors"
+                                            >
+                                              <X className="h-3.5 w-3.5" />
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-white/15 bg-white/3 px-3 py-2.5 text-xs text-zinc-500 hover:border-orange-500/40 hover:text-zinc-300 transition-colors">
+                                            <ImageIcon className="h-4 w-4" />
+                                            Tap to attach invoice photo
+                                            <input
+                                              type="file"
+                                              accept="image/*"
+                                              capture="environment"
+                                              className="sr-only"
+                                              onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                setCkDispatchPhoto((p) => ({ ...p, [row.id]: file }));
+                                                const reader = new FileReader();
+                                                reader.onload = (ev) => {
+                                                  setCkDispatchPhotoPreview((p) => ({ ...p, [row.id]: String(ev.target?.result || "") }));
+                                                };
+                                                reader.readAsDataURL(file);
+                                              }}
+                                            />
+                                          </label>
+                                        )}
+                                      </div>
+
+                                      {err && (
+                                        <p className="text-xs text-red-400 rounded-lg border border-red-700/40 bg-red-900/20 px-2 py-1.5">{err}</p>
+                                      )}
+
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleCkDispatch(row.id)}
+                                        disabled={busy}
+                                        className="w-full rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 py-2.5 text-sm font-semibold text-white transition-all hover:from-orange-500 hover:to-amber-500 disabled:opacity-60 flex items-center justify-center gap-2"
+                                      >
+                                        {busy
+                                          ? <><RefreshCw className="h-4 w-4 animate-spin" /> Dispatching…</>
+                                          : <><Truck className="h-4 w-4" /> Mark as Dispatched</>}
+                                      </button>
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
           {error ? <div className="rounded-xl border border-red-700/40 bg-red-900/20 px-4 py-3 text-sm text-red-300">{error}</div> : null}
 

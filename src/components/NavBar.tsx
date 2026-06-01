@@ -30,6 +30,7 @@ import {
   LogOut,
   MoreHorizontal,
   Package,
+  PackageCheck,
   PenLine,
   Receipt,
   ScrollText,
@@ -118,6 +119,7 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/admin/daily-inventory", label: "Daily Inventory", icon: Warehouse, match: "exact" },
   { href: "/admin/travel-path", label: "Travel Path", icon: ClipboardList, match: "exact" },
   { href: "/store/procurement", label: "Store Procurement", icon: ShoppingCart, match: "prefix" },
+  { href: "/store/receiving", label: "CK Receiving", icon: PackageCheck, match: "prefix" },
   { href: "/swap-approve", label: "Swap Approve", icon: ArrowLeftRight, match: "exact" },
   { href: "/change-pin", label: "Change PIN", icon: KeyRound, match: "exact" },
 ];
