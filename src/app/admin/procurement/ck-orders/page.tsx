@@ -17,7 +17,7 @@ import {
   BADGE_ERROR,
   BADGE_INFO,
 } from "@/lib/ui-tokens";
-import { RefreshCw, AlertCircle, ChefHat, Package } from "lucide-react";
+import { RefreshCw, AlertCircle, ChefHat, Package, Truck, PackageCheck } from "lucide-react";
 
 type PoRow = {
   id: string;
@@ -31,6 +31,12 @@ type PoRow = {
   delivery_date: string;
   line_items_json: LineItem[];
   created_at: string;
+  dispatched_at?: string;
+  dispatched_by?: string;
+  delivery_note?: string;
+  delivery_photo_url?: string;
+  receipt_confirmed_at?: string;
+  receipt_confirmed_by?: string;
 };
 
 type LineItem = {
@@ -187,6 +193,9 @@ export default function CkOrdersPage() {
           const createdDate = row.created_at
             ? new Date(row.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
             : "—";
+          const fmtDt = (iso?: string) => iso
+            ? new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+            : null;
           return (
             <div
               key={row.id}
@@ -217,6 +226,40 @@ export default function CkOrdersPage() {
                       <span>
                         Amount <span className="font-semibold text-amber-300">PHP {Number(row.amount || 0).toFixed(2)}</span>
                       </span>
+                    </div>
+                    {/* Dispatch / Receipt timeline */}
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
+                      {row.dispatched_at ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-orange-500/30 bg-orange-500/10 px-2 py-0.5 text-xs text-orange-300">
+                          <Truck className="h-3 w-3" />
+                          Dispatched {fmtDt(row.dispatched_at)}
+                          {row.dispatched_by && <span className="text-orange-400/70"> · {row.dispatched_by}</span>}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-zinc-700/40 bg-zinc-800/40 px-2 py-0.5 text-xs text-zinc-500">
+                          <Truck className="h-3 w-3" />
+                          Not dispatched
+                        </span>
+                      )}
+                      {row.receipt_confirmed_at ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-teal-500/30 bg-teal-500/10 px-2 py-0.5 text-xs text-teal-300">
+                          <PackageCheck className="h-3 w-3" />
+                          Received {fmtDt(row.receipt_confirmed_at)}
+                          {row.receipt_confirmed_by && <span className="text-teal-400/70"> · {row.receipt_confirmed_by}</span>}
+                        </span>
+                      ) : row.dispatched_at ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-yellow-500/30 bg-yellow-500/10 px-2 py-0.5 text-xs text-yellow-300">
+                          <PackageCheck className="h-3 w-3" />
+                          Awaiting receipt
+                        </span>
+                      ) : null}
+                      {row.delivery_photo_url && (
+                        <a href={row.delivery_photo_url} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-xs text-violet-300 hover:bg-violet-500/20 transition"
+                          onClick={(e) => e.stopPropagation()}>
+                          📷 Delivery photo
+                        </a>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -261,6 +304,13 @@ export default function CkOrdersPage() {
                       </tbody>
                     </table>
                   </div>
+                </div>
+              )}
+
+              {isExpanded && row.delivery_note && (
+                <div className="border-t border-white/8 px-4 py-3">
+                  <p className="text-xs text-zinc-500 mb-1">Delivery note:</p>
+                  <p className="text-xs text-zinc-300">{row.delivery_note}</p>
                 </div>
               )}
 
