@@ -37,12 +37,21 @@ type LineItem = {
   vendor_name?: string;
 };
 
+type DispatchedItem = {
+  item_name: string;
+  unit: string;
+  qty_ordered: number;
+  qty_dispatched: number;
+};
+
 type CkPendingRow = {
   id: string;
   po_no: string;
   vendor_name: string;
   amount: number;
   line_items_json: LineItem[];
+  dispatched_items_json: DispatchedItem[];
+  has_shortage: boolean;
   status: string;
   delivery_date?: string;
   dispatched_at: string;
@@ -57,7 +66,9 @@ type CkPendingRow = {
 
 type ReceivingItem = {
   item_name: string;
-  qty_expected: number;
+  qty_ordered: number;       // original PO qty
+  qty_dispatched: number;    // what CK actually sent (may differ if shortage)
+  qty_expected: number;      // alias for qty_dispatched (used for display)
   unit: string;
   qty_received: number | string;
   quality_status: "ACCEPTED" | "ISSUE";
@@ -110,18 +121,28 @@ export default function StoreReceivingPage() {
       );
       const newRows = Array.isArray(data?.rows) ? data.rows : [];
       setRows(newRows);
-      // Initialize receiving items from line_items_json for any new rows
+      // Initialize receiving items — prefer dispatched_items_json if available (has shortage context)
       setItemsByPo((prev) => {
         const next = { ...prev };
         for (const row of newRows) {
           if (!next[row.id]) {
-            next[row.id] = (row.line_items_json || []).map((li) => ({
-              item_name: li.item_name || "",
-              qty_expected: Number(li.qty) || 0,
-              unit: li.unit || "",
-              qty_received: li.qty || 0,
-              quality_status: "ACCEPTED" as const,
-            }));
+            const dispatched = Array.isArray(row.dispatched_items_json) && row.dispatched_items_json.length > 0
+              ? row.dispatched_items_json
+              : null;
+            next[row.id] = (row.line_items_json || []).map((li, liIdx) => {
+              const di = dispatched?.[liIdx] ?? null;
+              const qtyDispatched = di ? Number(di.qty_dispatched) : Number(li.qty) || 0;
+              const qtyOrdered = di ? Number(di.qty_ordered) : Number(li.qty) || 0;
+              return {
+                item_name: li.item_name || "",
+                qty_ordered: qtyOrdered,
+                qty_dispatched: qtyDispatched,
+                qty_expected: qtyDispatched,  // what the store should expect to receive
+                unit: li.unit || "",
+                qty_received: qtyDispatched,  // default = dispatched qty
+                quality_status: "ACCEPTED" as const,
+              };
+            });
           }
         }
         return next;
@@ -289,6 +310,7 @@ export default function StoreReceivingPage() {
                   const busy = submitBusy[row.id] || false;
                   const success = submitSuccess[row.id] || "";
                   const err = submitError[row.id] || "";
+                  const hasShortageFlag = row.has_shortage === true;
 
                   return (
                     <div
@@ -311,6 +333,9 @@ export default function StoreReceivingPage() {
                           <div className="flex flex-wrap items-center gap-2 mb-1">
                             <Truck className="h-4 w-4 text-teal-400 shrink-0" />
                             <span className="font-mono text-sm font-semibold text-white">{row.po_no}</span>
+                            {hasShortageFlag && !success && (
+                              <span className={BADGE_WARNING}>⚠ Shortage</span>
+                            )}
                             {success && <span className={BADGE_SUCCESS}>Confirmed</span>}
                           </div>
                           <div className="flex flex-wrap gap-3 text-xs text-zinc-400">
@@ -355,20 +380,49 @@ export default function StoreReceivingPage() {
                                 </a>
                               )}
 
+                              {/* Shortage banner */}
+                              {hasShortageFlag && (
+                                <div className="rounded-xl border border-amber-700/50 bg-amber-950/25 px-4 py-3 flex items-start gap-2">
+                                  <AlertCircle className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                                  <div>
+                                    <p className="text-sm font-semibold text-amber-300">CK Reported a Shortage</p>
+                                    <p className="text-xs text-amber-300/70 mt-0.5">
+                                      Some items were dispatched in lower quantities than ordered. Check dispatched qty below.
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+
                               {/* Items checklist */}
                               <div>
                                 <p className={`${T_LABEL} mb-2`}>Items</p>
                                 <div className="space-y-2">
-                                  {items.map((item, idx) => (
+                                  {items.map((item, idx) => {
+                                    const shortage = item.qty_dispatched < item.qty_ordered;
+                                    return (
                                     <div
                                       key={idx}
-                                      className="rounded-xl border border-white/8 bg-white/3 p-3"
+                                      className={[
+                                        "rounded-xl border p-3",
+                                        shortage ? "border-amber-700/40 bg-amber-950/15" : "border-white/8 bg-white/3",
+                                      ].join(" ")}
                                     >
                                       <p className="text-sm font-medium text-white mb-2">{item.item_name || `Item ${idx + 1}`}</p>
-                                      <div className="grid grid-cols-2 gap-2">
+                                      <div className={`grid gap-2 mb-2 ${hasShortageFlag ? "grid-cols-3" : "grid-cols-2"}`}>
+                                        {hasShortageFlag && (
+                                          <div>
+                                            <label className={`${T_LABEL} mb-1 block`}>Ordered</label>
+                                            <p className="text-sm text-zinc-500 font-mono">{item.qty_ordered} {item.unit}</p>
+                                          </div>
+                                        )}
                                         <div>
-                                          <label className={`${T_LABEL} mb-1 block`}>Expected</label>
-                                          <p className="text-sm text-zinc-400">{item.qty_expected} {item.unit}</p>
+                                          <label className={`${T_LABEL} mb-1 block`}>
+                                            {hasShortageFlag ? "Dispatched" : "Expected"}
+                                          </label>
+                                          <p className={`text-sm font-mono ${shortage ? "text-amber-300 font-semibold" : "text-zinc-400"}`}>
+                                            {item.qty_dispatched} {item.unit}
+                                            {shortage && <span className="ml-1 text-[10px] text-amber-400">▼</span>}
+                                          </p>
                                         </div>
                                         <div>
                                           <label className={`${T_LABEL} mb-1 block`}>Received</label>
@@ -428,7 +482,8 @@ export default function StoreReceivingPage() {
                                         </button>
                                       </div>
                                     </div>
-                                  ))}
+                                  );
+                                  })}
                                 </div>
                               </div>
 

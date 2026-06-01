@@ -121,6 +121,7 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/admin/travel-path", label: "Travel Path", icon: ClipboardList, match: "exact" },
   { href: "/store/procurement", label: "Store Procurement", icon: ShoppingCart, match: "prefix" },
   { href: "/store/purchase", label: "Direct Purchase", icon: ShoppingBag, match: "prefix" },
+  { href: "/store/ck-production", label: "CK Production", icon: Truck, match: "prefix" },
   { href: "/store/receiving", label: "CK Receiving", icon: PackageCheck, match: "prefix" },
   { href: "/swap-approve", label: "Swap Approve", icon: ArrowLeftRight, match: "exact" },
   { href: "/change-pin", label: "Change PIN", icon: KeyRound, match: "exact" },

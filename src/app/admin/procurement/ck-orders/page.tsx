@@ -19,6 +19,13 @@ import {
 } from "@/lib/ui-tokens";
 import { RefreshCw, AlertCircle, ChefHat, Package, Truck, PackageCheck } from "lucide-react";
 
+type DispatchedItem = {
+  item_name: string;
+  unit: string;
+  qty_ordered: number;
+  qty_dispatched: number;
+};
+
 type PoRow = {
   id: string;
   request_id: string;
@@ -30,6 +37,8 @@ type PoRow = {
   prepared_by: string;
   delivery_date: string;
   line_items_json: LineItem[];
+  dispatched_items_json?: DispatchedItem[];
+  has_shortage?: boolean;
   created_at: string;
   dispatched_at?: string;
   dispatched_by?: string;
@@ -190,6 +199,7 @@ export default function CkOrdersPage() {
         {rows.map((row) => {
           const isExpanded = expandedId === row.id;
           const items = Array.isArray(row.line_items_json) ? row.line_items_json : [];
+          const dispatchedItems = Array.isArray(row.dispatched_items_json) ? row.dispatched_items_json : [];
           const createdDate = row.created_at
             ? new Date(row.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
             : "—";
@@ -214,6 +224,11 @@ export default function CkOrdersPage() {
                         {row.po_no || row.parent_case_no}
                       </span>
                       {poStatusBadge(row.status)}
+                      {row.has_shortage && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-rose-600/50 bg-rose-900/25 px-2 py-0.5 text-[10px] font-bold text-rose-300">
+                          ⚠ SHORTAGE
+                        </span>
+                      )}
                     </div>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
                       <span>Issued <span className="text-zinc-300">{createdDate}</span></span>
@@ -278,29 +293,63 @@ export default function CkOrdersPage() {
               {/* Expanded items */}
               {isExpanded && items.length > 0 && (
                 <div className="border-t border-white/8 px-4 pb-4">
+                  {/* Shortage detail banner */}
+                  {row.has_shortage && dispatchedItems.length > 0 && (
+                    <div className="mt-3 rounded-xl border border-rose-700/40 bg-rose-950/20 px-4 py-3 space-y-1">
+                      <p className="text-xs font-semibold text-rose-300 flex items-center gap-1.5">
+                        <AlertCircle className="h-3.5 w-3.5" /> Shortage details
+                      </p>
+                      <div className="space-y-0.5 pl-5">
+                        {dispatchedItems
+                          .filter((di) => Number(di.qty_dispatched) < Number(di.qty_ordered))
+                          .map((di, k) => (
+                            <p key={k} className="text-xs text-rose-200">
+                              {di.item_name}:{" "}
+                              <span className="font-mono">
+                                {Number(di.qty_dispatched)}/{Number(di.qty_ordered)} {di.unit}
+                              </span>{" "}
+                              <span className="text-rose-400">
+                                ({(Number(di.qty_ordered) - Number(di.qty_dispatched)).toFixed(1)} short)
+                              </span>
+                            </p>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="mt-3 overflow-x-auto rounded-xl border border-white/8">
                     <table className="min-w-full text-xs">
                       <thead className="bg-[#0c1024]/70 text-zinc-400">
                         <tr>
                           <th className="px-3 py-2 text-left">Item</th>
                           <th className="px-3 py-2 text-left">Category</th>
-                          <th className="px-3 py-2 text-right">Qty</th>
+                          <th className="px-3 py-2 text-right">Ordered</th>
+                          {row.has_shortage && <th className="px-3 py-2 text-right">Dispatched</th>}
                           <th className="px-3 py-2 text-left">Unit</th>
                           <th className="px-3 py-2 text-right">Unit Price</th>
                           <th className="px-3 py-2 text-right">Total</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {items.map((item, idx) => (
-                          <tr key={idx} className="border-t border-white/8">
-                            <td className="px-3 py-2 font-medium text-zinc-100">{item.item_name || "—"}</td>
-                            <td className="px-3 py-2 text-zinc-400">{item.category || "—"}</td>
-                            <td className="px-3 py-2 text-right font-semibold text-white">{Number(item.qty || 0)}</td>
-                            <td className="px-3 py-2 text-zinc-400">{item.unit || "—"}</td>
-                            <td className="px-3 py-2 text-right text-zinc-300">{Number(item.unit_price || 0).toFixed(2)}</td>
-                            <td className="px-3 py-2 text-right font-semibold text-amber-300">{Number(item.line_total || 0).toFixed(2)}</td>
-                          </tr>
-                        ))}
+                        {items.map((item, idx) => {
+                          const di = dispatchedItems[idx];
+                          const itemShort = di && Number(di.qty_dispatched) < Number(di.qty_ordered);
+                          return (
+                            <tr key={idx} className={`border-t border-white/8 ${itemShort ? "bg-rose-950/15" : ""}`}>
+                              <td className="px-3 py-2 font-medium text-zinc-100">{item.item_name || "—"}</td>
+                              <td className="px-3 py-2 text-zinc-400">{item.category || "—"}</td>
+                              <td className="px-3 py-2 text-right font-semibold text-white">{Number(item.qty || 0)}</td>
+                              {row.has_shortage && (
+                                <td className={`px-3 py-2 text-right font-semibold ${itemShort ? "text-rose-300" : "text-emerald-300"}`}>
+                                  {di ? Number(di.qty_dispatched) : "—"}
+                                </td>
+                              )}
+                              <td className="px-3 py-2 text-zinc-400">{item.unit || "—"}</td>
+                              <td className="px-3 py-2 text-right text-zinc-300">{Number(item.unit_price || 0).toFixed(2)}</td>
+                              <td className="px-3 py-2 text-right font-semibold text-amber-300">{Number(item.line_total || 0).toFixed(2)}</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
