@@ -45,11 +45,12 @@ type ItemRow = {
   qty: string;
   unit: string;
   unit_price: string;
+  benchmark_price: number;  // catalog reference price (0 if none); user can override
   is_new: boolean;   // true if not found in catalog
 };
 
 let _counter = 1;
-const newItem = (): ItemRow => ({ id: _counter++, item_name: "", qty: "", unit: "kg", unit_price: "", is_new: false });
+const newItem = (): ItemRow => ({ id: _counter++, item_name: "", qty: "", unit: "kg", unit_price: "", benchmark_price: 0, is_new: false });
 
 const UNITS = ["kg", "g", "L", "mL", "pc", "box", "bag", "bottle", "pack", "tray", "can"];
 
@@ -186,6 +187,7 @@ export default function StorePurchasePage() {
       i.id === rowId
         ? { ...i, item_name: cat.item_name, unit: cat.unit,
             unit_price: cat.benchmark_unit_price > 0 ? String(cat.benchmark_unit_price) : i.unit_price,
+            benchmark_price: cat.benchmark_unit_price || 0,
             is_new: false }
         : i,
     ));
@@ -489,17 +491,31 @@ export default function StorePurchasePage() {
 
                 {/* Qty + Unit + Price */}
                 <div className="grid grid-cols-3 gap-2">
-                  <input type="number" inputMode="decimal" value={item.qty}
-                    onChange={(e) => updateItem(item.id, "qty", e.target.value)}
-                    placeholder="Qty" min="0" step="0.1" className={INPUT_CLASS} />
-                  <select value={item.unit}
-                    onChange={(e) => updateItem(item.id, "unit", e.target.value)}
-                    className={SELECT_CLASS}>
-                    {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
-                  </select>
-                  <input type="number" inputMode="decimal" value={item.unit_price}
-                    onChange={(e) => updateItem(item.id, "unit_price", e.target.value)}
-                    placeholder="Unit price" min="0" step="1" className={INPUT_CLASS} />
+                  <div>
+                    <label className="mb-1 block text-[11px] text-zinc-500">Qty</label>
+                    <input type="number" inputMode="decimal" value={item.qty}
+                      onChange={(e) => updateItem(item.id, "qty", e.target.value)}
+                      placeholder="0" min="0" step="0.1" className={INPUT_CLASS} />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] text-zinc-500">Unit</label>
+                    <select value={item.unit}
+                      onChange={(e) => updateItem(item.id, "unit", e.target.value)}
+                      className={SELECT_CLASS}>
+                      {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-[11px] text-zinc-500">
+                      Unit Price
+                      {item.benchmark_price > 0 && (
+                        <span className="ml-1 text-violet-400/70">(ref: ₱{item.benchmark_price})</span>
+                      )}
+                    </label>
+                    <input type="number" inputMode="decimal" value={item.unit_price}
+                      onChange={(e) => updateItem(item.id, "unit_price", e.target.value)}
+                      placeholder="0" min="0" step="1" className={INPUT_CLASS} />
+                  </div>
                 </div>
 
                 {parseFloat(item.qty) > 0 && parseFloat(item.unit_price) > 0 && (
