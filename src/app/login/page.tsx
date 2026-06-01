@@ -110,7 +110,8 @@ async function fetchStaffNames(city: City): Promise<string[]> {
     } catch {
       detail = "";
     }
-    throw new Error(detail || text || `staff names failed: ${res.status}`);
+    const isHtml = text.trimStart().startsWith("<");
+    throw new Error(detail || (isHtml ? "Server temporarily unavailable — you can still type your name manually." : text) || `staff names failed: ${res.status}`);
   }
   const data = (text ? JSON.parse(text) : {}) as StaffNameDirectory;
   return Array.isArray(data?.names) ? data.names.map((name) => String(name || "").trim()).filter(Boolean) : [];
@@ -131,6 +132,7 @@ function LoginInner() {
   const [loading, setLoading] = useState(false);
   const [nameOptions, setNameOptions] = useState<string[]>([]);
   const [nameLoading, setNameLoading] = useState(false);
+  const [nameLoadWarning, setNameLoadWarning] = useState("");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const pinInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -142,15 +144,16 @@ function LoginInner() {
 
   useEffect(() => {
     let cancelled = false;
+    setNameLoadWarning("");
     async function loadNames() {
       setNameLoading(true);
       try {
         const names = await fetchStaffNames(city);
-        if (!cancelled) setNameOptions(names);
+        if (!cancelled) { setNameOptions(names); setNameLoadWarning(""); }
       } catch (e: any) {
         if (!cancelled) {
           setNameOptions([]);
-          setError((prev) => prev || normalizeAuthRequestError(e));
+          setNameLoadWarning("Name list unavailable — type your name manually.");
         }
       } finally {
         if (!cancelled) setNameLoading(false);
@@ -253,7 +256,7 @@ function LoginInner() {
               </select>
             </Field>
 
-            <Field label="Your name" hint={nameLoading ? "Loading names..." : "Type to search and select"}>
+            <Field label="Your name" hint={nameLoading ? "Loading names..." : nameLoadWarning ? "" : "Type to search and select"}>
               <div className="relative">
                 <input
                   className="min-h-10 w-full rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white placeholder:text-neutral-500"
@@ -295,6 +298,9 @@ function LoginInner() {
                   </div>
                 ) : null}
               </div>
+              {nameLoadWarning && (
+                <p className="mt-1 text-xs text-amber-400/80">{nameLoadWarning}</p>
+              )}
             </Field>
 
             <Field label="PIN" hint="4+ digits">
