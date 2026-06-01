@@ -55,17 +55,19 @@ type HubRow = {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const PURCHASE_TYPE_LABELS: Record<string, string> = {
-  standard:      "Standard",
-  cash_purchase: "Cash & Carry",
-  ec_purchase:   "EC / Online",
-  prepaid:       "Pre-payment",
+  standard:        "Standard",
+  cash_purchase:   "Cash & Carry",
+  ec_purchase:     "EC / Online",
+  prepaid:         "Pre-payment",
+  direct_purchase: "Direct Purchase",
 };
 
 const PURCHASE_TYPE_COLORS: Record<string, string> = {
-  standard:      "border-zinc-600/40 bg-zinc-800/20 text-zinc-300",
-  cash_purchase: "border-amber-500/35 bg-amber-950/25 text-amber-300",
-  ec_purchase:   "border-sky-500/35 bg-sky-950/25 text-sky-300",
-  prepaid:       "border-purple-500/35 bg-purple-950/25 text-purple-300",
+  standard:        "border-zinc-600/40 bg-zinc-800/20 text-zinc-300",
+  cash_purchase:   "border-amber-500/35 bg-amber-950/25 text-amber-300",
+  ec_purchase:     "border-sky-500/35 bg-sky-950/25 text-sky-300",
+  prepaid:         "border-purple-500/35 bg-purple-950/25 text-purple-300",
+  direct_purchase: "border-teal-500/35 bg-teal-950/25 text-teal-300",
 };
 
 function purchaseTypeBadge(pt: string) {
@@ -110,6 +112,20 @@ function rowAction(row: HubRow): { label: string; href: string; style: string } 
   const pt = (row.purchase_type || "standard").toLowerCase();
   const cs = (row.case_status || "").toUpperCase();
 
+  // Direct Purchase — route to dedicated review/verify page
+  if (pt === "direct_purchase") {
+    if (rs === "DRAFT") return {
+      label: "Verify →",
+      href: "/admin/procurement/direct-purchases",
+      style: "border-teal-500/40 bg-teal-950/20 text-teal-200 hover:bg-teal-950/35",
+    };
+    return {
+      label: "View →",
+      href: "/admin/procurement/direct-purchases",
+      style: "border-white/10 bg-white/5 text-zinc-400 hover:bg-white/8",
+    };
+  }
+
   // Draft — go to edit
   if (rs === "DRAFT") return {
     label: "Edit →",
@@ -152,7 +168,9 @@ function rowAction(row: HubRow): { label: string; href: string; style: string } 
 function rowHighlight(row: HubRow): string {
   const rs = (row.request_status || "").toUpperCase();
   const cs = (row.case_status || "").toUpperCase();
+  const pt = (row.purchase_type || "").toLowerCase();
   if (row.urgent_flag) return "border-rose-700/40 bg-rose-950/15";
+  if (pt === "direct_purchase" && rs === "DRAFT") return "border-teal-600/30 bg-teal-950/10";
   if (rs === "APPROVED" && (row.purchase_type === "cash_purchase" || row.purchase_type === "ec_purchase" || row.purchase_type === "prepaid"))
     return "border-amber-600/30 bg-amber-950/10";
   if (cs === "ESCALATED") return "border-rose-700/30 bg-rose-950/10";
@@ -174,6 +192,11 @@ function classifyRow(row: HubRow): StatusGroup {
   const pt = (row.purchase_type || "").toLowerCase();
   const DONE = new Set(["RECEIVED", "CLOSED", "CANCELLED", "REJECTED", "PURCHASED"]);
   if (DONE.has(rs)) return "completed";
+  // Direct Purchase: DRAFT = needs verification (action needed), APPROVED = verified (completed)
+  if (pt === "direct_purchase") {
+    if (rs === "DRAFT") return "action_needed";
+    return "completed";
+  }
   // Prepaid: payment_status is the execution signal (r.status stays APPROVED after confirm)
   if (pt === "prepaid" && row.payment_status === "PAYMENT_CONFIRMED") return "completed";
   if (rs === "APPROVED" && (pt === "cash_purchase" || pt === "ec_purchase")) return "action_needed";
@@ -386,6 +409,7 @@ export default function ProcurementHubPage() {
               <option value="cash_purchase">Cash &amp; Carry</option>
               <option value="ec_purchase">EC / Online</option>
               <option value="prepaid">Pre-payment</option>
+              <option value="direct_purchase">Direct Purchase</option>
             </select>
           </div>
           <div>
