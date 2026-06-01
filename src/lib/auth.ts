@@ -356,7 +356,16 @@ export function procurementMarketFromAuth(a?: Auth | null): City {
 export function canAccessProcurementAdmin(roleOrAuth: string | Auth | null | undefined, market: City): boolean {
   if (typeof roleOrAuth === "object" || roleOrAuth == null) {
     const authValue = typeof roleOrAuth === "object" ? roleOrAuth || undefined : undefined;
-    return hasAnyPermission(["channel.admin.procurement.view", "procurement.request.write", "procurement.approval.act"], authValue);
+    // Permission-based check
+    if (hasAnyPermission(["channel.admin.procurement.view", "procurement.request.write", "procurement.approval.act"], authValue)) {
+      return true;
+    }
+    // Role-based fallback — management/admin roles always get access
+    if (authValue) {
+      const r = String(authValue.role || "").toUpperCase();
+      if (r === "HQ" || r === "ADMIN" || r === "DUBAI_MANAGEMENT" || r === "MANILA_MANAGEMENT") return true;
+    }
+    return false;
   }
   const normalizedRole = String(roleOrAuth || "").toUpperCase();
   const current = getAuth();
@@ -365,7 +374,12 @@ export function canAccessProcurementAdmin(roleOrAuth: string | Auth | null | und
       return true;
     }
   }
-  if (normalizedRole === "HQ") return true;
+  // Management/admin roles always get procurement admin access — do NOT rely on market
+  // detection, which can fail when auth refresh fails (e.g. Heroku Application Error on
+  // session endpoint returns stale auth with empty city).
+  if (normalizedRole === "HQ" || normalizedRole === "ADMIN") return true;
+  if (normalizedRole === "DUBAI_MANAGEMENT" || normalizedRole === "MANILA_MANAGEMENT") return true;
+  // Legacy market-specific fallback (kept for completeness)
   if (market === "manila") return normalizedRole === "MANILA_MANAGEMENT";
   if (market === "dubai") return normalizedRole === "DUBAI_MANAGEMENT";
   return false;
