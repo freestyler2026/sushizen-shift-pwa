@@ -146,15 +146,20 @@ export default function ProcurementCatalogPage() {
     return Array.from(s).sort();
   }, [rows]);
 
+  // Group-by mode: "order_type" (default) or "supplier"
+  const [groupBy, setGroupBy] = useState<"order_type" | "supplier">("supplier");
+
   const grouped = useMemo(() => {
     const map = new Map<string, CatalogRow[]>();
     for (const r of filtered) {
-      const key = `${r.order_type}__${r.store_scope}__${r.catalog_category || r.section || "(Other)"}`;
+      const key = groupBy === "supplier"
+        ? (r.supplier_name || "(No Supplier)")
+        : `${r.order_type}__${r.store_scope}__${r.catalog_category || r.section || "(Other)"}`;
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(r);
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [filtered]);
+  }, [filtered, groupBy]);
 
   const loadSuppliers = useCallback(async () => {
     if (!requestedBy || !pin) return;
@@ -380,24 +385,46 @@ export default function ProcurementCatalogPage() {
       {rows.length > 0 && !suppliersTab && (
         <div className={`${GLASS_CARD} p-4`}>
           <div className="flex flex-wrap gap-3 items-end">
+            {/* Group-by toggle */}
             <div>
-              <label className={`${T_LABEL} mb-1 block`}>Order Type</label>
-              <select className={SELECT_CLASS} value={filterOrderType} onChange={(e) => setFilterOrderType(e.target.value)}>
-                <option value="">All types</option>
-                {orderTypes.map((t) => (
-                  <option key={t} value={t}>{ORDER_TYPE_LABELS[t] ?? t}</option>
-                ))}
-              </select>
+              <label className={`${T_LABEL} mb-1 block`}>Group by</label>
+              <div className="flex rounded-lg border border-white/10 overflow-hidden">
+                <button
+                  onClick={() => setGroupBy("supplier")}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${groupBy === "supplier" ? "bg-violet-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+                >
+                  Supplier
+                </button>
+                <button
+                  onClick={() => setGroupBy("order_type")}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${groupBy === "order_type" ? "bg-violet-600 text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+                >
+                  Order Type
+                </button>
+              </div>
             </div>
-            <div>
-              <label className={`${T_LABEL} mb-1 block`}>Store</label>
-              <select className={SELECT_CLASS} value={filterStore} onChange={(e) => setFilterStore(e.target.value)}>
-                <option value="">All stores</option>
-                {stores.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            </div>
+            {groupBy === "order_type" && (
+              <div>
+                <label className={`${T_LABEL} mb-1 block`}>Order Type</label>
+                <select className={SELECT_CLASS} value={filterOrderType} onChange={(e) => setFilterOrderType(e.target.value)}>
+                  <option value="">All types</option>
+                  {orderTypes.map((t) => (
+                    <option key={t} value={t}>{ORDER_TYPE_LABELS[t] ?? t}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {groupBy === "order_type" && (
+              <div>
+                <label className={`${T_LABEL} mb-1 block`}>Store</label>
+                <select className={SELECT_CLASS} value={filterStore} onChange={(e) => setFilterStore(e.target.value)}>
+                  <option value="">All stores</option>
+                  {stores.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="flex-1 min-w-40">
               <label className={`${T_LABEL} mb-1 block`}>Search</label>
               <div className="relative">
@@ -513,16 +540,36 @@ export default function ProcurementCatalogPage() {
 
       {/* Catalog table grouped */}
       {!suppliersTab && grouped.length > 0 && grouped.map(([groupKey, groupRows]) => {
-        const [orderType, storeScope, category] = groupKey.split("__");
+        const isSupplierView = groupBy === "supplier";
+        const [orderType, storeScope, category] = isSupplierView ? ["", "", ""] : groupKey.split("__");
+        // Collect unique order types within this supplier group (for badge display)
+        const groupOrderTypes = isSupplierView
+          ? Array.from(new Set(groupRows.map((r) => r.order_type).filter(Boolean)))
+          : [];
         return (
           <div key={groupKey} className={GLASS_CARD}>
             <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
-              <span className={`rounded px-2 py-0.5 text-xs font-medium ${ORDER_TYPE_BADGE[orderType] ?? "bg-zinc-700 text-zinc-300"}`}>
-                {ORDER_TYPE_LABELS[orderType] ?? orderType}
-              </span>
-              <span className="text-sm font-semibold text-white">{storeScope}</span>
-              <span className="text-zinc-400">·</span>
-              <span className="text-sm text-zinc-300">{category}</span>
+              {isSupplierView ? (
+                <>
+                  <span className="text-sm font-semibold text-white">{groupKey}</span>
+                  <div className="flex gap-1">
+                    {groupOrderTypes.map((ot) => (
+                      <span key={ot} className={`rounded px-1.5 py-0.5 text-xs font-medium ${ORDER_TYPE_BADGE[ot] ?? "bg-zinc-700 text-zinc-300"}`}>
+                        {ORDER_TYPE_LABELS[ot] ?? ot}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <span className={`rounded px-2 py-0.5 text-xs font-medium ${ORDER_TYPE_BADGE[orderType] ?? "bg-zinc-700 text-zinc-300"}`}>
+                    {ORDER_TYPE_LABELS[orderType] ?? orderType}
+                  </span>
+                  <span className="text-sm font-semibold text-white">{storeScope}</span>
+                  <span className="text-zinc-400">·</span>
+                  <span className="text-sm text-zinc-300">{category}</span>
+                </>
+              )}
               <span className={`ml-auto ${T_CAPTION}`}>{groupRows.length} items</span>
             </div>
             <div className="overflow-x-auto">
@@ -530,7 +577,11 @@ export default function ProcurementCatalogPage() {
                 <thead>
                   <tr className="border-b border-white/5 text-left text-xs text-zinc-500">
                     <th className="px-4 py-2">Item Name</th>
-                    <th className="px-3 py-2">Supplier</th>
+                    {isSupplierView ? (
+                      <th className="px-3 py-2">Category / Section</th>
+                    ) : (
+                      <th className="px-3 py-2">Supplier</th>
+                    )}
                     <th className="px-3 py-2">Unit</th>
                     <th className="px-3 py-2">Unit Price</th>
                     <th className="px-3 py-2">Min Stock</th>
@@ -546,7 +597,11 @@ export default function ProcurementCatalogPage() {
                       <td className="px-4 py-2 font-medium text-white">
                         {r.item_name}
                       </td>
-                      <td className="px-3 py-2 text-zinc-300">{r.supplier_name || "—"}</td>
+                      <td className="px-3 py-2 text-zinc-300">
+                        {isSupplierView
+                          ? (r.catalog_category || r.section || "—")
+                          : (r.supplier_name || "—")}
+                      </td>
                       <td className="px-3 py-2 text-zinc-400">{r.unit || "—"}</td>
                       <td className="px-3 py-2 text-zinc-300">
                         {r.unit_price > 0 ? `${city === "dubai" ? "AED" : "₱"}${r.unit_price.toLocaleString()}` : "—"}
