@@ -128,6 +128,7 @@ export async function procurementJson<T>(
   const res = await fetch(url, {
     ...init,
     headers: {
+      ...(init.body && typeof init.body === "string" ? { "Content-Type": "application/json" } : {}),
       ...(init.headers || {}),
       ...headers,
     },

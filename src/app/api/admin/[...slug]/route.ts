@@ -36,7 +36,7 @@ async function forward(req: NextRequest, params: { slug: string[] }, method: For
       ...(body && body.byteLength > 0
         ? {
             "Content-Type":
-              req.headers.get("content-type") || "application/octet-stream",
+              req.headers.get("content-type") || "application/json",
           }
         : {}),
     },
