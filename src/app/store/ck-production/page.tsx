@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Truck,
@@ -106,6 +106,18 @@ export default function CkProductionPage() {
   const [staffName, setStaffName] = useState(defaultProcurementName);
   const [pin, setPin] = useState(defaultProcurementPin);
   const [city, setCity] = useState("manila");
+  const [staffNameOptions, setStaffNameOptions] = useState<string[]>([]);
+
+  // Load staff name suggestions whenever city changes
+  useEffect(() => {
+    const c = city || "manila";
+    fetch(`/api/staff/names?city=${encodeURIComponent(c)}&limit=500`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d?.names)) setStaffNameOptions(d.names as string[]);
+      })
+      .catch(() => {/* silently ignore — suggestions are non-critical */});
+  }, [city]);
 
   // List state
   const [rows, setRows] = useState<PendingPo[]>([]);
@@ -307,8 +319,15 @@ export default function CkProductionPage() {
                 value={staffName}
                 onChange={(e) => setStaffName(e.target.value)}
                 placeholder="CK staff name"
+                list="ck-dispatch-staff-names"
+                autoComplete="off"
                 className={INPUT_CLASS}
               />
+              <datalist id="ck-dispatch-staff-names">
+                {staffNameOptions.map((n) => (
+                  <option key={n} value={n} />
+                ))}
+              </datalist>
             </div>
             <div>
               <label className={`${T_LABEL} mb-1.5 flex items-center gap-1.5`}>
