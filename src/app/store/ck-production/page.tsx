@@ -29,20 +29,11 @@ import {
   BADGE_WARNING,
   BADGE_ERROR,
 } from "@/lib/ui-tokens";
-
-// ─── Auth helpers (mirrors store/purchase pattern) ───────────────────────────
-function defaultName(): string {
-  if (typeof window === "undefined") return "";
-  return localStorage.getItem("ck_production_name") || "";
-}
-function defaultPin(): string {
-  if (typeof window === "undefined") return "";
-  return localStorage.getItem("ck_production_pin") || "";
-}
-function saveSession(name: string, pin: string) {
-  localStorage.setItem("ck_production_name", name);
-  localStorage.setItem("ck_production_pin", pin);
-}
+import {
+  defaultProcurementName,
+  defaultProcurementPin,
+  saveProcurementSession,
+} from "@/lib/procurementClient";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type LineItem = {
@@ -112,8 +103,8 @@ export default function CkProductionPage() {
     "rounded-xl bg-gradient-to-r from-rose-700 to-orange-700 px-5 py-2.5 font-semibold text-white transition-all duration-200 shadow-lg shadow-rose-500/20 hover:from-rose-600 hover:to-orange-600 active:scale-[0.98] disabled:opacity-60";
 
   // Auth
-  const [staffName, setStaffName] = useState(defaultName);
-  const [pin, setPin] = useState(defaultPin);
+  const [staffName, setStaffName] = useState(defaultProcurementName);
+  const [pin, setPin] = useState(defaultProcurementPin);
   const [city, setCity] = useState("manila");
 
   // List state
@@ -188,7 +179,7 @@ export default function CkProductionPage() {
         });
 
         setFetched(true);
-        saveSession(staffName.trim(), pin.trim());
+        saveProcurementSession(staffName.trim(), pin.trim());
       } catch (e: unknown) {
         setError(friendlyError(e));
       } finally {

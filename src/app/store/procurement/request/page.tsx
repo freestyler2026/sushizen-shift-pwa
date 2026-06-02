@@ -1885,9 +1885,35 @@ export default function StoreProcurementRequestPage() {
 
       {/* Sticky confirm bar — visible when review panel is open */}
       {showSubmitReview && (
-        <div className="no-print fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-slate-900/95 px-4 py-3 backdrop-blur-md">
-          <div className="mx-auto flex max-w-7xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            {/* Checkbox lives here — always visible without scrolling */}
+        <div className="no-print fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-slate-900/95 px-4 pt-3 pb-3 backdrop-blur-md">
+          <div className="mx-auto max-w-7xl space-y-2">
+            {/* Buttons row — rendered FIRST so it is furthest from the screen bottom edge
+                and never hidden behind iOS home indicator */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSubmitReview(false);
+                  setReviewMode("");
+                  setSubmitChecked(false);
+                }}
+                disabled={busy !== ""}
+                className="rounded-xl border border-white/15 bg-white/8 px-4 py-2 text-xs font-medium text-zinc-200 transition hover:bg-white/15 disabled:opacity-50"
+              >
+                ← Back
+              </button>
+              <button
+                type="button"
+                onClick={() => void createRequest(reviewMode !== "draft")}
+                disabled={busy !== "" || !submitChecked}
+                className="flex-1 rounded-xl bg-violet-600 px-5 py-2 text-xs font-semibold text-white transition hover:bg-violet-500 disabled:opacity-40"
+              >
+                {reviewMode === "draft"
+                  ? busy === "create" ? "Creating..." : "Confirm & Create Draft"
+                  : busy === "submit" ? "Submitting..." : "Confirm & Submit →"}
+              </button>
+            </div>
+            {/* Checkbox row — below the buttons; users tap this first, then the button above */}
             <label className="flex cursor-pointer items-center gap-2 text-xs">
               <input
                 type="checkbox"
@@ -1905,30 +1931,6 @@ export default function StoreProcurementRequestPage() {
               <span className="ml-1 text-zinc-500">·</span>
               <span className="font-semibold text-amber-300">{currencyCode} {validItemsTotal.toFixed(2)}</span>
             </label>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowSubmitReview(false);
-                  setReviewMode("");
-                  setSubmitChecked(false);
-                }}
-                disabled={busy !== ""}
-                className="rounded-xl border border-white/15 bg-white/8 px-4 py-2 text-xs font-medium text-zinc-200 transition hover:bg-white/15 disabled:opacity-50"
-              >
-                ← Back
-              </button>
-              <button
-                type="button"
-                onClick={() => void createRequest(reviewMode !== "draft")}
-                disabled={busy !== "" || !submitChecked}
-                className="rounded-xl bg-violet-600 px-5 py-2 text-xs font-semibold text-white transition hover:bg-violet-500 disabled:opacity-40"
-              >
-                {reviewMode === "draft"
-                  ? busy === "create" ? "Creating..." : "Confirm & Create Draft"
-                  : busy === "submit" ? "Submitting..." : "Confirm & Submit →"}
-              </button>
-            </div>
           </div>
         </div>
       )}
