@@ -195,8 +195,8 @@ export default function StorePurchasePage() {
 
   const getItemSuggestions = (query: string) =>
     query.length < 1
-      ? []
-      : catalog.filter((c) => c.item_name.toLowerCase().includes(query.toLowerCase())).slice(0, 8);
+      ? catalog.slice(0, 12)
+      : catalog.filter((c) => c.item_name.toLowerCase().includes(query.toLowerCase())).slice(0, 10);
 
   const handleItemNameChange = (id: number, val: string) => {
     const match = catalog.find((c) => c.item_name.toLowerCase() === val.toLowerCase());
