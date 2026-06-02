@@ -297,7 +297,7 @@ export default function CkProductionPage() {
               <Truck className="h-5 w-5 text-amber-400" />
             </div>
             <div>
-              <h1 className={T_PAGE_TITLE}>CK Production Dispatch</h1>
+              <h1 className={T_PAGE_TITLE}>CK Dispatch</h1>
               <p className={T_BODY}>
                 Confirm items dispatched from Central Kitchen.
               </p>
