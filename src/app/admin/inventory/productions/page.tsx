@@ -1281,7 +1281,7 @@ ${pages}
           <div className="flex flex-col gap-1">
             <label className="text-[11px] font-medium uppercase tracking-wide text-neutral-500">City</label>
             <select
-              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
               value={city}
               onChange={(e) => {
                 const next = e.target.value as City;
@@ -1300,7 +1300,7 @@ ${pages}
               type="date"
               value={businessDate}
               onChange={(e) => setBusinessDate(e.target.value)}
-              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -1310,7 +1310,7 @@ ${pages}
               value={creatorName}
               onChange={(e) => setCreatorName(e.target.value)}
               placeholder="Select or type name"
-              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -1319,7 +1319,7 @@ ${pages}
               type="month"
               value={historyMonth}
               onChange={(e) => setHistoryMonth(e.target.value)}
-              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+              className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
             />
           </div>
         </div>
@@ -1841,7 +1841,7 @@ ${pages}
 
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_140px_140px_140px]">
           <select
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
             value={selectedProductId}
             onChange={(e) => setSelectedProductId(e.target.value)}
           >
@@ -1862,10 +1862,10 @@ ${pages}
               e.preventDefault();
               setSelectedQty((current) => stepDraftNumber(current, selectedQtyStep, e.key === "ArrowUp" ? 1 : -1));
             }}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
           />
           <select
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
             value={selectedUnit}
             onChange={(e) => setSelectedUnit(e.target.value)}
           >
@@ -1946,7 +1946,7 @@ ${pages}
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_120px_140px_140px]">
           <select
             ref={recipeProductSelectRef}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
             value={recipeProductId}
             onChange={(e) => {
               setRecipeProductId(e.target.value);
@@ -1961,7 +1961,7 @@ ${pages}
             ))}
           </select>
           <select
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
             value={recipeIngredientId}
             onChange={(e) => setRecipeIngredientId(e.target.value)}
             onMouseDown={handleRecipeIngredientFocus}
@@ -1984,10 +1984,10 @@ ${pages}
               e.preventDefault();
               setRecipeQty((current) => stepDraftNumber(current, recipeQtyStep, e.key === "ArrowUp" ? 1 : -1));
             }}
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
           />
           <select
-            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm"
+            className="rounded-xl border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-white"
             value={recipeUnit}
             onChange={(e) => setRecipeUnit(e.target.value)}
           >
