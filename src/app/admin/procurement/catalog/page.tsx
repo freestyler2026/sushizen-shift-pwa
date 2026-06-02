@@ -81,6 +81,15 @@ export default function ProcurementCatalogPage() {
   const [editForm, setEditForm] = useState<Partial<CatalogRow>>({});
   const [saving, setSaving] = useState(false);
 
+  // Supplier management tab
+  const [suppliersTab, setSuppliersTab] = useState(false);
+  const [suppliers, setSuppliers] = useState<{ supplier_name: string; active_count: number; inactive_count: number }[]>([]);
+  const [suppliersBusy, setSuppliersBusy] = useState(false);
+  const [renameModal, setRenameModal] = useState<{ old: string } | null>(null);
+  const [renameTo, setRenameTo] = useState("");
+  const [renameBusy, setRenameBusy] = useState(false);
+  const [deactivateConfirm, setDeactivateConfirm] = useState<string | null>(null);
+
   useEffect(() => {
     const role = auth?.role || "";
     if (canAccessProcurementAdmin(auth, "manila") || canAccessProcurementAdmin(auth, "dubai") || role === "HQ" || role === "ADMIN") {
@@ -146,6 +155,77 @@ export default function ProcurementCatalogPage() {
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [filtered]);
+
+  const loadSuppliers = useCallback(async () => {
+    if (!requestedBy || !pin) return;
+    setSuppliersBusy(true);
+    setError("");
+    try {
+      const qs = new URLSearchParams({ approver_name: requestedBy, pin, city });
+      const data = await procurementJson<{ suppliers: { supplier_name: string; active_count: number; inactive_count: number }[] }>(
+        `/api/admin/procurement/catalog/suppliers?${qs}`,
+        { method: "GET" },
+        requestedBy,
+        pin,
+      );
+      setSuppliers(Array.isArray(data?.suppliers) ? data.suppliers : []);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSuppliersBusy(false);
+    }
+  }, [requestedBy, pin, city]);
+
+  async function renameSupplier() {
+    if (!renameModal || !renameTo.trim()) return;
+    setRenameBusy(true);
+    setError("");
+    try {
+      await procurementJson(
+        "/api/admin/procurement/catalog/supplier/rename-global",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            approver_name: requestedBy,
+            pin,
+            city,
+            old_supplier_name: renameModal.old,
+            new_supplier_name: renameTo.trim(),
+          }),
+        },
+        requestedBy,
+        pin,
+      );
+      setSuccessMsg(`Renamed "${renameModal.old}" → "${renameTo.trim()}"`);
+      setRenameModal(null);
+      setRenameTo("");
+      await loadSuppliers();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRenameBusy(false);
+    }
+  }
+
+  async function deactivateSupplier(supplierName: string) {
+    setError("");
+    try {
+      await procurementJson(
+        "/api/admin/procurement/catalog/supplier/deactivate",
+        {
+          method: "POST",
+          body: JSON.stringify({ approver_name: requestedBy, pin, city, supplier_name: supplierName }),
+        },
+        requestedBy,
+        pin,
+      );
+      setSuccessMsg(`All items from "${supplierName}" deactivated.`);
+      setDeactivateConfirm(null);
+      await loadSuppliers();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
 
   function openEdit(row: CatalogRow) {
     setEditRow(row);
@@ -258,8 +338,26 @@ export default function ProcurementCatalogPage() {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Tab switcher */}
       {rows.length > 0 && (
+        <div className="flex gap-1 border-b border-white/10 -mb-2">
+          <button
+            onClick={() => setSuppliersTab(false)}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${!suppliersTab ? "border-violet-400 text-white" : "border-transparent text-zinc-400 hover:text-zinc-200"}`}
+          >
+            Catalog Items
+          </button>
+          <button
+            onClick={() => { setSuppliersTab(true); void loadSuppliers(); }}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${suppliersTab ? "border-violet-400 text-white" : "border-transparent text-zinc-400 hover:text-zinc-200"}`}
+          >
+            Supplier Management
+          </button>
+        </div>
+      )}
+
+      {/* Stats */}
+      {rows.length > 0 && !suppliersTab && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
             { label: "Total Items", value: rows.length, icon: Package },
@@ -279,7 +377,7 @@ export default function ProcurementCatalogPage() {
       )}
 
       {/* Filters */}
-      {rows.length > 0 && (
+      {rows.length > 0 && !suppliersTab && (
         <div className={`${GLASS_CARD} p-4`}>
           <div className="flex flex-wrap gap-3 items-end">
             <div>
@@ -354,8 +452,67 @@ export default function ProcurementCatalogPage() {
         </div>
       )}
 
+      {/* ── Supplier Management panel ── */}
+      {suppliersTab && (
+        <div className={GLASS_CARD}>
+          <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+            <h2 className="text-sm font-semibold text-white">Suppliers — {city === "dubai" ? "Dubai" : "Manila"}</h2>
+            <button onClick={() => void loadSuppliers()} disabled={suppliersBusy} className={SECONDARY_BUTTON}>
+              <RefreshCw className={`h-4 w-4 ${suppliersBusy ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+          </div>
+          {suppliersBusy ? (
+            <p className="p-6 text-center text-zinc-400">Loading…</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/5 text-left text-xs text-zinc-500">
+                  <th className="px-4 py-2">Supplier Name</th>
+                  <th className="px-3 py-2 text-right">Active Items</th>
+                  <th className="px-3 py-2 text-right">Inactive</th>
+                  <th className="px-3 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {suppliers.map((s) => (
+                  <tr key={s.supplier_name} className="border-b border-white/5 hover:bg-white/3 transition-colors">
+                    <td className="px-4 py-2.5 font-medium text-white">
+                      {s.supplier_name === "(blank)" ? <span className="text-zinc-500 italic">(no supplier name)</span> : s.supplier_name}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-green-400">{s.active_count}</td>
+                    <td className="px-3 py-2.5 text-right text-zinc-500">{s.inactive_count}</td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => { setRenameModal({ old: s.supplier_name }); setRenameTo(s.supplier_name); }}
+                          className="rounded px-2 py-1 text-xs text-violet-400 hover:bg-violet-500/10 transition-colors"
+                        >
+                          Rename
+                        </button>
+                        {s.active_count > 0 && s.supplier_name !== "(blank)" && (
+                          <button
+                            onClick={() => setDeactivateConfirm(s.supplier_name)}
+                            className="rounded px-2 py-1 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+                          >
+                            Deactivate All
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          <p className={`px-4 py-2 ${BADGE_INFO} text-xs rounded-none rounded-b-xl`}>
+            💡 Rename merges the old name into the new one (all active + inactive items updated). Deactivate hides all items from order forms.
+          </p>
+        </div>
+      )}
+
       {/* Catalog table grouped */}
-      {grouped.length > 0 && grouped.map(([groupKey, groupRows]) => {
+      {!suppliersTab && grouped.length > 0 && grouped.map(([groupKey, groupRows]) => {
         const [orderType, storeScope, category] = groupKey.split("__");
         return (
           <div key={groupKey} className={GLASS_CARD}>
@@ -425,10 +582,64 @@ export default function ProcurementCatalogPage() {
         );
       })}
 
-      {rows.length === 0 && !busy && (
+      {!suppliersTab && rows.length === 0 && !busy && (
         <div className={`${GLASS_CARD} p-8 text-center`}>
           <Package className="mx-auto mb-3 h-8 w-8 text-zinc-600" />
           <p className="text-zinc-400">No catalog items found. Enter credentials and click Load Catalog.</p>
+        </div>
+      )}
+
+      {/* Rename Supplier Modal */}
+      {renameModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-white/10 p-6 space-y-4">
+            <h2 className="text-sm font-semibold text-white">Rename Supplier</h2>
+            <p className={T_CAPTION}>Current name: <span className="text-white font-medium">{renameModal.old}</span></p>
+            <div>
+              <label className={`${T_LABEL} mb-1 block`}>New Name</label>
+              <input
+                className={INPUT_CLASS}
+                value={renameTo}
+                onChange={(e) => setRenameTo(e.target.value)}
+                placeholder="Enter new supplier name…"
+                autoFocus
+              />
+            </div>
+            <p className={`${T_CAPTION} text-amber-400/80`}>
+              ⚠️ This renames all items (active + inactive) from this supplier across all categories.
+            </p>
+            <div className="flex justify-end gap-3 pt-1">
+              <button onClick={() => { setRenameModal(null); setRenameTo(""); }} className={SECONDARY_BUTTON}>Cancel</button>
+              <button
+                onClick={() => void renameSupplier()}
+                disabled={renameBusy || !renameTo.trim() || renameTo.trim() === renameModal.old}
+                className={PRIMARY_BUTTON}
+              >
+                {renameBusy ? "Saving…" : "Rename"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deactivate Confirm */}
+      {deactivateConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-white/10 p-6 space-y-4">
+            <h2 className="text-sm font-semibold text-red-400">Deactivate Supplier Items</h2>
+            <p className="text-sm text-zinc-300">
+              This will hide ALL items from <span className="text-white font-medium">{deactivateConfirm}</span> from all order forms. Items remain in the database and can be reactivated.
+            </p>
+            <div className="flex justify-end gap-3 pt-1">
+              <button onClick={() => setDeactivateConfirm(null)} className={SECONDARY_BUTTON}>Cancel</button>
+              <button
+                onClick={() => void deactivateSupplier(deactivateConfirm)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-950/30 px-4 py-2 text-sm font-medium text-red-300 hover:bg-red-950/50 transition-colors"
+              >
+                Deactivate All Items
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
