@@ -17,7 +17,7 @@ import {
   BADGE_WARNING,
   BADGE_INFO,
 } from "@/lib/ui-tokens";
-import { RefreshCw, AlertCircle, CheckCircle, Search, Zap, Package, Plus } from "lucide-react";
+import { RefreshCw, AlertCircle, CheckCircle, Search, Zap, Package, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 type CatalogRow = {
@@ -80,6 +80,10 @@ export default function ProcurementCatalogPage() {
   const [editRow, setEditRow] = useState<CatalogRow | null>(null);
   const [editForm, setEditForm] = useState<Partial<CatalogRow>>({});
   const [saving, setSaving] = useState(false);
+
+  // Delete confirmation
+  const [deleteConfirm, setDeleteConfirm] = useState<CatalogRow | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   // Supplier management tab
   const [suppliersTab, setSuppliersTab] = useState(false);
@@ -263,6 +267,29 @@ export default function ProcurementCatalogPage() {
     setEditForm(blank);
     setSuccessMsg("");
     setError("");
+  }
+
+  async function deleteItem(row: CatalogRow) {
+    setDeleteBusy(true);
+    setError("");
+    try {
+      await procurementJson(
+        "/api/admin/procurement/catalog/item/delete",
+        {
+          method: "POST",
+          body: JSON.stringify({ approver_name: requestedBy, pin, city, item_id: row.id }),
+        },
+        requestedBy,
+        pin,
+      );
+      setSuccessMsg(`Deleted: "${row.item_name}"`);
+      setDeleteConfirm(null);
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeleteBusy(false);
+    }
   }
 
   async function saveEdit() {
@@ -621,12 +648,21 @@ export default function ProcurementCatalogPage() {
                         )}
                       </td>
                       <td className="px-3 py-2">
-                        <button
-                          onClick={() => openEdit(r)}
-                          className="rounded px-2 py-1 text-xs text-violet-400 hover:bg-violet-500/10 transition-colors"
-                        >
-                          Edit
-                        </button>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => openEdit(r)}
+                            className="rounded px-2 py-1 text-xs text-violet-400 hover:bg-violet-500/10 transition-colors"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirm(r)}
+                            className="rounded px-1.5 py-1 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+                            title="Delete this item"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -641,6 +677,31 @@ export default function ProcurementCatalogPage() {
         <div className={`${GLASS_CARD} p-8 text-center`}>
           <Package className="mx-auto mb-3 h-8 w-8 text-zinc-600" />
           <p className="text-zinc-400">No catalog items found. Enter credentials and click Load Catalog.</p>
+        </div>
+      )}
+
+      {/* Delete Item Confirm */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-white/10 p-6 space-y-4">
+            <h2 className="text-sm font-semibold text-red-400">Delete Catalog Item</h2>
+            <p className="text-sm text-zinc-300">
+              Permanently delete <span className="text-white font-medium">&ldquo;{deleteConfirm.item_name}&rdquo;</span>
+              {deleteConfirm.supplier_name ? <> from <span className="text-white font-medium">{deleteConfirm.supplier_name}</span></> : ""}?
+              This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3 pt-1">
+              <button onClick={() => setDeleteConfirm(null)} disabled={deleteBusy} className={SECONDARY_BUTTON}>Cancel</button>
+              <button
+                onClick={() => void deleteItem(deleteConfirm)}
+                disabled={deleteBusy}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-950/30 px-4 py-2 text-sm font-medium text-red-300 hover:bg-red-950/50 transition-colors"
+              >
+                <Trash2 className="h-4 w-4" />
+                {deleteBusy ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
