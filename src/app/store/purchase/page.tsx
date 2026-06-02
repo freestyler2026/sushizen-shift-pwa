@@ -37,7 +37,7 @@ import {
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type VendorEntry = { name: string; isRegistered: boolean };
-type CatalogItem  = { item_name: string; unit: string; benchmark_unit_price: number; category: string };
+type CatalogItem  = { item_name: string; unit: string; benchmark_unit_price: number; category: string; supplier_name: string };
 
 type ItemRow = {
   id: number;
@@ -193,10 +193,18 @@ export default function StorePurchasePage() {
     setActiveSuggestId(null);
   };
 
+  // Filter catalog by selected vendor first (if vendor matches a catalog supplier)
+  const vendorCatalog = (() => {
+    if (!vendorName) return catalog;
+    const vl = vendorName.toLowerCase();
+    const filtered = catalog.filter((c) => c.supplier_name.toLowerCase() === vl);
+    return filtered.length > 0 ? filtered : catalog;
+  })();
+
   const getItemSuggestions = (query: string) =>
     query.length < 1
-      ? catalog.slice(0, 12)
-      : catalog.filter((c) => c.item_name.toLowerCase().includes(query.toLowerCase())).slice(0, 10);
+      ? vendorCatalog.slice(0, 12)
+      : vendorCatalog.filter((c) => c.item_name.toLowerCase().includes(query.toLowerCase())).slice(0, 10);
 
   const handleItemNameChange = (id: number, val: string) => {
     const match = catalog.find((c) => c.item_name.toLowerCase() === val.toLowerCase());
