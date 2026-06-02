@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { canAccessProcurementAdmin } from "@/lib/auth";
 import {
   defaultProcurementName,
   defaultProcurementPin,
@@ -56,15 +56,14 @@ const UNITS = ["kg", "g", "L", "mL", "pc", "box", "bag", "bottle", "pack", "tray
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export default function StorePurchasePage() {
-  const auth = getAuth();
+// Direct Purchase is Manila-only
+const DIRECT_PURCHASE_CITY = "manila" as const;
 
+export default function StorePurchasePage() {
   // ── Auth ──
   const [name, setName]   = useState(defaultProcurementName());
   const [pin, setPin]     = useState(defaultProcurementPin());
-  const [city, setCity]   = useState<"manila" | "dubai">(
-    String(auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila",
-  );
+  const city = DIRECT_PURCHASE_CITY;
   const [authed, setAuthed]       = useState(false);
   const [authError, setAuthError] = useState("");
   const [authBusy, setAuthBusy]   = useState(false);
@@ -326,13 +325,6 @@ export default function StorePurchasePage() {
               placeholder="••••••••" className={INPUT_CLASS}
               onKeyDown={(e) => { if (e.key === "Enter") void verifyPin(); }} />
           </div>
-          <div>
-            <label className={`${T_LABEL} mb-1.5 block`}>City</label>
-            <select value={city} onChange={(e) => setCity(e.target.value as "manila" | "dubai")} className={SELECT_CLASS}>
-              <option value="manila">Manila</option>
-              <option value="dubai">Dubai</option>
-            </select>
-          </div>
           {authError && (
             <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-3 py-2.5 text-sm text-red-300">
               <AlertCircle className="h-4 w-4 shrink-0" />{authError}
@@ -356,7 +348,7 @@ export default function StorePurchasePage() {
         <ShoppingBag className="h-7 w-7 text-violet-400 shrink-0" />
         <div>
           <h1 className="text-xl font-semibold text-white">Direct Purchase</h1>
-          <p className={T_CAPTION}>Record as <span className="text-zinc-300">{name}</span> · {city}</p>
+          <p className={T_CAPTION}>Record as <span className="text-zinc-300">{name}</span> · Manila</p>
         </div>
       </div>
 
@@ -373,7 +365,7 @@ export default function StorePurchasePage() {
       )}
 
       {/* Purchase Info */}
-      <div className={`${GLASS_CARD} p-5 space-y-4`}>
+      <div className={`${GLASS_CARD} relative z-10 p-5 space-y-4`}>
         <p className={T_SECTION}>Purchase Info</p>
 
         <div>
@@ -404,7 +396,7 @@ export default function StorePurchasePage() {
           </div>
 
           {vendorOpen && vendorSuggestions.length > 0 && (
-            <div className="absolute z-20 mt-1 w-full rounded-xl border border-white/15 bg-[#1a1f35] shadow-xl overflow-hidden max-h-56 overflow-y-auto">
+            <div className="absolute z-50 mt-1 w-full rounded-xl border border-white/15 bg-[#1a1f35] shadow-xl overflow-hidden max-h-56 overflow-y-auto">
               {/* Registered (master) vendors first */}
               {vendors
                 .filter((v) => !vendorName || v.name.toLowerCase().includes(vendorName.toLowerCase()))
@@ -473,7 +465,7 @@ export default function StorePurchasePage() {
                     className={INPUT_CLASS}
                   />
                   {showSuggest && (
-                    <div className="absolute z-20 mt-1 w-full rounded-xl border border-white/15 bg-[#1a1f35] shadow-xl overflow-hidden max-h-48 overflow-y-auto">
+                    <div className="absolute z-50 mt-1 w-full rounded-xl border border-white/15 bg-[#1a1f35] shadow-xl overflow-hidden max-h-48 overflow-y-auto">
                       {suggestions.map((s) => (
                         <button key={s.item_name} type="button"
                           className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-zinc-200 hover:bg-violet-500/15 transition-colors"
