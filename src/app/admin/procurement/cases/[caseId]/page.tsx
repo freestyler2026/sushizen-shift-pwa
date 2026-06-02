@@ -110,7 +110,7 @@ export default function ProcurementCaseDetailPage() {
   const [paymentConfirming, setPaymentConfirming] = useState(false);
 
   const requestCity = (bundle.request?.city || city || "manila").toLowerCase();
-  const currency = bundle.request?.currency || (requestCity === "dubai" ? "AED" : "PHP");
+  const currency = requestCity === "dubai" ? "AED" : "PHP";
   const APPROVAL_THRESHOLD = requestCity === "dubai" ? 500 : 15000;
   const totalAmount = Number(bundle.request?.total_amount || 0);
   const isHighValue = totalAmount > APPROVAL_THRESHOLD;
