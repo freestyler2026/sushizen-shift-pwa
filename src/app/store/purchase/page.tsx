@@ -386,6 +386,9 @@ export default function StorePurchasePage() {
               onFocus={() => setVendorOpen(true)}
               onBlur={() => setTimeout(() => setVendorOpen(false), 160)}
               placeholder="Select or type vendor name…"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
               className={INPUT_CLASS}
             />
             <button type="button"
@@ -462,6 +465,9 @@ export default function StorePurchasePage() {
                     onFocus={() => setActiveSuggestId(item.id)}
                     onBlur={() => setTimeout(() => setActiveSuggestId(null), 160)}
                     placeholder="Item name (e.g. Salmon, Soy Sauce)"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
                     className={INPUT_CLASS}
                   />
                   {showSuggest && (
