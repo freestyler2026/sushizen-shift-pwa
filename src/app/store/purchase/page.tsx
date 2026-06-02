@@ -59,6 +59,10 @@ const UNITS = ["kg", "g", "L", "mL", "pc", "box", "bag", "bottle", "pack", "tray
 // Direct Purchase is Manila-only
 const DIRECT_PURCHASE_CITY = "manila" as const;
 
+// Draft persistence key — survives iOS PWA background-kill (sessionStorage stays
+// within the browser tab session; localStorage persists even longer if needed).
+const DRAFT_KEY = "direct_purchase_draft_v1";
+
 export default function StorePurchasePage() {
   // ── Auth ──
   const [name, setName]   = useState(defaultProcurementName());
@@ -151,6 +155,29 @@ export default function StorePurchasePage() {
     if (name && pin) void verifyPin();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Restore form draft when auth succeeds (survives iOS PWA background-reload).
+  useEffect(() => {
+    if (!authed) return;
+    try {
+      const saved = sessionStorage.getItem(DRAFT_KEY);
+      if (!saved) return;
+      const draft = JSON.parse(saved);
+      if (draft.vendorName) setVendorName(draft.vendorName);
+      if (draft.vendorIsNew !== undefined) setVendorIsNew(Boolean(draft.vendorIsNew));
+      if (draft.requestDate) setRequestDate(draft.requestDate);
+      if (Array.isArray(draft.items) && draft.items.length > 0) setItems(draft.items);
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authed]);
+
+  // Persist form draft continuously while the form is active.
+  useEffect(() => {
+    if (!authed) return;
+    try {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({ vendorName, vendorIsNew, requestDate, items }));
+    } catch {}
+  }, [authed, vendorName, vendorIsNew, requestDate, items]);
 
   // ─── Vendor helpers ──────────────────────────────────────────────────────
   const allVendorNames = [
@@ -272,6 +299,7 @@ export default function StorePurchasePage() {
       }
       const j   = JSON.parse(text || "{}");
       const req = j?.request || {};
+      try { sessionStorage.removeItem(DRAFT_KEY); } catch {}
       setResult({ request_no: String(req.request_no || req.parent_case_no || ""), total: Number(req.total_amount || totalAmount || 0) });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
@@ -305,7 +333,7 @@ export default function StorePurchasePage() {
             </div>
           )}
           <button type="button" className={`${SECONDARY_BUTTON} w-full`}
-            onClick={() => { setResult(null); setVendorName(""); setVendorIsNew(false); setItems([newItem()]); setPhotoFile(null); setPhotoPreview(""); setRequestDate(today); }}>
+            onClick={() => { try { sessionStorage.removeItem(DRAFT_KEY); } catch {} setResult(null); setVendorName(""); setVendorIsNew(false); setItems([newItem()]); setPhotoFile(null); setPhotoPreview(""); setRequestDate(today); }}>
             Submit Another Purchase
           </button>
         </div>
@@ -412,7 +440,6 @@ export default function StorePurchasePage() {
               {/* Registered (master) vendors first */}
               {vendors
                 .filter((v) => !vendorName || v.name.toLowerCase().includes(vendorName.toLowerCase()))
-                .slice(0, 10)
                 .map((v) => (
                   <button key={v.name} type="button"
                     className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-zinc-200 hover:bg-violet-500/15 transition-colors"
@@ -425,7 +452,6 @@ export default function StorePurchasePage() {
               {/* Unregistered (history) vendors */}
               {unregisteredVendors
                 .filter((n) => !vendorName || n.toLowerCase().includes(vendorName.toLowerCase()))
-                .slice(0, 5)
                 .map((n) => (
                   <button key={n} type="button"
                     className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-zinc-300 hover:bg-violet-500/10 transition-colors"
