@@ -5,20 +5,65 @@ Read this file first. Then load only the specific `docs/ai/` file relevant to yo
 
 ---
 
-## 📂 Documentation Index — Load On Demand
+## 📂 Documentation Index — Self-Determined Loading
 
-Detailed references live in `docs/ai/`. Load only what you need for the current task:
+Detailed references live in `docs/ai/`. **Claude must decide which files to load based on the task — the user will NOT specify which docs to read.**
+
+### Session Start (always)
+1. Read `CLAUDE.md` (this file)
+2. Read `docs/ai/CURRENT_TASKS.md` — understand current state and pending tasks
+3. Announce: "Ready. What would you like to work on today?"
+4. After receiving the task → follow the decision tree below
+
+### Decision Tree — which doc(s) to load next
+
+```
+Task involves...
+│
+├─ Creating / editing a frontend page or component?
+│   └─ Read: docs/ai/FRONTEND_MAP.md
+│
+├─ Adding / editing a backend API endpoint or service?
+│   └─ Read: docs/ai/BACKEND_MAP.md  (+ API_MAP.md if finding existing endpoints)
+│
+├─ Creating / modifying a DB table or query?
+│   └─ Read: docs/ai/DATABASE_SCHEMA.md
+│
+├─ Writing frontend API calls to backend?
+│   └─ Read: docs/ai/API_MAP.md
+│
+├─ Understanding a business flow or overall architecture?
+│   └─ Read: docs/ai/SYSTEM_OVERVIEW.md
+│
+└─ Full-stack feature (frontend + backend + DB)?
+    └─ Read relevant docs in order: BACKEND_MAP → DATABASE_SCHEMA → FRONTEND_MAP
+       Load one at a time; stop when you have enough context.
+```
+
+### After loading the right doc(s)
+- Grep or Read only the **specific files** relevant to the task (not the whole repo)
+- Never read `main.py` or `db.py` in full — always grep first, then read ±50 lines around the match
+- Proceed with implementation without asking for permission to read files
+
+### Session End — Auto-update CURRENT_TASKS.md (mandatory)
+**Trigger:** Whenever the user says they are done, asks for deploy commands, or the session is wrapping up.
+**Action:** Automatically rewrite `docs/ai/CURRENT_TASKS.md` to reflect:
+1. Move completed tasks to "Recently Completed" with a one-line description
+2. Update "Deployments Pending" with any new undeployed changes from this session
+3. Update task statuses (#in-progress, #pending) based on what was done
+4. Add any new known issues or lessons learned discovered this session
+5. Update the "Last updated" date
+
+Do this **without being asked**. It is part of every session's closing step.
 
 | File | When to load |
 |---|---|
-| `docs/ai/SYSTEM_OVERVIEW.md` | Understanding overall architecture, roles, business flows, external integrations |
-| `docs/ai/FRONTEND_MAP.md` | Working on any frontend page, component, route, or NavBar |
-| `docs/ai/BACKEND_MAP.md` | Working on backend endpoints, services, auth middleware |
-| `docs/ai/DATABASE_SCHEMA.md` | Querying or modifying DB tables, understanding schema |
-| `docs/ai/API_MAP.md` | Writing API calls, finding endpoint paths or request/response shapes |
-| `docs/ai/CURRENT_TASKS.md` | Starting a new session — see pending tasks, known issues, deploy state |
-
-**Rule:** Start every session by reading `CURRENT_TASKS.md` to understand where things left off. Then load only the additional doc(s) needed for the specific task.
+| `docs/ai/SYSTEM_OVERVIEW.md` | Architecture, roles, business flows, external integrations |
+| `docs/ai/FRONTEND_MAP.md` | Any frontend page, component, route, or NavBar change |
+| `docs/ai/BACKEND_MAP.md` | Backend endpoints, services, auth middleware |
+| `docs/ai/DATABASE_SCHEMA.md` | DB tables, columns, relationships |
+| `docs/ai/API_MAP.md` | API endpoint paths, request/response shapes |
+| `docs/ai/CURRENT_TASKS.md` | Always at session start |
 
 ---
 

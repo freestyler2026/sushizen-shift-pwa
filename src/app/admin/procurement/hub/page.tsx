@@ -238,16 +238,18 @@ export default function ProcurementHubPage() {
     detailCache.current[rowId] = { items: [], receipt_url: "", notes: "", loading: true };
     setDetailTick((n) => n + 1);
     try {
-      const data = await procurementJson<{ id: string; items?: DetailItem[]; receipt_url?: string; notes?: string }>(
+      const data = await procurementJson<{ ok?: boolean; request?: { items?: DetailItem[]; receipt_url?: string; notes?: string }; items?: DetailItem[]; receipt_url?: string; notes?: string }>(
         `/api/admin/procurement/requests/${rowId}`,
         { method: "GET" },
         requestedBy,
         pin,
       );
+      // API returns { ok, request: { items, receipt_url, notes, ... }, ... }
+      const req = (data as any)?.request ?? data;
       detailCache.current[rowId] = {
-        items: Array.isArray(data?.items) ? data.items : [],
-        receipt_url: String(data?.receipt_url || ""),
-        notes: String((data as any)?.notes || ""),
+        items: Array.isArray(req?.items) ? req.items : [],
+        receipt_url: String(req?.receipt_url || ""),
+        notes: String(req?.notes || ""),
         loading: false,
       };
     } catch {
