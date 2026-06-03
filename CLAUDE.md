@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+For detailed documentation, see `/docs/`:
+- `SYSTEM_OVERVIEW.md` — What the app does, roles, tech stack, business flows
+- `FRONTEND_MAP.md` — All routes, components, auth guard patterns, design tokens
+- `BACKEND_MAP.md` — All API endpoints, service files, DB patterns
+- `DATABASE_SCHEMA.md` — All major tables, columns, relationships
+- `API_MAP.md` — Complete API reference with request/response shapes
+- `CURRENT_TASKS.md` — In-progress work, known issues, deploy procedures
+
 ---
 
 ## App Identity
@@ -26,18 +34,15 @@ npm run build
 # Lint
 npm run lint
 
-# ✅ Deploy frontend to Vercel — ローカルターミナルから直接実行
-# ⚠️ git push origin main は SSH/HTTPS ともにパック送信中に切断されることが多い（2026-05 時点）
-# → 代わりに npx vercel --prod で直接デプロイする（確実に動作）
+# Deploy frontend — user runs this from local terminal
 git add -A && git commit -m "your message"
+git push origin main
+# → Vercel auto-builds and deploys (GitHub integration active as of 2026-05-11)
+
+# Emergency frontend deploy (bypass GitHub)
 npx vercel --prod
 
-# git push が必要な場合（GitHub履歴を残したいとき）は以下を試す:
-# git push origin main --no-thin  または
-# GIT_SSH_COMMAND="ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=10" git push origin main
-# それでも詰まる場合は npx vercel --prod にフォールバック
-
-# Deploy backend to Heroku — ローカルターミナルから実行（Cowork サンドボックス不可）
+# Deploy backend to Heroku — user runs this from local terminal (NOT from Cowork sandbox)
 cd ../sushizen_shift_app_clean
 git add -A && git commit -m "your message"
 git push heroku HEAD:master --force
@@ -71,8 +76,13 @@ This forwards to the Heroku backend at `https://sushizen-shift-app-038d846023bc.
 The backend URL is also set via `NEXT_PUBLIC_API_BASE_URL` env variable. `next.config.ts` rewrites `/api/:path*` → `${API_BASE}/api/:path*` for non-admin routes.
 
 ### Auth system (`src/lib/auth.ts`)
-Auth state lives in `localStorage` under key `sushizen_shift_auth`. Important role logic:
+Auth state lives in `localStorage` under key `sushizen_shift_auth`. Fields:
+- `staffName`, `city`, `cityLock`, `role`, `pin`, `accessToken`, `stepUpToken`
+- `stepUpLevel` (aal1/aal2/phishing_resistant), `stepUpMethod`, `stepUpVerifiedAt`
+- `permissions[]` — channel permission keys
+- `mfa` — MFA status object
 
+Important role logic:
 - **`isAdmin(auth)`** — returns `true` only if `auth.role === "ADMIN"`. HQ is NOT admin.
 - **`canAccessAdminNav(auth)`** — checks `auth.permissions[]` for channel-specific permission strings. Does NOT check role.
 - **`canAccessRoleManagement(auth)`** — returns `true` only if `auth.role === "HQ"`.
@@ -96,29 +106,52 @@ All Tailwind class constants are defined here: `GLASS_CARD`, `PRIMARY_BUTTON`, `
 | `/admin` | `src/app/admin/page.tsx` | Admin dashboard with tabs (requests, ratings, order entry, etc.) |
 | `/admin/analytics` | `src/app/admin/analytics/page.tsx` | Primary analytics page with compliance + summary sections |
 | `/admin/draft` | `src/app/admin/draft/page.tsx` | **2524 lines** — shift draft generator with ForecastSettingsPanel, reliability analysis, and AI analysis features |
+| `/admin/procurement/` | various | Full procurement system — see FRONTEND_MAP.md |
+| `/admin/inventory/productions` | `src/app/admin/inventory/productions/page.tsx` | CK Production management (pending CK orders) |
+| `/store/procurement/request` | `src/app/store/procurement/request/page.tsx` | Store order submission |
+| `/store/ck-production` | `src/app/store/ck-production/page.tsx` | CK Dispatch page (in progress) |
+| `/store/receiving` | `src/app/store/receiving/page.tsx` | CK Receiving |
+
+---
+
+## Key Business Flows
+
+### CK Order Flow (Central Kitchen)
+1. Store submits request with `vendor_name = "CK"` at `/store/procurement/request`
+2. Backend auto-approves (`is_ck_order = TRUE`)
+3. PO created; appears in `/admin/inventory/productions` as "Pending Orders"
+4. CK staff dispatches: `POST /api/admin/procurement/ck-production/dispatch/{po_id}`
+   - Sets `dispatched_at`, `dispatched_items_json`, `has_shortage`
+5. Store receives at `/store/receiving` — checks `dispatched_items_json` for shortages
+6. Admin reviews shortage flags in `/admin/procurement/ck-orders`
+
+### Standard Procurement Flow
+1. Store submits → IN_REVIEW → Approver approves → APPROVED
+2. PO created → Gmail API sends PDF to vendor with confirmation link + tracking pixel
+3. Vendor clicks link → `receipt_confirmed_at` set
+4. Tracking pixel open → `opened_at`, `open_count` updated
+
+### Direct Purchase Flow
+1. Mariano enters at `/store/purchase`
+2. Admin reviews at `/admin/procurement/direct-purchases`
+3. Admin verifies: `POST /api/admin/procurement/direct-purchases/{id}/verify`
+
+### Attendance Sync Flow
+1. Bayzat exports xlsx to Google Drive folder `0AJRy_FdAYDp2Uk9PVA`
+2. APScheduler syncs at 05:18 UTC and 07:18 UTC
+3. Manual sync: `/admin/attendance/import` → "Sync All" button
 
 ---
 
 ## Critical State: Git & Vercel
 
-**Vercel デプロイ方式（2026-05 現在）**
-- **GitHub連携が有効**（GitHubアカウント制限が2026-05-11に解除済み）
-- `git push origin main` → Vercel が自動でビルド＆プロダクションデプロイされる
-- `vercel --prod` の手動実行は不要（ただし緊急時のバイパスとして使用可能）
-- Cowork（Claude サンドボックス）からは git push / vercel コマンドは実行不可。ユーザーがローカルターミナルで実行する
+**Vercel Deploy (as of 2026-05)**
+- GitHub integration is active — `git push origin main` auto-deploys
+- Cowork (Claude sandbox) cannot run git push or vercel commands — user must run from local terminal
 
-```bash
-# フロントエンドデプロイ手順（毎回この手順）
-cd /Users/jaynishimura/Desktop/sushizen-shift-pwa
-git add -A
-git commit -m "your message"
-git push origin main
-# → Vercel が自動ビルド＆デプロイ（数分で完了）
-```
-
-**過去の正常 commit: `a5c28d2`** ("Late Analysis: visual overhaul with bar charts, severity heatmap, rank badges")
-- `admin/draft/page.tsx` の 2524 行版がこの commit。
-- 問題発生時は Vercel Dashboard → Deployments → 該当 deployment → "Promote to Production" で即時ロールバック可能。
+**Emergency Rollback**
+- Vercel Dashboard → Deployments → find correct deployment → "Promote to Production"
+- Last known-good commit: `a5c28d2` ("Late Analysis: visual overhaul with bar charts, severity heatmap, rank badges")
 
 ---
 
@@ -137,24 +170,17 @@ This is the largest and most complex page (2524 lines). Its key structural secti
 
 ---
 
-## デプロイ手順と注意事項（繰り返し確認用）
+## Deploy Procedures
 
-### ⚠️ Cowork（Claude サンドボックス）からできないこと
-以下は必ずユーザーのローカルターミナルで実行すること：
-- `git push heroku HEAD:master --force` — Heroku git への HTTPS 接続がブロックされている
-- `vercel --prod` — Vercel CLI もサンドボックスから実行不可
-- `.git/*.lock` ファイルの削除 — サンドボックスに削除権限がない
-
-### フロントエンド（Vercel）デプロイ手順
+### Frontend (Vercel) — user runs from local terminal
 ```bash
 cd /Users/jaynishimura/Desktop/sushizen-shift-pwa
 git add -A
 git commit -m "your message"
 git push origin main
-# → Vercel が GitHub連携で自動ビルド＆デプロイ（GitHub連携は2026-05-11に復旧済み）
 ```
 
-### バックエンド（Heroku）デプロイ手順
+### Backend (Heroku) — user runs from local terminal
 ```bash
 cd /Users/jaynishimura/Desktop/sushizen_shift_app_clean
 git add -A
@@ -162,43 +188,43 @@ git commit -m "your message"
 git push heroku HEAD:master --force
 ```
 
-### git index.lock エラーが出たとき
-Cowork セッションがクラッシュすると lock ファイルが残る。ユーザーが手動で削除：
+### Cannot do from Cowork sandbox
+- `git push heroku HEAD:master --force` — HTTPS to Heroku is blocked
+- `vercel --prod` — Vercel CLI blocked
+- Delete `.git/*.lock` files — no sandbox permission
+
+### git index.lock error cleanup (user does this manually)
 ```bash
 rm /Users/jaynishimura/Desktop/sushizen-shift-pwa/.git/index.lock
 rm /Users/jaynishimura/Desktop/sushizen_shift_app_clean/.git/index.lock
-# HEAD.lock の場合も同様
-rm /Users/jaynishimura/Desktop/sushizen_shift_app_clean/.git/HEAD.lock
 ```
 
-### `git push heroku` が "Everything up-to-date" になる場合
-エラーではなく正常。既に最新 commit が Heroku にある状態。確認：
-```bash
-heroku releases -a sushizen-shift-app -n 5
-heroku logs -a sushizen-shift-app -n 50
-```
-強制再デプロイしたい場合：
+### "Everything up-to-date" — not an error
+Means current commit is already on Heroku. Force re-deploy if needed:
 ```bash
 git commit --allow-empty -m "force redeploy"
 git push heroku HEAD:master --force
 ```
 
-### Heroku ログ確認（よく使う）
+### Heroku logs
 ```bash
 heroku logs -a sushizen-shift-app -n 100
-heroku logs -a sushizen-shift-app --tail   # リアルタイム
+heroku logs -a sushizen-shift-app --tail
 heroku logs -a sushizen-shift-app -n 100 | grep -E "attendance|sync|error" -i
 ```
 
-### DB 確認（よく使うクエリ）
+### DB checks
 ```bash
 heroku pg:psql -a sushizen-shift-app
 
-# actual_attendance の最新データ確認
+# actual_attendance latest data
 SELECT attendance_date, COUNT(*) FROM actual_attendance GROUP BY attendance_date ORDER BY attendance_date DESC LIMIT 10;
 
-# attendance_drive_sources の状態確認
+# attendance_drive_sources status
 SELECT id, folder_id, city_hint, is_enabled, last_synced_at, last_sync_status FROM attendance_drive_sources;
+
+# Reset DUPLICATE_HASH to re-enable auto-sync
+UPDATE attendance_drive_sources SET last_sync_status = '' WHERE id = 1;
 ```
 
 ---
@@ -239,33 +265,33 @@ After a deploy, the app must automatically reload in the browser **without requi
 - Both `frontendBaseline` and `backendBaseline` must follow the same null-guard pattern
 - Do not introduce ESLint errors or build failures — they result in Vercel deploying a broken build that returns 404 on all routes
 
+### 6. CK Order vendor_name must be exactly "CK"
+The string `vendor_name = "CK"` (exact, case-sensitive) triggers `is_ck_order = TRUE`. Never change the comparison logic or the canonical string.
+
+### 7. PO tracking pixel — receipt_token must be UNIQUE
+The `receipt_token` in `proc_po_email_logs` is used in the vendor-facing confirmation URL. It has a UNIQUE constraint. Generate with `uuid4()`.
+
 ---
 
-## Bayzat 勤怠同期 — 運用知識
+## Bayzat Attendance Sync
 
-### 仕組み
-- Bayzat が勤怠 xlsx を Google Drive フォルダ（`0AJRy_FdAYDp2Uk9PVA`）に出力
-- バックエンドが Drive API でファイルを取得し `actual_attendance` テーブルに格納
-- OS Attendance の `daily-report` エンドポイントが `actual_attendance` と WebAuthn セッションをマージして返す
-- APScheduler が 05:18 UTC・07:18 UTC に自動同期（`_run_attendance_auto_sync_background`）
+### How it works
+- Bayzat exports attendance xlsx to Google Drive folder `0AJRy_FdAYDp2Uk9PVA`
+- Backend fetches via Drive API and stores in `actual_attendance`
+- OS Attendance `daily-report` endpoint merges `actual_attendance` with WebAuthn sessions
+- APScheduler runs at 05:18 UTC and 07:18 UTC (`_run_attendance_auto_sync_background`)
 
-### 手動同期ページ
-`/admin/attendance/import` — Approver Name + PIN を入力して以下のボタンが使える：
-- **Sync All（全件取り込み）** → Drive フォルダ内の全ファイルをスキャンし未取得を全件インポート（推奨）
-- **個別ファイルをSync** → 特定ファイルIDを指定して1件だけインポート
-- **Drive ファイル一覧** → サービスアカウントが見えているファイルを確認（診断用）
+### Manual sync
+`/admin/attendance/import` — Approver Name + PIN to access:
+- **Sync All** → Drive folder full scan (recommended)
+- **Individual file sync** → single file by file ID
+- **Drive file list** → diagnostic: what service account can see
 
-### `attendance_drive_sources` テーブル
-- `folder_id` = `0AJRy_FdAYDp2Uk9PVA`（Shared Drive ルート）
-- `city_hint` = 空（DubaiとManilaが同じファイルに混在するため空にする）
-- `last_sync_status` が `DUPLICATE_HASH` になっていると自動同期がスキップされる
-  → リセット: `UPDATE attendance_drive_sources SET last_sync_status = '' WHERE id = 1;`
-
-### sync が動かないときの診断手順
-1. `heroku logs --tail` でリアルタイムログを確認しながら sync ボタンを押す
-2. `actual_attendance` の `attendance_date` 最大値を確認
-3. `attendance_drive_sources` の `last_sync_status` を確認
-4. `/admin/attendance/import` の「Drive ファイル一覧」でサービスアカウントがファイルを見えているか確認
+### Troubleshooting
+1. Check `last_sync_status` in `attendance_drive_sources` — if `DUPLICATE_HASH`, reset to `''`
+2. Check `actual_attendance` max date
+3. Use "Drive file list" to verify service account visibility
+4. Watch `heroku logs --tail` while clicking sync
 
 ---
 
@@ -273,7 +299,9 @@ After a deploy, the app must automatically reload in the browser **without requi
 
 - Backend: FastAPI on Heroku (`sushizen-shift-app`)
 - Heroku Postgres is the primary DB
-- `app/main.py` — all API routes
-- `app/db.py` — DB logic
-- `app/draft_demand_planner.py` — draft generation logic with attendance reliability scoring
-- AI analysis for draft uses an `/api/admin/draft/analyze` proxy (originally at `/api/ai/` route in the frontend — check current route structure if missing)
+- `app/main.py` — all API routes (~31,500 lines)
+- `app/db.py` — all DB functions (~45,700 lines)
+- `app/services/draft_demand_planner.py` — draft generation with attendance reliability scoring
+- `app/services/procurement_po_mail.py` — PO PDF generation + Gmail API email sending
+- AI analysis for draft: `/api/draft/ai_analyze` (Anthropic Claude SDK)
+- All tables use `ensure_*` lazy-init pattern with module-level flags

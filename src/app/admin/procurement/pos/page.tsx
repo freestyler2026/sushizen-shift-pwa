@@ -47,6 +47,8 @@ type PoEmailLogRow = {
   status: string;
   sent_at: string;
   receipt_confirmed_at: string;
+  opened_at: string;
+  open_count: number;
   drive_file_url: string;
 };
 
@@ -898,8 +900,17 @@ export default function ProcurementPoPage() {
                         {emailStatusBadge(log.status)}
                         <span className={T_CAPTION}>{log.sent_at ? String(log.sent_at).slice(0, 16).replace("T", " ") : "-"}</span>
                       </div>
-                      <div className={`mt-1 ${T_CAPTION}`}>
-                        Receipt: {log.receipt_confirmed_at ? String(log.receipt_confirmed_at).slice(0, 16).replace("T", " ") : "Pending"}
+                      <div className={`mt-1 flex flex-wrap gap-3 ${T_CAPTION}`}>
+                        <span>
+                          📬 {log.opened_at
+                            ? `Opened ${String(log.opened_at).slice(0, 16).replace("T", " ")}${log.open_count > 1 ? ` (×${log.open_count})` : ""}`
+                            : "Not opened yet"}
+                        </span>
+                        <span>
+                          ✅ {log.receipt_confirmed_at
+                            ? `Confirmed ${String(log.receipt_confirmed_at).slice(0, 16).replace("T", " ")}`
+                            : "Receipt pending"}
+                        </span>
                       </div>
                       {log.drive_file_url && (
                         <a
