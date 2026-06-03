@@ -1,14 +1,24 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This is the **primary instruction file** for Claude sessions working on this repository.
+Read this file first. Then load only the specific `docs/ai/` file relevant to your task — do NOT load all docs at once.
 
-For detailed documentation, see `/docs/`:
-- `SYSTEM_OVERVIEW.md` — What the app does, roles, tech stack, business flows
-- `FRONTEND_MAP.md` — All routes, components, auth guard patterns, design tokens
-- `BACKEND_MAP.md` — All API endpoints, service files, DB patterns
-- `DATABASE_SCHEMA.md` — All major tables, columns, relationships
-- `API_MAP.md` — Complete API reference with request/response shapes
-- `CURRENT_TASKS.md` — In-progress work, known issues, deploy procedures
+---
+
+## 📂 Documentation Index — Load On Demand
+
+Detailed references live in `docs/ai/`. Load only what you need for the current task:
+
+| File | When to load |
+|---|---|
+| `docs/ai/SYSTEM_OVERVIEW.md` | Understanding overall architecture, roles, business flows, external integrations |
+| `docs/ai/FRONTEND_MAP.md` | Working on any frontend page, component, route, or NavBar |
+| `docs/ai/BACKEND_MAP.md` | Working on backend endpoints, services, auth middleware |
+| `docs/ai/DATABASE_SCHEMA.md` | Querying or modifying DB tables, understanding schema |
+| `docs/ai/API_MAP.md` | Writing API calls, finding endpoint paths or request/response shapes |
+| `docs/ai/CURRENT_TASKS.md` | Starting a new session — see pending tasks, known issues, deploy state |
+
+**Rule:** Start every session by reading `CURRENT_TASKS.md` to understand where things left off. Then load only the additional doc(s) needed for the specific task.
 
 ---
 
@@ -18,7 +28,7 @@ This app is **"Sushi ZEN Workforce OS"** — an internal admin and analytics sys
 
 **Do not confuse this with a generic "Sushi ZEN Shift" branding.** The Workforce OS UI with its dark slate-lavender design is the correct and current design. The `/week` page shows a lighter-themed shift viewer — these are two different UI contexts within the same app.
 
-**UI Language Rule: All UI text must be in English.** Never use Japanese in labels, buttons, placeholders, tooltips, alerts, confirm dialogs, or any other user-facing text, unless the user explicitly requests it. This applies to every page and component in the app.
+**UI Language Rule: All UI text must be in English.** Never use Japanese in labels, buttons, placeholders, tooltips, alerts, confirm dialogs, or any other user-facing text, unless the user explicitly requests it.
 
 ---
 
@@ -26,7 +36,7 @@ This app is **"Sushi ZEN Workforce OS"** — an internal admin and analytics sys
 
 ```bash
 # Development server
-npm run dev          # starts on http://localhost:3000 (.next-dev/ cache dir in dev)
+npm run dev          # starts on http://localhost:3000
 
 # Build (required before deploy)
 npm run build
@@ -37,10 +47,7 @@ npm run lint
 # Deploy frontend — user runs this from local terminal
 git add -A && git commit -m "your message"
 git push origin main
-# → Vercel auto-builds and deploys (GitHub integration active as of 2026-05-11)
-
-# Emergency frontend deploy (bypass GitHub)
-npx vercel --prod
+# → Vercel auto-builds and deploys
 
 # Deploy backend to Heroku — user runs this from local terminal (NOT from Cowork sandbox)
 cd ../sushizen_shift_app_clean
@@ -68,28 +75,26 @@ heroku pg:psql -a sushizen-shift-app
 - `src/lib/` — utilities and clients
 
 ### API proxy architecture
-All `/api/admin/*` calls from the browser are proxied through a single Next.js catch-all route:
-`src/app/api/admin/[...slug]/route.ts`
+All `/api/admin/*` calls from the browser are proxied through:
+`src/app/api/admin/[...slug]/route.ts` → Heroku backend at `https://sushizen-shift-app-038d846023bc.herokuapp.com`
 
-This forwards to the Heroku backend at `https://sushizen-shift-app-038d846023bc.herokuapp.com`. In dev, it proxies to `http://127.0.0.1:8000`.
-
-The backend URL is also set via `NEXT_PUBLIC_API_BASE_URL` env variable. `next.config.ts` rewrites `/api/:path*` → `${API_BASE}/api/:path*` for non-admin routes.
+In dev, proxies to `http://127.0.0.1:8000`. Non-admin routes use `next.config.ts` rewrites.
 
 ### Auth system (`src/lib/auth.ts`)
 Auth state lives in `localStorage` under key `sushizen_shift_auth`. Fields:
 - `staffName`, `city`, `cityLock`, `role`, `pin`, `accessToken`, `stepUpToken`
-- `stepUpLevel` (aal1/aal2/phishing_resistant), `stepUpMethod`, `stepUpVerifiedAt`
+- `stepUpLevel`, `stepUpMethod`, `stepUpVerifiedAt`
 - `permissions[]` — channel permission keys
 - `mfa` — MFA status object
 
 Important role logic:
-- **`isAdmin(auth)`** — returns `true` only if `auth.role === "ADMIN"`. HQ is NOT admin.
-- **`canAccessAdminNav(auth)`** — checks `auth.permissions[]` for channel-specific permission strings. Does NOT check role.
-- **`canAccessRoleManagement(auth)`** — returns `true` only if `auth.role === "HQ"`.
+- **`isAdmin(auth)`** — `true` only if `auth.role === "ADMIN"`. HQ is NOT admin.
+- **`canAccessAdminNav(auth)`** — checks `permissions[]`. Does NOT check role.
+- **`canAccessRoleManagement(auth)`** — `true` only if `auth.role === "HQ"`.
 
 NavBar shows admin items when: `isAdmin(auth) || role === "HQ" || canAccessAdminNav(auth)`.
 
-When gating admin pages, always check both role AND permissions to avoid locking out HQ users:
+When gating admin pages, always check both role AND permissions:
 ```typescript
 if (!canAccessAdminNav(auth) && role !== "HQ" && role !== "ADMIN") {
   router.replace("/week");
@@ -97,19 +102,21 @@ if (!canAccessAdminNav(auth) && role !== "HQ" && role !== "ADMIN") {
 ```
 
 ### Design system (`src/lib/ui-tokens.ts`)
-All Tailwind class constants are defined here: `GLASS_CARD`, `PRIMARY_BUTTON`, `TAB_ACTIVE`, `KPI_CARD`, `T_PAGE_TITLE`, `BADGE_INFO`, etc. Import from this file rather than writing raw Tailwind strings in page files.
+All Tailwind class constants: `GLASS_CARD`, `PRIMARY_BUTTON`, `TAB_ACTIVE`, `KPI_CARD`, `T_PAGE_TITLE`, `BADGE_INFO`, etc. Always import from here — never write raw Tailwind strings in page files.
 
 ### Key pages
 | Route | File | Purpose |
 |---|---|---|
 | `/week` | `src/app/week/page.tsx` | **Critical** — staff shift viewer. Never touch unintentionally. |
-| `/admin` | `src/app/admin/page.tsx` | Admin dashboard with tabs (requests, ratings, order entry, etc.) |
-| `/admin/analytics` | `src/app/admin/analytics/page.tsx` | Primary analytics page with compliance + summary sections |
-| `/admin/draft` | `src/app/admin/draft/page.tsx` | **2524 lines** — shift draft generator with ForecastSettingsPanel, reliability analysis, and AI analysis features |
-| `/admin/procurement/` | various | Full procurement system — see FRONTEND_MAP.md |
-| `/admin/inventory/productions` | `src/app/admin/inventory/productions/page.tsx` | CK Production management (pending CK orders) |
+| `/admin` | `src/app/admin/page.tsx` | Admin dashboard |
+| `/admin/analytics` | `src/app/admin/analytics/page.tsx` | Compliance + analytics |
+| `/admin/draft` | `src/app/admin/draft/page.tsx` | **2524 lines** — shift draft generator |
+| `/admin/procurement/` | various | Full procurement system |
+| `/admin/inventory/productions` | `src/app/admin/inventory/productions/page.tsx` | CK Production |
+| `/admin/procurement/delivery-addresses` | `src/app/admin/procurement/delivery-addresses/page.tsx` | Branch address management |
 | `/store/procurement/request` | `src/app/store/procurement/request/page.tsx` | Store order submission |
-| `/store/ck-production` | `src/app/store/ck-production/page.tsx` | CK Dispatch page (in progress) |
+| `/store/purchase` | `src/app/store/purchase/page.tsx` | Direct purchase (Mariano) |
+| `/store/ck-production` | `src/app/store/ck-production/page.tsx` | CK Dispatch (in progress) |
 | `/store/receiving` | `src/app/store/receiving/page.tsx` | CK Receiving |
 
 ---
@@ -117,8 +124,8 @@ All Tailwind class constants are defined here: `GLASS_CARD`, `PRIMARY_BUTTON`, `
 ## Key Business Flows
 
 ### CK Order Flow (Central Kitchen)
-1. Store submits request with `vendor_name = "CK"` at `/store/procurement/request`
-2. Backend auto-approves (`is_ck_order = TRUE`)
+1. Store submits with `vendor_name = "CK"` at `/store/procurement/request`
+2. Backend auto-approves (`is_ck_order = TRUE`) — vendor_name "CK" or "Central Kitchen" both recognized
 3. PO created; appears in `/admin/inventory/productions` as "Pending Orders"
 4. CK staff dispatches: `POST /api/admin/procurement/ck-production/dispatch/{po_id}`
    - Sets `dispatched_at`, `dispatched_items_json`, `has_shortage`
@@ -127,9 +134,9 @@ All Tailwind class constants are defined here: `GLASS_CARD`, `PRIMARY_BUTTON`, `
 
 ### Standard Procurement Flow
 1. Store submits → IN_REVIEW → Approver approves → APPROVED
-2. PO created → Gmail API sends PDF to vendor with confirmation link + tracking pixel
-3. Vendor clicks link → `receipt_confirmed_at` set
-4. Tracking pixel open → `opened_at`, `open_count` updated
+2. PO created → Gmail API sends PDF to vendor with confirmation link + open tracking pixel
+3. Vendor opens email → `opened_at`, `open_count` updated (1×1 GIF pixel)
+4. Vendor clicks confirm link → `receipt_confirmed_at` set → status RECEIVED_CONFIRMED
 
 ### Direct Purchase Flow
 1. Mariano enters at `/store/purchase`
@@ -145,28 +152,17 @@ All Tailwind class constants are defined here: `GLASS_CARD`, `PRIMARY_BUTTON`, `
 
 ## Critical State: Git & Vercel
 
-**Vercel Deploy (as of 2026-05)**
-- GitHub integration is active — `git push origin main` auto-deploys
-- Cowork (Claude sandbox) cannot run git push or vercel commands — user must run from local terminal
+- GitHub integration active — `git push origin main` auto-deploys to Vercel
+- Cowork (Claude sandbox) cannot run `git push heroku` or `vercel` commands — user must run from local terminal
 
-**Emergency Rollback**
-- Vercel Dashboard → Deployments → find correct deployment → "Promote to Production"
-- Last known-good commit: `a5c28d2` ("Late Analysis: visual overhaul with bar charts, severity heatmap, rank badges")
+**Emergency Rollback:** Vercel Dashboard → Deployments → find correct deployment → "Promote to Production"
 
 ---
 
-## `admin/draft/page.tsx` — Structure and Known Issues
+## `admin/draft/page.tsx` — Known Issues
 
-This is the largest and most complex page (2524 lines). Its key structural sections:
-
-1. **Imports + constants** (lines 1–~380) — includes `DUBAI_DRAFT_SHEET_URL`, `MANILA_DRAFT_SHEET_URL`
-2. **`ForecastSettingsPanel`** (line ~386) — editable multiplier/weight panel for draft generation
-3. **Main component state** (line ~1020+) — includes `sheetTabMain`, `sheetTabs`, `pendingVisibleRows` (sheet proposals state — pending removal)
-4. **`proposeFromSheet()`** function (line ~1692) — sheet proposals feature (pending removal)
-5. **JSX: "Pending Sheet Proposals" section** (line ~2028) — sheet proposals UI (pending removal)
-
-**Sheet proposals removal is still pending.** The following identifiers are remnants to be removed when safe:
-`sheetTabMain`, `sheetTabs`, `sheetTabsBusy`, `pendingVisibleRows`, `proposeFromSheet`, `DUBAI_DRAFT_SHEET_URL` (the variable, not its value), `selectedProposalIds`.
+Largest page (2524 lines). Sheet proposals removal still pending. Identifiers to remove when safe:
+`sheetTabMain`, `sheetTabs`, `sheetTabsBusy`, `pendingVisibleRows`, `proposeFromSheet`, `DUBAI_DRAFT_SHEET_URL` (variable only), `selectedProposalIds`.
 
 ---
 
@@ -175,55 +171,32 @@ This is the largest and most complex page (2524 lines). Its key structural secti
 ### Frontend (Vercel) — user runs from local terminal
 ```bash
 cd /Users/jaynishimura/Desktop/sushizen-shift-pwa
-git add -A
-git commit -m "your message"
-git push origin main
+git add -A && git commit -m "your message" && git push origin main
 ```
 
 ### Backend (Heroku) — user runs from local terminal
 ```bash
 cd /Users/jaynishimura/Desktop/sushizen_shift_app_clean
-git add -A
-git commit -m "your message"
+git add -A && git commit -m "your message"
 git push heroku HEAD:master --force
 ```
 
 ### Cannot do from Cowork sandbox
 - `git push heroku HEAD:master --force` — HTTPS to Heroku is blocked
 - `vercel --prod` — Vercel CLI blocked
-- Delete `.git/*.lock` files — no sandbox permission
 
-### git index.lock error cleanup (user does this manually)
+### git index.lock cleanup (user runs manually)
 ```bash
 rm /Users/jaynishimura/Desktop/sushizen-shift-pwa/.git/index.lock
 rm /Users/jaynishimura/Desktop/sushizen_shift_app_clean/.git/index.lock
 ```
 
-### "Everything up-to-date" — not an error
-Means current commit is already on Heroku. Force re-deploy if needed:
+### Heroku diagnostics
 ```bash
-git commit --allow-empty -m "force redeploy"
-git push heroku HEAD:master --force
-```
-
-### Heroku logs
-```bash
-heroku logs -a sushizen-shift-app -n 100
-heroku logs -a sushizen-shift-app --tail
-heroku logs -a sushizen-shift-app -n 100 | grep -E "attendance|sync|error" -i
-```
-
-### DB checks
-```bash
+heroku logs -a sushizen-shift-app -n 100 | grep -E "error|attendance|sync" -i
 heroku pg:psql -a sushizen-shift-app
 
-# actual_attendance latest data
-SELECT attendance_date, COUNT(*) FROM actual_attendance GROUP BY attendance_date ORDER BY attendance_date DESC LIMIT 10;
-
-# attendance_drive_sources status
-SELECT id, folder_id, city_hint, is_enabled, last_synced_at, last_sync_status FROM attendance_drive_sources;
-
-# Reset DUPLICATE_HASH to re-enable auto-sync
+# Reset duplicate hash to re-enable auto-sync
 UPDATE attendance_drive_sources SET last_sync_status = '' WHERE id = 1;
 ```
 
@@ -231,77 +204,53 @@ UPDATE attendance_drive_sources SET last_sync_status = '' WHERE id = 1;
 
 ## ⚠️ Lessons Learned — DO NOT REPEAT
 
-### 1. Never use regex scripts to remove JSX blocks
-Scripts like `remove_sheet_proposals.py` and `fix_sheet_remnants.py` used overly broad regex patterns (e.g., matching `{canOperate ? (`) that silently removed the wrong JSX blocks. This destroyed features like BranchReliabilityPanel and AI analysis without any syntax error.
+### 1. Never use regex to remove JSX blocks
+Use **line-number-based deletion** only (read file → identify exact line range → delete precisely). Regex silently destroyed BranchReliabilityPanel and AI analysis features.
 
-**Rule:** When removing sections from large TSX files, always use **line-number-based deletion** (read the file, identify exact line ranges, delete precisely) — never pattern-matched regex that could match the wrong block.
-
-### 2. Vercel Promote to Production vs. git reset
-`git reset --hard <commit> && git push --force` only rebuilds from source on the next Vercel deploy. If the wrong code has already been deployed, the previously deployed artifacts remain in production until a new push triggers a build.
-
-**To immediately restore a prior state:** use Vercel Dashboard → Deployments → find the correct deployment → "Promote to Production". This switches the live deployment without rebuilding.
+### 2. Vercel: Promote to Production, not git reset
+`git reset --force` only takes effect on next build. To instantly restore: Vercel Dashboard → Deployments → "Promote to Production".
 
 ### 3. Smart quotes break TypeScript
-When using the `Edit` tool with string content containing `"`, the editor may insert curly/smart quotes (`"` / `"`) instead of straight ASCII quotes. These cause TypeScript parse errors. If you see unexpected parse errors after an edit, check for smart quote substitution.
+`Edit` tool may insert `"` / `"` instead of `"`. Always check for this after edits if you see unexpected parse errors.
 
 ### 4. `/admin/draft` auth guard must include role check
-`canAccessAdminNav()` checks permissions only — it returns `false` for `role === "HQ"` users who lack explicit permissions. Always add `|| role === "HQ"` to avoid incorrectly redirecting HQ users to `/week`.
+`canAccessAdminNav()` returns `false` for HQ users without explicit permissions. Always add `|| role === "HQ"`.
 
 ### 5. AutoReload must always work — never break it
+- `src/components/AutoReload.tsx` polls `/api/version` every 3 seconds
+- Never remove `<AutoReload />` from `LayoutShell.tsx`
+- Never set `frontendBaseline.current = null` after a failed fetch
+- Build failures → Vercel deploys broken build → 404 on all routes
 
-**This is a persistent user requirement that has been raised repeatedly.**
-
-After a deploy, the app must automatically reload in the browser **without requiring a manual hard reload**. The mechanism is:
-
-- `src/components/AutoReload.tsx` — polls `/api/version` every 3 seconds
-- `next.config.ts` bakes `NEXT_PUBLIC_BUILD_ID = VERCEL_URL` into the client bundle at build time
-- `/api/version/route.ts` returns the current `VERCEL_URL` at runtime
-- When the two values differ → `hardReload()` fires → page refreshes automatically
-
-**Rules:**
-- Never remove or disable `<AutoReload />` from `LayoutShell.tsx`
-- Never set `frontendBaseline.current = null` after a failed fetch — null baseline disables all poll comparisons. Only set baseline when the fetched value is non-null.
-- In `check()`, if baseline is null and a poll succeeds, SET the baseline (don't compare) — this handles the case where the startup fetch failed
-- Both `frontendBaseline` and `backendBaseline` must follow the same null-guard pattern
-- Do not introduce ESLint errors or build failures — they result in Vercel deploying a broken build that returns 404 on all routes
-
-### 6. CK Order vendor_name must be exactly "CK"
-The string `vendor_name = "CK"` (exact, case-sensitive) triggers `is_ck_order = TRUE`. Never change the comparison logic or the canonical string.
+### 6. CK Order vendor_name recognition
+`vendor_name = "CK"` (exact) OR containing "central kitchen" (case-insensitive) both trigger `is_ck_order = TRUE`. All three detection points must agree: `is_ck_by_vendor` in main.py, `is_ck_procurement_request()` in db.py, `get_ck_pending_requests()` in inventory_db.py.
 
 ### 7. PO tracking pixel — receipt_token must be UNIQUE
-The `receipt_token` in `proc_po_email_logs` is used in the vendor-facing confirmation URL. It has a UNIQUE constraint. Generate with `uuid4()`.
+The `receipt_token` in `proc_po_email_logs` has a UNIQUE constraint. Generate with `os.urandom(24)` base64.
+
+### 8. Branch Delivery Addresses
+Managed in `proc_branch_delivery_addresses` table (DB-primary) with hardcoded fallback in `procurement_po_mail.py`. `suggested_delivery_address()` checks DB first, then falls back. UI: `/admin/procurement/delivery-addresses`.
 
 ---
 
 ## Bayzat Attendance Sync
 
-### How it works
-- Bayzat exports attendance xlsx to Google Drive folder `0AJRy_FdAYDp2Uk9PVA`
-- Backend fetches via Drive API and stores in `actual_attendance`
-- OS Attendance `daily-report` endpoint merges `actual_attendance` with WebAuthn sessions
-- APScheduler runs at 05:18 UTC and 07:18 UTC (`_run_attendance_auto_sync_background`)
-
-### Manual sync
-`/admin/attendance/import` — Approver Name + PIN to access:
-- **Sync All** → Drive folder full scan (recommended)
-- **Individual file sync** → single file by file ID
-- **Drive file list** → diagnostic: what service account can see
-
-### Troubleshooting
-1. Check `last_sync_status` in `attendance_drive_sources` — if `DUPLICATE_HASH`, reset to `''`
-2. Check `actual_attendance` max date
-3. Use "Drive file list" to verify service account visibility
-4. Watch `heroku logs --tail` while clicking sync
+- Bayzat exports xlsx to Google Drive folder `0AJRy_FdAYDp2Uk9PVA`
+- Backend fetches via Drive API → stores in `actual_attendance`
+- APScheduler: 05:18 UTC + 07:18 UTC (`_run_attendance_auto_sync_background`)
+- Manual sync: `/admin/attendance/import` → "Sync All"
+- Troubleshoot: check `last_sync_status` in `attendance_drive_sources`; reset `DUPLICATE_HASH` → `''`
 
 ---
 
 ## Backend Notes
 
 - Backend: FastAPI on Heroku (`sushizen-shift-app`)
-- Heroku Postgres is the primary DB
-- `app/main.py` — all API routes (~31,500 lines)
-- `app/db.py` — all DB functions (~45,700 lines)
-- `app/services/draft_demand_planner.py` — draft generation with attendance reliability scoring
-- `app/services/procurement_po_mail.py` — PO PDF generation + Gmail API email sending
-- AI analysis for draft: `/api/draft/ai_analyze` (Anthropic Claude SDK)
-- All tables use `ensure_*` lazy-init pattern with module-level flags
+- Heroku Postgres primary DB
+- `app/main.py` — all API routes (~24,000+ lines)
+- `app/db.py` — all DB functions (~14,800+ lines)
+- `app/inventory_db.py` — inventory DB functions
+- `app/services/procurement_po_mail.py` — PO PDF generation + Gmail API
+- `app/services/draft_demand_planner.py` — AI draft generation
+- AI analysis: `/api/draft/ai_analyze` (Anthropic Claude SDK)
+- All tables use `ensure_*` lazy-init pattern with module-level lock flags
