@@ -667,14 +667,14 @@ export default function StoreProcurementHomePage() {
     }
   };
 
-  const loadMyRequests = useCallback(async (cityOverride?: string, requestedByOverride?: string) => {
+  const loadMyRequests = useCallback(async (cityOverride?: string, _requestedByOverride?: string) => {
     setLoading(true);
     setError("");
     try {
       const activeCity = String(cityOverride || city || "manila").trim().toLowerCase() || "manila";
+      // No requested_by filter — show all requests for the city
       const qs = new URLSearchParams({
         city: activeCity,
-        requested_by: (requestedByOverride ?? requestedBy).trim(),
         limit: "200",
       });
       const data = await procurementJson<{ rows: RequestRow[] }>(
@@ -835,15 +835,26 @@ export default function StoreProcurementHomePage() {
     } catch {}
   }, [LAST_CREATED_CLAIM_KEY, LAST_CREATED_MAX_AGE_MS, relativeNowMs]);
 
+  // Filter out completed requests: receiving confirmed or terminal status
+  const activeRows = useMemo(() => rows.filter((row) => {
+    const s = String(row.status || "").toUpperCase();
+    const rs = String(row.receiving_status || "").toUpperCase();
+    // Terminal statuses — completely done
+    if (["CLOSED", "RECEIVED", "CANCELLED", "REJECTED", "PURCHASED"].includes(s)) return false;
+    // Receiving confirmed or claim filed — store's work is done
+    if (["CONFIRMED", "CLAIM_REVIEW"].includes(rs)) return false;
+    return true;
+  }), [rows]);
+
   const counts = useMemo(() => {
     const out = {
-      total: rows.length,
+      total: activeRows.length,
       draft: 0,
       inReview: 0,
       approved: 0,
       returned: 0,
     };
-    for (const row of rows) {
+    for (const row of activeRows) {
       const st = String(row.status || "").toUpperCase();
       if (st === "DRAFT") out.draft += 1;
       else if (st === "IN_REVIEW" || st === "SUBMITTED") out.inReview += 1;
@@ -851,7 +862,7 @@ export default function StoreProcurementHomePage() {
       else if (st === "RETURNED") out.returned += 1;
     }
     return out;
-  }, [rows]);
+  }, [activeRows]);
 
   const recentActivities = useMemo<RecentActivityItem[]>(() => {
     const items: RecentActivityItem[] = [];
@@ -1545,20 +1556,20 @@ export default function StoreProcurementHomePage() {
           <div id="history" className={`${BLUSH_GLASS} p-5`}>
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className={T_SECTION}>
-                My Requests
-                <span className={`${T_CAPTION} ml-2 font-normal`}>({cityLabel} · {counts.total})</span>
+                Requests
+                <span className={`${T_CAPTION} ml-2 font-normal`}>({cityLabel} · {counts.total} active)</span>
               </h2>
               {loading && <RefreshCw className="h-4 w-4 animate-spin text-zinc-500" />}
             </div>
 
-            {rows.length === 0 && !loading ? (
+            {activeRows.length === 0 && !loading ? (
               <div className="flex flex-col items-center gap-2 py-10">
                 <ShoppingCart className="h-8 w-8 text-zinc-600" />
-                <p className={T_CAPTION}>No requests yet.</p>
+                <p className={T_CAPTION}>No active requests.</p>
               </div>
             ) : (
               <div className="flex flex-col gap-3">
-                {rows.map((row) => {
+                {activeRows.map((row) => {
                   const s = String(row.status || "").toUpperCase();
                   return (
                     <div
