@@ -11,10 +11,14 @@ import {
   Calendar,
   ImageIcon,
   ExternalLink,
+  Settings,
+  Save,
+  Plus,
 } from "lucide-react";
 import { getAuth, canAccessAdminNav, getAuthHeaders } from "@/lib/auth";
 import {
   GLASS_CARD,
+  PRIMARY_BUTTON,
   SECONDARY_BUTTON,
   SELECT_CLASS,
   INPUT_CLASS,
@@ -303,6 +307,7 @@ function EvalDetailModal({
                   className="relative rounded-xl overflow-hidden bg-white/5 aspect-square group"
                 >
                   {img.drive_file_id ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={`/api/store/evaluation/image-proxy/${img.drive_file_id}`}
                       alt={img.category}
@@ -420,6 +425,236 @@ function TrendView({ branch, city }: { branch: string; city: string }) {
   );
 }
 
+// ─── Branch Map Settings ─────────────────────────────────────────────────────
+
+type BranchMapEntry = {
+  branch_code: string;
+  city: string;
+  display_name: string;
+  cancellations_patterns: string;
+  offline_patterns: string;
+  low_rating_patterns: string;
+  active: boolean;
+};
+
+function BranchMapSettings({ city }: { city: string }) {
+  const [entries, setEntries] = useState<BranchMapEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [saveMsg, setSaveMsg] = useState<string>("");
+  const [editRow, setEditRow] = useState<BranchMapEntry | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newEntry, setNewEntry] = useState<BranchMapEntry>({
+    branch_code: "", city, display_name: "",
+    cancellations_patterns: "", offline_patterns: "", low_rating_patterns: "",
+    active: true,
+  });
+
+  useEffect(() => {
+    fetch(`/api/admin/store-evaluations/branch-map?city=${city}`, {
+      headers: getAuthHeaders(), cache: "no-store",
+    })
+      .then((r) => r.json())
+      .then((d) => setEntries(d.branch_map || []))
+      .finally(() => setLoading(false));
+  }, [city]);
+
+  const save = async (entry: BranchMapEntry) => {
+    setSaving(entry.branch_code);
+    setSaveMsg("");
+    try {
+      const res = await fetch("/api/admin/store-evaluations/branch-map", {
+        method: "PUT",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify(entry),
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Save failed.");
+      setEntries((prev) =>
+        prev.some((e) => e.branch_code === data.entry.branch_code)
+          ? prev.map((e) => e.branch_code === data.entry.branch_code ? data.entry : e)
+          : [...prev, data.entry]
+      );
+      setShowAdd(false);
+      setEditRow(null);
+      setSaveMsg(`${entry.branch_code} saved.`);
+    } catch (e: any) {
+      setSaveMsg(e.message || "Error.");
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const PatternHelp = () => (
+    <p className={`${T_CAPTION} text-slate-500 mt-1`}>
+      Comma-separated keywords. Each is matched as ILIKE &quot;%keyword%&quot;.
+    </p>
+  );
+
+  const EntryForm = ({ entry, onChange, onSave, onCancel }: {
+    entry: BranchMapEntry;
+    onChange: (e: BranchMapEntry) => void;
+    onSave: () => void;
+    onCancel: () => void;
+  }) => (
+    <div className={`${GLASS_CARD} p-4 mb-3`}>
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div>
+          <label className={`${T_LABEL} mb-1 block`}>Branch Code</label>
+          <input
+            className={INPUT_CLASS}
+            value={entry.branch_code}
+            onChange={(e) => onChange({ ...entry, branch_code: e.target.value.toUpperCase() })}
+            placeholder="e.g. PAR"
+          />
+        </div>
+        <div>
+          <label className={`${T_LABEL} mb-1 block`}>Display Name</label>
+          <input
+            className={INPUT_CLASS}
+            value={entry.display_name}
+            onChange={(e) => onChange({ ...entry, display_name: e.target.value })}
+            placeholder="e.g. Paranaque"
+          />
+        </div>
+      </div>
+      <div className="space-y-3">
+        <div>
+          <label className={`${T_LABEL} mb-1 block`}>Cancellations Search (manila_cancellations.branch)</label>
+          <input
+            className={INPUT_CLASS}
+            value={entry.cancellations_patterns}
+            onChange={(e) => onChange({ ...entry, cancellations_patterns: e.target.value })}
+            placeholder="e.g. paranaque,par"
+          />
+          <PatternHelp />
+        </div>
+        <div>
+          <label className={`${T_LABEL} mb-1 block`}>Offline Hours Search (grab_offline_hours.store_name)</label>
+          <input
+            className={INPUT_CLASS}
+            value={entry.offline_patterns}
+            onChange={(e) => onChange({ ...entry, offline_patterns: e.target.value })}
+            placeholder="e.g. paranaque"
+          />
+          <PatternHelp />
+        </div>
+        <div>
+          <label className={`${T_LABEL} mb-1 block`}>Low Ratings Search (aggregator_low_ratings.branch)</label>
+          <input
+            className={INPUT_CLASS}
+            value={entry.low_rating_patterns}
+            onChange={(e) => onChange({ ...entry, low_rating_patterns: e.target.value })}
+            placeholder="e.g. paranaque,par"
+          />
+          <PatternHelp />
+        </div>
+      </div>
+      <div className="flex gap-2 mt-4">
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={saving === entry.branch_code}
+          className={`${PRIMARY_BUTTON} flex items-center gap-2`}
+        >
+          {saving === entry.branch_code
+            ? <RefreshCw size={14} className="animate-spin" />
+            : <Save size={14} />}
+          Save
+        </button>
+        <button type="button" onClick={onCancel} className={SECONDARY_BUTTON}>Cancel</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className={T_SECTION}>Branch Name Mapping</h2>
+          <p className={`${T_CAPTION} text-slate-400 mt-0.5`}>
+            Maps branch codes to search patterns used in cancellations, offline, and rating data.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => { setShowAdd(true); setEditRow(null); }}
+          className={`${SECONDARY_BUTTON} flex items-center gap-1.5`}
+        >
+          <Plus size={14} /> Add Branch
+        </button>
+      </div>
+
+      {saveMsg && (
+        <p className={`${T_CAPTION} text-emerald-400 mb-3`}>{saveMsg}</p>
+      )}
+
+      {showAdd && (
+        <EntryForm
+          entry={newEntry}
+          onChange={setNewEntry}
+          onSave={() => save(newEntry)}
+          onCancel={() => setShowAdd(false)}
+        />
+      )}
+
+      {loading ? (
+        <div className="flex justify-center py-10">
+          <RefreshCw size={20} className="animate-spin text-slate-400" />
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {entries.map((entry) =>
+            editRow?.branch_code === entry.branch_code ? (
+              <EntryForm
+                key={entry.branch_code}
+                entry={editRow}
+                onChange={setEditRow}
+                onSave={() => save(editRow)}
+                onCancel={() => setEditRow(null)}
+              />
+            ) : (
+              <div key={entry.branch_code} className={`${GLASS_CARD} p-4`}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`${T_BODY} font-bold`}>{entry.branch_code}</span>
+                    <span className={`${T_CAPTION} text-slate-400`}>{entry.display_name}</span>
+                    {!entry.active && (
+                      <span className="text-xs text-slate-500 bg-white/5 px-2 py-0.5 rounded">inactive</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditRow({ ...entry })}
+                    className={`${SECONDARY_BUTTON} text-xs py-1`}
+                  >
+                    Edit
+                  </button>
+                </div>
+                <div className="space-y-1">
+                  <p className={T_CAPTION}>
+                    <span className="text-slate-500">Cancellations: </span>
+                    <span className="text-slate-300">{entry.cancellations_patterns || "—"}</span>
+                  </p>
+                  <p className={T_CAPTION}>
+                    <span className="text-slate-500">Offline: </span>
+                    <span className="text-slate-300">{entry.offline_patterns || "—"}</span>
+                  </p>
+                  <p className={T_CAPTION}>
+                    <span className="text-slate-500">Low Ratings: </span>
+                    <span className="text-slate-300">{entry.low_rating_patterns || "—"}</span>
+                  </p>
+                </div>
+              </div>
+            )
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function StoreEvaluationsPage() {
@@ -434,7 +669,7 @@ export default function StoreEvaluationsPage() {
 
   const todayPH = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
 
-  const [tab, setTab] = useState<"summary" | "trend">("summary");
+  const [tab, setTab] = useState<"summary" | "trend" | "settings">("summary");
   const [evalDate, setEvalDate] = useState(todayPH);
   const [city] = useState("manila");
   const [evaluations, setEvaluations] = useState<EvalRow[]>([]);
@@ -489,7 +724,7 @@ export default function StoreEvaluationsPage() {
             <h1 className={T_PAGE_TITLE}>Store Evaluations</h1>
             <p className={`${T_CAPTION} text-slate-400 mt-1`}>Manila · Daily Store Score</p>
           </div>
-          {tab === "summary" && (
+          {tab === "summary" && !loading && (
             <button
               type="button"
               onClick={loadSummary}
@@ -517,6 +752,13 @@ export default function StoreEvaluationsPage() {
           >
             <TrendingUp size={14} />
             Branch Trend
+          </button>
+          <button
+            className={tab === "settings" ? TAB_ACTIVE : TAB_INACTIVE}
+            onClick={() => setTab("settings")}
+          >
+            <Settings size={14} />
+            Settings
           </button>
         </div>
 
@@ -713,6 +955,11 @@ export default function StoreEvaluationsPage() {
               </div>
             )}
           </div>
+        )}
+
+        {/* SETTINGS TAB */}
+        {tab === "settings" && (
+          <BranchMapSettings city={city} />
         )}
       </div>
 

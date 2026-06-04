@@ -17,7 +17,6 @@ import { getAuth, getAuthHeaders } from "@/lib/auth";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
-  SECONDARY_BUTTON,
   SELECT_CLASS,
   TEXTAREA_CLASS,
   T_PAGE_TITLE,
@@ -536,6 +535,7 @@ function PhotoPanel({
           {images.map((img) => (
             <div key={img.id} className="relative group rounded-xl overflow-hidden bg-white/5 aspect-square">
               {img.drive_file_id ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={`/api/store/evaluation/image-proxy/${img.drive_file_id}`}
                   alt={img.category}
