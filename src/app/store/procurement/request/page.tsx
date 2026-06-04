@@ -1887,7 +1887,7 @@ export default function StoreProcurementRequestPage() {
       {/* Sticky confirm bar — visible when review panel is open */}
       {showSubmitReview && (
         <div
-          className="no-print fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-slate-900/95 px-4 pt-3 backdrop-blur-md"
+          className="no-print fixed bottom-0 left-0 right-0 z-[75] border-t border-white/10 bg-slate-900/95 px-4 pt-3 backdrop-blur-md"
           style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
         >
           <div className="mx-auto max-w-7xl space-y-2">
@@ -1939,7 +1939,7 @@ export default function StoreProcurementRequestPage() {
 
       {/* Sticky submit bar — visible whenever items are in cart and review is not open */}
       {validItems.length > 0 && !showSubmitReview && (
-        <div className="no-print fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-slate-900/95 px-4 pt-3 backdrop-blur-md"
+        <div className="no-print fixed bottom-0 left-0 right-0 z-[75] border-t border-white/10 bg-slate-900/95 px-4 pt-3 backdrop-blur-md"
              style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
             <div className="text-sm text-zinc-300">
