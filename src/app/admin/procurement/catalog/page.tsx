@@ -85,6 +85,32 @@ export default function ProcurementCatalogPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<CatalogRow | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
 
+  // Vendor Master list (for supplier dropdown)
+  const [vendorList, setVendorList] = useState<{ name: string }[]>([]);
+
+  const loadVendors = useCallback(async () => {
+    if (!requestedBy || !pin) return;
+    try {
+      const qs = new URLSearchParams({ city, status: "ACTIVE", limit: "500" });
+      const data = await procurementJson<{ rows: { registered_name: string; trade_name?: string }[] }>(
+        `/api/admin/procurement/vendors?${qs}`,
+        { method: "GET" },
+        requestedBy,
+        pin,
+      );
+      const names = (Array.isArray(data?.rows) ? data.rows : []).map((v) => ({
+        name: (v.trade_name || v.registered_name || "").trim(),
+      })).filter((v) => v.name).sort((a, b) => a.name.localeCompare(b.name));
+      setVendorList(names);
+    } catch {
+      // non-critical — fall back to free text if vendor fetch fails
+    }
+  }, [requestedBy, pin, city]);
+
+  useEffect(() => {
+    if (allowed) void loadVendors();
+  }, [allowed, loadVendors]);
+
   // Supplier management tab
   const [suppliersTab, setSuppliersTab] = useState(false);
   const [suppliers, setSuppliers] = useState<{ supplier_name: string; active_count: number; inactive_count: number }[]>([]);
@@ -771,7 +797,24 @@ export default function ProcurementCatalogPage() {
               </div>
               <div>
                 <label className={`${T_LABEL} mb-1 block`}>Supplier</label>
-                <input className={INPUT_CLASS} value={editForm.supplier_name ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, supplier_name: e.target.value }))} />
+                {vendorList.length > 0 ? (
+                  <select
+                    className={SELECT_CLASS}
+                    value={editForm.supplier_name ?? ""}
+                    onChange={(e) => setEditForm((f) => ({ ...f, supplier_name: e.target.value }))}
+                  >
+                    <option value="">— Select supplier —</option>
+                    {/* If current value isn't in the list (legacy data), show it as an option */}
+                    {editForm.supplier_name && !vendorList.some((v) => v.name === editForm.supplier_name) && (
+                      <option value={editForm.supplier_name}>{editForm.supplier_name} (current)</option>
+                    )}
+                    {vendorList.map((v) => (
+                      <option key={v.name} value={v.name}>{v.name}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input className={INPUT_CLASS} value={editForm.supplier_name ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, supplier_name: e.target.value }))} placeholder="Loading vendors…" />
+                )}
               </div>
               <div>
                 <label className={`${T_LABEL} mb-1 block`}>Category</label>
