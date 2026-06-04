@@ -48,6 +48,21 @@ const SCORED_KEYS = [
 
 type ScoredKey = typeof SCORED_KEYS[number];
 
+// Items that have an inline photo button
+const PHOTO_ENABLED_KEYS: ReadonlySet<ScoredKey> = new Set([
+  "backup_score",
+  "station_balance_score",
+  "cleanliness_score",
+  "problem_awareness_score",
+] as ScoredKey[]);
+
+const PHOTO_CATEGORY: Partial<Record<ScoredKey, string>> = {
+  backup_score: "backup",
+  station_balance_score: "station",
+  cleanliness_score: "cleanliness",
+  problem_awareness_score: "problem_awareness",
+};
+
 const ITEM_LABELS: Record<ScoredKey, string> = {
   backup_score: "Backup",
   station_balance_score: "Station Balance",
@@ -302,14 +317,29 @@ function ScoreSelector({
   value,
   rubric,
   onChange,
+  photoEnabled = false,
+  pendingPhotos = [],
+  onAddPhoto,
+  onRemovePhoto,
 }: {
   label: string;
   value: number | null;
   rubric: string[];
   onChange: (v: number) => void;
+  photoEnabled?: boolean;
+  pendingPhotos?: PendingPhoto[];
+  onAddPhoto?: (file: File) => void;
+  onRemovePhoto?: (localId: string) => void;
 }) {
   const [showRubric, setShowRubric] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const pts = value != null ? (value * 2.5).toFixed(1) : null;
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onAddPhoto) onAddPhoto(file);
+    if (e.target) e.target.value = "";
+  };
 
   return (
     <div className={`${GLASS_CARD} p-3 mb-2`}>
@@ -325,6 +355,23 @@ function ScoreSelector({
           </button>
         </div>
         <div className="flex items-center gap-2">
+          {photoEnabled && (
+            <label className="cursor-pointer text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1">
+              <Camera size={15} />
+              {pendingPhotos.length > 0 && (
+                <span className="text-[10px] font-bold bg-violet-500/30 px-1.5 py-0.5 rounded-full">
+                  {pendingPhotos.length}
+                </span>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+            </label>
+          )}
           {pts != null && (
             <span className="text-xs text-violet-300 font-medium">{pts} pts</span>
           )}
@@ -363,6 +410,27 @@ function ScoreSelector({
         </p>
       )}
 
+      {/* Pending photo thumbnails */}
+      {photoEnabled && pendingPhotos.length > 0 && (
+        <div className="mt-2 pt-2 border-t border-white/5">
+          <div className="flex gap-2 flex-wrap">
+            {pendingPhotos.map((p) => (
+              <div key={p.localId} className="relative w-14 h-14 rounded-lg overflow-hidden bg-white/5 group shrink-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.previewUrl} alt="preview" className="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => onRemovePhoto?.(p.localId)}
+                  className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <Trash2 size={14} className="text-red-400" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Expandable full rubric */}
       {showRubric && (
         <div className="mt-2 pt-2 border-t border-white/10 space-y-1">
@@ -385,6 +453,13 @@ function ScoreSelector({
 }
 
 // ─── Photo types ─────────────────────────────────────────────────────────────
+
+type PendingPhoto = {
+  localId: string;   // temp ID for removal before submit
+  file: File;
+  previewUrl: string;
+  category: string;
+};
 
 type EvalImage = {
   id: string;
@@ -589,6 +664,8 @@ export default function StoreEvaluationPage() {
   const [existingId, setExistingId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitMsg, setSubmitMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // Pending inline photos: keyed by ScoredKey
+  const [pendingPhotos, setPendingPhotos] = useState<Record<string, PendingPhoto[]>>({});
 
   const todayPH = (() => {
     return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
@@ -672,6 +749,23 @@ export default function StoreEvaluationPage() {
   const setBinary = (key: string, v: boolean) =>
     setForm((f) => ({ ...f, [key]: v }));
 
+  const handleAddPhoto = (key: ScoredKey, file: File) => {
+    const previewUrl = URL.createObjectURL(file);
+    const localId = `${key}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const category = PHOTO_CATEGORY[key] ?? key.replace("_score", "");
+    const photo: PendingPhoto = { localId, file, previewUrl, category };
+    setPendingPhotos((prev) => ({ ...prev, [key]: [...(prev[key] ?? []), photo] }));
+  };
+
+  const handleRemovePhoto = (key: ScoredKey, localId: string) => {
+    setPendingPhotos((prev) => ({
+      ...prev,
+      [key]: (prev[key] ?? []).filter((p) => p.localId !== localId),
+    }));
+  };
+
+  const totalPendingCount = Object.values(pendingPhotos).reduce((s, arr) => s + arr.length, 0);
+
   const handleSubmit = async () => {
     if (!branchCode) {
       setSubmitMsg({ ok: false, text: "Please select a branch." });
@@ -712,10 +806,40 @@ export default function StoreEvaluationPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Submission failed.");
-      setExistingId(data.evaluation?.id ?? existingId);
+      const evalId: string = data.evaluation?.id ?? existingId ?? "";
+      setExistingId(evalId);
+
+      // Upload any pending inline photos
+      const allPending = Object.values(pendingPhotos).flat();
+      if (allPending.length > 0 && evalId) {
+        for (const photo of allPending) {
+          try {
+            const fd = new FormData();
+            fd.append("evaluation_id", evalId);
+            fd.append("branch_code", branchCode);
+            fd.append("eval_date", todayPH);
+            fd.append("category", photo.category);
+            fd.append("file", photo.file);
+            const headers = getAuthHeaders() as Record<string, string>;
+            delete headers["Content-Type"];
+            await fetch("/api/store/evaluation/upload-image", {
+              method: "POST",
+              headers,
+              body: fd,
+              cache: "no-store",
+            });
+          } catch {
+            // Don't fail the whole submit if one photo fails
+          }
+        }
+        setPendingPhotos({});
+      }
+
       setSubmitMsg({
         ok: true,
-        text: existingId ? "Evaluation updated." : "Evaluation submitted successfully.",
+        text: existingId
+          ? `Evaluation updated${allPending.length > 0 ? ` + ${allPending.length} photo(s) uploaded` : ""}.`
+          : `Submitted${allPending.length > 0 ? ` with ${allPending.length} photo(s)` : ""}.`,
       });
     } catch (e: any) {
       setSubmitMsg({ ok: false, text: e.message || "Submission failed." });
@@ -908,6 +1032,10 @@ export default function StoreEvaluationPage() {
                   value={form[key]}
                   rubric={RUBRICS[key]}
                   onChange={(v) => setScore(key, v)}
+                  photoEnabled={PHOTO_ENABLED_KEYS.has(key)}
+                  pendingPhotos={pendingPhotos[key] ?? []}
+                  onAddPhoto={(file) => handleAddPhoto(key, file)}
+                  onRemovePhoto={(localId) => handleRemovePhoto(key, localId)}
                 />
               ))}
             </div>
@@ -956,10 +1084,10 @@ export default function StoreEvaluationPage() {
                 <Send size={18} />
               )}
               {submitting
-                ? "Submitting..."
+                ? `Submitting${totalPendingCount > 0 ? ` + ${totalPendingCount} photo(s)` : ""}...`
                 : existingId
-                ? "Update Evaluation"
-                : "Submit Evaluation"}
+                ? `Update Evaluation${totalPendingCount > 0 ? ` · 📷 ${totalPendingCount}` : ""}`
+                : `Submit Evaluation${totalPendingCount > 0 ? ` · 📷 ${totalPendingCount}` : ""}`}
             </button>
 
             {!allScored && (

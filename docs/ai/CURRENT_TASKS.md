@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-05 (session 7)
+Last updated: 2026-06-05 (session 8)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,17 +11,17 @@ Last updated: 2026-06-05 (session 7)
 
 ## ⚠️ Deployments Pending
 
+### バックエンド (Heroku) — 必須（pytz修正 + Phase 4エンドポイント含む）
+```bash
+cd /Users/jaynishimura/Desktop/sushizen_shift_app_clean
+git add -A && git commit -m "fix: replace pytz with zoneinfo; feat: Phase 4 aggregation endpoints"
+git push heroku HEAD:master --force
+```
+
 ### フロントエンド (Vercel)
 ```bash
 cd /Users/jaynishimura/Desktop/sushizen-shift-pwa
-git add -A && git commit -m "feat: Store Evaluation Phase 4 — dashboard charts" && git push origin HEAD:main
-```
-
-### バックエンド (Heroku) — 必須
-```bash
-cd /Users/jaynishimura/Desktop/sushizen_shift_app_clean
-git add -A && git commit -m "feat: store evaluation weekly/monthly aggregation endpoints"
-git push heroku HEAD:master --force
+git add -A && git commit -m "feat: inline photo capture for Backup/Station/Cleanliness/Awareness" && git push origin HEAD:main
 ```
 
 ---
@@ -122,6 +122,8 @@ Vendor MasterのOrder Catalog登録名と`supplier_name`が一致しない場合
 | Store Evaluation Phase 2 (画像) | ✅ live |
 | Store Evaluation Phase 3 (ブランチマッピング) | ✅ live |
 | Store Evaluation Phase 4 (ダッシュボード) | ⏳ デプロイ待ち |
+| インライン写真アップ（4項目） | ⏳ デプロイ待ち |
+| pytz → zoneinfo 修正（クラッシュ修正） | ⏳ デプロイ待ち |
 
 ---
 
