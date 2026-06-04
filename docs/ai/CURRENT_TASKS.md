@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-04 (session 2)
+Last updated: 2026-06-05 (session 4)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,18 @@ Last updated: 2026-06-04 (session 2)
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み
+### フロントエンド (Vercel)
+```bash
+cd /Users/jaynishimura/Desktop/sushizen-shift-pwa
+git add -A && git commit -m "feat: Store Daily Evaluation (Phase 1)" && git push origin main
+```
+
+### バックエンド (Heroku) — 必須
+```bash
+cd /Users/jaynishimura/Desktop/sushizen_shift_app_clean
+git add -A && git commit -m "feat: store daily evaluation API + DB"
+git push heroku HEAD:master --force
+```
 
 ---
 
@@ -23,54 +34,73 @@ Last updated: 2026-06-04 (session 2)
 
 ## Pending Tasks
 
-なし
+### Phase 2: Store Evaluation 画像アップロード
+- `/store/evaluation` に画像アップロードボタンを追加
+- Google Drive API（既存サービスアカウント）で `StoreEvaluations/manila/{branch}/{date}/` に保存
+- `store_eval_images` テーブルにDrive file IDを保存
+- 管理閲覧画面から画像をインライン表示
+
+### Phase 3: 自動データ精度向上
+- cancel_count: Manila branch名のマッピング精度改善（cancellations.branch vs branch_code）
+- offline_rate_pct: store_name → branch_code マッピング追加
+- low_rating_count: branchマッピング統一
+
+### Phase 4: 比較チャート・月次トレンド
+- 店舗間スコア比較グラフ（週次/月次）
+- 低スコア自動アラート
 
 ---
+
+## Recently Completed (2026-06-05 session 4) — デプロイ待ち
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Store Evaluation DBモジュール | `app/db_store_evaluation.py` | 新規テーブル2つ（store_daily_evaluations, store_eval_images）+ 全CRUD + PHT 14:00自動データロジック |
+| Store Evaluation API | `app/store_evaluation_api.py` | 6エンドポイント: auto-data, today, submit, branches, admin summary/detail/trend/list |
+| main.py登録 | `app/main.py` | store_evaluation_routerをimport+include |
+| フロントエンド：店舗入力フォーム | `src/app/store/evaluation/page.tsx` | 8項目1〜5評価 + 4項目バイナリ + リアルタイムスコア + ルーブリック表示 + 自動データパネル |
+| フロントエンド：管理閲覧ページ | `src/app/admin/store-evaluations/page.tsx` | Daily Summary（全店舗スコア表） + Branch Trend（日次履歴）+ 詳細モーダル |
+| Storeプロキシ追加 | `src/app/api/store/[...slug]/route.ts` | /api/store/* をHerokuへ中継（既存adminプロキシと同パターン） |
+| NavBar更新 | `src/components/NavBar.tsx` | 「Store Evaluation」を二次メニュー追加（役割ゲート）+「Store Evaluations」を管理メニューに追加 |
+
+## Recently Completed (2026-06-04 session 3) — すべてlive
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Receiving record 展開表示 | `src/app/store/procurement/receiving/page.tsx` | receiving recordをクリックすると注文アイテム一覧が展開表示。Confirmボタン前に内容確認可能 |
+| CK Dispatch修正 | `app/inventory_db.py`, `app/db.py` | production close時にPOを自動生成 → CK Dispatchに表示。POなし旧オーダーもfallbackで表示。dispatch時にPO自動作成対応 |
+| PO email/cc自動入力 | `app/main.py` | `suppliers.append()`に`email`と`cc_emails`を追加。Load Request時にVendor MasterのSuppier Email・CC Emailsが自動反映 |
 
 ## Recently Completed (2026-06-04 session 2) — すべてlive
 
 | 修正 | ファイル | 内容 |
 |---|---|---|
-| CK catalog エラー修正 | `app/db.py` | `list_ck_items_as_catalog_rows()` source3の `suggested_unit_price` エラーを除去。Kitchen Ingredientsタブに `CK_WH_to_supplier` アイテム（Golden Dunes等）を表示 |
-| CK自動承認フラグ | `app/main.py`, `src/app/store/procurement/request/page.tsx` | Manila CKタブ選択時に `is_ck_order: true` フラグ送信 → vendor_name依存の不整合を解消 |
-| モバイルSubmitバー z-index | `src/app/store/procurement/request/page.tsx` | `z-40` → `z-[75]` でNavBar（z-[70]）の上に表示されるよう修正 |
-| Store Procurement Requests | `src/app/store/procurement/page.tsx` | ① `requested_by` フィルター削除（全員のリクエストを表示）② `receiving_status=CONFIRMED` 以降を非表示（ステップ3完了＝完了）③ ラベル「My Requests」→「Requests (X active)」 |
-| Order Catalog supplier dropdown | `src/app/admin/procurement/catalog/page.tsx` | Supplier Name をVendor Master選択式ドロップダウンに変更 |
-| Hub expand アイテム表示 | `src/app/admin/procurement/hub/page.tsx` | `data.items` → `data.request.items` 修正 |
-
-## Recently Completed (2026-06-04 session 1) — すべてlive
-
-| 修正 | ファイル | 内容 |
-|---|---|---|
-| CK catalog Golden Dunes修正 | `app/db.py` | `list_ck_items_as_catalog_rows()` + `main.py` Kitchen Ingredients APIに `CK_WH_to_supplier` 追加 |
-| Order Catalog supplier dropdown | `src/app/admin/procurement/catalog/page.tsx` | Supplier Name 選択式化 |
+| CK catalog エラー修正 | `app/db.py`, `app/main.py` | source3の`suggested_unit_price`エラー除去。Kitchen IngredientタブにGolden Dunes等表示 |
+| CK自動承認フラグ | `app/main.py`, `request/page.tsx` | `is_ck_order`フラグ導入。Manila CKオーダー常に自動承認 |
+| モバイルSubmitバー | `request/page.tsx` | `z-40`→`z-[75]`でNavBar（z-70）の上に表示 |
+| Store Procurement Requests | `store/procurement/page.tsx` | 全員表示・配送確認後に非表示・ラベル変更 |
+| Order Catalog supplier dropdown | `catalog/page.tsx` | Supplier NameをVendor Master選択式に変更 |
+| Hub expand アイテム表示 | `hub/page.tsx` | `data.request.items`参照に修正 |
 
 ## Recently Completed (2026-06-03) — すべてlive
 
 | 修正 | 内容 |
 |---|---|
-| Heroku Postgres Essential-0 → Standard-0 移行 | 接続上限 20→120 |
+| Heroku Postgres Essential-0 → Standard-0 | 接続上限 20→120 |
 | DB接続プール拡張 | 63/120接続設計 |
-| #10 Travel path frontend | 914行 |
-| #36 CK Dispatch page | 776行 |
-| #37 CK Receiving shortage対応 | dispatched_items_json使用 |
-| #38 CK Orders shortage flags | has_shortage表示 |
-| #39 NavBar CK Dispatch リンク | 追加 |
-| #40 CK vendor_name="CK" 検出修正 | 3箇所 |
-| #41 CK Production selector 文字色 | text-white |
-| #42–44 Branch Addresses DB + API + UI | 全店舗住所登録 |
-| PO PDF word-wrap | 修正 |
-| PO email open tracking pixel | 実装 |
-| Direct Purchase sessionStorage draft | 修正 |
+| #10-#44 各タスク | Travel path, CK Dispatch/Receiving, Branch Addresses, PO tracking等 |
 
 ---
 
 ## Known Debt
 
 ### `admin/draft/page.tsx` — Sheet Proposals Removal (DO NOT TOUCH yet)
-Identifiers: `sheetTabMain`, `sheetTabs`, `sheetTabsBusy`, `pendingVisibleRows`, `proposeFromSheet`, `DUBAI_DRAFT_SHEET_URL`, `selectedProposalIds`
-
+`sheetTabMain`, `sheetTabs`, `sheetTabsBusy`, `pendingVisibleRows`, `proposeFromSheet`, `DUBAI_DRAFT_SHEET_URL`, `selectedProposalIds`
 **⚠️ Rule**: Line-number-based deletion ONLY. No regex.
+
+### Vendor名照合（catalog_aliases）
+Vendor MasterのOrder Catalog登録名と`supplier_name`が一致しない場合、PO作成時にemail/payment_termsが空になる。
+**対処**: 該当ベンダーの`catalog_aliases`フィールドに旧称を登録する（Golden Dunes等）
 
 ---
 
@@ -78,35 +108,28 @@ Identifiers: `sheetTabMain`, `sheetTabs`, `sheetTabsBusy`, `pendingVisibleRows`,
 
 | Feature | Status |
 |---|---|
-| Heroku Postgres | ✅ Standard-0 (120接続, live) |
-| DB接続プール | ✅ 63/120接続 (live) |
-| CK order auto-detection | ✅ live (vendor_name + is_ck_order flag) |
+| Heroku Postgres | ✅ Standard-0 (120接続) |
 | CK catalog (Golden Dunes / Kitchen Ingredients) | ✅ live |
+| CK自動承認 (is_ck_orderフラグ) | ✅ live |
+| CK Production → CK Dispatch 連携 | ✅ live |
+| Store Procurement Requests (全員・完了非表示) | ✅ live |
+| Mobile Submit bar z-index | ✅ live |
+| PO作成時 email/payment_terms自動入力 | ✅ live |
 | Order Catalog supplier dropdown | ✅ live |
-| Hub expand アイテム表示 | ✅ live |
-| Store Procurement Requests (全員表示・完了非表示) | ✅ live |
-| Mobile Submit bar (z-index修正) | ✅ live |
-| CK Dispatch / Receiving / shortage flags | ✅ live |
-| PO email open tracking | ✅ live |
+| Hub expand / Receiving record expand | ✅ live |
 | Branch delivery addresses | ✅ live |
-| Travel path frontend | ✅ live |
+| PO email open tracking | ✅ live |
 | CME メール未達 | ⏳ CME IT担当ホワイトリスト登録待ち |
+| Store Daily Evaluation (Phase 1) | ⏳ デプロイ待ち |
 
 ---
 
 ## Heroku Diagnostics
 
 ```bash
-heroku logs -a sushizen-shift-app -n 200 | grep -E "error|CK|dispatch|tracking" -i
+heroku logs -a sushizen-shift-app -n 200 | grep -E "error|CK|dispatch" -i
 
 heroku pg:psql -a sushizen-shift-app
-
-# Check branch addresses
-SELECT city, store_code, address FROM proc_branch_delivery_addresses ORDER BY city, store_code;
-
-# Check PO email open tracking
-SELECT po_id, recipient_email, opened_at, open_count, receipt_confirmed_at
-FROM proc_po_email_logs ORDER BY created_at DESC LIMIT 10;
 
 # Reset attendance sync duplicate hash
 UPDATE attendance_drive_sources SET last_sync_status = '' WHERE id = 1;

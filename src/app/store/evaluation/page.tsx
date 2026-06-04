@@ -1,0 +1,797 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  CheckCircle2,
+  XCircle,
+  Clock,
+  AlertTriangle,
+  RefreshCw,
+  Send,
+  ChevronDown,
+  ChevronUp,
+  Info,
+} from "lucide-react";
+import { getAuth, getAuthHeaders } from "@/lib/auth";
+import {
+  GLASS_CARD,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  SELECT_CLASS,
+  TEXTAREA_CLASS,
+  T_PAGE_TITLE,
+  T_SECTION,
+  T_LABEL,
+  T_CAPTION,
+  T_BODY,
+  BADGE_SUCCESS,
+  BADGE_WARNING,
+  BADGE_ERROR,
+  BADGE_INFO,
+} from "@/lib/ui-tokens";
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const ALLOWED_ROLES = new Set([
+  "ADMIN", "HQ", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER",
+]);
+
+const SCORED_KEYS = [
+  "backup_score",
+  "station_balance_score",
+  "quality_score",
+  "cleanliness_score",
+  "team_support_score",
+  "coaching_score",
+  "problem_awareness_score",
+  "prep_time_score",
+] as const;
+
+type ScoredKey = typeof SCORED_KEYS[number];
+
+const ITEM_LABELS: Record<ScoredKey, string> = {
+  backup_score: "Backup",
+  station_balance_score: "Station Balance",
+  quality_score: "Quality",
+  cleanliness_score: "Cleanliness",
+  team_support_score: "Team Support",
+  coaching_score: "Coaching & Staff Development",
+  problem_awareness_score: "Problem Awareness",
+  prep_time_score: "Prep Time",
+};
+
+const RUBRICS: Record<ScoredKey, string[]> = {
+  backup_score: [
+    "No backup prepared — stop service and prep immediately",
+    "Key roles/topping items missing — risk of service disruption if busy",
+    "Core items ready, ~60% overall backup",
+    "80%+ backed up, remainder in progress",
+    "All items above standard, sufficient backup throughout",
+  ],
+  station_balance_score: [
+    "Operations collapsed — total breakdown",
+    "Multiple bottlenecks across stations",
+    "One bottleneck identified and managed",
+    "Minor adjustments made, mostly smooth",
+    "All staff properly positioned, no bottlenecks",
+  ],
+  quality_score: [
+    "Major quality failure — customer impact",
+    "Multiple quality issues, ongoing problems",
+    "1–2 quality issues occurred during service",
+    "Minor adjustments made, overall standard maintained",
+    "All products met quality standard, no rework required",
+  ],
+  cleanliness_score: [
+    "Kitchen hygiene failure — immediate action required",
+    "Multiple stations dirty, ongoing issue",
+    "Some stations needed cleaning and were addressed",
+    "Minor areas noted and corrected promptly",
+    "All stations fully clean and sanitized throughout",
+  ],
+  team_support_score: [
+    "No response to busy sections",
+    "Delayed support affected prep time",
+    "Support only occurs after instruction, not proactively",
+    "Most members appropriately supporting busy sections",
+    "All members proactively supporting busy sections ahead of time",
+  ],
+  coaching_score: [
+    "No coaching or feedback given",
+    "Verbal reminders only — no structured feedback",
+    "1 specific coaching session completed",
+    "2 specific coaching sessions completed",
+    "3+ specific coaching sessions with targeted guidance",
+  ],
+  problem_awareness_score: [
+    "No awareness of ongoing issues",
+    "Issues only noticed when pointed out",
+    "Some issues identified, partial or delayed response",
+    "Most issues identified and addressed",
+    "All issues proactively identified and resolved",
+  ],
+  prep_time_score: [
+    "Operations collapsed — prep completely unmanageable",
+    "Continuous delays occurring across service",
+    "5+ delays, or delays exceeding 45 min",
+    "Minor delays (30–40 min) on high-value orders",
+    "All time slots within management standard",
+  ],
+};
+
+const BINARY_LABELS: Record<string, string> = {
+  attendance_check: "Attendance Check",
+  report_submission: "Report Submission",
+  closing_check: "Closing Check",
+  issue_report: "Issue Report",
+};
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+type AutoData = {
+  eval_date: string;
+  sales_data_is_prev_day: boolean;
+  sales_data_date: string;
+  attendance_rate: number | null;
+  attendance_present: number | null;
+  attendance_scheduled: number | null;
+  attendance_date: string;
+  cancel_count: number | null;
+  cancel_date: string;
+  offline_rate_pct: number | null;
+  offline_date: string;
+  low_rating_count: number | null;
+  low_rating_date: string;
+  waste_report_submitted: boolean;
+  inventory_check_done: boolean;
+  purchasing_done: boolean;
+};
+
+type FormState = {
+  // Binary
+  attendance_check: boolean | null;
+  report_submission: boolean | null;
+  closing_check: boolean | null;
+  issue_report: boolean | null;
+  // Scored
+  backup_score: number | null;
+  station_balance_score: number | null;
+  quality_score: number | null;
+  cleanliness_score: number | null;
+  team_support_score: number | null;
+  coaching_score: number | null;
+  problem_awareness_score: number | null;
+  prep_time_score: number | null;
+  // Meta
+  notes: string;
+};
+
+const EMPTY_FORM: FormState = {
+  attendance_check: null,
+  report_submission: null,
+  closing_check: null,
+  issue_report: null,
+  backup_score: null,
+  station_balance_score: null,
+  quality_score: null,
+  cleanliness_score: null,
+  team_support_score: null,
+  coaching_score: null,
+  problem_awareness_score: null,
+  prep_time_score: null,
+  notes: "",
+};
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function computeScore(form: FormState): number {
+  let total = 0;
+  for (const key of SCORED_KEYS) {
+    const v = form[key];
+    if (v != null) total += v * 2.5;
+  }
+  return Math.round(total * 10) / 10;
+}
+
+function scoredCount(form: FormState): number {
+  return SCORED_KEYS.filter((k) => form[k] != null).length;
+}
+
+function fmtDate(d: string): string {
+  if (!d) return "";
+  try {
+    return new Date(d + "T00:00:00").toLocaleDateString("en-PH", {
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return d;
+  }
+}
+
+function scoreColor(score: number): string {
+  if (score >= 80) return "text-emerald-400";
+  if (score >= 60) return "text-amber-400";
+  return "text-red-400";
+}
+
+// ─── Sub-components ──────────────────────────────────────────────────────────
+
+function DataRow({
+  label,
+  value,
+  date,
+  isPrevDay,
+  flag,
+}: {
+  label: string;
+  value: string | number | null;
+  date?: string;
+  isPrevDay?: boolean;
+  flag?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between py-1.5 border-b border-white/5 last:border-0">
+      <span className={`${T_CAPTION} text-slate-400`}>{label}</span>
+      <div className="flex items-center gap-1.5">
+        {flag !== undefined ? (
+          flag ? (
+            <span className={BADGE_SUCCESS}>Submitted</span>
+          ) : (
+            <span className={BADGE_ERROR}>Not submitted</span>
+          )
+        ) : (
+          <span className="text-sm font-medium text-white">
+            {value == null ? "—" : value}
+          </span>
+        )}
+        {date && (
+          <span className={`${T_CAPTION} text-slate-500 ml-1`}>
+            {fmtDate(date)}
+            {isPrevDay && (
+              <span className="ml-1 text-amber-400" title="Updates after 14:00 PHT">⚠</span>
+            )}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BinaryToggle({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean | null;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between py-2">
+      <span className={`${T_BODY} font-medium`}>{label}</span>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => onChange(true)}
+          className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+            value === true
+              ? "bg-emerald-500 text-white"
+              : "bg-white/5 text-slate-400 hover:bg-white/10"
+          }`}
+        >
+          ✓ Done
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(false)}
+          className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+            value === false
+              ? "bg-red-500/70 text-white"
+              : "bg-white/5 text-slate-400 hover:bg-white/10"
+          }`}
+        >
+          ✗ No
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ScoreSelector({
+  label,
+  value,
+  rubric,
+  onChange,
+}: {
+  label: string;
+  value: number | null;
+  rubric: string[];
+  onChange: (v: number) => void;
+}) {
+  const [showRubric, setShowRubric] = useState(false);
+  const pts = value != null ? (value * 2.5).toFixed(1) : null;
+
+  return (
+    <div className={`${GLASS_CARD} p-3 mb-2`}>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className={`${T_BODY} font-semibold`}>{label}</span>
+          <button
+            type="button"
+            onClick={() => setShowRubric((s) => !s)}
+            className="text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            <Info size={14} />
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          {pts != null && (
+            <span className="text-xs text-violet-300 font-medium">{pts} pts</span>
+          )}
+          <span className={`text-sm font-bold ${value ? "text-white" : "text-slate-500"}`}>
+            {value ?? "—"}/5
+          </span>
+        </div>
+      </div>
+
+      {/* 1-5 selector */}
+      <div className="flex gap-2">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            onClick={() => onChange(n)}
+            className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${
+              value === n
+                ? n <= 2
+                  ? "bg-red-500 text-white"
+                  : n === 3
+                  ? "bg-amber-500 text-white"
+                  : "bg-emerald-500 text-white"
+                : "bg-white/5 text-slate-400 hover:bg-white/10"
+            }`}
+          >
+            {n}
+          </button>
+        ))}
+      </div>
+
+      {/* Active rubric description */}
+      {value != null && (
+        <p className={`${T_CAPTION} text-slate-400 mt-2 leading-relaxed`}>
+          {rubric[value - 1]}
+        </p>
+      )}
+
+      {/* Expandable full rubric */}
+      {showRubric && (
+        <div className="mt-2 pt-2 border-t border-white/10 space-y-1">
+          {rubric.map((desc, i) => (
+            <div key={i} className="flex gap-2">
+              <span
+                className={`text-xs font-bold w-4 shrink-0 ${
+                  i + 1 <= 2 ? "text-red-400" : i + 1 === 3 ? "text-amber-400" : "text-emerald-400"
+                }`}
+              >
+                {i + 1}
+              </span>
+              <span className={`${T_CAPTION} text-slate-400`}>{desc}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Page ───────────────────────────────────────────────────────────────
+
+export default function StoreEvaluationPage() {
+  const router = useRouter();
+  const auth = getAuth();
+  const role = (auth?.role || "").toUpperCase();
+  const staffName = auth?.staffName || "";
+
+  // Auth guard
+  useEffect(() => {
+    if (!ALLOWED_ROLES.has(role)) {
+      router.replace("/week");
+    }
+  }, [role, router]);
+
+  const [branches, setBranches] = useState<string[]>([]);
+  const [branchCode, setBranchCode] = useState("");
+  const [autoData, setAutoData] = useState<AutoData | null>(null);
+  const [autoLoading, setAutoLoading] = useState(false);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const [existingId, setExistingId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitMsg, setSubmitMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [pageLoading, setPageLoading] = useState(true);
+
+  const todayPH = (() => {
+    return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+  })();
+
+  // Load branch list
+  useEffect(() => {
+    const headers = getAuthHeaders();
+    fetch("/api/store/evaluation/branches", { headers, cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.branches?.length) setBranches(d.branches);
+      })
+      .catch(() => {})
+      .finally(() => setPageLoading(false));
+  }, []);
+
+  // Load existing evaluation + auto-data when branch changes
+  const loadBranchData = useCallback(
+    async (bc: string) => {
+      if (!bc) return;
+      setAutoLoading(true);
+      setSubmitMsg(null);
+      const headers = getAuthHeaders();
+
+      try {
+        // Check for existing submission today
+        const existRes = await fetch(
+          `/api/store/evaluation/today?branch_code=${encodeURIComponent(bc)}`,
+          { headers, cache: "no-store" }
+        );
+        const existData = await existRes.json();
+        if (existData.evaluation) {
+          const ev = existData.evaluation;
+          setExistingId(ev.id);
+          setForm({
+            attendance_check: ev.attendance_check ?? null,
+            report_submission: ev.report_submission ?? null,
+            closing_check: ev.closing_check ?? null,
+            issue_report: ev.issue_report ?? null,
+            backup_score: ev.backup_score ?? null,
+            station_balance_score: ev.station_balance_score ?? null,
+            quality_score: ev.quality_score ?? null,
+            cleanliness_score: ev.cleanliness_score ?? null,
+            team_support_score: ev.team_support_score ?? null,
+            coaching_score: ev.coaching_score ?? null,
+            problem_awareness_score: ev.problem_awareness_score ?? null,
+            prep_time_score: ev.prep_time_score ?? null,
+            notes: ev.notes || "",
+          });
+        } else {
+          setExistingId(null);
+          setForm(EMPTY_FORM);
+        }
+
+        // Fetch auto-data
+        const autoRes = await fetch(
+          `/api/store/evaluation/auto-data?branch_code=${encodeURIComponent(bc)}`,
+          { headers, cache: "no-store" }
+        );
+        const ad = await autoRes.json();
+        setAutoData(ad);
+      } catch {
+        // silently fail auto-data
+      } finally {
+        setAutoLoading(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (branchCode) loadBranchData(branchCode);
+  }, [branchCode, loadBranchData]);
+
+  const totalScore = computeScore(form);
+  const scored = scoredCount(form);
+  const allScored = scored === SCORED_KEYS.length;
+
+  const setScore = (key: ScoredKey, v: number) =>
+    setForm((f) => ({ ...f, [key]: v }));
+  const setBinary = (key: string, v: boolean) =>
+    setForm((f) => ({ ...f, [key]: v }));
+
+  const handleSubmit = async () => {
+    if (!branchCode) {
+      setSubmitMsg({ ok: false, text: "Please select a branch." });
+      return;
+    }
+    if (!allScored) {
+      setSubmitMsg({ ok: false, text: `Please rate all 8 items (${scored}/8 done).` });
+      return;
+    }
+
+    setSubmitting(true);
+    setSubmitMsg(null);
+
+    const payload = {
+      branch_code: branchCode,
+      eval_date: todayPH,
+      ...form,
+      // Snapshot auto-data at submit time
+      auto_attendance_rate: autoData?.attendance_rate ?? null,
+      auto_attendance_date: autoData?.attendance_date ?? null,
+      auto_cancel_count: autoData?.cancel_count ?? null,
+      auto_cancel_date: autoData?.cancel_date ?? null,
+      auto_offline_rate_pct: autoData?.offline_rate_pct ?? null,
+      auto_offline_date: autoData?.offline_date ?? null,
+      auto_low_rating_count: autoData?.low_rating_count ?? null,
+      auto_low_rating_date: autoData?.low_rating_date ?? null,
+      waste_report_submitted: autoData?.waste_report_submitted ?? false,
+      inventory_check_done: autoData?.inventory_check_done ?? false,
+      purchasing_done: autoData?.purchasing_done ?? false,
+    };
+
+    try {
+      const res = await fetch("/api/store/evaluation/submit", {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Submission failed.");
+      setExistingId(data.evaluation?.id ?? existingId);
+      setSubmitMsg({
+        ok: true,
+        text: existingId ? "Evaluation updated." : "Evaluation submitted successfully.",
+      });
+    } catch (e: any) {
+      setSubmitMsg({ ok: false, text: e.message || "Submission failed." });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!ALLOWED_ROLES.has(role)) return null;
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 pb-28">
+      <div className="max-w-lg mx-auto px-4 pt-6">
+
+        {/* Header */}
+        <div className="mb-5">
+          <h1 className={T_PAGE_TITLE}>Daily Store Evaluation</h1>
+          <p className={`${T_CAPTION} text-slate-400 mt-1`}>
+            {new Date().toLocaleDateString("en-PH", {
+              timeZone: "Asia/Manila",
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}
+          </p>
+        </div>
+
+        {/* Branch selector */}
+        <div className={`${GLASS_CARD} p-4 mb-4`}>
+          <label className={`${T_LABEL} mb-2 block`}>Branch</label>
+          <select
+            className={SELECT_CLASS}
+            value={branchCode}
+            onChange={(e) => setBranchCode(e.target.value)}
+          >
+            <option value="">— Select branch —</option>
+            {branches.map((b) => (
+              <option key={b} value={b}>{b}</option>
+            ))}
+          </select>
+          {existingId && (
+            <div className={`${BADGE_INFO} mt-2 inline-block`}>
+              Editing today's existing evaluation
+            </div>
+          )}
+        </div>
+
+        {/* Running score pill */}
+        {branchCode && (
+          <div className={`${GLASS_CARD} p-4 mb-4 flex items-center justify-between`}>
+            <div>
+              <p className={T_LABEL}>Total Score</p>
+              <p className={`text-3xl font-bold ${scoreColor(totalScore)}`}>
+                {totalScore.toFixed(1)}
+                <span className="text-base font-normal text-slate-400"> / 100</span>
+              </p>
+              <p className={`${T_CAPTION} text-slate-500 mt-0.5`}>
+                {scored}/{SCORED_KEYS.length} items rated
+              </p>
+            </div>
+            {/* Progress bar */}
+            <div className="w-24">
+              <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    totalScore >= 80
+                      ? "bg-emerald-400"
+                      : totalScore >= 60
+                      ? "bg-amber-400"
+                      : "bg-red-400"
+                  }`}
+                  style={{ width: `${Math.min(totalScore, 100)}%` }}
+                />
+              </div>
+              <p className={`${T_CAPTION} text-center mt-1 ${scoreColor(totalScore)}`}>
+                {totalScore >= 80 ? "Good" : totalScore >= 60 ? "Needs Work" : "Critical"}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Auto-data reference panel */}
+        {branchCode && (
+          <div className={`${GLASS_CARD} p-4 mb-4`}>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className={T_SECTION}>Reference Data</h2>
+              {autoLoading ? (
+                <RefreshCw size={14} className="animate-spin text-slate-400" />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => loadBranchData(branchCode)}
+                  className="text-slate-400 hover:text-white transition-colors"
+                >
+                  <RefreshCw size={14} />
+                </button>
+              )}
+            </div>
+
+            {autoData?.sales_data_is_prev_day && (
+              <div className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                <AlertTriangle size={12} className="text-amber-400 shrink-0" />
+                <p className={`${T_CAPTION} text-amber-300`}>
+                  Sales data shows previous day — refreshes after 14:00 PHT
+                </p>
+              </div>
+            )}
+
+            <DataRow
+              label="Attendance Rate"
+              value={
+                autoData?.attendance_rate != null
+                  ? `${autoData.attendance_rate}% (${autoData.attendance_present}/${autoData.attendance_scheduled})`
+                  : null
+              }
+              date={autoData?.attendance_date}
+            />
+            <DataRow
+              label="Cancel Count"
+              value={autoData?.cancel_count ?? null}
+              date={autoData?.cancel_date}
+              isPrevDay={autoData?.sales_data_is_prev_day}
+            />
+            <DataRow
+              label="Offline Rate"
+              value={
+                autoData?.offline_rate_pct != null
+                  ? `${autoData.offline_rate_pct}%`
+                  : null
+              }
+              date={autoData?.offline_date}
+              isPrevDay={autoData?.sales_data_is_prev_day}
+            />
+            <DataRow
+              label="Low Ratings"
+              value={autoData?.low_rating_count ?? null}
+              date={autoData?.low_rating_date}
+              isPrevDay={autoData?.sales_data_is_prev_day}
+            />
+            <DataRow
+              label="Waste Report"
+              value={null}
+              flag={autoData?.waste_report_submitted}
+            />
+            <DataRow
+              label="Daily Inventory"
+              value={null}
+              flag={autoData?.inventory_check_done}
+            />
+            <DataRow
+              label="Procurement Order"
+              value={null}
+              flag={autoData?.purchasing_done}
+            />
+          </div>
+        )}
+
+        {/* Form body — only show when branch is selected */}
+        {branchCode && (
+          <>
+            {/* Section 1: Compliance checks */}
+            <div className={`${GLASS_CARD} p-4 mb-4`}>
+              <h2 className={`${T_SECTION} mb-3`}>Implementation Check</h2>
+              <p className={`${T_CAPTION} text-slate-400 mb-3`}>
+                Compliance items — tracked separately from score
+              </p>
+              {Object.entries(BINARY_LABELS).map(([key, label]) => (
+                <div key={key} className="border-b border-white/5 last:border-0">
+                  <BinaryToggle
+                    label={label}
+                    value={form[key as keyof FormState] as boolean | null}
+                    onChange={(v) => setBinary(key, v)}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Section 2: Scored items */}
+            <div className="mb-4">
+              <h2 className={`${T_SECTION} mb-3`}>Store Evaluation (100 pts)</h2>
+              <p className={`${T_CAPTION} text-slate-400 mb-3`}>
+                Each item scored 1–5 · 12.5 pts max per item · Tap{" "}
+                <Info size={11} className="inline" /> for scoring guide
+              </p>
+              {SCORED_KEYS.map((key) => (
+                <ScoreSelector
+                  key={key}
+                  label={ITEM_LABELS[key]}
+                  value={form[key]}
+                  rubric={RUBRICS[key]}
+                  onChange={(v) => setScore(key, v)}
+                />
+              ))}
+            </div>
+
+            {/* Notes */}
+            <div className={`${GLASS_CARD} p-4 mb-4`}>
+              <label className={`${T_LABEL} mb-2 block`}>Notes (optional)</label>
+              <textarea
+                className={TEXTAREA_CLASS}
+                rows={3}
+                placeholder="Key observations, issues flagged, actions taken..."
+                value={form.notes}
+                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              />
+            </div>
+
+            {/* Submit */}
+            {submitMsg && (
+              <div
+                className={`p-3 rounded-xl mb-3 text-sm font-medium ${
+                  submitMsg.ok
+                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                    : "bg-red-500/20 text-red-300 border border-red-500/30"
+                }`}
+              >
+                {submitMsg.ok ? (
+                  <CheckCircle2 size={14} className="inline mr-1.5" />
+                ) : (
+                  <XCircle size={14} className="inline mr-1.5" />
+                )}
+                {submitMsg.text}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={submitting || !allScored}
+              className={`${PRIMARY_BUTTON} w-full py-4 text-base font-semibold flex items-center justify-center gap-2 ${
+                !allScored ? "opacity-50" : ""
+              }`}
+            >
+              {submitting ? (
+                <RefreshCw size={18} className="animate-spin" />
+              ) : (
+                <Send size={18} />
+              )}
+              {submitting
+                ? "Submitting..."
+                : existingId
+                ? "Update Evaluation"
+                : "Submit Evaluation"}
+            </button>
+
+            {!allScored && (
+              <p className={`${T_CAPTION} text-center text-slate-500 mt-2`}>
+                Rate all {SCORED_KEYS.length} items to enable submission ({scored}/{SCORED_KEYS.length} done)
+              </p>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
