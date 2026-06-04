@@ -1,23 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
   XCircle,
-  Clock,
   AlertTriangle,
   RefreshCw,
   Send,
-  ChevronDown,
-  ChevronUp,
   Info,
 } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
-  SECONDARY_BUTTON,
   SELECT_CLASS,
   TEXTAREA_CLASS,
   T_PAGE_TITLE,
@@ -26,7 +22,6 @@ import {
   T_CAPTION,
   T_BODY,
   BADGE_SUCCESS,
-  BADGE_WARNING,
   BADGE_ERROR,
   BADGE_INFO,
 } from "@/lib/ui-tokens";
@@ -392,7 +387,6 @@ export default function StoreEvaluationPage() {
   const router = useRouter();
   const auth = getAuth();
   const role = (auth?.role || "").toUpperCase();
-  const staffName = auth?.staffName || "";
 
   // Auth guard
   useEffect(() => {
@@ -409,7 +403,6 @@ export default function StoreEvaluationPage() {
   const [existingId, setExistingId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitMsg, setSubmitMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [pageLoading, setPageLoading] = useState(true);
 
   const todayPH = (() => {
     return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
@@ -423,8 +416,7 @@ export default function StoreEvaluationPage() {
       .then((d) => {
         if (d.branches?.length) setBranches(d.branches);
       })
-      .catch(() => {})
-      .finally(() => setPageLoading(false));
+      .catch(() => {});
   }, []);
 
   // Load existing evaluation + auto-data when branch changes
@@ -581,7 +573,7 @@ export default function StoreEvaluationPage() {
           </select>
           {existingId && (
             <div className={`${BADGE_INFO} mt-2 inline-block`}>
-              Editing today's existing evaluation
+              Editing today&apos;s existing evaluation
             </div>
           )}
         </div>

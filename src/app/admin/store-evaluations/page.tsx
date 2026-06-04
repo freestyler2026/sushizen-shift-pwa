@@ -5,19 +5,14 @@ import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
   XCircle,
-  ChevronDown,
-  ChevronUp,
   RefreshCw,
   TrendingUp,
-  BarChart3,
   ClipboardList,
-  AlertTriangle,
   Calendar,
 } from "lucide-react";
 import { getAuth, canAccessAdminNav, getAuthHeaders } from "@/lib/auth";
 import {
   GLASS_CARD,
-  PRIMARY_BUTTON,
   SECONDARY_BUTTON,
   SELECT_CLASS,
   INPUT_CLASS,
@@ -35,10 +30,6 @@ import {
   T_LABEL,
   T_CAPTION,
   T_BODY,
-  BADGE_SUCCESS,
-  BADGE_WARNING,
-  BADGE_ERROR,
-  BADGE_INFO,
 } from "@/lib/ui-tokens";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -357,8 +348,6 @@ function TrendView({ branch, city }: { branch: string; city: string }) {
 export default function StoreEvaluationsPage() {
   const router = useRouter();
   const auth = getAuth();
-  const role = (auth?.role || "").toUpperCase();
-
   useEffect(() => {
     const r = (auth?.role || "").toUpperCase();
     if (!canAccessAdminNav(auth) && r !== "HQ" && r !== "ADMIN") {
