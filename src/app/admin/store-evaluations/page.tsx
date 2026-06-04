@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
@@ -14,7 +14,25 @@ import {
   Settings,
   Save,
   Plus,
+  BarChart3,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  Cell,
+} from "recharts";
 import { getAuth, canAccessAdminNav, getAuthHeaders } from "@/lib/auth";
 import {
   GLASS_CARD,
@@ -425,6 +443,305 @@ function TrendView({ branch, city }: { branch: string; city: string }) {
   );
 }
 
+// ─── Chart helpers ────────────────────────────────────────────────────────────
+
+const BRANCH_COLORS = [
+  "#8b5cf6", "#06b6d4", "#10b981", "#f59e0b",
+  "#ef4444", "#ec4899", "#3b82f6", "#84cc16",
+  "#f97316", "#a855f7",
+];
+
+const CATEGORY_KEYS = [
+  { key: "avg_backup",            label: "Backup" },
+  { key: "avg_station_balance",   label: "Station" },
+  { key: "avg_quality",           label: "Quality" },
+  { key: "avg_cleanliness",       label: "Cleanl." },
+  { key: "avg_team_support",      label: "Team" },
+  { key: "avg_coaching",          label: "Coaching" },
+  { key: "avg_problem_awareness", label: "Awareness" },
+  { key: "avg_prep_time",         label: "Prep" },
+];
+
+type WeeklyRow = {
+  week_start: string;
+  branch_code: string;
+  avg_score: number;
+  submission_count: number;
+  compliance_rate: number;
+  [key: string]: any;
+};
+
+type SubmissionRow = {
+  branch_code: string;
+  avg_score: number;
+  submission_rate_pct: number;
+  submitted_days: number;
+  total_days: number;
+  [key: string]: any;
+};
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-slate-900 border border-white/10 rounded-xl p-3 text-xs shadow-xl">
+      <p className="text-slate-300 font-semibold mb-2">{label}</p>
+      {payload.map((p: any) => (
+        <p key={p.name} style={{ color: p.color }} className="mb-0.5">
+          {p.name}: <span className="font-bold">{typeof p.value === "number" ? p.value.toFixed(1) : p.value}</span>
+        </p>
+      ))}
+    </div>
+  );
+};
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+
+function Dashboard({ city }: { city: string }) {
+  const [weeks, setWeeks] = useState(8);
+  const [weeklyData, setWeeklyData] = useState<WeeklyRow[]>([]);
+  const [submissionData, setSubmissionData] = useState<SubmissionRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [weekRes, subRes] = await Promise.all([
+        fetch(`/api/admin/store-evaluations/weekly-summary?city=${city}&weeks=${weeks}`, {
+          headers: getAuthHeaders(), cache: "no-store",
+        }),
+        fetch(`/api/admin/store-evaluations/submission-rate?city=${city}&days=${weeks * 7}`, {
+          headers: getAuthHeaders(), cache: "no-store",
+        }),
+      ]);
+      const [weekData, subData] = await Promise.all([weekRes.json(), subRes.json()]);
+      setWeeklyData(weekData.data || []);
+      setSubmissionData(subData.data || []);
+    } catch {
+      setWeeklyData([]);
+      setSubmissionData([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [city, weeks]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Derive unique branches with color mapping
+  const branches = useMemo(() => {
+    const codes = Array.from(new Set(weeklyData.map((r) => r.branch_code))).sort();
+    return codes.map((code, i) => ({
+      code,
+      color: BRANCH_COLORS[i % BRANCH_COLORS.length],
+    }));
+  }, [weeklyData]);
+
+  // Chart 1: Weekly score trend per branch (line chart)
+  const trendData = useMemo(() => {
+    const byWeek: Record<string, Record<string, any>> = {};
+    weeklyData.forEach((row) => {
+      const wk = row.week_start;
+      if (!byWeek[wk]) byWeek[wk] = { week: wk.slice(5) }; // "MM-DD"
+      byWeek[wk][row.branch_code] = Number(row.avg_score);
+    });
+    return Object.values(byWeek).reverse();
+  }, [weeklyData]);
+
+  // Chart 2: Cross-store comparison bar (avg score over period)
+  const comparisonData = useMemo(() => submissionData.map((r) => ({
+    branch: r.branch_code,
+    score: Number(r.avg_score),
+    rate: Number(r.submission_rate_pct),
+  })), [submissionData]);
+
+  // Chart 3: Category breakdown radar — avg per category for each branch (last period)
+  const categoryData = useMemo(() => {
+    return CATEGORY_KEYS.map(({ key, label }) => {
+      const row: Record<string, any> = { category: label };
+      submissionData.forEach((s) => {
+        row[s.branch_code] = Number(s[key] ?? 0);
+      });
+      return row;
+    });
+  }, [submissionData]);
+
+  // Chart 4: Submission rate horizontal bars
+  const submissionBars = useMemo(
+    () => [...submissionData].sort((a, b) => b.submission_rate_pct - a.submission_rate_pct),
+    [submissionData]
+  );
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-20">
+        <RefreshCw size={24} className="animate-spin text-slate-400" />
+      </div>
+    );
+  }
+
+  if (weeklyData.length === 0 && submissionData.length === 0) {
+    return (
+      <div className={`${GLASS_CARD} p-12 text-center`}>
+        <BarChart3 size={36} className="text-slate-600 mx-auto mb-3" />
+        <p className={T_BODY}>No data yet. Submit evaluations to see charts.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Period selector */}
+      <div className="flex items-center gap-3">
+        <span className={T_LABEL}>Period</span>
+        {[
+          { label: "4 weeks", v: 4 },
+          { label: "8 weeks", v: 8 },
+          { label: "12 weeks", v: 12 },
+        ].map(({ label, v }) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setWeeks(v)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+              weeks === v
+                ? "bg-violet-500/20 border border-violet-500/40 text-violet-300"
+                : "bg-white/5 text-slate-400 hover:bg-white/10"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={load}
+          className="ml-auto text-slate-400 hover:text-white"
+        >
+          <RefreshCw size={14} />
+        </button>
+      </div>
+
+      {/* Chart 1: Cross-store score comparison */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <h3 className={`${T_SECTION} mb-1`}>Store Score Comparison</h3>
+        <p className={`${T_CAPTION} text-slate-400 mb-4`}>Average total score over the selected period</p>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={comparisonData} margin={{ top: 4, right: 8, left: -20, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+            <XAxis dataKey="branch" tick={{ fill: "#94a3b8", fontSize: 11 }} />
+            <YAxis domain={[0, 100]} tick={{ fill: "#94a3b8", fontSize: 11 }} />
+            <Tooltip content={<CustomTooltip />} />
+            <Bar dataKey="score" radius={[6, 6, 0, 0]} name="Avg Score">
+              {comparisonData.map((_, i) => (
+                <Cell key={i} fill={BRANCH_COLORS[i % BRANCH_COLORS.length]} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Chart 2: Weekly trend per branch */}
+      {trendData.length > 0 && (
+        <div className={`${GLASS_CARD} p-4`}>
+          <h3 className={`${T_SECTION} mb-1`}>Weekly Score Trend</h3>
+          <p className={`${T_CAPTION} text-slate-400 mb-4`}>Total score per branch by week</p>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={trendData} margin={{ top: 4, right: 8, left: -20, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <XAxis dataKey="week" tick={{ fill: "#94a3b8", fontSize: 11 }} />
+              <YAxis domain={[0, 100]} tick={{ fill: "#94a3b8", fontSize: 11 }} />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
+              {branches.map(({ code, color }) => (
+                <Line
+                  key={code}
+                  type="monotone"
+                  dataKey={code}
+                  stroke={color}
+                  strokeWidth={2}
+                  dot={{ r: 3, fill: color }}
+                  connectNulls
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Chart 3: Category breakdown radar */}
+      {submissionData.length > 0 && categoryData.length > 0 && (
+        <div className={`${GLASS_CARD} p-4`}>
+          <h3 className={`${T_SECTION} mb-1`}>Category Breakdown</h3>
+          <p className={`${T_CAPTION} text-slate-400 mb-4`}>Average score per category (1–5 scale)</p>
+          <ResponsiveContainer width="100%" height={280}>
+            <RadarChart data={categoryData}>
+              <PolarGrid stroke="rgba(255,255,255,0.08)" />
+              <PolarAngleAxis
+                dataKey="category"
+                tick={{ fill: "#94a3b8", fontSize: 10 }}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend wrapperStyle={{ fontSize: 11, color: "#94a3b8" }} />
+              {branches.map(({ code, color }) => (
+                <Radar
+                  key={code}
+                  name={code}
+                  dataKey={code}
+                  stroke={color}
+                  fill={color}
+                  fillOpacity={0.12}
+                  strokeWidth={2}
+                />
+              ))}
+            </RadarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Chart 4: Submission rate */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <h3 className={`${T_SECTION} mb-1`}>Submission Rate</h3>
+        <p className={`${T_CAPTION} text-slate-400 mb-4`}>
+          % of days with evaluation submitted (last {weeks * 7} days)
+        </p>
+        <div className="space-y-3">
+          {submissionBars.map((row, i) => (
+            <div key={row.branch_code}>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: BRANCH_COLORS[i % BRANCH_COLORS.length] }}
+                  />
+                  <span className={`${T_BODY} font-semibold`}>{row.branch_code}</span>
+                </div>
+                <div className="flex items-center gap-3 text-right">
+                  <span className={`${T_CAPTION} text-slate-400`}>
+                    {row.submitted_days}/{row.total_days} days
+                  </span>
+                  <span
+                    className="text-sm font-bold w-12 text-right"
+                    style={{ color: BRANCH_COLORS[i % BRANCH_COLORS.length] }}
+                  >
+                    {row.submission_rate_pct}%
+                  </span>
+                </div>
+              </div>
+              <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-700"
+                  style={{
+                    width: `${Math.min(row.submission_rate_pct, 100)}%`,
+                    backgroundColor: BRANCH_COLORS[i % BRANCH_COLORS.length],
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Branch Map Settings ─────────────────────────────────────────────────────
 
 type BranchMapEntry = {
@@ -669,7 +986,7 @@ export default function StoreEvaluationsPage() {
 
   const todayPH = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
 
-  const [tab, setTab] = useState<"summary" | "trend" | "settings">("summary");
+  const [tab, setTab] = useState<"dashboard" | "summary" | "trend" | "settings">("dashboard");
   const [evalDate, setEvalDate] = useState(todayPH);
   const [city] = useState("manila");
   const [evaluations, setEvaluations] = useState<EvalRow[]>([]);
@@ -726,6 +1043,7 @@ export default function StoreEvaluationsPage() {
           </div>
           {tab === "summary" && !loading && (
             <button
+
               type="button"
               onClick={loadSummary}
               disabled={loading}
@@ -739,6 +1057,13 @@ export default function StoreEvaluationsPage() {
 
         {/* Tabs */}
         <div className={`${TAB_CONTAINER} mb-5`}>
+          <button
+            className={tab === "dashboard" ? TAB_ACTIVE : TAB_INACTIVE}
+            onClick={() => setTab("dashboard")}
+          >
+            <BarChart3 size={14} />
+            Dashboard
+          </button>
           <button
             className={tab === "summary" ? TAB_ACTIVE : TAB_INACTIVE}
             onClick={() => setTab("summary")}
@@ -761,6 +1086,9 @@ export default function StoreEvaluationsPage() {
             Settings
           </button>
         </div>
+
+        {/* DASHBOARD TAB */}
+        {tab === "dashboard" && <Dashboard city={city} />}
 
         {/* SUMMARY TAB */}
         {tab === "summary" && (
