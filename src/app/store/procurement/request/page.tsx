@@ -609,6 +609,7 @@ export default function StoreProcurementRequestPage() {
             urgent_flag: urgentFlag,
             new_vendor_flag: newVendorFlag,
             is_wh_order: city !== "dubai" && selectedCatalogCategory === "Warehouse",
+            is_ck_order: city !== "dubai" && selectedCatalogCategory === "CK",
             purchase_type: purchaseType,
             ec_order_url: ecOrderUrl.trim(),
             items: validItems.map((item) => ({
