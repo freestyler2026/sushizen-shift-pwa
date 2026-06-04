@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Circle, Clock, Package, ChevronRight, CheckCheck, AlertTriangle, RefreshCw } from "lucide-react";
+import { CheckCircle2, Circle, Clock, Package, ChevronRight, ChevronDown, CheckCheck, AlertTriangle, RefreshCw } from "lucide-react";
 import { ProcurementStepper } from "@/components/ProcurementStepper";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson } from "@/lib/procurementClient";
@@ -120,6 +120,7 @@ export default function StoreProcurementReceivingPage() {
   const [busy, setBusy] = useState("");
   const [confirmTarget, setConfirmTarget] = useState("");
   const [deleteTarget, setDeleteTarget] = useState("");
+  const [expandedRcvId, setExpandedRcvId] = useState<string>("");
   const [checkAllConfirm, setCheckAllConfirm] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
@@ -1007,7 +1008,13 @@ export default function StoreProcurementReceivingPage() {
                   <div className="flex items-start justify-between gap-3">
                     {/* Left: info */}
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div
+                        className="flex items-center gap-2 flex-wrap cursor-pointer select-none"
+                        onClick={() => setExpandedRcvId(expandedRcvId === row.id ? "" : row.id)}
+                      >
+                        {expandedRcvId === row.id
+                          ? <ChevronDown className="h-4 w-4 shrink-0 text-violet-400" />
+                          : <ChevronRight className="h-4 w-4 shrink-0 text-zinc-500" />}
                         <span className="text-sm font-semibold text-white">{row.receiving_no || "Receiving"}</span>
                         {isNew ? (
                           <span className="rounded-full border border-emerald-700/50 bg-emerald-900/20 px-2 py-0.5 text-[10px] text-emerald-300">Just created</span>
@@ -1084,6 +1091,44 @@ export default function StoreProcurementReceivingPage() {
                           {row.variance_reason}
                         </div>
                       ) : null}
+
+                      {/* Expanded items table */}
+                      {expandedRcvId === row.id && (
+                        <div className="mt-3 overflow-x-auto rounded-xl border border-white/8 bg-black/20">
+                          {requestDetail?.items && requestDetail.items.length > 0 ? (
+                            <table className="min-w-full text-xs">
+                              <thead className="bg-black/30 text-zinc-400">
+                                <tr>
+                                  <th className="px-3 py-2 text-left font-medium">Item</th>
+                                  <th className="px-3 py-2 text-left font-medium">Vendor</th>
+                                  <th className="px-3 py-2 text-right font-medium">Qty</th>
+                                  <th className="px-3 py-2 text-left font-medium">Unit</th>
+                                  <th className="px-3 py-2 text-right font-medium">Unit Price</th>
+                                  <th className="px-3 py-2 text-right font-medium">Total</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {requestDetail.items.map((item, idx) => (
+                                  <tr key={item.id || idx} className="border-t border-white/6">
+                                    <td className="px-3 py-2 text-zinc-100">{item.item_name}</td>
+                                    <td className="px-3 py-2 text-zinc-400">{item.vendor_name || "—"}</td>
+                                    <td className="px-3 py-2 text-right text-zinc-200">{item.qty}</td>
+                                    <td className="px-3 py-2 text-zinc-400">{item.unit}</td>
+                                    <td className="px-3 py-2 text-right text-zinc-200">
+                                      {Number(item.unit_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </td>
+                                    <td className="px-3 py-2 text-right font-semibold text-zinc-100">
+                                      {Number(item.line_total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          ) : (
+                            <p className="px-3 py-2 text-xs text-zinc-500">No items recorded.</p>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Right: action buttons */}
