@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
@@ -9,11 +9,15 @@ import {
   RefreshCw,
   Send,
   Info,
+  Camera,
+  Trash2,
+  ImageIcon,
 } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
   SELECT_CLASS,
   TEXTAREA_CLASS,
   T_PAGE_TITLE,
@@ -373,6 +377,188 @@ function ScoreSelector({
                 {i + 1}
               </span>
               <span className={`${T_CAPTION} text-slate-400`}>{desc}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Photo types ─────────────────────────────────────────────────────────────
+
+type EvalImage = {
+  id: string;
+  category: string;
+  drive_file_id: string;
+  original_name: string;
+  mime_type: string;
+  uploaded_at: string;
+};
+
+const PHOTO_CATEGORIES = [
+  { value: "general", label: "General" },
+  { value: "backup", label: "Backup" },
+  { value: "station", label: "Station Balance" },
+  { value: "quality", label: "Quality" },
+  { value: "cleanliness", label: "Cleanliness" },
+  { value: "team_support", label: "Team Support" },
+  { value: "coaching", label: "Coaching" },
+  { value: "prep_time", label: "Prep Time" },
+  { value: "issue", label: "Issue / Problem" },
+];
+
+// ─── Photo Panel ─────────────────────────────────────────────────────────────
+
+function PhotoPanel({
+  evaluationId,
+  branchCode,
+  evalDate,
+}: {
+  evaluationId: string;
+  branchCode: string;
+  evalDate: string;
+}) {
+  const [images, setImages] = useState<EvalImage[]>([]);
+  const [category, setCategory] = useState("general");
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Load existing images
+  useEffect(() => {
+    fetch(`/api/store/evaluation/images/${evaluationId}`, {
+      headers: getAuthHeaders(),
+      cache: "no-store",
+    })
+      .then((r) => r.json())
+      .then((d) => setImages(d.images || []))
+      .catch(() => {});
+  }, [evaluationId]);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadErr("");
+
+    const form = new FormData();
+    form.append("evaluation_id", evaluationId);
+    form.append("branch_code", branchCode);
+    form.append("eval_date", evalDate);
+    form.append("category", category);
+    form.append("file", file);
+
+    try {
+      const headers = getAuthHeaders() as Record<string, string>;
+      // Don't set Content-Type — browser sets multipart boundary automatically
+      delete headers["Content-Type"];
+      const res = await fetch("/api/store/evaluation/upload-image", {
+        method: "POST",
+        headers,
+        body: form,
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Upload failed.");
+      setImages((prev) => [...prev, data.image]);
+    } catch (err: any) {
+      setUploadErr(err.message || "Upload failed.");
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  const handleDelete = async (imageId: string) => {
+    try {
+      const res = await fetch(`/api/store/evaluation/image/${imageId}`, {
+        method: "DELETE",
+        headers: getAuthHeaders(),
+        cache: "no-store",
+      });
+      if (res.ok) setImages((prev) => prev.filter((i) => i.id !== imageId));
+    } catch {}
+  };
+
+  return (
+    <div className={`${GLASS_CARD} p-4 mt-4`}>
+      <div className="flex items-center gap-2 mb-3">
+        <Camera size={16} className="text-violet-400" />
+        <h2 className={T_SECTION}>Photos</h2>
+        <span className={`${T_CAPTION} text-slate-400`}>{images.length} uploaded</span>
+      </div>
+
+      {/* Category + Upload row */}
+      <div className="flex gap-2 mb-3">
+        <select
+          className={`${SELECT_CLASS} flex-1`}
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+        >
+          {PHOTO_CATEGORIES.map((c) => (
+            <option key={c.value} value={c.value}>{c.label}</option>
+          ))}
+        </select>
+        <label className={`${PRIMARY_BUTTON} flex items-center gap-2 cursor-pointer shrink-0`}>
+          {uploading ? (
+            <RefreshCw size={16} className="animate-spin" />
+          ) : (
+            <Camera size={16} />
+          )}
+          {uploading ? "Uploading..." : "Add Photo"}
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleFileChange}
+            disabled={uploading}
+          />
+        </label>
+      </div>
+
+      {uploadErr && (
+        <p className={`${T_CAPTION} text-red-400 mb-2`}>
+          <XCircle size={12} className="inline mr-1" />{uploadErr}
+        </p>
+      )}
+
+      {/* Image grid */}
+      {images.length === 0 ? (
+        <div className="flex flex-col items-center py-6 gap-2 text-slate-600">
+          <ImageIcon size={28} />
+          <p className={T_CAPTION}>No photos yet. Tap Add Photo to upload.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-2">
+          {images.map((img) => (
+            <div key={img.id} className="relative group rounded-xl overflow-hidden bg-white/5 aspect-square">
+              {img.drive_file_id ? (
+                <img
+                  src={`/api/store/evaluation/image-proxy/${img.drive_file_id}`}
+                  alt={img.category}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <ImageIcon size={20} className="text-slate-600" />
+                </div>
+              )}
+              {/* Category label */}
+              <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1.5 py-0.5">
+                <p className="text-[9px] text-white truncate">{img.category}</p>
+              </div>
+              {/* Delete button */}
+              <button
+                type="button"
+                onClick={() => handleDelete(img.id)}
+                className="absolute top-1 right-1 bg-black/60 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
+                <Trash2 size={12} className="text-red-400" />
+              </button>
             </div>
           ))}
         </div>
@@ -780,6 +966,15 @@ export default function StoreEvaluationPage() {
               <p className={`${T_CAPTION} text-center text-slate-500 mt-2`}>
                 Rate all {SCORED_KEYS.length} items to enable submission ({scored}/{SCORED_KEYS.length} done)
               </p>
+            )}
+
+            {/* Photo panel — shown after first submit */}
+            {existingId && (
+              <PhotoPanel
+                evaluationId={existingId}
+                branchCode={branchCode}
+                evalDate={todayPH}
+              />
             )}
           </>
         )}

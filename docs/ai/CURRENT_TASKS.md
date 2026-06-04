@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-05 (session 4)
+Last updated: 2026-06-05 (session 5)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -14,13 +14,13 @@ Last updated: 2026-06-05 (session 4)
 ### フロントエンド (Vercel)
 ```bash
 cd /Users/jaynishimura/Desktop/sushizen-shift-pwa
-git add -A && git commit -m "feat: Store Daily Evaluation (Phase 1)" && git push origin main
+git add -A && git commit -m "feat: Store Evaluation Phase 2 — image upload" && git push origin HEAD:main
 ```
 
 ### バックエンド (Heroku) — 必須
 ```bash
 cd /Users/jaynishimura/Desktop/sushizen_shift_app_clean
-git add -A && git commit -m "feat: store daily evaluation API + DB"
+git add -A && git commit -m "feat: store evaluation image upload (Drive)"
 git push heroku HEAD:master --force
 ```
 
@@ -34,11 +34,7 @@ git push heroku HEAD:master --force
 
 ## Pending Tasks
 
-### Phase 2: Store Evaluation 画像アップロード
-- `/store/evaluation` に画像アップロードボタンを追加
-- Google Drive API（既存サービスアカウント）で `StoreEvaluations/manila/{branch}/{date}/` に保存
-- `store_eval_images` テーブルにDrive file IDを保存
-- 管理閲覧画面から画像をインライン表示
+### Phase 2: ✅ 完了（デプロイ待ち）
 
 ### Phase 3: 自動データ精度向上
 - cancel_count: Manila branch名のマッピング精度改善（cancellations.branch vs branch_code）
@@ -120,7 +116,8 @@ Vendor MasterのOrder Catalog登録名と`supplier_name`が一致しない場合
 | Branch delivery addresses | ✅ live |
 | PO email open tracking | ✅ live |
 | CME メール未達 | ⏳ CME IT担当ホワイトリスト登録待ち |
-| Store Daily Evaluation (Phase 1) | ⏳ デプロイ待ち |
+| Store Daily Evaluation (Phase 1) | ✅ live |
+| Store Evaluation Phase 2 (画像) | ⏳ デプロイ待ち |
 
 ---
 

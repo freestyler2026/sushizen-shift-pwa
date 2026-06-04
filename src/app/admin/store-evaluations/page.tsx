@@ -9,6 +9,8 @@ import {
   TrendingUp,
   ClipboardList,
   Calendar,
+  ImageIcon,
+  ExternalLink,
 } from "lucide-react";
 import { getAuth, canAccessAdminNav, getAuthHeaders } from "@/lib/auth";
 import {
@@ -157,6 +159,15 @@ function ScorePip({ value }: { value: number | null }) {
 
 // ─── Detail Modal ─────────────────────────────────────────────────────────────
 
+type EvalImage = {
+  id: string;
+  category: string;
+  drive_file_id: string;
+  drive_web_link: string;
+  original_name: string;
+  uploaded_at: string;
+};
+
 function EvalDetailModal({
   ev,
   onClose,
@@ -164,6 +175,21 @@ function EvalDetailModal({
   ev: EvalRow;
   onClose: () => void;
 }) {
+  const [images, setImages] = useState<EvalImage[]>([]);
+  const [imgLoading, setImgLoading] = useState(true);
+
+  useEffect(() => {
+    setImgLoading(true);
+    fetch(`/api/store/evaluation/images/${ev.id}`, {
+      headers: getAuthHeaders(),
+      cache: "no-store",
+    })
+      .then((r) => r.json())
+      .then((d) => setImages(d.images || []))
+      .catch(() => {})
+      .finally(() => setImgLoading(false));
+  }, [ev.id]);
+
   const SCORED_KEYS = [
     "backup_score", "station_balance_score", "quality_score",
     "cleanliness_score", "team_support_score", "coaching_score",
@@ -256,6 +282,57 @@ function EvalDetailModal({
               <BoolIcon v={ev.purchasing_done} />
             </span>
           </div>
+        </div>
+
+        {/* Photos section */}
+        <div className={`${GLASS_CARD} p-3 mb-4`}>
+          <div className="flex items-center justify-between mb-2">
+            <p className={T_LABEL}>Photos</p>
+            {imgLoading && <RefreshCw size={12} className="animate-spin text-slate-400" />}
+          </div>
+          {!imgLoading && images.length === 0 ? (
+            <div className="flex items-center gap-2 py-3 text-slate-600">
+              <ImageIcon size={16} />
+              <span className={T_CAPTION}>No photos uploaded</span>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-2">
+              {images.map((img) => (
+                <div
+                  key={img.id}
+                  className="relative rounded-xl overflow-hidden bg-white/5 aspect-square group"
+                >
+                  {img.drive_file_id ? (
+                    <img
+                      src={`/api/store/evaluation/image-proxy/${img.drive_file_id}`}
+                      alt={img.category}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <ImageIcon size={20} className="text-slate-600" />
+                    </div>
+                  )}
+                  {/* Category label */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1.5 py-0.5 flex items-center justify-between">
+                    <p className="text-[9px] text-white truncate">{img.category}</p>
+                    {img.drive_web_link && (
+                      <a
+                        href={img.drive_web_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-violet-300 hover:text-white"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ExternalLink size={9} />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <button type="button" onClick={onClose} className={`${SECONDARY_BUTTON} w-full`}>
