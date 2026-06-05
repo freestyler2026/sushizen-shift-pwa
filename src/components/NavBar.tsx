@@ -46,6 +46,7 @@ import {
   Users,
   UtensilsCrossed,
   Warehouse,
+  Thermometer,
   X,
 } from "lucide-react";
 import LogoutButton from "@/components/LogoutButton";
@@ -124,6 +125,7 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/store/ck-production", label: "CK Dispatch", icon: Truck, match: "prefix" },
   { href: "/store/receiving", label: "CK Receiving", icon: PackageCheck, match: "prefix" },
   { href: "/store/evaluation", label: "Store Evaluation", icon: ClipboardCheck, match: "prefix" },
+  { href: "/store/cold-chain", label: "Cold Chain Log", icon: Thermometer, match: "prefix" },
   { href: "/swap-approve", label: "Swap Approve", icon: ArrowLeftRight, match: "exact" },
   { href: "/change-pin", label: "Change PIN", icon: KeyRound, match: "exact" },
 ];
@@ -149,6 +151,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/manual-shift", label: "Manual Shift", icon: CalendarPlus, adminOnly: true, match: "prefix" },
   { href: "/admin/backoffice-evaluation", label: "Backoffice Eval", icon: ClipboardCheck, adminOnly: true, match: "exact" },
   { href: "/admin/store-evaluations", label: "Store Evaluations", icon: BarChart3, adminOnly: true, match: "prefix" },
+  { href: "/admin/cold-chain", label: "Cold Chain", icon: Thermometer, adminOnly: true, match: "prefix" },
   { href: "/admin/incidents", label: "Incident Reports", icon: AlertTriangle, adminOnly: true, match: "prefix" },
   { href: "/admin/price-check", label: "Price Check", icon: Tag, adminOnly: true, match: "prefix" },
   { href: "/admin/baseroll-prep", label: "Base Roll Prep", icon: UtensilsCrossed, adminOnly: true, match: "prefix" },
@@ -275,6 +278,7 @@ export default function NavBar() {
     if (href === "/admin/draft") return canAccessDraftAdmin(auth);
     if (href === "/admin/backoffice-evaluation") return canAccessBackofficeEvaluationAdmin(auth);
     if (href === "/admin/store-evaluations") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
+    if (href === "/admin/cold-chain") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER", "DUBAI_MANAGEMENT"].includes(role);
     if (href === "/admin/incidents") return canAccessIncidentReportAdmin(auth);
     if (href === "/admin/manual-shift") return canAccessAdminNav(auth);
     if (href === "/admin/price-check") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);

@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-05 (session 12)
+Last updated: 2026-06-05 (session 13)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -14,14 +14,14 @@ Last updated: 2026-06-05 (session 12)
 ### バックエンド (Heroku) — 必須
 ```bash
 cd /Users/jaynishimura/Desktop/sushizen_shift_app_clean
-git add -A && git commit -m "feat: Travel Path temperature input (item_type, unit_labels_json, temp_values_json)"
+git add -A && git commit -m "feat: Cold Chain Monitoring — CK dispatch + branch receiving + storage transfer temps"
 git push heroku HEAD:master --force
 ```
 
 ### フロントエンド (Vercel)
 ```bash
 cd /Users/jaynishimura/Desktop/sushizen-shift-pwa
-git add -A && git commit -m "feat: Travel Path temperature input grid with color validation" && git push origin HEAD:main
+git add -A && git commit -m "feat: Cold Chain Log channel (/store/cold-chain, /admin/cold-chain)" && git push origin HEAD:main
 ```
 
 ---
@@ -127,6 +127,7 @@ Vendor MasterのOrder Catalog登録名と`supplier_name`が一致しない場合
 | スコア計算: sum/55×100（11項目均等） | ✅ live |
 | 販売データ: 常に前日表示・14:00境界修正 | ✅ live |
 | Travel Path 温度入力（冷蔵・冷凍ユニットごと数値入力） | ⏳ デプロイ待ち |
+| Cold Chain Monitoring チャンネル | ⏳ デプロイ待ち |
 
 ---
 
