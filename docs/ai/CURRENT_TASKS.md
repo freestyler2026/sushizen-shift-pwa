@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-05 (session 13)
+Last updated: 2026-06-05 (session 14)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -127,7 +127,7 @@ Vendor MasterのOrder Catalog登録名と`supplier_name`が一致しない場合
 | スコア計算: sum/55×100（11項目均等） | ✅ live |
 | 販売データ: 常に前日表示・14:00境界修正 | ✅ live |
 | Travel Path 温度入力（冷蔵・冷凍ユニットごと数値入力） | ⏳ デプロイ待ち |
-| Cold Chain Monitoring チャンネル | ⏳ デプロイ待ち |
+| Cold Chain Monitoring チャンネル（クーラーボックス単位3行表）| ⏳ デプロイ待ち |
 
 ---
 
