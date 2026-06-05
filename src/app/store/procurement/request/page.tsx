@@ -840,8 +840,9 @@ export default function StoreProcurementRequestPage() {
 
       return fallbackRows.length > 0 ? [...catalogMapped, ...fallbackRows] : catalogMapped;
     });
-    setShowSubmitReview(false);
-    setReviewMode("");
+    // NOTE: Do NOT reset showSubmitReview / reviewMode here.
+    // Catalog reloads are async — closing the review panel here would cause the active
+    // review to disappear mid-session, leaving only the stale lastCreatedItems box visible.
     setSubmitChecked(false);
     setSupplierFilter("");
   }, [catalogGridItems, editRequestItems]);
