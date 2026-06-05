@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-05 (session 15 — end)
+Last updated: 2026-06-05 (session 16 — end)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -118,6 +118,8 @@ Vendor MasterのOrder Catalog登録名と`supplier_name`が一致しない場合
 | Travel Path 温度入力（冷蔵・冷凍ユニットごと数値入力） | ⏳ デプロイ待ち |
 | Cold Chain Monitoring チャンネル（クーラーボックス単位3行表）| ✅ live |
 | Store Eval auto-data: 接続分離バグ修正 + CUBパターン修正 | ✅ live |
+| Cold Chain: 機材選択（Manila）equipment_json | ✅ live |
+| Cold Chain: Storage Unit削除・モバイルレイアウト最適化 | ✅ live |
 
 ---
 

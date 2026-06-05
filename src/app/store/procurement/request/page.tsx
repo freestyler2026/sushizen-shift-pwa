@@ -888,7 +888,7 @@ export default function StoreProcurementRequestPage() {
           <button type="button" onClick={() => setShowDateWarning(false)} className="shrink-0 text-amber-400 hover:text-amber-200">✕</button>
         </div>
       ) : null}
-      {lastCreatedRequestId ? (
+      {lastCreatedRequestId && !showSubmitReview ? (
         <div className="rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-xs text-emerald-200">
           Last created request: <span className="font-mono">{lastCreatedRequestNo || lastCreatedRequestId}</span>
           {lastCreatedRequestAt ? <span className="ml-2 text-[11px] text-emerald-300/90">({formatRelativeAge(lastCreatedRequestAt, relativeNowMs)})</span> : null}
