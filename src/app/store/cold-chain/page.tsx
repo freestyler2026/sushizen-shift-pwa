@@ -140,7 +140,7 @@ function TempCell({
         placeholder={placeholder ?? "—"}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-20 bg-transparent text-sm text-white outline-none placeholder-zinc-600 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        className="w-full bg-transparent text-sm text-white outline-none placeholder-zinc-600 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       />
       <span className="text-xs text-zinc-500 shrink-0">°C</span>
       {al === "ok"     && <CheckCircle2 size={11} className="text-emerald-400 shrink-0" />}
@@ -156,7 +156,7 @@ function TimeCell({ value, onChange, disabled }: { value: string; onChange: (v: 
       <input
         type="time" disabled={disabled} value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-20 bg-transparent text-sm text-white outline-none"
+        className="w-full bg-transparent text-sm text-white outline-none"
       />
     </div>
   );
@@ -229,16 +229,41 @@ function BoxTableRow({
 }) {
   const held = calcHeld(box.received_at, box.stored_at);
 
+  // Mobile-first: label as header, time + temp side-by-side in full-width row
+  const steps = [
+    {
+      label: "① Dispatch (CK)",
+      labelColor: "text-amber-300",
+      timeVal: box.dispatch_at,  onTime: (v: string) => onChange({ dispatch_at: v }),
+      tempVal: box.dispatch_temp, onTemp: (v: string) => onChange({ dispatch_temp: v }),
+      ph: box.item_type === "FROZEN" ? "-18.0" : "4.0",
+    },
+    {
+      label: "② Received (Branch)",
+      labelColor: "text-sky-300",
+      timeVal: box.received_at,  onTime: (v: string) => onChange({ received_at: v }),
+      tempVal: box.received_temp, onTemp: (v: string) => onChange({ received_temp: v }),
+      ph: box.item_type === "FROZEN" ? "-18.0" : "4.0",
+    },
+    {
+      label: "③ In Storage",
+      labelColor: "text-emerald-300",
+      timeVal: box.stored_at,   onTime: (v: string) => onChange({ stored_at: v }),
+      tempVal: box.stored_temp,  onTemp: (v: string) => onChange({ stored_temp: v }),
+      ph: box.item_type === "FROZEN" ? "-19.0" : "4.0",
+    },
+  ];
+
   return (
-    <div className={`${GLASS_CARD} overflow-hidden`}>
-      {/* Box header */}
-      <div className="flex items-center justify-between px-4 py-2 bg-white/3 border-b border-white/5">
+    <div className="rounded-xl border border-white/15 overflow-hidden">
+      {/* Header: box number + Frozen/Chilled toggle */}
+      <div className="flex items-center justify-between px-4 py-3 bg-white/5 border-b border-white/10">
         <span className="text-sm font-bold text-white">Cooler Box {box.box_number}</span>
         <div className="flex gap-2">
           {(["FROZEN", "CHILLED"] as const).map((t) => (
             <button key={t} type="button" disabled={disabled}
               onClick={() => onChange({ item_type: t })}
-              className={`rounded-lg border px-2.5 py-0.5 text-xs font-semibold transition-all ${
+              className={`rounded-xl border px-4 py-1.5 text-sm font-semibold transition-all ${
                 box.item_type === t
                   ? t === "FROZEN"
                     ? "border-blue-500/40 bg-blue-500/20 text-blue-300"
@@ -252,58 +277,34 @@ function BoxTableRow({
         </div>
       </div>
 
-      {/* 3-row temperature table */}
-      <div className="divide-y divide-white/5">
-        {/* Row 1: Dispatch (CK) */}
-        <div className="grid grid-cols-[120px_1fr_1fr] gap-3 px-4 py-3 items-center">
-          <span className="text-xs font-semibold text-amber-300">① Dispatch (CK)</span>
-          <div><p className={T_CAPTION}>Time</p>
-            <TimeCell value={box.dispatch_at} onChange={(v) => onChange({ dispatch_at: v })} disabled={disabled} />
-          </div>
-          <div><p className={T_CAPTION}>Temperature</p>
-            <TempCell value={box.dispatch_temp} onChange={(v) => onChange({ dispatch_temp: v })}
-              itemType={box.item_type} disabled={disabled}
-              placeholder={box.item_type === "FROZEN" ? "-18.0" : "4.0"} />
-          </div>
-        </div>
-
-        {/* Row 2: Received (Branch) */}
-        <div className="grid grid-cols-[120px_1fr_1fr] gap-3 px-4 py-3 items-center">
-          <span className="text-xs font-semibold text-sky-300">② Received (Branch)</span>
-          <div><p className={T_CAPTION}>Time</p>
-            <TimeCell value={box.received_at} onChange={(v) => onChange({ received_at: v })} disabled={disabled} />
-          </div>
-          <div><p className={T_CAPTION}>Temperature</p>
-            <TempCell value={box.received_temp} onChange={(v) => onChange({ received_temp: v })}
-              itemType={box.item_type} disabled={disabled}
-              placeholder={box.item_type === "FROZEN" ? "-18.0" : "4.0"} />
-          </div>
-        </div>
-
-        {/* Row 3: In Chiller/Freezer */}
-        <div className="px-4 py-3 space-y-2">
-          <div className="grid grid-cols-[120px_1fr_1fr] gap-3 items-center">
-            <span className="text-xs font-semibold text-emerald-300">③ In Storage</span>
-            <div><p className={T_CAPTION}>Time</p>
-              <TimeCell value={box.stored_at} onChange={(v) => onChange({ stored_at: v })} disabled={disabled} />
-            </div>
-            <div><p className={T_CAPTION}>Temperature</p>
-              <TempCell value={box.stored_temp} onChange={(v) => onChange({ stored_temp: v })}
-                itemType={box.item_type} disabled={disabled}
-                placeholder={box.item_type === "FROZEN" ? "-19.0" : "4.0"} />
+      {/* 3 steps — each fully stacked, time + temp in a 50/50 row */}
+      <div className="divide-y divide-white/8">
+        {steps.map((s) => (
+          <div key={s.label} className="px-4 py-3">
+            <p className={`text-xs font-bold mb-2.5 ${s.labelColor}`}>{s.label}</p>
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <p className={`${T_CAPTION} mb-1`}>Time</p>
+                <TimeCell value={s.timeVal} onChange={s.onTime} disabled={disabled} />
+              </div>
+              <div className="flex-1">
+                <p className={`${T_CAPTION} mb-1`}>Temperature</p>
+                <TempCell value={s.tempVal} onChange={s.onTemp}
+                  itemType={box.item_type} disabled={disabled} placeholder={s.ph} />
+              </div>
             </div>
           </div>
-        </div>
+        ))}
 
-        {/* Calculated time held */}
+        {/* Time held */}
         {held && (
-          <div className="px-4 py-2 flex items-center gap-2">
-            <Clock size={12} className="text-slate-400" />
+          <div className="px-4 py-2.5 flex items-center gap-2 bg-white/3">
+            <Clock size={13} className="text-slate-400 shrink-0" />
             <span className={`${T_CAPTION} text-slate-400`}>Time held in cooler:</span>
             <span className={`text-sm font-bold ${
               (() => {
-                const mins = parseInt(held);
-                return isNaN(mins) ? "text-slate-400" : mins > 60 ? "text-red-400" : mins > 30 ? "text-amber-400" : "text-emerald-400";
+                const m = parseInt(held);
+                return isNaN(m) ? "text-slate-400" : m > 60 ? "text-red-400" : m > 30 ? "text-amber-400" : "text-emerald-400";
               })()
             }`}>{held}</span>
           </div>
