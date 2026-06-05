@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
@@ -15,13 +15,9 @@ import {
   TAB_ACTIVE,
   TAB_INACTIVE,
   T_PAGE_TITLE,
-  T_SECTION,
   T_LABEL,
-  T_CAPTION,
   BADGE_SUCCESS,
   BADGE_WARNING,
-  BADGE_ERROR,
-  DIVIDER,
 } from "@/lib/ui-tokens";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -34,12 +30,15 @@ type TravelPathItem = {
   item_text: string;
   sort_order: number;
   is_active: boolean;
+  item_type: string;           // 'CHECKBOX' | 'TEMPERATURE'
+  unit_labels_json: string[];  // e.g. ['Chiller 1', 'Freezer 1', ...]
 };
 
 type EntryState = {
   item_code: string;
   checked: boolean;
   note: string;
+  temp_values_json: Record<string, string>; // unit_label → numeric string
 };
 
 type ReportSummary = {
@@ -89,6 +88,80 @@ const SECTION_COLORS: Record<Section, string> = {
   MID_SHIFT: "bg-sky-500/15 text-sky-300 border-sky-500/25",
   CLOSING: "bg-violet-500/15 text-violet-300 border-violet-500/25",
 };
+
+// ─── Temperature helpers ─────────────────────────────────────────────────────
+
+type TempStatus = "ok" | "danger" | "empty";
+
+function getTempStatus(unitLabel: string, value: string): TempStatus {
+  const trimmed = value.trim();
+  if (!trimmed) return "empty";
+  const num = parseFloat(trimmed);
+  if (isNaN(num)) return "empty";
+  const lbl = unitLabel.toLowerCase();
+  if (lbl.includes("chiller")) return num <= 5 ? "ok" : "danger";
+  if (lbl.includes("freezer")) return num <= -18 ? "ok" : "danger";
+  return "ok";
+}
+
+function tempStatusStyle(status: TempStatus): string {
+  if (status === "ok")     return "border-emerald-500/60 bg-emerald-500/10 text-emerald-200";
+  if (status === "danger") return "border-red-500/60 bg-red-500/10 text-red-200";
+  return "border-white/15 bg-white/5 text-white";
+}
+
+function TempSuffix({ status }: { status: TempStatus }) {
+  if (status === "ok")     return <span className="text-emerald-400 text-xs">✓</span>;
+  if (status === "danger") return <span className="text-red-400 text-xs">⚠</span>;
+  return null;
+}
+
+// ─── Temperature Input Component ─────────────────────────────────────────────
+
+function TemperatureInputGrid({
+  item,
+  values,
+  onChange,
+  disabled,
+}: {
+  item: TravelPathItem;
+  values: Record<string, string>;
+  onChange: (unit: string, val: string) => void;
+  disabled: boolean;
+}) {
+  const units = item.unit_labels_json ?? [];
+  return (
+    <div className="mt-2 space-y-1">
+      <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">
+        Chiller ≤ 5°C &nbsp;|&nbsp; Freezer ≤ −18°C &nbsp;|&nbsp; Danger Zone 5°C〜60°C
+      </p>
+      <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+        {units.map((unit) => {
+          const val = values[unit] ?? "";
+          const status = getTempStatus(unit, val);
+          return (
+            <div key={unit} className="space-y-0.5">
+              <label className="text-[10px] text-zinc-500 block truncate">{unit}</label>
+              <div className={`flex items-center gap-1 rounded-lg border px-2 py-1.5 transition-colors ${tempStatusStyle(status)}`}>
+                <input
+                  type="number"
+                  step="0.1"
+                  className="w-full bg-transparent text-sm outline-none placeholder-zinc-600 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  placeholder="—"
+                  value={val}
+                  disabled={disabled}
+                  onChange={(e) => onChange(unit, e.target.value)}
+                />
+                <span className="text-xs text-zinc-500 shrink-0">°C</span>
+                <TempSuffix status={status} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
@@ -254,7 +327,12 @@ function ChecklistView() {
           // Pre-populate entries with unchecked state
           const initial: Record<string, EntryState> = {};
           (Array.isArray(d) ? d : []).forEach((item) => {
-            initial[item.item_code] = { item_code: item.item_code, checked: false, note: "" };
+            initial[item.item_code] = {
+              item_code: item.item_code,
+              checked: false,
+              note: "",
+              temp_values_json: {},
+            };
           });
           setEntries(initial);
           setReportId(null);
@@ -284,6 +362,22 @@ function ChecklistView() {
       ...prev,
       [code]: { ...prev[code], note },
     }));
+  }
+
+  function setTempValue(code: string, unit: string, val: string) {
+    setEntries((prev) => {
+      const entry = prev[code] ?? { item_code: code, checked: false, note: "", temp_values_json: {} };
+      const newVals = { ...entry.temp_values_json, [unit]: val };
+      // Auto-check when all units have a valid numeric value
+      const item = items.find((i) => i.item_code === code);
+      const allFilled = (item?.unit_labels_json ?? []).every(
+        (u) => newVals[u] !== undefined && newVals[u].trim() !== "" && !isNaN(parseFloat(newVals[u]))
+      );
+      return {
+        ...prev,
+        [code]: { ...entry, temp_values_json: newVals, checked: allFilled },
+      };
+    });
   }
 
   async function handleSave() {
@@ -520,8 +614,11 @@ function ChecklistView() {
       ) : (
         <div className={`${GLASS_CARD} divide-y divide-white/5`}>
           {items.map((item, idx) => {
-            const entry = entries[item.item_code] ?? { item_code: item.item_code, checked: false, note: "" };
+            const entry = entries[item.item_code] ?? {
+              item_code: item.item_code, checked: false, note: "", temp_values_json: {},
+            };
             const noteExpanded = expandedNotes[item.item_code] || false;
+            const isTemp = item.item_type === "TEMPERATURE";
             return (
               <div
                 key={item.item_code}
@@ -537,16 +634,16 @@ function ChecklistView() {
                     {String(idx + 1).padStart(2, "0")}
                   </span>
 
-                  {/* Checkbox */}
+                  {/* Checkbox (manual for CHECKBOX type; auto for TEMPERATURE) */}
                   <button
-                    onClick={() => toggleCheck(item.item_code)}
-                    disabled={isSubmitted}
+                    onClick={() => !isTemp && toggleCheck(item.item_code)}
+                    disabled={isSubmitted || isTemp}
                     className={[
                       "mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border transition-all duration-150",
                       entry.checked
                         ? "border-emerald-500/60 bg-emerald-500/30 text-emerald-400"
-                        : "border-white/20 bg-white/5 hover:border-violet-400/40 hover:bg-violet-500/10",
-                      isSubmitted ? "cursor-default" : "cursor-pointer",
+                        : "border-white/20 bg-white/5",
+                      isTemp ? "cursor-default opacity-70" : isSubmitted ? "cursor-default" : "cursor-pointer hover:border-violet-400/40 hover:bg-violet-500/10",
                     ].join(" ")}
                   >
                     {entry.checked && (
@@ -560,10 +657,25 @@ function ChecklistView() {
                   <div className="flex-1 min-w-0 space-y-1.5">
                     <p className={[
                       "text-sm leading-relaxed",
-                      entry.checked ? "text-zinc-400 line-through decoration-zinc-600" : "text-zinc-200",
+                      entry.checked ? "text-zinc-400" : "text-zinc-200",
                     ].join(" ")}>
                       {item.item_text}
+                      {isTemp && (
+                        <span className="ml-2 text-[10px] text-violet-400 bg-violet-500/15 border border-violet-500/25 rounded px-1.5 py-0.5">
+                          🌡 TEMP
+                        </span>
+                      )}
                     </p>
+
+                    {/* Temperature input grid for TEMPERATURE items */}
+                    {isTemp && (
+                      <TemperatureInputGrid
+                        item={item}
+                        values={entry.temp_values_json}
+                        onChange={(unit, val) => setTempValue(item.item_code, unit, val)}
+                        disabled={isSubmitted}
+                      />
+                    )}
 
                     {/* Note area */}
                     {!isSubmitted && (
