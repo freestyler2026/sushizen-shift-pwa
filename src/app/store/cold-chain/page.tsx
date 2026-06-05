@@ -46,6 +46,76 @@ const DUBAI_UNITS = [
   "Freezer 1", "Freezer 2", "Freezer 3",
 ];
 
+// ─── Equipment catalog (Manila only) ─────────────────────────────────────────
+
+type EquipmentDef = { id: string; label: string; max: number; unit: string; group: string };
+
+const MANILA_EQUIPMENT: EquipmentDef[] = [
+  { id: "cooler_65l",   label: "65L Cooler Box",   max: 4,  unit: "box", group: "Cooler Box" },
+  { id: "cooler_45l",   label: "45L Cooler Box",   max: 2,  unit: "box", group: "Cooler Box" },
+  { id: "cooler_8l",    label: "8L Cooler Box",    max: 7,  unit: "box", group: "Cooler Box" },
+  { id: "ice_400ml",    label: "400ml Ice Pack",   max: 10, unit: "pc",  group: "Ice Pack" },
+  { id: "ice_600ml",    label: "600ml Ice Pack",   max: 24, unit: "pc",  group: "Ice Pack" },
+  { id: "ice_1000ml",   label: "1000ml Ice Pack",  max: 30, unit: "pc",  group: "Ice Pack" },
+  { id: "thermometer",  label: "Thermometer",      max: 15, unit: "pc",  group: "Other" },
+];
+
+type EquipmentQty = Record<string, number>; // id → quantity
+
+function EquipmentPicker({
+  qty, onChange,
+}: {
+  qty: EquipmentQty;
+  onChange: (id: string, val: number) => void;
+}) {
+  const groups = Array.from(new Set(MANILA_EQUIPMENT.map((e) => e.group)));
+
+  return (
+    <div className="space-y-3">
+      {groups.map((group) => (
+        <div key={group}>
+          <p className={`${T_CAPTION} text-slate-400 mb-2 uppercase tracking-wider`}>{group}</p>
+          <div className="space-y-2">
+            {MANILA_EQUIPMENT.filter((e) => e.group === group).map((item) => {
+              const count = qty[item.id] ?? 0;
+              return (
+                <div key={item.id} className="flex items-center justify-between py-1.5 border-b border-white/5 last:border-0">
+                  <div>
+                    <span className="text-sm text-slate-200">{item.label}</span>
+                    <span className={`${T_CAPTION} text-slate-500 ml-2`}>max {item.max} {item.unit}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button type="button"
+                      onClick={() => onChange(item.id, Math.max(0, count - 1))}
+                      disabled={count === 0}
+                      className="w-7 h-7 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center hover:bg-white/10 disabled:opacity-30"
+                    >
+                      <Minus size={12} className="text-slate-300" />
+                    </button>
+                    <span className={`w-8 text-center text-sm font-bold ${count > 0 ? "text-violet-300" : "text-slate-600"}`}>
+                      {count}
+                    </span>
+                    <button type="button"
+                      onClick={() => onChange(item.id, Math.min(item.max, count + 1))}
+                      disabled={count >= item.max}
+                      className="w-7 h-7 rounded-lg border border-white/10 bg-white/5 flex items-center justify-center hover:bg-white/10 disabled:opacity-30"
+                    >
+                      <Plus size={12} className="text-slate-300" />
+                    </button>
+                    {count > 0 && (
+                      <span className={`${T_CAPTION} text-violet-400 w-12`}>{count} {item.unit}</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Temperature validation ────────────────────────────────────────────────
 
 type AlertLevel = "ok" | "danger" | "empty";
@@ -271,6 +341,7 @@ function DispatchForm({ city }: { city: string }) {
   const [staffNames, setStaffNames] = useState<string[]>([]);
   const [dispatchedBy, setDispatchedBy] = useState("");
   const [destBranches, setDestBranches] = useState<string[]>([...branches]);
+  const [equipmentQty, setEquipmentQty] = useState<EquipmentQty>({});
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -287,6 +358,15 @@ function DispatchForm({ city }: { city: string }) {
   const toggle = (b: string) =>
     setDestBranches((p) => p.includes(b) ? p.filter((x) => x !== b) : [...p, b]);
 
+  const setEqQty = (id: string, val: number) =>
+    setEquipmentQty((p) => ({ ...p, [id]: val }));
+
+  // Build equipment_json payload — only items with qty > 0
+  const buildEquipmentJson = () =>
+    MANILA_EQUIPMENT
+      .filter((e) => (equipmentQty[e.id] ?? 0) > 0)
+      .map((e) => ({ id: e.id, label: e.label, qty: equipmentQty[e.id], unit: e.unit }));
+
   const submit = async () => {
     if (!dispatchedBy) { setMsg({ ok: false, text: "Select dispatching staff." }); return; }
     if (!destBranches.length) { setMsg({ ok: false, text: "Select at least one destination." }); return; }
@@ -295,13 +375,19 @@ function DispatchForm({ city }: { city: string }) {
       const res = await fetch("/api/store/cold-chain/dispatch", {
         method: "POST",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ city, dispatched_by: dispatchedBy, destination_branches: destBranches, notes }),
+        body: JSON.stringify({
+          city,
+          dispatched_by: dispatchedBy,
+          destination_branches: destBranches,
+          equipment_json: city === "manila" ? buildEquipmentJson() : [],
+          notes,
+        }),
         cache: "no-store",
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Failed.");
       setMsg({ ok: true, text: `Dispatch created. Notify branches: ${destBranches.join(", ")}` });
-      setNotes("");
+      setNotes(""); setEquipmentQty({});
     } catch (e: any) { setMsg({ ok: false, text: e.message }); }
     finally { setSubmitting(false); }
   };
@@ -329,6 +415,14 @@ function DispatchForm({ city }: { city: string }) {
           ))}
         </div>
       </div>
+
+      {/* Equipment selector — Manila only */}
+      {city === "manila" && (
+        <div className="rounded-xl border border-white/8 bg-white/3 p-4">
+          <label className={`${T_LABEL} mb-3 block`}>Equipment Used</label>
+          <EquipmentPicker qty={equipmentQty} onChange={setEqQty} />
+        </div>
+      )}
 
       <div>
         <label className={`${T_LABEL} mb-1 block`}>Notes (optional)</label>
@@ -433,7 +527,8 @@ function ReceivingForm({ city }: { city: string }) {
     finally { setSubmitting(false); }
   };
 
-  const selectedDispatch = dispatches.find((d) => d.id === dispatchId);
+  // selectedDispatch kept for future use (equipment display etc.)
+  const _selectedDispatch = dispatches.find((d) => d.id === dispatchId); void _selectedDispatch;
 
   return (
     <div className="space-y-4">
@@ -533,7 +628,7 @@ export default function ColdChainPage() {
         </div>
 
         {/* City */}
-        <div className={`${GLASS_CARD} p-3 mb-4 flex items-center gap-3`}>
+        <div className="rounded-xl border border-white/20 bg-white/5 p-3 mb-4 flex items-center gap-3">
           <span className={T_LABEL}>City</span>
           {(["manila", "dubai"] as const).map((c) => (
             <button key={c} type="button" onClick={() => setCity(c)}
@@ -555,7 +650,8 @@ export default function ColdChainPage() {
           </button>
         </div>
 
-        <div className={GLASS_CARD + " p-4"}>
+        {/* border-white/8 → border-white/20 to prevent "black border" on dark backgrounds */}
+        <div className="rounded-xl border border-white/20 bg-white/5 p-4">
           {tab === "dispatch" ? <DispatchForm city={city} /> : <ReceivingForm city={city} />}
         </div>
       </div>
