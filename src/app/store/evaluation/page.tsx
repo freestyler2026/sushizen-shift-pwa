@@ -299,7 +299,7 @@ function DataRow({
           <span className={`${T_CAPTION} text-slate-500 ml-1`}>
             {fmtDate(date)}
             {isPrevDay && (
-              <span className="ml-1 text-amber-400" title="Updates after 14:00 PHT">⚠</span>
+              <span className="ml-1 text-amber-400" title="Syncing — fully available after 14:00 PHT">⚠</span>
             )}
           </span>
         )}
@@ -975,7 +975,7 @@ export default function StoreEvaluationPage() {
               <div className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
                 <AlertTriangle size={12} className="text-amber-400 shrink-0" />
                 <p className={`${T_CAPTION} text-amber-300`}>
-                  Sales data shows previous day — refreshes after 14:00 PHT
+                  Sales data is still syncing — fully available after 14:00 PHT
                 </p>
               </div>
             )}
