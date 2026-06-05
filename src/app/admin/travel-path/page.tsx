@@ -16,6 +16,7 @@ import {
   TAB_INACTIVE,
   T_PAGE_TITLE,
   T_LABEL,
+  T_SECTION,
   BADGE_SUCCESS,
   BADGE_WARNING,
 } from "@/lib/ui-tokens";
