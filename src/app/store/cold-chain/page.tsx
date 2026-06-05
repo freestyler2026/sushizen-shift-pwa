@@ -451,7 +451,10 @@ function ReceivingForm({ city }: { city: string }) {
       .catch(() => {});
   }, [city]);
 
+  const [loadingDispatches, setLoadingDispatches] = useState(false);
+
   const loadDispatches = useCallback(() => {
+    setLoadingDispatches(true);
     fetch(`/api/store/cold-chain/dispatches?city=${city}`, {
       headers: getAuthHeaders(), cache: "no-store",
     })
@@ -461,7 +464,8 @@ function ReceivingForm({ city }: { city: string }) {
         setDispatches(rows);
         setDispatchId(rows[0]?.id ?? "");
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoadingDispatches(false));
   }, [city]);
 
   useEffect(() => { loadDispatches(); }, [loadDispatches]);
@@ -520,9 +524,18 @@ function ReceivingForm({ city }: { city: string }) {
           </select>
         </div>
         <div>
-          <label className={`${T_LABEL} mb-1 block`}>CK Dispatch</label>
-          {dispatches.length === 0 ? (
-            <p className={`${T_CAPTION} text-slate-500 py-2`}>No dispatches today</p>
+          <div className="flex items-center justify-between mb-1">
+            <label className={T_LABEL}>CK Dispatch</label>
+            <button type="button" onClick={loadDispatches} disabled={loadingDispatches}
+              className="text-xs text-violet-400 hover:text-violet-300 disabled:opacity-50 flex items-center gap-1">
+              <RefreshCw size={11} className={loadingDispatches ? "animate-spin" : ""} />
+              Reload
+            </button>
+          </div>
+          {loadingDispatches ? (
+            <p className={`${T_CAPTION} text-slate-500 py-2`}>Loading...</p>
+          ) : dispatches.length === 0 ? (
+            <p className={`${T_CAPTION} text-amber-400 py-2`}>No dispatches today — ask CK to create one first</p>
           ) : (
             <select className={SELECT_CLASS} value={dispatchId} onChange={(e) => setDispatchId(e.target.value)}>
               {dispatches.map((d) => (
@@ -559,6 +572,12 @@ function ReceivingForm({ city }: { city: string }) {
         />
       ))}
 
+      <button type="button" onClick={submit} disabled={submitting || !dispatchId}
+        className={`${PRIMARY_BUTTON} w-full flex items-center justify-center gap-2 ${!dispatchId ? "opacity-50" : ""}`}>
+        {submitting ? <RefreshCw size={16} className="animate-spin" /> : <Send size={16} />}
+        {submitting ? "Saving..." : `Submit ${boxCount} Box Temperature Record${boxCount > 1 ? "s" : ""}`}
+      </button>
+
       {msg && (
         <div className={`flex items-center gap-2 rounded-xl border p-3 text-sm ${
           msg.ok ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
@@ -568,12 +587,6 @@ function ReceivingForm({ city }: { city: string }) {
           {msg.text}
         </div>
       )}
-
-      <button type="button" onClick={submit} disabled={submitting || !dispatchId}
-        className={`${PRIMARY_BUTTON} w-full flex items-center justify-center gap-2 ${!dispatchId ? "opacity-50" : ""}`}>
-        {submitting ? <RefreshCw size={16} className="animate-spin" /> : <Send size={16} />}
-        {submitting ? "Saving..." : `Submit ${boxCount} Box Temperature Record${boxCount > 1 ? "s" : ""}`}
-      </button>
     </div>
   );
 }
