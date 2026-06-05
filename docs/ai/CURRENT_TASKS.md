@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-05 (session 10)
+Last updated: 2026-06-05 (session 11)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -14,14 +14,14 @@ Last updated: 2026-06-05 (session 10)
 ### バックエンド (Heroku) — 必須
 ```bash
 cd /Users/jaynishimura/Desktop/sushizen_shift_app_clean
-git add -A && git commit -m "feat: add food_safety_score + organization_score, scoring 10items×10pts"
+git add -A && git commit -m "feat: 11 scored items (Food Safety/Org/SOP), score=sum/55×100"
 git push heroku HEAD:master --force
 ```
 
 ### フロントエンド (Vercel)
 ```bash
 cd /Users/jaynishimura/Desktop/sushizen-shift-pwa
-git add -A && git commit -m "feat: Food Safety & Organization items + full rubrics, 10×10pts scoring" && git push origin HEAD:main
+git add -A && git commit -m "feat: SOP Compliance, rubric always visible, 11-item scoring" && git push origin HEAD:main
 ```
 
 ---
@@ -123,6 +123,8 @@ Vendor MasterのOrder Catalog登録名と`supplier_name`が一致しない場合
 | Review & Submit パネル修正 (catalog reload) | ✅ live |
 | Food Safety & Organization 項目追加 (10項目×10pt) | ⏳ デプロイ待ち |
 | 全10項目 英語ルーブリック整備 | ⏳ デプロイ待ち |
+| SOP Compliance 追加（11項目）、ルーブリック常時表示 | ⏳ デプロイ待ち |
+| スコア計算: sum/55×100（11項目均等） | ⏳ デプロイ待ち |
 
 ---
 

@@ -8,7 +8,6 @@ import {
   AlertTriangle,
   RefreshCw,
   Send,
-  Info,
   Camera,
   Trash2,
   ImageIcon,
@@ -46,6 +45,7 @@ const SCORED_KEYS = [
   "prep_time_score",
   "food_safety_score",
   "organization_score",
+  "sop_compliance_score",
 ] as const;
 
 type ScoredKey = typeof SCORED_KEYS[number];
@@ -76,6 +76,7 @@ const ITEM_LABELS: Record<ScoredKey, string> = {
   prep_time_score: "Prep Time",
   food_safety_score: "Food Safety",
   organization_score: "Organization & Storage",
+  sop_compliance_score: "SOP Compliance",
 };
 
 const RUBRICS: Record<ScoredKey, string[]> = {
@@ -149,6 +150,13 @@ const RUBRICS: Record<ScoredKey, string[]> = {
     "Mostly organized; only minor disorder",
     "All areas (incl. fridge & freezer) fully organized; inventory count ready at all times",
   ],
+  sop_compliance_score: [
+    "SOPs are not being followed. Significant portion control issues or recipe deviations observed.",
+    "Frequent SOP violations or inconsistent scale usage. Food cost or quality may be affected.",
+    "Some SOP violations or portion control issues observed. Improvement required but no major impact.",
+    "Minor SOP deviations observed. Issues are corrected immediately after being identified.",
+    "All staff follow SOPs consistently. Scales are properly used and no portion control issues are observed.",
+  ],
 };
 
 const BINARY_LABELS: Record<string, string> = {
@@ -196,6 +204,7 @@ type FormState = {
   prep_time_score: number | null;
   food_safety_score: number | null;
   organization_score: number | null;
+  sop_compliance_score: number | null;
   // Meta
   notes: string;
 };
@@ -215,18 +224,23 @@ const EMPTY_FORM: FormState = {
   prep_time_score: null,
   food_safety_score: null,
   organization_score: null,
+  sop_compliance_score: null,
   notes: "",
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+// Score = (sum of answered scores / max possible) × 100
+// Max possible = 11 items × 5 = 55; all 5s → 100 pts
+const MAX_POSSIBLE = SCORED_KEYS.length * 5; // 55
+
 function computeScore(form: FormState): number {
-  let total = 0;
+  let sum = 0;
   for (const key of SCORED_KEYS) {
     const v = form[key];
-    if (v != null) total += v * 2.0;
+    if (v != null) sum += v;
   }
-  return Math.round(total * 10) / 10;
+  return Math.round((sum / MAX_POSSIBLE) * 100 * 10) / 10;
 }
 
 function scoredCount(form: FormState): number {
@@ -353,9 +367,7 @@ function ScoreSelector({
   onAddPhoto?: (file: File) => void;
   onRemovePhoto?: (localId: string) => void;
 }) {
-  const [showRubric, setShowRubric] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const pts = value != null ? (value * 2.0).toFixed(1) : null;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -365,17 +377,9 @@ function ScoreSelector({
 
   return (
     <div className={`${GLASS_CARD} p-3 mb-2`}>
+      {/* Header: label + photo button + score */}
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <span className={`${T_BODY} font-semibold`}>{label}</span>
-          <button
-            type="button"
-            onClick={() => setShowRubric((s) => !s)}
-            className="text-slate-500 hover:text-slate-300 transition-colors"
-          >
-            <Info size={14} />
-          </button>
-        </div>
+        <span className={`${T_BODY} font-semibold`}>{label}</span>
         <div className="flex items-center gap-2">
           {photoEnabled && (
             <label className="cursor-pointer text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1">
@@ -394,23 +398,50 @@ function ScoreSelector({
               />
             </label>
           )}
-          {pts != null && (
-            <span className="text-xs text-violet-300 font-medium">{pts} pts</span>
-          )}
           <span className={`text-sm font-bold ${value ? "text-white" : "text-slate-500"}`}>
             {value ?? "—"}/5
           </span>
         </div>
       </div>
 
-      {/* 1-5 selector */}
+      {/* Rubric — always visible; selected row is highlighted */}
+      <div className="space-y-1 mb-3">
+        {rubric.map((desc, i) => {
+          const n = i + 1;
+          const isSelected = value === n;
+          const numColor = n <= 2 ? "text-red-400" : n === 3 ? "text-amber-400" : "text-emerald-400";
+          return (
+            <button
+              key={n}
+              type="button"
+              onClick={() => onChange(n)}
+              className={`w-full flex gap-2 items-start text-left rounded-lg px-2 py-1.5 transition-all ${
+                isSelected
+                  ? n <= 2
+                    ? "bg-red-500/15 border border-red-500/30"
+                    : n === 3
+                    ? "bg-amber-500/15 border border-amber-500/30"
+                    : "bg-emerald-500/15 border border-emerald-500/30"
+                  : "hover:bg-white/5 border border-transparent"
+              }`}
+            >
+              <span className={`text-xs font-bold w-4 shrink-0 mt-0.5 ${numColor}`}>{n}</span>
+              <span className={`${T_CAPTION} leading-relaxed ${isSelected ? "text-white" : "text-slate-400"}`}>
+                {desc}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 1-5 quick-select buttons */}
       <div className="flex gap-2">
         {[1, 2, 3, 4, 5].map((n) => (
           <button
             key={n}
             type="button"
             onClick={() => onChange(n)}
-            className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${
+            className={`flex-1 py-1.5 rounded-lg text-sm font-bold transition-all ${
               value === n
                 ? n <= 2
                   ? "bg-red-500 text-white"
@@ -424,13 +455,6 @@ function ScoreSelector({
           </button>
         ))}
       </div>
-
-      {/* Active rubric description */}
-      {value != null && (
-        <p className={`${T_CAPTION} text-slate-400 mt-2 leading-relaxed`}>
-          {rubric[value - 1]}
-        </p>
-      )}
 
       {/* Pending photo thumbnails */}
       {photoEnabled && pendingPhotos.length > 0 && (
@@ -450,24 +474,6 @@ function ScoreSelector({
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Expandable full rubric */}
-      {showRubric && (
-        <div className="mt-2 pt-2 border-t border-white/10 space-y-1">
-          {rubric.map((desc, i) => (
-            <div key={i} className="flex gap-2">
-              <span
-                className={`text-xs font-bold w-4 shrink-0 ${
-                  i + 1 <= 2 ? "text-red-400" : i + 1 === 3 ? "text-amber-400" : "text-emerald-400"
-                }`}
-              >
-                {i + 1}
-              </span>
-              <span className={`${T_CAPTION} text-slate-400`}>{desc}</span>
-            </div>
-          ))}
         </div>
       )}
     </div>
@@ -737,6 +743,7 @@ export default function StoreEvaluationPage() {
             prep_time_score: ev.prep_time_score ?? null,
             food_safety_score: ev.food_safety_score ?? null,
             organization_score: ev.organization_score ?? null,
+            sop_compliance_score: ev.sop_compliance_score ?? null,
             notes: ev.notes || "",
           });
         } else {
@@ -1046,8 +1053,7 @@ export default function StoreEvaluationPage() {
             <div className="mb-4">
               <h2 className={`${T_SECTION} mb-3`}>Store Evaluation (100 pts)</h2>
               <p className={`${T_CAPTION} text-slate-400 mb-3`}>
-                Each item scored 1–5 · 10 pts max per item · Tap{" "}
-                <Info size={11} className="inline" /> for scoring guide
+                Each item scored 1–5 · Click any criteria row or number button to select
               </p>
               {SCORED_KEYS.map((key) => (
                 <ScoreSelector
