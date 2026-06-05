@@ -37,14 +37,6 @@ const BRANCH_LABELS: Record<string, string> = {
   BB: "Business Bay", JLT: "JLT", ARJ: "Arjan", AM: "Al Mina", AB: "Al Barsha",
 };
 
-const MANILA_UNITS = [
-  "Chiller 1", "Chiller 2", "Chiller 3", "Chiller 4",
-  "Freezer 1", "Freezer 2", "Freezer 3", "Freezer 4",
-];
-const DUBAI_UNITS = [
-  "Chiller 1", "Chiller 2",
-  "Freezer 1", "Freezer 2", "Freezer 3",
-];
 
 // ─── Equipment catalog (Manila only) ─────────────────────────────────────────
 
@@ -183,7 +175,6 @@ type BoxForm = {
   stored_at: string;
   stored_temp: string;
   stored_by: string;
-  storage_unit: string;
 };
 
 type DispatchRow = {
@@ -211,7 +202,6 @@ function emptyBox(n: number): BoxForm {
     stored_at: t,
     stored_temp: "",
     stored_by: "",
-    storage_unit: "",
   };
 }
 
@@ -231,11 +221,9 @@ function calcHeld(receivedAt: string, storedAt: string): string | null {
 // ─── Box Table Row ────────────────────────────────────────────────────────────
 
 function BoxTableRow({
-  box, staffNames, storageUnits, onChange, disabled,
+  box, onChange, disabled,
 }: {
   box: BoxForm;
-  staffNames: string[];
-  storageUnits: string[];
   onChange: (patch: Partial<BoxForm>) => void;
   disabled: boolean;
 }) {
@@ -304,15 +292,6 @@ function BoxTableRow({
                 itemType={box.item_type} disabled={disabled}
                 placeholder={box.item_type === "FROZEN" ? "-19.0" : "4.0"} />
             </div>
-          </div>
-          {/* Storage unit selector */}
-          <div className="flex items-center gap-2">
-            <span className={`${T_CAPTION} w-[120px] shrink-0`}>Storage Unit</span>
-            <select className={`${SELECT_CLASS} flex-1 text-xs`} value={box.storage_unit}
-              onChange={(e) => onChange({ storage_unit: e.target.value })} disabled={disabled}>
-              <option value="">— Select unit —</option>
-              {storageUnits.map((u) => <option key={u} value={u}>{u}</option>)}
-            </select>
           </div>
         </div>
 
@@ -452,7 +431,6 @@ function DispatchForm({ city }: { city: string }) {
 
 function ReceivingForm({ city }: { city: string }) {
   const branches     = city === "manila" ? MANILA_BRANCHES : DUBAI_BRANCHES;
-  const storageUnits = city === "manila" ? MANILA_UNITS    : DUBAI_UNITS;
 
   const [branch, setBranch] = useState(branches[0]);
   const [dispatches, setDispatches] = useState<DispatchRow[]>([]);
@@ -575,8 +553,6 @@ function ReceivingForm({ city }: { city: string }) {
         <BoxTableRow
           key={box.box_number}
           box={box}
-          staffNames={staffNames}
-          storageUnits={storageUnits}
           onChange={(patch) => updateBox(idx, patch)}
           disabled={submitting}
         />
