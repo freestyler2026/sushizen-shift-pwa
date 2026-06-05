@@ -44,6 +44,8 @@ const SCORED_KEYS = [
   "coaching_score",
   "problem_awareness_score",
   "prep_time_score",
+  "food_safety_score",
+  "organization_score",
 ] as const;
 
 type ScoredKey = typeof SCORED_KEYS[number];
@@ -72,12 +74,14 @@ const ITEM_LABELS: Record<ScoredKey, string> = {
   coaching_score: "Coaching & Staff Development",
   problem_awareness_score: "Problem Awareness",
   prep_time_score: "Prep Time",
+  food_safety_score: "Food Safety",
+  organization_score: "Organization & Storage",
 };
 
 const RUBRICS: Record<ScoredKey, string[]> = {
   backup_score: [
-    "No backup prepared — stop service and prep immediately",
-    "Key roles/topping items missing — risk of service disruption if busy",
+    "No backup prepared — must stop service immediately to prep",
+    "Key roles/topping items missing — service will be affected if it gets busy",
     "Core items ready, ~60% overall backup",
     "80%+ backed up, remainder in progress",
     "All items above standard, sufficient backup throughout",
@@ -90,7 +94,7 @@ const RUBRICS: Record<ScoredKey, string[]> = {
     "All staff properly positioned, no bottlenecks",
   ],
   quality_score: [
-    "Major quality failure — customer impact",
+    "Major quality failure — immediate action required",
     "Multiple quality issues, ongoing problems",
     "1–2 quality issues occurred during service",
     "Minor adjustments made, overall standard maintained",
@@ -128,8 +132,22 @@ const RUBRICS: Record<ScoredKey, string[]> = {
     "Operations collapsed — prep completely unmanageable",
     "Continuous delays occurring across service",
     "5+ delays, or delays exceeding 45 min",
-    "Minor delays (30–40 min) on high-value orders",
+    "Minor delays (30–40 min) on high-value orders (2,000 PHP+)",
     "All time slots within management standard",
+  ],
+  food_safety_score: [
+    "No temperature checks done, FIFO not followed at all",
+    "Temperature checked once or less; clear FIFO violations present",
+    "1–2 temperature checks done; minor FIFO issues observed",
+    "2–3 temperature checks done; FIFO mostly followed",
+    "All 3 temperature checks completed (fridge & freezer); FIFO fully followed",
+  ],
+  organization_score: [
+    "No organization — no one knows what is where or what stock exists",
+    "Multiple areas disorganized; difficult to track stock",
+    "Some areas untidy; inventory count takes extra time",
+    "Mostly organized; only minor disorder",
+    "All areas (incl. fridge & freezer) fully organized; inventory count ready at all times",
   ],
 };
 
@@ -176,6 +194,8 @@ type FormState = {
   coaching_score: number | null;
   problem_awareness_score: number | null;
   prep_time_score: number | null;
+  food_safety_score: number | null;
+  organization_score: number | null;
   // Meta
   notes: string;
 };
@@ -193,6 +213,8 @@ const EMPTY_FORM: FormState = {
   coaching_score: null,
   problem_awareness_score: null,
   prep_time_score: null,
+  food_safety_score: null,
+  organization_score: null,
   notes: "",
 };
 
@@ -202,7 +224,7 @@ function computeScore(form: FormState): number {
   let total = 0;
   for (const key of SCORED_KEYS) {
     const v = form[key];
-    if (v != null) total += v * 2.5;
+    if (v != null) total += v * 2.0;
   }
   return Math.round(total * 10) / 10;
 }
@@ -333,7 +355,7 @@ function ScoreSelector({
 }) {
   const [showRubric, setShowRubric] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const pts = value != null ? (value * 2.5).toFixed(1) : null;
+  const pts = value != null ? (value * 2.0).toFixed(1) : null;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -713,6 +735,8 @@ export default function StoreEvaluationPage() {
             coaching_score: ev.coaching_score ?? null,
             problem_awareness_score: ev.problem_awareness_score ?? null,
             prep_time_score: ev.prep_time_score ?? null,
+            food_safety_score: ev.food_safety_score ?? null,
+            organization_score: ev.organization_score ?? null,
             notes: ev.notes || "",
           });
         } else {
@@ -1022,7 +1046,7 @@ export default function StoreEvaluationPage() {
             <div className="mb-4">
               <h2 className={`${T_SECTION} mb-3`}>Store Evaluation (100 pts)</h2>
               <p className={`${T_CAPTION} text-slate-400 mb-3`}>
-                Each item scored 1–5 · 12.5 pts max per item · Tap{" "}
+                Each item scored 1–5 · 10 pts max per item · Tap{" "}
                 <Info size={11} className="inline" /> for scoring guide
               </p>
               {SCORED_KEYS.map((key) => (
