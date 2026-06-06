@@ -486,25 +486,45 @@ export default function StoreProcurementRequestPage() {
         // convert it to the name the API uses (e.g. "Paranaque").
         const normalise = (s: string): string => MANILA_CODE_TO_NAME.get(s.toUpperCase() as Parameters<typeof MANILA_CODE_TO_NAME["get"]>[0]) ?? s;
 
+        // Helper: given a store name/code, auto-select the appropriate catalog category
+        const autoSetCategory = (storeName: string) => {
+          const vl = storeName.toLowerCase();
+          if (vl === "central kitchen" || vl === "ck") {
+            setSelectedCatalogCategory("CK");
+          } else if (vl === "warehouse" || vl === "wh") {
+            setSelectedCatalogCategory("Warehouse");
+          } else if (vl && vl !== "all") {
+            // Branch store (Paranaque/Cubao/Taft or any other): default to Fresh
+            setSelectedCatalogCategory("Fresh");
+          }
+        };
+
         if (storeCodePreference !== undefined) {
           if (storeCodePreference.trim()) {
-            setStoreCode(normalise(storeCodePreference));
+            const normalised = normalise(storeCodePreference);
+            setStoreCode(normalised);
+            autoSetCategory(normalised);
           } else {
             const defaultStore = allStores[0] || "";
-            if (defaultStore) setStoreCode(defaultStore);
+            if (defaultStore) { setStoreCode(defaultStore); autoSetCategory(defaultStore); }
           }
         } else if (!resolvedStore.trim()) {
           const defaultStore = allStores[0] || "";
-          if (defaultStore) setStoreCode(defaultStore);
+          if (defaultStore) { setStoreCode(defaultStore); autoSetCategory(defaultStore); }
         }
       } catch (e: any) {
         setError(friendlyProcurementError(e));
         // Even if the catalog-stores API fails, still apply the store preference
         // so that edit mode can pre-fill the store and trigger loadItemCatalog.
         if (storeCodePreference?.trim()) {
-          const normalise = (s: string): string =>
+          const normalise2 = (s: string): string =>
             MANILA_CODE_TO_NAME.get(s.toUpperCase() as Parameters<typeof MANILA_CODE_TO_NAME["get"]>[0]) ?? s;
-          setStoreCode(normalise(storeCodePreference));
+          const normalised2 = normalise2(storeCodePreference);
+          setStoreCode(normalised2);
+          const vl2 = normalised2.toLowerCase();
+          if (vl2 === "central kitchen" || vl2 === "ck") setSelectedCatalogCategory("CK");
+          else if (vl2 === "warehouse" || vl2 === "wh") setSelectedCatalogCategory("Warehouse");
+          else if (vl2 && vl2 !== "all") setSelectedCatalogCategory("Fresh");
         }
       }
     },
