@@ -21,7 +21,18 @@ import {
   BADGE_ERROR,
   BADGE_INFO,
 } from "@/lib/ui-tokens";
-import { RefreshCw, AlertCircle, CheckCircle, ChevronRight, XCircle } from "lucide-react";
+import { RefreshCw, AlertCircle, CheckCircle, ChevronRight, ChevronDown, XCircle, Package } from "lucide-react";
+
+type RequestItem = {
+  id: string;
+  item_name: string;
+  category: string;
+  qty: number;
+  unit: string;
+  unit_price: number;
+  line_total: number;
+  vendor_name: string;
+};
 
 type ReceivingRow = {
   id: string;
@@ -101,6 +112,36 @@ export default function ProcurementReceivingPage() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+
+  // Item detail expand state
+  const [expandedId, setExpandedId] = useState("");
+  const [itemsCache, setItemsCache] = useState<Record<string, RequestItem[]>>({});
+  const [itemsLoading, setItemsLoading] = useState<Record<string, boolean>>({});
+
+  const loadItems = async (requestId: string) => {
+    if (!requestId || itemsCache[requestId] || itemsLoading[requestId]) return;
+    setItemsLoading((prev) => ({ ...prev, [requestId]: true }));
+    try {
+      const data = await procurementJson<{ request: { items: RequestItem[] } }>(
+        `/api/admin/procurement/requests/${encodeURIComponent(requestId)}`,
+        { method: "GET" },
+        requestedBy,
+        pin,
+      );
+      const items = Array.isArray(data?.request?.items) ? data.request.items : [];
+      setItemsCache((prev) => ({ ...prev, [requestId]: items }));
+    } catch {
+      setItemsCache((prev) => ({ ...prev, [requestId]: [] }));
+    } finally {
+      setItemsLoading((prev) => ({ ...prev, [requestId]: false }));
+    }
+  };
+
+  const toggleExpand = (row: ReceivingRow) => {
+    const next = expandedId === row.id ? "" : row.id;
+    setExpandedId(next);
+    if (next && row.request_id) void loadItems(row.request_id);
+  };
 
   const load = useCallback(async () => {
     setError("");
@@ -429,11 +470,15 @@ export default function ProcurementReceivingPage() {
           const isConfirmed = statusUpper === "CONFIRMED";
           const isVoid = statusUpper === "VOID";
           const hasVariance = Number(row.shortage_qty || 0) > 0 || Number(row.excess_qty || 0) > 0 || row.quality_status !== "ACCEPTED";
+          const isExpanded = expandedId === row.id;
+          const rowItems = itemsCache[row.request_id] ?? [];
+          const rowItemsLoading = itemsLoading[row.request_id] ?? false;
+
           return (
             <div
               key={row.id}
               className={[
-                "rounded-2xl border p-4 transition-all",
+                "rounded-2xl border transition-all",
                 isVoid
                   ? "border-white/5 bg-white/2 opacity-60"
                   : hasVariance && !isConfirmed
@@ -441,10 +486,20 @@ export default function ProcurementReceivingPage() {
                   : "border-white/8 bg-white/4",
               ].join(" ")}
             >
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              {/* ── Header row (always visible) ── */}
+              <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0 flex-1 space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-sm font-semibold text-white">{row.receiving_no}</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(row)}
+                      className="flex items-center gap-1.5 font-mono text-sm font-semibold text-white hover:text-violet-300 transition-colors"
+                    >
+                      {isExpanded
+                        ? <ChevronDown className="h-4 w-4 text-violet-400" />
+                        : <ChevronRight className="h-4 w-4 text-zinc-500" />}
+                      {row.receiving_no}
+                    </button>
                     {statusBadge(row.status)}
                     {!isVoid && qualityBadge(row.quality_status)}
                     {hasVariance && !isConfirmed && !isVoid && <span className={BADGE_WARNING}>⚠ Variance</span>}
@@ -460,7 +515,7 @@ export default function ProcurementReceivingPage() {
                       <span>Received: <span className="text-zinc-300">{Number(row.qty_received || 0).toFixed(2)}</span></span>
                       {Number(row.shortage_qty || 0) > 0 && <span className="text-red-400">Short: {Number(row.shortage_qty || 0).toFixed(2)}</span>}
                       {Number(row.excess_qty || 0) > 0 && <span className="text-amber-400">Excess: {Number(row.excess_qty || 0).toFixed(2)}</span>}
-                      <span>Amount: <span className="text-zinc-300">{Number(row.amount_received || 0).toFixed(2)}</span></span>
+                      <span>Amount: <span className="font-medium text-zinc-200">PHP {Number(row.amount_received || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></span>
                     </div>
                   )}
                   {isConfirmed && !isVoid && (
@@ -478,7 +533,7 @@ export default function ProcurementReceivingPage() {
                   )}
                 </div>
 
-                <div className="flex shrink-0 flex-wrap gap-2">
+                <div className="flex shrink-0 flex-wrap items-start gap-2">
                   {row.case_id && !isVoid && (
                     <Link
                       href={`/admin/procurement/cases/${row.case_id}`}
@@ -517,6 +572,79 @@ export default function ProcurementReceivingPage() {
                   )}
                 </div>
               </div>
+
+              {/* ── Item detail panel (expanded) ── */}
+              {isExpanded && (
+                <div className="border-t border-white/8 bg-black/15 px-4 pb-4 pt-3">
+                  <div className="mb-2 flex items-center gap-2">
+                    <Package className="h-3.5 w-3.5 text-violet-400" />
+                    <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Order Items</span>
+                  </div>
+                  {rowItemsLoading ? (
+                    <div className="flex items-center gap-2 py-4 text-xs text-zinc-500">
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Loading items…
+                    </div>
+                  ) : rowItems.length === 0 ? (
+                    <p className="py-3 text-xs text-zinc-500">No items found for this request.</p>
+                  ) : (
+                    <div className="overflow-hidden rounded-xl border border-white/8">
+                      {/* Table header */}
+                      <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-3 border-b border-white/8 bg-black/20 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                        <div>Item</div>
+                        <div className="text-right w-16">Qty</div>
+                        <div className="text-right w-14">Unit</div>
+                        <div className="text-right w-20">Unit Price</div>
+                        <div className="text-right w-24">Line Total</div>
+                      </div>
+                      {/* Item rows */}
+                      {rowItems.map((item, idx) => (
+                        <div
+                          key={item.id || idx}
+                          className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-3 border-b border-white/5 px-3 py-2.5 last:border-0 hover:bg-white/3 transition-colors"
+                        >
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium text-white">{item.item_name}</div>
+                            {item.vendor_name && (
+                              <div className="mt-0.5 truncate text-[11px] text-zinc-500">{item.vendor_name}</div>
+                            )}
+                            {item.category && (
+                              <div className="mt-0.5 text-[10px] text-zinc-600 uppercase tracking-wide">{item.category}</div>
+                            )}
+                          </div>
+                          <div className="w-16 text-right text-sm text-zinc-300 tabular-nums">
+                            {Number(item.qty || 0).toFixed(2)}
+                          </div>
+                          <div className="w-14 text-right text-xs text-zinc-500">
+                            {item.unit || "-"}
+                          </div>
+                          <div className="w-20 text-right text-xs text-zinc-400 tabular-nums">
+                            {Number(item.unit_price || 0) > 0
+                              ? Number(item.unit_price).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                              : "-"}
+                          </div>
+                          <div className="w-24 text-right text-sm font-medium text-zinc-200 tabular-nums">
+                            {Number(item.line_total || 0) > 0
+                              ? Number(item.line_total).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                              : "-"}
+                          </div>
+                        </div>
+                      ))}
+                      {/* Total row */}
+                      <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-3 border-t border-white/10 bg-black/20 px-3 py-2">
+                        <div className="text-xs font-semibold text-zinc-400">
+                          {rowItems.length} item{rowItems.length !== 1 ? "s" : ""}
+                        </div>
+                        <div className="w-16" />
+                        <div className="w-14" />
+                        <div className="w-20 text-right text-xs text-zinc-500">Total</div>
+                        <div className="w-24 text-right text-sm font-semibold text-white tabular-nums">
+                          {rowItems.reduce((s, it) => s + Number(it.line_total || 0), 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}
