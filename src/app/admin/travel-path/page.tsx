@@ -63,6 +63,24 @@ type ReportEntry = {
   temp_values_json: Record<string, string>; // unit_label → value
 };
 
+// Temp-log types
+type TempLogItem = {
+  item_code: string;
+  item_text: string;
+  unit_labels_json: string[];
+  temp_values_json: Record<string, string>;
+  checked: boolean;
+};
+
+type TempLogRow = {
+  id: number;
+  report_date: string;
+  section: string;
+  staff_name: string;
+  status: string;
+  temp_items: TempLogItem[];
+};
+
 type ComplianceRow = {
   id: number;
   report_date: string;
@@ -756,6 +774,10 @@ function ComplianceView() {
   const [reportDetail, setReportDetail] = useState<(ReportSummary & { entries: ReportEntry[] }) | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  // Temperature log
+  const [tempLog, setTempLog] = useState<TempLogRow[]>([]);
+  const [tempLogLoading, setTempLogLoading] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -767,6 +789,21 @@ function ComplianceView() {
       .then((d) => { if (!cancelled) setData(Array.isArray(d) ? d : []); })
       .catch(() => { if (!cancelled) setData([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [branch, year, month]);
+
+  // Fetch temperature log alongside compliance data
+  useEffect(() => {
+    let cancelled = false;
+    setTempLogLoading(true);
+    const auth = getAuth();
+    fetch(`${API_BASE}/api/travel-path/temp-log?branch=${branch}&year=${year}&month=${month}`, {
+      headers: getAuthHeaders(auth),
+    })
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setTempLog(Array.isArray(d) ? d : []); })
+      .catch(() => { if (!cancelled) setTempLog([]); })
+      .finally(() => { if (!cancelled) setTempLogLoading(false); });
     return () => { cancelled = true; };
   }, [branch, year, month]);
 
@@ -960,6 +997,125 @@ function ComplianceView() {
           </div>
         </div>
       )}
+
+      {/* Temperature Log — grouped by date × section */}
+      {(() => {
+        if (tempLogLoading) return (
+          <div className={`${GLASS_CARD} p-5 text-sm text-zinc-500`}>Loading temperature log…</div>
+        );
+        if (!tempLog.length) return null;
+
+        // Group by date
+        const byDate: Record<string, Record<string, TempLogRow>> = {};
+        tempLog.forEach((row) => {
+          if (!byDate[row.report_date]) byDate[row.report_date] = {};
+          byDate[row.report_date][row.section] = row;
+        });
+        const sortedDates = Object.keys(byDate).sort();
+
+        const sectionColors: Record<string, string> = {
+          OPENING:   "text-amber-300",
+          MID_SHIFT: "text-sky-300",
+          CLOSING:   "text-violet-300",
+        };
+        const sectionBg: Record<string, string> = {
+          OPENING:   "bg-amber-500/10 border-amber-500/20",
+          MID_SHIFT: "bg-sky-500/10 border-sky-500/20",
+          CLOSING:   "bg-violet-500/10 border-violet-500/20",
+        };
+
+        return (
+          <div className={`${GLASS_CARD} p-5 space-y-4`}>
+            <h3 className={T_SECTION}>🌡 Temperature Log — {monthNames[month - 1]} {year} — {BRANCH_LABELS[branch]}</h3>
+
+            {sortedDates.map((date) => {
+              const dayRows = byDate[date];
+              const d = new Date(date + "T00:00:00");
+              const dayNum = d.getUTCDate();
+              const hasDanger = SECTIONS.some((sec) => {
+                const row = dayRows[sec];
+                if (!row) return false;
+                return row.temp_items.some((item) =>
+                  item.unit_labels_json.some((unit) => {
+                    const val = item.temp_values_json[unit] ?? "";
+                    return getTempStatus(unit.toLowerCase(), String(val)) === "danger";
+                  })
+                );
+              });
+              return (
+                <div key={date} className="rounded-xl border border-white/10 overflow-hidden">
+                  {/* Date header */}
+                  <div className={`flex items-center gap-2 px-4 py-2 bg-white/5 border-b border-white/10`}>
+                    <span className="text-sm font-bold text-white">
+                      {String(dayNum).padStart(2, "0")} {monthNames[month - 1]}
+                    </span>
+                    {hasDanger && (
+                      <span className="rounded-full bg-red-500/20 border border-red-500/30 px-2 py-0.5 text-[10px] font-bold text-red-400">
+                        ⚠ TEMP VIOLATION
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Sections side by side (stacked on small screens) */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-white/8">
+                    {SECTIONS.map((sec) => {
+                      const row = dayRows[sec];
+                      return (
+                        <div key={sec} className="p-3 space-y-2">
+                          <p className={`text-[11px] font-bold uppercase tracking-wide ${sectionColors[sec]}`}>
+                            {SECTION_LABELS[sec as Section]}
+                            {row && (
+                              <span className={`ml-2 text-[10px] font-normal ${
+                                row.status === "SUBMITTED" ? "text-emerald-400" : "text-amber-400"
+                              }`}>
+                                {row.status === "SUBMITTED" ? "✓ Submitted" : "Draft"}
+                              </span>
+                            )}
+                          </p>
+                          {!row ? (
+                            <p className="text-xs text-zinc-600">No record</p>
+                          ) : row.temp_items.length === 0 ? (
+                            <p className="text-xs text-zinc-600">No temperature items</p>
+                          ) : (
+                            row.temp_items.map((item) => (
+                              <div key={item.item_code}
+                                className={`rounded-lg border px-2.5 py-2 text-xs ${sectionBg[sec]}`}
+                              >
+                                <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+                                  {item.unit_labels_json.map((unit) => {
+                                    const rawVal = String(item.temp_values_json[unit] ?? "");
+                                    const status  = getTempStatus(unit.toLowerCase(), rawVal);
+                                    return (
+                                      <div key={unit} className="flex items-center justify-between gap-1">
+                                        <span className="text-zinc-500 truncate">{unit}</span>
+                                        {rawVal ? (
+                                          <span className={`font-semibold ${
+                                            status === "ok"     ? "text-emerald-400" :
+                                            status === "danger" ? "text-red-400"     :
+                                            "text-zinc-400"
+                                          }`}>
+                                            {rawVal}°C{status === "danger" ? "⚠" : ""}
+                                          </span>
+                                        ) : (
+                                          <span className="text-zinc-600">—</span>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* Report detail panel */}
       {selectedReport && (
