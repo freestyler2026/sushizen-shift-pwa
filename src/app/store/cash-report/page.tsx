@@ -204,10 +204,11 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
   // SC/PWD
   const [scpwdCount, setScpwdCnt] = useState("");
   const [scpwdDisc,  setScpwdDis] = useState("");
-  const [idsUp,      setIdsUp]    = useState(false);
   const [rcpSaved,   setRcpSaved] = useState(false);
-  const [scpwdFile,  setScpwdFile]= useState<File | null>(null);
-  const [scpwdPrev,  setScpwdPrev]= useState("");
+  // SC/PWD: multiple ID photos
+  type ScpwdPhoto = { file: File; preview: string };
+  const [scpwdPhotos, setScpwdPhotos] = useState<ScpwdPhoto[]>([]);
+  const scpwdInputRef = useRef<HTMLInputElement>(null);
   // Denominations
   const [denoms, setDenoms]       = useState<Denoms>(emptyDenoms());
   // Safety Box
@@ -264,15 +265,16 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
     } catch {} finally { setUploadingQrph(false); }
   };
 
-  const uploadScpwdPhoto = async () => {
-    if (!scpwdFile) return;
-    const fd = new FormData();
-    fd.append("branch", branch);
-    fd.append("report_date", reportDate);
-    fd.append("file", scpwdFile);
-    await fetch("/api/store/cash-report/upload-scpwd-photo", {
-      method: "POST", headers: getAuthHeaders(), body: fd, cache: "no-store",
-    }).catch(() => {});
+  const uploadScpwdPhotos = async () => {
+    for (const photo of scpwdPhotos) {
+      const fd = new FormData();
+      fd.append("branch", branch);
+      fd.append("report_date", reportDate);
+      fd.append("file", photo.file);
+      await fetch("/api/store/cash-report/upload-scpwd-photo", {
+        method: "POST", headers: getAuthHeaders(), body: fd, cache: "no-store",
+      }).catch(() => {});
+    }
   };
 
   const submit = async () => {
@@ -290,7 +292,7 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
         qrph_photo_url:    qrphUrl,
         scpwd_count:       parseInt(scpwdCount) || 0,
         scpwd_total_discount: parseFloat(scpwdDisc) || 0,
-        scpwd_ids_uploaded: idsUp,
+        scpwd_ids_uploaded: scpwdPhotos.length > 0,
         scpwd_receipts_saved: rcpSaved,
         ...denoms,
         opening_balance:     openingBalance,
@@ -307,7 +309,7 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
       if (!res.ok) throw new Error(d.detail || "Failed.");
       const reportId = d.report?.id || "";
       if (qrphFile && reportId) await uploadQrphPhoto(reportId);
-      if (scpwdFile) await uploadScpwdPhoto();
+      if (scpwdPhotos.length > 0) await uploadScpwdPhotos();
       setMsg({ ok: true, text: "Closing report submitted successfully." });
     } catch (e: any) { setMsg({ ok: false, text: e.message }); }
     finally { setSubmitting(false); }
@@ -364,24 +366,53 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
       {/* Section 4: SC/PWD */}
       <div className={`${GLASS_CARD} p-4 space-y-3`}>
         <SectionHeader title="④ SC / PWD Discounts" color="text-amber-300" />
+        <p className="text-[11px] text-zinc-500 -mt-1">Enter totals from POS X / Z Report (all shifts combined)</p>
         <div className="grid grid-cols-2 gap-3">
-          <NumInput label="Number of SC/PWD Txns" value={scpwdCount} onChange={setScpwdCnt} prefix="#" placeholder="0" />
-          <NumInput label="Total Discount Amount" value={scpwdDisc} onChange={setScpwdDis} />
+          <NumInput label="Total Count (POS)" value={scpwdCount} onChange={setScpwdCnt} prefix="#" placeholder="0" />
+          <NumInput label="Total Discount (POS)" value={scpwdDisc} onChange={setScpwdDis} />
         </div>
-        <div className="flex flex-wrap gap-4">
-          <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
-            <input type="checkbox" checked={rcpSaved} onChange={(e) => setRcpSaved(e.target.checked)} className="w-4 h-4" />
-            Receipts saved
-          </label>
-          <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
-            <input type="checkbox" checked={idsUp} onChange={(e) => setIdsUp(e.target.checked)} className="w-4 h-4" />
-            IDs uploaded to Drive
-          </label>
+        <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
+          <input type="checkbox" checked={rcpSaved} onChange={(e) => setRcpSaved(e.target.checked)} className="w-4 h-4" />
+          Receipts saved (paper copies filed)
+        </label>
+
+        {/* Multiple SC/PWD ID photos */}
+        <div>
+          <p className={`${T_LABEL} mb-2`}>SC/PWD ID Photos <span className="text-zinc-500 font-normal">(add one per transaction)</span></p>
+          <input ref={scpwdInputRef} type="file" accept="image/*" className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (!f) return;
+              setScpwdPhotos((prev) => [...prev, { file: f, preview: URL.createObjectURL(f) }]);
+              if (scpwdInputRef.current) scpwdInputRef.current.value = "";
+            }} />
+
+          {/* Thumbnails grid */}
+          <div className="flex flex-wrap gap-2 mb-2">
+            {scpwdPhotos.map((p, i) => (
+              <div key={i} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={p.preview} alt={`SC/PWD ${i + 1}`}
+                  className="w-20 h-20 object-cover rounded-xl border border-white/15" />
+                <button type="button"
+                  onClick={() => setScpwdPhotos((prev) => prev.filter((_, j) => j !== i))}
+                  className="absolute -top-1.5 -right-1.5 bg-red-500 rounded-full p-0.5">
+                  <X size={10} className="text-white" />
+                </button>
+                <span className="absolute bottom-1 left-1 bg-black/60 rounded text-[9px] text-white px-1">#{i + 1}</span>
+              </div>
+            ))}
+            <button type="button" onClick={() => scpwdInputRef.current?.click()}
+              className="w-20 h-20 rounded-xl border border-dashed border-white/20 bg-white/3 flex flex-col items-center justify-center gap-1 text-zinc-500 hover:bg-white/5">
+              <Camera size={16} />
+              <span className="text-[10px]">Add</span>
+            </button>
+          </div>
+          {scpwdPhotos.length > 0 && (
+            <p className="text-xs text-emerald-400">{scpwdPhotos.length} photo{scpwdPhotos.length > 1 ? "s" : ""} ready to upload → Drive</p>
+          )}
         </div>
-        <PhotoUpload label="SC/PWD ID Photo (optional)"
-          preview={scpwdPrev}
-          onChange={(f) => { setScpwdFile(f); setScpwdPrev(URL.createObjectURL(f)); }}
-          onRemove={() => { setScpwdFile(null); setScpwdPrev(""); }} />
+
         {scpwdUrl && (
           <a href={scpwdUrl} target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-2 text-xs text-violet-400 hover:text-violet-300">
