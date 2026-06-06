@@ -777,9 +777,15 @@ export default function StoreProcurementRequestPage() {
         setCatalogCategories(DUBAI_CURATED_CATEGORIES);
         setSelectedCatalogCategory(queryCategory || DUBAI_CURATED_CATEGORIES[0]);
       } else {
-        // Ensure Manila always starts with no filter (all suppliers) regardless of auth.city initial state
-        // (prevents Dubai users from seeing "Kitchen Ingredients" filter in Manila mode)
-        setSelectedCatalogCategory(queryCategory || "");
+        // For Manila, compute the initial category from the preferred store so the
+        // correct tab is shown immediately (before the async loadCatalogStores finishes).
+        const _sv = (preferredStore || "").toLowerCase();
+        const _initCat = queryCategory
+          || (_sv === "central kitchen" || _sv === "ck" ? "CK"
+            : _sv === "warehouse"      || _sv === "wh"  ? "Warehouse"
+            : _sv && _sv !== "all"                       ? "Fresh"
+            : "");
+        setSelectedCatalogCategory(_initCat);
       }
       if ((refreshed?.staffName || "").trim() && !requestedBy.trim()) {
         setRequestedBy(String(refreshed?.staffName || "").trim());
@@ -791,6 +797,26 @@ export default function StoreProcurementRequestPage() {
     }
     void init();
   }, [auth, city, loadCatalogStores, loadMyRequests, requestedBy]);
+
+  // Auto-select the catalog category whenever the Manila store changes.
+  // This runs after storeCode is set (by URL params, dropdown, or edit-mode pre-fill)
+  // and ensures branch stores default to "Fresh" before loadItemCatalog fires.
+  const prevStoreForCatRef = useRef("");
+  useEffect(() => {
+    if (city === "dubai") return;
+    if (!storeCode || storeCode === "ALL") return;
+    if (storeCode === prevStoreForCatRef.current) return; // store unchanged – respect manual tab selection
+    prevStoreForCatRef.current = storeCode;
+    const vl = storeCode.toLowerCase();
+    if (vl === "central kitchen" || vl === "ck") {
+      setSelectedCatalogCategory("CK");
+    } else if (vl === "warehouse" || vl === "wh") {
+      setSelectedCatalogCategory("Warehouse");
+    } else {
+      // Branch store (Paranaque / Cubao / Taft / etc.)
+      setSelectedCatalogCategory("Fresh");
+    }
+  }, [storeCode, city]);
 
   useEffect(() => {
     if (!storeCode.trim()) {
