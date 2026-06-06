@@ -52,6 +52,17 @@ type ReportSummary = {
   submitted_at: string | null;
 };
 
+type ReportEntry = {
+  item_code: string;
+  item_text: string;
+  item_type: string;                        // 'CHECKBOX' | 'TEMPERATURE'
+  unit_labels_json: string[];               // ['Chiller 1', 'Freezer 1', ...]
+  sort_order: number;
+  checked: boolean;
+  note: string | null;
+  temp_values_json: Record<string, string>; // unit_label → value
+};
+
 type ComplianceRow = {
   id: number;
   report_date: string;
@@ -742,7 +753,7 @@ function ComplianceView() {
   const [data, setData] = useState<ComplianceRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedReport, setSelectedReport] = useState<number | null>(null);
-  const [reportDetail, setReportDetail] = useState<(ReportSummary & { entries: { item_code: string; checked: boolean; note: string | null }[] }) | null>(null);
+  const [reportDetail, setReportDetail] = useState<(ReportSummary & { entries: ReportEntry[] }) | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
   useEffect(() => {
@@ -997,25 +1008,112 @@ function ComplianceView() {
                 )}
               </div>
 
-              {/* Entries */}
-              {reportDetail.entries.length > 0 && (
-                <div className="space-y-1.5">
-                  <p className={T_LABEL}>Checklist Items ({reportDetail.entries.filter(e => e.checked).length}/{reportDetail.entries.length} checked)</p>
-                  <div className="divide-y divide-white/5 rounded-xl border border-white/8 overflow-hidden">
-                    {reportDetail.entries.map((e) => (
-                      <div key={e.item_code} className={`flex items-start gap-3 px-3 py-2 text-xs ${e.checked ? "bg-emerald-500/5" : ""}`}>
-                        <span className={e.checked ? "text-emerald-400" : "text-zinc-600"}>
-                          {e.checked ? "✓" : "○"}
+              {/* Entries — all master items, with check status + temps */}
+              {reportDetail.entries.length > 0 && (() => {
+                const checkedCount  = reportDetail.entries.filter(e => e.checked).length;
+                const totalCount    = reportDetail.entries.length;
+                const missedEntries = reportDetail.entries.filter(e => !e.checked);
+                return (
+                  <div className="space-y-3">
+                    {/* Summary bar */}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <p className={T_LABEL}>
+                        Checklist Items&nbsp;
+                        <span className={checkedCount === totalCount ? "text-emerald-400" : "text-amber-400"}>
+                          {checkedCount}/{totalCount} checked
                         </span>
-                        <span className={e.checked ? "text-zinc-300" : "text-zinc-500"}>
-                          {e.item_code}
-                          {e.note && <span className="ml-2 text-zinc-600 italic">— {e.note}</span>}
+                      </p>
+                      {missedEntries.length > 0 && (
+                        <span className="rounded-full bg-red-500/15 border border-red-500/30 px-2 py-0.5 text-[11px] font-semibold text-red-400">
+                          {missedEntries.length} unchecked
                         </span>
+                      )}
+                    </div>
+
+                    {/* Unchecked items — highlighted at top */}
+                    {missedEntries.length > 0 && (
+                      <div className="rounded-xl border border-red-500/25 bg-red-500/5 overflow-hidden">
+                        <p className="px-3 py-2 text-[11px] font-semibold text-red-400 border-b border-red-500/20">
+                          ✗ Not Completed ({missedEntries.length})
+                        </p>
+                        <div className="divide-y divide-red-500/10">
+                          {missedEntries.map((e) => (
+                            <div key={e.item_code} className="px-3 py-2 text-xs text-red-300/80">
+                              {e.item_text || e.item_code}
+                              {e.note && <span className="ml-2 text-red-400/50 italic">— {e.note}</span>}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    ))}
+                    )}
+
+                    {/* All items list */}
+                    <div className="divide-y divide-white/5 rounded-xl border border-white/8 overflow-hidden">
+                      {reportDetail.entries.map((e) => {
+                        const isTemp = e.item_type === "TEMPERATURE";
+                        const temps  = e.temp_values_json ?? {};
+                        const hasTemps = isTemp && Object.values(temps).some(v => v !== "" && v != null);
+                        return (
+                          <div key={e.item_code}
+                            className={`px-3 py-2.5 text-xs ${
+                              e.checked
+                                ? isTemp && hasTemps ? "bg-blue-500/5" : "bg-emerald-500/5"
+                                : "bg-red-500/5"
+                            }`}
+                          >
+                            {/* Item header row */}
+                            <div className="flex items-start gap-2">
+                              <span className={`mt-0.5 shrink-0 ${e.checked ? "text-emerald-400" : "text-red-400"}`}>
+                                {e.checked ? "✓" : "✗"}
+                              </span>
+                              <div className="flex-1 min-w-0">
+                                <span className={e.checked ? "text-zinc-200" : "text-zinc-400"}>
+                                  {e.item_text || e.item_code}
+                                </span>
+                                {isTemp && (
+                                  <span className="ml-1.5 inline-flex items-center rounded bg-violet-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-violet-400">
+                                    🌡 TEMP
+                                  </span>
+                                )}
+                                {e.note && (
+                                  <span className="ml-2 text-zinc-500 italic">— {e.note}</span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Temperature values grid */}
+                            {isTemp && hasTemps && (
+                              <div className="mt-2 ml-5 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
+                                {(e.unit_labels_json ?? []).map((unit) => {
+                                  const raw    = String(temps[unit] ?? "");
+                                  const status = getTempStatus(unit.toLowerCase(), raw);
+                                  return (
+                                    <div key={unit} className="flex items-center gap-1.5">
+                                      <span className="text-zinc-500 truncate max-w-[70px]">{unit}:</span>
+                                      {raw ? (
+                                        <span className={
+                                          status === "ok"     ? "font-semibold text-emerald-400" :
+                                          status === "danger" ? "font-semibold text-red-400" :
+                                          "text-zinc-500"
+                                        }>
+                                          {raw}°C
+                                          {status === "danger" && <span className="ml-0.5 text-red-400">⚠</span>}
+                                        </span>
+                                      ) : (
+                                        <span className="text-zinc-600">—</span>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           ) : (
             <p className="text-sm text-zinc-500">No detail available.</p>
