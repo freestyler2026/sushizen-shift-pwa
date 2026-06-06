@@ -49,7 +49,6 @@ import {
   Thermometer,
   X,
 } from "lucide-react";
-import LogoutButton from "@/components/LogoutButton";
 import {
   canAccessAbsencesAdmin,
   canAccessAdminDashboard,
@@ -172,68 +171,52 @@ function isActive(pathname: string, item: NavItem) {
   return pathname === item.href;
 }
 
-function NavBtn({
-  href,
-  label,
-  active,
-  badge = 0,
-  badgeCritical = false,
-  badgeWarning = false,
-  badgeSuccess = false,
-  badgeYellow = false,
-  badgePink = false,
-}: {
-  href: string;
-  label: string;
-  active: boolean;
-  badge?: number;
-  badgeCritical?: boolean;
-  badgeWarning?: boolean;
-  badgeSuccess?: boolean;
-  badgeYellow?: boolean;
-  badgePink?: boolean;
-}) {
-  const shown = Number(badge || 0);
-  const badgeText = shown > 99 ? "99+" : String(shown);
-  const showDotOnly = shown <= 0 && (badgeYellow || badgePink);
-  const shouldShowBadge = shown > 0 || showDotOnly;
+
+function SidebarItem({ item, active }: { item: NavItem; active: boolean }) {
+  const badge = Number(item.badgeCount || 0);
+  const showDot = badge <= 0 && (item.badgeYellow || item.badgePink || item.badgeWarning);
   return (
     <Link
-      href={href}
+      href={item.href}
       className={[
-        "group text-sm px-3 h-10 flex items-center whitespace-nowrap border-b-2 transition-colors duration-150",
+        "mx-2 flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
         active
-          ? "border-violet-400 text-white font-medium"
-          : "border-transparent text-neutral-400 hover:text-white",
+          ? "bg-violet-600/20 text-white font-medium"
+          : "text-neutral-400 hover:bg-white/6 hover:text-white",
       ].join(" ")}
     >
-      <span className="flex items-center gap-1.5">
-        {label}
-      </span>
-      {shouldShowBadge ? (
+      <item.icon className="h-4 w-4 shrink-0" />
+      <span className="flex-1 truncate">{item.label}</span>
+      {badge > 0 && (
         <span
           className={[
-            showDotOnly
-              ? "ml-2 inline-flex h-2.5 w-2.5 rounded-full transition-colors duration-150"
-              : "ml-2 inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none transition-colors duration-150",
-            badgeCritical
+            "inline-flex min-w-[18px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none",
+            item.badgeCritical
               ? "bg-rose-500/20 text-rose-200"
-              : badgeWarning
-                ? "bg-orange-500 text-white"
-                : badgeSuccess
-                  ? "bg-emerald-500 text-white"
-                  : badgeYellow
-                    ? "bg-amber-500 text-white"
-                    : badgePink
-                      ? "bg-pink-500 text-white"
+              : item.badgeWarning
+              ? "bg-orange-500 text-white"
+              : item.badgeSuccess
+              ? "bg-emerald-500 text-white"
+              : item.badgeYellow
+              ? "bg-amber-500 text-white"
+              : item.badgePink
+              ? "bg-pink-500 text-white"
               : active
-                ? "bg-violet-500/20 text-violet-200"
-                : "bg-white/8 text-neutral-300 group-hover:bg-white/12 group-hover:text-white",
+              ? "bg-violet-500/20 text-violet-200"
+              : "bg-white/8 text-neutral-300",
           ].join(" ")}
         >
-          {showDotOnly ? null : badgeText}
+          {badge > 99 ? "99+" : String(badge)}
         </span>
-      ) : null}
+      )}
+      {showDot && (
+        <span
+          className={[
+            "h-2 w-2 rounded-full",
+            item.badgeYellow ? "bg-amber-500" : item.badgePink ? "bg-pink-500" : "bg-orange-500",
+          ].join(" ")}
+        />
+      )}
     </Link>
   );
 }
@@ -673,8 +656,8 @@ export default function NavBar() {
 
   return (
     <>
-      {/* ── Top header: logo + user + logout ── */}
-      <div className="flex h-11 items-center justify-between gap-2">
+      {/* ── Top header: logo + user + logout (mobile only — desktop uses sidebar) ── */}
+      <div className="flex h-11 items-center justify-between gap-2 md:hidden">
         <Link href="/my-shift" className="flex min-w-0 items-center gap-2">
           <div className="shrink-0 rounded bg-violet-600 px-1.5 py-0.5 text-xs font-bold text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
             ZEN
@@ -703,36 +686,69 @@ export default function NavBar() {
         </div>
       </div>
 
-      <div className="border-b border-white/10" />
-
-      {/* ── Desktop tab bar: hidden on mobile ── */}
-      <div className="hidden md:flex h-10 items-center">
-        <div className="flex min-w-0 flex-1 items-center overflow-x-auto [&::-webkit-scrollbar]:hidden">
-          <div className="flex h-10 min-w-max items-center gap-0 pr-2">
-            {navItems.map((item) => (
-              <NavBtn
-                key={item.href}
-                href={item.href}
-                label={item.label}
-                active={isActive(pathname, item)}
-                badge={item.badgeCount}
-                badgeCritical={item.badgeCritical}
-                badgeWarning={item.badgeWarning}
-                badgeSuccess={item.badgeSuccess}
-                badgeYellow={item.badgeYellow}
-                badgePink={item.badgePink}
-              />
-            ))}
-          </div>
-        </div>
-        <div className="flex items-center border-l border-white/10 pl-3">
-          <LogoutButton className="rounded px-2 py-1 text-xs text-neutral-400 transition hover:bg-white/10 hover:text-white" />
-        </div>
-      </div>
+      <div className="border-b border-white/10 md:hidden" />
 
       {/* ── Mobile bottom nav + overlay: portal to body to escape backdrop-filter containing block ── */}
       {mounted && createPortal(
         <>
+        {/* ── Desktop sidebar: hidden on mobile ── */}
+        <nav className="fixed left-0 top-0 z-[60] hidden h-screen w-60 flex-col border-r border-white/10 bg-[#0d1117] md:flex">
+          {/* Logo + brand */}
+          <Link
+            href="/my-shift"
+            className="flex h-14 shrink-0 items-center gap-2 border-b border-white/8 px-4 transition-colors hover:bg-white/4"
+          >
+            <div className="shrink-0 rounded bg-violet-600 px-1.5 py-0.5 text-xs font-bold text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)]">
+              ZEN
+            </div>
+            <p className="truncate text-[13px] font-semibold text-white">Sushi ZEN Workforce OS</p>
+          </Link>
+
+          {/* User info */}
+          <div className="flex shrink-0 items-center gap-2.5 border-b border-white/8 px-4 py-3">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-700 text-xs font-medium text-white">
+              {userInitials}
+            </div>
+            <span className="flex-1 truncate text-xs text-neutral-300">{displayName || "Staff portal"}</span>
+          </div>
+
+          {/* Scrollable nav items */}
+          <div className="flex-1 overflow-y-auto py-2 [&::-webkit-scrollbar]:hidden">
+            {staffItems.length > 0 && (
+              <div className="mb-1">
+                <p className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-neutral-600">
+                  Staff
+                </p>
+                {staffItems.map((item) => (
+                  <SidebarItem key={item.href} item={item} active={isActive(pathname, item)} />
+                ))}
+              </div>
+            )}
+            {adminItems.length > 0 && (
+              <div className="mt-2">
+                <p className="px-4 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-neutral-600">
+                  Admin
+                </p>
+                {adminItems.map((item) => (
+                  <SidebarItem key={item.href} item={item} active={isActive(pathname, item)} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Logout */}
+          <div className="shrink-0 border-t border-white/8 px-2 py-2">
+            <button
+              onClick={doLogout}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-neutral-400 transition-colors hover:bg-white/8 hover:text-white"
+            >
+              <LogOut className="h-4 w-4 shrink-0" />
+              <span>Logout</span>
+            </button>
+          </div>
+        </nav>
+
+        {/* ── Mobile bottom nav ── */}
         <nav
           className="fixed bottom-0 left-0 right-0 z-[70] border-t border-white/10 bg-[#0d1117] md:hidden"
           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
