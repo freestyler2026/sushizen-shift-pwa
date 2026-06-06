@@ -494,8 +494,8 @@ export default function StoreProcurementRequestPage() {
           } else if (vl === "warehouse" || vl === "wh") {
             setSelectedCatalogCategory("Warehouse");
           } else if (vl && vl !== "all") {
-            // Branch store (Paranaque/Cubao/Taft or any other): default to Fresh
-            setSelectedCatalogCategory("Fresh");
+            // Branch store (Paranaque/Cubao/Taft or any other): default to CK
+            setSelectedCatalogCategory("CK");
           }
         };
 
@@ -524,7 +524,7 @@ export default function StoreProcurementRequestPage() {
           const vl2 = normalised2.toLowerCase();
           if (vl2 === "central kitchen" || vl2 === "ck") setSelectedCatalogCategory("CK");
           else if (vl2 === "warehouse" || vl2 === "wh") setSelectedCatalogCategory("Warehouse");
-          else if (vl2 && vl2 !== "all") setSelectedCatalogCategory("Fresh");
+          else if (vl2 && vl2 !== "all") setSelectedCatalogCategory("CK");
         }
       }
     },
@@ -783,7 +783,7 @@ export default function StoreProcurementRequestPage() {
         const _initCat = queryCategory
           || (_sv === "central kitchen" || _sv === "ck" ? "CK"
             : _sv === "warehouse"      || _sv === "wh"  ? "Warehouse"
-            : _sv && _sv !== "all"                       ? "Fresh"
+            : _sv && _sv !== "all"                       ? "CK"
             : "");
         setSelectedCatalogCategory(_initCat);
       }
@@ -799,8 +799,7 @@ export default function StoreProcurementRequestPage() {
   }, [auth, city, loadCatalogStores, loadMyRequests, requestedBy]);
 
   // Auto-select the catalog category whenever the Manila store changes.
-  // This runs after storeCode is set (by URL params, dropdown, or edit-mode pre-fill)
-  // and ensures branch stores default to "Fresh" before loadItemCatalog fires.
+  // Branch stores (PAR/CUB/TAFT) default to "CK" — Fresh tab removed.
   const prevStoreForCatRef = useRef("");
   useEffect(() => {
     if (city === "dubai") return;
@@ -813,8 +812,8 @@ export default function StoreProcurementRequestPage() {
     } else if (vl === "warehouse" || vl === "wh") {
       setSelectedCatalogCategory("Warehouse");
     } else {
-      // Branch store (Paranaque / Cubao / Taft / etc.)
-      setSelectedCatalogCategory("Fresh");
+      // Branch store (Paranaque / Cubao / Taft) — default to CK
+      setSelectedCatalogCategory("CK");
     }
   }, [storeCode, city]);
 
@@ -1076,8 +1075,8 @@ export default function StoreProcurementRequestPage() {
               if (vl === "central kitchen") setSelectedCatalogCategory("CK");
               else if (vl === "warehouse") setSelectedCatalogCategory("Warehouse");
               else if (["paranaque", "cubao", "taft", "par", "cub"].includes(vl)) {
-                // Branch stores default to Fresh tab
-                setSelectedCatalogCategory("Fresh");
+                // Branch stores default to CK tab (Fresh tab removed)
+                setSelectedCatalogCategory("CK");
               }
             }
           }}
@@ -1196,19 +1195,15 @@ export default function StoreProcurementRequestPage() {
             <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Order From</div>
             <div className="flex flex-wrap gap-2">
               {(() => {
-                // Branch stores (PAR/CUB/TAFT): Fresh | CK | Warehouse
-                // CK / WH / others:             CK | Warehouse (same as before)
-                type CatKey = "Fresh" | "Warehouse" | "CK";
-                const cats: CatKey[] = isManilaBranchStore
-                  ? ["Fresh", "CK", "Warehouse"]
-                  : ["CK", "Warehouse"];
+                // All Manila branches: CK | Warehouse
+                // Fresh tab removed — Fresh items use the regular PO system.
+                type CatKey = "Warehouse" | "CK";
+                const cats: CatKey[] = ["CK", "Warehouse"];
                 const colors: Record<CatKey, { on: string; off: string; dot: string }> = {
-                  "Fresh":     { on: "bg-sky-500/25 text-sky-100 border-sky-500/50 shadow-sky-500/15",         off: "bg-sky-950/30 text-sky-400 border-sky-800/40 hover:bg-sky-900/40 hover:text-sky-200",         dot: "bg-sky-400" },
                   "Warehouse": { on: "bg-amber-500/25 text-amber-100 border-amber-500/50 shadow-amber-500/15", off: "bg-amber-950/30 text-amber-400 border-amber-800/40 hover:bg-amber-900/40 hover:text-amber-200", dot: "bg-amber-400" },
                   "CK":        { on: "bg-emerald-500/25 text-emerald-100 border-emerald-500/50 shadow-emerald-500/15", off: "bg-emerald-950/30 text-emerald-400 border-emerald-800/40 hover:bg-emerald-900/40 hover:text-emerald-200", dot: "bg-emerald-400" },
                 };
                 const labels: Record<CatKey, string> = {
-                  "Fresh":     "🥬 Fresh",
                   "CK":        "Central Kitchen",
                   "Warehouse": "Warehouse",
                 };
