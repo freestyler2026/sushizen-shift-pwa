@@ -991,10 +991,10 @@ export default function StoreProcurementReceivingPage() {
         {rows.length > 0 ? (
           <div id="receiving-records" className="space-y-3">
             <div className="px-1 text-sm font-semibold">Receiving Records</div>
-            {rows.filter((row) => row.id !== lastCreatedId).map((row) => {
+            {rows.map((row) => {
               const isConfirmed = row.status === "CONFIRMED";
               const isDraft = row.status === "DRAFT";
-              const isNew = false;
+              const isNew = row.id === lastCreatedId;
               return (
                 <div
                   key={row.id}
