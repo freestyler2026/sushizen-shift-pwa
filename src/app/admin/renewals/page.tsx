@@ -478,6 +478,7 @@ export default function RenewalsAdminPage() {
   const [branchFilter, setBranchFilter] = useState("");
   const [showAllStaff, setShowAllStaff] = useState(true);
   const [alertStaffFilter, setAlertStaffFilter] = useState<StaffStatusFilter>("all");
+  const [alertLevelFilter, setAlertLevelFilter] = useState<"" | "EXPIRED" | "CRITICAL" | "WARNING">();
   const [addStaffForm, setAddStaffForm] = useState<StaffFormState>(emptyStaffForm());
   const [addDocForms, setAddDocForms] = useState<DocumentFormState>(emptyDocumentForm());
   const [staffMasterNames, setStaffMasterNames] = useState<string[]>([]);
@@ -572,10 +573,20 @@ export default function RenewalsAdminPage() {
 
   const alertGroups = useMemo(() => groupedAlerts(alerts), [alerts]);
   const visibleAlertGroups = useMemo(() => {
-    if (alertStaffFilter === "all") return alertGroups;
-    const target = alertStaffFilter === "active" ? "Active" : "Resigned";
-    return alertGroups.filter((group) => (group.active_status === "Resigned" ? "Resigned" : "Active") === target);
-  }, [alertGroups, alertStaffFilter]);
+    let groups = alertGroups;
+    // Filter by staff status
+    if (alertStaffFilter !== "all") {
+      const target = alertStaffFilter === "active" ? "Active" : "Resigned";
+      groups = groups.filter((group) => (group.active_status === "Resigned" ? "Resigned" : "Active") === target);
+    }
+    // Filter by alert level (when a chip is selected)
+    if (alertLevelFilter) {
+      groups = groups
+        .map((group) => ({ ...group, items: group.items.filter((item) => item.alert_level === alertLevelFilter) }))
+        .filter((group) => group.items.length > 0);
+    }
+    return groups;
+  }, [alertGroups, alertStaffFilter, alertLevelFilter]);
 
   const saveDocuments = async (empId: string, docForms: DocumentFormState) => {
     await Promise.all(
@@ -736,15 +747,51 @@ export default function RenewalsAdminPage() {
         {tab === "alerts" ? (
           <div className="space-y-4">
             <div className="flex flex-wrap gap-3">
-              <div className="rounded-full border border-red-500 bg-red-900/50 px-3 py-1 text-sm font-semibold text-red-200">
+              <button
+                type="button"
+                onClick={() => setAlertLevelFilter((v) => (v === "EXPIRED" ? "" : "EXPIRED"))}
+                className={[
+                  "rounded-full border px-3 py-1 text-sm font-semibold transition-all",
+                  alertLevelFilter === "EXPIRED"
+                    ? "border-red-400 bg-red-600/70 text-white shadow-[0_0_0_2px_rgba(239,68,68,0.35)]"
+                    : "border-red-500 bg-red-900/50 text-red-200 hover:bg-red-800/60",
+                ].join(" ")}
+              >
                 Expired: {summary.expired}
-              </div>
-              <div className="rounded-full border border-orange-500 bg-orange-900/50 px-3 py-1 text-sm font-semibold text-orange-200">
+              </button>
+              <button
+                type="button"
+                onClick={() => setAlertLevelFilter((v) => (v === "CRITICAL" ? "" : "CRITICAL"))}
+                className={[
+                  "rounded-full border px-3 py-1 text-sm font-semibold transition-all",
+                  alertLevelFilter === "CRITICAL"
+                    ? "border-orange-400 bg-orange-600/70 text-white shadow-[0_0_0_2px_rgba(249,115,22,0.35)]"
+                    : "border-orange-500 bg-orange-900/50 text-orange-200 hover:bg-orange-800/60",
+                ].join(" ")}
+              >
                 Critical ≤14d: {summary.critical}
-              </div>
-              <div className="rounded-full border border-amber-500 bg-amber-900/50 px-3 py-1 text-sm font-semibold text-amber-200">
+              </button>
+              <button
+                type="button"
+                onClick={() => setAlertLevelFilter((v) => (v === "WARNING" ? "" : "WARNING"))}
+                className={[
+                  "rounded-full border px-3 py-1 text-sm font-semibold transition-all",
+                  alertLevelFilter === "WARNING"
+                    ? "border-amber-400 bg-amber-600/70 text-white shadow-[0_0_0_2px_rgba(245,158,11,0.35)]"
+                    : "border-amber-500 bg-amber-900/50 text-amber-200 hover:bg-amber-800/60",
+                ].join(" ")}
+              >
                 Warning ≤42d: {summary.warning}
-              </div>
+              </button>
+              {alertLevelFilter && (
+                <button
+                  type="button"
+                  onClick={() => setAlertLevelFilter("")}
+                  className="rounded-full border border-white/15 bg-white/8 px-3 py-1 text-sm text-neutral-400 transition hover:bg-white/15 hover:text-white"
+                >
+                  ✕ Clear filter
+                </button>
+              )}
             </div>
             <div className="inline-flex rounded-xl border border-neutral-800 bg-neutral-950 p-1">
               <button
