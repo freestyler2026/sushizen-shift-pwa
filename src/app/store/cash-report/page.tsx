@@ -65,6 +65,63 @@ function DiscrepancyBadge({ diff }: { diff: number | null }) {
   );
 }
 
+/** Large prominent balance comparison card shown after cash count. */
+function BalanceCheckCard({
+  label,
+  subLabel,
+  expected,
+  actual,
+  diff,
+}: {
+  label: string;
+  subLabel?: string;
+  expected: number;
+  actual: number;
+  diff: number;
+}) {
+  const isMatch   = diff === 0;
+  const isShort   = diff < 0;  // cashier is short (less than expected)
+  const isOver    = diff > 0;  // cashier has more than expected
+  const diffColor = isMatch ? "text-emerald-400" : "text-red-400";
+  const diffBg    = isMatch
+    ? "border-emerald-500/30 bg-emerald-500/8"
+    : "border-red-500/40 bg-red-500/8";
+  return (
+    <div className={`rounded-2xl border p-4 space-y-3 ${diffBg}`}>
+      <div className="flex items-center gap-2">
+        {isMatch
+          ? <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+          : <AlertTriangle size={16} className="text-red-400 shrink-0" />}
+        <div>
+          <p className={`text-xs font-bold uppercase tracking-wide ${isMatch ? "text-emerald-300" : "text-red-300"}`}>{label}</p>
+          {subLabel && <p className="text-[11px] text-zinc-500">{subLabel}</p>}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-sm">
+        <div className="rounded-xl bg-white/5 border border-white/8 px-3 py-2">
+          <p className="text-[11px] text-zinc-500 mb-0.5">Expected</p>
+          <p className="font-bold text-white">{fmtPHP(expected)}</p>
+        </div>
+        <div className="rounded-xl bg-white/5 border border-white/8 px-3 py-2">
+          <p className="text-[11px] text-zinc-500 mb-0.5">Counted</p>
+          <p className="font-bold text-white">{fmtPHP(actual)}</p>
+        </div>
+      </div>
+      <div className="flex items-center justify-between rounded-xl bg-white/5 border border-white/8 px-4 py-3">
+        <p className="text-xs font-semibold text-zinc-400">Difference</p>
+        <p className={`text-2xl font-black ${diffColor}`}>
+          {isMatch ? "±₱0.00" : `${isOver ? "+" : ""}${fmtPHP(diff)}`}
+        </p>
+      </div>
+      {!isMatch && (
+        <p className="text-xs text-zinc-500 text-center">
+          {isShort ? "⚠️ Drawer is SHORT — please recount and explain below." : "⚠️ Drawer has OVERAGE — please recount and explain below."}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function NumInput({ label, value, onChange, prefix = "₱", placeholder = "0.00" }: {
   label: string; value: string; onChange: (v: string) => void;
   prefix?: string; placeholder?: string;
@@ -223,7 +280,7 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
   const [uploadingQrph, setUploadingQrph] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   // UI
-  const [showDenoms, setShowDenoms] = useState(false);
+  const [showDenoms, setShowDenoms] = useState(true);
   const [reportDate, setReportDate] = useState(today);
 
   useEffect(() => {
@@ -429,18 +486,14 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
           {showDenoms ? <ChevronUp size={16} className="text-zinc-400" /> : <ChevronDown size={16} className="text-zinc-400" />}
         </button>
         {showDenoms && <DenomGrid denoms={denoms} onChange={setDenoms} />}
-        {!showDenoms && (
-          <div className="text-sm text-zinc-400">Total: <span className="text-white font-bold">{fmtPHP(cashTotal)}</span> (tap to expand)</div>
-        )}
-        {expectedClosing != null && (
-          <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 space-y-1 text-sm">
-            <div className="flex justify-between"><span className="text-zinc-400">Expected Closing</span><span className="text-white font-bold">{fmtPHP(expectedClosing)}</span></div>
-            <div className="flex justify-between"><span className="text-zinc-400">Actual Count</span><span className="text-white font-bold">{fmtPHP(cashTotal)}</span></div>
-            <div className="flex justify-between pt-1 border-t border-white/10">
-              <span className="text-zinc-400">Discrepancy</span>
-              <DiscrepancyBadge diff={cashDiff} />
-            </div>
-          </div>
+        {expectedClosing != null && cashDiff != null && (
+          <BalanceCheckCard
+            label="Closing Balance Check"
+            subLabel={`Opening ₱${openingBalance?.toFixed(2)} + Cash Sales ₱${cashSalesNum.toFixed(2)} − Safety Box ₱${sbDep.toFixed(2)}`}
+            expected={expectedClosing}
+            actual={cashTotal}
+            diff={cashDiff}
+          />
         )}
       </div>
 
@@ -547,11 +600,8 @@ function OpeningForm({ branch, today }: { branch: string; today: string }) {
       </div>
 
       {expectedOpening != null && (
-        <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 px-4 py-3 text-sm">
-          <p className="text-sky-300 font-semibold mb-1">Expected Opening Balance</p>
-          <p className="text-zinc-300">
-            Previous Closing: {fmtPHP(prevClosing)} − Safety Box Deposit: {fmtPHP(prevSbDep)} = <strong className="text-white">{fmtPHP(expectedOpening)}</strong>
-          </p>
+        <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 px-3 py-2 text-xs text-sky-300">
+          Expected = Prev. Closing {fmtPHP(prevClosing)} − Safety Box {fmtPHP(prevSbDep)} = <strong className="text-white">{fmtPHP(expectedOpening)}</strong>
         </div>
       )}
 
@@ -562,17 +612,18 @@ function OpeningForm({ branch, today }: { branch: string; today: string }) {
           {showDenoms ? <ChevronUp size={16} className="text-zinc-400" /> : <ChevronDown size={16} className="text-zinc-400" />}
         </button>
         {showDenoms && <DenomGrid denoms={denoms} onChange={setDenoms} />}
-        {expectedOpening != null && (
-          <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 space-y-1 text-sm">
-            <div className="flex justify-between"><span className="text-zinc-400">Expected Balance</span><span className="text-white font-bold">{fmtPHP(expectedOpening)}</span></div>
-            <div className="flex justify-between"><span className="text-zinc-400">Counted</span><span className="text-white font-bold">{fmtPHP(cashTotal)}</span></div>
-            <div className="flex justify-between pt-1 border-t border-white/10">
-              <span className="text-zinc-400">Discrepancy</span>
-              <DiscrepancyBadge diff={diff} />
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Prominent balance check — always visible after counting */}
+      {expectedOpening != null && diff != null && (
+        <BalanceCheckCard
+          label="Night Shift Verification"
+          subLabel="Does your count match yesterday's closing drawer?"
+          expected={expectedOpening}
+          actual={cashTotal}
+          diff={diff}
+        />
+      )}
 
       {diff != null && diff !== 0 && (
         <div>
