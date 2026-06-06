@@ -312,6 +312,24 @@ export default function StoreProcurementReceivingPage() {
       const effectiveUnitPrice =
         computedTotals.qtyReceived > 0 ? totalValue / computedTotals.qtyReceived : 0;
 
+      // Build per-item receiving data (all items including unchecked = qty_received 0)
+      const perItemData = items.map((it) => {
+        const chk = itemChecks[it.id];
+        const received = chk?.checked ? (chk.qty_received ?? it.qty) : 0;
+        const uprice = it.unit_price || (it.line_total && it.qty ? it.line_total / it.qty : 0);
+        return {
+          request_item_id: it.id,
+          item_name: it.item_name,
+          category: it.category || "",
+          vendor_name: it.vendor_name || "",
+          unit: it.unit,
+          qty_ordered: it.qty,
+          qty_received: received,
+          unit_price: uprice,
+          notes: "",
+        };
+      });
+
       const res = await procurementJson<{ row?: ReceivingRow }>(
         "/api/admin/procurement/receiving",
         {
@@ -329,6 +347,7 @@ export default function StoreProcurementReceivingPage() {
             variance_reason: notes.trim(),
             approver_name: requestedBy.trim(),
             pin: pin.trim(),
+            items: perItemData,
           }),
         },
         requestedBy,

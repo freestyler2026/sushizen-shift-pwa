@@ -23,15 +23,19 @@ import {
 } from "@/lib/ui-tokens";
 import { RefreshCw, AlertCircle, CheckCircle, ChevronRight, ChevronDown, XCircle, Package } from "lucide-react";
 
-type RequestItem = {
+type ReceivingItem = {
   id: string;
+  receiving_id: string;
+  request_item_id: string;
   item_name: string;
   category: string;
-  qty: number;
-  unit: string;
-  unit_price: number;
-  line_total: number;
   vendor_name: string;
+  unit: string;
+  qty_ordered: number;
+  qty_received: number;
+  unit_price: number;
+  line_total_received: number;
+  notes: string;
 };
 
 type ReceivingRow = {
@@ -113,34 +117,89 @@ export default function ProcurementReceivingPage() {
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
-  // Item detail expand state
+  // Item detail expand + edit state
   const [expandedId, setExpandedId] = useState("");
-  const [itemsCache, setItemsCache] = useState<Record<string, RequestItem[]>>({});
+  const [itemsCache, setItemsCache] = useState<Record<string, ReceivingItem[]>>({});
   const [itemsLoading, setItemsLoading] = useState<Record<string, boolean>>({});
+  // Per-item edits: { [itemId]: { qty_received, unit_price } }
+  const [editValues, setEditValues] = useState<Record<string, { qty_received: number; unit_price: number }>>({});
+  const [savingItemId, setSavingItemId] = useState("");
+  // 2-step confirm guard: confirmTarget = receiving row.id being confirmed
+  const [confirmTarget, setConfirmTarget] = useState("");
 
-  const loadItems = async (requestId: string) => {
-    if (!requestId || itemsCache[requestId] || itemsLoading[requestId]) return;
-    setItemsLoading((prev) => ({ ...prev, [requestId]: true }));
+  const loadItems = async (receivingId: string) => {
+    if (!receivingId || itemsCache[receivingId] || itemsLoading[receivingId]) return;
+    setItemsLoading((prev) => ({ ...prev, [receivingId]: true }));
     try {
-      const data = await procurementJson<{ request: { items: RequestItem[] } }>(
-        `/api/admin/procurement/requests/${encodeURIComponent(requestId)}`,
+      const data = await procurementJson<{ items: ReceivingItem[] }>(
+        `/api/admin/procurement/receiving/${encodeURIComponent(receivingId)}/items`,
         { method: "GET" },
         requestedBy,
         pin,
       );
-      const items = Array.isArray(data?.request?.items) ? data.request.items : [];
-      setItemsCache((prev) => ({ ...prev, [requestId]: items }));
+      const items = Array.isArray(data?.items) ? data.items : [];
+      setItemsCache((prev) => ({ ...prev, [receivingId]: items }));
+      // Seed editValues with current values from DB
+      const seeds: Record<string, { qty_received: number; unit_price: number }> = {};
+      items.forEach((it) => {
+        seeds[it.id] = { qty_received: Number(it.qty_received), unit_price: Number(it.unit_price) };
+      });
+      setEditValues((prev) => ({ ...seeds, ...prev }));
     } catch {
-      setItemsCache((prev) => ({ ...prev, [requestId]: [] }));
+      setItemsCache((prev) => ({ ...prev, [receivingId]: [] }));
     } finally {
-      setItemsLoading((prev) => ({ ...prev, [requestId]: false }));
+      setItemsLoading((prev) => ({ ...prev, [receivingId]: false }));
     }
   };
 
   const toggleExpand = (row: ReceivingRow) => {
     const next = expandedId === row.id ? "" : row.id;
     setExpandedId(next);
-    if (next && row.request_id) void loadItems(row.request_id);
+    if (next) void loadItems(row.id);
+  };
+
+  const saveItem = async (item: ReceivingItem) => {
+    const ev = editValues[item.id];
+    if (!ev) return;
+    setSavingItemId(item.id);
+    setError("");
+    try {
+      const data = await procurementJson<{ item: ReceivingItem; receiving: ReceivingRow }>(
+        `/api/admin/procurement/receiving/${encodeURIComponent(item.receiving_id)}/items/${encodeURIComponent(item.id)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            qty_received: ev.qty_received,
+            unit_price: ev.unit_price,
+            notes: item.notes || "",
+            approver_name: requestedBy,
+            pin,
+          }),
+        },
+        requestedBy,
+        pin,
+      );
+      // Update cache with returned item
+      if (data?.item) {
+        setItemsCache((prev) => ({
+          ...prev,
+          [item.receiving_id]: (prev[item.receiving_id] ?? []).map((it) =>
+            it.id === item.id ? (data.item as ReceivingItem) : it
+          ),
+        }));
+        setEditValues((prev) => ({
+          ...prev,
+          [item.id]: { qty_received: Number(data.item.qty_received), unit_price: Number(data.item.unit_price) },
+        }));
+      }
+      // Refresh the rows list so aggregate totals update
+      await load();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setSavingItemId("");
+    }
   };
 
   const load = useCallback(async () => {
@@ -471,8 +530,9 @@ export default function ProcurementReceivingPage() {
           const isVoid = statusUpper === "VOID";
           const hasVariance = Number(row.shortage_qty || 0) > 0 || Number(row.excess_qty || 0) > 0 || row.quality_status !== "ACCEPTED";
           const isExpanded = expandedId === row.id;
-          const rowItems = itemsCache[row.request_id] ?? [];
-          const rowItemsLoading = itemsLoading[row.request_id] ?? false;
+          const rowItems = itemsCache[row.id] ?? [];
+          const rowItemsLoading = itemsLoading[row.id] ?? false;
+          const isConfirmTarget = confirmTarget === row.id;
 
           return (
             <div
@@ -542,21 +602,50 @@ export default function ProcurementReceivingPage() {
                       Case <ChevronRight className="h-3 w-3" />
                     </Link>
                   )}
-                  {/* Confirm button — only for DRAFT records */}
-                  {!isVoid && (
-                    <button
-                      type="button"
-                      onClick={() => void confirmReceiving(row.id)}
-                      disabled={busy === row.id || isConfirmed}
-                      className={
-                        isConfirmed
-                          ? `${SMALL_BUTTON} opacity-50 cursor-not-allowed flex items-center gap-1.5`
-                          : `${PRIMARY_BUTTON} flex items-center gap-1.5 px-4 py-2 text-xs`
-                      }
-                    >
+                  {/* Confirm button — 2-step guard for DRAFT records */}
+                  {!isVoid && !isConfirmed && (
+                    isConfirmTarget ? (
+                      <div className="flex flex-col items-end gap-1.5">
+                        <p className="text-xs font-medium text-amber-200 text-right">
+                          Confirm delivery of {row.receiving_no}?
+                        </p>
+                        <div className="flex gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => { setConfirmTarget(""); void confirmReceiving(row.id); }}
+                            disabled={busy === row.id}
+                            className={`${PRIMARY_BUTTON} flex items-center gap-1.5 px-3 py-1.5 text-xs`}
+                          >
+                            <CheckCircle className="h-3.5 w-3.5" />
+                            {busy === row.id ? "Confirming…" : "Yes, Confirm"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmTarget("")}
+                            disabled={busy === row.id}
+                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-zinc-400 hover:bg-white/10 transition"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmTarget(row.id)}
+                        disabled={busy === row.id}
+                        className={`${PRIMARY_BUTTON} flex items-center gap-1.5 px-4 py-2 text-xs`}
+                      >
+                        <CheckCircle className="h-3.5 w-3.5" />
+                        Confirm
+                      </button>
+                    )
+                  )}
+                  {!isVoid && isConfirmed && (
+                    <div className={`${SMALL_BUTTON} flex items-center gap-1.5 opacity-50 cursor-not-allowed`}>
                       <CheckCircle className="h-3.5 w-3.5" />
-                      {busy === row.id ? "Confirming…" : isConfirmed ? "Confirmed" : "Confirm"}
-                    </button>
+                      Confirmed
+                    </div>
                   )}
                   {/* Void button — HQ/Admin only, not already void */}
                   {isHqAdmin && !isVoid && (
@@ -573,73 +662,169 @@ export default function ProcurementReceivingPage() {
                 </div>
               </div>
 
-              {/* ── Item detail panel (expanded) ── */}
+              {/* ── Received Items panel (expanded, editable) ── */}
               {isExpanded && (
                 <div className="border-t border-white/8 bg-black/15 px-4 pb-4 pt-3">
                   <div className="mb-2 flex items-center gap-2">
                     <Package className="h-3.5 w-3.5 text-violet-400" />
-                    <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Order Items</span>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Received Items</span>
+                    {!isConfirmed && (
+                      <span className="ml-1 text-[10px] text-zinc-600">— edit qty / price before confirming</span>
+                    )}
                   </div>
+
                   {rowItemsLoading ? (
                     <div className="flex items-center gap-2 py-4 text-xs text-zinc-500">
                       <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Loading items…
                     </div>
                   ) : rowItems.length === 0 ? (
-                    <p className="py-3 text-xs text-zinc-500">No items found for this request.</p>
+                    <div className="py-3">
+                      <p className="text-xs text-zinc-500">
+                        No per-item data — this record was created before item tracking was enabled.
+                      </p>
+                      {row.case_id && (
+                        <Link
+                          href={`/admin/procurement/cases/${row.case_id}`}
+                          className="mt-1.5 inline-flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300"
+                        >
+                          View order items in Case <ChevronRight className="h-3 w-3" />
+                        </Link>
+                      )}
+                    </div>
                   ) : (
                     <div className="overflow-hidden rounded-xl border border-white/8">
                       {/* Table header */}
-                      <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-3 border-b border-white/8 bg-black/20 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+                      <div className="grid grid-cols-[1fr_80px_56px_110px_110px_56px_80px] gap-x-2 border-b border-white/8 bg-black/20 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
                         <div>Item</div>
-                        <div className="text-right w-16">Qty</div>
-                        <div className="text-right w-14">Unit</div>
-                        <div className="text-right w-20">Unit Price</div>
-                        <div className="text-right w-24">Line Total</div>
+                        <div className="text-right">Ordered</div>
+                        <div>Unit</div>
+                        <div className="text-center">Qty Received</div>
+                        <div className="text-center">Unit Price</div>
+                        <div className="text-right">Total</div>
+                        <div></div>
                       </div>
                       {/* Item rows */}
-                      {rowItems.map((item, idx) => (
-                        <div
-                          key={item.id || idx}
-                          className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-3 border-b border-white/5 px-3 py-2.5 last:border-0 hover:bg-white/3 transition-colors"
-                        >
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-medium text-white">{item.item_name}</div>
-                            {item.vendor_name && (
-                              <div className="mt-0.5 truncate text-[11px] text-zinc-500">{item.vendor_name}</div>
-                            )}
-                            {item.category && (
-                              <div className="mt-0.5 text-[10px] text-zinc-600 uppercase tracking-wide">{item.category}</div>
-                            )}
+                      {rowItems.map((item) => {
+                        const ev = editValues[item.id] ?? { qty_received: Number(item.qty_received), unit_price: Number(item.unit_price) };
+                        const lineTotal = ev.qty_received * ev.unit_price;
+                        const isDirty =
+                          ev.qty_received !== Number(item.qty_received) ||
+                          ev.unit_price !== Number(item.unit_price);
+                        const shortage = Number(item.qty_ordered) - ev.qty_received;
+                        const isSaving = savingItemId === item.id;
+
+                        return (
+                          <div
+                            key={item.id}
+                            className={[
+                              "grid grid-cols-[1fr_80px_56px_110px_110px_56px_80px] gap-x-2 border-b border-white/5 px-3 py-2.5 last:border-0 transition-colors",
+                              isDirty ? "bg-amber-950/20" : "hover:bg-white/2",
+                            ].join(" ")}
+                          >
+                            {/* Item info */}
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-medium text-white">{item.item_name}</div>
+                              {item.vendor_name && (
+                                <div className="mt-0.5 truncate text-[11px] text-zinc-500">{item.vendor_name}</div>
+                              )}
+                              {shortage > 0.001 && (
+                                <div className="mt-0.5 text-[10px] text-red-400">
+                                  Short {shortage.toFixed(2)} {item.unit}
+                                </div>
+                              )}
+                            </div>
+                            {/* Ordered qty */}
+                            <div className="text-right text-xs text-zinc-500 tabular-nums self-center">
+                              {Number(item.qty_ordered).toFixed(2)}
+                            </div>
+                            {/* Unit */}
+                            <div className="text-xs text-zinc-500 self-center">{item.unit || "-"}</div>
+                            {/* Qty Received — editable */}
+                            <div className="self-center">
+                              {isConfirmed ? (
+                                <span className="block text-center text-sm text-zinc-200 tabular-nums">
+                                  {Number(item.qty_received).toFixed(2)}
+                                </span>
+                              ) : (
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={ev.qty_received === 0 && !isDirty ? "" : ev.qty_received}
+                                  placeholder="0"
+                                  onFocus={(e) => e.target.select()}
+                                  onChange={(e) =>
+                                    setEditValues((prev) => ({
+                                      ...prev,
+                                      [item.id]: { ...ev, qty_received: Number(e.target.value || 0) },
+                                    }))
+                                  }
+                                  className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-center text-sm text-white outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 tabular-nums"
+                                />
+                              )}
+                            </div>
+                            {/* Unit Price — editable */}
+                            <div className="self-center">
+                              {isConfirmed ? (
+                                <span className="block text-center text-sm text-zinc-200 tabular-nums">
+                                  {Number(item.unit_price).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+                                </span>
+                              ) : (
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={ev.unit_price === 0 && !isDirty ? "" : ev.unit_price}
+                                  placeholder="0.00"
+                                  onFocus={(e) => e.target.select()}
+                                  onChange={(e) =>
+                                    setEditValues((prev) => ({
+                                      ...prev,
+                                      [item.id]: { ...ev, unit_price: Number(e.target.value || 0) },
+                                    }))
+                                  }
+                                  className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1 text-center text-sm text-white outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 tabular-nums"
+                                />
+                              )}
+                            </div>
+                            {/* Line total */}
+                            <div className={[
+                              "text-right text-sm tabular-nums self-center",
+                              isDirty ? "text-amber-300 font-medium" : "text-zinc-300",
+                            ].join(" ")}>
+                              {lineTotal.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                            {/* Save button */}
+                            <div className="flex items-center justify-end self-center">
+                              {!isConfirmed && isDirty && (
+                                <button
+                                  type="button"
+                                  onClick={() => void saveItem(item)}
+                                  disabled={isSaving}
+                                  className="rounded-lg border border-violet-500/40 bg-violet-500/15 px-2 py-1 text-[11px] font-semibold text-violet-300 transition hover:bg-violet-500/25 disabled:opacity-50"
+                                >
+                                  {isSaving ? "…" : "Save"}
+                                </button>
+                              )}
+                            </div>
                           </div>
-                          <div className="w-16 text-right text-sm text-zinc-300 tabular-nums">
-                            {Number(item.qty || 0).toFixed(2)}
-                          </div>
-                          <div className="w-14 text-right text-xs text-zinc-500">
-                            {item.unit || "-"}
-                          </div>
-                          <div className="w-20 text-right text-xs text-zinc-400 tabular-nums">
-                            {Number(item.unit_price || 0) > 0
-                              ? Number(item.unit_price).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                              : "-"}
-                          </div>
-                          <div className="w-24 text-right text-sm font-medium text-zinc-200 tabular-nums">
-                            {Number(item.line_total || 0) > 0
-                              ? Number(item.line_total).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                              : "-"}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                       {/* Total row */}
-                      <div className="grid grid-cols-[1fr_auto_auto_auto_auto] gap-x-3 border-t border-white/10 bg-black/20 px-3 py-2">
+                      <div className="grid grid-cols-[1fr_80px_56px_110px_110px_56px_80px] gap-x-2 border-t border-white/10 bg-black/20 px-3 py-2">
                         <div className="text-xs font-semibold text-zinc-400">
                           {rowItems.length} item{rowItems.length !== 1 ? "s" : ""}
                         </div>
-                        <div className="w-16" />
-                        <div className="w-14" />
-                        <div className="w-20 text-right text-xs text-zinc-500">Total</div>
-                        <div className="w-24 text-right text-sm font-semibold text-white tabular-nums">
-                          {rowItems.reduce((s, it) => s + Number(it.line_total || 0), 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <div className="col-span-4 text-right text-xs text-zinc-500 self-center">Received Total</div>
+                        <div className="text-right text-sm font-semibold text-white tabular-nums self-center">
+                          {rowItems.reduce((s, it) => {
+                            const ev = editValues[it.id];
+                            const qr = ev ? ev.qty_received : Number(it.qty_received);
+                            const up = ev ? ev.unit_price : Number(it.unit_price);
+                            return s + qr * up;
+                          }, 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
+                        <div />
                       </div>
                     </div>
                   )}
