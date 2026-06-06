@@ -317,13 +317,13 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
     <div className="space-y-5">
       {/* Header */}
       <div className="grid grid-cols-2 gap-3">
-        <div>
+        <div className="min-w-0">
           <label className={`${T_LABEL} mb-1 block`}>Staff Name</label>
-          <input className={INPUT_CLASS} value={staffName} onChange={(e) => setStaffName(e.target.value)} placeholder="Your name" />
+          <input className={`${INPUT_CLASS} w-full`} value={staffName} onChange={(e) => setStaffName(e.target.value)} placeholder="Your name" />
         </div>
-        <div>
+        <div className="min-w-0 overflow-hidden">
           <label className={`${T_LABEL} mb-1 block`}>Report Date</label>
-          <input type="date" className={INPUT_CLASS} value={reportDate} onChange={(e) => setReportDate(e.target.value)} />
+          <input type="date" className={`${INPUT_CLASS} w-full max-w-full`} value={reportDate} onChange={(e) => setReportDate(e.target.value)} />
         </div>
       </div>
       {openingBalance != null && (
@@ -505,13 +505,13 @@ function OpeningForm({ branch, today }: { branch: string; today: string }) {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3">
-        <div>
+        <div className="min-w-0">
           <label className={`${T_LABEL} mb-1 block`}>Staff Name</label>
-          <input className={INPUT_CLASS} value={staffName} onChange={(e) => setStaffName(e.target.value)} placeholder="Your name" />
+          <input className={`${INPUT_CLASS} w-full`} value={staffName} onChange={(e) => setStaffName(e.target.value)} placeholder="Your name" />
         </div>
-        <div>
+        <div className="min-w-0 overflow-hidden">
           <label className={`${T_LABEL} mb-1 block`}>Report Date</label>
-          <input type="date" className={INPUT_CLASS} value={reportDate} onChange={(e) => setReportDate(e.target.value)} />
+          <input type="date" className={`${INPUT_CLASS} w-full max-w-full`} value={reportDate} onChange={(e) => setReportDate(e.target.value)} />
         </div>
       </div>
 
