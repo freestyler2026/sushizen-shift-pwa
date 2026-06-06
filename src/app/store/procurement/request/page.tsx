@@ -434,6 +434,14 @@ export default function StoreProcurementRequestPage() {
   // This map lets us normalise a saved branch code back to the name the API expects.
   const MANILA_CODE_TO_NAME = new Map(BRANCHES.manila.map((b) => [b.code, b.name]));
 
+  // Determine if the selected Manila store is a "branch store" (PAR/CUB/TAFT)
+  // vs a support facility (CK, WH, BO).  Branch stores get the 3-tab layout
+  // (Fresh | CK | Warehouse); CK/WH get the 2-tab layout (CK | Warehouse).
+  const MANILA_BRANCH_STORES = new Set(["Paranaque", "Cubao", "Taft", "PAR", "CUB", "TAFT"]);
+  const isManilaStoreView = city !== "dubai";
+  const storeCodeNormalized = storeCode ? (MANILA_CODE_TO_NAME.get(storeCode.toUpperCase() as "PAR" | "CUB" | "TAFT" | "CK" | "WH" | "BO") ?? storeCode) : "";
+  const isManilaBranchStore = isManilaStoreView && (MANILA_BRANCH_STORES.has(storeCode) || MANILA_BRANCH_STORES.has(storeCodeNormalized));
+
   const loadCatalogStores = useCallback(
     async (cityOverride?: string, storeCodePreference?: string) => {
       try {
@@ -1016,11 +1024,15 @@ export default function StoreProcurementRequestPage() {
             const v = String(e.target.value || "");
             setStoreCode(v);
             if (v && typeof window !== "undefined") localStorage.setItem("store_proc_branch", v);
-            // Auto-select matching category when a pseudo-store is chosen
+            // Auto-select matching category when a store is chosen
             if (city !== "dubai") {
               const vl = v.toLowerCase();
               if (vl === "central kitchen") setSelectedCatalogCategory("CK");
               else if (vl === "warehouse") setSelectedCatalogCategory("Warehouse");
+              else if (["paranaque", "cubao", "taft", "par", "cub"].includes(vl)) {
+                // Branch stores default to Fresh tab
+                setSelectedCatalogCategory("Fresh");
+              }
             }
           }}
           className={`${FIELD_CLASS} ${allStoresFlag ? "opacity-50 cursor-not-allowed" : ""}`}
@@ -1137,29 +1149,43 @@ export default function StoreProcurementRequestPage() {
           <div className="mt-3">
             <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Order From</div>
             <div className="flex flex-wrap gap-2">
-              {(["Warehouse", "CK"] as const).map((cat) => {
-                const active = selectedCatalogCategory === cat;
-                const colors: Record<string, { on: string; off: string; dot: string }> = {
-                  "Warehouse": { on: "bg-amber-500/25 text-amber-100 border-amber-500/50 shadow-amber-500/15",       off: "bg-amber-950/30 text-amber-400 border-amber-800/40 hover:bg-amber-900/40 hover:text-amber-200",       dot: "bg-amber-400" },
+              {(() => {
+                // Branch stores (PAR/CUB/TAFT): Fresh | CK | Warehouse
+                // CK / WH / others:             CK | Warehouse (same as before)
+                type CatKey = "Fresh" | "Warehouse" | "CK";
+                const cats: CatKey[] = isManilaBranchStore
+                  ? ["Fresh", "CK", "Warehouse"]
+                  : ["CK", "Warehouse"];
+                const colors: Record<CatKey, { on: string; off: string; dot: string }> = {
+                  "Fresh":     { on: "bg-sky-500/25 text-sky-100 border-sky-500/50 shadow-sky-500/15",         off: "bg-sky-950/30 text-sky-400 border-sky-800/40 hover:bg-sky-900/40 hover:text-sky-200",         dot: "bg-sky-400" },
+                  "Warehouse": { on: "bg-amber-500/25 text-amber-100 border-amber-500/50 shadow-amber-500/15", off: "bg-amber-950/30 text-amber-400 border-amber-800/40 hover:bg-amber-900/40 hover:text-amber-200", dot: "bg-amber-400" },
                   "CK":        { on: "bg-emerald-500/25 text-emerald-100 border-emerald-500/50 shadow-emerald-500/15", off: "bg-emerald-950/30 text-emerald-400 border-emerald-800/40 hover:bg-emerald-900/40 hover:text-emerald-200", dot: "bg-emerald-400" },
                 };
-                const c = colors[cat];
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => setSelectedCatalogCategory(active ? "" : cat)}
-                    className={[
-                      "inline-flex items-center gap-2 rounded-xl border px-5 py-3 text-sm font-bold transition-all duration-200 shadow-sm",
-                      active ? c.on + " shadow-md" : c.off,
-                    ].join(" ")}
-                  >
-                    <span className={["h-2.5 w-2.5 rounded-full shrink-0", c.dot].join(" ")} />
-                    {cat === "CK" ? "Central Kitchen" : cat}
-                    {active && <span className="ml-1 text-[10px] font-semibold opacity-70">▼ selected</span>}
-                  </button>
-                );
-              })}
+                const labels: Record<CatKey, string> = {
+                  "Fresh":     "🥬 Fresh",
+                  "CK":        "Central Kitchen",
+                  "Warehouse": "Warehouse",
+                };
+                return cats.map((cat) => {
+                  const active = selectedCatalogCategory === cat;
+                  const c = colors[cat];
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setSelectedCatalogCategory(active ? "" : cat)}
+                      className={[
+                        "inline-flex items-center gap-2 rounded-xl border px-5 py-3 text-sm font-bold transition-all duration-200 shadow-sm",
+                        active ? c.on + " shadow-md" : c.off,
+                      ].join(" ")}
+                    >
+                      <span className={["h-2.5 w-2.5 rounded-full shrink-0", c.dot].join(" ")} />
+                      {labels[cat]}
+                      {active && <span className="ml-1 text-[10px] font-semibold opacity-70">▼ selected</span>}
+                    </button>
+                  );
+                });
+              })()}
             </div>
           </div>
         ) : null}
