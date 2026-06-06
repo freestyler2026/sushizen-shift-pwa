@@ -540,6 +540,10 @@ export default function StoreProcurementRequestPage() {
         setCatalogSuppliers([]);
         return;
       }
+      // Clear immediately so stale catalog (e.g. WH/Cartimar items) is not shown
+      // while the new category's API call is in-flight.
+      // Without this, slow mobile networks show the old supplier list for several seconds.
+      setCatalogSuppliers([]);
       setCatalogBusy(true);
       try {
         let data: CatalogResponse;
