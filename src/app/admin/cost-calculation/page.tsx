@@ -3767,7 +3767,7 @@ export default function CostCalculationPage() {
           ref={gridRef}
           tabIndex={0}
           onKeyDown={handleGridKeyDown}
-          className="flex-1 overflow-auto px-6 py-4 outline-none"
+          className="flex-1 overflow-auto px-6 pb-4 pt-0 outline-none"
         >
           {isMasterSection && !showLegacyRecipeSection ? (
             <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -5530,6 +5530,7 @@ export default function CostCalculationPage() {
                   <tr
                     key={`${row.id}-${rowIndex}`}
                     data-ingredient-id={activeSheet === INGREDIENT_SHEET ? String(ingredientRow.id) : undefined}
+                    style={{ contentVisibility: "auto", containIntrinsicSize: "0 48px" }}
                     className={cx(
                       "group transition-colors",
                       rowIndex % 2 === 0 ? "bg-white/[0.02]" : "bg-transparent",
