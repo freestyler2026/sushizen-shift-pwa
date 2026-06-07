@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
-  GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, INPUT_CLASS, TEXTAREA_CLASS, SELECT_CLASS,
+  GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, INPUT_CLASS, TEXTAREA_CLASS,
   T_PAGE_TITLE, T_SECTION, T_LABEL, BADGE_ERROR, BADGE_WARNING, BADGE_SUCCESS, BADGE_INFO,
 } from "@/lib/ui-tokens";
 import { RefreshCw, AlertCircle, FileText, Calendar, CheckCircle, XCircle, Plus } from "lucide-react";
@@ -92,8 +92,9 @@ export default function NtePage() {
   }, []);
 
   const loadAll = useCallback(async () => {
-    const h = getAuthHeaders();
-    if (!h.Authorization) return;
+    const auth = getAuth();
+    if (!auth?.accessToken) return;
+    const h = getAuthHeaders(auth) as Record<string, string>;
     setLoading(true);
     setError("");
     try {
@@ -125,7 +126,7 @@ export default function NtePage() {
     setIssuing(true);
     setError("");
     setSuccessMsg("");
-    const h = getAuthHeaders();
+    const h = getAuthHeaders() as Record<string, string>;
     const staffName = getAuth()?.staffName || "";
     try {
       const res = await fetch(`${API_BASE}/api/admin/nte/issue`, {
@@ -152,7 +153,7 @@ export default function NtePage() {
   const handleResolveNte = async (nteId: string, staffName: string) => {
     if (!window.confirm(`Resolve this NTE for ${staffName}?`)) return;
     setError("");
-    const h = getAuthHeaders();
+    const h = getAuthHeaders() as Record<string, string>;
     const resolvedBy = getAuth()?.staffName || "";
     try {
       const res = await fetch(`${API_BASE}/api/admin/nte/${nteId}/resolve`, {
@@ -172,7 +173,7 @@ export default function NtePage() {
     const label = status === "COMPLETED" ? "Mark as completed?" : "Cancel this suspension?";
     if (!window.confirm(label)) return;
     setError("");
-    const h = getAuthHeaders();
+    const h = getAuthHeaders() as Record<string, string>;
     try {
       const res = await fetch(`${API_BASE}/api/admin/suspensions/${id}/status`, {
         method: "PATCH",
@@ -191,7 +192,7 @@ export default function NtePage() {
     if (!manualForm.staff_name.trim() || !manualForm.suspension_date) return;
     setCreatingManual(true);
     setError("");
-    const h = getAuthHeaders();
+    const h = getAuthHeaders() as Record<string, string>;
     const staffName = getAuth()?.staffName || "";
     try {
       const res = await fetch(`${API_BASE}/api/admin/suspensions/manual`, {
