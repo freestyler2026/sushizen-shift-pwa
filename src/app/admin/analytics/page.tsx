@@ -2512,8 +2512,12 @@ export default function AdminAnalyticsPage() {
   const [attendanceLatestCoverageError, setAttendanceLatestCoverageError] = useState("");
   const [attendanceAutoSyncStatus, setAttendanceAutoSyncStatus] = useState<AttendanceAutoSyncStatusResp | null>(null);
   const [attendanceAutoSyncStatusError, setAttendanceAutoSyncStatusError] = useState("");
-  // Dubai POS auto-sync status (Phase: retry + logging)
+  // Dubai / Manila POS auto-sync status (retry + logging)
   const [dubaiSyncStatus, setDubaiSyncStatus] = useState<{
+    today: { sync_date: string; attempt_count: number; last_status: string | null; last_success_at: string | null; last_error: string | null };
+    history: { sync_date: string; status: string; processed_count: number; error_message: string | null }[];
+  } | null>(null);
+  const [manilaSyncStatus, setManilaSyncStatus] = useState<{
     today: { sync_date: string; attempt_count: number; last_status: string | null; last_success_at: string | null; last_error: string | null };
     history: { sync_date: string; status: string; processed_count: number; error_message: string | null }[];
   } | null>(null);
@@ -3013,12 +3017,30 @@ export default function AdminAnalyticsPage() {
     if (analyticsTab !== "dubaiSales") return;
     if (!salesStepUpReady) return;
     const controller = new AbortController();
-    apiGet<{ ok: boolean; today: typeof dubaiSyncStatus extends null ? never : (typeof dubaiSyncStatus)["today"]; history: never[] }>(
+    apiGet<{ ok: boolean; today: never; history: never[] }>(
       "/api/admin/pos/dubai-sync-status?city=dubai&days=7",
     )
       .then((d) => {
         if (!controller.signal.aborted && d?.ok) {
-          setDubaiSyncStatus({ today: d.today as never, history: (d as never as { history: never[] }).history });
+          setDubaiSyncStatus({ today: d.today, history: d.history });
+        }
+      })
+      .catch(() => {/* non-critical */});
+    return () => controller.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analyticsTab, salesStepUpReady]);
+
+  // Fetch Manila sales auto-sync status when Manila Sales tab is active
+  useEffect(() => {
+    if (analyticsTab !== "manilaSales") return;
+    if (!salesStepUpReady) return;
+    const controller = new AbortController();
+    apiGet<{ ok: boolean; today: never; history: never[] }>(
+      "/api/admin/pos/dubai-sync-status?city=manila&days=7",
+    )
+      .then((d) => {
+        if (!controller.signal.aborted && d?.ok) {
+          setManilaSyncStatus({ today: d.today, history: d.history });
         }
       })
       .catch(() => {/* non-critical */});
@@ -5822,46 +5844,49 @@ export default function AdminAnalyticsPage() {
             </div>
           </div>
 
-          {/* Dubai POS auto-sync status banner — shown only on Dubai Sales tab */}
-          {analyticsTab === "dubaiSales" && dubaiSyncStatus && (
-            <div className={[
-              "mb-3 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-2.5 text-sm",
-              dubaiSyncStatus.today.last_status === "FAILED"
-                ? "border-red-700/40 bg-red-950/20"
-                : dubaiSyncStatus.today.last_status === "SUCCESS"
-                ? "border-emerald-700/30 bg-emerald-950/10"
-                : "border-white/10 bg-white/4",
-            ].join(" ")}>
-              <span className="font-semibold text-white">
-                {dubaiSyncStatus.today.last_status === "SUCCESS" ? "✅" :
-                 dubaiSyncStatus.today.last_status === "FAILED"  ? "❌" :
-                 dubaiSyncStatus.today.last_status === "RUNNING" ? "🔄" : "—"}
-                {" "}Auto-sync
-              </span>
-              {dubaiSyncStatus.today.last_success_at ? (
-                <span className="text-zinc-400 text-xs">
-                  Last success: {new Date(dubaiSyncStatus.today.last_success_at).toLocaleString("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium", timeStyle: "short" })}
+          {/* Sales auto-sync status banner — shown on Dubai or Manila Sales tab */}
+          {(() => {
+            const syncSt = analyticsTab === "dubaiSales" ? dubaiSyncStatus : analyticsTab === "manilaSales" ? manilaSyncStatus : null;
+            if (!syncSt) return null;
+            const t = syncSt.today;
+            const isFailed = t.last_status === "FAILED";
+            const isSuccess = t.last_status === "SUCCESS";
+            const isRunning = t.last_status === "RUNNING";
+            return (
+              <div className={[
+                "mb-3 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-2.5 text-sm",
+                isFailed  ? "border-red-700/40 bg-red-950/20" :
+                isSuccess ? "border-emerald-700/30 bg-emerald-950/10" :
+                "border-white/10 bg-white/4",
+              ].join(" ")}>
+                <span className="font-semibold text-white">
+                  {isSuccess ? "✅" : isFailed ? "❌" : isRunning ? "🔄" : "—"}
+                  {" "}Auto-sync
                 </span>
-              ) : (
-                <span className="text-zinc-500 text-xs">No successful sync today</span>
-              )}
-              {dubaiSyncStatus.today.attempt_count > 0 && (
-                <span className="text-zinc-500 text-xs">
-                  Attempts today: {dubaiSyncStatus.today.attempt_count}/3
-                </span>
-              )}
-              {dubaiSyncStatus.today.last_status === "FAILED" && dubaiSyncStatus.today.last_error && (
-                <span className="text-red-400 text-xs truncate max-w-xs">
-                  Error: {dubaiSyncStatus.today.last_error}
-                </span>
-              )}
-              {dubaiSyncStatus.today.last_status === "FAILED" && (
-                <span className="text-amber-300 text-xs">
-                  Auto-retry will run within 30 min
-                </span>
-              )}
-            </div>
-          )}
+                {t.last_success_at ? (
+                  <span className="text-zinc-400 text-xs">
+                    Last success:{" "}
+                    {new Date(t.last_success_at).toLocaleString("en-PH", {
+                      timeZone: "Asia/Manila", dateStyle: "medium", timeStyle: "short",
+                    })}
+                  </span>
+                ) : (
+                  <span className="text-zinc-500 text-xs">No successful sync today</span>
+                )}
+                {t.attempt_count > 0 && (
+                  <span className="text-zinc-500 text-xs">Attempts today: {t.attempt_count}/3</span>
+                )}
+                {isFailed && t.last_error && (
+                  <span className="text-red-400 text-xs truncate max-w-xs">
+                    Error: {t.last_error}
+                  </span>
+                )}
+                {isFailed && (
+                  <span className="text-amber-300 text-xs">Auto-retry will run within 30 min</span>
+                )}
+              </div>
+            );
+          })()}
 
           <div className={TAB_CONTAINER}>
             {analyticsTabs.filter((tab) => tab.visible).map((tab) => (
