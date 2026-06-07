@@ -242,7 +242,13 @@ export default function AttendancePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [mealAllowanceBanner, setMealAllowanceBanner] = useState<{ amount: number } | null>(null);
+  const [mealAllowanceBanner, setMealAllowanceBanner] = useState<{ amount: number; isBonus?: boolean } | null>(null);
+  const [probationStatus, setProbationStatus] = useState<{
+    is_probation: boolean;
+    graduated?: boolean;
+    current_cycle?: { absent_count: number; late_count: number; total_late_minutes: number; cycle_end_date?: string; termination_flagged?: boolean };
+    rolling_30d?: { absent_count: number; late_count: number; total_late_minutes: number };
+  } | null>(null);
   const [gpsPos, setGpsPos] = useState<GeolocationPosition | null>(null);
   const [gpsAcquiredAt, setGpsAcquiredAt] = useState<number | null>(null); // ms epoch
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null); // metres
@@ -483,10 +489,18 @@ export default function AttendancePage() {
         setSuccess(labels[action] ?? "Done ✓");
         if (action === "checkout") {
           setVisitPickerOpen(false);
-          // Show Meal Allowance banner if earned
-          if (verJson?.meal_allowance_awarded === true) {
+          // Show Probation bonus banner (2,000 PHP)
+          if (verJson?.probation_bonus_awarded === true) {
+            setMealAllowanceBanner({ amount: 2000, isBonus: true });
+            setTimeout(() => setMealAllowanceBanner(null), 10000);
+          } else if (verJson?.meal_allowance_awarded === true) {
+            // Show regular Meal Allowance banner
             setMealAllowanceBanner({ amount: Number(verJson.meal_allowance_amount || 50) });
             setTimeout(() => setMealAllowanceBanner(null), 8000);
+          }
+          // Update probation status
+          if (verJson?.probation && verJson.probation.is_probation) {
+            setProbationStatus(verJson.probation);
           }
         }
         await fetchToday({ silent: true });
@@ -661,16 +675,81 @@ export default function AttendancePage() {
           <span>{success}</span>
         </div>
       )}
-      {/* Meal Allowance earned banner */}
+      {/* Meal Allowance / Probation bonus banner */}
       {mealAllowanceBanner && (
-        <div className="rounded-2xl border-2 border-yellow-400/60 bg-yellow-950/40 px-5 py-4 text-center shadow-lg animate-pulse">
-          <div className="text-2xl mb-1">🎉</div>
-          <div className="text-lg font-bold text-yellow-300">
-            +PHP {mealAllowanceBanner.amount.toFixed(2)} Meal Allowance!
+        <div className={`rounded-2xl border-2 px-5 py-4 text-center shadow-lg ${
+          mealAllowanceBanner.isBonus
+            ? "border-violet-400/60 bg-violet-950/40 animate-none"
+            : "border-yellow-400/60 bg-yellow-950/40"
+        }`}>
+          <div className="text-2xl mb-1">{mealAllowanceBanner.isBonus ? "🏆" : "🎉"}</div>
+          {mealAllowanceBanner.isBonus ? (
+            <>
+              <div className="text-lg font-bold text-violet-300">
+                Perfect Attendance Achieved!
+              </div>
+              <div className="text-2xl font-bold text-white mt-1">
+                +PHP {mealAllowanceBanner.amount.toLocaleString()}
+              </div>
+              <div className="mt-1 text-xs text-violet-300/70">
+                Probation cycle complete — you have earned the special bonus! You now qualify for daily Meal Allowance.
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-lg font-bold text-yellow-300">
+                +PHP {mealAllowanceBanner.amount.toFixed(2)} Meal Allowance!
+              </div>
+              <div className="mt-1 text-xs text-yellow-300/70">
+                Perfect attendance today — great work! Your allowance has been recorded.
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Probation status warning (new employees) */}
+      {probationStatus?.is_probation && !probationStatus.graduated && (
+        <div className={`rounded-2xl border px-4 py-4 ${
+          probationStatus.current_cycle?.termination_flagged
+            ? "border-red-500/60 bg-red-950/30"
+            : "border-amber-500/40 bg-amber-950/25"
+        }`}>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-base font-bold text-amber-300">
+              {probationStatus.current_cycle?.termination_flagged ? "⛔ Employment at Risk" : "⚠ Probation Period"}
+            </span>
           </div>
-          <div className="mt-1 text-xs text-yellow-300/70">
-            Perfect attendance today — great work! Your allowance has been recorded.
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-xl bg-black/20 px-2 py-2">
+              <div className={`text-xl font-bold ${(probationStatus.current_cycle?.absent_count ?? 0) >= 2 ? "text-red-400" : "text-white"}`}>
+                {probationStatus.current_cycle?.absent_count ?? 0}
+              </div>
+              <div className="text-[10px] text-zinc-500 mt-0.5">Absences</div>
+            </div>
+            <div className="rounded-xl bg-black/20 px-2 py-2">
+              <div className="text-xl font-bold text-white">
+                {probationStatus.current_cycle?.late_count ?? 0}
+              </div>
+              <div className="text-[10px] text-zinc-500 mt-0.5">Late/Early</div>
+            </div>
+            <div className="rounded-xl bg-black/20 px-2 py-2">
+              <div className="text-xl font-bold text-white">
+                {Math.round((probationStatus.current_cycle?.total_late_minutes ?? 0) / 60 * 10) / 10}h
+              </div>
+              <div className="text-[10px] text-zinc-500 mt-0.5">Late Hours</div>
+            </div>
           </div>
+          {probationStatus.current_cycle?.cycle_end_date && (
+            <div className="mt-2 text-xs text-zinc-500 text-center">
+              Current cycle ends: {String(probationStatus.current_cycle.cycle_end_date).slice(0, 10)}
+            </div>
+          )}
+          {probationStatus.current_cycle?.termination_flagged && (
+            <div className="mt-2 text-xs text-red-400 text-center font-semibold">
+              Please contact your manager immediately.
+            </div>
+          )}
         </div>
       )}
 
