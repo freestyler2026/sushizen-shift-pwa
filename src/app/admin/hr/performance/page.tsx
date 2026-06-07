@@ -436,13 +436,20 @@ export default function HRPerformancePage() {
     const a = getAuth();
     if (!a) return;
     setSyncing(true);
+    setScheduleError("");
     try {
-      await fetch(`${API_BASE}/api/admin/hr/reviews/schedule/sync`, {
+      const res = await fetch(`${API_BASE}/api/admin/hr/reviews/schedule/sync`, {
         method: "POST",
         headers: { ...getAuthHeaders(a), "Content-Type": "application/json" },
         body: JSON.stringify({ city: "manila" }),
       });
+      if (!res.ok) {
+        setScheduleError(`Sync failed: HTTP ${res.status}`);
+        return;
+      }
       await fetchSchedule();
+    } catch (e) {
+      setScheduleError(`Sync failed: ${e instanceof Error ? e.message : "Unknown error"}`);
     } finally {
       setSyncing(false);
     }
@@ -452,13 +459,18 @@ export default function HRPerformancePage() {
   const handleAcknowledge = async (id: string) => {
     const a = getAuth();
     if (!a) return;
-    await fetch(`${API_BASE}/api/admin/hr/reviews/${id}`, {
-      method: "PATCH",
-      headers: { ...getAuthHeaders(a), "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "acknowledged" }),
-    });
-    setSelectedReview(null);
-    void fetchReviews();
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/hr/reviews/${id}`, {
+        method: "PATCH",
+        headers: { ...getAuthHeaders(a), "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "acknowledged" }),
+      });
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+      setSelectedReview(null);
+      void fetchReviews();
+    } catch (err) {
+      alert(`Failed to acknowledge: ${err instanceof Error ? err.message : "Unknown error"}`);
+    }
   };
 
   // ── Submit review ──
@@ -467,7 +479,7 @@ export default function HRPerformancePage() {
       setSubmitMsg({ type: "error", text: "Staff Name, Review Type, and Reviewed By are required." });
       return;
     }
-    if ([form.score_attendance, form.score_work_quality, form.score_teamwork, form.score_customer_service, form.score_rule_compliance].some((s) => s === 0)) {
+    if (status === "submitted" && [form.score_attendance, form.score_work_quality, form.score_teamwork, form.score_customer_service, form.score_rule_compliance].some((s) => s === 0)) {
       setSubmitMsg({ type: "error", text: "Please score all 5 performance areas." });
       return;
     }

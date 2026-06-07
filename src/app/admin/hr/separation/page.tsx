@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { CheckCircle2, Circle, Minus, X, ChevronRight } from "lucide-react";
-import { getAuth, getAuthHeaders } from "@/lib/auth";
+import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
+import { API_BASE } from "@/lib/api";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -148,6 +150,11 @@ function ChecklistItemRow({
   const [doneBy, setDoneBy] = useState(item.done_by || "");
   const [saving, setSaving] = useState(false);
 
+  const isDirty =
+    status !== item.status ||
+    notes !== (item.notes || "") ||
+    doneBy !== (item.done_by || "");
+
   const statusIcon = {
     done: <CheckCircle2 className="h-5 w-5 text-emerald-400" />,
     pending: <Circle className="h-5 w-5 text-zinc-500" />,
@@ -212,7 +219,7 @@ function ChecklistItemRow({
           <div className="mt-2 flex justify-end">
             <button
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || !isDirty}
               className={SMALL_BUTTON}
             >
               {saving ? "Saving..." : "Save"}
@@ -254,22 +261,38 @@ function DetailPanel({
   const [saving, setSaving] = useState(false);
   const [completing, setCompleting] = useState(false);
 
-  // Load full detail with items
+  // Reset header state when a different record is opened (Bug S6)
+  useEffect(() => {
+    setResignationDate(record.resignation_date?.slice(0, 10) || "");
+    setLastWorkingDate(record.last_working_date?.slice(0, 10) || "");
+    setExitInterviewDate(record.exit_interview_date?.slice(0, 10) || "");
+    setFinalPayNotes(record.final_pay_notes || "");
+    setFinalPayAmount(record.final_pay_amount != null ? String(record.final_pay_amount) : "");
+    setFinalPayReleasedDate(record.final_pay_released_date?.slice(0, 10) || "");
+    setNteReference(record.nte_reference || "");
+    setNotes(record.notes || "");
+  }, [record.id]);
+
+  // Load full detail with items — skip fetch if items already provided (Bug S3)
   useEffect(() => {
     if (!auth) return;
+    if (record.items && record.items.length > 0) {
+      setDetail(record);
+      return;
+    }
     setLoading(true);
-    fetch(`/api/admin/hr/separations/${record.id}`, {
+    fetch(`${API_BASE}/api/admin/hr/separations/${record.id}`, {
       headers: getAuthHeaders(auth),
     })
       .then((r) => r.json())
       .then((data: SeparationRecord) => {
         setDetail(data);
-        setResignationDate(data.resignation_date || "");
-        setLastWorkingDate(data.last_working_date || "");
-        setExitInterviewDate(data.exit_interview_date || "");
+        setResignationDate(data.resignation_date?.slice(0, 10) || "");
+        setLastWorkingDate(data.last_working_date?.slice(0, 10) || "");
+        setExitInterviewDate(data.exit_interview_date?.slice(0, 10) || "");
         setFinalPayNotes(data.final_pay_notes || "");
         setFinalPayAmount(data.final_pay_amount != null ? String(data.final_pay_amount) : "");
-        setFinalPayReleasedDate(data.final_pay_released_date || "");
+        setFinalPayReleasedDate(data.final_pay_released_date?.slice(0, 10) || "");
         setNteReference(data.nte_reference || "");
         setNotes(data.notes || "");
       })
@@ -292,7 +315,7 @@ function DetailPanel({
         nte_reference: nteReference,
         notes,
       };
-      const res = await fetch(`/api/admin/hr/separations/${detail.id}`, {
+      const res = await fetch(`${API_BASE}/api/admin/hr/separations/${detail.id}`, {
         method: "PATCH",
         headers: { ...getAuthHeaders(auth), "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -312,7 +335,7 @@ function DetailPanel({
     patch: { status: SepItemStatus; notes: string; done_by: string }
   ) {
     if (!auth) return;
-    const res = await fetch(`/api/admin/hr/separations/items/${itemId}`, {
+    const res = await fetch(`${API_BASE}/api/admin/hr/separations/items/${itemId}`, {
       method: "PATCH",
       headers: { ...getAuthHeaders(auth), "Content-Type": "application/json" },
       body: JSON.stringify(patch),
@@ -336,7 +359,7 @@ function DetailPanel({
     if (!auth) return;
     setCompleting(true);
     try {
-      const res = await fetch(`/api/admin/hr/separations/${detail.id}`, {
+      const res = await fetch(`${API_BASE}/api/admin/hr/separations/${detail.id}`, {
         method: "PATCH",
         headers: { ...getAuthHeaders(auth), "Content-Type": "application/json" },
         body: JSON.stringify({ status: "complete" }),
@@ -352,7 +375,7 @@ function DetailPanel({
     }
   }
 
-  const allDone = detail.pending_count === 0 && detail.total_items > 0;
+  const allDone = detail.total_items === 0 || detail.pending_count === 0;
 
   // Group items by category
   const itemsByCategory = SEP_CATEGORIES.map((cat) => ({
@@ -600,7 +623,7 @@ function AddSeparationModal({
       if (separationType === "termination") {
         body.nte_reference = nteReference;
       }
-      const res = await fetch("/api/admin/hr/separations", {
+      const res = await fetch(`${API_BASE}/api/admin/hr/separations`, {
         method: "POST",
         headers: { ...getAuthHeaders(auth), "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -789,24 +812,51 @@ function SeparationCard({
 type StatusFilter = "in_progress" | "complete" | "all";
 
 export default function HrSeparationPage() {
-  const auth = getAuth();
-  const role = String(auth?.role || "").toUpperCase();
-  const isAllowed = !!auth && ALLOWED_ROLES.includes(role);
+  const router = useRouter();
+
+  const [accessReady, setAccessReady] = useState(false);
+  const [authHeaders, setAuthHeaders] = useState<HeadersInit>({});
 
   const [records, setRecords] = useState<SeparationRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("in_progress");
   const [selectedRecord, setSelectedRecord] = useState<SeparationRecord | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
 
+  // ─── Auth init (Bug S2) ───────────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    async function init() {
+      const raw = getAuth();
+      if (!raw?.accessToken) {
+        router.replace("/login?next=/admin/hr/separation");
+        return;
+      }
+      const resolved = await refreshAuthFromApi(raw);
+      const a = resolved || raw;
+      const role = String(a?.role || "").toUpperCase();
+      if (!ALLOWED_ROLES.includes(role)) {
+        router.replace("/week");
+        return;
+      }
+      if (!cancelled) {
+        setAuthHeaders(getAuthHeaders(a));
+        setAccessReady(true);
+      }
+    }
+    void init();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const fetchRecords = useCallback(async () => {
-    if (!auth || !isAllowed) return;
+    if (!accessReady) return;
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.set("status", statusFilter);
-      const res = await fetch(`/api/admin/hr/separations?${params.toString()}`, {
-        headers: getAuthHeaders(auth),
+      const res = await fetch(`${API_BASE}/api/admin/hr/separations?${params.toString()}`, {
+        headers: authHeaders,
       });
       if (res.ok) {
         const data: SeparationRecord[] = await res.json();
@@ -816,20 +866,17 @@ export default function HrSeparationPage() {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, isAllowed]);
+  }, [statusFilter, accessReady, authHeaders]);
 
   useEffect(() => {
     void fetchRecords();
   }, [fetchRecords]);
 
-  // Access guard — after all hooks
-  if (!isAllowed) {
+  // Show spinner while auth resolves (Bug S2)
+  if (!accessReady) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
-        <div className={GLASS_CARD + " p-8 text-center max-w-sm"}>
-          <p className={T_SECTION + " text-red-400"}>Access Denied</p>
-          <p className={T_BODY + " mt-2"}>You do not have permission to view this page.</p>
-        </div>
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
       </div>
     );
   }

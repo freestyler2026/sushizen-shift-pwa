@@ -332,11 +332,9 @@ function DetailPanel({
   }, [record.id]);
 
   const handleItemUpdated = (updated: OnboardingItem) => {
-    setItems((prev) => prev.map((it) => (it.id === updated.id ? updated : it)));
-    onItemsUpdated(
-      record.id,
-      items.map((it) => (it.id === updated.id ? updated : it)),
-    );
+    const next = items.map((it) => (it.id === updated.id ? updated : it));
+    setItems(next);
+    onItemsUpdated(record.id, next);
   };
 
   // Compute whether "Mark Complete" is eligible

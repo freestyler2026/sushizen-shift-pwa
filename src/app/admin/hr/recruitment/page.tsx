@@ -1426,6 +1426,7 @@ export default function HRRecruitmentPage() {
         {selectedApplicant && (
           <div className="hidden md:flex w-[360px] shrink-0 border-l border-white/10 bg-[#0d1117]/95 p-4 flex-col">
             <DetailPanel
+              key={selectedApplicant.id}
               applicant={selectedApplicant}
               onClose={() => setSelectedApplicant(null)}
               onStatusChange={handleStatusChange}
@@ -1442,6 +1443,7 @@ export default function HRRecruitmentPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <DetailPanel
+              key={selectedApplicant.id}
               applicant={selectedApplicant}
               onClose={() => setSelectedApplicant(null)}
               onStatusChange={handleStatusChange}
