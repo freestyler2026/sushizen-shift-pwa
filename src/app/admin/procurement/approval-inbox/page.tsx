@@ -41,6 +41,8 @@ type CaseRow = {
   payment_status?: string;
   request_status?: string;
   city?: string;
+  request_date?: string;
+  vendor_names?: string;
 };
 
 function severityBadge(severity: string) {
@@ -352,6 +354,19 @@ export default function ProcurementApprovalInboxPage() {
                     {row.purchase_type === "prepaid" && row.payment_status === "PAYMENT_CONFIRMED" && <span className="rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 text-xs text-emerald-300">✓ Paid</span>}
                     {hasPushFail && (
                       <span className={BADGE_ERROR}>Push Failed ×{row.notification_failed_count}</span>
+                    )}
+                  </div>
+
+                  {/* PR No. / Date / Supplier row */}
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
+                    {row.request_no && (
+                      <span>PR: <span className="font-mono text-violet-300">{row.request_no}</span></span>
+                    )}
+                    {row.request_date && (
+                      <span>Date: <span className="text-zinc-200">{String(row.request_date).slice(0, 10)}</span></span>
+                    )}
+                    {row.vendor_names && (
+                      <span>Supplier: <span className="text-zinc-200">{row.vendor_names}</span></span>
                     )}
                   </div>
 

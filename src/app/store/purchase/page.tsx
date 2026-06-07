@@ -52,7 +52,7 @@ type ItemRow = {
 let _counter = 1;
 const newItem = (): ItemRow => ({ id: _counter++, item_name: "", qty: "", unit: "kg", unit_price: "", benchmark_price: 0, is_new: false });
 
-const UNITS = ["kg", "g", "L", "mL", "pc", "box", "bag", "bottle", "pack", "tray", "can"];
+const UNITS = ["kg", "g", "L", "mL", "pc", "box", "bag", "bottle", "pack", "tray", "can", "packet", "ctn", "case"];
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
