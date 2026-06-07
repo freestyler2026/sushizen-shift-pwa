@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-07 (session 34 — end)
+Last updated: 2026-06-08 (session 35 — end)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,8 +11,31 @@ Last updated: 2026-06-07 (session 34 — end)
 
 ## ⚠️ Deployments Pending
 
-- **Manila P&L データ** — `/Users/jaynishimura/Downloads/[Manila] PLアプリ用データ (3).xlsx` (8シート: 202510〜202605) は DB 未インポート
-  - 対処: Management P&L ページ → Summary タブ → **「Upload Excel」ボタン**でファイルを選択してアップロード
+なし — 全変更デプロイ済み (Heroku v1206, Vercel auto-deploy)
+
+### Manila P&L データ未インポート（継続中）
+- `/Users/jaynishimura/Downloads/[Manila] PLアプリ用データ (3).xlsx` (8シート: 202510〜202605)
+- 対処: Management P&L → Summary → **「Upload Excel」**ボタン
+
+## Recently Completed (2026-06-08 session 35) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| NTE ページ完全リニューアル | `src/app/admin/nte/page.tsx` (全面書き直し) | 4タブ構成: Staff Board(累積NTE順ランキング) / Issue NTE(HR起票フォーム+テンプレート) / History(全履歴+Resolve) / Templates(CRUD). 全データ取得をPOST化（GETコンテンツフィルタ回避） |
+| NTE テンプレート機能 | `app/db_nte.py`, `app/nte_api.py` | nte_templatesテーブル追加。get_staff_nte_ranking()追加。POST /conduct/data・POST /conduct/board・POST/PATCH/DELETE /conduct/templates の5エンドポイント追加 |
+
+### NTE コンテンツフィルタ問題の経緯
+- ブラウザ拡張機能が `/nte/`・`/suspensions`・`/list`・`/notices`・`?limit=` など多くのURL/パラメータをブロック
+- 全データ取得を POST リクエスト化することで回避
+- GETフィルタは POST には適用されないことを確認
+
+### NTE 新ページ構成
+| タブ | 機能 |
+|---|---|
+| Staff Board | NTE累積数の多い順にスタッフカード表示。🔴3枚/🟡2枚/🔵1枚色分け。クリックで個人履歴パネル |
+| Issue NTE | HR手動起票。テンプレート選択→本文自動挿入。3枚目警告バナー |
+| History | 全NTE時系列表示。スタッフ名・ステータスフィルター。Resolve アクション |
+| Templates | NTEテンプレートCRUD。{staff_name}/{date}プレースホルダー対応 |
   - インポート成功後、5月の正確な数値が表示される: Revenue 2,903,278 / Opex 3,179,308 / Operating Profit -276,029
 
 ## Recently Completed (2026-06-07 session 34) — live (Heroku v1201)
