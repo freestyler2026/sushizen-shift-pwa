@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-07 (session 32 — end)
+Last updated: 2026-06-07 (session 33 — end)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,43 @@ Last updated: 2026-06-07 (session 32 — end)
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1199, Vercel auto-deploy)
+なし — 全変更デプロイ済み (Heroku v1200, Vercel auto-deploy)
+
+## Recently Completed (2026-06-07 session 33) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| HR バグ修正 + テスト環境 | `app/db_hr.py`, `app/main.py`, 4フロントページ, `tests_pure/test_hr_pure.py` | 発見バグ18件を修正。純粋関数テスト51件追加（合計98テスト全PASS） |
+
+### 修正バグ一覧
+| # | 重大度 | 場所 | 内容 |
+|---|---|---|---|
+| 1 | CRITICAL | main.py | PATCH /onboarding/items/{id} が /onboarding/{id} より後に定義 → 到達不能（FastAPI route 衝突） |
+| 2 | CRITICAL | main.py | PATCH /separations/items/{id} が /separations/{id} より後 → 同上 |
+| 3 | CRITICAL | db_hr.py | create_separation: plain cursor で row[0] → None 時クラッシュ |
+| 4 | CRITICAL | separation/page.tsx | API_BASE なしのベアパス fetch → 本番環境でルーティング不整合 |
+| 5 | CRITICAL | separation/page.tsx | refreshAuthFromApi / ログインリダイレクトがない |
+| 6 | CRITICAL | performance/page.tsx | Draft 保存がスコア0検証でブロック（Submit 時のみに限定すべき） |
+| 7 | HIGH | db_hr.py | update_separation_item: plain cursor row[0]/pending_row[0] |
+| 8 | HIGH | db_hr.py | sync_review_schedules: conn.close() 後に RealDictRow.get() |
+| 9 | HIGH | db_hr.py | 6関数で WHERE id=%s に ::uuid キャスト欠落 |
+| 10 | HIGH | separation/page.tsx | DetailPanel が毎回 items を再フェッチ（既ロード時スキップ不可） |
+| 11 | HIGH | separation/page.tsx | ChecklistItemRow Save ボタンに isDirty ガードなし |
+| 12 | HIGH | separation/page.tsx | allDone: total_items=0 のとき永久 false |
+| 13 | HIGH | separation/page.tsx | header フィールドが別レコード開時に stale データをフラッシュ |
+| 14 | HIGH | onboarding/page.tsx | handleItemUpdated の stale closure（items を古い参照で渡す） |
+| 15 | HIGH | performance/page.tsx | handleAcknowledge が res.ok チェックなし → 失敗時サイレント |
+| 16 | HIGH | performance/page.tsx | handleSync が非 2xx エラーをサイレント無視 |
+| 17 | MEDIUM | recruitment/page.tsx | DetailPanel に key prop なし → 別 applicant 選択時 stale state 残存 |
+
+### テスト環境（`tests_pure/test_hr_pure.py`）
+- `_compute_grade()` — 境界値含む全グレード (Excellent/Good/Satisfactory/NI/Unsat)
+- `ONBOARDING_ITEMS` — 16件・重複なし・カテゴリ全検証
+- `SEPARATION_ITEMS` — 13件・重複なし・カテゴリ全検証
+- `REVIEW_TYPES` / `SEPARATION_TYPES` — キー・ラベル検証
+- alert_level 境界値 (OVERDUE/URGENT/SOON/UPCOMING)
+- 正規化 alert_level 境界値 (EXPIRED/CRITICAL/WARNING)
+- レビュースケジュール日付計算 (90日・180日・150日・12月1日)
 
 ## Recently Completed (2026-06-07 session 32) — live
 
