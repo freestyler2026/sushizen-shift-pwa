@@ -1131,7 +1131,7 @@ export default function AdminDraftPage() {
   }[]>([]);
   useEffect(() => {
     if (!auth?.accessToken) return;
-    fetch(`${API_BASE}/api/admin/suspensions/upcoming?city=${city}&days_ahead=30`, {
+    fetch(`${API_BASE}/api/admin/nte/actions/upcoming?city=${city}&days_ahead=30`, {
       headers: { Authorization: `Bearer ${auth.accessToken}` },
       cache: "no-store",
     })

@@ -115,7 +115,7 @@ export default function NtePage() {
       const [sumJson, nteJson, susJson] = await Promise.all([
         safeFetch("summary", `${API_BASE}/api/admin/nte/summary?city=${city}`),
         safeFetch("ntes", `${API_BASE}/api/admin/nte/records?city=${city}&limit=200`),
-        safeFetch("suspensions", `${API_BASE}/api/admin/suspensions?city=${city}&limit=100`),
+        safeFetch("suspensions", `${API_BASE}/api/admin/nte/actions?city=${city}&limit=100`),
       ]);
       setSummary(Array.isArray(sumJson?.summary) ? sumJson.summary : []);
       setNteRecords(Array.isArray(nteJson?.ntes) ? nteJson.ntes : []);
@@ -183,7 +183,7 @@ export default function NtePage() {
     setError("");
     const h = getAuthHeaders() as Record<string, string>;
     try {
-      const res = await fetch(`${API_BASE}/api/admin/suspensions/${id}/status`, {
+      const res = await fetch(`${API_BASE}/api/admin/nte/actions/${id}/status`, {
         method: "PATCH",
         headers: { ...h, "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
@@ -203,7 +203,7 @@ export default function NtePage() {
     const h = getAuthHeaders() as Record<string, string>;
     const staffName = getAuth()?.staffName || "";
     try {
-      const res = await fetch(`${API_BASE}/api/admin/suspensions/manual`, {
+      const res = await fetch(`${API_BASE}/api/admin/nte/actions/manual`, {
         method: "POST",
         headers: { ...h, "Content-Type": "application/json" },
         body: JSON.stringify({ city, ...manualForm, created_by: staffName }),
