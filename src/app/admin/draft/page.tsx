@@ -1125,6 +1125,21 @@ export default function AdminDraftPage() {
 
   const [versions, setVersions] = useState<BatchDraftVersion[]>([]);
   const [activeBranchCode, setActiveBranchCode] = useState<string>("");
+  // Upcoming suspensions — fetched for the shift planner banner
+  const [upcomingSuspensions, setUpcomingSuspensions] = useState<{
+    staff_name: string; suspension_date: string; reason: string;
+  }[]>([]);
+  useEffect(() => {
+    if (!auth?.accessToken) return;
+    fetch(`${API_BASE}/api/admin/suspensions/upcoming?city=${city}&days_ahead=30`, {
+      headers: { Authorization: `Bearer ${auth.accessToken}` },
+      cache: "no-store",
+    })
+      .then((r) => r.json())
+      .then((d) => setUpcomingSuspensions(Array.isArray(d?.suspensions) ? d.suspensions : []))
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city, auth?.accessToken]);
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [generateResult, setGenerateResult] = useState<BatchGenerateResult | null>(null);
 
@@ -2321,6 +2336,24 @@ export default function AdminDraftPage() {
           Verified role: {myRole || "HQ"}
         </span>
       </div>
+
+      {/* ── Upcoming Suspensions Banner ── */}
+      {upcomingSuspensions.length > 0 && (
+        <div className="mb-4 rounded-2xl border border-red-500/40 bg-red-950/20 px-4 py-3">
+          <p className="mb-1.5 text-sm font-semibold text-red-300 flex items-center gap-1.5">
+            🚫 Upcoming Suspensions ({upcomingSuspensions.length})
+          </p>
+          <div className="space-y-0.5">
+            {upcomingSuspensions.map((s, i) => (
+              <div key={i} className="flex items-center gap-3 text-sm">
+                <span className="font-mono text-red-200 font-bold min-w-[90px]">{String(s.suspension_date).slice(0, 10)}</span>
+                <span className="text-white font-medium">{s.staff_name}</span>
+                <span className="text-zinc-400 text-xs truncate">— {s.reason}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Top-level tab bar */}
       <div className={TAB_CONTAINER}>
