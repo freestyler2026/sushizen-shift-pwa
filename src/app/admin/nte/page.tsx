@@ -97,18 +97,26 @@ export default function NtePage() {
     const h = getAuthHeaders(auth) as Record<string, string>;
     setLoading(true);
     setError("");
-    try {
-      const [sumRes, nteRes, susRes] = await Promise.all([
-        fetch(`${API_BASE}/api/admin/nte/summary?city=${city}`, { headers: h }),
-        fetch(`${API_BASE}/api/admin/nte/list?city=${city}&limit=200`, { headers: h }),
-        fetch(`${API_BASE}/api/admin/suspensions?city=${city}&limit=100`, { headers: h }),
-      ]);
-      if (!sumRes.ok || !nteRes.ok || !susRes.ok) {
-        const failedRes = !sumRes.ok ? sumRes : !nteRes.ok ? nteRes : susRes;
-        const errJson = await failedRes.json().catch(() => ({}));
-        throw new Error(errJson?.detail || `HTTP ${failedRes.status}`);
+
+    const safeFetch = async (label: string, url: string) => {
+      try {
+        const res = await fetch(url, { headers: h });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body?.detail || `HTTP ${res.status}`);
+        }
+        return await res.json();
+      } catch (e: any) {
+        throw new Error(`[${label}] ${e?.message || String(e)}`);
       }
-      const [sumJson, nteJson, susJson] = await Promise.all([sumRes.json(), nteRes.json(), susRes.json()]);
+    };
+
+    try {
+      const [sumJson, nteJson, susJson] = await Promise.all([
+        safeFetch("summary", `${API_BASE}/api/admin/nte/summary?city=${city}`),
+        safeFetch("ntes", `${API_BASE}/api/admin/nte/list?city=${city}&limit=200`),
+        safeFetch("suspensions", `${API_BASE}/api/admin/suspensions?city=${city}&limit=100`),
+      ]);
       setSummary(Array.isArray(sumJson?.summary) ? sumJson.summary : []);
       setNteRecords(Array.isArray(nteJson?.ntes) ? nteJson.ntes : []);
       setSuspensions(Array.isArray(susJson?.suspensions) ? susJson.suspensions : []);
