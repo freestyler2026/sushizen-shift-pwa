@@ -104,6 +104,11 @@ export default function NtePage() {
         fetch(`${API_BASE}/api/admin/nte/list?city=${city}&limit=200`, { headers }),
         fetch(`${API_BASE}/api/admin/suspensions?city=${city}&limit=100`, { headers }),
       ]);
+      if (!sumRes.ok || !nteRes.ok || !susRes.ok) {
+        const failedRes = !sumRes.ok ? sumRes : !nteRes.ok ? nteRes : susRes;
+        const errJson = await failedRes.json().catch(() => ({}));
+        throw new Error(errJson?.detail || `HTTP ${failedRes.status}`);
+      }
       const [sumJson, nteJson, susJson] = await Promise.all([sumRes.json(), nteRes.json(), susRes.json()]);
       setSummary(Array.isArray(sumJson?.summary) ? sumJson.summary : []);
       setNteRecords(Array.isArray(nteJson?.ntes) ? nteJson.ntes : []);
