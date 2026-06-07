@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-07 (session 28 — end)
+Last updated: 2026-06-07 (session 29 — end)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,31 @@ Last updated: 2026-06-07 (session 28 — end)
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1196, Vercel auto-deploy)
+なし — 全変更デプロイ済み (Heroku v1197, Vercel auto-deploy)
+
+## Recently Completed (2026-06-07 session 29) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| HR Onboarding フロントエンド (Phase B) | `src/app/admin/hr/onboarding/page.tsx` (新規), `src/components/NavBar.tsx` | 16項目チェックリスト管理ページ。RecordCard（デュアル進捗バー）+ DetailPanel（カテゴリ別アイテム編集）+ AddModal。NavBarにリンク追加 |
+| HR Onboarding バックエンド (Phase B) | `app/db_hr.py` (末尾399行追記), `app/main.py` (末尾95行追記) | DB: hr_onboarding / hr_onboarding_items テーブル + ONBOARDING_ITEMS定数(16項目) + ensure_onboarding_tables() + 5つのCRUD関数。API: /api/admin/hr/onboarding に5エンドポイント追加 |
+
+### Onboarding 16項目
+| カテゴリ | 項目 |
+|---|---|
+| 🏛️ Government | SSS, PhilHealth, Pag-IBIG, TIN, NBI Clearance |
+| 🏥 Health | Health Certificate, Food Handler Certificate |
+| 🏦 Bank | Bank Account (Payroll) |
+| 📄 Contract | Employment Contract, NDA, Uniform Size & Issue |
+| 🎓 Orientation | Store Rules, POS Training, Hygiene Training, Week 1 Check-in, Month 1 Check-in |
+
+### Onboarding 自動ロジック
+- `create_onboarding()`: ON CONFLICT で既存レコードを in_progress にリセット、16 items を自動seed
+- `update_onboarding_item()`: status=submitted 時に submitted_at を自動set、全 items が pending=0 になったら親を complete に自動昇格
+
+### 今後の残タスク (HR)
+- Phase C-2: パフォーマンスレビューサイクル
+- Phase C-4: 離職管理 (Offboarding)
 
 ## Recently Completed (2026-06-07 session 28) — live
 
@@ -31,7 +55,7 @@ Last updated: 2026-06-07 (session 28 — end)
 - 「✕ Terminate」でメモ入力 → TERMINATED（アラート消去）
 
 ### 今後の残タスク (HR)
-- Phase B: オンボーディング書類チェックリスト
+- Phase B フロントエンド: Onboarding 管理ページ (`/admin/hr/onboarding`) — バックエンドは完成済み
 - Phase C-2: パフォーマンスレビューサイクル
 - Phase C-4: 離職管理 (Offboarding)
 
