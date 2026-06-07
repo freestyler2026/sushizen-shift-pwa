@@ -110,8 +110,8 @@ export default function NtePage() {
     // Use allSettled so a blocked request doesn't prevent others from loading
     const [sumResult, nteResult, susResult] = await Promise.allSettled([
       tryFetch(`${API_BASE}/api/admin/conduct/overview?city=${city}`),
-      tryFetch(`${API_BASE}/api/admin/conduct/history?city=${city}&limit=200`),
-      tryFetch(`${API_BASE}/api/admin/conduct/enforcement?city=${city}&limit=100`),
+      tryFetch(`${API_BASE}/api/admin/conduct/history?city=${city}`),
+      tryFetch(`${API_BASE}/api/admin/conduct/enforcement?city=${city}`),
     ]);
 
     if (sumResult.status === "fulfilled") {
