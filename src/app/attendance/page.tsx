@@ -242,6 +242,7 @@ export default function AttendancePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [mealAllowanceBanner, setMealAllowanceBanner] = useState<{ amount: number } | null>(null);
   const [gpsPos, setGpsPos] = useState<GeolocationPosition | null>(null);
   const [gpsAcquiredAt, setGpsAcquiredAt] = useState<number | null>(null); // ms epoch
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null); // metres
@@ -472,6 +473,7 @@ export default function AttendancePage() {
           const e = await verRes.json().catch(() => ({ detail: "Error" }));
           throw new Error(e.detail || "Authentication failed");
         }
+        const verJson = await verRes.json().catch(() => ({}));
         const labels: Record<string, string> = {
           checkin: "Clocked in ✓",
           checkout: "Clocked out ✓",
@@ -479,7 +481,14 @@ export default function AttendancePage() {
           visit_end: "Visit ended ✓",
         };
         setSuccess(labels[action] ?? "Done ✓");
-        if (action === "checkout") setVisitPickerOpen(false);
+        if (action === "checkout") {
+          setVisitPickerOpen(false);
+          // Show Meal Allowance banner if earned
+          if (verJson?.meal_allowance_awarded === true) {
+            setMealAllowanceBanner({ amount: Number(verJson.meal_allowance_amount || 50) });
+            setTimeout(() => setMealAllowanceBanner(null), 8000);
+          }
+        }
         await fetchToday({ silent: true });
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -650,6 +659,18 @@ export default function AttendancePage() {
         <div className="flex items-start gap-2 rounded-xl bg-emerald-900/30 border border-emerald-700/40 px-3 py-2.5 text-sm text-emerald-300">
           <CheckCircle2 size={15} className="mt-0.5 shrink-0" />
           <span>{success}</span>
+        </div>
+      )}
+      {/* Meal Allowance earned banner */}
+      {mealAllowanceBanner && (
+        <div className="rounded-2xl border-2 border-yellow-400/60 bg-yellow-950/40 px-5 py-4 text-center shadow-lg animate-pulse">
+          <div className="text-2xl mb-1">🎉</div>
+          <div className="text-lg font-bold text-yellow-300">
+            +PHP {mealAllowanceBanner.amount.toFixed(2)} Meal Allowance!
+          </div>
+          <div className="mt-1 text-xs text-yellow-300/70">
+            Perfect attendance today — great work! Your allowance has been recorded.
+          </div>
         </div>
       )}
 
