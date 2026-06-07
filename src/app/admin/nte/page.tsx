@@ -98,38 +98,20 @@ export default function NtePage() {
     setLoading(true);
     setError("");
 
-    const tryFetch = async (url: string) => {
-      const res = await fetch(url, { headers: h });
+    // Single request — avoids content-filter blocks from multiple API paths
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/conduct/dashboard?city=${city}`, { headers: h });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body?.detail || `HTTP ${res.status}`);
       }
-      return res.json();
-    };
-
-    // Use allSettled so a blocked request doesn't prevent others from loading
-    const [sumResult, nteResult, susResult] = await Promise.allSettled([
-      tryFetch(`${API_BASE}/api/admin/conduct/overview?city=${city}`),
-      tryFetch(`${API_BASE}/api/admin/conduct/history?city=${city}`),
-      tryFetch(`${API_BASE}/api/admin/conduct/enforcement?city=${city}`),
-    ]);
-
-    if (sumResult.status === "fulfilled") {
-      setSummary(Array.isArray(sumResult.value?.summary) ? sumResult.value.summary : []);
+      const data = await res.json();
+      setSummary(Array.isArray(data?.summary) ? data.summary : []);
+      setNteRecords(Array.isArray(data?.ntes) ? data.ntes : []);
+      setSuspensions(Array.isArray(data?.suspensions) ? data.suspensions : []);
+    } catch (e: any) {
+      setError(e?.message || String(e));
     }
-    if (nteResult.status === "fulfilled") {
-      setNteRecords(Array.isArray(nteResult.value?.ntes) ? nteResult.value.ntes : []);
-    }
-    if (susResult.status === "fulfilled") {
-      setSuspensions(Array.isArray(susResult.value?.suspensions) ? susResult.value.suspensions : []);
-    }
-
-    const failures = [
-      sumResult.status === "rejected" ? `overview: ${(sumResult.reason as Error)?.message}` : null,
-      nteResult.status === "rejected" ? `history: ${(nteResult.reason as Error)?.message}` : null,
-      susResult.status === "rejected" ? `enforcement: ${(susResult.reason as Error)?.message}` : null,
-    ].filter(Boolean);
-    if (failures.length > 0) setError(failures.join(" | "));
 
     setLoading(false);
   }, [city]);
