@@ -37,6 +37,7 @@ import {
   ShoppingBag,
   ShoppingCart,
   Shield,
+  Star,
   Tag,
   Trash2,
   ArchiveRestore,
@@ -159,6 +160,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/nte", label: "NTE & Suspensions", icon: FileText, adminOnly: true, match: "prefix" },
   { href: "/admin/hr/recruitment", label: "HR Recruitment", icon: UserPlus, adminOnly: true, match: "prefix" },
   { href: "/admin/hr/onboarding", label: "HR Onboarding", icon: ClipboardCheck, adminOnly: true, match: "prefix" },
+  { href: "/admin/hr/performance", label: "HR Performance", icon: Star, adminOnly: true, match: "prefix" },
   { href: "/admin/incidents", label: "Incident Reports", icon: AlertTriangle, adminOnly: true, match: "prefix" },
   { href: "/admin/price-check", label: "Price Check", icon: Tag, adminOnly: true, match: "prefix" },
   { href: "/admin/baseroll-prep", label: "Base Roll Prep", icon: UtensilsCrossed, adminOnly: true, match: "prefix" },
@@ -276,6 +278,7 @@ export default function NavBar() {
     if (href === "/admin/nte") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
     if (href === "/admin/hr/recruitment") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
     if (href === "/admin/hr/onboarding") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
+    if (href === "/admin/hr/performance") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
     if (href === "/admin/incidents") return canAccessIncidentReportAdmin(auth);
     if (href === "/admin/manual-shift") return canAccessAdminNav(auth);
     if (href === "/admin/price-check") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
