@@ -444,6 +444,7 @@ export default function FinancePage() {
   const [payrollSyncMessage, setPayrollSyncMessage] = useState("");
 
   const loadGenRef = useRef(0);
+  const xlsxInputRef = useRef<HTMLInputElement>(null);
 
   // ── Auth guard + init ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -683,6 +684,39 @@ export default function FinancePage() {
     }
   }
 
+  const handleXlsxUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !approverName.trim()) return;
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("approver_name", approverName.trim());
+    formData.append("pin", pin.trim());
+    formData.append("city", city);
+    try {
+      setPlSyncing(true);
+      setPlSyncMessage("");
+      const API_BASE = getApiBase();
+      const h = { ...getAuthHeaders() };
+      delete (h as Record<string, string>)["Content-Type"];
+      const res = await fetch(`${API_BASE}/api/admin/pl/import/excel/all-sheets`, {
+        method: "POST",
+        headers: h,
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Upload failed");
+      const imported = Array.isArray(data.imported) ? data.imported : [];
+      setPlSyncMessage(`Imported ${imported.length} sheet(s): ${imported.map((m: { month_key?: string }) => m.month_key).join(", ")}`);
+      await loadData();
+    } catch (e: unknown) {
+      const err = e as { message?: string };
+      setPlSyncMessage(String(err?.message || "Upload failed"));
+    } finally {
+      setPlSyncing(false);
+      if (xlsxInputRef.current) xlsxInputRef.current.value = "";
+    }
+  };
+
   async function syncPayrollNow() {
     if (!approverName.trim() || !financeStepUpReady) return;
     setPayrollSyncing(true);
@@ -850,15 +884,26 @@ export default function FinancePage() {
             </div>
           </div>
 
-          {/* Sync from Google */}
+          {/* Sync from Google + Upload Excel */}
           <div className="mt-3 flex flex-wrap items-start gap-4 border-t border-neutral-800 pt-3">
             <div className="min-w-[240px] flex-1 text-xs text-neutral-400">
               <span className="font-semibold text-neutral-300">Sync monthly P&amp;L (Google)</span>
               <p className="mt-1 max-w-xl leading-relaxed">Reads all month tabs from the PL Google Sheet for the selected city and upserts them to the app DB.</p>
-              <button type="button" onClick={() => void syncPlFromGoogle()} disabled={plSyncing || !approverName.trim() || !financeStepUpReady}
-                className={`mt-2 ${SECONDARY_BUTTON} text-xs py-2 px-3`}>
-                {plSyncing ? "Syncing..." : "Sync P&L from Google"}
-              </button>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button type="button" onClick={() => void syncPlFromGoogle()} disabled={plSyncing || !approverName.trim() || !financeStepUpReady}
+                  className={`${SECONDARY_BUTTON} text-xs py-2 px-3`}>
+                  {plSyncing ? "Syncing..." : "Sync P&L from Google"}
+                </button>
+                <input ref={xlsxInputRef} type="file" accept=".xlsx" className="hidden" onChange={(e) => void handleXlsxUpload(e)} />
+                <button
+                  type="button"
+                  onClick={() => xlsxInputRef.current?.click()}
+                  disabled={plSyncing || !approverName.trim() || !financeStepUpReady}
+                  className={`${SECONDARY_BUTTON} text-xs py-2 px-3`}
+                >
+                  Upload Excel
+                </button>
+              </div>
               {plSyncMessage && <span className="mt-1 block text-xs text-amber-200/90">{plSyncMessage}</span>}
             </div>
           </div>
@@ -883,6 +928,16 @@ export default function FinancePage() {
             {/* ── Summary ── */}
             {(financeSectionView === "all" || financeSectionView === "summary") && (
               <div id="finance-summary">
+                {!plHeadline && !isStoreScopedView && !loading && (
+                  <div className="mb-3 rounded-xl border border-amber-600/50 bg-amber-950/30 px-4 py-3 text-sm text-amber-200 flex items-start gap-2">
+                    <span>⚠️</span>
+                    <div>
+                      <span className="font-semibold">No P&amp;L data imported for {summaryMonthKey || "this month"}.</span>
+                      {" "}Figures shown below are <span className="font-semibold">target-based estimates</span>, not actual P&amp;L data.
+                      Use &ldquo;Sync P&amp;L from Google&rdquo; or upload an Excel file to load actual data.
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
                   <div className={`flex min-h-[120px] flex-col ${KPI_CARD}`}>
                     <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Revenue (P&amp;L imported)</div>
@@ -890,12 +945,16 @@ export default function FinancePage() {
                     {plHeadline && plHeadline.revenue > 0 && <div className="mt-1 text-[10px] text-neutral-500">100% of revenue</div>}
                   </div>
                   <div className={`flex min-h-[120px] flex-col ${KPI_CARD}`}>
-                    <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Opex (P&amp;L rollup)</div>
+                    <div className="min-h-[32px] text-xs leading-4 text-neutral-500">
+                      {plHeadline ? "Opex (P&L rollup)" : "Opex (target-based est.)"}
+                    </div>
                     <MetricValue className={NUMERIC_FINANCE_KPI_VALUE} value={plHeadline ? plHeadline.opex : isStoreScopedView ? "—" : financeBreakdown ? financeBreakdown.totalModeledCost : "—"} />
                     {plHeadline && plHeadline.revenue > 0 && <div className="mt-1 text-[10px] text-neutral-500">{formatPct((plHeadline.opex / plHeadline.revenue) * 100)} of revenue</div>}
                   </div>
                   <div className={`flex min-h-[120px] flex-col ${KPI_CARD}`}>
-                    <div className="min-h-[32px] text-xs leading-4 text-neutral-500">Operating profit (P&amp;L)</div>
+                    <div className="min-h-[32px] text-xs leading-4 text-neutral-500">
+                      {plHeadline ? "Operating profit (P&L)" : "Est. operating profit"}
+                    </div>
                     <MetricValue
                       className={plHeadline ? (plHeadline.profit >= 0 ? `${NUMERIC_FINANCE_KPI_VALUE} text-emerald-400` : `${NUMERIC_FINANCE_KPI_VALUE} text-rose-400`) : NUMERIC_FINANCE_KPI_VALUE}
                       value={plHeadline ? plHeadline.profit : isStoreScopedView ? "—" : Number(financeRatio?.estimated_profit_using_targets ?? 0)}
