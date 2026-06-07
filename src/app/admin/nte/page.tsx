@@ -114,7 +114,7 @@ export default function NtePage() {
     try {
       const [sumJson, nteJson, susJson] = await Promise.all([
         safeFetch("summary", `${API_BASE}/api/admin/nte/summary?city=${city}`),
-        safeFetch("ntes", `${API_BASE}/api/admin/nte/list?city=${city}&limit=200`),
+        safeFetch("ntes", `${API_BASE}/api/admin/nte/records?city=${city}&limit=200`),
         safeFetch("suspensions", `${API_BASE}/api/admin/suspensions?city=${city}&limit=100`),
       ]);
       setSummary(Array.isArray(sumJson?.summary) ? sumJson.summary : []);
