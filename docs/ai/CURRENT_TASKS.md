@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-07 (session 33 — end)
+Last updated: 2026-06-07 (session 34 — end)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,23 @@ Last updated: 2026-06-07 (session 33 — end)
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1200, Vercel auto-deploy)
+- **Manila P&L データ** — `/Users/jaynishimura/Downloads/[Manila] PLアプリ用データ (3).xlsx` (8シート: 202510〜202605) は DB 未インポート
+  - 対処: Management P&L ページ → Summary タブ → **「Upload Excel」ボタン**でファイルを選択してアップロード
+  - インポート成功後、5月の正確な数値が表示される: Revenue 2,903,278 / Opex 3,179,308 / Operating Profit -276,029
+
+## Recently Completed (2026-06-07 session 34) — live (Heroku v1201)
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| P&L データ欠落警告バナー | `src/app/admin/finance/page.tsx` | P&L 未インポート月選択時に amber 警告バナーを表示。KPI ラベルを "Opex (target-based est.)" / "Est. operating profit" に動的切替 |
+| Upload Excel ボタン追加 | `src/app/admin/finance/page.tsx` | "Sync P&L from Google" の隣に "Upload Excel" ボタン追加。全シート一括インポートエンドポイントを呼ぶ |
+| P&L Excel 全シート一括インポート | `app/services/pl_excel_import.py`, `app/main.py` | `import_all_pl_excel_sheets_bytes()` 追加。`POST /api/admin/pl/import/excel/all-sheets` エンドポイント追加 |
+
+### 問題の根本原因（2026/05 Manila P&L が Wrong）
+- 5月 P&L データが DB に未登録 → app が4月データにフォールバック（Revenue = 2,138,285）
+- Operating Profit 405,037 は「売上 × (1-63%)」のターゲット比率試算値（実データではない）
+- FLR cost / Other expenses が「—」なのが P&L データなしの証拠
+- **Fix**: 上記「Upload Excel」ボタンから Excel ファイルをアップロード → 正確な数値が表示される
 
 ## Recently Completed (2026-06-07 session 33) — live
 
