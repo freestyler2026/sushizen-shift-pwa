@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-05 (session 16 — end)
+Last updated: 2026-06-07 (session 28 — end)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,88 @@ Last updated: 2026-06-05 (session 16 — end)
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み
+なし — 全変更デプロイ済み (Heroku v1196, Vercel auto-deploy)
+
+## Recently Completed (2026-06-07 session 28) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| HR採用パイプライン Phase A (新規実装) | `app/db_hr.py` (新規), `app/main.py` | DB: hr_job_requisitions / hr_applicants / hr_interview_schedules / hr_interview_evaluations / staff_regularization の5テーブル + CRUD関数一式。API: /api/admin/hr/* に16エンドポイント追加 |
+| HR Recruitment Kanban ページ (新規) | `src/app/admin/hr/recruitment/page.tsx` | マニラ専用 Kanban ボード (New→Screened→Interview Sched.→Interviewed→Offer Sent→Hired/Rejected)。応募者カード・詳細パネル（Info/Interview/Evaluation 3タブ）・Add Applicant モーダル・Add Requisition モーダル実装 |
+| NavBar: HR Recruitment リンク追加 | `src/components/NavBar.tsx` | HR_MANAGER / MANILA_MANAGEMENT ロール向けサイドバーリンク追加 |
+| Renewals: Regularization タブ追加 | `src/app/admin/renewals/page.tsx` | マニラ正規化アラート（入社5ヶ月 = 150日でアラート開始）。Regularize / Terminate ボタンで処理。staff_master.hired_at を参照 |
+
+### 正規化アラートのロジック
+- `staff_master.hired_at` + 150日 ≤ today → ALERT開始
+- `staff_master.hired_at` + 180日 = 正規化期日
+- alert_level: days_remaining < 0 = EXPIRED, < 14 = CRITICAL, それ以外 = WARNING
+- Renewals ページ「Regularization」タブに表示
+- 「✓ Regularize」で REGULARIZED（アラート消去）
+- 「✕ Terminate」でメモ入力 → TERMINATED（アラート消去）
+
+### 今後の残タスク (HR)
+- Phase B: オンボーディング書類チェックリスト
+- Phase C-2: パフォーマンスレビューサイクル
+- Phase C-4: 離職管理 (Offboarding)
+
+## Recently Completed (2026-06-07 session 27) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Phase 1-3 バグ修正（7件） | `db_meal_allowance.py`, `db_probation.py`, `db_nte.py`, `main.py`, `admin/nte/page.tsx` | evaluate_probation_cycle コミット漏れ修正、get_hired_at city フィルター追加、end_hour NULL クラッシュ修正、NTE 重複 suspension 防止、midnight シフト早退判定修正、suspension 日付 PHT 化、NTE admin の res.ok チェック追加 |
+| Phase 1-3 ユニットテスト追加 | `tests_pure/` (新ディレクトリ) | 47テスト全 PASS。境界値（遅刻グレース・早退グレース・欠勤停職・週末スキップ）を網羅 |
+| 遅刻グレースピリオド変更 | `db_meal_allowance.py`, `db_probation.py` | 15分 → 5分以内をオンタイムに変更 |
+
+## Recently Completed (2026-06-06 session 26) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Direct Purchase: Unit に packet/ctn/case を追加 | `src/app/store/purchase/page.tsx` | UNITS 配列に3つ追加 |
+| Approval Inbox: PR No. / Date / Supplier 行を追加表示 | `approval-inbox/page.tsx`, `db.py` | CaseRow 型に request_date/vendor_names 追加。バックエンドで vendor_names を STRING_AGG サブクエリで取得。カード表示に PR No.（紫モノスペース）/ Date / Supplier 行を追加 |
+
+## Recently Completed (2026-06-06 session 25) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Store Procurement: モバイルでカテゴリ切り替え時に古いサプライヤーが残るバグ修正 | `src/app/store/procurement/request/page.tsx` | `loadItemCatalog` 開始時に `setCatalogSuppliers([])` を追加。WH→CKに切り替えた際、モバイルの遅いネットワークで Cartimar (WH) アイテムが数秒間残っていた問題を解消 |
+| Cost Calculation: 列ヘッダー sticky 修正 + レンダリング改善 | `src/app/admin/cost-calculation/page.tsx` | スクロールコンテナの `pt-4` 除去でヘッダーが正しく固定表示。`content-visibility: auto` で304行の初期レンダリングを大幅改善 |
+
+## Recently Completed (2026-06-06 session 24) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Admin Confirm Delivery: Confirm 2段階ガード | `admin/procurement/receiving/page.tsx` | Confirm → "Yes, Confirm" / Cancel の2段階確認に変更。誤クリック防止 |
+| アイテム別受取記録 Option B 実装 | `db.py`, `main.py`, 2フロントファイル | `proc_receiving_items` テーブル新設。Store Receiving 作成時にアイテム別数量を保存。Admin Confirm Delivery でアイテム別 qty_received・unit_price が編集可能に。Save ボタンで親レコードの合計を自動再計算。旧レコードは "no per-item data" メッセージ表示 |
+| Renewals: Expired/Critical/Warning チップをフィルターボタン化 | `src/app/admin/renewals/page.tsx` | クリックでそのレベルのアラートのみ表示。再クリックで解除。✕ Clear filter ボタン追加。Active/Resigned フィルターと組み合わせ可。バックエンド変更なし |
+
+## Recently Completed (2026-06-06 session 23) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| PC ナビゲーション: 横タブ → 左サイドバー | `NavBar.tsx`, `LayoutShell.tsx` | デスクトップで幅240px固定サイドバーを追加（createPortal でbodyに描画）。Staff / Admin セクション区切り、アイコン+ラベル+バッジ表示、ユーザー情報・Logout を配置。モバイルUIは完全に変更なし |
+
+## Recently Completed (2026-06-06 session 22) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Store Receiving: Confirm ボタン表示バグ修正 | `src/app/store/procurement/receiving/page.tsx` | `lastCreatedId` フィルターを削除し `isNew = row.id === lastCreatedId` で強調表示に変更。新規DRAFT レコードが Receiving Records リストに表示され Confirm ボタンが押せるようになった |
+| Admin Confirm Delivery: request_id 検索時の city フィルター除去 | `app/db.py` | `list_proc_receivings` で `request_id` が指定されている場合は `r.city` フィルターをスキップ。PRナンバーで検索すると "No records found" になっていた問題を修正 |
+| Admin Confirm Delivery: アイテム詳細展開パネル追加 | `src/app/admin/procurement/receiving/page.tsx` | Receiving No をクリックで注文アイテム一覧を展開表示。Item/Vendor/Category/Qty/Unit/Unit Price/Line Total + 合計行。キャッシュ済みで重複フェッチなし |
+
+## Recently Completed (2026-06-06 session 19) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Travel Path: レポート詳細パネル改善 (B-1/F-1/F-2) | `db_travel_path.py`, `travel-path/page.tsx` | get_travel_path_report_with_entries を LEFT JOIN 全件取得に変更（未入力項目も表示）; フロントにReportEntry型追加; 詳細パネルでitem_text表示・温度値OK🟢/DANGER🔴表示・未チェック項目を赤ブロックで強調 |
+| Travel Path: Monthly Compliance 温度ログ (F-3) | `db_travel_path.py`, `travel_path_api.py`, `travel-path/page.tsx` | GET /api/travel-path/temp-log 新規エンドポイント; Monthly Compliance 内に日付×Opening/Mid-Shift/Closing の温度一覧カードを追加; TEMP VIOLATION バッジ表示 |
+
+## Recently Completed (2026-06-06 session 18) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Cold Chain: Submit UX修正 | `src/app/store/cold-chain/page.tsx` | エラー/成功メッセージをSubmitボタンの下に移動（スクロール時にも見える）; CK Dispatch欄に手動Reloadボタン追加; No dispatches時のメッセージをamber色で明確化 |
+
+**判明した教訓**: Cold Chain はワークフロー順序が必須。①CK Dispatch タブでレコード作成 → ②Branch Receiving タブで Reload → ③Submit。CK Dispatch が未作成だと dispatchId = "" でボタンが disabled になる。
 
 ---
 
@@ -120,6 +201,29 @@ Vendor MasterのOrder Catalog登録名と`supplier_name`が一致しない場合
 | Store Eval auto-data: 接続分離バグ修正 + CUBパターン修正 | ✅ live |
 | Cold Chain: 機材選択（Manila）equipment_json | ✅ live |
 | Cold Chain: Storage Unit削除・モバイルレイアウト最適化 | ✅ live |
+| Cold Chain: 機材選択（equipment picker）+ 外枠修正 | ✅ live |
+| CK Receiving「0」エラー修正 (confirm_ck_receiving KeyError) | ✅ live |
+| Store Procurement レビュー中の前回オーダー表示を非表示 | ✅ live |
+| Cold Chain: msg位置修正 + Dispatch Reloadボタン | ✅ live |
+| Travel Path: 詳細パネル改善 (B-1/F-1/F-2) | ✅ live |
+| Travel Path: Monthly Compliance 温度ログ (F-3) | ✅ live |
+| Direct Purchase: ON CONFLICT partial index バグ修正 | ✅ live |
+| Cold Chain: Dispatch 時ボックスごと温度入力 + 写真UP (Manila) | ✅ live |
+| Cold Chain: Branch Receiving 新フロー（CK事前設定分をUPDATE） + Received By セレクター | ✅ live |
+| Cold Chain: 案Aフラグ (has_dispatch_boxes) 後方互換性対応 | ✅ live |
+| Store Procurement: Manila Excel カタログ seed (Fresh/CK/WH) + Fresh タブ追加 | ✅ live |
+| Cash Report チャンネル: Opening/Closing フォーム + Admin Dashboard (Compliance/SafetyBox/NTE) | ✅ live |
+| Store Procurement: Fresh タブ削除（Fresh は通常 PO フローへ） | ✅ live |
+| Procurement: CK オーダーを手動承認フローへ変更（承認後に PO 自動作成 → CK Production） | ✅ live |
+| Store Receiving: Confirm ボタン表示バグ修正（lastCreatedId フィルター削除） | ✅ live |
+| Admin Confirm Delivery: PRナンバー検索で "No records found" バグ修正（city フィルター除去） | ✅ live |
+| Admin Confirm Delivery: アイテム詳細展開パネル追加（クリックで注文明細表示） | ✅ live |
+| PC ナビゲーション: 横タブ → 左サイドバー（240px、Staff/Admin区切り） | ✅ live |
+| Admin Confirm Delivery: Confirm 2段階ガード + アイテム別受取記録（Option B） | ✅ live |
+| Renewals: Expired/Critical/Warning フィルターチップ化 | ✅ live |
+| Direct Purchase: Unit に packet/ctn/case 追加 | ✅ live |
+| Approval Inbox: PR No. / Date / Supplier 表示追加 | ✅ live |
+| Procurement: WH Dispatch 新機能（承認 → WH Dispatch → Store Receiving） | ⏳ 後日実装 |
 
 ---
 
