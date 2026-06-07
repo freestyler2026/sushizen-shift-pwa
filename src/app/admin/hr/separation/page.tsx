@@ -859,8 +859,8 @@ export default function HrSeparationPage() {
         headers: authHeaders,
       });
       if (res.ok) {
-        const data: SeparationRecord[] = await res.json();
-        setRecords(data);
+        const data = await res.json();
+        setRecords(Array.isArray(data?.separations) ? data.separations : Array.isArray(data) ? data : []);
       }
     } finally {
       setLoading(false);

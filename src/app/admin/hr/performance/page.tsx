@@ -391,7 +391,7 @@ export default function HRPerformancePage() {
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setSchedule(Array.isArray(data) ? data : []);
+      setSchedule(Array.isArray(data?.schedule) ? data.schedule : Array.isArray(data) ? data : []);
     } catch (e) {
       setScheduleError(e instanceof Error ? e.message : "Failed to load schedule");
     } finally {
@@ -419,7 +419,7 @@ export default function HRPerformancePage() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setReviews(Array.isArray(data) ? data : []);
+      setReviews(Array.isArray(data?.reviews) ? data.reviews : Array.isArray(data) ? data : []);
     } catch {
       setReviews([]);
     } finally {

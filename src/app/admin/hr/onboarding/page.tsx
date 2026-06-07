@@ -708,7 +708,7 @@ export default function HrOnboardingPage() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setRecords(Array.isArray(data?.records) ? data.records : Array.isArray(data) ? data : []);
+      setRecords(Array.isArray(data?.onboarding) ? data.onboarding : Array.isArray(data?.records) ? data.records : Array.isArray(data) ? data : []);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
