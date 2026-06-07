@@ -98,33 +98,40 @@ export default function NtePage() {
     setLoading(true);
     setError("");
 
-    const safeFetch = async (label: string, url: string) => {
-      try {
-        const res = await fetch(url, { headers: h });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body?.detail || `HTTP ${res.status}`);
-        }
-        return await res.json();
-      } catch (e: any) {
-        throw new Error(`[${label}] ${e?.message || String(e)}`);
+    const tryFetch = async (url: string) => {
+      const res = await fetch(url, { headers: h });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.detail || `HTTP ${res.status}`);
       }
+      return res.json();
     };
 
-    try {
-      const [sumJson, nteJson, susJson] = await Promise.all([
-        safeFetch("summary", `${API_BASE}/api/admin/conduct/overview?city=${city}`),
-        safeFetch("ntes", `${API_BASE}/api/admin/conduct/notices?city=${city}&limit=200`),
-        safeFetch("suspensions", `${API_BASE}/api/admin/conduct/enforcement?city=${city}&limit=100`),
-      ]);
-      setSummary(Array.isArray(sumJson?.summary) ? sumJson.summary : []);
-      setNteRecords(Array.isArray(nteJson?.ntes) ? nteJson.ntes : []);
-      setSuspensions(Array.isArray(susJson?.suspensions) ? susJson.suspensions : []);
-    } catch (e: any) {
-      setError(e?.message || String(e));
-    } finally {
-      setLoading(false);
+    // Use allSettled so a blocked request doesn't prevent others from loading
+    const [sumResult, nteResult, susResult] = await Promise.allSettled([
+      tryFetch(`${API_BASE}/api/admin/conduct/overview?city=${city}`),
+      tryFetch(`${API_BASE}/api/admin/conduct/history?city=${city}&limit=200`),
+      tryFetch(`${API_BASE}/api/admin/conduct/enforcement?city=${city}&limit=100`),
+    ]);
+
+    if (sumResult.status === "fulfilled") {
+      setSummary(Array.isArray(sumResult.value?.summary) ? sumResult.value.summary : []);
     }
+    if (nteResult.status === "fulfilled") {
+      setNteRecords(Array.isArray(nteResult.value?.ntes) ? nteResult.value.ntes : []);
+    }
+    if (susResult.status === "fulfilled") {
+      setSuspensions(Array.isArray(susResult.value?.suspensions) ? susResult.value.suspensions : []);
+    }
+
+    const failures = [
+      sumResult.status === "rejected" ? `overview: ${(sumResult.reason as Error)?.message}` : null,
+      nteResult.status === "rejected" ? `history: ${(nteResult.reason as Error)?.message}` : null,
+      susResult.status === "rejected" ? `enforcement: ${(susResult.reason as Error)?.message}` : null,
+    ].filter(Boolean);
+    if (failures.length > 0) setError(failures.join(" | "));
+
+    setLoading(false);
   }, [city]);
 
   useEffect(() => { if (allowed) void loadAll(); }, [allowed, loadAll]);
