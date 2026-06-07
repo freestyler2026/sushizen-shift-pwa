@@ -13,6 +13,7 @@ import {
   Pencil,
   Plus,
   Search,
+  UserCheck,
   Users,
   X,
 } from "lucide-react";
@@ -30,7 +31,22 @@ import {
   setRenewalsBadgeCount,
 } from "@/lib/renewals";
 
-type PageTab = "alerts" | "staff" | "add";
+type PageTab = "alerts" | "regularization" | "staff" | "add";
+
+type RegularizationAlert = {
+  id: string;
+  staff_name: string;
+  city: string;
+  hired_at: string;
+  alert_start_date: string;
+  regularization_due_date: string;
+  days_remaining: number;
+  status: string;
+  regularized_at: string | null;
+  regularized_by: string | null;
+  notes: string | null;
+  alert_level: "EXPIRED" | "CRITICAL" | "WARNING";
+};
 type StaffStatusFilter = "all" | "active" | "resigned";
 
 type StaffFormState = {
@@ -58,6 +74,7 @@ type ToastState = { kind: "success" | "error"; text: string } | null;
 const STATUS_OPTIONS: RenewalStatus[] = ["PENDING", "IN_PROGRESS", "RENEWED", "N/A"];
 const TAB_ITEMS: Array<{ id: PageTab; label: string; icon: typeof CircleAlert }> = [
   { id: "alerts", label: "Alerts", icon: CircleAlert },
+  { id: "regularization", label: "Regularization", icon: UserCheck },
   { id: "staff", label: "All Staff", icon: Users },
   { id: "add", label: "Add Staff", icon: Plus },
 ];
@@ -485,6 +502,9 @@ export default function RenewalsAdminPage() {
   const [editingStaff, setEditingStaff] = useState<RenewalStaff | null>(null);
   const [editStaffForm, setEditStaffForm] = useState<StaffFormState>(emptyStaffForm());
   const [editDocForms, setEditDocForms] = useState<DocumentFormState>(emptyDocumentForm());
+  const [regularizationAlerts, setRegularizationAlerts] = useState<RegularizationAlert[]>([]);
+  const [regularizationLoading, setRegularizationLoading] = useState(false);
+  const [regularizationSavingName, setRegularizationSavingName] = useState<string | null>(null);
   const [accessReady, setAccessReady] = useState(false);
 
   useEffect(() => {
@@ -508,6 +528,19 @@ export default function RenewalsAdminPage() {
     const id = window.setTimeout(() => setToast(null), 4000);
     return () => window.clearTimeout(id);
   }, [toast]);
+
+  const loadRegularizationAlerts = async () => {
+    setRegularizationLoading(true);
+    try {
+      const data = await requestJson<{ alerts: RegularizationAlert[] }>("/api/admin/hr/regularization-alerts");
+      setRegularizationAlerts(Array.isArray(data?.alerts) ? data.alerts : []);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Failed to load regularization alerts";
+      setToast({ kind: "error", text: msg });
+    } finally {
+      setRegularizationLoading(false);
+    }
+  };
 
   const loadAlerts = async () => {
     setAlertsLoading(true);
@@ -539,6 +572,7 @@ export default function RenewalsAdminPage() {
     if (!accessReady) return;
     void loadAlerts();
     void loadStaff();
+    void loadRegularizationAlerts();
     // Load staff master names for Add Staff autocomplete
     const auth = getAuth();
     const city = (auth?.city as string) || "dubai";
@@ -710,6 +744,33 @@ export default function RenewalsAdminPage() {
       setToast({ kind: "error", text: error?.message || "Failed to update status." });
     } finally {
       setResigningId(null);
+    }
+  };
+
+  const handleRegularizationStatus = async (
+    staffName: string,
+    status: string,
+    notes: string = "",
+  ) => {
+    setRegularizationSavingName(staffName);
+    try {
+      const auth = getAuth();
+      await requestJson(`/api/admin/hr/regularization/${encodeURIComponent(staffName)}`, {
+        method: "PATCH",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ city: "manila", status, regularized_by: auth?.staffName || "", notes }),
+      });
+      setRegularizationAlerts((prev) =>
+        status === "REGULARIZED" || status === "TERMINATED"
+          ? prev.filter((a) => a.staff_name !== staffName)
+          : prev.map((a) => (a.staff_name === staffName ? { ...a, status } : a)),
+      );
+      setToast({ kind: "success", text: `${staffName} marked as ${status}.` });
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Failed to update status";
+      setToast({ kind: "error", text: msg });
+    } finally {
+      setRegularizationSavingName(null);
     }
   };
 
@@ -944,6 +1005,120 @@ export default function RenewalsAdminPage() {
                 ))
               )}
             </div>
+          </div>
+        ) : null}
+
+        {tab === "regularization" ? (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-violet-800/40 bg-violet-950/20 p-4 text-sm text-violet-200">
+              <strong>Manila Regularization Tracker</strong> — Shows staff whose 6-month regularization
+              deadline is approaching (alert starts at 5 months / 150 days after hire date).
+              Once marked as Regularized or Terminated, the alert is dismissed.
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-neutral-400">
+                {regularizationAlerts.length} staff pending regularization decision
+              </div>
+              <button
+                type="button"
+                onClick={() => void loadRegularizationAlerts()}
+                disabled={regularizationLoading}
+                className="rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-xs text-neutral-300 transition hover:bg-neutral-700 disabled:opacity-60"
+              >
+                {regularizationLoading ? "Loading..." : "Refresh"}
+              </button>
+            </div>
+
+            {regularizationLoading ? (
+              <div className="flex items-center gap-2 rounded-2xl border border-neutral-800 bg-neutral-900 p-6 text-neutral-300">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading regularization alerts...
+              </div>
+            ) : regularizationAlerts.length === 0 ? (
+              <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 text-neutral-400">
+                No regularization alerts right now. Alerts appear when Manila staff reach their 5-month mark.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {regularizationAlerts.map((alert) => {
+                  const daysLeft = alert.days_remaining;
+                  const borderColor =
+                    alert.alert_level === "EXPIRED"
+                      ? "border-red-500/50"
+                      : alert.alert_level === "CRITICAL"
+                      ? "border-orange-500/50"
+                      : "border-amber-500/50";
+                  const levelBadge =
+                    alert.alert_level === "EXPIRED"
+                      ? "bg-red-900/50 border border-red-500 text-red-200"
+                      : alert.alert_level === "CRITICAL"
+                      ? "bg-orange-900/50 border border-orange-500 text-orange-200"
+                      : "bg-amber-900/50 border border-amber-500 text-amber-200";
+                  const isSaving = regularizationSavingName === alert.staff_name;
+
+                  return (
+                    <div
+                      key={alert.id}
+                      className={`rounded-2xl border bg-neutral-900 p-4 ${borderColor}`}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${levelBadge}`}>
+                              {alert.alert_level}
+                            </span>
+                            <span className="rounded-full border border-violet-700/50 bg-violet-900/30 px-2.5 py-1 text-xs font-semibold text-violet-200">
+                              REGULARIZATION
+                            </span>
+                          </div>
+                          <div className="text-base font-semibold text-white">{alert.staff_name}</div>
+                          <div className="text-sm text-neutral-400">
+                            Hired: {formatDate(alert.hired_at)} &nbsp;·&nbsp;
+                            Due: {formatDate(alert.regularization_due_date)} &nbsp;·&nbsp;
+                            {daysLeft < 0
+                              ? `${Math.abs(daysLeft)} days overdue`
+                              : daysLeft === 0
+                              ? "Due today"
+                              : `${daysLeft} days remaining`}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            disabled={isSaving}
+                            onClick={() =>
+                              void handleRegularizationStatus(alert.staff_name, "REGULARIZED")
+                            }
+                            className="rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-600 disabled:opacity-60"
+                          >
+                            {isSaving ? "Saving..." : "✓ Regularize"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isSaving}
+                            onClick={() => {
+                              const note = window.prompt(
+                                `Reason for terminating ${alert.staff_name}?`,
+                              );
+                              if (note !== null)
+                                void handleRegularizationStatus(
+                                  alert.staff_name,
+                                  "TERMINATED",
+                                  note,
+                                );
+                            }}
+                            className="rounded-lg border border-red-700/60 bg-red-950/30 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-900/50 disabled:opacity-60"
+                          >
+                            ✕ Terminate
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ) : null}
 
