@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-07 (session 29 — end)
+Last updated: 2026-06-07 (session 32 — end)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,33 @@ Last updated: 2026-06-07 (session 29 — end)
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1197, Vercel auto-deploy)
+なし — 全変更デプロイ済み (Heroku v1199, Vercel auto-deploy)
+
+## Recently Completed (2026-06-07 session 32) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| HR Offboarding フロントエンド (Phase C-4) | `src/app/admin/hr/separation/page.tsx` (新規), `src/components/NavBar.tsx` | 離職管理ページ。カード一覧 + 詳細パネル (日付/Final Pay/チェックリスト)。13項目チェックリスト (Exit/Clearance/Final Pay/Documents)。NavBarに HR Offboarding リンク追加 |
+| HR Offboarding バックエンド (Phase C-4) | `app/db_hr.py` (追記), `app/main.py` (追記) | hr_separation + hr_separation_items テーブル。create/list/detail/update/update_item。5エンドポイント。pending=0 で自動 complete 昇格 |
+| HR Performance Review フロントエンド (Phase C-2) | `src/app/admin/hr/performance/page.tsx` (新規), `src/components/NavBar.tsx` | 3タブ (Upcoming/History/New Review)。スコアボタン1-5、live合計/グレード、昇給推薦、Save Draft/Submit |
+| HR Performance Review バックエンド (Phase C-2) | `app/db_hr.py` (追記), `app/main.py` (追記) | hr_performance_reviews + hr_review_schedule。sync_review_schedules() で3ヶ月/6ヶ月/年次を自動生成。OVERDUE/URGENT/SOON/UPCOMING アラートレベル |
+
+### HR Offboarding 13項目
+| カテゴリ | 項目 |
+|---|---|
+| 🚪 Exit Process | Resignation Letter, Exit Interview, 30-Day Notice |
+| ✅ Clearance | Uniform, Equipment, Loans/Advances, Keys/Access Cards |
+| 💰 Final Pay | Computed, Released |
+| 📋 Documents | COE Issued, SSS R-5, PhilHealth Update, Pag-IBIG Update |
+
+### HR システム全フェーズ完了状態
+| フェーズ | 内容 | 状態 |
+|---|---|---|
+| Phase A | 採用パイプライン (Kanban) | ✅ live |
+| Phase B | オンボーディング書類管理 | ✅ live |
+| C-1 | 正規化トラッカー (Renewals) | ✅ live |
+| C-2 | パフォーマンスレビュー | ✅ live |
+| C-4 | 離職管理 (Offboarding) | ✅ live |
 
 ## Recently Completed (2026-06-07 session 29) — live
 
@@ -34,7 +60,7 @@ Last updated: 2026-06-07 (session 29 — end)
 - `update_onboarding_item()`: status=submitted 時に submitted_at を自動set、全 items が pending=0 になったら親を complete に自動昇格
 
 ### 今後の残タスク (HR)
-- Phase C-2: パフォーマンスレビューサイクル
+- Phase C-2 バックエンド: APIエンドポイント実装 (see session 30 pending tasks above)
 - Phase C-4: 離職管理 (Offboarding)
 
 ## Recently Completed (2026-06-07 session 28) — live
