@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, INPUT_CLASS, TEXTAREA_CLASS, SELECT_CLASS,
@@ -59,7 +59,6 @@ function suspStatusBadge(s: string) {
 }
 
 export default function NtePage() {
-  const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
   const [city, setCity] = useState("manila");
   const [tab, setTab] = useState<"overview" | "records" | "suspensions">("overview");
@@ -81,28 +80,27 @@ export default function NtePage() {
   const [creatingManual, setCreatingManual] = useState(false);
   const [showManualForm, setShowManualForm] = useState(false);
 
-  const headers = useMemo(() => auth?.accessToken ? { Authorization: `Bearer ${auth.accessToken}` } : {}, [auth]);
-
   useEffect(() => {
     async function init() {
+      const auth = getAuth();
       const refreshed = await refreshAuthFromApi(auth);
       const resolved = refreshed || auth;
       setAllowed(ADMIN_ROLES.has(String(resolved?.role || "").toUpperCase()));
       setCity(String(resolved?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila");
     }
     void init();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadAll = useCallback(async () => {
-    if (!auth?.accessToken) return;
+    const h = getAuthHeaders();
+    if (!h.Authorization) return;
     setLoading(true);
     setError("");
     try {
       const [sumRes, nteRes, susRes] = await Promise.all([
-        fetch(`${API_BASE}/api/admin/nte/summary?city=${city}`, { headers }),
-        fetch(`${API_BASE}/api/admin/nte/list?city=${city}&limit=200`, { headers }),
-        fetch(`${API_BASE}/api/admin/suspensions?city=${city}&limit=100`, { headers }),
+        fetch(`${API_BASE}/api/admin/nte/summary?city=${city}`, { headers: h }),
+        fetch(`${API_BASE}/api/admin/nte/list?city=${city}&limit=200`, { headers: h }),
+        fetch(`${API_BASE}/api/admin/suspensions?city=${city}&limit=100`, { headers: h }),
       ]);
       if (!sumRes.ok || !nteRes.ok || !susRes.ok) {
         const failedRes = !sumRes.ok ? sumRes : !nteRes.ok ? nteRes : susRes;
@@ -118,7 +116,7 @@ export default function NtePage() {
     } finally {
       setLoading(false);
     }
-  }, [auth, city, headers]);
+  }, [city]);
 
   useEffect(() => { if (allowed) void loadAll(); }, [allowed, loadAll]);
 
@@ -127,11 +125,13 @@ export default function NtePage() {
     setIssuing(true);
     setError("");
     setSuccessMsg("");
+    const h = getAuthHeaders();
+    const staffName = getAuth()?.staffName || "";
     try {
       const res = await fetch(`${API_BASE}/api/admin/nte/issue`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...headers },
-        body: JSON.stringify({ city, ...issueForm, issued_by: auth?.staffName || "" }),
+        headers: { ...h, "Content-Type": "application/json" },
+        body: JSON.stringify({ city, ...issueForm, issued_by: staffName }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
@@ -152,11 +152,13 @@ export default function NtePage() {
   const handleResolveNte = async (nteId: string, staffName: string) => {
     if (!window.confirm(`Resolve this NTE for ${staffName}?`)) return;
     setError("");
+    const h = getAuthHeaders();
+    const resolvedBy = getAuth()?.staffName || "";
     try {
       const res = await fetch(`${API_BASE}/api/admin/nte/${nteId}/resolve`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...headers },
-        body: JSON.stringify({ resolved_by: auth?.staffName || "" }),
+        headers: { ...h, "Content-Type": "application/json" },
+        body: JSON.stringify({ resolved_by: resolvedBy }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setSuccessMsg("NTE resolved.");
@@ -170,10 +172,11 @@ export default function NtePage() {
     const label = status === "COMPLETED" ? "Mark as completed?" : "Cancel this suspension?";
     if (!window.confirm(label)) return;
     setError("");
+    const h = getAuthHeaders();
     try {
       const res = await fetch(`${API_BASE}/api/admin/suspensions/${id}/status`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", ...headers },
+        headers: { ...h, "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -188,11 +191,13 @@ export default function NtePage() {
     if (!manualForm.staff_name.trim() || !manualForm.suspension_date) return;
     setCreatingManual(true);
     setError("");
+    const h = getAuthHeaders();
+    const staffName = getAuth()?.staffName || "";
     try {
       const res = await fetch(`${API_BASE}/api/admin/suspensions/manual`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...headers },
-        body: JSON.stringify({ city, ...manualForm, created_by: auth?.staffName || "" }),
+        headers: { ...h, "Content-Type": "application/json" },
+        body: JSON.stringify({ city, ...manualForm, created_by: staffName }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setSuccessMsg("Manual suspension created.");
