@@ -59,6 +59,7 @@ const ROLE_OPTIONS = [
   "ADMIN",
   "DUBAI_MANAGEMENT",
   "MANILA_MANAGEMENT",
+  "INVENTORY_PURCHASING",
 ] as const;
 type StaffRole = (typeof ROLE_OPTIONS)[number];
 
