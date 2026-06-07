@@ -51,7 +51,9 @@ import {
   TABLE_ROW,
 } from "@/lib/ui-tokens";
 
-const ROLE_OPTIONS = [
+// Fallback role list used before the API responds (or if the API fails).
+// Role Management is the authoritative master — roles are fetched dynamically.
+const ROLE_OPTIONS_FALLBACK = [
   "STAFF",
   "MANAGER",
   "MANAGEMENT",
@@ -64,8 +66,10 @@ const ROLE_OPTIONS = [
   "MANILA_STAFF",
   "CK_MANILA",
   "INVENTORY_PURCHASING",
-] as const;
-type StaffRole = (typeof ROLE_OPTIONS)[number];
+];
+// Keep ROLE_OPTIONS as alias so other references compile without change
+const ROLE_OPTIONS = ROLE_OPTIONS_FALLBACK;
+type StaffRole = string;
 
 const STATUS_OPTIONS = ["ACTIVE", "INACTIVE"] as const;
 type StaffStatus = (typeof STATUS_OPTIONS)[number];
@@ -161,9 +165,9 @@ function friendlyErrorText(raw: string): string {
 }
 
 function asRole(s: any): StaffRole {
+  // Accept any non-empty role string — roles are now managed dynamically in Role Management
   const u = norm(s).toUpperCase();
-  if (ROLE_OPTIONS.includes(u as any)) return u as StaffRole;
-  return "STAFF";
+  return u || "STAFF";
 }
 
 function asStatus(s: any): StaffStatus {
@@ -278,6 +282,8 @@ export default function AdminStaffPage() {
   const [newStaffRole, setNewStaffRole] = useState<"STAFF" | "MANAGER">("STAFF");
   const [newStaffStatus, setNewStaffStatus] = useState<StaffStatus>("ACTIVE");
   const [roleDrafts, setRoleDrafts] = useState<Record<string, StaffRole>>({});
+  // Dynamic role list fetched from Role Management (authoritative master)
+  const [availableRoles, setAvailableRoles] = useState<string[]>(ROLE_OPTIONS_FALLBACK);
   const [roleSavingName, setRoleSavingName] = useState("");
   const [roleSavedName, setRoleSavedName] = useState("");
   const [branchDrafts, setBranchDrafts] = useState<Record<string, string>>({});
@@ -298,6 +304,25 @@ export default function AdminStaffPage() {
   const [resetPinError, setResetPinError] = useState("");
   const [resetPinResultCode, setResetPinResultCode] = useState<string | null>(null);
   const [resetPinCopied, setResetPinCopied] = useState(false);
+
+  // Fetch available roles from Role Management API (dynamic — no deploy needed for new roles)
+  useEffect(() => {
+    apiGet<{ ok: boolean; roles: { role_key: string; is_active: boolean }[] }>(
+      "/api/admin/access/roles?include_inactive=false",
+    )
+      .then((data) => {
+        const keys = (data?.roles ?? [])
+          .filter((r) => r.is_active)
+          .map((r) => String(r.role_key || "").toUpperCase())
+          .filter(Boolean)
+          .sort();
+        if (keys.length > 0) setAvailableRoles(keys);
+      })
+      .catch(() => {
+        // Keep ROLE_OPTIONS_FALLBACK if API fails
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     // Only auto-reload if the user has already authenticated and
@@ -1277,7 +1302,7 @@ export default function AdminStaffPage() {
                           value={roleDrafts[dn] || rr}
                           onChange={(e) => setRoleDrafts((prev) => ({ ...prev, [dn]: asRole(e.target.value) }))}
                         >
-                          {ROLE_OPTIONS.map((x) => (
+                          {availableRoles.map((x) => (
                             <option key={x} value={x}>
                               {x}
                             </option>
