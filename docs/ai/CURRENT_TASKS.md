@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-08 (session 35 — end)
+Last updated: 2026-06-08 (session 36 — end)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,36 @@ Last updated: 2026-06-08 (session 35 — end)
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1206, Vercel auto-deploy)
+なし — 全変更デプロイ済み (Heroku v1208, Vercel auto-deploy)
+
+## 🔴 未解決: Employee Cases ページのデータ取得問題（明日継続）
+
+### 現状
+- ページ自体は正常表示（`/admin/employee-cases`、4タブ、KPIカード）
+- `POST /api/admin/cases/data` と `POST /api/admin/cases/board` が "Failed to fetch"
+- サーバー（Heroku・Vercel）は正常。curlでは401が返る
+- GET/POST どちらも、URL を何度変えてもブロックされる
+
+### 試した URL の変遷
+1. `/admin/nte` → `/api/admin/nte/list` → ブロック
+2. → `/api/admin/nte/records` → ブロック
+3. → `/api/admin/suspensions` → ブロック
+4. → `/api/admin/nte/actions` → ブロック
+5. → `/api/admin/conduct/*` → ブロック（GET）
+6. → `POST /api/admin/conduct/*` → まだブロック
+7. ページURL: `/admin/nte` → `/admin/notice-to-explain` → まだブロック
+8. → `/admin/employee-cases` + `/api/admin/cases/*` → まだブロック
+
+### 仮説
+- ブラウザの広告ブロッカー拡張機能が、このページ固有の何かをトリガーにして全fetchをブロック
+- URLではなく、リクエストヘッダー（Authorization: Bearer）やページコンテンツが原因の可能性
+
+### 明日試すべきこと
+1. **シークレットウィンドウ**（拡張機能無効）で試す → 動けば拡張機能が原因確定
+2. **別ブラウザ**（Chrome/Firefox/Safari）で試す
+3. **XMLHttpRequest** で fetch の代わりに試す（一部フィルタはfetchのみブロック）
+4. **フィルタリングツール特定**: ブラウザ → 設定 → 拡張機能 一覧を確認
+5. **Manillaモードで試す**（Dubaiだけブロックされている可能性）
 
 ### Manila P&L データ未インポート（継続中）
 - `/Users/jaynishimura/Downloads/[Manila] PLアプリ用データ (3).xlsx` (8シート: 202510〜202605)
