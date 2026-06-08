@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
-import { API_BASE } from "@/lib/api";
+// API calls go through Next.js proxy (/api/admin/...) — no direct Heroku fetch
 import {
   GLASS_CARD,
   STATUS_CARD,
@@ -230,7 +230,6 @@ function TemplateModal({
   currentUser,
   onClose,
   onSaved,
-  apiBase,
   authHeaders,
 }: {
   template: NteTemplate | null;
@@ -238,7 +237,6 @@ function TemplateModal({
   currentUser: string;
   onClose: () => void;
   onSaved: () => void;
-  apiBase: string;
   authHeaders: () => Record<string, string>;
 }) {
   const isEdit = Boolean(template);
@@ -254,14 +252,14 @@ function TemplateModal({
     try {
       const h = authHeaders();
       if (isEdit && template) {
-        const res = await fetch(`${apiBase}/api/admin/cases/templates/${template.id}`, {
+        const res = await fetch(`/api/admin/cases/templates/${template.id}`, {
           method: "PATCH",
           headers: { ...h, "Content-Type": "application/json" },
           body: JSON.stringify({ title, body }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
       } else {
-        const res = await fetch(`${apiBase}/api/admin/cases/templates`, {
+        const res = await fetch(`/api/admin/cases/templates`, {
           method: "POST",
           headers: { ...h, "Content-Type": "application/json" },
           body: JSON.stringify({ city, title, body, created_by: currentUser }),
@@ -436,7 +434,7 @@ export default function EmployeeCasesPage() {
       const h = { ...authHeaders(), "Content-Type": "application/json" };
 
       // Main dashboard data
-      const res = await fetch(`${API_BASE}/api/admin/cases/data`, {
+      const res = await fetch(`/api/admin/cases/data`, {
         method: "POST",
         headers: h,
         body: JSON.stringify({ city }),
@@ -450,7 +448,7 @@ export default function EmployeeCasesPage() {
       setTemplates(Array.isArray(data.templates) ? data.templates : []);
 
       // Board ranking
-      const boardRes = await fetch(`${API_BASE}/api/admin/cases/board`, {
+      const boardRes = await fetch(`/api/admin/cases/board`, {
         method: "POST",
         headers: h,
         body: JSON.stringify({ city }),
@@ -496,7 +494,7 @@ export default function EmployeeCasesPage() {
     setError("");
     setSuccessMsg("");
     try {
-      const res = await fetch(`${API_BASE}/api/admin/cases/create`, {
+      const res = await fetch(`/api/admin/cases/create`, {
         method: "POST",
         headers: { ...authHeaders(), "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -534,7 +532,7 @@ export default function EmployeeCasesPage() {
     setError("");
     try {
       const res = await fetch(
-        `${API_BASE}/api/admin/cases/${nteId}/close`,
+        `/api/admin/cases/${nteId}/close`,
         {
           method: "POST",
           headers: { ...authHeaders(), "Content-Type": "application/json" },
@@ -555,7 +553,7 @@ export default function EmployeeCasesPage() {
     setError("");
     try {
       const res = await fetch(
-        `${API_BASE}/api/admin/cases/templates/${id}`,
+        `/api/admin/cases/templates/${id}`,
         {
           method: "DELETE",
           headers: authHeaders(),
@@ -623,7 +621,6 @@ export default function EmployeeCasesPage() {
             setSuccessMsg("Template saved.");
             await loadData();
           }}
-          apiBase={API_BASE}
           authHeaders={authHeaders}
         />
       )}
