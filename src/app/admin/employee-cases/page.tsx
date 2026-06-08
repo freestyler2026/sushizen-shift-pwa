@@ -752,7 +752,7 @@ export default function EmployeeCasesPage() {
   const filteredHistory = ntes
     .filter((n) => {
       const nameMatch = historyNameFilter
-        ? n.staff_name.toLowerCase().includes(historyNameFilter.toLowerCase())
+        ? n.staff_name.toLowerCase() === historyNameFilter.toLowerCase()
         : true;
       const statusMatch =
         historyStatusFilter === "ALL" ? true : n.status === historyStatusFilter;
@@ -1305,12 +1305,16 @@ export default function EmployeeCasesPage() {
             {/* Staff Name */}
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Staff Name *</label>
-              <input
+              <select
                 value={issueStaffName}
                 onChange={(e) => setIssueStaffName(e.target.value)}
-                placeholder="Full name"
-                className={INPUT_CLASS}
-              />
+                className={SELECT_CLASS}
+              >
+                <option value="">— Select staff —</option>
+                {staffList.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
             </div>
             {/* Date */}
             <div>
@@ -1440,12 +1444,16 @@ export default function EmployeeCasesPage() {
           {/* Filters */}
           <div className="flex flex-wrap gap-3">
             <div className="flex-1 min-w-[180px]">
-              <input
+              <select
                 value={historyNameFilter}
                 onChange={(e) => setHistoryNameFilter(e.target.value)}
-                placeholder="Filter by staff name…"
-                className={INPUT_CLASS}
-              />
+                className={SELECT_CLASS}
+              >
+                <option value="">— All staff —</option>
+                {staffList.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
             </div>
             <div className="min-w-[140px]">
               <select
