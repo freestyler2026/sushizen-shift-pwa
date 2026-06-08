@@ -1272,7 +1272,7 @@ export default function EmployeeCasesPage() {
                         {req.reviewed_by && ` · Rejected by ${req.reviewed_by}`}
                       </p>
                       {req.review_note && (
-                        <p className={`${T_CAPTION} mt-1 italic`}>"{req.review_note}"</p>
+                        <p className={`${T_CAPTION} mt-1 italic`}>&ldquo;{req.review_note}&rdquo;</p>
                       )}
                     </div>
                   ))}
