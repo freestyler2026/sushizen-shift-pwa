@@ -158,7 +158,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/cash-management", label: "Cash Management", icon: Banknote, adminOnly: true, match: "prefix" },
   { href: "/admin/meal-allowance", label: "Meal Allowance", icon: Banknote, adminOnly: true, match: "prefix" },
   { href: "/admin/probation", label: "Probation", icon: UserCheck, adminOnly: true, match: "prefix" },
-  { href: "/admin/employee-cases", label: "Employee Cases", icon: FileText, adminOnly: true, match: "prefix" },
+  { href: "/admin/employee-cases", label: "Notice to Explain", icon: FileText, adminOnly: true, match: "prefix" },
   { href: "/admin/hr/recruitment", label: "HR Recruitment", icon: UserPlus, adminOnly: true, match: "prefix" },
   { href: "/admin/hr/onboarding", label: "HR Onboarding", icon: ClipboardCheck, adminOnly: true, match: "prefix" },
   { href: "/admin/hr/performance", label: "HR Performance", icon: Star, adminOnly: true, match: "prefix" },

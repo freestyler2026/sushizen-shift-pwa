@@ -628,10 +628,10 @@ export default function EmployeeCasesPage() {
       {/* ── Page Header ── */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className={T_PAGE_TITLE}>Staff Conduct Management</h2>
+          <h2 className={T_PAGE_TITLE}>Notice to Explain (NTE)</h2>
           <p className={`${T_BODY} mt-1`}>
-            Create and manage staff conduct notices, track case history, and issue corrective actions.
-            3 active notices trigger an automatic enforcement action.
+            Issue and manage NTE notices, track case history, and apply corrective actions.
+            3 active notices trigger an automatic suspension.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -745,7 +745,7 @@ export default function EmployeeCasesPage() {
           )}
           {!loading && ranking.length === 0 && (
             <div className={`${GLASS_CARD} p-6 text-center`}>
-              <p className={T_BODY}>No conduct cases for {city}.</p>
+              <p className={T_BODY}>No NTE records for {city}.</p>
             </div>
           )}
           {ranking
@@ -998,7 +998,7 @@ export default function EmployeeCasesPage() {
             {loading ? (
               <p className={`${T_BODY} p-5`}>Loading case history…</p>
             ) : filteredHistory.length === 0 ? (
-              <p className={`${T_BODY} p-5 text-center`}>No conduct cases.</p>
+              <p className={`${T_BODY} p-5 text-center`}>No NTE records.</p>
             ) : (
               <table className="w-full min-w-[640px]">
                 <thead>
