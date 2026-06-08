@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 // API calls go through Next.js proxy (/api/admin/...) — no direct Heroku fetch
@@ -84,6 +84,25 @@ type NteTemplate = {
   created_at: string;
 };
 
+type NteRequestStatus = "PENDING" | "APPROVED" | "REJECTED" | "ISSUED";
+
+type NteRequest = {
+  id: string;
+  city: string;
+  staff_name: string;
+  reason: string;
+  requested_by: string;
+  request_date: string;
+  status: NteRequestStatus;
+  image_url?: string | null;
+  image_filename?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  review_note?: string;
+  issued_nte_id?: string | null;
+  created_at: string;
+};
+
 type DashboardData = {
   ok: boolean;
   summary: {
@@ -96,9 +115,10 @@ type DashboardData = {
   ntes: NteRecord[];
   suspensions: any[];
   templates: NteTemplate[];
+  requests?: NteRequest[];
 };
 
-type PageTab = "board" | "issue" | "history" | "templates";
+type PageTab = "board" | "request" | "pending" | "issue" | "history" | "templates";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -345,18 +365,34 @@ export default function EmployeeCasesPage() {
   const [accessReady, setAccessReady] = useState(false);
   const [city, setCity] = useState<"manila" | "dubai">("manila");
   const [currentUser, setCurrentUser] = useState("");
+  const [currentUserRole, setCurrentUserRole] = useState("");
   const [tab, setTab] = useState<PageTab>("board");
 
   // Data state
   const [ntes, setNtes] = useState<NteRecord[]>([]);
   const [ranking, setRanking] = useState<StaffRanking[]>([]);
   const [templates, setTemplates] = useState<NteTemplate[]>([]);
+  const [requests, setRequests] = useState<NteRequest[]>([]);
+  const [staffList, setStaffList] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
   // Board tab state
   const [panelStaff, setPanelStaff] = useState<string | null>(null);
+
+  // NTE Request tab state
+  const [reqStaffName, setReqStaffName] = useState("");
+  const [reqReason, setReqReason] = useState("");
+  const [reqDate, setReqDate] = useState(todayStr());
+  const [reqImage, setReqImage] = useState<File | null>(null);
+  const [reqImagePreview, setReqImagePreview] = useState<string>("");
+  const [submittingReq, setSubmittingReq] = useState(false);
+  const reqImageRef = useRef<HTMLInputElement>(null);
+  // Reject modal state
+  const [rejectTarget, setRejectTarget] = useState<NteRequest | null>(null);
+  const [rejectNote, setRejectNote] = useState("");
+  const [rejecting, setRejecting] = useState(false);
 
   // Issue Notice tab state
   const [issueStaffName, setIssueStaffName] = useState("");
@@ -408,6 +444,7 @@ export default function EmployeeCasesPage() {
         const name = resolved?.staffName || "";
         setCurrentUser(name);
         setIssueIssuedBy(name);
+        setCurrentUserRole(role);
         setAccessReady(true);
       }
     }
@@ -446,6 +483,7 @@ export default function EmployeeCasesPage() {
       const data: DashboardData = await res.json();
       setNtes(Array.isArray(data.ntes) ? data.ntes : []);
       setTemplates(Array.isArray(data.templates) ? data.templates : []);
+      setRequests(Array.isArray(data.requests) ? data.requests : []);
 
       // Board ranking
       const boardRes = await fetch(`/api/admin/cases/board`, {
@@ -469,6 +507,137 @@ export default function EmployeeCasesPage() {
   useEffect(() => {
     if (accessReady) void loadData();
   }, [accessReady, city, loadData]);
+
+  // ── Load staff list for dropdown ───────────────────────────────────────────
+  useEffect(() => {
+    if (!accessReady) return;
+    const auth = getAuth();
+    if (!auth?.accessToken) return;
+    fetch(`/api/admin/staff_master/names?city=${city}&limit=300`, {
+      headers: getAuthHeaders(auth) as Record<string, string>,
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        const names: string[] = Array.isArray(d?.names)
+          ? d.names
+          : Array.isArray(d)
+          ? d
+          : [];
+        setStaffList(names.sort());
+      })
+      .catch(() => {});
+  }, [accessReady, city]);
+
+  // ── Submit NTE Request ─────────────────────────────────────────────────────
+  const handleSubmitRequest = async () => {
+    if (!reqStaffName.trim() || !reqReason.trim()) return;
+    setSubmittingReq(true);
+    setError("");
+    setSuccessMsg("");
+    try {
+      const res = await fetch("/api/admin/cases/requests/submit", {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          city,
+          staff_name: reqStaffName.trim(),
+          reason: reqReason.trim(),
+          requested_by: currentUser,
+          request_date: reqDate || todayStr(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error((data as any).detail || `HTTP ${res.status}`);
+      const newReq: NteRequest = (data as any).request;
+
+      // Upload image if selected
+      if (reqImage && newReq?.id) {
+        const form = new FormData();
+        form.append("file", reqImage);
+        await fetch(`/api/admin/cases/requests/${newReq.id}/upload-image`, {
+          method: "POST",
+          headers: authHeaders(),
+          body: form,
+        }).catch(() => {});
+      }
+
+      setSuccessMsg(`NTE request for ${reqStaffName} submitted. HR will review it.`);
+      setReqStaffName("");
+      setReqReason("");
+      setReqDate(todayStr());
+      setReqImage(null);
+      setReqImagePreview("");
+      if (reqImageRef.current) reqImageRef.current.value = "";
+      await loadData();
+    } catch (e: any) {
+      setError(e?.message || "Failed to submit request");
+    } finally {
+      setSubmittingReq(false);
+    }
+  };
+
+  // ── Approve / Reject Request ───────────────────────────────────────────────
+  const handleApproveRequest = async (req: NteRequest) => {
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/cases/requests/${req.id}/approve`, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setSuccessMsg(`Request for ${req.staff_name} approved — moved to Pending Issuance.`);
+      await loadData();
+    } catch (e: any) {
+      setError(e?.message || "Failed to approve");
+    }
+  };
+
+  const handleRejectConfirm = async () => {
+    if (!rejectTarget) return;
+    setRejecting(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/cases/requests/${rejectTarget.id}/reject`, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ review_note: rejectNote }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setSuccessMsg(`Request for ${rejectTarget.staff_name} rejected.`);
+      setRejectTarget(null);
+      setRejectNote("");
+      await loadData();
+    } catch (e: any) {
+      setError(e?.message || "Failed to reject");
+    } finally {
+      setRejecting(false);
+    }
+  };
+
+  // ── Issue from Pending ─────────────────────────────────────────────────────
+  const handleIssueFromRequest = async (req: NteRequest) => {
+    if (!window.confirm(`Issue NTE to ${req.staff_name}? This will create a formal NTE record.`)) return;
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/cases/requests/${req.id}/issue`, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ issued_by: currentUser }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error((data as any).detail || `HTTP ${res.status}`);
+      const triggered = (data as any).suspension_triggered;
+      setSuccessMsg(
+        triggered
+          ? `NTE issued to ${req.staff_name}. Suspension auto-created!`
+          : `NTE issued to ${req.staff_name}. Visible in Case History.`
+      );
+      setTab("history");
+      await loadData();
+    } catch (e: any) {
+      setError(e?.message || "Failed to issue");
+    }
+  };
 
   // Auto-clear success message
   useEffect(() => {
@@ -595,6 +764,11 @@ export default function EmployeeCasesPage() {
   const totalActive = ntes.filter((n) => n.status === "ACTIVE").length;
   const totalNtes = ntes.length;
   const totalStaffAffected = new Set(ntes.map((n) => n.staff_name)).size;
+  const pendingRequests = requests.filter((r) => r.status === "PENDING").length;
+  const pendingIssuance = requests.filter((r) => r.status === "APPROVED").length;
+
+  // HR visibility (can approve/reject)
+  const isHR = ["ADMIN", "HQ", "HR_MANAGER"].includes(currentUserRole);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -697,7 +871,7 @@ export default function EmployeeCasesPage() {
       )}
 
       {/* ── KPI Row ── */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className={KPI_CARD}>
           <p className={KPI_LABEL}>Active Notices</p>
           <p className={`${KPI_VALUE} ${totalActive > 0 ? "text-red-400" : ""}`}>
@@ -709,8 +883,16 @@ export default function EmployeeCasesPage() {
           <p className={KPI_VALUE}>{loading ? "—" : totalNtes}</p>
         </div>
         <div className={KPI_CARD}>
-          <p className={KPI_LABEL}>Staff Affected</p>
-          <p className={KPI_VALUE}>{loading ? "—" : totalStaffAffected}</p>
+          <p className={KPI_LABEL}>Pending Review</p>
+          <p className={`${KPI_VALUE} ${pendingRequests > 0 ? "text-amber-400" : ""}`}>
+            {loading ? "—" : pendingRequests}
+          </p>
+        </div>
+        <div className={KPI_CARD}>
+          <p className={KPI_LABEL}>Pending Issuance</p>
+          <p className={`${KPI_VALUE} ${pendingIssuance > 0 ? "text-violet-400" : ""}`}>
+            {loading ? "—" : pendingIssuance}
+          </p>
         </div>
       </div>
 
@@ -718,10 +900,12 @@ export default function EmployeeCasesPage() {
       <div className={TAB_CONTAINER}>
         {(
           [
-            { id: "board", label: "Staff Board" },
-            { id: "issue", label: "Issue Notice" },
-            { id: "history", label: "Case History" },
-            { id: "templates", label: "Templates" },
+            { id: "board",    label: "Staff Board" },
+            { id: "request",  label: "NTE Request" },
+            { id: "pending",  label: `Pending${pendingIssuance > 0 ? ` (${pendingIssuance})` : ""}` },
+            { id: "issue",    label: "Issue Notice" },
+            { id: "history",  label: "Case History" },
+            { id: "templates",label: "Templates" },
           ] as { id: PageTab; label: string }[]
         ).map(({ id, label }) => (
           <button
@@ -734,6 +918,42 @@ export default function EmployeeCasesPage() {
           </button>
         ))}
       </div>
+
+      {/* ── Reject Modal ── */}
+      {rejectTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className={`${GLASS_CARD} w-full max-w-md p-6 space-y-4`}>
+            <p className={T_SECTION}>Reject NTE Request</p>
+            <p className={T_BODY}>
+              Request for <strong>{rejectTarget.staff_name}</strong> by {rejectTarget.requested_by}
+            </p>
+            <div>
+              <label className={T_LABEL}>Reason for rejection (optional)</label>
+              <textarea
+                className={`${TEXTAREA_CLASS} mt-1`}
+                rows={3}
+                value={rejectNote}
+                onChange={(e) => setRejectNote(e.target.value)}
+                placeholder="e.g. Insufficient evidence, please re-submit with documentation."
+              />
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                className={SECONDARY_BUTTON}
+                onClick={() => { setRejectTarget(null); setRejectNote(""); }}
+                disabled={rejecting}
+              >Cancel</button>
+              <button
+                type="button"
+                className={DANGER_BUTTON}
+                onClick={handleRejectConfirm}
+                disabled={rejecting}
+              >{rejecting ? "Rejecting…" : "Reject Request"}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ════════════════════════════════════════════════════════════════════ */}
       {/* Tab 1: Staff Board                                                  */}
@@ -812,7 +1032,258 @@ export default function EmployeeCasesPage() {
       )}
 
       {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* Tab 2: Issue Notice                                                 */}
+      {/* Tab 2: NTE Request                                                  */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {tab === "request" && (
+        <div className="space-y-5">
+          {/* Submit form */}
+          <div className={`${GLASS_CARD} space-y-4 p-5`}>
+            <p className={T_SECTION}>Submit NTE Request</p>
+            <p className={`${T_BODY}`}>
+              Request HR to issue a Notice to Explain. HR will review and approve before issuance.
+            </p>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className={T_LABEL}>Staff Member *</label>
+                <select
+                  className={`${SELECT_CLASS} mt-1`}
+                  value={reqStaffName}
+                  onChange={(e) => setReqStaffName(e.target.value)}
+                >
+                  <option value="">— Select staff —</option>
+                  {staffList.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={T_LABEL}>Request Date</label>
+                <input
+                  type="date"
+                  className={`${INPUT_CLASS} mt-1`}
+                  value={reqDate}
+                  onChange={(e) => setReqDate(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className={T_LABEL}>Reason / Incident Description *</label>
+              <textarea
+                className={`${TEXTAREA_CLASS} mt-1`}
+                rows={4}
+                value={reqReason}
+                onChange={(e) => setReqReason(e.target.value)}
+                placeholder="Describe the incident or misconduct that warrants an NTE…"
+              />
+            </div>
+
+            <div>
+              <label className={T_LABEL}>Evidence Image (optional)</label>
+              <div className="mt-1 flex items-center gap-3 flex-wrap">
+                <button
+                  type="button"
+                  className={SECONDARY_BUTTON}
+                  onClick={() => reqImageRef.current?.click()}
+                >
+                  {reqImage ? "Change Image" : "Upload Image"}
+                </button>
+                {reqImage && (
+                  <span className={T_CAPTION}>{reqImage.name} ({(reqImage.size / 1024).toFixed(0)} KB)</span>
+                )}
+                <input
+                  ref={reqImageRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null;
+                    setReqImage(f);
+                    if (f && f.type.startsWith("image/")) {
+                      const url = URL.createObjectURL(f);
+                      setReqImagePreview(url);
+                    } else {
+                      setReqImagePreview("");
+                    }
+                  }}
+                />
+              </div>
+              {reqImagePreview && (
+                <img
+                  src={reqImagePreview}
+                  alt="preview"
+                  className="mt-2 max-h-40 rounded-lg border border-white/10 object-contain"
+                />
+              )}
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                className={`${PRIMARY_BUTTON} flex items-center gap-2`}
+                disabled={submittingReq || !reqStaffName || !reqReason.trim()}
+                onClick={handleSubmitRequest}
+              >
+                {submittingReq ? "Submitting…" : "Submit Request"}
+              </button>
+            </div>
+          </div>
+
+          {/* HR Review section — only visible to HR roles */}
+          {isHR && (
+            <div className={`${GLASS_CARD} space-y-3 p-5`}>
+              <p className={T_SECTION}>HR Review — Pending Requests</p>
+              {requests.filter((r) => r.status === "PENDING").length === 0 ? (
+                <p className={`${T_BODY} text-center py-4`}>No pending requests.</p>
+              ) : (
+                <div className="space-y-2">
+                  {requests
+                    .filter((r) => r.status === "PENDING")
+                    .map((req) => (
+                      <div
+                        key={req.id}
+                        className="rounded-xl border border-amber-500/20 bg-amber-950/10 p-4 space-y-2"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className={`${T_BODY} font-semibold`}>{req.staff_name}</p>
+                            <p className={T_CAPTION}>
+                              Requested by {req.requested_by} · {fmtDate(req.request_date)}
+                            </p>
+                          </div>
+                          <div className="flex gap-2 flex-wrap">
+                            {req.image_url && (
+                              <a
+                                href={req.image_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={`${SMALL_BUTTON} flex items-center gap-1`}
+                              >
+                                <FileText className="h-3.5 w-3.5" /> Evidence
+                              </a>
+                            )}
+                            <button
+                              type="button"
+                              className="rounded-lg bg-emerald-600/80 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 transition-colors"
+                              onClick={() => handleApproveRequest(req)}
+                            >
+                              ✓ Approve
+                            </button>
+                            <button
+                              type="button"
+                              className={`${DANGER_BUTTON} text-xs`}
+                              onClick={() => { setRejectTarget(req); setRejectNote(""); }}
+                            >
+                              ✗ Reject
+                            </button>
+                          </div>
+                        </div>
+                        <p className={`${T_CAPTION} border-t border-white/5 pt-2`}>{req.reason}</p>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* Tab 3: Pending Issuance                                             */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {tab === "pending" && (
+        <div className={`${GLASS_CARD} space-y-3 p-5`}>
+          <p className={T_SECTION}>Pending Issuance</p>
+          <p className={`${T_BODY}`}>
+            Approved NTE requests awaiting formal issuance. Select and issue to add to Case History.
+          </p>
+          {requests.filter((r) => r.status === "APPROVED").length === 0 ? (
+            <div className="py-8 text-center">
+              <p className={T_BODY}>No approved requests pending issuance.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {requests
+                .filter((r) => r.status === "APPROVED")
+                .map((req) => (
+                  <div
+                    key={req.id}
+                    className="rounded-xl border border-violet-500/30 bg-violet-950/10 p-4 space-y-2"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className={`${T_BODY} font-semibold text-violet-300`}>
+                          {req.staff_name}
+                        </p>
+                        <p className={T_CAPTION}>
+                          Requested by {req.requested_by} · {fmtDate(req.request_date)}
+                        </p>
+                        {req.reviewed_by && (
+                          <p className={T_CAPTION}>
+                            Approved by {req.reviewed_by}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex gap-2 flex-wrap">
+                        {req.image_url && (
+                          <a
+                            href={req.image_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className={`${SMALL_BUTTON} flex items-center gap-1`}
+                          >
+                            <FileText className="h-3.5 w-3.5" /> Evidence
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          className={`${PRIMARY_BUTTON} flex items-center gap-2 text-sm`}
+                          onClick={() => handleIssueFromRequest(req)}
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                          Issue NTE
+                        </button>
+                      </div>
+                    </div>
+                    <p className={`${T_CAPTION} border-t border-white/5 pt-2`}>{req.reason}</p>
+                  </div>
+                ))}
+            </div>
+          )}
+
+          {/* Rejected requests (collapsible reference) */}
+          {requests.filter((r) => r.status === "REJECTED").length > 0 && (
+            <details className="mt-4">
+              <summary className={`${T_CAPTION} cursor-pointer select-none`}>
+                Rejected requests ({requests.filter((r) => r.status === "REJECTED").length})
+              </summary>
+              <div className="mt-2 space-y-2">
+                {requests
+                  .filter((r) => r.status === "REJECTED")
+                  .map((req) => (
+                    <div
+                      key={req.id}
+                      className="rounded-xl border border-zinc-700/30 bg-zinc-900/20 p-3 opacity-60"
+                    >
+                      <p className={`${T_CAPTION} font-semibold`}>{req.staff_name}</p>
+                      <p className={T_CAPTION}>
+                        By {req.requested_by} · {fmtDate(req.request_date)}
+                        {req.reviewed_by && ` · Rejected by ${req.reviewed_by}`}
+                      </p>
+                      {req.review_note && (
+                        <p className={`${T_CAPTION} mt-1 italic`}>"{req.review_note}"</p>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            </details>
+          )}
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* Tab 4: Issue Notice                                                 */}
       {/* ════════════════════════════════════════════════════════════════════ */}
       {tab === "issue" && (
         <div className={`${GLASS_CARD} space-y-5 p-5`}>
