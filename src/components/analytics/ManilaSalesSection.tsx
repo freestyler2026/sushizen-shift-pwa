@@ -1199,7 +1199,7 @@ export function ManilaSalesSection({
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-xl shadow-black/20 backdrop-blur-sm">
-        <div className="mb-3 text-sm font-semibold">Product Trend</div>
+        <div className="mb-3 text-sm font-semibold text-white">Product Trend</div>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
           <div className="relative max-w-xl flex-1">
             <label className="mb-1 block text-xs text-neutral-400">Product search</label>
@@ -1240,10 +1240,14 @@ export function ManilaSalesSection({
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={productTrendRows}>
               <CartesianGrid strokeDasharray="3 3" stroke="#262626" />
-              <XAxis dataKey="sale_date" stroke="#a3a3a3" />
-              <YAxis stroke="#a3a3a3" />
-              <Tooltip />
-              <Legend />
+              <XAxis dataKey="sale_date" stroke="#a3a3a3" tick={{ fill: "#a3a3a3", fontSize: 11 }} />
+              <YAxis stroke="#a3a3a3" tick={{ fill: "#a3a3a3", fontSize: 11 }} />
+              <Tooltip
+                contentStyle={{ backgroundColor: "#18181b", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "10px" }}
+                labelStyle={{ color: "#e4e4e7", fontSize: 12, marginBottom: 4 }}
+                itemStyle={{ color: "#d4d4d8", fontSize: 12 }}
+              />
+              <Legend wrapperStyle={{ color: "#a3a3a3", fontSize: 12 }} />
               <Line type="monotone" dataKey="total_sales" stroke="#f59e0b" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey="total_items_sold" stroke="#22c55e" strokeWidth={2} dot={false} />
             </LineChart>
@@ -1252,7 +1256,7 @@ export function ManilaSalesSection({
       </div>
 
       <div id="manila-section-payment" className="scroll-mt-24 rounded-2xl border border-white/10 bg-white/5 p-4 shadow-xl shadow-black/20 backdrop-blur-sm">
-        <div className="mb-3 text-sm font-semibold">Payment Method Table</div>
+        <div className="mb-3 text-sm font-semibold text-white">Payment Method Table</div>
         {paymentDataset?.note ? <div className="mb-3 text-sm text-neutral-500">{paymentDataset.note}</div> : null}
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
@@ -1269,12 +1273,12 @@ export function ManilaSalesSection({
             <tbody>
               {paymentMethodRows.map((row) => (
                 <tr key={row.payment_method} className="cursor-default border-t border-white/5 transition-colors duration-150 hover:bg-white/6">
-                  <td className="px-3 py-2">{row.payment_method}</td>
-                  <td className="px-3 py-2 tabular-nums">{formatCount(Number(row.total_transactions || 0))}</td>
-                  <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.total_sales || 0))}</td>
-                  <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.total_sales_returned || 0))}</td>
-                  <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.preorder_deposits || 0))}</td>
-                  <td className="px-3 py-2 tabular-nums">{formatMoney(Number(row.net_sales || 0))}</td>
+                  <td className="px-3 py-2 font-medium text-white">{row.payment_method}</td>
+                  <td className="px-3 py-2 tabular-nums text-zinc-200">{formatCount(Number(row.total_transactions || 0))}</td>
+                  <td className="px-3 py-2 tabular-nums text-zinc-200">{formatMoney(Number(row.total_sales || 0))}</td>
+                  <td className="px-3 py-2 tabular-nums text-zinc-200">{formatMoney(Number(row.total_sales_returned || 0))}</td>
+                  <td className="px-3 py-2 tabular-nums text-zinc-200">{formatMoney(Number(row.preorder_deposits || 0))}</td>
+                  <td className="px-3 py-2 tabular-nums text-zinc-200">{formatMoney(Number(row.net_sales || 0))}</td>
                 </tr>
               ))}
               {!paymentMethodRows.length ? (

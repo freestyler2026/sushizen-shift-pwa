@@ -950,8 +950,10 @@ export default function StoreProcurementRequestPage() {
     // NOTE: Do NOT reset showSubmitReview / reviewMode here.
     // Catalog reloads are async — closing the review panel here would cause the active
     // review to disappear mid-session, leaving only the stale lastCreatedItems box visible.
+    // NOTE: Do NOT reset supplierFilter here — the scope-key guard in loadItemCatalog
+    // already resets it when city/category changes. Resetting here would clear the
+    // user's active chip selection on every catalog reload (causing Cartimar to always show).
     setSubmitChecked(false);
-    setSupplierFilter("");
   }, [catalogGridItems, editRequestItems]);
 
   useEffect(() => {
