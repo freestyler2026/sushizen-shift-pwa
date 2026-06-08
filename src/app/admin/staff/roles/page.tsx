@@ -310,6 +310,19 @@ function StaffRolesPageInner() {
       ].sort((a, b) => a.display_name.localeCompare(b.display_name));
       setStaffMasterRows(allRows);
       setStaffOptions(allRows.map((r) => r.display_name));
+
+      // Pre-populate effectiveRoleCache from the access system in one batch call per city.
+      // Without this, the left-panel badge shows staff_master.role (potentially stale) until
+      // the user clicks on the staff member to trigger a per-staff fetch.
+      const [dubaiRoles, manilaRoles] = await Promise.all([
+        apiRequest<{ ok: boolean; roles: Record<string, string> }>(
+          `/api/admin/access/batch-staff-roles?city=dubai`, {}, active
+        ).catch(() => ({ ok: false, roles: {} as Record<string, string> })),
+        apiRequest<{ ok: boolean; roles: Record<string, string> }>(
+          `/api/admin/access/batch-staff-roles?city=manila`, {}, active
+        ).catch(() => ({ ok: false, roles: {} as Record<string, string> })),
+      ]);
+      setEffectiveRoleCache({ ...(dubaiRoles.roles || {}), ...(manilaRoles.roles || {}) });
     } catch {
       setStaffOptions([]);
       setStaffMasterRows([]);
