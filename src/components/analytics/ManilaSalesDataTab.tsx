@@ -1019,6 +1019,60 @@ export function ManilaSalesDataTab({
         </div>
 
         <div className="space-y-6 p-4 pb-8">
+          {/* Filters — always visible when canLoad so users can switch branch even when 0 results */}
+          {canLoad && (
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs text-white/40">Branch</span>
+                <div className="flex overflow-hidden rounded-lg border border-white/10 bg-white/5">
+                  {BRANCH_FILTER_OPTIONS.map((b) => (
+                    <button
+                      key={b}
+                      type="button"
+                      onClick={() => setItemBranch(b)}
+                      className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                        itemBranch === b
+                          ? "bg-indigo-600 text-white"
+                          : "text-white/50 hover:bg-white/5 hover:text-white"
+                      }`}
+                    >
+                      {b}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs text-white/40">Limit</span>
+                <div className="flex overflow-hidden rounded-lg border border-white/10 bg-white/5">
+                  {ITEM_LIMIT_OPTIONS.map((l) => (
+                    <button
+                      key={l}
+                      type="button"
+                      onClick={() => setItemLimit(l)}
+                      className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                        itemLimit === l
+                          ? "bg-indigo-600 text-white"
+                          : "text-white/50 hover:bg-white/5 hover:text-white"
+                      }`}
+                    >
+                      Top {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs text-white/40">Category (press Refresh to apply)</span>
+                <input
+                  type="text"
+                  value={itemCategory}
+                  onChange={(e) => setItemCategory(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && void loadItemSales()}
+                  placeholder="e.g. Sushi Roll"
+                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white placeholder-white/25 outline-none focus:border-indigo-500"
+                />
+              </div>
+            </div>
+          )}
           {!canLoad ? (
             <p className={T_BODY}>Complete Security (MFA) and enter approver + PIN to load.</p>
           ) : itemsError ? (
@@ -1036,58 +1090,6 @@ export function ManilaSalesDataTab({
             <p className={T_BODY}>No item sales data for this range.</p>
           ) : (
             <>
-              {/* Filters */}
-              <div className="flex flex-wrap items-end gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-xs text-white/40">Branch</span>
-                  <div className="flex overflow-hidden rounded-lg border border-white/10 bg-white/5">
-                    {BRANCH_FILTER_OPTIONS.map((b) => (
-                      <button
-                        key={b}
-                        type="button"
-                        onClick={() => setItemBranch(b)}
-                        className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                          itemBranch === b
-                            ? "bg-indigo-600 text-white"
-                            : "text-white/50 hover:bg-white/5 hover:text-white"
-                        }`}
-                      >
-                        {b}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-xs text-white/40">Limit</span>
-                  <div className="flex overflow-hidden rounded-lg border border-white/10 bg-white/5">
-                    {ITEM_LIMIT_OPTIONS.map((l) => (
-                      <button
-                        key={l}
-                        type="button"
-                        onClick={() => setItemLimit(l)}
-                        className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                          itemLimit === l
-                            ? "bg-indigo-600 text-white"
-                            : "text-white/50 hover:bg-white/5 hover:text-white"
-                        }`}
-                      >
-                        Top {l}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-xs text-white/40">Category (press Refresh to apply)</span>
-                  <input
-                    type="text"
-                    value={itemCategory}
-                    onChange={(e) => setItemCategory(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && void loadItemSales()}
-                    placeholder="e.g. Sushi Roll"
-                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white placeholder-white/25 outline-none focus:border-indigo-500"
-                  />
-                </div>
-              </div>
 
               {/* Horizontal bar chart — Top 20 by revenue */}
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
