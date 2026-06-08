@@ -215,6 +215,52 @@ export default function StoreProcurementRequestPage() {
     }
   };
 
+  const deleteSupplierFn = async (supplierName: string) => {
+    if (!pin.trim()) { setDeleteError("PIN is required."); return; }
+    setDeleteBusy(true); setDeleteError(""); setDeleteSuccess("");
+    try {
+      // 1. Soft-delete curated catalog items (no-op if supplier has none)
+      await procurementJson(
+        "/api/admin/procurement/catalog/supplier/deactivate",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            approver_name: requestedBy.trim(),
+            pin: pin.trim(),
+            city: city || "manila",
+            supplier_name: supplierName,
+          }),
+        },
+        requestedBy,
+        pin,
+      );
+      // 2. Hard-delete legacy import rows (no-op if supplier has none)
+      await procurementJson(
+        "/api/admin/procurement/catalog/supplier/delete-import",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            approver_name: requestedBy.trim(),
+            pin: pin.trim(),
+            city: city || "manila",
+            supplier_name: supplierName,
+          }),
+        },
+        requestedBy,
+        pin,
+      );
+      setDeleteSuccess(`"${supplierName}" removed.`);
+      setDeletingSupplier("");
+      void loadItemCatalog();
+    } catch (e: unknown) {
+      setDeleteError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
   const updateCatalogPriceFn = async (rowKey: string, catalogItemId: string, price: number) => {
     if (!catalogItemId || !pin.trim()) return;
     setSavingCatalogPrice((prev) => ({ ...prev, [rowKey]: true }));
@@ -271,6 +317,10 @@ export default function StoreProcurementRequestPage() {
   const [renameBusy, setRenameBusy] = useState(false);
   const [renameError, setRenameError] = useState("");
   const [renameSuccess, setRenameSuccess] = useState("");
+  const [deletingSupplier, setDeletingSupplier] = useState("");    // supplier name pending delete confirmation
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const [deleteSuccess, setDeleteSuccess] = useState("");
 
   // ── Save-price-to-catalog state ──────────────────────────────────────────
   // keyed by row_key: true = saving in-progress, absent/false = idle
@@ -1410,11 +1460,29 @@ export default function StoreProcurementRequestPage() {
                           setAddItemName(""); setAddUnit(""); setAddUnitPrice("0");
                           setAddCatalogError(""); setAddCatalogSuccess("");
                           setRenamingSupplier("");
+                          setDeletingSupplier("");
                         }
                       }}
                       className="rounded-lg border border-emerald-400/25 bg-emerald-950/30 px-2 py-1 text-[11px] text-emerald-300 hover:bg-emerald-900/40 hover:text-emerald-100 transition-colors"
                     >
                       + Add Item
+                    </button>
+                    <button
+                      type="button"
+                      title="Delete this supplier and all its items"
+                      onClick={() => {
+                        if (deletingSupplier === section.supplier) {
+                          setDeletingSupplier(""); setDeleteError(""); setDeleteSuccess("");
+                        } else {
+                          setDeletingSupplier(section.supplier);
+                          setDeleteError(""); setDeleteSuccess("");
+                          setRenamingSupplier("");
+                          setAddItemForSupplier("");
+                        }
+                      }}
+                      className="rounded-lg border border-red-400/25 bg-red-950/30 px-2 py-1 text-[11px] text-red-300 hover:bg-red-900/40 hover:text-red-100 transition-colors"
+                    >
+                      🗑 Delete
                     </button>
                   </div>
                 </div>
@@ -1446,6 +1514,36 @@ export default function StoreProcurementRequestPage() {
                     </div>
                     {renameError && <div className="mt-1.5 text-[11px] text-red-400">{renameError}</div>}
                     {renameSuccess && <div className="mt-1.5 text-[11px] text-emerald-400">{renameSuccess}</div>}
+                  </div>
+                )}
+                {deletingSupplier === section.supplier && (
+                  <div className="border-t border-red-500/20 bg-red-950/15 px-4 py-3">
+                    <div className="mb-2 text-[11px] font-semibold text-red-300">
+                      Delete &ldquo;{section.supplier}&rdquo;?
+                    </div>
+                    <p className="mb-3 text-[11px] text-red-200/70">
+                      This removes all items for this supplier from the item list (curated catalog deactivated + legacy import rows deleted). This cannot be undone.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void deleteSupplierFn(section.supplier)}
+                        disabled={deleteBusy || !pin.trim()}
+                        className="rounded-lg bg-red-700 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-red-600 disabled:opacity-60"
+                      >
+                        {deleteBusy ? "Deleting..." : "Confirm Delete"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setDeletingSupplier(""); setDeleteError(""); setDeleteSuccess(""); }}
+                        className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-neutral-400 transition-colors hover:text-white"
+                      >
+                        Cancel
+                      </button>
+                      {!pin.trim() && <span className="text-[11px] text-amber-400">Enter PIN above to confirm</span>}
+                    </div>
+                    {deleteError && <div className="mt-1.5 text-[11px] text-red-400">{deleteError}</div>}
+                    {deleteSuccess && <div className="mt-1.5 text-[11px] text-emerald-400">{deleteSuccess}</div>}
                   </div>
                 )}
                 {addItemForSupplier === section.supplier && (

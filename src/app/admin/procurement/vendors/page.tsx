@@ -19,7 +19,7 @@ import {
   BADGE_ERROR,
   BADGE_INFO,
 } from "@/lib/ui-tokens";
-import { RefreshCw, AlertCircle, CheckCircle, Building2 } from "lucide-react";
+import { RefreshCw, AlertCircle, CheckCircle, Building2, Plus, Search } from "lucide-react";
 
 type VendorRow = {
   id: string;
@@ -87,6 +87,7 @@ export default function ProcurementVendorsPage() {
   const [pin, setPin] = useState(defaultProcurementPin());
   const [statusFilter, setStatusFilter] = useState("");
   const [cityFilter, setCityFilter] = useState("");
+  const [nameFilter, setNameFilter] = useState("");
   const [rows, setRows] = useState<VendorRow[]>([]);
   const [selectedKey, setSelectedKey] = useState("");  // "vendor_code::city"
   const [form, setForm] = useState(EMPTY_FORM);
@@ -101,6 +102,17 @@ export default function ProcurementVendorsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [rows, selectedKey],
   );
+
+  const filteredRows = useMemo(() => {
+    const q = nameFilter.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter(
+      (r) =>
+        r.registered_name.toLowerCase().includes(q) ||
+        (r.trade_name || "").toLowerCase().includes(q) ||
+        r.vendor_code.toLowerCase().includes(q),
+    );
+  }, [rows, nameFilter]);
 
   const load = useCallback(async () => {
     setError("");
@@ -279,7 +291,7 @@ export default function ProcurementVendorsPage() {
 
       {/* Session + Filter */}
       <div className={`${GLASS_CARD} p-4`}>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-6">
           <div>
             <label className={`${T_LABEL} mb-1.5 block`}>Approver Name</label>
             <input value={requestedBy} onChange={(e) => setRequestedBy(e.target.value)} placeholder="Name" className={INPUT_CLASS} />
@@ -305,6 +317,18 @@ export default function ProcurementVendorsPage() {
               <option value="BLOCKED">BLOCKED</option>
             </select>
           </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Search</label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
+              <input
+                value={nameFilter}
+                onChange={(e) => setNameFilter(e.target.value)}
+                placeholder="Name / code…"
+                className={`${INPUT_CLASS} pl-8`}
+              />
+            </div>
+          </div>
           <div className="flex items-end">
             <button
               type="button"
@@ -323,6 +347,19 @@ export default function ProcurementVendorsPage() {
 
         {/* Vendor list */}
         <div className="space-y-2">
+          {/* Result count + search hint */}
+          {rows.length > 0 && (
+            <div className="flex items-center justify-between px-1 text-xs text-zinc-500">
+              <span>
+                {nameFilter.trim()
+                  ? `${filteredRows.length} of ${rows.length} vendors`
+                  : `${rows.length} vendors`}
+              </span>
+              {nameFilter.trim() && filteredRows.length === 0 && (
+                <span className="text-amber-400">No match — try a different name</span>
+              )}
+            </div>
+          )}
           {loading && !rows.length && (
             <div className={`${GLASS_CARD} p-8 flex items-center justify-center gap-3 text-zinc-500`}>
               <RefreshCw className="h-4 w-4 animate-spin" />
@@ -334,7 +371,7 @@ export default function ProcurementVendorsPage() {
               <p className={T_CAPTION}>No vendors found.</p>
             </div>
           )}
-          {rows.map((row) => (
+          {filteredRows.map((row) => (
             <button
               key={row.id}
               type="button"
@@ -370,13 +407,27 @@ export default function ProcurementVendorsPage() {
           ))}
         </div>
 
-        {/* Edit / Create form */}
+        {/* Edit / Create form — sticky so it stays in view while scrolling the list */}
+        <div className="self-start sticky top-5">
         <div className={`${GLASS_CARD} p-5`}>
           <div className="mb-4 flex items-center justify-between gap-3">
             <p className={T_CARD_TITLE}>{selectedRow ? "Edit Vendor" : "New Vendor"}</p>
-            <button type="button" onClick={resetForm} className="text-xs text-zinc-500 hover:text-zinc-300">
-              Reset
-            </button>
+            <div className="flex items-center gap-2">
+              {selectedRow && (
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  title="Create a new vendor"
+                  className="flex items-center gap-1 rounded-lg border border-violet-500/30 bg-violet-500/10 px-2.5 py-1 text-xs font-medium text-violet-300 hover:bg-violet-500/20 transition-colors"
+                >
+                  <Plus className="h-3 w-3" />
+                  New Vendor
+                </button>
+              )}
+              <button type="button" onClick={resetForm} className="text-xs text-zinc-500 hover:text-zinc-300">
+                Reset
+              </button>
+            </div>
           </div>
 
           <div className="space-y-3">
@@ -493,6 +544,7 @@ export default function ProcurementVendorsPage() {
               )}
             </div>
           </div>
+        </div>
         </div>
       </div>
     </div>
