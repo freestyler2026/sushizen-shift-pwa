@@ -164,6 +164,7 @@ function StaffRolesPageInner() {
   const [auth, setAuthState] = useState<Auth | null>(getAuth());
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<"roles" | "channels" | "assignments">("channels");
 
@@ -420,6 +421,7 @@ function StaffRolesPageInner() {
     if (!auth || !selectedRoleKey) return;
     setBusy(true);
     setError("");
+    setSuccessMsg("");
     try {
       const permissions = Object.entries(checkedPermissions)
         .filter(([, checked]) => checked)
@@ -432,8 +434,14 @@ function StaffRolesPageInner() {
         },
         auth,
       );
+      // Refresh role permissions AND all channel matrices so the Channels tab stays in sync.
+      // The backend does a full replace, so any channel that lost its .view permission
+      // will now correctly show 0 access in the Channels tab.
       await loadRolePermissions(selectedRoleKey, auth);
       await loadBootstrap(auth, selectedChannelKey, selectedRoleKey);
+      // Also refresh channel-role counts for all channels by reloading the bootstrap channel list
+      setSuccessMsg(`Permissions saved. Channels tab is now in sync.`);
+      setTimeout(() => setSuccessMsg(""), 4000);
     } catch (err: any) {
       setError(String(err?.message || err || "Failed to save permissions"));
     } finally {
@@ -534,6 +542,7 @@ function StaffRolesPageInner() {
     if (!auth || !selectedChannelKey) return;
     setChannelMatrixBusy(true);
     setError("");
+    setSuccessMsg("");
     try {
       // Build role_entries: only include roles that have access ('all', 'dubai', 'manila')
       const role_entries = Object.entries(channelRoleDrafts)
@@ -553,6 +562,10 @@ function StaffRolesPageInner() {
       setChannelMatrix(data);
       applyChannelRoleDrafts(data);
       syncChannelCount(selectedChannelKey, data.assigned_count || 0);
+      // Refresh the Roles tab data so it stays in sync with the Channels tab.
+      if (selectedRoleKey) await loadRolePermissions(selectedRoleKey, auth);
+      setSuccessMsg("Channel access saved. Roles tab is now in sync.");
+      setTimeout(() => setSuccessMsg(""), 4000);
     } catch (err: any) {
       setError(String(err?.message || err || "Failed to save channel access"));
     } finally {
@@ -728,6 +741,12 @@ function StaffRolesPageInner() {
         <div className="flex items-center gap-2 rounded-2xl border border-rose-900/50 bg-rose-950/20 px-4 py-3 text-sm text-rose-200">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span>{error}</span>
+        </div>
+      ) : null}
+      {successMsg ? (
+        <div className="flex items-center gap-2 rounded-2xl border border-emerald-900/50 bg-emerald-950/20 px-4 py-3 text-sm text-emerald-200">
+          <Check className="h-4 w-4 shrink-0" />
+          <span>{successMsg}</span>
         </div>
       ) : null}
 
@@ -1032,13 +1051,18 @@ function StaffRolesPageInner() {
             </div>
 
             {rolePermissions ? (
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                <button type="button" onClick={handleSaveRolePermissions} disabled={busy} className={PRIMARY_BUTTON}>
-                  Save Permissions
-                </button>
-                <div className="text-xs text-neutral-400">
-                  Effective permission count: {rolePermissions.effective_permissions?.length || 0}
+              <div className="mt-5 space-y-2">
+                <div className="flex flex-wrap items-center gap-3">
+                  <button type="button" onClick={handleSaveRolePermissions} disabled={busy} className={PRIMARY_BUTTON}>
+                    {busy ? "Saving..." : "Save Permissions"}
+                  </button>
+                  <div className="text-xs text-neutral-400">
+                    Effective permission count: {rolePermissions.effective_permissions?.length || 0}
+                  </div>
                 </div>
+                <p className="text-xs text-neutral-500">
+                  Saving here fully replaces this role&apos;s permissions. The Channels tab will automatically reflect these changes.
+                </p>
               </div>
             ) : null}
           </div>
