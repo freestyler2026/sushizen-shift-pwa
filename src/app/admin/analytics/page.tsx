@@ -6533,7 +6533,7 @@ export default function AdminAnalyticsPage() {
 
               {staffSearch.trim() ? (
                 <div className="overflow-hidden rounded-xl border border-white/8">
-                  <table className="min-w-full text-left text-sm">
+                  <table className="min-w-full text-left text-sm text-zinc-200">
                     <thead className="bg-white/3">
                       <tr>
                         <th className={TABLE_HEADER + " px-3 py-3 text-left"}>Staff</th>
@@ -6598,7 +6598,7 @@ export default function AdminAnalyticsPage() {
 
               <div className="overflow-x-auto">
                 {viewMode === "perfect_attendance" ? (
-                  <table className="min-w-full text-left text-sm">
+                  <table className="min-w-full text-left text-sm text-zinc-200">
                     <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                       <tr>
                         <th className="px-3 py-2">Rank</th>
@@ -6631,7 +6631,7 @@ export default function AdminAnalyticsPage() {
                 ) : null}
 
                 {viewMode === "top_late" ? (
-                  <table className="min-w-full text-left text-sm">
+                  <table className="min-w-full text-left text-sm text-zinc-200">
                     <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                       <tr>
                         <th className="px-3 py-2">Rank</th>
@@ -6662,7 +6662,7 @@ export default function AdminAnalyticsPage() {
                 ) : null}
 
                 {viewMode === "top_absence" ? (
-                  <table className="min-w-full text-left text-sm">
+                  <table className="min-w-full text-left text-sm text-zinc-200">
                     <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                       <tr>
                         <th className="px-3 py-2">Rank</th>
@@ -6691,7 +6691,7 @@ export default function AdminAnalyticsPage() {
                 ) : null}
 
                 {viewMode === "top_compliance" ? (
-                  <table className="min-w-full text-left text-sm">
+                  <table className="min-w-full text-left text-sm text-zinc-200">
                     <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                       <tr>
                         <th className="px-3 py-2">Rank</th>
@@ -6722,7 +6722,7 @@ export default function AdminAnalyticsPage() {
                 ) : null}
 
                 {viewMode === "worst_compliance" ? (
-                  <table className="min-w-full text-left text-sm">
+                  <table className="min-w-full text-left text-sm text-zinc-200">
                     <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                       <tr>
                         <th className="px-3 py-2">Rank</th>
@@ -6753,7 +6753,7 @@ export default function AdminAnalyticsPage() {
                 ) : null}
 
                 {viewMode === "branch_late" ? (
-                  <table className="min-w-full text-left text-sm">
+                  <table className="min-w-full text-left text-sm text-zinc-200">
                     <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                       <tr>
                         <th className="px-3 py-2">Rank</th>
@@ -6782,7 +6782,7 @@ export default function AdminAnalyticsPage() {
                 ) : null}
 
                 {viewMode === "branch_absence" ? (
-                  <table className="min-w-full text-left text-sm">
+                  <table className="min-w-full text-left text-sm text-zinc-200">
                     <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                       <tr>
                         <th className="px-3 py-2">Rank</th>
@@ -6811,7 +6811,7 @@ export default function AdminAnalyticsPage() {
                 ) : null}
 
                 {viewMode === "branch_compliance" ? (
-                  <table className="min-w-full text-left text-sm">
+                  <table className="min-w-full text-left text-sm text-zinc-200">
                     <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                       <tr>
                         <th className="px-3 py-2">Rank</th>
@@ -6840,7 +6840,7 @@ export default function AdminAnalyticsPage() {
                 ) : null}
 
                 {viewMode === "bayzat_missing_punch" ? (
-                  <table className="min-w-full text-left text-sm">
+                  <table className="min-w-full text-left text-sm text-zinc-200">
                     <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                       <tr>
                         <th className="px-3 py-2">Rank</th>
@@ -7407,7 +7407,7 @@ export default function AdminAnalyticsPage() {
               </div>
 
               <div className="mt-4 overflow-hidden rounded-xl border border-white/8">
-                <table className="min-w-full text-left text-sm">
+                <table className="min-w-full text-left text-sm text-zinc-200">
                   <thead className="bg-white/3">
                     <tr>
                       <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Hour</th>
@@ -7747,7 +7747,7 @@ export default function AdminAnalyticsPage() {
                 </div>
               </div>
               <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
+                <table className="min-w-full text-left text-sm text-zinc-200">
                   <thead className="bg-white/3">
                     <tr>
                       <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Rank</th>
@@ -7915,7 +7915,7 @@ export default function AdminAnalyticsPage() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
+                <table className="min-w-full text-left text-sm text-zinc-200">
                   <thead className="bg-white/3">
                     <tr>
                       <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Rank</th>
@@ -7957,7 +7957,7 @@ export default function AdminAnalyticsPage() {
                 </div>
               </div>
               <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
+                <table className="min-w-full text-left text-sm text-zinc-200">
                   <thead className="bg-white/3">
                     <tr>
                       <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Rank</th>
@@ -8173,7 +8173,7 @@ export default function AdminAnalyticsPage() {
                           </ResponsiveContainer>
                         </div>
                         <div className="mt-4 overflow-x-auto">
-                          <table className="w-full text-xs">
+                          <table className="w-full text-xs text-zinc-200">
                             <thead>
                               <tr className="border-b border-white/10">
                                 {["Platform", "Platform Pre", "Platform Post", "Merchant Pre"].map((h) => (
@@ -8323,7 +8323,7 @@ export default function AdminAnalyticsPage() {
                     hide when a specific platform is selected.
                   </p>
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[520px] text-sm">
+                    <table className="w-full min-w-[520px] text-sm text-zinc-200">
                       <thead>
                         <tr className="border-b border-white/10 bg-white/[0.03]">
                           {(
@@ -8415,7 +8415,7 @@ export default function AdminAnalyticsPage() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
+                <table className="min-w-full text-left text-sm text-zinc-200">
                   <thead className="bg-white/3">
                     <tr>
                       <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Date</th>
@@ -8781,7 +8781,7 @@ export default function AdminAnalyticsPage() {
                 <div className="text-xs text-amber-300">{cctvScoreLoadError}</div>
               ) : cctvMetricSnapshot.length ? (
                 <div className="overflow-x-auto">
-                  <table className="min-w-full text-left text-xs">
+                  <table className="min-w-full text-left text-xs text-zinc-200">
                     <thead className="border-b border-neutral-800 text-neutral-400">
                       <tr>
                         <th className="px-2 py-1">Branch</th>
@@ -8983,7 +8983,7 @@ export default function AdminAnalyticsPage() {
                       ))}
                     </div>
                     <div className="hidden overflow-x-auto md:block">
-                      <table className="min-w-full text-left text-sm">
+                      <table className="min-w-full text-left text-sm text-zinc-200">
                         <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                           <tr>
                             <th className="px-3 py-2">Store</th>
@@ -9030,7 +9030,7 @@ export default function AdminAnalyticsPage() {
 
               <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
                 <div className="mb-2 flex flex-wrap items-end gap-3">
-                  <div className="text-sm font-semibold">Daily Evaluation Scores (Selected Period)</div>
+                  <div className="text-sm font-semibold text-white">Daily Evaluation Scores (Selected Period)</div>
                   <button
                     type="button"
                     onClick={refreshEvaluationTimeline}
@@ -9045,7 +9045,7 @@ export default function AdminAnalyticsPage() {
                 </div>
                 {evaluationTimelineDays.length ? (
                   <div className="overflow-x-auto">
-                    <table className="min-w-full text-left text-sm">
+                    <table className="min-w-full text-left text-sm text-zinc-200">
                       <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                         <tr>
                           <th className="px-3 py-2">Date</th>
@@ -9086,7 +9086,7 @@ export default function AdminAnalyticsPage() {
 
               <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
                 <div className="mb-2 flex flex-wrap items-end gap-3">
-                  <div className="text-sm font-semibold">Daily Report Details (Disposal / Backup)</div>
+                  <div className="text-sm font-semibold text-white">Daily Report Details (Disposal / Backup)</div>
                   <label className="text-xs text-neutral-400">
                     Target Date
                     <input
@@ -9110,7 +9110,7 @@ export default function AdminAnalyticsPage() {
                 </div>
                 {(evaluationDayDetails?.stores || []).length ? (
                   <div className="overflow-x-auto">
-                    <table className="min-w-full text-left text-sm">
+                    <table className="min-w-full text-left text-sm text-zinc-200">
                       <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                         <tr>
                           <th className="px-3 py-2">Store</th>
@@ -9235,7 +9235,7 @@ export default function AdminAnalyticsPage() {
                 This category looks at lateness, absences, shift-change requests, and shift preservation. Fewer late
                 arrivals, fewer absences, and fewer requests score better. A higher shift preservation rate also scores better.
               </div>
-              <table className="min-w-full text-left text-sm">
+              <table className="min-w-full text-left text-sm text-zinc-200">
                 <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                   <tr>
                     <th className="px-3 py-2">Store</th>
@@ -9332,7 +9332,7 @@ export default function AdminAnalyticsPage() {
                 by both submission consistency and required prep volume. Operation time currently uses the city-level average
                 for the selected period.
               </div>
-              <table className="min-w-full text-left text-sm">
+              <table className="min-w-full text-left text-sm text-zinc-200">
                 <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                   <tr>
                     <th className="px-3 py-2">Store</th>
@@ -9393,7 +9393,7 @@ export default function AdminAnalyticsPage() {
               <div className="mb-3 text-xs text-neutral-500">
                 Disposal score uses both reporting coverage and realism against sales volume. Very low disposal quantity with high sales is penalized to reduce under-reporting.
               </div>
-              <table className="min-w-full text-left text-sm">
+              <table className="min-w-full text-left text-sm text-zinc-200">
                 <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                   <tr>
                     <th className="px-3 py-2">Store</th>
@@ -9428,7 +9428,7 @@ export default function AdminAnalyticsPage() {
               <div className="mb-3 text-xs text-neutral-500">
                 Backup score checks submission coverage and whether reported prep volume is enough for the observed order volume.
               </div>
-              <table className="min-w-full text-left text-sm">
+              <table className="min-w-full text-left text-sm text-zinc-200">
                 <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                   <tr>
                     <th className="px-3 py-2">Store</th>
@@ -9493,7 +9493,7 @@ export default function AdminAnalyticsPage() {
                 This category compares actual food cost percentage against the target percentage. Staying at or below target
                 scores better, while going above target reduces the score.
               </div>
-              <table className="min-w-full text-left text-sm">
+              <table className="min-w-full text-left text-sm text-zinc-200">
                 <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                   <tr>
                     <th className="px-3 py-2">Store</th>
@@ -9520,7 +9520,7 @@ export default function AdminAnalyticsPage() {
 
             {evaluationSectionView === "all" || evaluationSectionView === "purchasing" ? (
             <div id="evaluation-purchasing" className="rounded-2xl border border-amber-900/40 bg-amber-950/10 p-4">
-              <div className="text-sm font-semibold">Purchasing</div>
+              <div className="text-sm font-semibold text-white">Purchasing</div>
               <div className="mt-2 text-sm text-neutral-300">Under construction</div>
               <div className="mt-1 text-xs text-neutral-500">Store procurement data source will be connected in a later phase.</div>
             </div>
@@ -9528,7 +9528,7 @@ export default function AdminAnalyticsPage() {
 
             {evaluationSectionView === "all" || evaluationSectionView === "inventoryAccuracy" ? (
             <div id="evaluation-inventory-accuracy" className="rounded-2xl border border-amber-900/40 bg-amber-950/10 p-4">
-              <div className="text-sm font-semibold">Inventory Accuracy</div>
+              <div className="text-sm font-semibold text-white">Inventory Accuracy</div>
               <div className="mt-2 text-sm text-neutral-300">Under construction</div>
               <div className="mt-1 text-xs text-neutral-500">Theory vs actual inventory data is not ready yet, so this channel is reserved for future rollout.</div>
             </div>
@@ -9881,7 +9881,7 @@ export default function AdminAnalyticsPage() {
           <>
           <div className="mt-4">
             <div className="mb-2 flex items-center justify-between gap-3">
-              <div className="text-sm font-semibold">City Comparison</div>
+              <div className="text-sm font-semibold text-white">City Comparison</div>
               <button
                 type="button"
                 onClick={() => downloadCsv(`${exportBaseName}_city_comparison.csv`, cityComparisonExportRows)}
@@ -9978,7 +9978,7 @@ export default function AdminAnalyticsPage() {
 
           <div className="mt-4">
             <div className="mb-2 flex items-center justify-between gap-3">
-              <div className="text-sm font-semibold">City Difference (Dubai − Manila)</div>
+              <div className="text-sm font-semibold text-white">City Difference (Dubai − Manila)</div>
               <button
                 type="button"
                 onClick={() => downloadCsv(`${exportBaseName}_city_difference.csv`, cityDiffExportRows)}
@@ -9991,26 +9991,26 @@ export default function AdminAnalyticsPage() {
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="text-xs text-neutral-500">Total Hours Diff</div>
-                <div className="mt-1 text-2xl font-bold">{cityDiff ? cityDiff.totalHoursDiff.toFixed(1) : "-"}</div>
+                <div className="mt-1 text-2xl font-bold text-white">{cityDiff ? cityDiff.totalHoursDiff.toFixed(1) : "-"}</div>
               </div>
               <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="text-xs text-neutral-500">Avg / Day Diff</div>
-                <div className="mt-1 text-2xl font-bold">{cityDiff ? cityDiff.avgHoursPerDayDiff.toFixed(1) : "-"}</div>
+                <div className="mt-1 text-2xl font-bold text-white">{cityDiff ? cityDiff.avgHoursPerDayDiff.toFixed(1) : "-"}</div>
               </div>
               <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="text-xs text-neutral-500">Day Count Diff</div>
-                <div className="mt-1 text-2xl font-bold">{cityDiff ? cityDiff.dayCountDiff : "-"}</div>
+                <div className="mt-1 text-2xl font-bold text-white">{cityDiff ? cityDiff.dayCountDiff : "-"}</div>
               </div>
               <div className="rounded-2xl border border-neutral-800 bg-neutral-950/40 p-4">
                 <div className="text-xs text-neutral-500">Branch Count Diff</div>
-                <div className="mt-1 text-2xl font-bold">{cityDiff ? cityDiff.branchCountDiff : "-"}</div>
+                <div className="mt-1 text-2xl font-bold text-white">{cityDiff ? cityDiff.branchCountDiff : "-"}</div>
               </div>
             </div>
           </div>
 
           <div className="mt-4">
             <div className="mb-2 flex items-center justify-between gap-3">
-              <div className="text-sm font-semibold">Branch Totals</div>
+              <div className="text-sm font-semibold text-white">Branch Totals</div>
               <select
                 value={branchSortBy}
                 onChange={(e) =>
@@ -10038,7 +10038,7 @@ export default function AdminAnalyticsPage() {
                       {b.branch}
                     </span>
                   </div>
-                  <div className="mt-3 text-2xl font-bold">{b.totalHours.toFixed(1)}</div>
+                  <div className="mt-3 text-2xl font-bold text-white">{b.totalHours.toFixed(1)}</div>
                   <div className="text-xs text-neutral-500">total hours</div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-neutral-400">
                     <div>
@@ -10064,7 +10064,7 @@ export default function AdminAnalyticsPage() {
             <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold">Branch Daily Hours</div>
+                  <div className="text-sm font-semibold text-white">Branch Daily Hours</div>
                   <div className="mt-1 text-xs text-neutral-500">
                     Daily total hours, staff count, and segment count by branch.
                   </div>
@@ -10079,7 +10079,7 @@ export default function AdminAnalyticsPage() {
               </div>
 
               <div className="mt-4 overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
+                <table className="min-w-full text-left text-sm text-zinc-200">
                   <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                     <tr>
                       <th className="px-3 py-2">Date</th>
@@ -10123,7 +10123,7 @@ export default function AdminAnalyticsPage() {
             <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold">Top Menu Ranking (By Quantity)</div>
+                  <div className="text-sm font-semibold text-white">Top Menu Ranking (By Quantity)</div>
                   <div className="mt-1 text-xs text-neutral-500">
                     Items-wise order transactions ranking for selected city and summary period.
                   </div>
@@ -10147,7 +10147,7 @@ export default function AdminAnalyticsPage() {
               </div>
 
               <div className="mt-4 overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
+                <table className="min-w-full text-left text-sm text-zinc-200">
                   <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                     <tr>
                       <th className="px-3 py-2">Rank</th>
@@ -10182,7 +10182,7 @@ export default function AdminAnalyticsPage() {
             <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold">Branch Weekday Averages</div>
+                  <div className="text-sm font-semibold text-white">Branch Weekday Averages</div>
                   <div className="mt-1 text-xs text-neutral-500">
                     Average hours and average staff count by weekday.
                   </div>
@@ -10199,7 +10199,7 @@ export default function AdminAnalyticsPage() {
               </div>
 
               <div className="mt-4 overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
+                <table className="min-w-full text-left text-sm text-zinc-200">
                   <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                     <tr>
                       <th className="px-3 py-2">Branch</th>
@@ -10243,7 +10243,7 @@ export default function AdminAnalyticsPage() {
             <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold">Staff Work Summary</div>
+                  <div className="text-sm font-semibold text-white">Staff Work Summary</div>
                   <div className="mt-1 text-xs text-neutral-500">
                     Top staff by total hours in the selected period.
                   </div>
@@ -10270,7 +10270,7 @@ export default function AdminAnalyticsPage() {
               </div>
 
               <div className="mt-4 overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
+                <table className="min-w-full text-left text-sm text-zinc-200">
                   <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                     <tr>
                       <th className="px-3 py-2">Staff</th>
@@ -10303,7 +10303,7 @@ export default function AdminAnalyticsPage() {
             <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-sm font-semibold">Absence Summary</div>
+                  <div className="text-sm font-semibold text-white">Absence Summary</div>
                   <div className="mt-1 text-xs text-neutral-500">
                     Absence totals by type for the selected period.
                   </div>
@@ -10318,7 +10318,7 @@ export default function AdminAnalyticsPage() {
               </div>
 
               <div className="mt-4 overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
+                <table className="min-w-full text-left text-sm text-zinc-200">
                   <thead className="border-b border-neutral-800 text-xs text-neutral-400">
                     <tr>
                       <th className="px-3 py-2">Type</th>
