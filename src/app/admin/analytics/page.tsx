@@ -1413,6 +1413,8 @@ const SALES_SECTION_OPTIONS = [
   { value: "manilaLowRatings", label: "Low Rating", id: "sales-manila-low-ratings" },
   { value: "manilaAggregatorRatings", label: "Ratings", id: "sales-manila-aggregator-ratings" },
   { value: "manilaSalesData", label: "Sales Data", id: "sales-manila-daily" },
+  { value: "manilaItemSales", label: "Item Sales", id: "sales-manila-item-sales" },
+  { value: "manilaHourlySales", label: "Hourly", id: "sales-manila-hourly" },
   { value: "manilaCancellations", label: "Cancellations", id: "sales-manila-cancellations" },
   { value: "manilaCashierEval", label: "Cashier Evaluation", id: "sales-manila-cashier-eval" },
   { value: "manilaGrabOffline", label: "Grab Offline", id: "sales-manila-grab-offline" },
@@ -1424,6 +1426,8 @@ const DUBAI_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter(
     section.value !== "manilaLowRatings" &&
     section.value !== "manilaAggregatorRatings" &&
     section.value !== "manilaSalesData" &&
+    section.value !== "manilaItemSales" &&
+    section.value !== "manilaHourlySales" &&
     section.value !== "manilaCashierEval" &&
     section.value !== "manilaCancellations" &&
     section.value !== "manilaGrabOffline" &&
@@ -1432,6 +1436,8 @@ const DUBAI_SALES_SECTION_OPTIONS = SALES_SECTION_OPTIONS.filter(
 const MANILA_SALES_SECTION_OPTIONS = [
   "orderCounts",
   "manilaSalesData",
+  "manilaItemSales",
+  "manilaHourlySales",
   "manilaSales",
   "manilaAggregatorRatings",
   "manilaLowRatings",
@@ -2152,6 +2158,8 @@ export default function AdminAnalyticsPage() {
     | "manilaAggregatorRatings"
     | "manilaOverallRatings"
     | "manilaSalesData"
+    | "manilaItemSales"
+    | "manilaHourlySales"
     | "manilaCashierEval"
     | "manilaCancellations"
     | "manilaGrabOffline"
@@ -8567,7 +8575,10 @@ export default function AdminAnalyticsPage() {
                     />
                   </div>
                 ) : null}
-                {salesSectionView === "all" || salesSectionView === "manilaSalesData" ? (
+                {salesSectionView === "all" ||
+                salesSectionView === "manilaSalesData" ||
+                salesSectionView === "manilaItemSales" ||
+                salesSectionView === "manilaHourlySales" ? (
                   <div id="sales-manila-daily">
                     <ManilaSalesDataTab
                       dateFrom={summaryDateFrom}
@@ -8575,6 +8586,15 @@ export default function AdminAnalyticsPage() {
                       approverName={approverName}
                       pin={pin}
                       stepUpReady={salesStepUpReady}
+                      view={
+                        salesSectionView === "manilaItemSales"
+                          ? "items"
+                          : salesSectionView === "manilaHourlySales"
+                            ? "hourly"
+                            : salesSectionView === "all"
+                              ? "all"
+                              : "daily"
+                      }
                     />
                   </div>
                 ) : null}

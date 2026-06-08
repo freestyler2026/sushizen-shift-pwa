@@ -325,13 +325,19 @@ export function ManilaSalesDataTab({
   approverName,
   pin,
   stepUpReady,
+  view = "all",
 }: {
   dateFrom: string;
   dateTo: string;
   approverName: string;
   pin: string;
   stepUpReady: boolean;
+  /** Which sections to render. "all" = all three stacked. Default: "all". */
+  view?: "all" | "daily" | "items" | "hourly";
 }) {
+  const showDaily = view === "all" || view === "daily";
+  const showItems = view === "all" || view === "items";
+  const showHourly = view === "all" || view === "hourly";
   // ── Daily Sales state ──────────────────────────────────────────────────────
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -625,7 +631,7 @@ export function ManilaSalesDataTab({
   return (
     <div className="space-y-4">
       {/* ── Section 1: Daily Sales ─────────────────────────────────────────── */}
-      <div className={GLASS_CARD}>
+      {showDaily && <div className={GLASS_CARD}>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-800 px-4 py-3">
           <div>
             <h2 className={T_SECTION}>Sales Data (Manila)</h2>
@@ -989,10 +995,10 @@ export function ManilaSalesDataTab({
             </>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* ── Section 2: Item Sales ──────────────────────────────────────────── */}
-      <div className={GLASS_CARD}>
+      {showItems && <div className={GLASS_CARD}>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-800 px-4 py-3">
           <div>
             <h2 className={T_SECTION}>Item Sales (Manila)</h2>
@@ -1230,10 +1236,10 @@ export function ManilaSalesDataTab({
             </>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* ── Section 3: Hourly Traffic ──────────────────────────────────────── */}
-      <div className={GLASS_CARD}>
+      {showHourly && <div className={GLASS_CARD}>
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-800 px-4 py-3">
           <div>
             <h2 className={T_SECTION}>Hourly Traffic (Manila)</h2>
@@ -1453,7 +1459,7 @@ export function ManilaSalesDataTab({
             </>
           )}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
