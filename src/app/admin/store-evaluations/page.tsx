@@ -15,6 +15,7 @@ import {
   Save,
   Plus,
   BarChart3,
+  BookOpen,
 } from "lucide-react";
 import {
   BarChart,
@@ -972,6 +973,350 @@ function BranchMapSettings({ city }: { city: string }) {
   );
 }
 
+// ─── Protocol / SOP View ─────────────────────────────────────────────────────
+
+const TIMELINE_ITEMS = [
+  {
+    time: "9:00",
+    title: "Attendance Check — Opening Staff",
+    accent: "border-l-blue-500",
+    badge: "bg-blue-500/10 text-blue-300 border-blue-500/30",
+    items: [
+      "Verify opening staff arrived at 9:00 am",
+      "Confirm preparation has started and store is progressing on schedule",
+      "If absent: HR contacts next shift immediately — one absent employee creates preparation delays and lunch service problems",
+    ],
+  },
+  {
+    time: "10:00",
+    title: "Cashier Staff Check",
+    accent: "border-l-blue-400",
+    badge: "bg-blue-400/10 text-blue-300 border-blue-400/30",
+    items: ["Verify cashier staff have arrived"],
+  },
+  {
+    time: "11:00",
+    title: "Lunch Backup Check",
+    accent: "border-l-amber-500",
+    badge: "bg-amber-500/10 text-amber-300 border-amber-500/30",
+    items: [
+      "Target: 70–80% of backup ready by 11:00 am",
+      "Sushi Section: Base Rolls, Cucumber, Crabstick mix w/ Mayo, Cheese cut, Salmon Skin mix, Tempura Flakes (½ container), all sauces (≥ half bottle)",
+      "Hot Section: Cut Vegetables, Boiled Vegetables, Sauces",
+      "Remaining 20–30% must be completable before 12:00",
+    ],
+  },
+  {
+    time: "16:00",
+    title: "Dinner Backup Physical Inspection",
+    accent: "border-l-orange-500",
+    badge: "bg-orange-500/10 text-orange-300 border-orange-500/30",
+    items: [
+      "Base Roll: quantity, quality, progress — target completable before 5:00 pm",
+      "Roll ingredients: Cucumber, Crabstick Mayo, Cheese, Salmon Skin mix",
+      "Check both Salad Chiller containers and Backup Chiller stock",
+      "Decoration: Tempura Flakes, Sauces, Toppings",
+      "Hot Section: Vegetables, Eggs, Sauces",
+      "Weekend extra: Popular Sushi Box, Salmon Sashimi, Topping Cut, Nigiri Cut",
+    ],
+  },
+  {
+    time: "16:00–18:00",
+    title: "Daily Review",
+    accent: "border-l-violet-500",
+    badge: "bg-violet-500/10 text-violet-300 border-violet-500/30",
+    items: [
+      "Sales & order count — check via OS Analytics Manila Sales section",
+      "Attendance record — identify absences and repeated attendance issues",
+      "Product scoring — target 72–75 (Dubai) / 68–70 (Manila); investigate all C-grade orders; confirm photo submissions ≥ order count",
+      "Customer reviews — 1–3 star: compare photos, conduct on-site tasting if needed; 5-star: share wins with team",
+      "Prep time — investigate every order exceeding 30 minutes; document root cause",
+    ],
+  },
+  {
+    time: "18:00–23:00",
+    title: "Peak Hours — Check Every 30 Minutes",
+    accent: "border-l-red-500",
+    badge: "bg-red-500/10 text-red-300 border-red-500/30",
+    items: [
+      "How many active receipts exist?",
+      "What time did the kitchen receive the oldest order — will it be done within 30 minutes?",
+      "Which station is behind?",
+      "Is backup still sufficient?",
+      "Identify bottleneck → move resources to that station (always optimize total flow, not a single section)",
+    ],
+  },
+  {
+    time: "Closing",
+    title: "Closing Compliance",
+    accent: "border-l-slate-500",
+    badge: "bg-slate-500/10 text-slate-300 border-slate-500/30",
+    items: [
+      "Travel Pass: Morning, Afternoon, Evening — all verified",
+      "Disposal Report: cross-check Discord vs OS",
+      "Closing Report: product storage & wrapping, refrigerator temperature, freezer temperature, cleaning condition",
+    ],
+  },
+];
+
+const ESCALATION_LEVELS = [
+  {
+    label: "Normal",
+    threshold: "Oldest order under 30 minutes",
+    action: "Monitor",
+    bg: "bg-emerald-950/30 border-emerald-500/25",
+    badge: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+  },
+  {
+    label: "Warning",
+    threshold: "Oldest order under 30 min, but incoming orders will take over 30 min",
+    action: "Brief all stations on delayed items; if delays persist, intervene directly at the bottleneck station",
+    bg: "bg-amber-950/30 border-amber-500/25",
+    badge: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+  },
+  {
+    label: "Critical",
+    threshold: "Oldest order at 40 minutes",
+    action: "Manager direct intervention",
+    bg: "bg-orange-950/30 border-orange-500/25",
+    badge: "bg-orange-500/15 text-orange-300 border-orange-500/30",
+  },
+  {
+    label: "Emergency",
+    threshold: "Oldest order at 45 minutes",
+    action: "Notify Back Office — consider Busy Mode or temporary pause",
+    bg: "bg-red-950/30 border-red-500/30",
+    badge: "bg-red-500/15 text-red-300 border-red-500/30",
+  },
+  {
+    label: "Operational Failure",
+    threshold: "Oldest order exceeds 60 minutes",
+    action: "Pause Mode — full intervention required",
+    bg: "bg-red-950/50 border-red-600/40",
+    badge: "bg-red-800/40 text-red-200 border-red-600/40",
+  },
+];
+
+const SCORE_PROTOCOL: Record<string, { standard: string }> = {
+  backup_score: {
+    standard: "70–80% of backup ready by 11:00 am for lunch. Physical inspection at 16:00 for dinner. Weekends require extra prep (popular sushi boxes, sashimi, nigiri).",
+  },
+  station_balance_score: {
+    standard: "Resources move to the bottleneck station. If Sushi is delayed while Hot is done, staff must shift. Objective: maximize total kitchen output, not individual station output.",
+  },
+  quality_score: {
+    standard: "Product score target: 72–75 (Dubai) / 68–70 (Manila). All C-grade or below orders must be investigated. Photo submission count ≥ order count.",
+  },
+  cleanliness_score: {
+    standard: "Storage and wrapping verified at closing. Refrigerator and freezer temperatures logged. Cleaning condition confirmed nightly.",
+  },
+  team_support_score: {
+    standard: "The objective is to improve the entire team, not one individual. Cross-station support when bottlenecks arise. Manager assists the station that needs the most help.",
+  },
+  coaching_score: {
+    standard: "Correct → Teach → Improve immediately when problems are identified. Never blame, humiliate, or criticize publicly. Focus on quality, speed, and consistency.",
+  },
+  problem_awareness_score: {
+    standard: "Monitor every 30 minutes during peak hours (18:00–23:00). Identify bottlenecks proactively. Track oldest order age. Act before customers complain.",
+  },
+  prep_time_score: {
+    standard: "Target: all orders within 30 minutes. 40 min = Critical (manager intervention). 45 min = Emergency (notify back office). 60+ min = Operational Failure (pause mode).",
+  },
+};
+
+function ProtocolView() {
+  return (
+    <div className="space-y-6 pb-6">
+      {/* Banner */}
+      <div className="rounded-2xl border border-violet-500/20 bg-gradient-to-r from-violet-950/40 to-slate-900/40 px-5 py-4">
+        <h2 className={T_SECTION}>Kitchen Operations Management Protocol</h2>
+        <p className={`${T_CAPTION} text-slate-400 mt-1`}>
+          Manager Manual v1.0 — Reference standard for all daily evaluations
+        </p>
+        <p className={`${T_CAPTION} text-violet-300 mt-2 font-medium`}>
+          Deliver every order within 30 minutes while maintaining Food Safety, Product Quality, and Operational Excellence.
+        </p>
+      </div>
+
+      {/* Manager Responsibilities */}
+      <div>
+        <p className={`${T_SECTION} mb-3`}>Manager Responsibilities</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+          {[
+            { label: "Real-Time Management", desc: "Prevent problems before they happen" },
+            { label: "Peak Time Control", desc: "Control order flow during service" },
+            { label: "Daily Review", desc: "Learn from yesterday, improve tomorrow" },
+            { label: "Inventory Management", desc: "Prevent shortages and waste" },
+          ].map(({ label, desc }) => (
+            <div key={label} className={`${GLASS_CARD} p-3`}>
+              <p className="text-xs font-semibold text-violet-300 mb-1">{label}</p>
+              <p className="text-xs text-slate-400">{desc}</p>
+            </div>
+          ))}
+        </div>
+        <div className={`${GLASS_CARD} p-3`}>
+          <p className="text-xs text-slate-400">
+            The manager must continuously monitor:{" "}
+            <span className="text-white font-semibold">People · Time · Stocks · Quality · Risk</span>
+            {" "}— and always be thinking one step ahead of the operation.
+          </p>
+        </div>
+      </div>
+
+      {/* Daily Operations Timeline */}
+      <div>
+        <p className={`${T_SECTION} mb-3`}>Daily Operations Timeline</p>
+        <div className="space-y-3">
+          {TIMELINE_ITEMS.map(({ time, title, accent, badge, items }) => (
+            <div key={time} className={`${GLASS_CARD} p-4 border-l-4 ${accent}`}>
+              <div className="flex items-center gap-2 mb-2">
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-lg border font-mono shrink-0 ${badge}`}>
+                  {time}
+                </span>
+                <p className="text-sm font-semibold text-white">{title}</p>
+              </div>
+              <ul className="space-y-1.5 pl-1">
+                {items.map((item, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-slate-400 leading-relaxed">
+                    <span className="text-slate-600 shrink-0 mt-0.5">›</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Escalation Protocol */}
+      <div>
+        <p className={`${T_SECTION} mb-1`}>Peak Hours Escalation Protocol</p>
+        <p className={`${T_CAPTION} text-slate-500 mb-3`}>Based on the age of the oldest active order</p>
+        <div className="space-y-2">
+          {ESCALATION_LEVELS.map(({ label, threshold, action, bg, badge }) => (
+            <div key={label} className={`rounded-xl border p-3 ${bg}`}>
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2">
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-lg border shrink-0 ${badge}`}>
+                  {label}
+                </span>
+                <div>
+                  <p className="text-xs text-slate-300">{threshold}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    <span className="text-slate-600">Action: </span>{action}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Inventory & Ordering Schedule */}
+      <div>
+        <p className={`${T_SECTION} mb-3`}>Inventory & Ordering Schedule</p>
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div className={`${GLASS_CARD} p-3`}>
+            <p className="text-xs font-semibold text-violet-300 mb-2">Order Days</p>
+            <div className="flex flex-wrap gap-2">
+              {["Tue", "Thu", "Sun"].map((d) => (
+                <span key={d} className="px-2 py-1 rounded-lg bg-violet-500/15 border border-violet-500/30 text-xs text-violet-200 font-medium">
+                  {d}
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className={`${GLASS_CARD} p-3`}>
+            <p className="text-xs font-semibold text-emerald-300 mb-2">Delivery Days</p>
+            <div className="flex flex-wrap gap-2">
+              {["Mon", "Wed", "Fri"].map((d) => (
+                <span key={d} className="px-2 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-xs text-emerald-200 font-medium">
+                  {d}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className={`${GLASS_CARD} p-3`}>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            <span className="text-white font-semibold">Friday delivery</span> must cover: Fri → Sat → Sun → Mon (until next delivery).
+            {" "}Forecast sales volume, campaigns, and seasonal demand.
+            {" "}Under-ordering causes shortages. Over-ordering creates waste. Ordering is a management responsibility.
+          </p>
+        </div>
+      </div>
+
+      {/* Temperature Control */}
+      <div>
+        <p className={`${T_SECTION} mb-3`}>Temperature Control</p>
+        <div className={`${GLASS_CARD} p-3`}>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            Upon receiving deliveries, verify in OS: product temperature, receiving temperature logs, and compliance completion.
+            {" "}<span className="text-red-300 font-semibold">Food Safety is non-negotiable.</span>
+            {" "}If temperature records are missing, the process is incomplete — no exceptions.
+          </p>
+        </div>
+      </div>
+
+      {/* Evaluation Score Reference */}
+      <div>
+        <p className={`${T_SECTION} mb-1`}>Evaluation Score Reference</p>
+        <p className={`${T_CAPTION} text-slate-500 mb-3`}>What each evaluation score measures against this protocol</p>
+        <div className="space-y-2">
+          {Object.entries(SCORE_LABELS).map(([key, label]) => {
+            const proto = SCORE_PROTOCOL[key];
+            if (!proto) return null;
+            return (
+              <div key={key} className={`${GLASS_CARD} p-3`}>
+                <p className="text-xs font-semibold text-violet-300 mb-1">{label}</p>
+                <p className="text-xs text-slate-400 leading-relaxed">{proto.standard}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Team Management Principles */}
+      <div>
+        <p className={`${T_SECTION} mb-3`}>Team Management Principles</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className={`${GLASS_CARD} p-3`}>
+            <p className="text-xs font-semibold text-emerald-300 mb-2">Always Do</p>
+            <ul className="space-y-1.5">
+              {["Correct immediately", "Teach immediately", "Improve immediately"].map((a) => (
+                <li key={a} className="flex items-center gap-2 text-xs text-slate-400">
+                  <span className="text-emerald-500 font-bold">›</span>
+                  {a}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className={`${GLASS_CARD} p-3`}>
+            <p className="text-xs font-semibold text-red-300 mb-2">Never Do</p>
+            <ul className="space-y-1.5">
+              {["Blame", "Humiliate", "Criticize publicly"].map((a) => (
+                <li key={a} className="flex items-center gap-2 text-xs text-slate-400">
+                  <span className="text-red-500 font-bold">›</span>
+                  {a}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <div className={`${GLASS_CARD} p-3 mt-3`}>
+          <p className="text-xs text-slate-400 text-center italic">
+            &quot;The objective is to improve the entire team. Not one individual.&quot;
+          </p>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="text-center pt-2 border-t border-white/5">
+        <p className={`${T_CAPTION} text-slate-600 mt-3`}>Kitchen Operations Management Protocol — Manager Manual v1.0</p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function StoreEvaluationsPage() {
@@ -986,7 +1331,7 @@ export default function StoreEvaluationsPage() {
 
   const todayPH = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
 
-  const [tab, setTab] = useState<"dashboard" | "summary" | "trend" | "settings">("dashboard");
+  const [tab, setTab] = useState<"dashboard" | "summary" | "trend" | "settings" | "protocol">("dashboard");
   const [evalDate, setEvalDate] = useState(todayPH);
   const [city] = useState("manila");
   const [evaluations, setEvaluations] = useState<EvalRow[]>([]);
@@ -1084,6 +1429,13 @@ export default function StoreEvaluationsPage() {
           >
             <Settings size={14} />
             Settings
+          </button>
+          <button
+            className={tab === "protocol" ? TAB_ACTIVE : TAB_INACTIVE}
+            onClick={() => setTab("protocol")}
+          >
+            <BookOpen size={14} />
+            Protocol
           </button>
         </div>
 
@@ -1289,6 +1641,9 @@ export default function StoreEvaluationsPage() {
         {tab === "settings" && (
           <BranchMapSettings city={city} />
         )}
+
+        {/* PROTOCOL TAB */}
+        {tab === "protocol" && <ProtocolView />}
       </div>
 
       {/* Detail Modal */}
