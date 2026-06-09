@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-08 (session 36 — end)
+Last updated: 2026-06-09 (session 39 — end)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,7 @@ Last updated: 2026-06-08 (session 36 — end)
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1208, Vercel auto-deploy)
+なし — 全変更デプロイ済み (Heroku v1221, Vercel commit 0e01003)
 
 ## 🔴 未解決: Employee Cases ページのデータ取得問題（明日継続）
 
@@ -45,6 +45,37 @@ Last updated: 2026-06-08 (session 36 — end)
 ### Manila P&L データ未インポート（継続中）
 - `/Users/jaynishimura/Downloads/[Manila] PLアプリ用データ (3).xlsx` (8シート: 202510〜202605)
 - 対処: Management P&L → Summary → **「Upload Excel」**ボタン
+
+## Recently Completed (2026-06-09 session 39) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Cash Collection Pipeline: DB テーブル + 4 関数 | `app/db_cash_report.py` | `cash_collection_records` テーブル追加（COLLECTED→OFFICE_CHECKED→DEPOSITED の3ステップ）。`create_cash_collection` / `list_cash_collections` / `update_collection_office_check` / `update_collection_bank_deposit` の4関数追加 |
+| Cash Collection Pipeline: 3 API エンドポイント | `app/cash_report_api.py` | `GET /collections` (フィルター対応) + `PATCH /collections/{id}/office-check` + `PATCH /collections/{id}/deposit`。Withdrawal 時に `double_check_by` 対応＋自動でコレクションレコード作成 |
+| Cash Collection Pipeline: フロントエンド UI | `src/app/admin/cash-management/page.tsx` | Safety Box タブにパイプライン UI 追加。ステータスチップ（All/Collected/Office Check/Deposited）+ コレクションカード（各ステップのサマリー）+ インラインアクションフォーム（Office Check / Bank Deposit）。Withdrawal フォームに Double Check By フィールド追加 |
+| Travel Path: 全 Manila 店舗に排水溝詰まり防止アイテム追加 | `app/travel_path_default_items.py`, `app/db_travel_path.py` | Paranaque/Taft（TP_CL_016）+ Cubao（CB_CL_DRAIN）に「排水溝にお湯を流す」クロージングチェック項目を追加。DB 起動時にアップサート migration で確実に適用 |
+| Item Sales: Cubao フィルターが詰まるバグ修正 | `src/components/analytics/ManilaSalesDataTab.tsx` | Branch/Limit/Category フィルターを `productItems.length > 0` 条件ブロックの**外**に移動 |
+| Item Sales: Cubao→QC DB名前マッピング修正 | `app/db.py` `_manila_sales_where()` | `_STORE_NAME_MAP = {"Cubao": "QC"}` で変換 |
+
+### 教訓 (session 39)
+- **Cash Pipeline アーキテクチャ**: Withdrawal エンドポイントを拡張して自動的にコレクションレコードを作成するパターン。フロント側は1回の操作で2つのテーブルに書き込まれることを意識する
+- **インライン展開フォーム**: モバイル向けにはモーダルより inline expandable（クリックでその場に展開）が優れている。`isOcOpen = ocId === col.id` パターンで複数カードのうち1つだけ開く
+- **Item Sales フィルターの配置**: 条件付きレンダリング内にフィルターを置くと、0件状態でフィルターが消えてユーザーが詰まる
+- **DB ストア名とUIラベルの乖離**: UI=「Cubao」↔ DB=「QC」のようなマッピングは where-clause 生成関数でひとまとめに管理する
+
+## Recently Completed (2026-06-08 session 37) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Manila Sales: Item Sales + Hourly タブ追加 | `src/components/analytics/ManilaSalesDataTab.tsx`, `src/app/admin/analytics/page.tsx` | ManilaSalesDataTab に `view` prop追加 (all/daily/items/hourly)。Item Sales: horizontal bar chart + ソート可能テーブル (TOP 20/50/100, branch/category フィルター)。Hourly Traffic: 時間帯別 bar chart (ランチ amber / ディナー indigo) + ピーク時間 KPI + 詳細テーブル。analytics/page.tsx に "Item Sales" / "Hourly" タブを MANILA_SALES_SECTION_OPTIONS に追加 |
+| Vendor 検索ボックス追加 (①) | `src/app/admin/procurement/vendors/page.tsx` | nameFilter state + filteredRows useMemo。Search アイコン付き入力欄。vendor_code / registered_name / trade_name でフィルタリング。ヒット件数表示 |
+| Vendor リスト右パネル sticky + New Vendor ボタン (③) | `src/app/admin/procurement/vendors/page.tsx` | 右パネルを `self-start sticky top-5` でスクロール追従。selectedRow がある場合に "+ New Vendor" ボタンを右パネルヘッダーに常時表示 |
+| Store Procurement: サプライヤー削除機能 (②) | `src/app/store/procurement/request/page.tsx`, `app/db.py`, `app/main.py` | 🗑 Delete ボタン → インライン確認パネル。2段階削除: ① curated catalog soft-deactivate (POST /catalog/supplier/deactivate) + ② legacy import rows hard-delete (POST /catalog/supplier/delete-import 新エンドポイント)。db.py に `delete_proc_order_import_supplier()` 追加。main.py に `POST /api/admin/procurement/catalog/supplier/delete-import` エンドポイント追加 |
+
+### 教訓 (session 37)
+- **Supplier データが2テーブルに存在**: `proc_curated_catalog_items` (OS管理カタログ) と `proc_order_import_rows` (Excel import 履歴)。削除する際は両方をクリアする必要がある
+- **サプライヤー削除の2段階フロー**: curated = soft-delete (deactivate, is_active=False) / import rows = hard-delete (DELETE FROM)
+- **Recharts BarChart の horizontal bar**: `layout="vertical"` を使う。`XAxis type="number"` / `YAxis type="category" dataKey="name"`
 
 ## Recently Completed (2026-06-08 session 35) — live
 
@@ -378,6 +409,15 @@ Vendor MasterのOrder Catalog登録名と`supplier_name`が一致しない場合
 | Direct Purchase: Unit に packet/ctn/case 追加 | ✅ live |
 | Approval Inbox: PR No. / Date / Supplier 表示追加 | ✅ live |
 | Procurement: WH Dispatch 新機能（承認 → WH Dispatch → Store Receiving） | ⏳ 後日実装 |
+| Manila Sales Analytics: Item Sales タブ (branch/category/limit フィルター + ソート) | ✅ live |
+| Manila Sales Analytics: Hourly Traffic タブ (時間帯別 bar + KPI + ランチ/ディナー色分け) | ✅ live |
+| Admin/Vendors: サプライヤー名検索ボックス + 右パネル sticky | ✅ live |
+| Admin/Vendors: 編集中に "+ New Vendor" ボタン表示 | ✅ live |
+| Store Procurement: サプライヤー削除 (catalog soft-delete + import hard-delete 2段階) | ✅ live (Heroku v1217) |
+| Item Sales: Cubao 選択でフィルターが消えるバグ修正 | ✅ live (Heroku v1219) |
+| Item Sales: Cubao→QC DB名前マッピング修正 | ✅ live (Heroku v1219) |
+| Travel Path: 全Manila店舗に排水溝詰まり防止アイテム追加 | ✅ live (Heroku v1220) |
+| Cash Collection Pipeline: 3ステップ追跡 (Store→Office→Bank) | ✅ live (Heroku v1221, Vercel 0e01003) |
 
 ---
 
