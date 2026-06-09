@@ -36,6 +36,9 @@ import {
   ChevronRight,
   Image as ImageIcon,
   AlertCircle,
+  Pencil,
+  Save,
+  X,
 } from "lucide-react";
 
 type Bundle = {
@@ -108,6 +111,11 @@ export default function ProcurementCaseDetailPage() {
   const [receiptUploading, setReceiptUploading] = useState(false);
   const [quoteUrl, setQuoteUrl] = useState("");
   const [paymentConfirming, setPaymentConfirming] = useState(false);
+
+  // Item editing state
+  const [editingItems, setEditingItems] = useState(false);
+  const [editedItems, setEditedItems] = useState<any[]>([]);
+  const [itemSaving, setItemSaving] = useState(false);
 
   const requestCity = (bundle.request?.city || city || "manila").toLowerCase();
   const currency = requestCity === "dubai" ? "AED" : "PHP";
@@ -261,6 +269,75 @@ export default function ProcurementCaseDetailPage() {
       setError(e?.message || String(e));
     } finally {
       setPaymentConfirming(false);
+    }
+  };
+
+  const startEditing = () => {
+    setEditedItems(
+      (bundle.request?.items || []).map((item: any) => ({ ...item }))
+    );
+    setEditingItems(true);
+  };
+
+  const cancelEditing = () => {
+    setEditingItems(false);
+    setEditedItems([]);
+  };
+
+  const updateEditedItem = (idx: number, field: string, value: string) => {
+    setEditedItems((prev) => {
+      const next = prev.map((item, i) => {
+        if (i !== idx) return item;
+        const updated = { ...item, [field]: value };
+        // Auto-recalculate line_total when qty or unit_price changes
+        const qty = parseFloat(field === "qty" ? value : updated.qty) || 0;
+        const unitPrice = parseFloat(field === "unit_price" ? value : updated.unit_price) || 0;
+        updated.line_total = qty * unitPrice;
+        return updated;
+      });
+      return next;
+    });
+  };
+
+  const saveItems = async () => {
+    setItemSaving(true);
+    setError("");
+    setSuccessMsg("");
+    try {
+      await procurementJson(
+        `/api/admin/procurement/cases/${caseId}/items`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            case_id: caseId,
+            approver_name: requestedBy,
+            pin,
+            items: editedItems.map((item) => ({
+              item_name: item.item_name || "",
+              category: item.category || "",
+              spec: item.spec || "",
+              qty: parseFloat(item.qty) || 0,
+              unit: item.unit || "",
+              unit_price: parseFloat(item.unit_price) || 0,
+              line_total: parseFloat(item.line_total) || 0,
+              vendor_name: item.vendor_name || "",
+              needed_by_date: item.needed_by_date || "",
+            })),
+          }),
+        },
+        requestedBy,
+        pin,
+      );
+      setEditingItems(false);
+      setEditedItems([]);
+      setSuccessMsg("Items saved successfully.");
+      await load();
+      window.dispatchEvent(new Event("procurement-badge-refresh"));
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setItemSaving(false);
     }
   };
 
@@ -473,6 +550,51 @@ export default function ProcurementCaseDetailPage() {
             </div>
           )}
 
+          {/* Edit Items toolbar */}
+          {!isClosed && (bundle.request.items || []).length > 0 && (
+            <div className="mb-3 flex items-center justify-between">
+              <p className={T_SECTION}>Line Items</p>
+              {!editingItems ? (
+                <button
+                  type="button"
+                  onClick={startEditing}
+                  className="flex items-center gap-1.5 rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-300 transition hover:bg-violet-500/20"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Edit Items
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={cancelEditing}
+                    disabled={itemSaving}
+                    className="flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/6 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-white/10"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void saveItems()}
+                    disabled={itemSaving}
+                    className="flex items-center gap-1.5 rounded-xl border border-emerald-500/40 bg-emerald-500/20 px-3 py-1.5 text-xs font-medium text-emerald-200 transition hover:bg-emerald-500/30 disabled:opacity-60"
+                  >
+                    <Save className="h-3.5 w-3.5" />
+                    {itemSaving ? "Saving…" : "Save Changes"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Editing banner */}
+          {editingItems && (
+            <div className="mb-3 rounded-xl border border-violet-500/25 bg-violet-500/8 px-4 py-2.5 text-xs text-violet-300">
+              ✏ Editing mode — Qty, Unit Price, and Spec are editable. Line totals are calculated automatically.
+            </div>
+          )}
+
           {(bundle.request.items || []).length > 0 && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -490,25 +612,74 @@ export default function ProcurementCaseDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(bundle.request.items as any[]).map((item: any, idx: number) => (
-                    <tr key={item.id || idx} className="border-b border-white/5 last:border-0">
-                      <td className="py-2.5 pr-3 font-medium text-white">{item.item_name || "-"}</td>
-                      <td className="py-2.5 pr-3 text-zinc-400">{item.category || "-"}</td>
-                      <td className="py-2.5 pr-3 text-zinc-400">{item.spec || "-"}</td>
-                      <td className="py-2.5 pr-3 text-right tabular-nums text-zinc-200">{Number(item.qty || 0).toLocaleString()}</td>
-                      <td className="py-2.5 pr-3 text-zinc-400">{item.unit || "-"}</td>
-                      <td className="py-2.5 pr-3 text-right tabular-nums text-zinc-200">{Number(item.unit_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                      <td className="py-2.5 pr-3 text-right tabular-nums font-semibold text-violet-300">{Number(item.line_total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                      <td className="py-2.5 pr-3 text-zinc-400">{item.vendor_name || "-"}</td>
-                      <td className="py-2.5 text-zinc-400">{String(item.needed_by_date || "").slice(0, 10) || "-"}</td>
-                    </tr>
-                  ))}
+                  {editingItems
+                    ? editedItems.map((item: any, idx: number) => {
+                        const lineTotal = (parseFloat(item.qty) || 0) * (parseFloat(item.unit_price) || 0);
+                        return (
+                          <tr key={item.id || idx} className="border-b border-violet-500/15 last:border-0 bg-violet-500/4">
+                            <td className="py-2 pr-3 font-medium text-white">{item.item_name || "-"}</td>
+                            <td className="py-2 pr-3 text-zinc-400">{item.category || "-"}</td>
+                            <td className="py-2 pr-2">
+                              <input
+                                type="text"
+                                value={item.spec || ""}
+                                onChange={(e) => updateEditedItem(idx, "spec", e.target.value)}
+                                className="w-28 rounded-lg border border-violet-500/30 bg-violet-950/30 px-2 py-1 text-xs text-white outline-none focus:border-violet-400/60"
+                              />
+                            </td>
+                            <td className="py-2 pr-2 text-right">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.qty ?? ""}
+                                onChange={(e) => updateEditedItem(idx, "qty", e.target.value)}
+                                className="w-20 rounded-lg border border-violet-500/30 bg-violet-950/30 px-2 py-1 text-right text-xs text-white outline-none focus:border-violet-400/60"
+                              />
+                            </td>
+                            <td className="py-2 pr-3 text-zinc-400">{item.unit || "-"}</td>
+                            <td className="py-2 pr-2 text-right">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.unit_price ?? ""}
+                                onChange={(e) => updateEditedItem(idx, "unit_price", e.target.value)}
+                                className="w-24 rounded-lg border border-emerald-500/30 bg-emerald-950/20 px-2 py-1 text-right text-xs text-white outline-none focus:border-emerald-400/60"
+                              />
+                            </td>
+                            <td className="py-2 pr-3 text-right tabular-nums font-semibold text-violet-300">
+                              {lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="py-2 pr-3 text-zinc-400">{item.vendor_name || "-"}</td>
+                            <td className="py-2 text-zinc-400">{String(item.needed_by_date || "").slice(0, 10) || "-"}</td>
+                          </tr>
+                        );
+                      })
+                    : (bundle.request.items as any[]).map((item: any, idx: number) => (
+                        <tr key={item.id || idx} className="border-b border-white/5 last:border-0">
+                          <td className="py-2.5 pr-3 font-medium text-white">{item.item_name || "-"}</td>
+                          <td className="py-2.5 pr-3 text-zinc-400">{item.category || "-"}</td>
+                          <td className="py-2.5 pr-3 text-zinc-400">{item.spec || "-"}</td>
+                          <td className="py-2.5 pr-3 text-right tabular-nums text-zinc-200">{Number(item.qty || 0).toLocaleString()}</td>
+                          <td className="py-2.5 pr-3 text-zinc-400">{item.unit || "-"}</td>
+                          <td className="py-2.5 pr-3 text-right tabular-nums text-zinc-200">{Number(item.unit_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                          <td className="py-2.5 pr-3 text-right tabular-nums font-semibold text-violet-300">{Number(item.line_total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                          <td className="py-2.5 pr-3 text-zinc-400">{item.vendor_name || "-"}</td>
+                          <td className="py-2.5 text-zinc-400">{String(item.needed_by_date || "").slice(0, 10) || "-"}</td>
+                        </tr>
+                      ))
+                  }
                 </tbody>
                 <tfoot>
                   <tr className="border-t border-white/10">
                     <td colSpan={6} className="pt-3 text-right text-xs text-zinc-500">Order Total</td>
                     <td className="pt-3 pr-3 text-right tabular-nums font-bold text-white">
-                      {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} {currency}
+                      {editingItems
+                        ? editedItems.reduce((sum, item) => sum + (parseFloat(item.qty) || 0) * (parseFloat(item.unit_price) || 0), 0)
+                            .toLocaleString(undefined, { minimumFractionDigits: 2 })
+                        : totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })
+                      } {currency}
                     </td>
                     <td colSpan={2} />
                   </tr>
