@@ -18,7 +18,7 @@ import {
   BADGE_ERROR,
   BADGE_INFO,
 } from "@/lib/ui-tokens";
-import { RefreshCw, LayoutDashboard, AlertCircle, Building2, Filter, X, ChevronDown, ChevronRight, ImageIcon } from "lucide-react";
+import { RefreshCw, LayoutDashboard, AlertCircle, Building2, Filter, X, ChevronDown, ChevronRight, ImageIcon, Copy, Check } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -259,6 +259,7 @@ export default function ProcurementHubPage() {
   }, [expandedId, pin, requestedBy]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [copiedId, setCopiedId] = useState("");
 
   const load = useCallback(async () => {
     setError("");
@@ -518,6 +519,25 @@ export default function ProcurementHubPage() {
                     <span className="font-mono text-sm font-semibold text-white">
                       {row.request_no || row.id.substring(0, 8)}
                     </span>
+                    {/* Copy Request ID button */}
+                    <button
+                      type="button"
+                      title="Copy Request ID"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const id = row.request_no || row.id;
+                        void navigator.clipboard.writeText(id).then(() => {
+                          setCopiedId(id);
+                          setTimeout(() => setCopiedId(""), 2000);
+                        });
+                      }}
+                      className="flex items-center gap-1 rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5 text-[10px] text-zinc-500 transition hover:border-white/20 hover:text-zinc-300"
+                    >
+                      {copiedId === (row.request_no || row.id)
+                        ? <><Check className="h-3 w-3 text-emerald-400" /><span className="text-emerald-400">Copied</span></>
+                        : <><Copy className="h-3 w-3" />Copy</>
+                      }
+                    </button>
                     {purchaseTypeBadge(row.purchase_type)}
                     {requestStatusBadge(row.request_status)}
                     {caseStatusBadge(row.case_status)}

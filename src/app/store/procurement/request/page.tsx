@@ -634,8 +634,10 @@ export default function StoreProcurementRequestPage() {
           setCatalogCategories(categories.length ? categories : DUBAI_CURATED_CATEGORIES);
         }
         setCatalogSuppliers(suppliers);
-        // Only reset supplier filter when the scope (city or category) changes — not on store-only reloads.
-        const scopeKey = `${activeCity}::${selectedCatalogCategory}`;
+        // Reset supplier filter when city, category, OR store changes.
+        // Including store in the scope key ensures Cartimar from one store
+        // doesn't bleed into a different store's catalog view.
+        const scopeKey = `${activeCity}::${selectedCatalogCategory}::${activeStore}`;
         if (lastCatalogScopeRef.current !== scopeKey) {
           lastCatalogScopeRef.current = scopeKey;
           setSupplierFilter("");

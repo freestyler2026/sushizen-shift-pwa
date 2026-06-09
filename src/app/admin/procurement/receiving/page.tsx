@@ -446,7 +446,7 @@ export default function ProcurementReceivingPage() {
 
       {/* Create Form */}
       {showCreateForm && (
-        <div className={`${GLASS_CARD} p-5`}>
+        <div id="create-receiving-form" className={`${GLASS_CARD} p-5`}>
           <p className={`${T_SECTION} mb-4`}>New Receiving Record</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
@@ -516,9 +516,38 @@ export default function ProcurementReceivingPage() {
       )}
 
       {/* Empty state */}
-      {!loading && !rows.length && (
+      {!loading && !rows.length && !filterRequestId.trim() && (
         <div className={`${GLASS_CARD} p-10 flex flex-col items-center gap-3`}>
           <p className="text-sm text-zinc-500">No receiving records found.</p>
+        </div>
+      )}
+
+      {/* Empty state when filtering by request ID — guide user to create a receiving record */}
+      {!loading && !rows.length && filterRequestId.trim() && (
+        <div className={`${GLASS_CARD} p-6`}>
+          <div className="flex flex-col items-center gap-4 text-center">
+            <Package className="h-8 w-8 text-zinc-600" />
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-zinc-200">No receiving records found for <span className="font-mono text-violet-300">{filterRequestId.trim()}</span></p>
+              <p className="text-xs text-zinc-500">
+                If this order has been approved but delivery has not yet been recorded,<br />
+                create a new receiving record using the button below.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setCreateRequestId(filterRequestId.trim());
+                setShowCreateForm(true);
+                setTimeout(() => {
+                  document.getElementById("create-receiving-form")?.scrollIntoView({ behavior: "smooth" });
+                }, 100);
+              }}
+              className="flex items-center gap-2 rounded-xl border border-violet-500/40 bg-violet-500/20 px-4 py-2 text-sm font-medium text-violet-200 transition hover:bg-violet-500/30"
+            >
+              + Create Receiving Record for this Order
+            </button>
+          </div>
         </div>
       )}
 
