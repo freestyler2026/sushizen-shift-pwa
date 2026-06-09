@@ -39,6 +39,8 @@ import {
   Pencil,
   Save,
   X,
+  Trash2,
+  Plus,
 } from "lucide-react";
 
 type Bundle = {
@@ -299,6 +301,27 @@ export default function ProcurementCaseDetailPage() {
     });
   };
 
+  const deleteEditedItem = (idx: number) => {
+    setEditedItems((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const addEditedItem = () => {
+    setEditedItems((prev) => [
+      ...prev,
+      {
+        item_name: "",
+        category: "",
+        spec: "",
+        qty: 0,
+        unit: "",
+        unit_price: 0,
+        line_total: 0,
+        vendor_name: "",
+        needed_by_date: "",
+      },
+    ]);
+  };
+
   const saveItems = async () => {
     setItemSaving(true);
     setError("");
@@ -551,7 +574,7 @@ export default function ProcurementCaseDetailPage() {
           )}
 
           {/* Edit Items toolbar */}
-          {!isClosed && (bundle.request.items || []).length > 0 && (
+          {!isClosed && (
             <div className="mb-3 flex items-center justify-between">
               <p className={T_SECTION}>Line Items</p>
               {!editingItems ? (
@@ -591,11 +614,11 @@ export default function ProcurementCaseDetailPage() {
           {/* Editing banner */}
           {editingItems && (
             <div className="mb-3 rounded-xl border border-violet-500/25 bg-violet-500/8 px-4 py-2.5 text-xs text-violet-300">
-              ✏ Editing mode — Qty, Unit Price, and Spec are editable. Line totals are calculated automatically.
+              ✏ Editing mode — Edit Qty, Unit Price, Spec, and other fields. Use the delete button to remove items, or &quot;+ Add Item&quot; below to add new ones. Totals update automatically.
             </div>
           )}
 
-          {(bundle.request.items || []).length > 0 && (
+          {(editingItems || (bundle.request.items || []).length > 0) && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -608,25 +631,56 @@ export default function ProcurementCaseDetailPage() {
                     <th className={`${T_LABEL} pb-2 pr-3 text-right`}>Unit Price</th>
                     <th className={`${T_LABEL} pb-2 pr-3 text-right`}>Total</th>
                     <th className={`${T_LABEL} pb-2 pr-3`}>Vendor</th>
-                    <th className={`${T_LABEL} pb-2`}>Needed By</th>
+                    <th className={`${T_LABEL} pb-2 pr-3`}>Needed By</th>
+                    {editingItems && <th className={`${T_LABEL} pb-2 w-8`}></th>}
                   </tr>
                 </thead>
                 <tbody>
                   {editingItems
                     ? editedItems.map((item: any, idx: number) => {
                         const lineTotal = (parseFloat(item.qty) || 0) * (parseFloat(item.unit_price) || 0);
+                        const isNew = !item.id;
                         return (
-                          <tr key={item.id || idx} className="border-b border-violet-500/15 last:border-0 bg-violet-500/4">
-                            <td className="py-2 pr-3 font-medium text-white">{item.item_name || "-"}</td>
-                            <td className="py-2 pr-3 text-zinc-400">{item.category || "-"}</td>
+                          <tr key={item.id || `new-${idx}`} className="border-b border-violet-500/15 last:border-0 bg-violet-500/4">
+                            {/* Item Name — editable for new rows */}
+                            <td className="py-2 pr-2">
+                              {isNew ? (
+                                <input
+                                  type="text"
+                                  placeholder="Item name"
+                                  value={item.item_name || ""}
+                                  onChange={(e) => updateEditedItem(idx, "item_name", e.target.value)}
+                                  className="w-32 rounded-lg border border-violet-500/30 bg-violet-950/30 px-2 py-1 text-xs text-white placeholder:text-zinc-600 outline-none focus:border-violet-400/60"
+                                />
+                              ) : (
+                                <span className="font-medium text-white">{item.item_name || "-"}</span>
+                              )}
+                            </td>
+                            {/* Category — editable for new rows */}
+                            <td className="py-2 pr-2">
+                              {isNew ? (
+                                <input
+                                  type="text"
+                                  placeholder="Category"
+                                  value={item.category || ""}
+                                  onChange={(e) => updateEditedItem(idx, "category", e.target.value)}
+                                  className="w-24 rounded-lg border border-violet-500/30 bg-violet-950/30 px-2 py-1 text-xs text-white placeholder:text-zinc-600 outline-none focus:border-violet-400/60"
+                                />
+                              ) : (
+                                <span className="text-zinc-400">{item.category || "-"}</span>
+                              )}
+                            </td>
+                            {/* Spec — always editable */}
                             <td className="py-2 pr-2">
                               <input
                                 type="text"
+                                placeholder="Spec"
                                 value={item.spec || ""}
                                 onChange={(e) => updateEditedItem(idx, "spec", e.target.value)}
-                                className="w-28 rounded-lg border border-violet-500/30 bg-violet-950/30 px-2 py-1 text-xs text-white outline-none focus:border-violet-400/60"
+                                className="w-28 rounded-lg border border-violet-500/30 bg-violet-950/30 px-2 py-1 text-xs text-white placeholder:text-zinc-600 outline-none focus:border-violet-400/60"
                               />
                             </td>
+                            {/* Qty — always editable */}
                             <td className="py-2 pr-2 text-right">
                               <input
                                 type="number"
@@ -637,7 +691,21 @@ export default function ProcurementCaseDetailPage() {
                                 className="w-20 rounded-lg border border-violet-500/30 bg-violet-950/30 px-2 py-1 text-right text-xs text-white outline-none focus:border-violet-400/60"
                               />
                             </td>
-                            <td className="py-2 pr-3 text-zinc-400">{item.unit || "-"}</td>
+                            {/* Unit — editable for new rows */}
+                            <td className="py-2 pr-2">
+                              {isNew ? (
+                                <input
+                                  type="text"
+                                  placeholder="Unit"
+                                  value={item.unit || ""}
+                                  onChange={(e) => updateEditedItem(idx, "unit", e.target.value)}
+                                  className="w-16 rounded-lg border border-violet-500/30 bg-violet-950/30 px-2 py-1 text-xs text-white placeholder:text-zinc-600 outline-none focus:border-violet-400/60"
+                                />
+                              ) : (
+                                <span className="text-zinc-400">{item.unit || "-"}</span>
+                              )}
+                            </td>
+                            {/* Unit Price — always editable */}
                             <td className="py-2 pr-2 text-right">
                               <input
                                 type="number"
@@ -648,11 +716,48 @@ export default function ProcurementCaseDetailPage() {
                                 className="w-24 rounded-lg border border-emerald-500/30 bg-emerald-950/20 px-2 py-1 text-right text-xs text-white outline-none focus:border-emerald-400/60"
                               />
                             </td>
+                            {/* Line Total — calculated */}
                             <td className="py-2 pr-3 text-right tabular-nums font-semibold text-violet-300">
                               {lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </td>
-                            <td className="py-2 pr-3 text-zinc-400">{item.vendor_name || "-"}</td>
-                            <td className="py-2 text-zinc-400">{String(item.needed_by_date || "").slice(0, 10) || "-"}</td>
+                            {/* Vendor — editable for new rows */}
+                            <td className="py-2 pr-2">
+                              {isNew ? (
+                                <input
+                                  type="text"
+                                  placeholder="Vendor"
+                                  value={item.vendor_name || ""}
+                                  onChange={(e) => updateEditedItem(idx, "vendor_name", e.target.value)}
+                                  className="w-24 rounded-lg border border-violet-500/30 bg-violet-950/30 px-2 py-1 text-xs text-white placeholder:text-zinc-600 outline-none focus:border-violet-400/60"
+                                />
+                              ) : (
+                                <span className="text-zinc-400">{item.vendor_name || "-"}</span>
+                              )}
+                            </td>
+                            {/* Needed By — editable for new rows */}
+                            <td className="py-2 pr-2">
+                              {isNew ? (
+                                <input
+                                  type="date"
+                                  value={String(item.needed_by_date || "").slice(0, 10)}
+                                  onChange={(e) => updateEditedItem(idx, "needed_by_date", e.target.value)}
+                                  className="rounded-lg border border-violet-500/30 bg-violet-950/30 px-2 py-1 text-xs text-white outline-none focus:border-violet-400/60"
+                                />
+                              ) : (
+                                <span className="text-zinc-400">{String(item.needed_by_date || "").slice(0, 10) || "-"}</span>
+                              )}
+                            </td>
+                            {/* Delete button */}
+                            <td className="py-2">
+                              <button
+                                type="button"
+                                onClick={() => deleteEditedItem(idx)}
+                                className="rounded-lg p-1 text-red-400/60 transition hover:bg-red-500/15 hover:text-red-400"
+                                title="Remove item"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </td>
                           </tr>
                         );
                       })
@@ -681,13 +786,27 @@ export default function ProcurementCaseDetailPage() {
                         : totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })
                       } {currency}
                     </td>
-                    <td colSpan={2} />
+                    <td colSpan={editingItems ? 3 : 2} />
                   </tr>
                 </tfoot>
               </table>
             </div>
           )}
-          {!(bundle.request.items || []).length && (
+          {/* Add Item button — shown below table in edit mode */}
+          {editingItems && (
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={addEditedItem}
+                disabled={itemSaving}
+                className="flex items-center gap-1.5 rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 text-xs font-medium text-violet-300 transition hover:bg-violet-500/20 disabled:opacity-60"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Item
+              </button>
+            </div>
+          )}
+          {!editingItems && !(bundle.request.items || []).length && (
             <p className={T_CAPTION}>No line items found.</p>
           )}
         </div>
