@@ -365,6 +365,16 @@ export function ManilaSalesDataTab({
   const [hourlyBranch, setHourlyBranch] = useState<string>("All");
   const [hourlyChannel, setHourlyChannel] = useState<string>("All");
 
+  // ── Local date overrides (Item Sales & Hourly independent of global range) ─
+  const [itemDateFrom, setItemDateFrom] = useState(dateFrom);
+  const [itemDateTo,   setItemDateTo]   = useState(dateTo);
+  const [hourlyDateFrom, setHourlyDateFrom] = useState(dateFrom);
+  const [hourlyDateTo,   setHourlyDateTo]   = useState(dateTo);
+
+  // Sync local dates when the parent Summary Range changes
+  useEffect(() => { setItemDateFrom(dateFrom); setItemDateTo(dateTo); }, [dateFrom, dateTo]);
+  useEffect(() => { setHourlyDateFrom(dateFrom); setHourlyDateTo(dateTo); }, [dateFrom, dateTo]);
+
   const canLoad = Boolean(approverName.trim() && pin.trim() && stepUpReady);
 
   // ── Daily Sales load ───────────────────────────────────────────────────────
@@ -410,8 +420,8 @@ export function ManilaSalesDataTab({
       const qs = new URLSearchParams({
         approver_name: approverName.trim(),
         pin: pin.trim(),
-        date_from: dateFrom,
-        date_to: dateTo,
+        date_from: itemDateFrom,
+        date_to: itemDateTo,
         category: itemCategory.trim(),
         store: itemBranch === "All" ? "" : itemBranch,
         limit: String(itemLimit),
@@ -426,7 +436,7 @@ export function ManilaSalesDataTab({
     } finally {
       setItemsLoading(false);
     }
-  }, [canLoad, approverName, pin, dateFrom, dateTo, itemCategory, itemBranch, itemLimit]);
+  }, [canLoad, approverName, pin, itemDateFrom, itemDateTo, itemCategory, itemBranch, itemLimit]);
 
   useEffect(() => {
     void loadItemSales();
@@ -441,8 +451,8 @@ export function ManilaSalesDataTab({
       const qs = new URLSearchParams({
         approver_name: approverName.trim(),
         pin: pin.trim(),
-        date_from: dateFrom,
-        date_to: dateTo,
+        date_from: hourlyDateFrom,
+        date_to: hourlyDateTo,
         store: hourlyBranch === "All" ? "" : hourlyBranch,
         channel: hourlyChannel === "All" ? "" : hourlyChannel,
       });
@@ -456,7 +466,7 @@ export function ManilaSalesDataTab({
     } finally {
       setHourlyLoading(false);
     }
-  }, [canLoad, approverName, pin, dateFrom, dateTo, hourlyBranch, hourlyChannel]);
+  }, [canLoad, approverName, pin, hourlyDateFrom, hourlyDateTo, hourlyBranch, hourlyChannel]);
 
   useEffect(() => {
     void loadHourlySales();
@@ -1021,55 +1031,88 @@ export function ManilaSalesDataTab({
         <div className="space-y-6 p-4 pb-8">
           {/* Filters — always visible when canLoad so users can switch branch even when 0 results */}
           {canLoad && (
-            <div className="flex flex-wrap items-end gap-4">
-              <div className="flex flex-col gap-1.5">
-                <span className="text-xs text-white/40">Branch</span>
-                <div className="flex overflow-hidden rounded-lg border border-white/10 bg-white/5">
-                  {BRANCH_FILTER_OPTIONS.map((b) => (
-                    <button
-                      key={b}
-                      type="button"
-                      onClick={() => setItemBranch(b)}
-                      className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                        itemBranch === b
-                          ? "bg-indigo-600 text-white"
-                          : "text-white/50 hover:bg-white/5 hover:text-white"
-                      }`}
-                    >
-                      {b}
-                    </button>
-                  ))}
+            <div className="space-y-3">
+              {/* Date range row */}
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs text-white/40">Date From</span>
+                  <input
+                    type="date"
+                    value={itemDateFrom}
+                    onChange={(e) => setItemDateFrom(e.target.value)}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500 [color-scheme:dark]"
+                  />
                 </div>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <span className="text-xs text-white/40">Limit</span>
-                <div className="flex overflow-hidden rounded-lg border border-white/10 bg-white/5">
-                  {ITEM_LIMIT_OPTIONS.map((l) => (
-                    <button
-                      key={l}
-                      type="button"
-                      onClick={() => setItemLimit(l)}
-                      className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                        itemLimit === l
-                          ? "bg-indigo-600 text-white"
-                          : "text-white/50 hover:bg-white/5 hover:text-white"
-                      }`}
-                    >
-                      Top {l}
-                    </button>
-                  ))}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs text-white/40">Date To</span>
+                  <input
+                    type="date"
+                    value={itemDateTo}
+                    onChange={(e) => setItemDateTo(e.target.value)}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500 [color-scheme:dark]"
+                  />
                 </div>
+                {(itemDateFrom !== dateFrom || itemDateTo !== dateTo) && (
+                  <button
+                    type="button"
+                    onClick={() => { setItemDateFrom(dateFrom); setItemDateTo(dateTo); }}
+                    className="self-end rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/50 hover:bg-white/10 hover:text-white transition-colors"
+                  >
+                    ← Reset to range
+                  </button>
+                )}
               </div>
-              <div className="flex flex-col gap-1.5">
-                <span className="text-xs text-white/40">Category (press Refresh to apply)</span>
-                <input
-                  type="text"
-                  value={itemCategory}
-                  onChange={(e) => setItemCategory(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && void loadItemSales()}
-                  placeholder="e.g. Sushi Roll"
-                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white placeholder-white/25 outline-none focus:border-indigo-500"
-                />
+              {/* Branch / Limit / Category row */}
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs text-white/40">Branch</span>
+                  <div className="flex overflow-hidden rounded-lg border border-white/10 bg-white/5">
+                    {BRANCH_FILTER_OPTIONS.map((b) => (
+                      <button
+                        key={b}
+                        type="button"
+                        onClick={() => setItemBranch(b)}
+                        className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                          itemBranch === b
+                            ? "bg-indigo-600 text-white"
+                            : "text-white/50 hover:bg-white/5 hover:text-white"
+                        }`}
+                      >
+                        {b}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs text-white/40">Limit</span>
+                  <div className="flex overflow-hidden rounded-lg border border-white/10 bg-white/5">
+                    {ITEM_LIMIT_OPTIONS.map((l) => (
+                      <button
+                        key={l}
+                        type="button"
+                        onClick={() => setItemLimit(l)}
+                        className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                          itemLimit === l
+                            ? "bg-indigo-600 text-white"
+                            : "text-white/50 hover:bg-white/5 hover:text-white"
+                        }`}
+                      >
+                        Top {l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs text-white/40">Category (press Refresh to apply)</span>
+                  <input
+                    type="text"
+                    value={itemCategory}
+                    onChange={(e) => setItemCategory(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && void loadItemSales()}
+                    placeholder="e.g. Sushi Roll"
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white placeholder-white/25 outline-none focus:border-indigo-500"
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -1263,24 +1306,40 @@ export function ManilaSalesDataTab({
         </div>
 
         <div className="space-y-6 p-4 pb-8">
-          {!canLoad ? (
-            <p className={T_BODY}>Complete Security (MFA) and enter approver + PIN to load.</p>
-          ) : hourlyError ? (
-            <p className="text-sm text-red-400">
-              {hourlyError}{" "}
-              <button type="button" className="ml-2 underline" onClick={() => void loadHourlySales()}>
-                Retry
-              </button>
-            </p>
-          ) : hourlyLoading && !hourlyItems.length ? (
-            <div className="flex h-48 items-center justify-center">
-              <Spinner />
-            </div>
-          ) : !hourlyItems.length ? (
-            <p className={T_BODY}>No hourly data for this range.</p>
-          ) : (
-            <>
-              {/* Filters */}
+          {/* Filters — always visible when canLoad */}
+          {canLoad && (
+            <div className="space-y-3">
+              {/* Date range row */}
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs text-white/40">Date From</span>
+                  <input
+                    type="date"
+                    value={hourlyDateFrom}
+                    onChange={(e) => setHourlyDateFrom(e.target.value)}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500 [color-scheme:dark]"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs text-white/40">Date To</span>
+                  <input
+                    type="date"
+                    value={hourlyDateTo}
+                    onChange={(e) => setHourlyDateTo(e.target.value)}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white outline-none focus:border-indigo-500 [color-scheme:dark]"
+                  />
+                </div>
+                {(hourlyDateFrom !== dateFrom || hourlyDateTo !== dateTo) && (
+                  <button
+                    type="button"
+                    onClick={() => { setHourlyDateFrom(dateFrom); setHourlyDateTo(dateTo); }}
+                    className="self-end rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/50 hover:bg-white/10 hover:text-white transition-colors"
+                  >
+                    ← Reset to range
+                  </button>
+                )}
+              </div>
+              {/* Branch / Channel row */}
               <div className="flex flex-wrap items-end gap-4">
                 <div className="flex flex-col gap-1.5">
                   <span className="text-xs text-white/40">Branch</span>
@@ -1321,6 +1380,25 @@ export function ManilaSalesDataTab({
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+          {!canLoad ? (
+            <p className={T_BODY}>Complete Security (MFA) and enter approver + PIN to load.</p>
+          ) : hourlyError ? (
+            <p className="text-sm text-red-400">
+              {hourlyError}{" "}
+              <button type="button" className="ml-2 underline" onClick={() => void loadHourlySales()}>
+                Retry
+              </button>
+            </p>
+          ) : hourlyLoading && !hourlyItems.length ? (
+            <div className="flex h-48 items-center justify-center">
+              <Spinner />
+            </div>
+          ) : !hourlyItems.length ? (
+            <p className={T_BODY}>No hourly data for this range.</p>
+          ) : (
+            <>
 
               {/* KPI cards */}
               {peakHourStats && (
