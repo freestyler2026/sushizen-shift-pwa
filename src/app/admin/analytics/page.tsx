@@ -3434,16 +3434,16 @@ export default function AdminAnalyticsPage() {
         };
 
         await runLimited([
-          () => run("Staff analytics (branch daily hours)", () => apiGet<BranchDailyResp>(`/api/admin/analytics/branch_daily_hours?${common.toString()}`), (daily) => setBranchDailyRows(daily.rows || []), () => setBranchDailyRows([])),
+          () => run("Staff analytics (branch daily hours)", () => apiGet<BranchDailyResp>(`/api/admin/analytics/branch_daily_hours?${common.toString()}&source=auto`), (daily) => setBranchDailyRows(daily.rows || []), () => setBranchDailyRows([])),
           () => run("Staff analytics (branch weekday hours)", () => apiGet<BranchWeekdayResp>(`/api/admin/analytics/branch_weekday_avg_hours?${common.toString()}`), (weekday) => setBranchWeekdayRows(weekday.rows || []), () => setBranchWeekdayRows([])),
-          () => run("Staff analytics (work summary)", () => apiGet<StaffSummaryResp>(`/api/admin/analytics/staff_work_summary?${staffQs.toString()}`), (staff) => setStaffSummaryRows(staff.rows || []), () => setStaffSummaryRows([])),
+          () => run("Staff analytics (work summary)", () => apiGet<StaffSummaryResp>(`/api/admin/analytics/staff_work_summary?${staffQs.toString()}&source=auto`), (staff) => setStaffSummaryRows(staff.rows || []), () => setStaffSummaryRows([])),
           () => run("Staff analytics (absence summary)", () => apiGet<AbsenceSummaryResp>(`/api/admin/analytics/absence_summary?${absenceQs.toString()}`), (absence) => setAbsenceSummaryRows(absence.rows || []), () => setAbsenceSummaryRows([])),
           () => run(
             "Staff analytics (Dubai city summary)",
             () =>
               apiGet<CitySummaryResp>(
                 `/api/admin/analytics/city_summary?city=dubai&date_from=${encodeURIComponent(summaryDateFrom)}&date_to=${encodeURIComponent(summaryDateTo)}&approver_name=${encodeURIComponent(approverName.trim())}&pin=${encodeURIComponent(pin.trim())}`
-                  + `&exclude_flexible=true`
+                  + `&exclude_flexible=true&source=auto`
               ),
             (dubaiCity) => setDubaiSummary(dubaiCity),
             () => setDubaiSummary(null)
@@ -3453,7 +3453,7 @@ export default function AdminAnalyticsPage() {
             () =>
               apiGet<CitySummaryResp>(
                 `/api/admin/analytics/city_summary?city=manila&date_from=${encodeURIComponent(summaryDateFrom)}&date_to=${encodeURIComponent(summaryDateTo)}&approver_name=${encodeURIComponent(approverName.trim())}&pin=${encodeURIComponent(pin.trim())}`
-                  + `&exclude_flexible=true`
+                  + `&exclude_flexible=true&source=auto`
               ),
             (manilaCity) => setManilaSummary(manilaCity),
             () => setManilaSummary(null)
@@ -4736,12 +4736,12 @@ export default function AdminAnalyticsPage() {
 
       const [branchDailyRes, staffSummaryRes, absenceSummaryRes, citySummaryRes, posDailyRes, schedulePolicyRes, posBranchRes, manilaDailyRes] =
         await Promise.all([
-          tryFetch<BranchDailyResp>("branch_daily_hours", () => apiGet<BranchDailyResp>(`/api/admin/analytics/branch_daily_hours?${commonQs.toString()}`)),
-          tryFetch<StaffSummaryResp>("staff_work_summary", () => apiGet<StaffSummaryResp>(`/api/admin/analytics/staff_work_summary?${staffQs.toString()}`)),
+          tryFetch<BranchDailyResp>("branch_daily_hours", () => apiGet<BranchDailyResp>(`/api/admin/analytics/branch_daily_hours?${commonQs.toString()}&source=auto`)),
+          tryFetch<StaffSummaryResp>("staff_work_summary", () => apiGet<StaffSummaryResp>(`/api/admin/analytics/staff_work_summary?${staffQs.toString()}&source=auto`)),
           tryFetch<AbsenceSummaryResp>("absence_summary", () => apiGet<AbsenceSummaryResp>(`/api/admin/analytics/absence_summary?${commonQs.toString()}&exclude_flexible=true`)),
           tryFetch<CitySummaryResp>("city_summary", () =>
             apiGet<CitySummaryResp>(
-              `/api/admin/analytics/city_summary?city=${encodeURIComponent(lowercaseCity)}&date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}&exclude_flexible=true&approver_name=${encodeURIComponent(approver)}&pin=${encodeURIComponent(pinValue)}`
+              `/api/admin/analytics/city_summary?city=${encodeURIComponent(lowercaseCity)}&date_from=${encodeURIComponent(dateFrom)}&date_to=${encodeURIComponent(dateTo)}&exclude_flexible=true&approver_name=${encodeURIComponent(approver)}&pin=${encodeURIComponent(pinValue)}&source=auto`
             )
           ),
           tryFetch<PosSalesDailyResp>("pos_sales_daily", () => apiGet<PosSalesDailyResp>(`/api/admin/pos/sales/daily?${commonQs.toString()}`)),
