@@ -85,6 +85,8 @@ type DispatchRow = {
   dispatch_date: string;
   created_at: string;
   has_dispatch_boxes: boolean;
+  destination_branches: string[];
+  box_count: number;
 };
 
 /** Per-box receiving state (new flow) */
@@ -258,7 +260,7 @@ function DispatchForm({ city }: { city: string }) {
   const branches = city === "manila" ? MANILA_BRANCHES : DUBAI_BRANCHES;
   const [staffNames,    setStaffNames]    = useState<string[]>([]);
   const [dispatchedBy,  setDispatchedBy]  = useState("");
-  const [destBranches,  setDestBranches]  = useState<string[]>([...branches]);
+  const [destBranches,  setDestBranches]  = useState<string[]>([]);
   const [equipmentQty,  setEquipmentQty]  = useState<EquipmentQty>({});
   const [notes,         setNotes]         = useState("");
   // Per-box dispatch data (Manila only in new flow)
@@ -382,7 +384,10 @@ function DispatchForm({ city }: { city: string }) {
 
       {/* Destination Branches */}
       <div>
-        <label className={`${T_LABEL} mb-2 block`}>Destination Branches</label>
+        <label className={`${T_LABEL} mb-2 block`}>
+          Destination Branches
+          <span className="ml-2 text-xs font-normal text-slate-400">(tap to select)</span>
+        </label>
         <div className="flex flex-wrap gap-2">
           {branches.map((b) => (
             <button key={b} type="button" onClick={() => toggle(b)}
@@ -393,6 +398,9 @@ function DispatchForm({ city }: { city: string }) {
               }`}>{BRANCH_LABELS[b] ?? b}</button>
           ))}
         </div>
+        {destBranches.length === 0 && (
+          <p className="mt-1.5 text-xs text-amber-400">Select at least one destination branch.</p>
+        )}
       </div>
 
       {/* Equipment selector — Manila only */}
@@ -545,6 +553,17 @@ function ReceivingForm({ city }: { city: string }) {
 
   useEffect(() => { loadDispatches(); }, [loadDispatches]);
 
+  // ── When branch changes, auto-select the first dispatch that covers that branch ──
+  useEffect(() => {
+    if (!dispatches.length) return;
+    // If the current dispatch already includes this branch, keep it selected.
+    const current = dispatches.find((d) => d.id === dispatchId);
+    if (current?.destination_branches?.includes(branch)) return;
+    // Otherwise, pick the first dispatch that includes this branch.
+    const relevant = dispatches.find((d) => d.destination_branches?.includes(branch));
+    if (relevant) setDispatchId(relevant.id);
+  }, [branch, dispatches, dispatchId]);
+
   // ── When dispatch changes, load boxes (new flow only) ──
   useEffect(() => {
     if (!dispatchId || !isNewFlow) { setDispatchBoxes([]); setReceiveStates([]); return; }
@@ -675,12 +694,15 @@ function ReceivingForm({ city }: { city: string }) {
             <p className={`${T_CAPTION} text-amber-400 py-2`}>No dispatches today — ask CK to create one first</p>
           ) : (
             <select className={SELECT_CLASS} value={dispatchId} onChange={(e) => setDispatchId(e.target.value)}>
-              {dispatches.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.dispatched_by}
-                  {d.has_dispatch_boxes ? " ✓" : ""}
-                </option>
-              ))}
+              {dispatches.map((d) => {
+                const dests = (d.destination_branches ?? []).map((b) => BRANCH_LABELS[b] ?? b).join(", ");
+                return (
+                  <option key={d.id} value={d.id}>
+                    {d.dispatched_by}{dests ? ` → ${dests}` : ""}
+                    {d.has_dispatch_boxes ? " ✓" : ""}
+                  </option>
+                );
+              })}
             </select>
           )}
         </div>
