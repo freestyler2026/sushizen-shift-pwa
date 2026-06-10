@@ -650,6 +650,19 @@ export default function ProcurementHubPage() {
 
                   {detail && !detail.loading && (
                     <div className="space-y-4">
+                      {/* HQ approval required banner — shown to non-HQ users when WH order is pending HQ sign-off */}
+                      {row.current_assignee_role === "HQ" &&
+                        row.case_status !== "APPROVED" &&
+                        !["HQ", "ADMIN"].includes((auth?.role || "").toUpperCase()) && (
+                        <div className="flex items-start gap-2 rounded-xl border border-violet-500/30 bg-violet-950/20 px-3 py-2 text-xs text-violet-300">
+                          <span className="mt-0.5 shrink-0">🔒</span>
+                          <span>
+                            <span className="font-semibold">HQ approval required</span> — this WH order
+                            is pending HQ review. It cannot be approved without HQ sign-off.
+                          </span>
+                        </div>
+                      )}
+
                       {/* WH stock alert banner */}
                       {city === "manila" && whStockMap.size > 0 && (() => {
                         const lowItems = detail.items.filter((item) => {

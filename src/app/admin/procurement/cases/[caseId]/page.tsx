@@ -143,6 +143,12 @@ export default function ProcurementCaseDetailPage() {
   const showWhStock = !editingItems && requestCity === "manila" && whStockMap.size > 0;
   const totalAmount = Number(bundle.request?.total_amount || 0);
   const isHighValue = totalAmount > APPROVAL_THRESHOLD;
+  // WH governance: HQ-only approval flag
+  const caseRequiredRoles: string[] = Array.isArray(bundle.case?.required_roles_json)
+    ? (bundle.case.required_roles_json as string[]).map((r: string) => String(r).toUpperCase())
+    : [];
+  const needsHqApproval = caseRequiredRoles.includes("HQ") && !caseRequiredRoles.some(r => r !== "HQ");
+  const isHqOrAdmin = ["HQ", "ADMIN"].includes((auth?.role || "").toUpperCase());
 
   const load = useCallback(async () => {
     setError("");
@@ -899,6 +905,16 @@ export default function ProcurementCaseDetailPage() {
             <span className={T_CAPTION}>Doc Gate: <span className="text-zinc-300">{bundle.document_validation?.status || "-"}</span></span>
           </div>
 
+          {needsHqApproval && !isHqOrAdmin && (
+            <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-950/20 px-3 py-2.5 text-xs text-amber-300">
+              <span className="mt-0.5 shrink-0">⚠</span>
+              <span>
+                <span className="font-semibold">HQ approval required</span> — this WH order must be
+                reviewed and approved by HQ. Your comment will be recorded, but the order will only
+                be approved after HQ signs off.
+              </span>
+            </div>
+          )}
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
