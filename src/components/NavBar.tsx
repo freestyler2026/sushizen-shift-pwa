@@ -128,6 +128,7 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/store/receiving", label: "CK Receiving", icon: PackageCheck, match: "prefix" },
   { href: "/store/evaluation", label: "Store Evaluation", icon: ClipboardCheck, match: "prefix" },
   { href: "/store/cold-chain", label: "Cold Chain Log", icon: Thermometer, match: "prefix" },
+  { href: "/store/daily-check", label: "Daily Check", icon: ClipboardList, match: "prefix" },
   { href: "/store/cash-report", label: "Cash Report", icon: Banknote, match: "prefix" },
   { href: "/swap-approve", label: "Swap Approve", icon: ArrowLeftRight, match: "exact" },
   { href: "/change-pin", label: "Change PIN", icon: KeyRound, match: "exact" },
@@ -155,6 +156,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/backoffice-evaluation", label: "Backoffice Eval", icon: ClipboardCheck, adminOnly: true, match: "exact" },
   { href: "/admin/store-evaluations", label: "Store Evaluations", icon: BarChart3, adminOnly: true, match: "prefix" },
   { href: "/admin/cold-chain", label: "Cold Chain", icon: Thermometer, adminOnly: true, match: "prefix" },
+  { href: "/admin/daily-check", label: "Daily Check", icon: ClipboardList, adminOnly: true, match: "prefix" },
   { href: "/admin/cash-management", label: "Cash Management", icon: Banknote, adminOnly: true, match: "prefix" },
   { href: "/admin/meal-allowance", label: "Meal Allowance", icon: Banknote, adminOnly: true, match: "prefix" },
   { href: "/admin/probation", label: "Probation", icon: UserCheck, adminOnly: true, match: "prefix" },
@@ -274,6 +276,7 @@ export default function NavBar() {
     if (href === "/admin/backoffice-evaluation") return canAccessBackofficeEvaluationAdmin(auth);
     if (href === "/admin/store-evaluations") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
     if (href === "/admin/cold-chain") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER", "DUBAI_MANAGEMENT"].includes(role);
+    if (href === "/admin/daily-check") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
     if (href === "/admin/cash-management") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
     if (href === "/admin/meal-allowance") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
     if (href === "/admin/probation") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
