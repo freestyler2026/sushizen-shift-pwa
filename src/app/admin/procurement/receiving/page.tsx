@@ -103,13 +103,24 @@ export default function ProcurementReceivingPage() {
   const [poId, setPoId] = useState("");
   const [vendorName, setVendorName] = useState("");
   const [deliveryDate, setDeliveryDate] = useState("");
-  const [qtyExpected, setQtyExpected] = useState("0");
-  const [qtyReceived, setQtyReceived] = useState("0");
-  const [unit, setUnit] = useState("");
-  const [unitPrice, setUnitPrice] = useState("0");
   const [qualityStatus, setQualityStatus] = useState("ACCEPTED");
   const [varianceReason, setVarianceReason] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
+
+  // Per-item receiving state for the create form
+  type ItemForm = {
+    request_item_id: string;
+    item_name: string;
+    category: string;
+    vendor_name: string;
+    unit: string;
+    qty_ordered: number;
+    qty_received: string;   // editable — stored as string for input
+    unit_price: string;     // editable — stored as string for input
+    notes: string;
+  };
+  const [itemForms, setItemForms] = useState<ItemForm[]>([]);
+  const [loadingRequest, setLoadingRequest] = useState(false);
 
   const [rows, setRows] = useState<ReceivingRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -225,12 +236,58 @@ export default function ProcurementReceivingPage() {
     }
   }, [city, filterRequestId, pin, requestedBy, statusFilter]);
 
+  const loadRequestForCreate = async (reqId: string) => {
+    const rid = reqId.trim();
+    if (!rid) { setItemForms([]); return; }
+    setLoadingRequest(true);
+    setError("");
+    try {
+      const data = await procurementJson<{ request: { id: string; vendor_name: string; items: Array<{ id: string; item_name: string; category: string; vendor_name: string; unit: string; qty: number; unit_price: number }> } }>(
+        `/api/admin/procurement/requests/${encodeURIComponent(rid)}`,
+        { method: "GET" },
+        requestedBy,
+        pin,
+      );
+      const req = data?.request;
+      if (!req) { setItemForms([]); return; }
+      if (!vendorName && req.vendor_name) setVendorName(req.vendor_name);
+      const forms = (req.items || []).map((it) => ({
+        request_item_id: String(it.id || ""),
+        item_name: String(it.item_name || ""),
+        category: String(it.category || ""),
+        vendor_name: String(it.vendor_name || req.vendor_name || ""),
+        unit: String(it.unit || ""),
+        qty_ordered: Number(it.qty || 0),
+        qty_received: String(it.qty || 0),
+        unit_price: String(it.unit_price || 0),
+        notes: "",
+      }));
+      setItemForms(forms);
+    } catch {
+      setItemForms([]);
+    } finally {
+      setLoadingRequest(false);
+    }
+  };
+
   const createReceiving = async () => {
     if (!createRequestId.trim()) { setError("Request ID is required."); return; }
+    if (!deliveryDate) { setError("Delivery date is required."); return; }
     setBusy("create");
     setError("");
     setSuccessMsg("");
     try {
+      const itemsPayload = itemForms.map((it) => ({
+        request_item_id: it.request_item_id,
+        item_name: it.item_name,
+        category: it.category,
+        vendor_name: it.vendor_name,
+        unit: it.unit,
+        qty_ordered: it.qty_ordered,
+        qty_received: Number(it.qty_received || 0),
+        unit_price: Number(it.unit_price || 0),
+        notes: it.notes,
+      }));
       await procurementJson(
         "/api/admin/procurement/receiving",
         {
@@ -241,12 +298,13 @@ export default function ProcurementReceivingPage() {
             po_id: poId.trim(),
             vendor_name: vendorName.trim(),
             delivery_date: deliveryDate,
-            qty_expected: Number(qtyExpected || 0),
-            qty_received: Number(qtyReceived || 0),
-            unit: unit.trim(),
-            unit_price: Number(unitPrice || 0),
+            qty_expected: 0,   // calculated server-side from items
+            qty_received: 0,   // calculated server-side from items
+            unit: "",
+            unit_price: 0,
             quality_status: qualityStatus,
             variance_reason: varianceReason.trim(),
+            items: itemsPayload,
             approver_name: requestedBy,
             pin,
           }),
@@ -255,6 +313,10 @@ export default function ProcurementReceivingPage() {
         pin,
       );
       setVarianceReason("");
+      setItemForms([]);
+      setDeliveryDate("");
+      setPoId("");
+      setVendorName("");
       setSuccessMsg("Receiving record created successfully.");
       setShowCreateForm(false);
       await load();
@@ -446,40 +508,34 @@ export default function ProcurementReceivingPage() {
 
       {/* Create Form */}
       {showCreateForm && (
-        <div id="create-receiving-form" className={`${GLASS_CARD} p-5`}>
-          <p className={`${T_SECTION} mb-4`}>New Receiving Record</p>
+        <div id="create-receiving-form" className={`${GLASS_CARD} p-5 space-y-4`}>
+          <p className={`${T_SECTION}`}>New Receiving Record</p>
+
+          {/* Step 1 — Header info */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Request ID *</label>
-              <input value={createRequestId} onChange={(e) => setCreateRequestId(e.target.value)} placeholder="Request ID" className={INPUT_CLASS} />
+              <div className="flex gap-2">
+                <input
+                  value={createRequestId}
+                  onChange={(e) => setCreateRequestId(e.target.value)}
+                  placeholder="e.g. DUB-PR-202606-0218"
+                  className={INPUT_CLASS}
+                />
+                <button
+                  type="button"
+                  onClick={() => void loadRequestForCreate(createRequestId)}
+                  disabled={loadingRequest || !createRequestId.trim()}
+                  className={`${SMALL_BUTTON} whitespace-nowrap flex items-center gap-1`}
+                >
+                  {loadingRequest ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : null}
+                  {loadingRequest ? "Loading…" : "Load Items"}
+                </button>
+              </div>
             </div>
             <div>
-              <label className={`${T_LABEL} mb-1.5 block`}>PO ID (optional)</label>
-              <input value={poId} onChange={(e) => setPoId(e.target.value)} placeholder="PO ID" className={INPUT_CLASS} />
-            </div>
-            <div>
-              <label className={`${T_LABEL} mb-1.5 block`}>Vendor Name</label>
-              <input value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="Vendor name" className={INPUT_CLASS} />
-            </div>
-            <div>
-              <label className={`${T_LABEL} mb-1.5 block`}>Delivery Date</label>
+              <label className={`${T_LABEL} mb-1.5 block`}>Delivery Date *</label>
               <DatePicker value={deliveryDate} onChange={setDeliveryDate} />
-            </div>
-            <div>
-              <label className={`${T_LABEL} mb-1.5 block`}>Qty Expected</label>
-              <input value={qtyExpected} onChange={(e) => setQtyExpected(e.target.value)} placeholder="0" className={INPUT_CLASS} />
-            </div>
-            <div>
-              <label className={`${T_LABEL} mb-1.5 block`}>Qty Received</label>
-              <input value={qtyReceived} onChange={(e) => setQtyReceived(e.target.value)} placeholder="0" className={INPUT_CLASS} />
-            </div>
-            <div>
-              <label className={`${T_LABEL} mb-1.5 block`}>Unit</label>
-              <input value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="kg / pcs / box" className={INPUT_CLASS} />
-            </div>
-            <div>
-              <label className={`${T_LABEL} mb-1.5 block`}>Unit Price</label>
-              <input value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} placeholder="0.00" className={INPUT_CLASS} />
             </div>
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Quality Status</label>
@@ -489,20 +545,90 @@ export default function ProcurementReceivingPage() {
                 <option value="REJECTED">REJECTED</option>
               </select>
             </div>
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Vendor Name</label>
+              <input value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="Auto-filled from order" className={INPUT_CLASS} />
+            </div>
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>PO ID (optional)</label>
+              <input value={poId} onChange={(e) => setPoId(e.target.value)} placeholder="PO ID" className={INPUT_CLASS} />
+            </div>
             <div className="sm:col-span-3">
               <label className={`${T_LABEL} mb-1.5 block`}>Variance / Quality Note</label>
-              <textarea value={varianceReason} onChange={(e) => setVarianceReason(e.target.value)} placeholder="Explain any shortage, excess, or quality issue" className={`${TEXTAREA_CLASS} min-h-20`} />
+              <textarea value={varianceReason} onChange={(e) => setVarianceReason(e.target.value)} placeholder="Explain any shortage, excess, or quality issue" className={`${TEXTAREA_CLASS} min-h-16`} />
             </div>
-            <div className="sm:col-span-3 flex justify-end">
-              <button
-                type="button"
-                onClick={() => void createReceiving()}
-                disabled={busy === "create"}
-                className={`${PRIMARY_BUTTON} flex items-center gap-2`}
-              >
-                {busy === "create" ? <><RefreshCw className="h-4 w-4 animate-spin" />Creating…</> : "Create Receiving Record"}
-              </button>
+          </div>
+
+          {/* Step 2 — Item list (loaded from request) */}
+          {loadingRequest && (
+            <div className="flex items-center gap-2 py-4 text-sm text-zinc-400">
+              <RefreshCw className="h-4 w-4 animate-spin" /> Loading order items…
             </div>
+          )}
+          {!loadingRequest && itemForms.length > 0 && (
+            <div>
+              <p className={`${T_LABEL} mb-2`}>Items — enter received qty & unit price per item</p>
+              <div className="overflow-x-auto rounded-xl border border-white/8">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/8 bg-white/3 text-left">
+                      <th className="px-3 py-2 text-xs font-semibold text-zinc-400">Item</th>
+                      <th className="px-3 py-2 text-xs font-semibold text-zinc-400">Category</th>
+                      <th className="px-3 py-2 text-xs font-semibold text-zinc-400 text-right">Ordered</th>
+                      <th className="px-3 py-2 text-xs font-semibold text-emerald-400 text-right">Received *</th>
+                      <th className="px-3 py-2 text-xs font-semibold text-zinc-400 text-right">Unit</th>
+                      <th className="px-3 py-2 text-xs font-semibold text-emerald-400 text-right">Unit Price *</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {itemForms.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-white/3">
+                        <td className="px-3 py-2 text-zinc-200 font-medium">{item.item_name || "—"}</td>
+                        <td className="px-3 py-2 text-zinc-400 text-xs">{item.category || "—"}</td>
+                        <td className="px-3 py-2 text-right text-zinc-400">{item.qty_ordered}</td>
+                        <td className="px-3 py-2 text-right">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.qty_received}
+                            onChange={(e) => setItemForms((prev) => prev.map((it, i) => i === idx ? { ...it, qty_received: e.target.value } : it))}
+                            className="w-20 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-right text-sm text-emerald-200 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-right text-zinc-400 text-xs">{item.unit}</td>
+                        <td className="px-3 py-2 text-right">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.unit_price}
+                            onChange={(e) => setItemForms((prev) => prev.map((it, i) => i === idx ? { ...it, unit_price: e.target.value } : it))}
+                            className="w-24 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-right text-sm text-emerald-200 focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          {!loadingRequest && itemForms.length === 0 && createRequestId.trim() && (
+            <p className="text-xs text-zinc-500 italic">
+              Click <strong className="text-zinc-300">Load Items</strong> to fetch order items from this request.
+            </p>
+          )}
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => void createReceiving()}
+              disabled={busy === "create" || !createRequestId.trim() || !deliveryDate}
+              className={`${PRIMARY_BUTTON} flex items-center gap-2 ${(!createRequestId.trim() || !deliveryDate) ? "opacity-50" : ""}`}
+            >
+              {busy === "create" ? <><RefreshCw className="h-4 w-4 animate-spin" />Creating…</> : "Create Receiving Record"}
+            </button>
           </div>
         </div>
       )}
@@ -537,11 +663,14 @@ export default function ProcurementReceivingPage() {
             <button
               type="button"
               onClick={() => {
-                setCreateRequestId(filterRequestId.trim());
+                const rid = filterRequestId.trim();
+                setCreateRequestId(rid);
                 setShowCreateForm(true);
                 setTimeout(() => {
                   document.getElementById("create-receiving-form")?.scrollIntoView({ behavior: "smooth" });
-                }, 100);
+                  // Auto-load items for the pre-filled request ID
+                  void loadRequestForCreate(rid);
+                }, 150);
               }}
               className="flex items-center gap-2 rounded-xl border border-violet-500/40 bg-violet-500/20 px-4 py-2 text-sm font-medium text-violet-200 transition hover:bg-violet-500/30"
             >
