@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-09 (session 39 — end)
+Last updated: 2026-06-10 (session 43 — end)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,30 @@ Last updated: 2026-06-09 (session 39 — end)
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1221, Vercel commit 0e01003)
+なし — 全変更デプロイ済み (Heroku v1230, Vercel commit 0bce485)
+
+## 🔵 Next: ③ Transport Expense (Manila only)
+
+Pre-advance 1000 PHP per staff, receipt upload, balance tracking, approval flow.
+Manila staff only. Manual approval OK.
+Files to create: `app/db_transport_expense.py`, `app/transport_expense_api.py`,
+`src/app/store/transport-expense/page.tsx`, `src/app/admin/transport-expense/page.tsx`
+
+## 🔵 After That: ④ Petty Cash (Manila only)
+
+Used by: Back Office, Inventory&Purchasing, MANILA_MANAGEMENT, MANILA_MANAGER.
+Files to create: similar pattern to transport expense.
+
+## Recently Completed (2026-06-10 session 43) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| ① HR/Permission Access 修正 | `app/main.py` | `_verify_manager_or_admin` に HR_MANAGER 追加 + channel.admin.staff.manage 権限チェック追加。`_assert_os_attendance_access()` 新ヘルパー追加。OS Attendanceエンドポイント11個をロール+チャンネル権限チェックに統一。Camilla (HR Staff) の 403 エラーを解消 |
+| ② Cold Chain: 複数ブランチ選択 UX 修正 | `src/app/store/cold-chain/page.tsx` | 初期値を全ブランチ選択済みに復元 + チェックボックス式UI + "Select all/Clear all" ショートカット + Submit後に全ブランチ再選択 |
+| ③ Daily Ops Check バックエンド (Opening/Lunch Close/Business Close) | `app/db_daily_check.py` (新規), `app/daily_check_api.py` (新規), `app/main.py` | `daily_op_checks` テーブル (JSONB aggregator_statuses, photo_urls, confirmation tracking)。7エンドポイント: submit, photo upload, today (store), list/confirm/summary (admin) |
+| ④ Daily Check ストアページ | `src/app/store/daily-check/page.tsx` (新規) | 店舗スタッフ向け: ブランチ選択, Opening/Lunch Close/Business Close チェックタイプ, アグリゲーターステータス (GrabFood/Foodpanda/Beep), ダインイン状態, ノート, 写真アップロード (Opening のみ), 今日の提出履歴 |
+| ⑤ Daily Check 管理ページ | `src/app/admin/daily-check/page.tsx` (新規) | バックオフィス向け: ブランチサマリーグリッド (提出/確認状況), 全レコード一覧, Confirm ✓ ボタン, 日付/ブランチ/タイプフィルター, KPIチップ (合計/確認済み/保留中) |
+| ⑥ NavBar: Daily Check リンク追加 | `src/components/NavBar.tsx` | ストアナビに "Daily Check" (ClipboardList), 管理ナビに "Daily Check" 追加。可視性: HQ/ADMIN/HR_MANAGER/MANILA_MANAGEMENT/MANILA_MANAGER |
 
 ## 🔴 未解決: Employee Cases ページのデータ取得問題（明日継続）
 
@@ -45,6 +68,46 @@ Last updated: 2026-06-09 (session 39 — end)
 ### Manila P&L データ未インポート（継続中）
 - `/Users/jaynishimura/Downloads/[Manila] PLアプリ用データ (3).xlsx` (8シート: 202510〜202605)
 - 対処: Management P&L → Summary → **「Upload Excel」**ボタン
+
+## Recently Completed (2026-06-09 session 42) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| ① Confirm Delivery: 受取レコード未作成ガイド | `admin/procurement/receiving/page.tsx` | Request IDフィルターで0件の場合、「承認済みだが受取レコード未作成」の案内カードを表示。「+ Create Receiving Record for this Order」ボタンでフォームにIDを自動プリフィルしスクロール |
+| ② Hub: Request IDコピーボタン | `admin/procurement/hub/page.tsx` | 各行のRequest ID横に `Copy` ボタンを追加。クリックでクリップボードにコピー、2秒間「Copied ✓」に変化。行展開イベントと競合しないよう `stopPropagation` 設定 |
+| ③ Cartimar supplier filter regression 修正 | `store/procurement/request/page.tsx` | `lastCatalogScopeRef`のscope keyに`activeStore`を追加 (`city::category::store`)。以前は店舗変更時にフィルターがリセットされず、別店舗のCartimarカタログが残存する問題があった |
+
+### 教訓 (session 42)
+- **Confirm Delivery は受取レコードを見る画面**: 承認済みPRが直接表示されるわけではない。承認後は store/admin が先に受取レコードを作成する必要がある。ガイドテキストでユーザーを正しいフローに誘導
+- **Cartimar scope key バグの根本**: `scopeKey = city::category` だけでは店舗変更を検知できない。店舗ごとにカタログが異なる場合 (Dubai WH: AL BARSHAとM CITYで異なるサプライヤー)、フィルターがリセットされずに stale なサプライヤーフィルターが残る
+
+## Recently Completed (2026-06-09 session 41) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Approval Case: アイテムインライン編集機能 | `app/main.py` + `cases/[caseId]/page.tsx` | 承認画面で承認者がアイテムの Qty / Unit Price / Spec を直接編集可能に。編集モードトグル (✏ Edit Items)。Unit Price 入力は緑色ハイライト。Line Total・Order Total がリアルタイム自動計算。Save Changes で `PATCH /api/admin/procurement/cases/{id}/items` を呼び出し、ケースに変更メモを自動投稿。APPROVED / REJECTED 状態では編集ボタン非表示 |
+
+### 教訓 (session 41)
+- **Pydantic モデル再利用**: 既存の `ProcRequestItemIn` を `items: List[ProcRequestItemIn]` で再利用することで、フィールドバリデーションを一切書かずに済む
+- **line_total の扱い**: フロントでリアルタイム計算してもバックエンド側で `qty × unit_price` で上書き計算することで、フロント計算ミスの可能性を排除
+- **replace_proc_request_items は DELETE + INSERT**: 既存 items を全削除して再挿入するため、item の id は毎回変わる。フロントの key は `item.id || idx` で対応済み
+
+## Recently Completed (2026-06-09 session 40) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Bayzat Daily File Import 修正 | `app/main.py` `_drive_list_attendance_files()` | Shared Drive ID (`0A...`) を検出した場合、`corpora="user"` のデフォルトAPIをスキップし、直接 `_drive_list_shared_drive_attendance_files()` を呼ぶように修正。これにより Dubai Bayzat の日次ファイル (28+ files/日) が正常にインポートされるように |
+| Auto Sync 有効化 | Heroku env vars + `attendance_drive_sources` DB | `ATTENDANCE_AUTO_SYNC_ENABLED=true` 設定。APScheduler 05:18/07:18 UTC で毎日実行。Drive source ID=1 (Bayzat Personal Drive Folder, city_hint=dubai) を再有効化 |
+| Analytics Summary: Dubai KPI ゼロ修正 (Approach A) | `app/db.py` + `app/main.py` + `analytics/page.tsx` | `base_shift_normalized` にシフトデータが空の場合、`actual_attendance` (Bayzat import) にフォールバックする `source=auto` パラメータを実装。`list_branch_daily_hours_actual` / `list_staff_work_summary_actual` / `get_city_summary_actual` の3関数を `db.py` に追加。3エンドポイント (`branch_daily_hours` / `staff_work_summary` / `city_summary`) に `source: str = Query("auto")` を追加。フロントエンドの全API呼び出しに `&source=auto` を付与 |
+
+### 教訓 (session 40)
+- **Google Drive Shared Drive ID (`0A...`) の検出**: `'{id}' in parents` + `corpora="user"` では共有ドライブ内ファイルが返らない。`corpora="drive"` + `driveId=<id>` で `_drive_list_shared_drive_attendance_files()` を呼ぶ必要がある。`_looks_like_shared_drive_id()` で `0A` プレフィックスを検出して分岐
+- **Dubai シフトデータ空問題の根本原因**: Dubai はシフトを Bayzat のみで管理し OS にはシフトが入っていない。`base_shift_normalized` に Dubai データがなく Analytics KPIが常に0。`source=auto` フォールバックで `actual_attendance` を使うことで解消
+- **Bayzat→Zoho 移行予定**: Bayzat は契約終了・Zoho 切り替え予定。Approach B（Bayzat スケジュールインポート）は不要。将来は Zoho の出力形式に合わせてパーサーを変更するだけでよい
+
+### session 40 での Approach A 実装詳細
+- `source=auto` ロジック: `branch_daily_hours`/`staff_work_summary` は `result.get("rows")` が空リストの時にフォールバック。`city_summary` は `float(result.get("total_hours") or 0) == 0` の時にフォールバック
+- Manila (シフトあり) は変更なし。Dubai (シフトなし) のみ自動的に `actual_attendance` を使用
 
 ## Recently Completed (2026-06-09 session 39) — live
 
@@ -418,6 +481,13 @@ Vendor MasterのOrder Catalog登録名と`supplier_name`が一致しない場合
 | Item Sales: Cubao→QC DB名前マッピング修正 | ✅ live (Heroku v1219) |
 | Travel Path: 全Manila店舗に排水溝詰まり防止アイテム追加 | ✅ live (Heroku v1220) |
 | Cash Collection Pipeline: 3ステップ追跡 (Store→Office→Bank) | ✅ live (Heroku v1221, Vercel 0e01003) |
+| Bayzat Daily Import: Shared Drive ID 検出修正 | ✅ live (Heroku v1225) |
+| Attendance Auto Sync: APScheduler 05:18/07:18 UTC | ✅ live (Heroku v1225) |
+| Analytics Summary: Dubai KPI → actual_attendance fallback (source=auto) | ✅ live (Heroku v1225, Vercel a81f6ae) |
+| Approval Case: アイテムインライン編集 (Qty/Unit Price/Spec) | ✅ live (Heroku v1226, Vercel 2f4999e) |
+| HR Staff (Camilla): OS Attendance + Staff Master 403 修正 | ✅ live (Heroku v1230) |
+| Cold Chain: 複数ブランチ選択 UX 修正 (全選択デフォルト + チェックボックス式) | ✅ live (Vercel 0bce485) |
+| Daily Ops Check ① Opening / ② Lunch Close / ③ Business Close | ✅ live (Heroku v1230, Vercel 0bce485) |
 
 ---
 
