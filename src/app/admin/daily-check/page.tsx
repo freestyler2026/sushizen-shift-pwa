@@ -14,6 +14,7 @@ import {
   GLASS_CARD,
   PRIMARY_BUTTON,
   SELECT_CLASS,
+  INPUT_CLASS,
   T_PAGE_TITLE,
   T_LABEL,
   T_CAPTION,
@@ -51,13 +52,17 @@ type CheckRecord = {
   check_date: string;
   submitted_by: string;
   submitted_at: string;
-  aggregator_statuses: Record<string, boolean>;
+  aggregator_statuses: Record<string, unknown>;  // {key: bool} or {key: {open: bool, mode: str}}
   dine_in_open: boolean | null;
   notes: string;
   photo_urls: { url: string; type: string }[];
   status: string;
   bo_confirmed_by: string | null;
   bo_confirmed_at: string | null;
+  discord_confirmed: boolean;
+  issue_note: string | null;
+  double_checked_by: string | null;
+  double_checked_at: string | null;
 };
 
 type SummaryRow = {
@@ -65,6 +70,7 @@ type SummaryRow = {
   check_type: string;
   total: number;
   confirmed: number;
+  issues: number;
   last_submitted_at: string | null;
   last_confirmed_at: string | null;
 };
@@ -80,6 +86,19 @@ function fmtTime(iso: string | null): string {
   return new Date(iso).toLocaleTimeString("en-PH", {
     timeZone: "Asia/Manila", hour: "2-digit", minute: "2-digit",
   });
+}
+
+/** Extract open boolean from aggregator value (supports old {bool} and new {open, mode} formats) */
+function aggIsOpen(val: unknown): boolean {
+  if (typeof val === "boolean") return val;
+  if (val && typeof val === "object" && "open" in val) return !!(val as { open: boolean }).open;
+  return false;
+}
+
+/** Extract mode string from new-format aggregator value */
+function aggMode(val: unknown): string | null {
+  if (val && typeof val === "object" && "mode" in val) return (val as { mode: string }).mode;
+  return null;
 }
 
 // ─── Summary Card ─────────────────────────────────────────────────────────────
@@ -114,15 +133,22 @@ function SummaryGrid({ summary }: { summary: SummaryRow[] }) {
                   <td key={ct.key} className="py-2 px-2 text-center text-white/20">—</td>
                 );
                 const allConfirmed = row.confirmed >= row.total;
+                const hasIssues = (row.issues ?? 0) > 0;
                 return (
                   <td key={ct.key} className="py-2 px-2 text-center">
                     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${
-                      allConfirmed
-                        ? "bg-emerald-500/15 text-emerald-300"
-                        : "bg-amber-500/15 text-amber-300"
+                      hasIssues
+                        ? "bg-red-500/15 text-red-300"
+                        : allConfirmed
+                          ? "bg-emerald-500/15 text-emerald-300"
+                          : "bg-amber-500/15 text-amber-300"
                     }`}>
-                      {allConfirmed ? <CheckCircle2 size={10} /> : <Clock size={10} />}
-                      {allConfirmed ? "Confirmed" : `${row.confirmed}/${row.total}`}
+                      {hasIssues ? "🔴" : allConfirmed ? <CheckCircle2 size={10} /> : <Clock size={10} />}
+                      {hasIssues
+                        ? `${row.issues} issue${row.issues > 1 ? "s" : ""}`
+                        : allConfirmed
+                          ? "OK"
+                          : `${row.confirmed}/${row.total}`}
                     </span>
                     <div className="text-white/25 mt-0.5">{fmtTime(row.last_submitted_at)}</div>
                   </td>
@@ -138,25 +164,52 @@ function SummaryGrid({ summary }: { summary: SummaryRow[] }) {
 
 // ─── Check Detail Card ────────────────────────────────────────────────────────
 
+const STATUS_META: Record<string, { label: string; dot: string }> = {
+  SUBMITTED:       { label: "Pending",  dot: "🟡" },
+  CONFIRMED_OK:    { label: "OK",       dot: "🟢" },
+  CONFIRMED_ISSUE: { label: "Issue",    dot: "🔴" },
+  RESOLVED:        { label: "Resolved", dot: "🔵" },
+  ONGOING_ISSUE:   { label: "Ongoing",  dot: "🟣" },
+};
+
 function CheckCard({
   check,
   onConfirm,
-  confirming,
+  onDoubleCheck,
+  confirmingId,
+  doubleCheckingId,
 }: {
   check: CheckRecord;
-  onConfirm: (id: string) => void;
-  confirming: boolean;
+  onConfirm: (id: string, status: string, discord_confirmed: boolean, issue_note: string) => void;
+  onDoubleCheck: (id: string, status: string, note: string) => void;
+  confirmingId: string | null;
+  doubleCheckingId: string | null;
 }) {
+  const [selectedStatus, setSelectedStatus] = useState<"CONFIRMED_OK" | "CONFIRMED_ISSUE" | null>(null);
+  const [issueNote, setIssueNote] = useState("");
+  const [discordConfirmed, setDiscordConfirmed] = useState(false);
+  const [doubleStatus, setDoubleStatus] = useState<"RESOLVED" | "ONGOING_ISSUE" | null>(null);
+  const [doubleNote, setDoubleNote] = useState("");
+
+  const confirming = confirmingId === check.id;
+  const doubleChecking = doubleCheckingId === check.id;
+  const statusMeta = STATUS_META[check.status] ?? { label: check.status, dot: "⚪" };
   const meta = CHECK_TYPES.find((t) => t.key === check.check_type);
   const branchLabel = BRANCHES.find((b) => b.code === check.branch_code)?.label ?? check.branch_code;
-  const isConfirmed = check.status === "CONFIRMED";
 
   return (
     <div className={`rounded-2xl border p-4 space-y-3 ${
-      isConfirmed
+      check.status === "CONFIRMED_OK"
         ? "border-emerald-500/25 bg-emerald-500/5"
-        : "border-white/10 bg-white/3"
+        : check.status === "CONFIRMED_ISSUE"
+          ? "border-red-500/25 bg-red-500/5"
+          : check.status === "RESOLVED"
+            ? "border-sky-500/25 bg-sky-500/5"
+            : check.status === "ONGOING_ISSUE"
+              ? "border-violet-500/25 bg-violet-500/5"
+              : "border-white/10 bg-white/3"
     }`}>
+
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div>
@@ -167,35 +220,38 @@ function CheckCard({
             by {check.submitted_by} · {fmtTime(check.submitted_at)}
           </p>
         </div>
-        {isConfirmed ? (
-          <span className="flex items-center gap-1 rounded-full bg-emerald-500/20 px-2.5 py-1 text-xs font-semibold text-emerald-300">
-            <CheckCircle2 size={11} /> Confirmed
-          </span>
-        ) : (
-          <button
-            onClick={() => onConfirm(check.id)}
-            disabled={confirming}
-            className={`flex items-center gap-1.5 rounded-xl border border-violet-500/40 bg-violet-500/15 px-3 py-1.5 text-xs font-semibold text-violet-300 hover:bg-violet-500/25 disabled:opacity-50 transition-colors`}>
-            {confirming ? <RefreshCw size={11} className="animate-spin" /> : <ShieldCheck size={11} />}
-            {confirming ? "..." : "Confirm ✓"}
-          </button>
-        )}
+        <span className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${
+          check.status === "CONFIRMED_OK"
+            ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-300"
+            : check.status === "CONFIRMED_ISSUE"
+              ? "border-red-500/30 bg-red-500/15 text-red-300"
+              : check.status === "RESOLVED"
+                ? "border-sky-500/30 bg-sky-500/15 text-sky-300"
+                : check.status === "ONGOING_ISSUE"
+                  ? "border-violet-500/30 bg-violet-500/15 text-violet-300"
+                  : "border-white/15 bg-white/5 text-white/40"
+        }`}>
+          {statusMeta.dot} {statusMeta.label}
+        </span>
       </div>
 
       {/* Aggregator statuses */}
       <div className="flex flex-wrap gap-2">
         {AGGREGATORS.map((agg) => {
-          const ok = check.aggregator_statuses?.[agg.key];
+          const val = check.aggregator_statuses?.[agg.key];
+          const ok = aggIsOpen(val);
+          const mode = aggMode(val);
           return (
             <span key={agg.key} className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-xs ${
-              ok === true
+              ok
                 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                : ok === false
-                  ? "border-red-500/25 bg-red-500/8 text-red-300"
-                  : "border-white/10 text-white/30"
+                : "border-red-500/25 bg-red-500/8 text-red-300"
             }`}>
-              {ok === true ? <CheckCircle2 size={10} /> : ok === false ? <XCircle size={10} /> : null}
+              {ok ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
               {agg.label}
+              {mode && (
+                <span className="ml-0.5 opacity-60">{mode === "manual" ? "M" : "A"}</span>
+              )}
             </span>
           );
         })}
@@ -211,10 +267,17 @@ function CheckCard({
         )}
       </div>
 
-      {/* Notes */}
+      {/* Staff notes */}
       {check.notes && (
         <p className="text-xs text-white/50 bg-white/3 rounded-lg px-3 py-2">
           📝 {check.notes}
+        </p>
+      )}
+
+      {/* Issue note (recorded at confirmation) */}
+      {check.issue_note && (
+        <p className="text-xs text-red-300/80 bg-red-950/20 rounded-lg px-3 py-2 border border-red-500/20">
+          ⚠ {check.issue_note}
         </p>
       )}
 
@@ -230,11 +293,160 @@ function CheckCard({
         </div>
       )}
 
-      {/* Confirmation info */}
-      {isConfirmed && check.bo_confirmed_by && (
-        <p className={T_CAPTION}>
-          ✓ Confirmed by {check.bo_confirmed_by} at {fmtTime(check.bo_confirmed_at)}
-        </p>
+      {/* ── Initial confirmation UI (SUBMITTED) ── */}
+      {check.status === "SUBMITTED" && (
+        <div className="space-y-3 pt-2 border-t border-white/8">
+          <p className="text-xs font-semibold text-white/50 uppercase tracking-wide">Back Office Confirmation</p>
+
+          {/* Status selector */}
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button"
+              onClick={() => setSelectedStatus("CONFIRMED_OK")}
+              className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-semibold transition-all ${
+                selectedStatus === "CONFIRMED_OK"
+                  ? "border-emerald-500/40 bg-emerald-500/20 text-emerald-300"
+                  : "border-white/10 bg-white/3 text-slate-400 hover:border-emerald-500/25 hover:text-emerald-400/80"
+              }`}>
+              🟢 All Good
+            </button>
+            <button type="button"
+              onClick={() => setSelectedStatus("CONFIRMED_ISSUE")}
+              className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-semibold transition-all ${
+                selectedStatus === "CONFIRMED_ISSUE"
+                  ? "border-red-500/40 bg-red-500/20 text-red-300"
+                  : "border-white/10 bg-white/3 text-slate-400 hover:border-red-500/25 hover:text-red-400/80"
+              }`}>
+              🔴 Issue Found
+            </button>
+          </div>
+
+          {/* Issue note — required for CONFIRMED_ISSUE */}
+          {selectedStatus === "CONFIRMED_ISSUE" && (
+            <div>
+              <label className={`${T_LABEL} mb-1 block`}>
+                Issue description <span className="text-red-400">*</span>
+              </label>
+              <textarea
+                className={`${INPUT_CLASS} min-h-[60px] resize-none`}
+                value={issueNote}
+                onChange={(e) => setIssueNote(e.target.value)}
+                placeholder="Describe the issue found..."
+              />
+            </div>
+          )}
+
+          {/* Discord notification checkbox */}
+          {selectedStatus && (
+            <label className="flex cursor-pointer items-center gap-2.5 select-none">
+              <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border text-xs transition-colors ${
+                discordConfirmed
+                  ? "border-violet-400 bg-violet-500/30 text-violet-300"
+                  : "border-white/25 bg-white/5 text-transparent"
+              }`}>✓</span>
+              <input type="checkbox" className="sr-only"
+                checked={discordConfirmed}
+                onChange={(e) => setDiscordConfirmed(e.target.checked)} />
+              <span className="text-xs text-white/50">Discord notification sent</span>
+            </label>
+          )}
+
+          {/* Confirm button */}
+          {selectedStatus && (
+            <button type="button"
+              disabled={confirming || (selectedStatus === "CONFIRMED_ISSUE" && !issueNote.trim())}
+              onClick={() => onConfirm(check.id, selectedStatus, discordConfirmed, issueNote)}
+              className={`w-full flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                selectedStatus === "CONFIRMED_ISSUE"
+                  ? "border-red-500/30 bg-red-500/15 text-red-300 hover:bg-red-500/25"
+                  : "border-emerald-500/30 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25"
+              }`}>
+              {confirming ? <RefreshCw size={11} className="animate-spin" /> : <ShieldCheck size={11} />}
+              {confirming
+                ? "Saving..."
+                : selectedStatus === "CONFIRMED_OK"
+                  ? "Confirm — All Good"
+                  : "Confirm — Issue Found"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Double-check UI (CONFIRMED_ISSUE needs follow-up) ── */}
+      {check.status === "CONFIRMED_ISSUE" && (
+        <div className="space-y-3 pt-2 border-t border-red-500/20">
+          <p className="text-xs font-semibold text-red-300/70 uppercase tracking-wide">Follow-up Required</p>
+          <p className={T_CAPTION}>
+            Flagged by {check.bo_confirmed_by ?? "back office"} at {fmtTime(check.bo_confirmed_at)}
+            {check.discord_confirmed && <span className="ml-2 text-violet-400/80">· Discord ✓</span>}
+          </p>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button"
+              onClick={() => setDoubleStatus("RESOLVED")}
+              className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-semibold transition-all ${
+                doubleStatus === "RESOLVED"
+                  ? "border-sky-500/40 bg-sky-500/20 text-sky-300"
+                  : "border-white/10 bg-white/3 text-slate-400 hover:border-sky-500/25 hover:text-sky-400/80"
+              }`}>
+              🔵 Resolved
+            </button>
+            <button type="button"
+              onClick={() => setDoubleStatus("ONGOING_ISSUE")}
+              className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-semibold transition-all ${
+                doubleStatus === "ONGOING_ISSUE"
+                  ? "border-violet-500/40 bg-violet-500/20 text-violet-300"
+                  : "border-white/10 bg-white/3 text-slate-400 hover:border-violet-500/25 hover:text-violet-400/80"
+              }`}>
+              🟣 Still Ongoing
+            </button>
+          </div>
+
+          {doubleStatus && (
+            <>
+              <div>
+                <label className={`${T_LABEL} mb-1 block`}>Follow-up note (optional)</label>
+                <textarea
+                  className={`${INPUT_CLASS} min-h-[52px] resize-none`}
+                  value={doubleNote}
+                  onChange={(e) => setDoubleNote(e.target.value)}
+                  placeholder="Update on the issue..."
+                />
+              </div>
+              <button type="button"
+                disabled={doubleChecking}
+                onClick={() => onDoubleCheck(check.id, doubleStatus, doubleNote)}
+                className={`w-full flex items-center justify-center gap-2 rounded-xl border px-4 py-2 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                  doubleStatus === "ONGOING_ISSUE"
+                    ? "border-violet-500/30 bg-violet-500/15 text-violet-300 hover:bg-violet-500/25"
+                    : "border-sky-500/30 bg-sky-500/15 text-sky-300 hover:bg-sky-500/25"
+                }`}>
+                {doubleChecking ? <RefreshCw size={11} className="animate-spin" /> : <ShieldCheck size={11} />}
+                {doubleChecking
+                  ? "Saving..."
+                  : doubleStatus === "RESOLVED"
+                    ? "Mark as Resolved"
+                    : "Mark as Ongoing"}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── Final confirmed state ── */}
+      {["CONFIRMED_OK", "RESOLVED", "ONGOING_ISSUE"].includes(check.status) && (
+        <div className="pt-1 border-t border-white/5">
+          <p className={T_CAPTION}>
+            {statusMeta.dot} {statusMeta.label}
+            {check.bo_confirmed_by && ` · by ${check.bo_confirmed_by}`}
+            {check.bo_confirmed_at && ` at ${fmtTime(check.bo_confirmed_at)}`}
+            {check.discord_confirmed && <span className="ml-2 text-violet-400/80">· Discord ✓</span>}
+          </p>
+          {check.double_checked_by && (
+            <p className={`${T_CAPTION} mt-0.5`}>
+              Follow-up by {check.double_checked_by} at {fmtTime(check.double_checked_at)}
+            </p>
+          )}
+        </div>
       )}
     </div>
   );
@@ -255,7 +467,8 @@ export default function AdminDailyCheckPage() {
   const [summary, setSummary]   = useState<SummaryRow[]>([]);
   const [checks, setChecks]     = useState<CheckRecord[]>([]);
   const [loading, setLoading]   = useState(false);
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId]       = useState<string | null>(null);
+  const [doubleCheckingId, setDoubleCheckingId] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
@@ -288,17 +501,23 @@ export default function AdminDailyCheckPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const confirmCheck = async (checkId: string) => {
+  const confirmCheck = async (
+    checkId: string,
+    status: string,
+    discord_confirmed: boolean,
+    issue_note: string,
+  ) => {
     setConfirmingId(checkId); setMsg(null);
     try {
       const r = await fetch(`/api/admin/daily-check/${checkId}/confirm`, {
         method: "POST",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ status, discord_confirmed, issue_note: issue_note.trim() || null }),
         cache: "no-store",
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.detail || "Confirmation failed");
-      setMsg({ ok: true, text: "Check confirmed ✓" });
+      setMsg({ ok: true, text: status === "CONFIRMED_OK" ? "Confirmed OK ✓" : "Issue flagged 🔴" });
       load();
     } catch (e: unknown) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
@@ -307,7 +526,33 @@ export default function AdminDailyCheckPage() {
     }
   };
 
-  const pendingCount = checks.filter((c) => c.status !== "CONFIRMED").length;
+  const doubleCheck = async (checkId: string, status: string, note: string) => {
+    setDoubleCheckingId(checkId); setMsg(null);
+    try {
+      const r = await fetch(`/api/admin/daily-check/${checkId}/double-check`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ status, note: note.trim() || null }),
+        cache: "no-store",
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || "Follow-up failed");
+      setMsg({ ok: true, text: status === "RESOLVED" ? "Marked as Resolved 🔵" : "Marked as Ongoing 🟣" });
+      load();
+    } catch (e: unknown) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setDoubleCheckingId(null);
+    }
+  };
+
+  // "Needs attention" = SUBMITTED (unreviewed) + CONFIRMED_ISSUE (needs follow-up)
+  const pendingCount  = checks.filter((c) => c.status === "SUBMITTED").length;
+  const issueCount    = checks.filter((c) => c.status === "CONFIRMED_ISSUE").length;
+  const attentionCount = pendingCount + issueCount;
+
+  // auth is used for the guard above (via getAuth()), suppress unused-var warning
+  void auth;
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-4 py-8">
@@ -355,18 +600,32 @@ export default function AdminDailyCheckPage() {
         </div>
 
         {/* KPI chips */}
-        <div className="flex gap-3">
-          <div className="flex-1 rounded-xl border border-white/8 bg-white/3 px-4 py-3 text-center">
+        <div className="grid grid-cols-4 gap-2">
+          <div className="rounded-xl border border-white/8 bg-white/3 px-3 py-3 text-center">
             <p className="text-2xl font-bold text-white">{checks.length}</p>
-            <p className={`${T_CAPTION} mt-0.5`}>Total submissions</p>
+            <p className={`${T_CAPTION} mt-0.5 text-[10px]`}>Total</p>
           </div>
-          <div className="flex-1 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-center">
-            <p className="text-2xl font-bold text-emerald-400">{checks.length - pendingCount}</p>
-            <p className={`${T_CAPTION} mt-0.5 text-emerald-400/70`}>Confirmed</p>
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-3 text-center">
+            <p className="text-2xl font-bold text-emerald-400">
+              {checks.filter((c) => c.status === "CONFIRMED_OK").length}
+            </p>
+            <p className={`${T_CAPTION} mt-0.5 text-[10px] text-emerald-400/70`}>🟢 OK</p>
           </div>
-          <div className="flex-1 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-center">
+          <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-3 text-center">
             <p className="text-2xl font-bold text-amber-400">{pendingCount}</p>
-            <p className={`${T_CAPTION} mt-0.5 text-amber-400/70`}>Pending</p>
+            <p className={`${T_CAPTION} mt-0.5 text-[10px] text-amber-400/70`}>Pending</p>
+          </div>
+          <div className={`rounded-xl border px-3 py-3 text-center ${
+            issueCount > 0
+              ? "border-red-500/25 bg-red-500/5"
+              : "border-white/8 bg-white/3"
+          }`}>
+            <p className={`text-2xl font-bold ${issueCount > 0 ? "text-red-400" : "text-white/30"}`}>
+              {issueCount}
+            </p>
+            <p className={`${T_CAPTION} mt-0.5 text-[10px] ${issueCount > 0 ? "text-red-400/70" : "text-white/20"}`}>
+              🔴 Issues
+            </p>
           </div>
         </div>
 
@@ -389,9 +648,9 @@ export default function AdminDailyCheckPage() {
           </button>
           <button onClick={() => setTab("detail")} className={`${tab === "detail" ? TAB_ACTIVE : TAB_INACTIVE} relative`}>
             All Records
-            {pendingCount > 0 && (
+            {attentionCount > 0 && (
               <span className="ml-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-white">
-                {pendingCount}
+                {attentionCount}
               </span>
             )}
           </button>
@@ -420,7 +679,9 @@ export default function AdminDailyCheckPage() {
                 key={c.id}
                 check={c}
                 onConfirm={confirmCheck}
-                confirming={confirmingId === c.id}
+                onDoubleCheck={doubleCheck}
+                confirmingId={confirmingId}
+                doubleCheckingId={doubleCheckingId}
               />
             ))}
           </div>

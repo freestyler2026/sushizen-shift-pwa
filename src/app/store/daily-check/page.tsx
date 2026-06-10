@@ -165,9 +165,9 @@ export default function DailyCheckPage() {
   // Check type selection
   const [checkType, setCheckType] = useState<string>("OPENING");
 
-  // Aggregator statuses (true = device is open/paused as required)
-  const [aggStatus, setAggStatus] = useState<Record<string, boolean>>(
-    Object.fromEntries(AGGREGATORS.map((a) => [a.key, false]))
+  // Aggregator statuses: {open: bool, mode: "auto"|"manual"}
+  const [aggStatus, setAggStatus] = useState<Record<string, {open: boolean; mode: "auto" | "manual"}>>(
+    Object.fromEntries(AGGREGATORS.map((a) => [a.key, {open: false, mode: "auto" as const}]))
   );
   const [dineInOpen, setDineInOpen] = useState<boolean | null>(null);
   const [notes, setNotes] = useState("");
@@ -210,7 +210,7 @@ export default function DailyCheckPage() {
   useEffect(() => {
     setSubmittedId(null);
     setMsg(null);
-    setAggStatus(Object.fromEntries(AGGREGATORS.map((a) => [a.key, false])));
+    setAggStatus(Object.fromEntries(AGGREGATORS.map((a) => [a.key, {open: false, mode: "auto" as const}])));
     setDineInOpen(null);
     setNotes("");
     setUploadedPhotos({});
@@ -310,9 +310,15 @@ export default function DailyCheckPage() {
               <p className="font-medium">Already submitted today</p>
               <p className="text-xs text-amber-300/70 mt-0.5">
                 {alreadySubmitted[0].submitted_by} at {new Date(alreadySubmitted[0].submitted_at).toLocaleTimeString("en-PH", { timeZone: "Asia/Manila", hour: "2-digit", minute: "2-digit" })}
-                {alreadySubmitted[0].status === "CONFIRMED"
-                  ? <span className="ml-2 text-emerald-400">✓ Confirmed by back office</span>
-                  : <span className="ml-2 text-amber-400/70">Awaiting confirmation</span>}
+                {(alreadySubmitted[0].status === "CONFIRMED_OK" || alreadySubmitted[0].status === "CONFIRMED")
+                  ? <span className="ml-2 text-emerald-400">🟢 Confirmed OK</span>
+                  : alreadySubmitted[0].status === "CONFIRMED_ISSUE"
+                    ? <span className="ml-2 text-red-400">🔴 Issue noted</span>
+                    : alreadySubmitted[0].status === "RESOLVED"
+                      ? <span className="ml-2 text-sky-400">🔵 Resolved</span>
+                      : alreadySubmitted[0].status === "ONGOING_ISSUE"
+                        ? <span className="ml-2 text-violet-400">🟣 Ongoing issue</span>
+                        : <span className="ml-2 text-amber-400/70">Awaiting confirmation</span>}
               </p>
             </div>
           </div>
@@ -332,22 +338,47 @@ export default function DailyCheckPage() {
               </p>
               <div className="space-y-2">
                 {AGGREGATORS.map((agg) => (
-                  <label key={agg.key}
-                    className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition-all ${
-                      aggStatus[agg.key]
-                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                        : "border-white/10 bg-white/3 text-slate-400"
+                  <div key={agg.key}
+                    className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition-all ${
+                      aggStatus[agg.key]?.open
+                        ? "border-emerald-500/40 bg-emerald-500/10"
+                        : "border-white/10 bg-white/3"
                     }`}>
-                    <input type="checkbox" className="sr-only"
-                      checked={!!aggStatus[agg.key]}
-                      onChange={(e) => setAggStatus((p) => ({ ...p, [agg.key]: e.target.checked }))} />
-                    <span className={`flex h-5 w-5 items-center justify-center rounded border text-xs font-bold ${
-                      aggStatus[agg.key]
-                        ? "border-emerald-400 bg-emerald-500/30 text-emerald-300"
-                        : "border-white/25 bg-white/5 text-transparent"
-                    }`}>✓</span>
-                    <span className="text-sm font-medium">{agg.label}</span>
-                  </label>
+                    {/* Open/closed checkbox */}
+                    <label className="flex flex-1 cursor-pointer items-center gap-3">
+                      <input type="checkbox" className="sr-only"
+                        checked={!!aggStatus[agg.key]?.open}
+                        onChange={(e) => setAggStatus((p) => ({
+                          ...p,
+                          [agg.key]: { ...p[agg.key], open: e.target.checked },
+                        }))} />
+                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border text-xs font-bold ${
+                        aggStatus[agg.key]?.open
+                          ? "border-emerald-400 bg-emerald-500/30 text-emerald-300"
+                          : "border-white/25 bg-white/5 text-transparent"
+                      }`}>✓</span>
+                      <span className={`text-sm font-medium ${aggStatus[agg.key]?.open ? "text-emerald-300" : "text-slate-400"}`}>
+                        {agg.label}
+                      </span>
+                    </label>
+                    {/* Auto / Manual toggle */}
+                    <div className="flex gap-1">
+                      {(["auto", "manual"] as const).map((mode) => (
+                        <button key={mode} type="button"
+                          onClick={() => setAggStatus((p) => ({
+                            ...p,
+                            [agg.key]: { ...p[agg.key], mode },
+                          }))}
+                          className={`rounded-lg px-2 py-1 text-xs font-medium transition-all ${
+                            aggStatus[agg.key]?.mode === mode
+                              ? "border border-violet-500/30 bg-violet-500/25 text-violet-300"
+                              : "border border-white/10 bg-white/5 text-white/30 hover:bg-white/8"
+                          }`}>
+                          {mode === "auto" ? "Auto" : "Manual"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -414,7 +445,7 @@ export default function DailyCheckPage() {
             </p>
             {AGGREGATORS.map((agg) => (
               <div key={agg.key} className="flex items-center gap-3">
-                <span className={`text-xs font-medium w-24 ${aggStatus[agg.key] ? "text-emerald-300" : "text-slate-500"}`}>
+                <span className={`text-xs font-medium w-24 ${aggStatus[agg.key]?.open ? "text-emerald-300" : "text-slate-500"}`}>
                   {agg.label}
                 </span>
                 <PhotoUploadCell
@@ -471,14 +502,26 @@ export default function DailyCheckPage() {
                   const meta = CHECK_TYPES.find((t) => t.key === c.check_type);
                   return (
                     <div key={c.id} className={`rounded-lg border px-3 py-2 text-xs ${
-                      c.status === "CONFIRMED"
+                      c.status === "CONFIRMED_OK" || c.status === "CONFIRMED"
                         ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-300/80"
-                        : "border-white/8 bg-white/3 text-white/50"
+                        : c.status === "CONFIRMED_ISSUE" || c.status === "ONGOING_ISSUE"
+                          ? "border-red-500/20 bg-red-500/5 text-red-300/80"
+                          : c.status === "RESOLVED"
+                            ? "border-sky-500/20 bg-sky-500/5 text-sky-300/80"
+                            : "border-white/8 bg-white/3 text-white/50"
                     }`}>
                       <div className="flex items-center justify-between">
                         <span className="font-medium">{meta?.icon} {meta?.label ?? c.check_type}</span>
-                        <span className={c.status === "CONFIRMED" ? "text-emerald-400" : "text-amber-400/70"}>
-                          {c.status === "CONFIRMED" ? "✓ Confirmed" : "Awaiting"}
+                        <span>
+                          {c.status === "CONFIRMED_OK" || c.status === "CONFIRMED"
+                            ? <span className="text-emerald-400">🟢 OK</span>
+                            : c.status === "CONFIRMED_ISSUE"
+                              ? <span className="text-red-400">🔴 Issue</span>
+                              : c.status === "RESOLVED"
+                                ? <span className="text-sky-400">🔵 Resolved</span>
+                                : c.status === "ONGOING_ISSUE"
+                                  ? <span className="text-violet-400">🟣 Ongoing</span>
+                                  : <span className="text-amber-400/70">Awaiting</span>}
                         </span>
                       </div>
                       <div className="mt-0.5 text-white/30">
