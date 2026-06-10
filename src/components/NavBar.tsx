@@ -76,6 +76,14 @@ import {
   canAccessRenewalsAdmin,
   canAccessRoleManagement,
   canAccessStaffAdmin,
+  canAccessStoreEvaluationsAdmin,
+  canAccessColdChainAdmin,
+  canAccessDailyCheckAdmin,
+  canAccessTransportExpenseAdmin,
+  canAccessPettyCashAdmin,
+  canAccessCashManagementAdmin,
+  canAccessMealAllowanceAdmin,
+  canAccessProbationAdmin,
   canAccessAttendancePage,
   canAccessWeekPage,
   canAccessMyShiftPage,
@@ -279,14 +287,14 @@ export default function NavBar() {
     if (href === "/admin/staff/roles") return canAccessRoleManagement(auth);
     if (href === "/admin/draft") return canAccessDraftAdmin(auth);
     if (href === "/admin/backoffice-evaluation") return canAccessBackofficeEvaluationAdmin(auth);
-    if (href === "/admin/store-evaluations") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
-    if (href === "/admin/cold-chain") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER", "DUBAI_MANAGEMENT"].includes(role);
-    if (href === "/admin/daily-check") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
-    if (href === "/admin/transport-expense") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
-    if (href === "/admin/petty-cash") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
-    if (href === "/admin/cash-management") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
-    if (href === "/admin/meal-allowance") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
-    if (href === "/admin/probation") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
+    if (href === "/admin/store-evaluations") return canAccessStoreEvaluationsAdmin(auth);
+    if (href === "/admin/cold-chain") return canAccessColdChainAdmin(auth);
+    if (href === "/admin/daily-check") return canAccessDailyCheckAdmin(auth);
+    if (href === "/admin/transport-expense") return canAccessTransportExpenseAdmin(auth);
+    if (href === "/admin/petty-cash") return canAccessPettyCashAdmin(auth);
+    if (href === "/admin/cash-management") return canAccessCashManagementAdmin(auth);
+    if (href === "/admin/meal-allowance") return canAccessMealAllowanceAdmin(auth);
+    if (href === "/admin/probation") return canAccessProbationAdmin(auth);
     if (href === "/admin/employee-cases") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
     if (href === "/admin/hr/recruitment") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
     if (href === "/admin/hr/onboarding") return ["HQ", "ADMIN", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);

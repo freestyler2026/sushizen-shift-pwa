@@ -542,6 +542,46 @@ export function canAccessPayrollAdmin(a?: Auth | null): boolean {
   return hasAnyPermission(["channel.admin.payroll.view", "channel.admin.payroll.manage"], a);
 }
 
+/** Store Evaluations admin — matches `admin.store_evaluations` channel in `app/access_control.py`. */
+export function canAccessStoreEvaluationsAdmin(a?: Auth | null): boolean {
+  return hasAnyPermission(["channel.admin.store_evaluations.view"], a);
+}
+
+/** Cold Chain admin — matches `admin.cold_chain` channel in `app/access_control.py`. */
+export function canAccessColdChainAdmin(a?: Auth | null): boolean {
+  return hasAnyPermission(["channel.admin.cold_chain.view"], a);
+}
+
+/** Daily Check admin — matches `admin.daily_check` channel in `app/access_control.py`. */
+export function canAccessDailyCheckAdmin(a?: Auth | null): boolean {
+  return hasAnyPermission(["channel.admin.daily_check.view"], a);
+}
+
+/** Transport Expense admin — matches `admin.transport_expense` channel in `app/access_control.py`. */
+export function canAccessTransportExpenseAdmin(a?: Auth | null): boolean {
+  return hasAnyPermission(["channel.admin.transport_expense.view"], a);
+}
+
+/** Petty Cash admin — matches `admin.petty_cash` channel in `app/access_control.py`. */
+export function canAccessPettyCashAdmin(a?: Auth | null): boolean {
+  return hasAnyPermission(["channel.admin.petty_cash.view"], a);
+}
+
+/** Cash Management admin — matches `admin.cash_management` channel in `app/access_control.py`. */
+export function canAccessCashManagementAdmin(a?: Auth | null): boolean {
+  return hasAnyPermission(["channel.admin.cash_management.view"], a);
+}
+
+/** Meal Allowance admin — matches `admin.meal_allowance` channel in `app/access_control.py`. */
+export function canAccessMealAllowanceAdmin(a?: Auth | null): boolean {
+  return hasAnyPermission(["channel.admin.meal_allowance.view"], a);
+}
+
+/** Probation admin — matches `admin.probation` channel in `app/access_control.py`. */
+export function canAccessProbationAdmin(a?: Auth | null): boolean {
+  return hasAnyPermission(["channel.admin.probation.view"], a);
+}
+
 /** My Pay staff channel — matches `my_pay` channel in `app/access_control.py`. */
 export function canAccessMyPay(a?: Auth | null): boolean {
   return _canAccessStaffChannel("my_pay", a);
