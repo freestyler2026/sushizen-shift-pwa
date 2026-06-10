@@ -260,7 +260,9 @@ function DispatchForm({ city }: { city: string }) {
   const branches = city === "manila" ? MANILA_BRANCHES : DUBAI_BRANCHES;
   const [staffNames,    setStaffNames]    = useState<string[]>([]);
   const [dispatchedBy,  setDispatchedBy]  = useState("");
-  const [destBranches,  setDestBranches]  = useState<string[]>([]);
+  // Default: all branches pre-selected — CK normally dispatches to all branches.
+  // Uncheck to exclude a branch from this shipment.
+  const [destBranches,  setDestBranches]  = useState<string[]>(() => (city === "manila" ? MANILA_BRANCHES : DUBAI_BRANCHES));
   const [equipmentQty,  setEquipmentQty]  = useState<EquipmentQty>({});
   const [notes,         setNotes]         = useState("");
   // Per-box dispatch data (Manila only in new flow)
@@ -364,6 +366,7 @@ function DispatchForm({ city }: { city: string }) {
       setMsg({ ok: true, text: `Dispatch created. Notify branches: ${destBranches.join(", ")}` });
       setNotes(""); setEquipmentQty({}); setPhotoFile(null); setPhotoPreview("");
       setBoxes([emptyDispatchBox(1)]); setBoxCount(1);
+      setDestBranches([...branches]); // reset to all-selected for next dispatch
     } catch (e: unknown) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -384,22 +387,40 @@ function DispatchForm({ city }: { city: string }) {
 
       {/* Destination Branches */}
       <div>
-        <label className={`${T_LABEL} mb-2 block`}>
-          Destination Branches
-          <span className="ml-2 text-xs font-normal text-slate-400">(tap to select)</span>
-        </label>
+        <div className="flex items-center justify-between mb-2">
+          <label className={`${T_LABEL}`}>
+            Destination Branches
+            {destBranches.length === branches.length
+              ? <span className="ml-2 text-xs font-normal text-emerald-400">All {branches.length} selected ✓</span>
+              : <span className="ml-2 text-xs font-normal text-amber-400">{destBranches.length} / {branches.length} selected</span>
+            }
+          </label>
+          <button type="button"
+            onClick={() => setDestBranches(destBranches.length === branches.length ? [] : [...branches])}
+            className="text-xs text-slate-400 hover:text-white underline underline-offset-2">
+            {destBranches.length === branches.length ? "Clear all" : "Select all"}
+          </button>
+        </div>
         <div className="flex flex-wrap gap-2">
-          {branches.map((b) => (
-            <button key={b} type="button" onClick={() => toggle(b)}
-              className={`rounded-xl border px-4 py-1.5 text-sm font-medium transition-all ${
-                destBranches.includes(b)
-                  ? "border-emerald-500/40 bg-emerald-500/20 text-emerald-300"
-                  : "border-white/10 bg-white/5 text-slate-400"
-              }`}>{BRANCH_LABELS[b] ?? b}</button>
-          ))}
+          {branches.map((b) => {
+            const checked = destBranches.includes(b);
+            return (
+              <button key={b} type="button" onClick={() => toggle(b)}
+                className={`flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition-all ${
+                  checked
+                    ? "border-emerald-500/40 bg-emerald-500/20 text-emerald-300"
+                    : "border-white/15 bg-white/5 text-slate-500"
+                }`}>
+                <span className={`flex h-4 w-4 items-center justify-center rounded border text-xs ${
+                  checked ? "border-emerald-400 bg-emerald-500/30 text-emerald-300" : "border-white/30 bg-white/5 text-transparent"
+                }`}>✓</span>
+                {BRANCH_LABELS[b] ?? b}
+              </button>
+            );
+          })}
         </div>
         {destBranches.length === 0 && (
-          <p className="mt-1.5 text-xs text-amber-400">Select at least one destination branch.</p>
+          <p className="mt-1.5 text-xs text-red-400">⚠ No branch selected — please select at least one.</p>
         )}
       </div>
 
