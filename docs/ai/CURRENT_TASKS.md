@@ -13,14 +13,7 @@ Last updated: 2026-06-10 (session 43 — end)
 
 なし — 全変更デプロイ済み (Heroku v1230, Vercel commit 0bce485)
 
-## 🔵 Next: ③ Transport Expense (Manila only)
-
-Pre-advance 1000 PHP per staff, receipt upload, balance tracking, approval flow.
-Manila staff only. Manual approval OK.
-Files to create: `app/db_transport_expense.py`, `app/transport_expense_api.py`,
-`src/app/store/transport-expense/page.tsx`, `src/app/admin/transport-expense/page.tsx`
-
-## 🔵 After That: ④ Petty Cash (Manila only)
+## 🔵 Next: ④ Petty Cash (Manila only)
 
 Used by: Back Office, Inventory&Purchasing, MANILA_MANAGEMENT, MANILA_MANAGER.
 Files to create: similar pattern to transport expense.
@@ -486,6 +479,7 @@ Vendor MasterのOrder Catalog登録名と`supplier_name`が一致しない場合
 | Analytics Summary: Dubai KPI → actual_attendance fallback (source=auto) | ✅ live (Heroku v1225, Vercel a81f6ae) |
 | Approval Case: アイテムインライン編集 (Qty/Unit Price/Spec) | ✅ live (Heroku v1226, Vercel 2f4999e) |
 | HR Staff (Camilla): OS Attendance + Staff Master 403 修正 | ✅ live (Heroku v1230) |
+| ③ Transport Expense (Manila only) — advance request + receipt tracking | ✅ live (Heroku v1231, Vercel b77e3d7) |
 | Cold Chain: 複数ブランチ選択 UX 修正 (全選択デフォルト + チェックボックス式) | ✅ live (Vercel 0bce485) |
 | Daily Ops Check ① Opening / ② Lunch Close / ③ Business Close | ✅ live (Heroku v1230, Vercel 0bce485) |
 
