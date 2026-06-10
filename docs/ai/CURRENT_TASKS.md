@@ -13,10 +13,7 @@ Last updated: 2026-06-10 (session 43 — end)
 
 なし — 全変更デプロイ済み (Heroku v1230, Vercel commit 0bce485)
 
-## 🔵 Next: ④ Petty Cash (Manila only)
-
-Used by: Back Office, Inventory&Purchasing, MANILA_MANAGEMENT, MANILA_MANAGER.
-Files to create: similar pattern to transport expense.
+## ✅ ①②③④ All four features complete and live.
 
 ## Recently Completed (2026-06-10 session 43) — live
 
@@ -480,6 +477,7 @@ Vendor MasterのOrder Catalog登録名と`supplier_name`が一致しない場合
 | Approval Case: アイテムインライン編集 (Qty/Unit Price/Spec) | ✅ live (Heroku v1226, Vercel 2f4999e) |
 | HR Staff (Camilla): OS Attendance + Staff Master 403 修正 | ✅ live (Heroku v1230) |
 | ③ Transport Expense (Manila only) — advance request + receipt tracking | ✅ live (Heroku v1231, Vercel b77e3d7) |
+| ④ Petty Cash (Manila only) — 7 categories, receipt photo, approve/close flow | ✅ live (Heroku v1232, Vercel 7b3e489) |
 | Cold Chain: 複数ブランチ選択 UX 修正 (全選択デフォルト + チェックボックス式) | ✅ live (Vercel 0bce485) |
 | Daily Ops Check ① Opening / ② Lunch Close / ③ Business Close | ✅ live (Heroku v1230, Vercel 0bce485) |
 
