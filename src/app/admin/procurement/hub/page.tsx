@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { canAccessProcurementAdmin, getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
 import {
   GLASS_CARD,
@@ -51,6 +51,25 @@ type HubRow = {
   claimed_by?: string;
   approved_at?: string;
 };
+
+type WhStockItem = {
+  name: string;
+  unit: string;
+  theoretical_qty: number;
+  last_count_date: string | null;
+};
+
+/** Match an order item_name against the WH stock map.
+ *  Priority: 1) exact  2) order-name contains WH-name  3) WH-name contains order-name */
+function lookupWhStock(itemName: string, map: Map<string, WhStockItem>): WhStockItem | null {
+  if (!itemName || map.size === 0) return null;
+  const key = itemName.toLowerCase().trim();
+  if (map.has(key)) return map.get(key)!;
+  for (const [k, v] of map) {
+    if (key.includes(k) || k.includes(key)) return v;
+  }
+  return null;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -257,6 +276,9 @@ export default function ProcurementHubPage() {
     }
     setDetailTick((n) => n + 1);
   }, [expandedId, pin, requestedBy]);
+  // WH stock cache — loaded once on init (Manila only)
+  const [whStockMap, setWhStockMap] = useState<Map<string, WhStockItem>>(new Map());
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [copiedId, setCopiedId] = useState("");
@@ -270,13 +292,34 @@ export default function ProcurementHubPage() {
       if (filterType) qs.set("purchase_type", filterType);
       if (filterDateFrom) qs.set("date_from", filterDateFrom);
       if (filterDateTo) qs.set("date_to", filterDateTo);
-      const data = await procurementJson<{ rows: HubRow[] }>(
-        `/api/admin/procurement/hub?${qs}`,
-        { method: "GET" },
-        requestedBy,
-        pin,
-      );
+
+      // Fetch orders and WH stock in parallel (WH stock only for Manila)
+      const [data, whData] = await Promise.all([
+        procurementJson<{ rows: HubRow[] }>(
+          `/api/admin/procurement/hub?${qs}`,
+          { method: "GET" },
+          requestedBy,
+          pin,
+        ),
+        city === "manila"
+          ? fetch(`/api/admin/inventory/wh-stock?city=manila`, {
+              headers: getAuthHeaders() as Record<string, string>,
+            })
+              .then((r) => (r.ok ? (r.json() as Promise<{ ok: boolean; rows: WhStockItem[] }>) : null))
+              .catch(() => null)
+          : Promise.resolve(null),
+      ]);
+
       setRows(Array.isArray(data?.rows) ? data.rows : []);
+
+      // Build WH stock lookup map (name → item)
+      if (whData?.ok && Array.isArray(whData.rows)) {
+        const m = new Map<string, WhStockItem>();
+        for (const r of whData.rows) {
+          m.set((r.name || "").toLowerCase().trim(), r);
+        }
+        setWhStockMap(m);
+      }
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {
@@ -607,11 +650,37 @@ export default function ProcurementHubPage() {
 
                   {detail && !detail.loading && (
                     <div className="space-y-4">
+                      {/* WH stock alert banner */}
+                      {city === "manila" && whStockMap.size > 0 && (() => {
+                        const lowItems = detail.items.filter((item) => {
+                          const wh = lookupWhStock(item.item_name, whStockMap);
+                          return wh !== null && wh.theoretical_qty < Number(item.qty || 0);
+                        });
+                        if (!lowItems.length) return null;
+                        return (
+                          <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-950/20 px-3 py-2 text-xs text-amber-300">
+                            <span className="mt-0.5 shrink-0">⚠</span>
+                            <span>
+                              <span className="font-semibold">WH stock insufficient</span> for{" "}
+                              {lowItems.map((i) => i.item_name).join(", ")}.
+                              Verify before approving.
+                            </span>
+                          </div>
+                        );
+                      })()}
+
                       {/* Items table */}
                       {detail.items.length > 0 ? (
                         <div>
-                          <div className="mb-2 text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                            Items ({detail.items.length})
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                              Items ({detail.items.length})
+                            </span>
+                            {city === "manila" && whStockMap.size > 0 && (
+                              <span className="text-[11px] text-sky-500/70">
+                                📦 WH Stock column shows theoretical qty (last count + adjustments)
+                              </span>
+                            )}
                           </div>
                           <div className="overflow-x-auto rounded-xl border border-white/8">
                             <table className="min-w-full text-xs">
@@ -619,27 +688,47 @@ export default function ProcurementHubPage() {
                                 <tr>
                                   <th className="px-3 py-2 text-left font-medium">Item</th>
                                   <th className="px-3 py-2 text-left font-medium">Supplier</th>
-                                  <th className="px-3 py-2 text-right font-medium">Qty</th>
+                                  <th className="px-3 py-2 text-right font-medium">Ordered</th>
+                                  {city === "manila" && whStockMap.size > 0 && (
+                                    <th className="px-3 py-2 text-right font-medium text-sky-400">WH Stock</th>
+                                  )}
                                   <th className="px-3 py-2 text-left font-medium">Unit</th>
                                   <th className="px-3 py-2 text-right font-medium">Unit Price</th>
                                   <th className="px-3 py-2 text-right font-medium">Total</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {detail.items.map((item, idx) => (
-                                  <tr key={item.id || idx} className="border-t border-white/6 bg-black/10">
-                                    <td className="px-3 py-2 text-zinc-100">{item.item_name}</td>
-                                    <td className="px-3 py-2 text-zinc-400">{item.vendor_name || "—"}</td>
-                                    <td className="px-3 py-2 text-right text-zinc-200">{item.qty}</td>
-                                    <td className="px-3 py-2 text-zinc-400">{item.unit}</td>
-                                    <td className="px-3 py-2 text-right text-zinc-200">
-                                      {Number(item.unit_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                    </td>
-                                    <td className="px-3 py-2 text-right font-semibold text-zinc-100">
-                                      {Number(item.line_total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                    </td>
-                                  </tr>
-                                ))}
+                                {detail.items.map((item, idx) => {
+                                  const whItem = city === "manila" ? lookupWhStock(item.item_name, whStockMap) : null;
+                                  const whQty = whItem ? whItem.theoretical_qty : null;
+                                  const orderQty = Number(item.qty || 0);
+                                  const stockChip =
+                                    whQty === null
+                                      ? <span className="text-zinc-600">—</span>
+                                      : whQty >= orderQty
+                                        ? <span className="font-semibold text-emerald-400">{whQty.toFixed(1)} ✓</span>
+                                        : whQty > 0
+                                          ? <span className="font-semibold text-amber-400">{whQty.toFixed(1)} ⚠</span>
+                                          : <span className="font-semibold text-red-400">0 ✕</span>;
+
+                                  return (
+                                    <tr key={item.id || idx} className={`border-t border-white/6 bg-black/10 ${whQty !== null && whQty < orderQty ? "bg-amber-950/10" : ""}`}>
+                                      <td className="px-3 py-2 text-zinc-100">{item.item_name}</td>
+                                      <td className="px-3 py-2 text-zinc-400">{item.vendor_name || "—"}</td>
+                                      <td className="px-3 py-2 text-right text-zinc-200">{item.qty}</td>
+                                      {city === "manila" && whStockMap.size > 0 && (
+                                        <td className="px-3 py-2 text-right">{stockChip}</td>
+                                      )}
+                                      <td className="px-3 py-2 text-zinc-400">{item.unit}</td>
+                                      <td className="px-3 py-2 text-right text-zinc-200">
+                                        {Number(item.unit_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      </td>
+                                      <td className="px-3 py-2 text-right font-semibold text-zinc-100">
+                                        {Number(item.line_total || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { canAccessProcurementAdmin, getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson, procurementTokenHeaders } from "@/lib/procurementClient";
 import {
   GLASS_CARD,
@@ -88,6 +88,20 @@ function actionBadge(action: string) {
   return <span className={BADGE_INFO}>{action || "-"}</span>;
 }
 
+// ─── WH Stock helpers ─────────────────────────────────────────────────────────
+type WhStockItem = { name: string; unit: string; theoretical_qty: number; last_count_date: string | null };
+
+function lookupWhStock(itemName: string, map: Map<string, WhStockItem>): WhStockItem | null {
+  if (!itemName || map.size === 0) return null;
+  const key = itemName.toLowerCase().trim();
+  if (map.has(key)) return map.get(key)!;
+  for (const [k, v] of map) {
+    if (key.includes(k) || k.includes(key)) return v;
+  }
+  return null;
+}
+// ──────────────────────────────────────────────────────────────────────────────
+
 export default function ProcurementCaseDetailPage() {
   const auth = useMemo(() => getAuth(), []);
   const params = useParams<{ caseId: string }>();
@@ -105,6 +119,9 @@ export default function ProcurementCaseDetailPage() {
   const [escalateRole, setEscalateRole] = useState("HQ");
   const [uploadStage, setUploadStage] = useState("01_PR");
   const [uploadDocType, setUploadDocType] = useState("PR");
+
+  // WH stock — loaded once when request city is known (Manila only)
+  const [whStockMap, setWhStockMap] = useState<Map<string, WhStockItem>>(new Map());
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -122,6 +139,8 @@ export default function ProcurementCaseDetailPage() {
   const requestCity = (bundle.request?.city || city || "manila").toLowerCase();
   const currency = requestCity === "dubai" ? "AED" : "PHP";
   const APPROVAL_THRESHOLD = requestCity === "dubai" ? 500 : 15000;
+  // WH stock visibility: read-only mode, Manila, and WH stock data available
+  const showWhStock = !editingItems && requestCity === "manila" && whStockMap.size > 0;
   const totalAmount = Number(bundle.request?.total_amount || 0);
   const isHighValue = totalAmount > APPROVAL_THRESHOLD;
 
@@ -381,6 +400,28 @@ export default function ProcurementCaseDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Load WH stock once the request city is confirmed as Manila
+  useEffect(() => {
+    const rc = (bundle.request?.city || city || "manila").toLowerCase();
+    if (rc !== "manila") return;
+    if (whStockMap.size > 0) return; // already loaded
+    fetch(`/api/admin/inventory/wh-stock?city=manila`, {
+      headers: getAuthHeaders() as Record<string, string>,
+    })
+      .then((r) => (r.ok ? (r.json() as Promise<{ ok: boolean; rows: WhStockItem[] }>) : null))
+      .then((data) => {
+        if (data?.ok && Array.isArray(data.rows)) {
+          const m = new Map<string, WhStockItem>();
+          for (const r of data.rows) {
+            m.set((r.name || "").toLowerCase().trim(), r);
+          }
+          setWhStockMap(m);
+        }
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bundle.request?.city, city]);
+
   if (!allowed) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-red-700/40 bg-red-900/15 px-4 py-3 text-sm text-red-300">
@@ -618,6 +659,24 @@ export default function ProcurementCaseDetailPage() {
             </div>
           )}
 
+          {/* WH stock alert banner (Manila read-only mode only) */}
+          {showWhStock && ((bundle.request?.items ?? []) as any[]).some((item: any) => {
+            const wh = lookupWhStock(item.item_name || "", whStockMap);
+            return wh !== null && wh.theoretical_qty < Number(item.qty || 0);
+          }) && (
+            <div className="mb-3 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-950/20 px-3 py-2.5 text-xs text-amber-300">
+              <span className="mt-0.5 shrink-0">⚠</span>
+              <span>
+                <span className="font-semibold">WH stock insufficient</span> for:{" "}
+                {((bundle.request?.items ?? []) as any[]).filter((item: any) => {
+                  const wh = lookupWhStock(item.item_name || "", whStockMap);
+                  return wh !== null && wh.theoretical_qty < Number(item.qty || 0);
+                }).map((i: any) => i.item_name as string).join(", ")}.
+                {" "}Verify inventory before approving.
+              </span>
+            </div>
+          )}
+
           {(editingItems || (bundle.request.items || []).length > 0) && (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -627,6 +686,7 @@ export default function ProcurementCaseDetailPage() {
                     <th className={`${T_LABEL} pb-2 pr-3`}>Category</th>
                     <th className={`${T_LABEL} pb-2 pr-3`}>Spec</th>
                     <th className={`${T_LABEL} pb-2 pr-3 text-right`}>Qty</th>
+                    {showWhStock && <th className={`${T_LABEL} pb-2 pr-3 text-right text-sky-400`}>WH Stock</th>}
                     <th className={`${T_LABEL} pb-2 pr-3`}>Unit</th>
                     <th className={`${T_LABEL} pb-2 pr-3 text-right`}>Unit Price</th>
                     <th className={`${T_LABEL} pb-2 pr-3 text-right`}>Total</th>
@@ -761,24 +821,39 @@ export default function ProcurementCaseDetailPage() {
                           </tr>
                         );
                       })
-                    : (bundle.request.items as any[]).map((item: any, idx: number) => (
-                        <tr key={item.id || idx} className="border-b border-white/5 last:border-0">
-                          <td className="py-2.5 pr-3 font-medium text-white">{item.item_name || "-"}</td>
-                          <td className="py-2.5 pr-3 text-zinc-400">{item.category || "-"}</td>
-                          <td className="py-2.5 pr-3 text-zinc-400">{item.spec || "-"}</td>
-                          <td className="py-2.5 pr-3 text-right tabular-nums text-zinc-200">{Number(item.qty || 0).toLocaleString()}</td>
-                          <td className="py-2.5 pr-3 text-zinc-400">{item.unit || "-"}</td>
-                          <td className="py-2.5 pr-3 text-right tabular-nums text-zinc-200">{Number(item.unit_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                          <td className="py-2.5 pr-3 text-right tabular-nums font-semibold text-violet-300">{Number(item.line_total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                          <td className="py-2.5 pr-3 text-zinc-400">{item.vendor_name || "-"}</td>
-                          <td className="py-2.5 text-zinc-400">{String(item.needed_by_date || "").slice(0, 10) || "-"}</td>
-                        </tr>
-                      ))
+                    : (bundle.request.items as any[]).map((item: any, idx: number) => {
+                        const whItem = showWhStock ? lookupWhStock(item.item_name || "", whStockMap) : null;
+                        const whQty = whItem ? whItem.theoretical_qty : null;
+                        const orderQty = Number(item.qty || 0);
+                        const stockCell = showWhStock ? (
+                          whQty === null
+                            ? <span className="text-zinc-600">—</span>
+                            : whQty >= orderQty
+                              ? <span className="font-semibold text-emerald-400">{whQty.toFixed(1)} ✓</span>
+                              : whQty > 0
+                                ? <span className="font-semibold text-amber-400">{whQty.toFixed(1)} ⚠</span>
+                                : <span className="font-semibold text-red-400">0 ✕</span>
+                        ) : null;
+                        return (
+                          <tr key={item.id || idx} className={`border-b border-white/5 last:border-0 ${whQty !== null && whQty < orderQty ? "bg-amber-950/10" : ""}`}>
+                            <td className="py-2.5 pr-3 font-medium text-white">{item.item_name || "-"}</td>
+                            <td className="py-2.5 pr-3 text-zinc-400">{item.category || "-"}</td>
+                            <td className="py-2.5 pr-3 text-zinc-400">{item.spec || "-"}</td>
+                            <td className="py-2.5 pr-3 text-right tabular-nums text-zinc-200">{Number(item.qty || 0).toLocaleString()}</td>
+                            {showWhStock && <td className="py-2.5 pr-3 text-right tabular-nums">{stockCell}</td>}
+                            <td className="py-2.5 pr-3 text-zinc-400">{item.unit || "-"}</td>
+                            <td className="py-2.5 pr-3 text-right tabular-nums text-zinc-200">{Number(item.unit_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                            <td className="py-2.5 pr-3 text-right tabular-nums font-semibold text-violet-300">{Number(item.line_total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                            <td className="py-2.5 pr-3 text-zinc-400">{item.vendor_name || "-"}</td>
+                            <td className="py-2.5 text-zinc-400">{String(item.needed_by_date || "").slice(0, 10) || "-"}</td>
+                          </tr>
+                        );
+                      })
                   }
                 </tbody>
                 <tfoot>
                   <tr className="border-t border-white/10">
-                    <td colSpan={6} className="pt-3 text-right text-xs text-zinc-500">Order Total</td>
+                    <td colSpan={editingItems ? 6 : showWhStock ? 7 : 6} className="pt-3 text-right text-xs text-zinc-500">Order Total</td>
                     <td className="pt-3 pr-3 text-right tabular-nums font-bold text-white">
                       {editingItems
                         ? editedItems.reduce((sum, item) => sum + (parseFloat(item.qty) || 0) * (parseFloat(item.unit_price) || 0), 0)
