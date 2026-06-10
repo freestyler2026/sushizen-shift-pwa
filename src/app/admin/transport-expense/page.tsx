@@ -299,7 +299,7 @@ export default function AdminTransportExpensePage() {
   useEffect(() => {
     const a = getAuth();
     if (!a) { router.replace("/login"); return; }
-    if (!canAccessAdminNav(a)) { router.replace("/week"); }
+    if (!canAccessAdminNav(a) && a.role !== "HQ") { router.replace("/week"); }
   }, [router]);
 
   const [statusTab, setStatusTab] = useState("PENDING");

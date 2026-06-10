@@ -101,9 +101,12 @@ function PhotoUploadCell({
       fd.append("photo_type", photoKey);
       fd.append("check_date", checkDate);
       fd.append("file", f);
+      // Must delete Content-Type so browser sets multipart/form-data boundary automatically
+      const uploadHeaders = getAuthHeaders();
+      delete (uploadHeaders as Record<string, string>)["Content-Type"];
       const r = await fetch(`/api/store/daily-check/${checkId}/photo`, {
         method: "POST",
-        headers: getAuthHeaders(),
+        headers: uploadHeaders,
         body: fd,
         cache: "no-store",
       });
