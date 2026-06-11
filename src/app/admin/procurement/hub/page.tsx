@@ -286,17 +286,27 @@ export default function ProcurementHubPage() {
   const [error, setError] = useState("");
   const [copiedId, setCopiedId] = useState("");
 
-  const load = useCallback(async () => {
+  type LoadOverrides = { status?: string; type?: string; dateFrom?: string; dateTo?: string; branch?: string; supplier?: string };
+
+  const load = useCallback(async (overrides?: LoadOverrides) => {
+    const ov = overrides;
+    const status    = ov?.status    !== undefined ? ov.status    : filterStatus;
+    const type      = ov?.type      !== undefined ? ov.type      : filterType;
+    const dateFrom  = ov?.dateFrom  !== undefined ? ov.dateFrom  : filterDateFrom;
+    const dateTo    = ov?.dateTo    !== undefined ? ov.dateTo    : filterDateTo;
+    const branch    = ov?.branch    !== undefined ? ov.branch    : filterBranch;
+    const supplier  = ov?.supplier  !== undefined ? ov.supplier  : filterSupplier;
+
     setError("");
     setLoading(true);
     try {
       const qs = new URLSearchParams({ city, limit: "300" });
-      if (filterStatus) qs.set("status", filterStatus);
-      if (filterType) qs.set("purchase_type", filterType);
-      if (filterDateFrom) qs.set("date_from", filterDateFrom);
-      if (filterDateTo) qs.set("date_to", filterDateTo);
-      if (filterBranch) qs.set("store_code", filterBranch);
-      if (filterSupplier) qs.set("vendor_name", filterSupplier);
+      if (status)   qs.set("status",        status);
+      if (type)     qs.set("purchase_type", type);
+      if (dateFrom) qs.set("date_from",     dateFrom);
+      if (dateTo)   qs.set("date_to",       dateTo);
+      if (branch)   qs.set("store_code",    branch);
+      if (supplier) qs.set("vendor_name",   supplier);
 
       // Fetch orders and WH stock in parallel (WH stock only for Manila)
       const [data, whData] = await Promise.all([
@@ -374,6 +384,8 @@ export default function ProcurementHubPage() {
     setFilterDateTo("");
     setFilterBranch("");
     setFilterSupplier("");
+    // Reload immediately with empty filters — don't wait for async state update
+    void load({ status: "", type: "", dateFrom: "", dateTo: "", branch: "", supplier: "" });
   };
   const hasActiveFilters = filterStatus || filterType || filterDateFrom || filterDateTo || filterBranch || filterSupplier;
 
