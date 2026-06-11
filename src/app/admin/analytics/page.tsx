@@ -7521,10 +7521,13 @@ export default function AdminAnalyticsPage() {
               <div id="sales-operation-time" className={GLASS_CARD + " p-5"}>
                 {/* Header */}
                 <div className="mb-5 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Table2 className="h-4 w-4 text-violet-400" />
                     <h2 className={SECTION_TITLE}>Operation Time</h2>
                     <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-neutral-500">Target ≤ {OP_TARGET} min</span>
+                    <span className="rounded-full border border-sky-400/20 bg-sky-400/10 px-2 py-0.5 text-[10px] text-sky-400">
+                      City-wide data — store filter not applicable
+                    </span>
                   </div>
                   <button
                     type="button"
