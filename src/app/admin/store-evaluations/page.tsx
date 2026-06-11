@@ -235,9 +235,11 @@ function EvalDetailModal({
       onClick={onClose}
     >
       <div
-        className="bg-slate-900 border border-white/10 rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-5"
+        className="bg-slate-900 border border-white/10 rounded-t-2xl sm:rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
+      {/* Scrollable content area */}
+      <div className="overflow-y-auto flex-1 p-5">
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
           <div>
@@ -369,9 +371,14 @@ function EvalDetailModal({
           )}
         </div>
 
-        <button type="button" onClick={onClose} className={`${SECONDARY_BUTTON} w-full`}>
-          Close
-        </button>
+        </div>{/* end scrollable area */}
+
+        {/* Sticky Close button — always visible above mobile nav bar */}
+        <div className="shrink-0 px-5 py-3 pb-6 border-t border-white/10 bg-slate-900">
+          <button type="button" onClick={onClose} className={`${SECONDARY_BUTTON} w-full`}>
+            Close
+          </button>
+        </div>
       </div>
     </div>
   );
