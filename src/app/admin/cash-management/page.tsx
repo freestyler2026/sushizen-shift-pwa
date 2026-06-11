@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2, XCircle, AlertTriangle, RefreshCw, DollarSign,
-  FileText, Vault, Send, ChevronDown, ChevronUp,
+  Vault, Send, ChevronDown, ChevronUp,
   ClipboardCheck, Landmark,
 } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
@@ -13,10 +13,39 @@ import {
   GLASS_CARD, PRIMARY_BUTTON, SELECT_CLASS, INPUT_CLASS,
   TAB_CONTAINER, TAB_ACTIVE, TAB_INACTIVE,
   T_PAGE_TITLE, T_LABEL, T_CAPTION, T_SECTION,
-  BADGE_SUCCESS, BADGE_WARNING,
+  BADGE_WARNING,
 } from "@/lib/ui-tokens";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+type FullReport = {
+  id: string; branch: string; report_date: string; report_type: string;
+  staff_name: string; status: string;
+  // POS
+  pos_gross_sales: number | null; pos_cash_sales: number | null;
+  pos_credit_card: number | null; pos_qrph: number | null;
+  // CC reconciliation
+  terminal_credit_card_amt: number | null; cc_discrepancy: number | null;
+  // QRPH
+  qrph_terminal_amt: number | null; qrph_discrepancy: number | null;
+  qrph_photo_url: string;
+  // SC/PWD
+  scpwd_count: number; scpwd_total_discount: number;
+  scpwd_ids_uploaded: boolean; scpwd_receipts_saved: boolean;
+  // Denominations
+  bill_1000: number; bill_500: number; bill_200: number;
+  bill_100: number; bill_50: number; bill_20: number;
+  coin_20: number; coin_10: number; coin_5: number;
+  coin_1: number; coin_025: number; coin_005: number; coin_001: number;
+  cash_total: number;
+  // Cash reconciliation
+  opening_balance: number | null; expected_closing_balance: number | null;
+  cash_discrepancy: number | null;
+  // Other
+  safety_box_deposit_amt: number; klickit_gross_sales: number | null;
+  discrepancy_notes: string;
+  submitted_at?: string; created_at: string;
+};
 
 type CollectionRecord = {
   id: string; branch: string; amount: number;
@@ -60,6 +89,155 @@ function hasDisc(row: CompRow): boolean {
     || (row.cash_discrepancy != null && row.cash_discrepancy !== 0);
 }
 
+// ─── Report Detail Body ───────────────────────────────────────────────────────
+
+function SectionHead({ label }: { label: string }) {
+  return <p className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold pt-1 pb-0.5 border-t border-white/5">{label}</p>;
+}
+
+function Row({ label, value, highlight }: { label: string; value: React.ReactNode; highlight?: "red" | "green" }) {
+  const vc = highlight === "red" ? "text-red-300 font-semibold" : highlight === "green" ? "text-emerald-300 font-semibold" : "text-zinc-200";
+  return (
+    <div className="flex justify-between items-center py-0.5 text-xs">
+      <span className="text-zinc-400">{label}</span>
+      <span className={vc}>{value}</span>
+    </div>
+  );
+}
+
+function Bool({ v }: { v: boolean }) {
+  return v
+    ? <span className="text-emerald-400">✓ Yes</span>
+    : <span className="text-red-400">✗ No</span>;
+}
+
+function ReportDetailBody({ r }: { r: FullReport }) {
+  const isClosing = r.report_type === "CLOSING";
+  const denomRows: { label: string; count: number; unit: number }[] = [
+    { label: "₱1,000", count: r.bill_1000, unit: 1000 },
+    { label: "₱500",   count: r.bill_500,  unit: 500  },
+    { label: "₱200",   count: r.bill_200,  unit: 200  },
+    { label: "₱100",   count: r.bill_100,  unit: 100  },
+    { label: "₱50",    count: r.bill_50,   unit: 50   },
+    { label: "₱20",    count: r.bill_20,   unit: 20   },
+    { label: "₱20 coin", count: r.coin_20, unit: 20   },
+    { label: "₱10",    count: r.coin_10,   unit: 10   },
+    { label: "₱5",     count: r.coin_5,    unit: 5    },
+    { label: "₱1",     count: r.coin_1,    unit: 1    },
+    { label: "₱0.25",  count: r.coin_025,  unit: 0.25 },
+    { label: "₱0.05",  count: r.coin_005,  unit: 0.05 },
+    { label: "₱0.01",  count: r.coin_001,  unit: 0.01 },
+  ].filter((d) => d.count > 0);
+
+  return (
+    <div className="space-y-1 text-xs">
+
+      {/* Submitted at */}
+      {r.created_at && (
+        <Row label="Submitted at" value={new Date(r.created_at).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" })} />
+      )}
+
+      {/* ── POS Figures (Closing only) ── */}
+      {isClosing && (
+        <>
+          <SectionHead label="POS Figures" />
+          <Row label="Gross Sales"    value={fmtPHP(r.pos_gross_sales)} />
+          <Row label="Cash Sales"     value={fmtPHP(r.pos_cash_sales)} />
+          <Row label="Credit Card"    value={fmtPHP(r.pos_credit_card)} />
+          <Row label="QRPH"           value={fmtPHP(r.pos_qrph)} />
+        </>
+      )}
+
+      {/* ── CC Reconciliation (Closing only) ── */}
+      {isClosing && (
+        <>
+          <SectionHead label="Credit Card Reconciliation" />
+          <Row label="POS CC"             value={fmtPHP(r.pos_credit_card)} />
+          <Row label="Terminal CC"        value={fmtPHP(r.terminal_credit_card_amt)} />
+          <Row label="Discrepancy"
+            value={fmtPHP(r.cc_discrepancy)}
+            highlight={r.cc_discrepancy != null && r.cc_discrepancy !== 0 ? "red" : "green"} />
+        </>
+      )}
+
+      {/* ── QRPH (Closing only) ── */}
+      {isClosing && (
+        <>
+          <SectionHead label="QRPH / Cashless" />
+          <Row label="POS QRPH"       value={fmtPHP(r.pos_qrph)} />
+          <Row label="Terminal QRPH"  value={fmtPHP(r.qrph_terminal_amt)} />
+          <Row label="Discrepancy"
+            value={fmtPHP(r.qrph_discrepancy)}
+            highlight={r.qrph_discrepancy != null && r.qrph_discrepancy !== 0 ? "red" : "green"} />
+        </>
+      )}
+
+      {/* ── SC/PWD (Closing only) ── */}
+      {isClosing && (r.scpwd_count > 0 || r.scpwd_total_discount > 0) && (
+        <>
+          <SectionHead label="SC/PWD Discount" />
+          <Row label="Transactions"   value={r.scpwd_count} />
+          <Row label="Total Discount" value={fmtPHP(r.scpwd_total_discount)} />
+          <Row label="IDs Uploaded"   value={<Bool v={r.scpwd_ids_uploaded} />} />
+          <Row label="Receipts Saved" value={<Bool v={r.scpwd_receipts_saved} />} />
+        </>
+      )}
+
+      {/* ── Klickit (Closing, PAR only) ── */}
+      {isClosing && r.klickit_gross_sales != null && (
+        <>
+          <SectionHead label="Klickit" />
+          <Row label="Gross Sales" value={fmtPHP(r.klickit_gross_sales)} />
+        </>
+      )}
+
+      {/* ── Cash Denomination Count ── */}
+      <SectionHead label="Cash Count" />
+      {denomRows.length === 0 ? (
+        <p className="text-zinc-600 text-xs py-1">No denominations entered.</p>
+      ) : (
+        <div className="bg-white/5 rounded-lg p-2 space-y-0.5">
+          {denomRows.map((d) => (
+            <div key={d.label} className="flex justify-between text-xs">
+              <span className="text-zinc-400">{d.label} × {d.count}</span>
+              <span className="text-zinc-200 tabular-nums">{fmtPHP(d.count * d.unit)}</span>
+            </div>
+          ))}
+          <div className="flex justify-between text-xs font-semibold border-t border-white/10 pt-1 mt-0.5">
+            <span className="text-zinc-300">Total</span>
+            <span className="text-emerald-300 tabular-nums">{fmtPHP(r.cash_total)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Cash Reconciliation ── */}
+      <SectionHead label="Cash Reconciliation" />
+      <Row label="Opening Balance"        value={fmtPHP(r.opening_balance)} />
+      {isClosing && <Row label="Expected Closing" value={fmtPHP(r.expected_closing_balance)} />}
+      <Row label="Cash Count Total"       value={fmtPHP(r.cash_total)} />
+      <Row label="Discrepancy"
+        value={fmtPHP(r.cash_discrepancy)}
+        highlight={r.cash_discrepancy != null && r.cash_discrepancy !== 0 ? "red" : "green"} />
+
+      {/* ── Safety Box Deposit (Closing only) ── */}
+      {isClosing && r.safety_box_deposit_amt > 0 && (
+        <>
+          <SectionHead label="Safety Box Deposit" />
+          <Row label="Deposited" value={fmtPHP(r.safety_box_deposit_amt)} highlight="green" />
+        </>
+      )}
+
+      {/* ── Notes ── */}
+      {r.discrepancy_notes && (
+        <>
+          <SectionHead label="Notes" />
+          <p className="text-zinc-300 bg-white/5 rounded-lg p-2 leading-relaxed">{r.discrepancy_notes}</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Compliance Calendar ──────────────────────────────────────────────────────
 
 function ComplianceView() {
@@ -70,6 +248,21 @@ function ComplianceView() {
   const [data,   setData]     = useState<CompRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [detail,   setDetail]  = useState<FullReport | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  function openDetail(id: string) {
+    if (expanded === id) { setExpanded(null); setDetail(null); return; }
+    setExpanded(id);
+    setDetail(null);
+    setDetailLoading(true);
+    const auth = getAuth();
+    fetch(`${API_BASE}/api/admin/cash-reports/${id}`, { headers: getAuthHeaders(auth) })
+      .then((r) => r.json())
+      .then((d) => setDetail(d.report ?? null))
+      .catch(() => setDetail(null))
+      .finally(() => setDetailLoading(false));
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -164,9 +357,9 @@ function ComplianceView() {
                         return (
                           <td key={s} className="py-1 px-1 text-center">
                             {row ? (
-                              <button onClick={() => setExpanded(expanded === row.id ? null : row.id)}
+                              <button onClick={() => openDetail(row.id)}
                                 className={`rounded-lg px-2 py-0.5 text-[11px] font-medium transition-all ${cellColor(row)} ${expanded === row.id ? "ring-1 ring-violet-400/50" : ""}`}
-                                title={`${row.staff_name}${hasDisc(row) ? " — DISCREPANCY" : ""}`}>
+                                title={`${row.staff_name}${hasDisc(row) ? " — DISCREPANCY" : " — tap to view"}`}>
                                 {hasDisc(row) ? "⚠" : "✓"}
                               </button>
                             ) : <span className="text-zinc-700">—</span>}
@@ -186,22 +379,44 @@ function ComplianceView() {
         const row = data.find((r) => r.id === expanded);
         if (!row) return null;
         return (
-          <div className={`${GLASS_CARD} p-5 space-y-3`}>
-            <div className="flex items-center justify-between">
-              <h3 className={T_SECTION}>{row.report_date} — {SECTION_LABELS[row.report_type]}</h3>
-              <button onClick={() => setExpanded(null)} className="text-zinc-400 hover:text-zinc-200">✕</button>
+          <div className={`${GLASS_CARD} p-5 space-y-4`}>
+            {/* Header */}
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h3 className={T_SECTION}>{row.report_date} — {SECTION_LABELS[row.report_type]}</h3>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  {BRANCH_LABELS[branch]} · Submitted by <strong className="text-zinc-200">{row.staff_name}</strong>
+                </p>
+              </div>
+              <button onClick={() => { setExpanded(null); setDetail(null); }} className="text-zinc-400 hover:text-zinc-200 shrink-0">✕</button>
             </div>
-            <p className="text-sm text-zinc-300">Staff: <strong>{row.staff_name}</strong></p>
-            {row.cc_discrepancy != null && row.cc_discrepancy !== 0 && (
-              <div className="flex items-center gap-2 text-sm text-red-300"><AlertTriangle size={13} />CC Discrepancy: {fmtPHP(row.cc_discrepancy)}</div>
+
+            {/* Discrepancy summary banners */}
+            {(row.cc_discrepancy != null && row.cc_discrepancy !== 0) && (
+              <div className="flex items-center gap-2 text-sm text-red-300 bg-red-500/10 rounded-lg px-3 py-2">
+                <AlertTriangle size={13} />CC Discrepancy: <strong>{fmtPHP(row.cc_discrepancy)}</strong>
+              </div>
             )}
-            {row.qrph_discrepancy != null && row.qrph_discrepancy !== 0 && (
-              <div className="flex items-center gap-2 text-sm text-red-300"><AlertTriangle size={13} />QRPH Discrepancy: {fmtPHP(row.qrph_discrepancy)}</div>
+            {(row.qrph_discrepancy != null && row.qrph_discrepancy !== 0) && (
+              <div className="flex items-center gap-2 text-sm text-red-300 bg-red-500/10 rounded-lg px-3 py-2">
+                <AlertTriangle size={13} />QRPH Discrepancy: <strong>{fmtPHP(row.qrph_discrepancy)}</strong>
+              </div>
             )}
-            {row.cash_discrepancy != null && row.cash_discrepancy !== 0 && (
-              <div className="flex items-center gap-2 text-sm text-red-300"><AlertTriangle size={13} />Cash Count Discrepancy: {fmtPHP(row.cash_discrepancy)}</div>
+            {(row.cash_discrepancy != null && row.cash_discrepancy !== 0) && (
+              <div className="flex items-center gap-2 text-sm text-red-300 bg-red-500/10 rounded-lg px-3 py-2">
+                <AlertTriangle size={13} />Cash Discrepancy: <strong>{fmtPHP(row.cash_discrepancy)}</strong>
+              </div>
             )}
             {row.has_pending_nte && <span className={BADGE_WARNING}>NTE Pending</span>}
+
+            {/* Full detail */}
+            {detailLoading && (
+              <p className="text-xs text-zinc-500 text-center py-4">Loading submitted details…</p>
+            )}
+            {!detailLoading && detail && <ReportDetailBody r={detail} />}
+            {!detailLoading && !detail && (
+              <p className="text-xs text-zinc-600 text-center py-2">Details unavailable.</p>
+            )}
           </div>
         );
       })()}
