@@ -75,6 +75,8 @@ type DraftRow = {
 
 type DraftGenerateMonthResult = {
   ok: boolean;
+  skipped?: boolean;
+  skip_reason?: string;
   version_id: string;
   city: string;
   branch_code: string;
@@ -144,6 +146,7 @@ type BatchGenerateResult = {
   total_unresolved_hours: number;
   versions: BatchDraftVersion[];
   failed_branches: Array<{ branch_code: string; detail: string }>;
+  skipped_branches: Array<{ branch_code: string; reason: string }>;
 };
 
 type RecommendedAction =
@@ -1411,6 +1414,7 @@ export default function AdminDraftPage() {
     try {
       const nextVersions: BatchDraftVersion[] = [];
       const failedBranches: Array<{ branch_code: string; detail: string }> = [];
+      const skippedBranches: Array<{ branch_code: string; reason: string }> = [];
       let totalRowsInserted = 0;
       let totalOvertimeHours = 0;
       let totalUnresolvedHours = 0;
@@ -1424,6 +1428,14 @@ export default function AdminDraftPage() {
             target_month: prepared.target_month,
             created_by: approverName || "AI",
           })) as DraftGenerateMonthResult;
+          // Branch had no previous-month data — skip gracefully (not an error)
+          if (res.skipped) {
+            skippedBranches.push({
+              branch_code: res.branch_code,
+              reason: res.skip_reason || "No previous month data — add staff manually.",
+            });
+            continue;
+          }
           nextVersions.push({
             branch_code: res.branch_code,
             branch_name: labelOf("dubai", res.branch_code),
@@ -1476,6 +1488,7 @@ export default function AdminDraftPage() {
         total_unresolved_hours: totalUnresolvedHours,
         versions: nextVersions,
         failed_branches: failedBranches,
+        skipped_branches: skippedBranches,
       });
       setApplyMonth(prepared.target_month);
       if (failedBranches.length) {
@@ -1584,6 +1597,7 @@ export default function AdminDraftPage() {
         total_unresolved_hours: 0,
         versions: nextVersions,
         failed_branches: failedBranches,
+        skipped_branches: [],
       });
       setApplyMonth(replaceGuard.target_month);
     }
@@ -2627,6 +2641,16 @@ export default function AdminDraftPage() {
               <p className={`mt-1 text-sm ${generateResult.total_unresolved_hours > 0 ? "text-red-400 font-semibold" : "text-zinc-200"}`}>{fmtNum(generateResult.total_unresolved_hours)}</p>
             </div>
           </div>
+          {generateResult.skipped_branches?.length ? (
+            <div className="mt-4 flex items-start gap-2 rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-2.5 text-sm text-amber-300">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>
+                <span className="font-semibold">Skipped (no previous data): </span>
+                {generateResult.skipped_branches.map((s) => s.branch_code).join(", ")}
+                <span className="ml-1 text-amber-400/70">— add staff manually via the draft editor.</span>
+              </div>
+            </div>
+          ) : null}
           {generateResult.failed_branches.length ? (
             <div className={`${BADGE_WARNING} mt-4 px-4 py-2 text-sm`}>
               failed_branches: {generateResult.failed_branches.map((item) => item.branch_code).join(", ")}
