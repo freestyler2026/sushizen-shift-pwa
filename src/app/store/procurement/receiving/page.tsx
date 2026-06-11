@@ -18,6 +18,8 @@ type RequestRow = {
   total_amount: number;
   requested_by: string;
   request_date: string;
+  receiving_status?: string;
+  vendor_summary?: string;
 };
 
 type RequestItem = {
@@ -96,6 +98,8 @@ export default function StoreProcurementReceivingPage() {
   // Request selection
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [requestId, setRequestId] = useState("");
+  const [filterSearch, setFilterSearch] = useState("");
+  const [filterHideConfirmed, setFilterHideConfirmed] = useState(false);
   const [requestDetail, setRequestDetail] = useState<RequestDetail | null>(null);
   const [detailBusy, setDetailBusy] = useState(false);
 
@@ -483,6 +487,26 @@ export default function StoreProcurementReceivingPage() {
 
   const selectedRequest = requests.find((r) => r.id === requestId);
 
+  const filteredRequests = useMemo(() => {
+    let list = requests;
+    if (filterHideConfirmed) {
+      list = list.filter((r) => {
+        const rs = (r.receiving_status || "").toUpperCase();
+        return rs !== "CONFIRMED" && rs !== "RECEIVED";
+      });
+    }
+    if (filterSearch.trim()) {
+      const q = filterSearch.trim().toLowerCase();
+      list = list.filter((r) =>
+        r.request_no.toLowerCase().includes(q) ||
+        (r.store_code || "").toLowerCase().includes(q) ||
+        (r.requested_by || "").toLowerCase().includes(q) ||
+        (r.vendor_summary || "").toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }, [requests, filterSearch, filterHideConfirmed]);
+
   return (
     <div className="min-h-screen text-white">
       <div className="mx-auto max-w-7xl px-4 py-8">
@@ -557,9 +581,29 @@ export default function StoreProcurementReceivingPage() {
               </button>
             )}
           </div>
+          {/* Search + filter */}
+          <div className="mb-3 space-y-2">
+            <input
+              type="text"
+              value={filterSearch}
+              onChange={(e) => setFilterSearch(e.target.value)}
+              placeholder="Search PR no., branch, supplier…"
+              className={FIELD + " text-xs"}
+            />
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-zinc-400">
+              <input
+                type="checkbox"
+                checked={filterHideConfirmed}
+                onChange={(e) => setFilterHideConfirmed(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-zinc-600 accent-violet-500"
+              />
+              Hide already confirmed orders
+            </label>
+          </div>
           <div className="space-y-2">
-            {requests.map((row) => {
+            {filteredRequests.map((row) => {
               const selected = requestId === row.id;
+              const rcvStatus = (row.receiving_status || "").toUpperCase();
               return (
                 <button
                   key={row.id}
@@ -581,14 +625,21 @@ export default function StoreProcurementReceivingPage() {
                       )}
                       <span className="text-sm font-medium text-white">{row.request_no}</span>
                     </div>
-                    <span className={[
-                      "rounded-full px-2 py-0.5 text-[11px] font-medium",
-                      row.status === "APPROVED" ? "bg-emerald-500/15 text-emerald-300" :
-                      row.status === "SUBMITTED" ? "bg-amber-500/15 text-amber-300" :
-                      "bg-zinc-500/15 text-zinc-400"
-                    ].join(" ")}>
-                      {row.status}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      {rcvStatus === "CONFIRMED" || rcvStatus === "RECEIVED" ? (
+                        <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-medium text-emerald-300">✓ Confirmed</span>
+                      ) : rcvStatus === "DRAFT" ? (
+                        <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-300">Draft</span>
+                      ) : null}
+                      <span className={[
+                        "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                        row.status === "APPROVED" ? "bg-emerald-500/15 text-emerald-300" :
+                        row.status === "SUBMITTED" ? "bg-amber-500/15 text-amber-300" :
+                        "bg-zinc-500/15 text-zinc-400"
+                      ].join(" ")}>
+                        {row.status}
+                      </span>
+                    </div>
                   </div>
                   <div className="mt-1.5 pl-6 space-y-0.5">
                     <div className="flex items-center justify-between">
@@ -598,11 +649,16 @@ export default function StoreProcurementReceivingPage() {
                     {row.requested_by ? (
                       <div className="text-[11px] text-zinc-500">Requested by: {row.requested_by}</div>
                     ) : null}
+                    {row.vendor_summary ? (
+                      <div className="text-[11px] text-amber-400/80">Supplier: {row.vendor_summary}</div>
+                    ) : null}
                   </div>
                 </button>
               );
             })}
-            {!requests.length ? (
+            {!filteredRequests.length && requests.length > 0 ? (
+              <div className="py-3 text-center text-xs text-zinc-500">No requests match your filter.</div>
+            ) : !requests.length ? (
               <div className="py-4 text-center text-sm text-zinc-500">No approved requests found for {cityLabel}.</div>
             ) : null}
           </div>

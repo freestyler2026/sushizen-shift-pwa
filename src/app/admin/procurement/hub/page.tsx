@@ -43,6 +43,7 @@ type HubRow = {
   blocked_reason?: string;
   created_at: string;
   updated_at: string;
+  vendor_summary?: string;
   // Case fields (may be null if no case yet)
   case_id?: string;
   parent_case_no?: string;
@@ -239,6 +240,8 @@ export default function ProcurementHubPage() {
   const [filterType, setFilterType] = useState("");
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
+  const [filterBranch, setFilterBranch] = useState("");
+  const [filterSupplier, setFilterSupplier] = useState("");
   const [filterGroup, setFilterGroup] = useState<StatusGroup>("all");
 
   const [rows, setRows] = useState<HubRow[]>([]);
@@ -292,6 +295,8 @@ export default function ProcurementHubPage() {
       if (filterType) qs.set("purchase_type", filterType);
       if (filterDateFrom) qs.set("date_from", filterDateFrom);
       if (filterDateTo) qs.set("date_to", filterDateTo);
+      if (filterBranch) qs.set("store_code", filterBranch);
+      if (filterSupplier) qs.set("vendor_name", filterSupplier);
 
       // Fetch orders and WH stock in parallel (WH stock only for Manila)
       const [data, whData] = await Promise.all([
@@ -325,7 +330,7 @@ export default function ProcurementHubPage() {
     } finally {
       setLoading(false);
     }
-  }, [city, filterStatus, filterType, filterDateFrom, filterDateTo, pin, requestedBy]);
+  }, [city, filterStatus, filterType, filterDateFrom, filterDateTo, filterBranch, filterSupplier, pin, requestedBy]);
 
   useEffect(() => {
     async function init() {
@@ -367,8 +372,10 @@ export default function ProcurementHubPage() {
     setFilterType("");
     setFilterDateFrom("");
     setFilterDateTo("");
+    setFilterBranch("");
+    setFilterSupplier("");
   };
-  const hasActiveFilters = filterStatus || filterType || filterDateFrom || filterDateTo;
+  const hasActiveFilters = filterStatus || filterType || filterDateFrom || filterDateTo || filterBranch || filterSupplier;
 
   if (!allowed) {
     return (
@@ -433,7 +440,7 @@ export default function ProcurementHubPage() {
             </button>
           )}
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <div>
             <label className={`${T_LABEL} mb-1 block`}>Request Status</label>
             <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className={SELECT_CLASS}>
@@ -457,6 +464,42 @@ export default function ProcurementHubPage() {
               <option value="prepaid">Pre-payment</option>
               <option value="direct_purchase">Direct Purchase</option>
             </select>
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1 block`}>Branch</label>
+            <select value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} className={SELECT_CLASS}>
+              <option value="">All branches</option>
+              {city === "dubai" ? (
+                <>
+                  <option value="BB">Business Bay</option>
+                  <option value="JLT">JLT</option>
+                  <option value="ARJ">Arjan</option>
+                  <option value="AM">Al Mina</option>
+                  <option value="AB">Al Barsha</option>
+                  <option value="MC">Motor City</option>
+                  <option value="CK">Central Kitchen</option>
+                  <option value="SH">Sharjah</option>
+                </>
+              ) : (
+                <>
+                  <option value="PAR">Parañaque</option>
+                  <option value="TAFT">Taft</option>
+                  <option value="CUBAO">Cubao</option>
+                  <option value="CK">Central Kitchen</option>
+                  <option value="WH">Warehouse</option>
+                </>
+              )}
+            </select>
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1 block`}>Supplier</label>
+            <input
+              type="text"
+              value={filterSupplier}
+              onChange={(e) => setFilterSupplier(e.target.value)}
+              placeholder="Supplier name…"
+              className={INPUT_CLASS}
+            />
           </div>
           <div>
             <label className={`${T_LABEL} mb-1 block`}>From</label>
@@ -600,6 +643,9 @@ export default function ProcurementHubPage() {
                         {Number(row.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currCode}
                       </span>
                     </span>
+                    {row.vendor_summary && (
+                      <span>Supplier <span className="text-amber-200">{row.vendor_summary}</span></span>
+                    )}
                     {row.current_assignee_role && (
                       <span>Assignee <span className="text-zinc-300">{row.current_assignee_role}</span></span>
                     )}
