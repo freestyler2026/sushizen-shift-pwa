@@ -374,7 +374,7 @@ function EvalDetailModal({
         </div>{/* end scrollable area */}
 
         {/* Sticky Close button — always visible above mobile nav bar */}
-        <div className="shrink-0 px-5 py-3 pb-6 border-t border-white/10 bg-slate-900">
+        <div className="shrink-0 px-5 py-3 pb-10 border-t border-white/10 bg-slate-900" style={{paddingBottom: "max(2.5rem, env(safe-area-inset-bottom, 2.5rem))"}}>
           <button type="button" onClick={onClose} className={`${SECONDARY_BUTTON} w-full`}>
             Close
           </button>
