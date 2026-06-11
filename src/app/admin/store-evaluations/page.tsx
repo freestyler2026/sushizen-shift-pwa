@@ -1349,9 +1349,7 @@ export default function StoreEvaluationsPage() {
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<EvalRow | null>(null);
   const [trendBranch, setTrendBranch] = useState("");
-
-  // Load all known branches from summary
-  const allBranches = evaluations.map((e) => e.branch_code);
+  const [allBranches, setAllBranches] = useState<string[]>([]);
 
   const loadSummary = useCallback(async () => {
     setLoading(true);
@@ -1369,9 +1367,26 @@ export default function StoreEvaluationsPage() {
     }
   }, [evalDate, city]);
 
+  // Load branch list independently so Trend tab works without visiting Summary first
+  const loadBranches = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `/api/admin/store-evaluations/branches?city=${city}`,
+        { headers: getAuthHeaders(), cache: "no-store" }
+      );
+      const data = await res.json();
+      if (Array.isArray(data.branches) && data.branches.length > 0) {
+        setAllBranches(data.branches);
+      }
+    } catch {
+      // keep existing list
+    }
+  }, [city]);
+
   useEffect(() => {
-    if (tab === "summary") loadSummary();
-  }, [tab, loadSummary]);
+    if (tab === "summary") void loadSummary();
+    if (tab === "trend") void loadBranches();
+  }, [tab, loadSummary, loadBranches]);
 
   // KPI summary
   const submitted = evaluations.length;
@@ -1634,7 +1649,7 @@ export default function StoreEvaluationsPage() {
                       <option key={b} value={b}>{b}</option>
                     ))
                   : (
-                    <option disabled>Load summary tab first</option>
+                    <option disabled>Loading branches...</option>
                   )}
               </select>
             </div>
