@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   DollarSign, Send, RefreshCw, CheckCircle2, XCircle,
@@ -289,6 +289,235 @@ function MultiPhotoGrid({
             <span className="text-amber-400 ml-2">({count - photos.length} remaining)</span>
           )}
         </p>
+      )}
+    </div>
+  );
+}
+
+// ─── History Tab ─────────────────────────────────────────────────────────────
+
+type HistoryReport = {
+  id: string; branch: string; report_date: string; report_type: string;
+  staff_name: string; cash_total: number;
+  cc_discrepancy: number | null; qrph_discrepancy: number | null; cash_discrepancy: number | null;
+  pos_gross_sales: number | null; pos_cash_sales: number | null;
+  pos_credit_card: number | null; pos_qrph: number | null;
+  opening_balance: number | null; expected_closing_balance: number | null;
+  safety_box_deposit_amt: number; discrepancy_notes: string;
+  bill_1000: number; bill_500: number; bill_200: number; bill_100: number;
+  bill_50: number; bill_20: number; coin_20: number; coin_10: number;
+  coin_5: number; coin_1: number; coin_025: number; coin_005: number; coin_001: number;
+  created_at: string;
+};
+
+function hasAnyDisc(r: HistoryReport): boolean {
+  return (r.cc_discrepancy != null && r.cc_discrepancy !== 0)
+    || (r.qrph_discrepancy != null && r.qrph_discrepancy !== 0)
+    || (r.cash_discrepancy != null && r.cash_discrepancy !== 0);
+}
+
+function HistoryTab({ branch }: { branch: string }) {
+  const auth = getAuth();
+  const [reports, setReports] = useState<HistoryReport[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!branch) return;
+    setLoading(true);
+    fetch(`/api/store/cash-report/history?branch=${branch}&days=14`, {
+      headers: getAuthHeaders(auth),
+    })
+      .then((r) => r.json())
+      .then((d) => setReports(Array.isArray(d.reports) ? d.reports : []))
+      .catch(() => setReports([]))
+      .finally(() => setLoading(false));
+  }, [branch]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Group by date descending
+  const grouped = useMemo(() => {
+    const map: Record<string, { OPENING?: HistoryReport; CLOSING?: HistoryReport }> = {};
+    reports.forEach((r) => {
+      const d = r.report_date.slice(0, 10);
+      if (!map[d]) map[d] = {};
+      map[d][r.report_type as "OPENING" | "CLOSING"] = r;
+    });
+    return Object.entries(map).sort(([a], [b]) => b.localeCompare(a));
+  }, [reports]);
+
+  if (loading) return (
+    <div className="py-12 text-center text-sm text-zinc-500">Loading history…</div>
+  );
+
+  if (grouped.length === 0) return (
+    <div className="py-12 text-center text-sm text-zinc-500">
+      No submissions found for the last 14 days.
+    </div>
+  );
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  return (
+    <div className="space-y-3">
+      {grouped.map(([dateStr, rows]) => {
+        const isToday = dateStr === today;
+        const d = new Date(dateStr + "T00:00:00");
+        const dateLabel = d.toLocaleDateString("en-PH", { weekday: "short", month: "short", day: "numeric" });
+
+        return (
+          <div key={dateStr} className="rounded-xl border border-white/10 bg-white/5 overflow-hidden">
+            {/* Date header */}
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-white/10 bg-white/5">
+              <span className="text-xs font-semibold text-zinc-300">{dateLabel}</span>
+              {isToday && <span className="text-[10px] bg-violet-500/30 text-violet-300 px-2 py-0.5 rounded-full font-medium">Today</span>}
+            </div>
+
+            {/* Report rows */}
+            <div className="divide-y divide-white/5">
+              {(["CLOSING", "OPENING"] as const).map((type) => {
+                const r = rows[type];
+                const icon = type === "CLOSING" ? "🌙" : "☀️";
+                const label = type === "CLOSING" ? "Closing" : "Opening";
+
+                if (!r) return (
+                  <div key={type} className="flex items-center gap-3 px-4 py-2.5 opacity-40">
+                    <span className="text-sm">{icon}</span>
+                    <span className="text-xs text-zinc-500 flex-1">{label}</span>
+                    <span className="text-xs text-zinc-700">not submitted</span>
+                  </div>
+                );
+
+                const disc = hasAnyDisc(r);
+                const isOpen = expandedId === r.id;
+
+                return (
+                  <div key={type}>
+                    <button
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-white/5 transition-colors"
+                      onClick={() => setExpandedId(isOpen ? null : r.id)}
+                    >
+                      <span className="text-sm">{icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-zinc-200">{label}</span>
+                          {disc
+                            ? <span className="text-[10px] text-red-400 font-semibold flex items-center gap-0.5"><AlertTriangle size={10} /> Discrepancy</span>
+                            : <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-0.5"><CheckCircle2 size={10} /> OK</span>
+                          }
+                        </div>
+                        <p className="text-[10px] text-zinc-500 truncate">{r.staff_name}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-xs font-mono font-semibold text-zinc-200">{fmtPHP(r.cash_total)}</p>
+                        <p className="text-[10px] text-zinc-600">{new Date(r.created_at).toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" })}</p>
+                      </div>
+                      {isOpen ? <ChevronUp size={13} className="text-zinc-500 shrink-0" /> : <ChevronDown size={13} className="text-zinc-500 shrink-0" />}
+                    </button>
+
+                    {isOpen && <HistoryDetailPanel r={r} />}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function HistoryDetailPanel({ r }: { r: HistoryReport }) {
+  const isClosing = r.report_type === "CLOSING";
+
+  const denomRows = [
+    { label: "₱1,000", count: r.bill_1000, unit: 1000 },
+    { label: "₱500",   count: r.bill_500,  unit: 500  },
+    { label: "₱200",   count: r.bill_200,  unit: 200  },
+    { label: "₱100",   count: r.bill_100,  unit: 100  },
+    { label: "₱50",    count: r.bill_50,   unit: 50   },
+    { label: "₱20",    count: r.bill_20,   unit: 20   },
+    { label: "₱20c",   count: r.coin_20,   unit: 20   },
+    { label: "₱10",    count: r.coin_10,   unit: 10   },
+    { label: "₱5",     count: r.coin_5,    unit: 5    },
+    { label: "₱1",     count: r.coin_1,    unit: 1    },
+    { label: "25¢",    count: r.coin_025,  unit: 0.25 },
+    { label: "5¢",     count: r.coin_005,  unit: 0.05 },
+    { label: "1¢",     count: r.coin_001,  unit: 0.01 },
+  ].filter((d) => d.count > 0);
+
+  return (
+    <div className="px-4 pb-4 pt-1 space-y-3 border-t border-white/5 bg-white/[0.02]">
+
+      {/* Cash denomination breakdown */}
+      <div>
+        <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5">Cash Count</p>
+        {denomRows.length === 0
+          ? <p className="text-xs text-zinc-600">No denominations recorded.</p>
+          : (
+            <div className="rounded-lg bg-white/5 px-3 py-2 space-y-0.5">
+              {denomRows.map((d) => (
+                <div key={d.label} className="flex justify-between text-xs">
+                  <span className="text-zinc-400">{d.label} × {d.count}</span>
+                  <span className="text-zinc-200 tabular-nums">{fmtPHP(d.count * d.unit)}</span>
+                </div>
+              ))}
+              <div className="flex justify-between text-xs font-semibold border-t border-white/10 pt-1 mt-0.5">
+                <span className="text-zinc-300">Total</span>
+                <span className="text-emerald-300 tabular-nums">{fmtPHP(r.cash_total)}</span>
+              </div>
+            </div>
+          )
+        }
+      </div>
+
+      {/* Reconciliation */}
+      {isClosing && (
+        <div>
+          <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1.5">Reconciliation</p>
+          <div className="space-y-0.5">
+            {[
+              { label: "Opening Balance",    val: r.opening_balance },
+              { label: "POS Cash Sales",     val: r.pos_cash_sales },
+              { label: "Expected Closing",   val: r.expected_closing_balance },
+              { label: "Actual Cash Count",  val: r.cash_total },
+            ].map(({ label, val }) => (
+              <div key={label} className="flex justify-between text-xs">
+                <span className="text-zinc-400">{label}</span>
+                <span className="text-zinc-200 tabular-nums">{fmtPHP(val)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Discrepancies */}
+      {(r.cc_discrepancy != null && r.cc_discrepancy !== 0) && (
+        <div className="flex items-center gap-2 text-xs text-red-300 bg-red-500/10 rounded-lg px-3 py-1.5">
+          <AlertTriangle size={11} />CC Discrepancy: <strong>{fmtPHP(r.cc_discrepancy)}</strong>
+        </div>
+      )}
+      {(r.qrph_discrepancy != null && r.qrph_discrepancy !== 0) && (
+        <div className="flex items-center gap-2 text-xs text-red-300 bg-red-500/10 rounded-lg px-3 py-1.5">
+          <AlertTriangle size={11} />QRPH Discrepancy: <strong>{fmtPHP(r.qrph_discrepancy)}</strong>
+        </div>
+      )}
+      {(r.cash_discrepancy != null && r.cash_discrepancy !== 0) && (
+        <div className="flex items-center gap-2 text-xs text-red-300 bg-red-500/10 rounded-lg px-3 py-1.5">
+          <AlertTriangle size={11} />Cash Discrepancy: <strong>{fmtPHP(r.cash_discrepancy)}</strong>
+        </div>
+      )}
+      {!hasAnyDisc(r) && (
+        <div className="flex items-center gap-2 text-xs text-emerald-300 bg-emerald-500/10 rounded-lg px-3 py-1.5">
+          <CheckCircle2 size={11} />All amounts matched — no discrepancy
+        </div>
+      )}
+
+      {/* Notes */}
+      {r.discrepancy_notes && (
+        <div>
+          <p className="text-[10px] uppercase tracking-widest text-zinc-500 mb-1">Notes</p>
+          <p className="text-xs text-zinc-300 bg-white/5 rounded-lg p-2 leading-relaxed">{r.discrepancy_notes}</p>
+        </div>
       )}
     </div>
   );
@@ -723,7 +952,7 @@ export default function CashReportPage() {
   const auth   = getAuth();
   const today  = new Date().toISOString().slice(0, 10);
   const [branch, setBranch] = useState<string>("PAR");
-  const [tab, setTab]       = useState<"closing" | "opening">("closing");
+  const [tab, setTab]       = useState<"closing" | "opening" | "history">("closing");
 
   useEffect(() => {
     if (!auth?.staffName) router.replace("/login");
@@ -758,12 +987,15 @@ export default function CashReportPage() {
           <button className={tab === "opening" ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => setTab("opening")}>
             ☀️ Opening Report
           </button>
+          <button className={tab === "history" ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => setTab("history")}>
+            📋 History
+          </button>
         </div>
 
         <div className="rounded-xl border border-white/20 bg-white/5 p-4">
-          {tab === "closing"
-            ? <ClosingForm branch={branch} today={today} />
-            : <OpeningForm branch={branch} today={today} />}
+          {tab === "closing" ? <ClosingForm branch={branch} today={today} />
+            : tab === "opening" ? <OpeningForm branch={branch} today={today} />
+            : <HistoryTab branch={branch} />}
         </div>
       </div>
     </div>
