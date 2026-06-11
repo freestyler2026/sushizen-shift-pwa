@@ -2229,6 +2229,8 @@ export default function AdminAnalyticsPage() {
   const [cctvScoreRows, setCctvScoreRows] = useState<CctvScoreSummaryRow[]>([]);
   const [cctvScoreLoadError, setCctvScoreLoadError] = useState("");
   const [hourlyStoreName, setHourlyStoreName] = useState("");
+  const [hourlyDateFrom, setHourlyDateFrom] = useState(() => previousCalendarMonthRangeIso().from);
+  const [hourlyDateTo, setHourlyDateTo] = useState(() => previousCalendarMonthRangeIso().to);
   const [, setSalesComparisonRows] = useState<ComparisonItem[]>([]);
   const [payrollRows, setPayrollRows] = useState<PayrollStaffRow[]>([]);
   const [financeRatio, setFinanceRatio] = useState<FinanceLaborRatioResp | null>(null);
@@ -3005,6 +3007,8 @@ export default function AdminAnalyticsPage() {
     isSalesAnalyticsTab,
     isManilaSalesCity,
     hourlyStoreName,
+    hourlyDateFrom,
+    hourlyDateTo,
     summaryBranchCode,
     summaryBrandName,
     summaryDateFrom,
@@ -3135,8 +3139,8 @@ export default function AdminAnalyticsPage() {
           setCancelOrdersLoadError("");
           const hourlyQs = new URLSearchParams({
             city: posCity,
-            date_from: summaryDateFrom,
-            date_to: summaryDateTo,
+            date_from: hourlyDateFrom,
+            date_to: hourlyDateTo,
             approver_name: approverName.trim(),
             pin: pin.trim(),
           });
@@ -7254,7 +7258,7 @@ export default function AdminAnalyticsPage() {
 
             {salesSectionView === "all" || salesSectionView === "hourly" ? (
             <div id="sales-hourly" className={GLASS_CARD + " p-5"}>
-              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <div className="mb-1 flex items-center gap-2">
                     <Table2 className="h-4 w-4 text-violet-400" />
@@ -7267,31 +7271,61 @@ export default function AdminAnalyticsPage() {
                     for the same city/store scope.
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className={T_CAPTION}>
-                    Scope: <span className="text-zinc-300">{hourlyStoreName || "Company total"}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      downloadCsv(
-                        `${exportBaseName}_hourly_sales.csv`,
-                        (hourlySalesAnalytics?.rows || []).map((row) => ({
-                          hour: row.hour_label,
-                          net_sales: Number(row.net_sales || 0),
-                          orders: Number(row.order_count_non_cancelled || 0),
-                          labor_hours: Number(row.labor_hours_total || 0),
-                          avg_staff: Number(row.avg_staff_count || 0),
-                          orders_per_labor_hour: Number(row.orders_per_labor_hour || 0),
-                          orders_per_staff: Number(row.orders_per_staff || 0),
-                        })),
-                      )
-                    }
-                    className={SECONDARY_BUTTON + " flex items-center gap-2 text-sm"}
+                <button
+                  type="button"
+                  onClick={() =>
+                    downloadCsv(
+                      `${exportBaseName}_hourly_sales.csv`,
+                      (hourlySalesAnalytics?.rows || []).map((row) => ({
+                        hour: row.hour_label,
+                        net_sales: Number(row.net_sales || 0),
+                        orders: Number(row.order_count_non_cancelled || 0),
+                        labor_hours: Number(row.labor_hours_total || 0),
+                        avg_staff: Number(row.avg_staff_count || 0),
+                        orders_per_labor_hour: Number(row.orders_per_labor_hour || 0),
+                        orders_per_staff: Number(row.orders_per_staff || 0),
+                      })),
+                    )
+                  }
+                  className={SECONDARY_BUTTON + " flex shrink-0 items-center gap-2 text-sm"}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Export CSV
+                </button>
+              </div>
+              <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div>
+                  <div className={LABEL_TEXT + " mb-1.5 block"}>Date From</div>
+                  <input
+                    type="date"
+                    value={hourlyDateFrom}
+                    onChange={(e) => { if (e.target.value) setHourlyDateFrom(e.target.value); }}
+                    className={INPUT_CLASS}
+                  />
+                </div>
+                <div>
+                  <div className={LABEL_TEXT + " mb-1.5 block"}>Date To</div>
+                  <input
+                    type="date"
+                    value={hourlyDateTo}
+                    onChange={(e) => { if (e.target.value) setHourlyDateTo(e.target.value); }}
+                    className={INPUT_CLASS}
+                  />
+                </div>
+                <div>
+                  <div className={LABEL_TEXT + " mb-1.5 block"}>Store</div>
+                  <select
+                    value={hourlyStoreName}
+                    onChange={(e) => setHourlyStoreName(e.target.value)}
+                    className={SELECT_CLASS}
                   >
-                    <Download className="h-3.5 w-3.5" />
-                    Export CSV
-                  </button>
+                    <option value="">Company total</option>
+                    {hourlyStoreOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
