@@ -74,6 +74,9 @@ type EvalRow = {
   coaching_score: number | null;
   problem_awareness_score: number | null;
   prep_time_score: number | null;
+  food_safety_score: number | null;
+  organization_score: number | null;
+  sop_compliance_score: number | null;
   // Binary
   attendance_check: boolean | null;
   report_submission: boolean | null;
@@ -106,6 +109,9 @@ type TrendRow = {
   coaching_score: number | null;
   problem_awareness_score: number | null;
   prep_time_score: number | null;
+  food_safety_score: number | null;
+  organization_score: number | null;
+  sop_compliance_score: number | null;
   attendance_check: boolean | null;
   report_submission: boolean | null;
   closing_check: boolean | null;
@@ -123,6 +129,9 @@ const SCORE_LABELS: Record<string, string> = {
   coaching_score: "Coaching",
   problem_awareness_score: "Awareness",
   prep_time_score: "Prep Time",
+  food_safety_score: "Food Safety",
+  organization_score: "Org & Storage",
+  sop_compliance_score: "SOP",
 };
 
 const BINARY_LABELS: Record<string, string> = {
@@ -217,6 +226,7 @@ function EvalDetailModal({
     "backup_score", "station_balance_score", "quality_score",
     "cleanliness_score", "team_support_score", "coaching_score",
     "problem_awareness_score", "prep_time_score",
+    "food_safety_score", "organization_score", "sop_compliance_score",
   ] as const;
 
   return (
@@ -427,6 +437,7 @@ function TrendView({ branch, city }: { branch: string; city: string }) {
                   "backup_score", "station_balance_score", "quality_score",
                   "cleanliness_score", "team_support_score", "coaching_score",
                   "problem_awareness_score", "prep_time_score",
+                  "food_safety_score", "organization_score", "sop_compliance_score",
                 ].map((k) => (
                   <div key={k} className="flex flex-col items-center">
                     <ScorePip value={row[k as keyof TrendRow] as number | null} />
@@ -1575,6 +1586,7 @@ export default function StoreEvaluationsPage() {
                             "backup_score", "station_balance_score", "quality_score",
                             "cleanliness_score", "team_support_score", "coaching_score",
                             "problem_awareness_score", "prep_time_score",
+                            "food_safety_score", "organization_score", "sop_compliance_score",
                           ].map((k) => (
                             <td key={k} className={TABLE_CELL}>
                               <div className="flex justify-center">
