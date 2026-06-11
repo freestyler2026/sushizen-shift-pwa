@@ -702,54 +702,58 @@ function DetailPanel({
               </div>
             )}
 
-            <div className={`${GLASS_CARD} p-4`}>
-              <p className={T_LABEL}>Status</p>
-              <select
-                className={`${SELECT_CLASS} mt-2`}
-                value={localStatus}
-                disabled={statusChanging}
-                onChange={(e) => void handleStatusChange(e.target.value as KanbanStatus)}
-              >
-                {ALL_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {KANBAN_COLUMNS.find((c) => c.id === s)?.label || s}
-                  </option>
-                ))}
-              </select>
-              {statusChanging && (
-                <p className={`${T_CAPTION} mt-1`}>Updating...</p>
-              )}
-            </div>
+            <div className={`${GLASS_CARD} p-4 space-y-3`}>
+              {/* Status */}
+              <div>
+                <p className={T_LABEL}>Status</p>
+                <select
+                  className={`${SELECT_CLASS} mt-2`}
+                  value={localStatus}
+                  disabled={statusChanging}
+                  onChange={(e) => void handleStatusChange(e.target.value as KanbanStatus)}
+                >
+                  {ALL_STATUSES.map((s) => (
+                    <option key={s} value={s}>
+                      {KANBAN_COLUMNS.find((c) => c.id === s)?.label || s}
+                    </option>
+                  ))}
+                </select>
+                {statusChanging && (
+                  <p className={`${T_CAPTION} mt-1`}>Updating...</p>
+                )}
+              </div>
 
-            {/* Assigned Branch */}
-            <div className={`${GLASS_CARD} p-4`}>
-              <p className={T_LABEL}>Assigned Branch</p>
-              <p className="text-xs text-zinc-500 mt-0.5 mb-2">配属先 (e.g. CK, Taft, Paranaque, Cubao)</p>
-              <input
-                list="branch-options"
-                type="text"
-                className={`${INPUT_CLASS}`}
-                placeholder="Enter branch..."
-                value={assignedBranch}
-                onChange={(e) => setAssignedBranch(e.target.value)}
-              />
-              <datalist id="branch-options">
-                <option value="Central Kitchen (CK)" />
-                <option value="Taft" />
-                <option value="Paranaque" />
-                <option value="Cubao" />
-                <option value="Al Barsha" />
-                <option value="Business Bay" />
-                <option value="Al Mina" />
-                <option value="M City" />
-              </datalist>
-              <button
-                className={`${PRIMARY_BUTTON} mt-2 w-full justify-center`}
-                disabled={savingBranch}
-                onClick={() => void handleSaveBranch()}
-              >
-                {savingBranch ? "Saving..." : "Save Branch"}
-              </button>
+              {/* Assigned Branch */}
+              <div className="border-t border-white/10 pt-3">
+                <p className={T_LABEL}>Assigned Branch <span className="text-zinc-500 font-normal">配属先</span></p>
+                <div className="flex gap-2 mt-2">
+                  <input
+                    list="branch-options"
+                    type="text"
+                    className={`${INPUT_CLASS} flex-1`}
+                    placeholder="e.g. CK, Taft, Paranaque..."
+                    value={assignedBranch}
+                    onChange={(e) => setAssignedBranch(e.target.value)}
+                  />
+                  <datalist id="branch-options">
+                    <option value="Central Kitchen (CK)" />
+                    <option value="Taft" />
+                    <option value="Paranaque" />
+                    <option value="Cubao" />
+                    <option value="Al Barsha" />
+                    <option value="Business Bay" />
+                    <option value="Al Mina" />
+                    <option value="M City" />
+                  </datalist>
+                  <button
+                    className={`${PRIMARY_BUTTON} shrink-0`}
+                    disabled={savingBranch}
+                    onClick={() => void handleSaveBranch()}
+                  >
+                    {savingBranch ? "..." : "Save"}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1498,7 +1502,7 @@ export default function HRRecruitmentPage() {
       {selectedApplicant && (
         <div className="md:hidden fixed inset-0 z-40 bg-black/60" onClick={() => setSelectedApplicant(null)}>
           <div
-            className="absolute bottom-0 left-0 right-0 max-h-[85vh] overflow-y-auto rounded-t-2xl border-t border-white/10 bg-[#0d1117] p-4"
+            className="absolute bottom-0 left-0 right-0 h-[85vh] overflow-hidden flex flex-col rounded-t-2xl border-t border-white/10 bg-[#0d1117] p-4"
             onClick={(e) => e.stopPropagation()}
           >
             <DetailPanel
