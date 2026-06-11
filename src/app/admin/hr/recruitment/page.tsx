@@ -54,6 +54,7 @@ type Applicant = {
   notes: string;
   applied_date: string;
   days_in_pipeline: number;
+  assigned_branch?: string;
   latest_score?: number;
   latest_recommendation?: string;
 };
@@ -227,6 +228,13 @@ function KanbanCard({
         {sourceBadge(applicant.source)}
         {daysBadge(applicant.days_in_pipeline)}
       </div>
+
+      {/* Assigned branch (shown when set) */}
+      {applicant.assigned_branch && (
+        <p className="mt-1 text-[10px] text-emerald-400 font-medium truncate">
+          📍 {applicant.assigned_branch}
+        </p>
+      )}
 
       {/* Score */}
       {applicant.latest_score !== undefined && applicant.latest_score !== null && (
@@ -513,6 +521,25 @@ function DetailPanel({
   const [localStatus, setLocalStatus] = useState<KanbanStatus>(applicant.status);
   const [statusChanging, setStatusChanging] = useState(false);
   const [error, setError] = useState("");
+  const [assignedBranch, setAssignedBranch] = useState(applicant.assigned_branch || "");
+  const [savingBranch, setSavingBranch] = useState(false);
+
+  const handleSaveBranch = async () => {
+    setSavingBranch(true);
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/hr/applicants/${applicant.id}`, {
+        method: "PATCH",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ assigned_branch: assignedBranch }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingBranch(false);
+    }
+  };
 
   const loadInterviews = useCallback(async () => {
     setLoadingInterviews(true);
@@ -659,6 +686,7 @@ function DetailPanel({
                 ...(applicant.referrer_name ? [["Referrer", applicant.referrer_name]] : []),
                 ["Applied", applicant.applied_date],
                 ["Days in pipeline", String(applicant.days_in_pipeline)],
+                ...(assignedBranch ? [["Assigned Branch", assignedBranch]] : []),
               ].map(([label, val]) => (
                 <div key={label} className="flex gap-2 text-sm">
                   <span className="text-zinc-500 shrink-0 w-28">{label}</span>
@@ -691,6 +719,37 @@ function DetailPanel({
               {statusChanging && (
                 <p className={`${T_CAPTION} mt-1`}>Updating...</p>
               )}
+            </div>
+
+            {/* Assigned Branch */}
+            <div className={`${GLASS_CARD} p-4`}>
+              <p className={T_LABEL}>Assigned Branch</p>
+              <p className="text-xs text-zinc-500 mt-0.5 mb-2">配属先 (e.g. CK, Taft, Paranaque, Cubao)</p>
+              <input
+                list="branch-options"
+                type="text"
+                className={`${INPUT_CLASS}`}
+                placeholder="Enter branch..."
+                value={assignedBranch}
+                onChange={(e) => setAssignedBranch(e.target.value)}
+              />
+              <datalist id="branch-options">
+                <option value="Central Kitchen (CK)" />
+                <option value="Taft" />
+                <option value="Paranaque" />
+                <option value="Cubao" />
+                <option value="Al Barsha" />
+                <option value="Business Bay" />
+                <option value="Al Mina" />
+                <option value="M City" />
+              </datalist>
+              <button
+                className={`${PRIMARY_BUTTON} mt-2 w-full justify-center`}
+                disabled={savingBranch}
+                onClick={() => void handleSaveBranch()}
+              >
+                {savingBranch ? "Saving..." : "Save Branch"}
+              </button>
             </div>
           </div>
         )}
