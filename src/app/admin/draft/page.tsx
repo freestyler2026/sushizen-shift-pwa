@@ -439,10 +439,12 @@ async function apiPost<T = any>(path: string, body?: any): Promise<T> {
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
 
+// Base spreadsheet URLs — NO gid anchor. Each monthly export creates a new tab
+// (e.g. BB_2026-07_DRAFT_MAIN). Hardcoding a gid would keep opening the old tab.
 const DUBAI_DRAFT_SHEET_URL =
-  "https://docs.google.com/spreadsheets/d/1IkpYJUAa8OkysEPY2cRs8svrEBHZRIBVY6jGw309uco/edit?gid=2068736399#gid=2068736399";
+  "https://docs.google.com/spreadsheets/d/1IkpYJUAa8OkysEPY2cRs8svrEBHZRIBVY6jGw309uco/edit";
 const MANILA_DRAFT_SHEET_URL =
-  "https://docs.google.com/spreadsheets/d/1Eoj02lU8YWnDXSVWeJNeRLpYwLf5i3CHRN87nYVpHJs/edit?gid=0#gid=0";
+  "https://docs.google.com/spreadsheets/d/1Eoj02lU8YWnDXSVWeJNeRLpYwLf5i3CHRN87nYVpHJs/edit";
 
 // ---------------------------------------------------------------------------
 // Forecast Settings Panel
@@ -2543,15 +2545,35 @@ export default function AdminDraftPage() {
 
         <div className={`mb-5 ${HIGHLIGHT_CARD} p-4 shadow-lg shadow-violet-500/15 ring-1 ring-violet-400/30`}>
           <div className={`${T_LABEL} mb-2 text-violet-300`}>Draft spreadsheet (Google Sheets)</div>
-          <a
-            href={city === "dubai" ? DUBAI_DRAFT_SHEET_URL : MANILA_DRAFT_SHEET_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`${PRIMARY_BUTTON} inline-flex items-center gap-2.5 text-sm no-underline shadow-xl shadow-violet-500/40 ring-2 ring-violet-300/50 hover:ring-violet-200/60`}
-          >
-            <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
-            {city === "dubai" ? "Open Dubai draft spreadsheet" : "Open Manila draft spreadsheet"}
-          </a>
+          {Object.keys(autoExportResults).length > 0 ? (
+            /* After export: show per-branch tab links so the user lands on the right month/tab */
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(autoExportResults).map(([bc, url]) =>
+                url ? (
+                  <a key={bc} href={url} target="_blank" rel="noopener noreferrer"
+                    className={`${PRIMARY_BUTTON} inline-flex items-center gap-2 text-sm no-underline`}>
+                    <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
+                    Open {labelOf(city, bc)} — {generateResult?.target_month}
+                  </a>
+                ) : null
+              )}
+              <a href={city === "dubai" ? DUBAI_DRAFT_SHEET_URL : MANILA_DRAFT_SHEET_URL}
+                target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-300 underline underline-offset-2 self-center ml-1">
+                <ExternalLink className="h-3 w-3" />All sheets
+              </a>
+            </div>
+          ) : (
+            <a
+              href={city === "dubai" ? DUBAI_DRAFT_SHEET_URL : MANILA_DRAFT_SHEET_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${PRIMARY_BUTTON} inline-flex items-center gap-2.5 text-sm no-underline shadow-xl shadow-violet-500/40 ring-2 ring-violet-300/50 hover:ring-violet-200/60`}
+            >
+              <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
+              {city === "dubai" ? "Open Dubai draft spreadsheet" : "Open Manila draft spreadsheet"}
+            </a>
+          )}
         </div>
 
         <div className="mb-5 rounded-xl border border-sky-500/15 bg-sky-500/5 px-4 py-3">
