@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-12 (session 53 — end)
+Last updated: 2026-06-12 (session 54 — end)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -17,6 +17,20 @@ Last updated: 2026-06-12 (session 53 — end)
 ## ✅ Daily Ops Check v2 complete and live (4-color status, auto/manual, double-check workflow)
 ## ✅ Role Management 自動同期 — 8 admin + 6 store チャンネルを登録済み
 ## ✅ 都市別アクセス制御 — バックエンド 9 モジュールで permission key + city 照合を実施
+
+## Recently Completed (2026-06-12 session 54) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Store Evaluation: スコア項目ごとのコメント欄追加 (max 400文字) | `app/db_store_evaluation.py`, `app/store_evaluation_api.py`, `src/app/store/evaluation/page.tsx`, `src/app/admin/store-evaluations/page.tsx` | `score_comments` JSONB列をDBに追加 (ALTER TABLE IF NOT EXISTS)。`ScoreSelector` に textarea 追加（1-5ボタン下）。API は 400 文字で切り捨て。管理画面詳細モーダルにコメントを表示（コメントがある行は col-span-2 で全幅展開）|
+| Cash Management: クロージング ₱2,000 不一致修正 | `app/db_cash_report.py`, `src/app/admin/cash-management/page.tsx` | expected_closing = opening + cash_sales（safety_box は引かない）。フロントで生フィールドから再計算 |
+| Cash Management: カレンダー全ダッシュ修正 | `app/cash_report_api.py` | FastAPI wildcard ルートを末尾に移動 |
+| Cold Chain: ③ In Storage ステップ追加（新フロー） | `app/cold_chain_api.py`, `app/db_cold_chain.py`, `src/app/store/cold-chain/page.tsx` | Receive submit 時に stored_at/stored_temp も一緒に送信・保存可能に |
+| Store Evaluation: 管理画面で写真が見えないバグ修正 | `app/db_store_evaluation.py`, `src/app/admin/store-evaluations/page.tsx` | `get_evaluations_summary()` に `e.id` + LEFT JOIN + COUNT + GROUP BY 追加 |
+
+### 教訓 (session 54)
+- **psycopg2 + JSONB**: Python dict を JSONB 列に INSERT する場合、`json.dumps()` で文字列化してから SQL で `%(col)s::JSONB` キャストする。dict をそのまま渡すと psycopg2 がエラーを出す
+- **per-item コメントは JSONB 1列が最適**: 11個の TEXT 列を追加するより `score_comments JSONB DEFAULT '{}'` の方がスキーマがシンプルで柔軟
 
 ## Recently Completed (2026-06-12 session 53) — live
 
