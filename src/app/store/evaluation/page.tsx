@@ -96,9 +96,9 @@ const RUBRICS: Record<ScoredKey, string[]> = {
     "All staff properly positioned, no bottlenecks",
   ],
   quality_score: [
-    "Major quality failure — immediate action required",
-    "Multiple quality issues, ongoing problems",
-    "1–2 quality issues occurred during service",
+    "Major quality failure (taste, temperature, or texture) — immediate action required. Transport packaging is not a defect.",
+    "Multiple quality issues ongoing (e.g. taste, texture, wrong recipe). Does not include dispatch container appearance.",
+    "1–2 quality issues (taste/texture/temperature) occurred during service. Container type is excluded from this score.",
     "Minor adjustments made, overall standard maintained",
     "All products met quality standard, no rework required",
   ],
@@ -358,6 +358,7 @@ function ScoreSelector({
   onChange,
   comment = "",
   onCommentChange,
+  excludeNote,
   photoEnabled = false,
   pendingPhotos = [],
   onAddPhoto,
@@ -369,6 +370,7 @@ function ScoreSelector({
   onChange: (v: number) => void;
   comment?: string;
   onCommentChange?: (v: string) => void;
+  excludeNote?: string;
   photoEnabled?: boolean;
   pendingPhotos?: PendingPhoto[];
   onAddPhoto?: (file: File) => void;
@@ -410,6 +412,14 @@ function ScoreSelector({
           </span>
         </div>
       </div>
+
+      {/* Exclusion note banner */}
+      {excludeNote && (
+        <div className="flex items-start gap-1.5 bg-slate-700/40 border border-slate-600/40 rounded-lg px-2.5 py-2 mb-2.5">
+          <span className="text-[11px] shrink-0 mt-px">ℹ️</span>
+          <p className="text-[11px] text-slate-400 leading-relaxed">{excludeNote}</p>
+        </div>
+      )}
 
       {/* Rubric — always visible; selected row is highlighted */}
       <div className="space-y-1 mb-3">
@@ -1142,6 +1152,11 @@ export default function StoreEvaluationPage() {
                       ...f,
                       score_comments: { ...f.score_comments, [key]: v },
                     }))
+                  }
+                  excludeNote={
+                    key === "quality_score"
+                      ? "Transport packaging (e.g. plastic containers for soup/broth dispatch) is excluded from presentation assessment. Score based on taste, temperature, and texture only."
+                      : undefined
                   }
                   photoEnabled={PHOTO_ENABLED_KEYS.has(key)}
                   pendingPhotos={pendingPhotos[key] ?? []}
