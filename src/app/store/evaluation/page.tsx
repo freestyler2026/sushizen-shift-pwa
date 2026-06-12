@@ -96,9 +96,9 @@ const RUBRICS: Record<ScoredKey, string[]> = {
     "All staff properly positioned, no bottlenecks",
   ],
   quality_score: [
-    "Major quality failure (taste, temperature, or texture) — immediate action required. Transport packaging is not a defect.",
-    "Multiple quality issues ongoing (e.g. taste, texture, wrong recipe). Does not include dispatch container appearance.",
-    "1–2 quality issues (taste/texture/temperature) occurred during service. Container type is excluded from this score.",
+    "Major quality failure (taste, temperature, or texture) — immediate action required. Transport packaging (plastic bags/containers for soup) is not a defect.",
+    "Multiple quality issues ongoing (e.g. taste, texture, wrong recipe). Plastic bags or containers used for soup dispatch are not included.",
+    "1–2 quality issues (taste/texture/temperature) occurred during service. Transport bags/containers are excluded from this score.",
     "Minor adjustments made, overall standard maintained",
     "All products met quality standard, no rework required",
   ],
@@ -1155,7 +1155,7 @@ export default function StoreEvaluationPage() {
                   }
                   excludeNote={
                     key === "quality_score"
-                      ? "Transport packaging (e.g. plastic containers for soup/broth dispatch) is excluded from presentation assessment. Score based on taste, temperature, and texture only."
+                      ? "Transport packaging (e.g. plastic bags or containers used for soup/broth dispatch to prevent leaks) is excluded from presentation assessment. Score based on taste, temperature, and texture only."
                       : undefined
                   }
                   photoEnabled={PHOTO_ENABLED_KEYS.has(key)}
