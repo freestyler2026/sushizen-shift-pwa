@@ -1708,7 +1708,7 @@ ${pages}
                     </div>
                     {/* Qty badge */}
                     <div className={`text-right shrink-0 ${done ? "text-neutral-500" : "text-white"}`}>
-                      <span className="text-xl font-bold">{Number(item.qty || 0).toFixed(0)}</span>
+                      <span className="text-xl font-bold">{parseFloat(Number(item.qty || 0).toFixed(3))}</span>
                       <span className="ml-1 text-sm text-neutral-400">{item.unit}</span>
                     </div>
                   </button>
