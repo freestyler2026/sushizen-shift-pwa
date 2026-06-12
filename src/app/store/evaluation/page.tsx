@@ -208,6 +208,7 @@ type FormState = {
   sop_compliance_score: number | null;
   // Meta
   notes: string;
+  score_comments: Record<string, string>;
 };
 
 const EMPTY_FORM: FormState = {
@@ -227,6 +228,7 @@ const EMPTY_FORM: FormState = {
   organization_score: null,
   sop_compliance_score: null,
   notes: "",
+  score_comments: {},
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -354,6 +356,8 @@ function ScoreSelector({
   value,
   rubric,
   onChange,
+  comment = "",
+  onCommentChange,
   photoEnabled = false,
   pendingPhotos = [],
   onAddPhoto,
@@ -363,6 +367,8 @@ function ScoreSelector({
   value: number | null;
   rubric: string[];
   onChange: (v: number) => void;
+  comment?: string;
+  onCommentChange?: (v: string) => void;
   photoEnabled?: boolean;
   pendingPhotos?: PendingPhoto[];
   onAddPhoto?: (file: File) => void;
@@ -455,6 +461,21 @@ function ScoreSelector({
             {n}
           </button>
         ))}
+      </div>
+
+      {/* Per-item comment field */}
+      <div className="mt-2 pt-2 border-t border-white/5">
+        <textarea
+          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder:text-slate-500 resize-none focus:outline-none focus:border-violet-500/50 focus:bg-white/8 transition-colors"
+          rows={2}
+          maxLength={400}
+          placeholder="Issue description (optional) — max 400 chars"
+          value={comment}
+          onChange={(e) => onCommentChange?.(e.target.value)}
+        />
+        {comment.length > 0 && (
+          <p className="text-right text-[10px] text-slate-500 mt-0.5">{comment.length}/400</p>
+        )}
       </div>
 
       {/* Pending photo thumbnails */}
@@ -755,6 +776,7 @@ export default function StoreEvaluationPage() {
             organization_score: ev.organization_score ?? null,
             sop_compliance_score: ev.sop_compliance_score ?? null,
             notes: ev.notes || "",
+            score_comments: (ev.score_comments as Record<string, string>) || {},
           });
         } else {
           setExistingId(null);
@@ -1114,6 +1136,13 @@ export default function StoreEvaluationPage() {
                   value={form[key]}
                   rubric={RUBRICS[key]}
                   onChange={(v) => setScore(key, v)}
+                  comment={form.score_comments[key] ?? ""}
+                  onCommentChange={(v) =>
+                    setForm((f) => ({
+                      ...f,
+                      score_comments: { ...f.score_comments, [key]: v },
+                    }))
+                  }
                   photoEnabled={PHOTO_ENABLED_KEYS.has(key)}
                   pendingPhotos={pendingPhotos[key] ?? []}
                   onAddPhoto={(file) => handleAddPhoto(key, file)}

@@ -96,6 +96,7 @@ type EvalRow = {
   submitted_at: string;
   updated_at: string;
   image_count?: number;
+  score_comments?: Record<string, string>;
 };
 
 type TrendRow = {
@@ -259,17 +260,30 @@ function EvalDetailModal({
 
         {/* Scored items grid */}
         <div className="grid grid-cols-2 gap-2 mb-4">
-          {SCORED_KEYS.map((key) => (
-            <div key={key} className={`${GLASS_CARD} p-3 flex items-center justify-between`}>
-              <span className={`${T_CAPTION} text-slate-400`}>{SCORE_LABELS[key]}</span>
-              <div className="flex items-center gap-1">
-                <ScorePip value={ev[key]} />
-                <span className={`${T_CAPTION} text-slate-500`}>
-                  {ev[key] != null ? `(${(ev[key]! * 2.5).toFixed(1)})` : ""}
-                </span>
+          {SCORED_KEYS.map((key) => {
+            const comment = ev.score_comments?.[key];
+            return (
+              <div
+                key={key}
+                className={`${GLASS_CARD} p-3 ${comment ? "col-span-2" : ""}`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className={`${T_CAPTION} text-slate-400`}>{SCORE_LABELS[key]}</span>
+                  <div className="flex items-center gap-1">
+                    <ScorePip value={ev[key]} />
+                    <span className={`${T_CAPTION} text-slate-500`}>
+                      {ev[key] != null ? `(${(ev[key]! * 2.5).toFixed(1)})` : ""}
+                    </span>
+                  </div>
+                </div>
+                {comment && (
+                  <p className="mt-1.5 text-xs text-slate-300 leading-relaxed border-t border-white/5 pt-1.5">
+                    {comment}
+                  </p>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Compliance */}
