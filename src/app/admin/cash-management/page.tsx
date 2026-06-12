@@ -212,18 +212,36 @@ function ReportDetailBody({ r }: { r: FullReport }) {
 
       {/* ── Cash Reconciliation ── */}
       <SectionHead label="Cash Reconciliation" />
-      <Row label="Opening Balance"        value={fmtPHP(r.opening_balance)} />
-      {isClosing && <Row label="Expected Closing" value={fmtPHP(r.expected_closing_balance)} />}
-      <Row label="Cash Count Total"       value={fmtPHP(r.cash_total)} />
-      <Row label="Discrepancy"
-        value={fmtPHP(r.cash_discrepancy)}
-        highlight={r.cash_discrepancy != null && r.cash_discrepancy !== 0 ? "red" : "green"} />
-
-      {/* ── Safety Box Deposit (Closing only) ── */}
-      {isClosing && r.safety_box_deposit_amt > 0 && (
+      {isClosing ? (() => {
+        // Recompute from raw fields so historical records are also correct.
+        // Cashiers count ALL cash (Opening + Cash Sales), then deposit to safety box separately.
+        const expectedTotal = (r.opening_balance ?? 0) + (r.pos_cash_sales ?? 0);
+        const correctedDisc = r.cash_total - expectedTotal;
+        const cashLeftInDrawer = r.cash_total - (r.safety_box_deposit_amt ?? 0);
+        return (
+          <>
+            <Row label="Opening Balance"        value={fmtPHP(r.opening_balance)} />
+            <Row label="Cash Sales (POS)"       value={fmtPHP(r.pos_cash_sales)} />
+            <Row label="Expected Total"         value={fmtPHP(expectedTotal)} />
+            <Row label="Cash Count Total"       value={fmtPHP(r.cash_total)} />
+            <Row label="Cash Discrepancy"
+              value={fmtPHP(correctedDisc)}
+              highlight={correctedDisc !== 0 ? "red" : "green"} />
+            {r.safety_box_deposit_amt > 0 && (
+              <>
+                <Row label="Safety Box Deposit" value={`(${fmtPHP(r.safety_box_deposit_amt)})`} />
+                <Row label="Cash Left in Drawer" value={fmtPHP(cashLeftInDrawer)} highlight="green" />
+              </>
+            )}
+          </>
+        );
+      })() : (
         <>
-          <SectionHead label="Safety Box Deposit" />
-          <Row label="Deposited" value={fmtPHP(r.safety_box_deposit_amt)} highlight="green" />
+          <Row label="Opening Balance"  value={fmtPHP(r.opening_balance)} />
+          <Row label="Cash Count Total" value={fmtPHP(r.cash_total)} />
+          <Row label="Discrepancy"
+            value={fmtPHP(r.cash_discrepancy)}
+            highlight={r.cash_discrepancy != null && r.cash_discrepancy !== 0 ? "red" : "green"} />
         </>
       )}
 
@@ -402,11 +420,18 @@ function ComplianceView() {
                 <AlertTriangle size={13} />QRPH Discrepancy: <strong>{fmtPHP(row.qrph_discrepancy)}</strong>
               </div>
             )}
-            {(row.cash_discrepancy != null && row.cash_discrepancy !== 0) && (
-              <div className="flex items-center gap-2 text-sm text-red-300 bg-red-500/10 rounded-lg px-3 py-2">
-                <AlertTriangle size={13} />Cash Discrepancy: <strong>{fmtPHP(row.cash_discrepancy)}</strong>
-              </div>
-            )}
+            {(() => {
+              // For closing reports, recompute cash discrepancy from raw detail fields
+              // (stored DB value may be wrong for reports submitted before the formula fix)
+              const cashDisc = (detail && detail.report_type === "CLOSING")
+                ? detail.cash_total - ((detail.opening_balance ?? 0) + (detail.pos_cash_sales ?? 0))
+                : row.cash_discrepancy;
+              return cashDisc != null && cashDisc !== 0 ? (
+                <div className="flex items-center gap-2 text-sm text-red-300 bg-red-500/10 rounded-lg px-3 py-2">
+                  <AlertTriangle size={13} />Cash Discrepancy: <strong>{fmtPHP(cashDisc)}</strong>
+                </div>
+              ) : null;
+            })()}
             {row.has_pending_nte && <span className={BADGE_WARNING}>NTE Pending</span>}
 
             {/* Full detail */}
