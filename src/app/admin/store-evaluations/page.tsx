@@ -1478,17 +1478,54 @@ export default function StoreEvaluationsPage() {
         {/* SUMMARY TAB */}
         {tab === "summary" && (
           <>
-            {/* Date picker */}
-            <div className={`${GLASS_CARD} p-4 mb-4 flex items-center gap-3`}>
-              <Calendar size={16} className="text-slate-400 shrink-0" />
-              <div>
-                <label className={`${T_LABEL} block mb-1`}>Evaluation Date</label>
+            {/* Date picker with prev/next navigation */}
+            <div className={`${GLASS_CARD} p-4 mb-4`}>
+              <label className={`${T_LABEL} block mb-2`}>Evaluation Date</label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  title="Previous day"
+                  onClick={() => {
+                    const parts = evalDate.split("-").map(Number);
+                    const dt = new Date(parts[0], parts[1] - 1, parts[2] - 1);
+                    setEvalDate(`${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`);
+                  }}
+                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all border border-white/10 shrink-0"
+                >
+                  ‹
+                </button>
                 <input
                   type="date"
-                  className={INPUT_CLASS}
+                  className={`${INPUT_CLASS} flex-1`}
                   value={evalDate}
+                  max={todayPH}
                   onChange={(e) => setEvalDate(e.target.value)}
                 />
+                <button
+                  type="button"
+                  title="Next day"
+                  disabled={evalDate >= todayPH}
+                  onClick={() => {
+                    const parts = evalDate.split("-").map(Number);
+                    const dt = new Date(parts[0], parts[1] - 1, parts[2] + 1);
+                    const next = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+                    if (next <= todayPH) setEvalDate(next);
+                  }}
+                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all border border-white/10 shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  ›
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEvalDate(todayPH)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium shrink-0 transition-all ${
+                    evalDate === todayPH
+                      ? "bg-violet-500/20 border border-violet-500/40 text-violet-300"
+                      : "bg-white/5 text-slate-400 hover:bg-white/10 border border-white/10"
+                  }`}
+                >
+                  Today
+                </button>
               </div>
             </div>
 

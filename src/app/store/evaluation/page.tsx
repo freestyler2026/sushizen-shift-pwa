@@ -16,6 +16,7 @@ import { getAuth, getAuthHeaders } from "@/lib/auth";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
+  INPUT_CLASS,
   SELECT_CLASS,
   TEXTAREA_CLASS,
   T_PAGE_TITLE,
@@ -699,6 +700,15 @@ export default function StoreEvaluationPage() {
     return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
   })();
 
+  const yesterdayPH = (() => {
+    const parts = todayPH.split("-").map(Number);
+    const dt = new Date(parts[0], parts[1] - 1, parts[2] - 1);
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+  })();
+
+  // evalDate: which day's evaluation this form is for (default: yesterday)
+  const [evalDate, setEvalDate] = useState(yesterdayPH);
+
   // Load branch list
   useEffect(() => {
     const headers = getAuthHeaders();
@@ -719,9 +729,9 @@ export default function StoreEvaluationPage() {
       const headers = getAuthHeaders();
 
       try {
-        // Check for existing submission today
+        // Check for existing submission on the selected eval date
         const existRes = await fetch(
-          `/api/store/evaluation/today?branch_code=${encodeURIComponent(bc)}`,
+          `/api/store/evaluation/today?branch_code=${encodeURIComponent(bc)}&eval_date=${evalDate}`,
           { headers, cache: "no-store" }
         );
         const existData = await existRes.json();
@@ -751,9 +761,9 @@ export default function StoreEvaluationPage() {
           setForm(EMPTY_FORM);
         }
 
-        // Fetch auto-data
+        // Fetch auto-data for the selected eval date
         const autoRes = await fetch(
-          `/api/store/evaluation/auto-data?branch_code=${encodeURIComponent(bc)}`,
+          `/api/store/evaluation/auto-data?branch_code=${encodeURIComponent(bc)}&eval_date=${evalDate}`,
           { headers, cache: "no-store" }
         );
         const ad = await autoRes.json();
@@ -764,7 +774,7 @@ export default function StoreEvaluationPage() {
         setAutoLoading(false);
       }
     },
-    []
+    [evalDate]
   );
 
   useEffect(() => {
@@ -812,7 +822,7 @@ export default function StoreEvaluationPage() {
 
     const payload = {
       branch_code: branchCode,
-      eval_date: todayPH,
+      eval_date: evalDate,
       ...form,
       // Snapshot auto-data at submit time
       auto_attendance_rate: autoData?.attendance_rate ?? null,
@@ -848,7 +858,7 @@ export default function StoreEvaluationPage() {
             const fd = new FormData();
             fd.append("evaluation_id", evalId);
             fd.append("branch_code", branchCode);
-            fd.append("eval_date", todayPH);
+            fd.append("eval_date", evalDate);
             fd.append("category", photo.category);
             fd.append("file", photo.file);
             const headers = getAuthHeaders() as Record<string, string>;
@@ -899,6 +909,48 @@ export default function StoreEvaluationPage() {
           </p>
         </div>
 
+        {/* Evaluation Date selector */}
+        <div className={`${GLASS_CARD} p-4 mb-4`}>
+          <label className={`${T_LABEL} mb-1 block`}>Evaluation Date</label>
+          <p className={`${T_CAPTION} text-slate-400 mb-3`}>
+            Which date are you evaluating? (Usually yesterday)
+          </p>
+          <div className="flex gap-2 mb-3">
+            <button
+              type="button"
+              onClick={() => setEvalDate(yesterdayPH)}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
+                evalDate === yesterdayPH
+                  ? "bg-violet-500/20 border border-violet-500/40 text-violet-300"
+                  : "bg-white/5 text-slate-400 hover:bg-white/10 border border-white/10"
+              }`}
+            >
+              Yesterday
+            </button>
+            <button
+              type="button"
+              onClick={() => setEvalDate(todayPH)}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${
+                evalDate === todayPH
+                  ? "bg-violet-500/20 border border-violet-500/40 text-violet-300"
+                  : "bg-white/5 text-slate-400 hover:bg-white/10 border border-white/10"
+              }`}
+            >
+              Today
+            </button>
+          </div>
+          <input
+            type="date"
+            className={INPUT_CLASS}
+            value={evalDate}
+            max={todayPH}
+            onChange={(e) => setEvalDate(e.target.value)}
+          />
+          <p className={`${T_CAPTION} text-violet-400 mt-2`}>
+            📅 Evaluating: {new Date(evalDate + "T12:00:00").toLocaleDateString("en-PH", { weekday: "short", year: "numeric", month: "short", day: "numeric" })}
+          </p>
+        </div>
+
         {/* Branch selector */}
         <div className={`${GLASS_CARD} p-4 mb-4`}>
           <label className={`${T_LABEL} mb-2 block`}>Branch</label>
@@ -914,7 +966,7 @@ export default function StoreEvaluationPage() {
           </select>
           {existingId && (
             <div className={`${BADGE_INFO} mt-2 inline-block`}>
-              Editing today&apos;s existing evaluation
+              Editing existing evaluation for {evalDate}
             </div>
           )}
         </div>
@@ -1131,7 +1183,7 @@ export default function StoreEvaluationPage() {
               <PhotoPanel
                 evaluationId={existingId}
                 branchCode={branchCode}
-                evalDate={todayPH}
+                evalDate={evalDate}
               />
             )}
           </>
