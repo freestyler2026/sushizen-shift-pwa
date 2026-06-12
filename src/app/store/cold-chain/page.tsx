@@ -89,11 +89,13 @@ type DispatchRow = {
   box_count: number;
 };
 
-/** Per-box receiving state (new flow) */
+/** Per-box receiving state (new flow) — includes optional storage step */
 type ReceiveBoxState = {
   box_id: string;
   received_at: string;
   received_temp: string;
+  stored_at: string;
+  stored_temp: string;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -600,6 +602,8 @@ function ReceivingForm({ city }: { city: string }) {
           box_id:        b.id,
           received_at:   nowHHMM(),
           received_temp: "",
+          stored_at:     nowHHMM(),
+          stored_temp:   "",
         })));
       })
       .catch(() => { setDispatchBoxes([]); setReceiveStates([]); })
@@ -646,6 +650,8 @@ function ReceivingForm({ city }: { city: string }) {
             box_id:        s.box_id,
             received_at:   s.received_at || null,
             received_temp: s.received_temp ? parseFloat(s.received_temp) : null,
+            stored_at:     s.stored_at || null,
+            stored_temp:   s.stored_temp ? parseFloat(s.stored_temp) : null,
           })),
         }),
         cache: "no-store",
@@ -754,7 +760,7 @@ function ReceivingForm({ city }: { city: string }) {
               </div>
 
               {dispatchBoxes.map((box, idx) => {
-                const rs = receiveStates[idx] ?? { box_id: box.id, received_at: "", received_temp: "" };
+                const rs = receiveStates[idx] ?? { box_id: box.id, received_at: "", received_temp: "", stored_at: "", stored_temp: "" };
                 const updateRs = (patch: Partial<ReceiveBoxState>) =>
                   setReceiveStates((prev) => prev.map((s, i) => i === idx ? { ...s, ...patch } : s));
                 return (
@@ -785,7 +791,7 @@ function ReceivingForm({ city }: { city: string }) {
                       </div>
                     </div>
                     {/* Branch received — editable */}
-                    <div className="px-4 py-3">
+                    <div className="px-4 py-3 border-b border-white/8">
                       <p className="text-xs font-bold text-sky-300 mb-2.5">② Received (Branch)</p>
                       <div className="flex gap-3">
                         <div className="flex-1">
@@ -804,6 +810,30 @@ function ReceivingForm({ city }: { city: string }) {
                             itemType={box.item_type}
                             disabled={submitting}
                             placeholder={box.item_type === "FROZEN" ? "-18.0" : "4.0"}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    {/* In Storage — editable */}
+                    <div className="px-4 py-3">
+                      <p className="text-xs font-bold text-emerald-300 mb-2.5">③ In Storage (Branch)</p>
+                      <div className="flex gap-3">
+                        <div className="flex-1">
+                          <p className={`${T_CAPTION} mb-1`}>Time</p>
+                          <TimeCell
+                            value={rs.stored_at}
+                            onChange={(v) => updateRs({ stored_at: v })}
+                            disabled={submitting}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <p className={`${T_CAPTION} mb-1`}>Temperature</p>
+                          <TempCell
+                            value={rs.stored_temp}
+                            onChange={(v) => updateRs({ stored_temp: v })}
+                            itemType={box.item_type}
+                            disabled={submitting}
+                            placeholder={box.item_type === "FROZEN" ? "-19.0" : "4.0"}
                           />
                         </div>
                       </div>
