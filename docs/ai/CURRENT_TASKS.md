@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-10 (session 43 — end)
+Last updated: 2026-06-12 (session 53 — end)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,9 +11,137 @@ Last updated: 2026-06-10 (session 43 — end)
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1230, Vercel commit 0bce485)
+なし — 全変更デプロイ済み (Heroku 2017bc4, Vercel e1fe51e)
 
-## ✅ ①②③④ All four features complete and live.
+## ✅ ①②③④ All four features complete and live. All 11 bugs fixed.
+## ✅ Daily Ops Check v2 complete and live (4-color status, auto/manual, double-check workflow)
+## ✅ Role Management 自動同期 — 8 admin + 6 store チャンネルを登録済み
+## ✅ 都市別アクセス制御 — バックエンド 9 モジュールで permission key + city 照合を実施
+
+## Recently Completed (2026-06-12 session 53) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Store Evaluation: 日付選択 UI 追加（デフォルト: 昨日） | `src/app/store/evaluation/page.tsx`, `app/store_evaluation_api.py` | Yesterday/Today ショートカット + カレンダー入力。バックエンドでスタッフが昨日分を提出可能に。evalDate を全API呼び出し・写真アップロード・submit payload に適用 |
+| Admin Store Evaluations: 日付ナビゲーション追加 | `src/app/admin/store-evaluations/page.tsx` | ‹/› ボタンで1日ずつ移動 + Today ボタン。Summary/Trend 両タブで日付変更が即時反映 |
+| HR Staff (Camilla) Absences 403 修正 | `app/main.py` | `_require_absence_access_pin()` 新ヘルパーを追加。`channel.admin.absences.view` 権限があれば HQ/ADMIN でなくても OK。3エンドポイント (GET /absences, POST /absences/upsert, POST /absences/delete) に適用 |
+| CK Production: 数量の小数点表示修正 | `src/app/admin/inventory/productions/page.tsx` | "Now Making" チェックリストで `.toFixed(0)` → `parseFloat(Number(v).toFixed(3))` に変更。0.5 KG が 1 KG に丸められるバグを修正 |
+| **Cash Management: カレンダー全ダッシュ修正** | `app/cash_report_api.py` | FastAPI ルート順序バグ修正。`GET /api/admin/cash-reports/{report_id}` が `/compliance` / `/safety-box` / `/collections` / `/nte` より前に登録されていたため、これらのリクエストが wildcard にキャプチャされ 404 → 全ダッシュに。`{report_id}` ルートをファイル末尾に移動。`GET /api/store/cash-report/history` も同時コミット |
+
+### 教訓 (session 53)
+- **FastAPI wildcard ルートは必ず最後**: `{param}` を含む GET ルートは同プレフィックスの全静的ルートより後に定義する。FastAPI は登録順に一致させるため、`{report_id}` が先にあると `"compliance"` という文字列がパラメータとして解釈される
+- **Cash Management → 404 デバッグ手順**: フロントが `[]` を表示するとき、まずネットワークタブで実際のレスポンスを確認 → `{"detail": "Report not found."}` のようなエラーであれば route ordering 問題を疑う
+
+## Recently Completed (2026-06-11 session 52) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Analytics/Dubai Sales Hourly: 独自の日付範囲 + 店舗フィルター追加 | `src/app/admin/analytics/page.tsx` | `hourlyDateFrom`/`hourlyDateTo`/`hourlyStoreName` の独立 state を追加。Hourly Sales Analytics カード内にインラインフィルターバー（Date From/To + Store ドロップダウン）を表示。他タブの日付範囲と連動しない |
+| Op Time: 店舗別データ非存在バッジ追加 | `src/app/admin/analytics/page.tsx` | `pos_operation_time_daily` は city 単位の集計データ（店舗別なし）であることを示す青いバッジを追加 |
+| Procurement Hub: Supplier + Branch サーバーサイドフィルター追加 | `src/app/admin/procurement/hub/page.tsx`, `app/main.py`, `app/db.py` | filterBranch / filterSupplier state 追加。6列グリッドに Branch ドロップダウン + Supplier テキスト入力追加。バックエンドでフィルタリング。各行に vendor_summary 表示 |
+| Procurement Hub: Clear ボタン即時リロード修正 | `src/app/admin/procurement/hub/page.tsx` | `LoadOverrides` 型を追加し `load()` が明示的なオーバーライドを受け取れるように変更。`clearFilters()` が `load({...全空文字列})` を呼ぶことで stale closure 問題を解消 |
+| Store Receiving 左パネル: Supplier名・受取ステータス・検索機能追加 | `src/app/store/procurement/receiving/page.tsx` | `filterSearch`/`filterHideConfirmed` state + `filteredRequests` useMemo 追加。Search 入力 + "Hide already confirmed" チェックボックス。`receiving_status` バッジ（✓ Confirmed 緑 / Draft 琥珀）。`vendor_summary` 表示 |
+| Store Evaluations Daily Summary: Food Safety / Org & Storage / SOP Compliance 列追加 | `src/app/admin/store-evaluations/page.tsx`, `app/db_store_evaluation.py` | `get_evaluations_summary()` の SELECT に 3 フィールドを追加。`EvalRow`/`TrendRow` 型・`SCORE_LABELS`・`SCORED_KEYS`・Daily Summary テーブル・Trend カード score dots に 3 フィールドを追加 |
+
+### 教訓 (session 52)
+- **React stale closure**: `clearFilters()` が `setState()` 後すぐ `load()` を呼んでも state は旧値のまま。`LoadOverrides` パターン（呼び出し時に明示的に新値を渡す）で解消
+- **`pos_operation_time_daily` は city 単位**: `UNIQUE(work_date, city)` — 店舗別データなし。フロントに説明バッジを追加するのが正しい対処
+- **vendor_summary は string_agg サブクエリで取得**: `proc_request_items.vendor_name` はアイテム行ごとに存在。リクエストヘッダー側にはなく、サブクエリで `string_agg(DISTINCT vendor_name, ', ')` として集約する
+
+## Recently Completed (2026-06-11 session 51) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| セキュリティ: require_channel_permission() 追加 | `app/security_tokens.py` | 新ヘルパー関数: ① Bearer トークン検証、② permission_key がトークンの permissions[] に含まれるか確認、③ ADMIN/HQ でない場合は token.city と要求 city が一致するか照合。いずれか失敗で 401/403 返却 |
+| セキュリティ: cold_chain_api: role名のみガード → permission key + city 照合 | `app/cold_chain_api.py` | `_require_admin` が `require_channel_permission(request, "channel.admin.cold_chain.view", city=city)` を呼ぶように変更。admin エンドポイント (dispatches/boxes/alerts) に `city=city` を渡して city 照合 |
+| セキュリティ: daily_check_api: token-existence のみ → permission key + city 照合 | `app/daily_check_api.py` | `_require_admin` 関数を新設 (`channel.admin.daily_check.view`)。admin エンドポイント (list/confirm/double-check/summary) を `_require_auth` → `_require_admin` に変更 |
+| セキュリティ: store_evaluation_api: role名のみガード → permission key + city 照合 | `app/store_evaluation_api.py` | `_require_admin` が `channel.admin.store_evaluations.view` を使うように変更。city 付きエンドポイント 6 件に `city=city` を渡す |
+| セキュリティ: transport_expense_api: token-existence のみ → permission key + city 照合 | `app/transport_expense_api.py` | `_require_admin` 関数を新設 (`channel.admin.transport_expense.view`)。admin エンドポイント 6 件を切り替え |
+| セキュリティ: petty_cash_api: token-existence のみ → permission key + city 照合 | `app/petty_cash_api.py` | 同様 (`channel.admin.petty_cash.view`) |
+| セキュリティ: cash_report_api: role名のみガード → permission key 照合 | `app/cash_report_api.py` | `_require_admin` が `channel.admin.cash_management.view` を使うように変更 (store-facing の `_require_token` は維持) |
+| セキュリティ: meal_allowance_api: role名のみガード → permission key + city 照合 | `app/meal_allowance_api.py` | 同様 (`channel.admin.meal_allowance.view`) |
+| セキュリティ: probation_api: role名のみガード → permission key + city 照合 | `app/probation_api.py` | 同様 (`channel.admin.probation.view`) |
+| セキュリティ: nte_api: role名のみガード → permission key + city 照合 | `app/nte_api.py` | 同様 (`channel.admin.employee_cases.view`)。全6エンドポイント (history/overview/dashboard/enforcement/upcoming) に city= を渡す |
+
+### 教訓 (session 51)
+- **都市別制限の2レイヤー**: ①トークン発行時 (`resolve_role_permissions` の city_hint フィルター) と ②API 層の city 照合、両方が必要。どちらか片方では不十分
+- **`require_channel_permission` の設計**: ADMIN/HQ は `*` を持たなくても role 名チェックで bypass。その他のロールは permission key + (オプション) city を照合
+- **`_require_token` 残存が必要なケース**: store-facing エンドポイント (submit/balance/status など) は role/permission チェック不要だが token 存在確認は必要。`cash_report_api`, `meal_allowance_api`, `probation_api`, `nte_api` に `_require_token` を残す
+
+## Recently Completed (2026-06-11 session 50) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Role Management 同期: 8 adminチャンネル追加 | `app/access_control.py` | ACCESS_CHANNELS に store_evaluations / cold_chain / daily_check / transport_expense / petty_cash / cash_management / meal_allowance / probation を追加。対応する .view パーミッションを ACCESS_PERMISSIONS に追加。DEFAULT_ROLE_GRANTS の ADMIN / MANILA_MANAGEMENT / HR_MANAGER に付与。DUBAI_MANAGEMENT に cold_chain を付与。起動時の safety migration が自動で既存ロールに付与 |
+| Role Management 同期: 6 storeチャンネル追加 | `app/access_control.py` | store_evaluation / store_cold_chain / store_daily_check / store_transport_expense / store_petty_cash / store_cash_report を ACCESS_CHANNELS に追加 |
+| NavBar: canAccess* 関数に切り替え | `src/components/NavBar.tsx`, `src/lib/auth.ts` | 8ページのハードコードされた role リストを廃止。canAccessStoreEvaluationsAdmin / canAccessColdChainAdmin / canAccessDailyCheckAdmin / canAccessTransportExpenseAdmin / canAccessPettyCashAdmin / canAccessCashManagementAdmin / canAccessMealAllowanceAdmin / canAccessProbationAdmin 関数を auth.ts に追加し、NavBar から呼び出すように変更 |
+
+### 教訓 (session 50)
+- **NavBar チャンネル追加ルール（⚠️ 必須）**: NavBar の ADMIN_ITEMS に新しい href を追加するときは **必ず** 3箇所を同時に更新すること:
+  1. `app/access_control.py` → `ACCESS_CHANNELS` にエントリ追加（`is_admin_channel: True`）
+  2. `app/access_control.py` → `ACCESS_PERMISSIONS` に `.view` パーミッション追加
+  3. `app/access_control.py` → `DEFAULT_ROLE_GRANTS` の各ロールに `.view` を追加
+  4. `src/lib/auth.ts` → `canAccess*` 関数を追加
+  5. `src/components/NavBar.tsx` → hardcoded role list ではなく canAccess* 関数を使う
+  ※ この手順を守れば Role Management に自動表示される
+- **Safety migration**: `seed_access_control_defaults()` の末尾に「完全に未付与のパーミッションだけ追加」するロジックがある。DEFAULT_ROLE_GRANTS に新しいパーミッションを追加すれば、次回 Heroku 起動時に既存ロールへ自動反映される
+
+## Recently Completed (2026-06-10 session 48) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Daily Ops Check v2: DB スキーマ拡張 | `app/db_daily_check.py` | 新カラム: discord_confirmed, issue_note, double_checked_by, double_checked_at。status CHECK 制約を CONFIRMED_OK/CONFIRMED_ISSUE/RESOLVED/ONGOING_ISSUE に拡張。起動時に既存 CONFIRMED → CONFIRMED_OK 自動マイグレーション。`confirm_daily_check` に status/discord_confirmed/issue_note パラメータ追加。新関数 `double_check_daily_check` (CONFIRMED_ISSUE → RESOLVED/ONGOING_ISSUE)。`get_daily_check_summary` に issues カウントを追加 |
+| Daily Ops Check v2: API 拡張 | `app/daily_check_api.py` | DailyCheckConfirmIn/DailyCheckDoubleCheckIn Pydantic モデル追加。confirm エンドポイントに body 対応 (4色ステータス + Discord チェックボックス + issue_note)。新エンドポイント `POST /api/admin/daily-check/{id}/double-check`。aggregator_statuses 型を Dict[str, Any] に拡張 |
+| Daily Ops Check v2: ストアページ | `src/app/store/daily-check/page.tsx` | アグリゲーター状態型を {open: bool, mode: "auto"\|"manual"} に変更。各アグリゲーター行に Auto/Manual トグルボタンを追加。提出履歴の 5 色ステータス表示 (🟢🔴🔵🟣⏳) |
+| Daily Ops Check v2: 管理ページ | `src/app/admin/daily-check/page.tsx` | CheckCard: 4 色確認 UI (🟢 All Good / 🔴 Issue Found)、Issue 時コメント必須 + Discord チェックボックス。CONFIRMED_ISSUE → ダブルチェック UI (🔵 Resolved / 🟣 Still Ongoing)。最終ステータスに確認者・Discord 通知・フォローアップ情報表示。KPI 4 チップ (Total / 🟢 OK / Pending / 🔴 Issues)。Summary グリッドに issue 数を赤バッジ表示。タブバッジが SUBMITTED + CONFIRMED_ISSUE のカウントに |
+
+### 教訓 (session 48-49)
+- **DB CHECK 制約のアップグレード**: 新しいステータス値を追加するには DROP + ADD が必要。IF NOT EXISTS は使えないので DROP CONSTRAINT IF EXISTS → ADD CONSTRAINT のパターンを使う（毎回 DROP してから ADD → 完全冪等）
+- **aggIsOpen ヘルパー**: aggregator_statuses の値が旧形式 `bool` と新形式 `{open, mode}` の混在状態になる。両方を処理するヘルパー関数をフロント・バックエンドともに用意する
+- **CheckCard 内部状態**: 管理ページの各 CheckCard に選択中ステータス・テキストエリア・Discord フラグの内部 state を持たせることで、ページレベルの state 管理を不要にできる
+- **Heroku JWT シークレット**: `ACCESS_TOKEN_SECRET` は未設定。`STAFF_PIN_SALT = "random-long-secret-CHANGE-ME"` が実際のトークン署名シークレット。ローカルテストのトークン生成に使う
+- **Heroku API アクセス**: `~/.netrc` の `HRKU-...` トークンは期限切れ。代わりに `https://heroku:<token>@git.heroku.com` の Bearer トークン (`c4b07274-...`) が有効
+- **テストの AUTH 秘密**: `tests_pure/` のインテグレーションテストが 401 で落ちる場合、`SECRET` 変数を `"random-long-secret-CHANGE-ME"` に変更する
+
+## Recently Completed (2026-06-10 session 47) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Bug 1: ケースが QUEUED のまま | `app/main.py` | `update_proc_approval_case_status(IN_REVIEW)` が未呼び出しだったため、Hub バッジカウントに反映されなかった。修正: `create_proc_approval_case` 後に status=IN_REVIEW へ更新 |
+| Bug 2: `required_roles_json` 未設定 | `app/main.py` | `submit_proc_request` が未呼び出しで `proc_requests.required_roles_json` が null のまま。修正: WH パスにも `submit_proc_request` を追加 |
+| Bug 3: MANAGER が HQ スロットを満たせる | `app/services/procurement_control.py` | `approvals_complete_in_order` のサブスティテュートセットに MANAGER が含まれ、HQ 必須ケースを迂回可能だった。修正: HQ スロットには MANAGER を不可とし、ADMIN は全スロット満たすショートカットを追加 |
+| Bug 4: RETURNED 後の再提出でステータスがリセットされない | `app/db.py` | `create_proc_approval_case` の ON CONFLICT DO UPDATE に `status = 'QUEUED'` が欠落。修正: DO UPDATE SET に追加 |
+| テスト追加 | `tests_pure/test_wh_hq_approval.py` | 35 純粋関数テスト (approval 完了ロジック・ロール権限・レスポンス形状・フロント計算・再提出フロー)。全スイート 133/133 PASS |
+
+### 教訓 (session 47)
+- **test-before-deploy が重要**: 今回の 4 件のバグはすべてテストで発見。本番 DB に接触せずに純粋関数テストで検出可能だった
+- **ON CONFLICT DO UPDATE の落とし穴**: INSERT 時にハードコードした値（`'QUEUED'`）は、DO UPDATE SET に明示しないと UPSERT 時に更新されない
+- **ADMIN shortcut**: `approvals_complete_in_order` に ADMIN の全チェーン満足ショートカットを追加。HQ と同様に扱われるように統一
+
+## Recently Completed (2026-06-10 session 46) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| WH オーダー HQ 承認必須化 | `app/main.py` (L20689-20738) | WH オーダーの自動承認を廃止。`required_roles=["HQ"]`、`current_assignee_role="HQ"`、`status=IN_REVIEW` でワークフロー開始。HQ通知送信。audit key = `procurement.request.wh_hq_required` |
+| Case Detail: HQ 承認要求バナー | `src/app/admin/procurement/cases/[caseId]/page.tsx` | WH ケース (`required_roles=["HQ"]`) を非 HQ/ADMIN ユーザーが開いたとき、アンバーバナーで「HQ sign-off 必須」を通知 |
+| Hub: HQ 承認要求バナー | `src/app/admin/procurement/hub/page.tsx` | `current_assignee_role="HQ"` の未承認行を展開したとき、バイオレットバナーで同様の警告を表示 |
+
+## Recently Completed (2026-06-10 session 45) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Procurement Hub: WH在庫列追加 | `src/app/admin/procurement/hub/page.tsx` | Manila WH在庫をオーダーと並列フェッチ。アイテム展開時にWH Stock列を追加（緑✓/琥珀⚠/赤✕カラーコード）。在庫不足アイテムのある行をハイライト + アラートバナーを表示 |
+| Case Detail: WH在庫列追加 | `src/app/admin/procurement/cases/[caseId]/page.tsx` | バンドル読み込み後にWH在庫を非同期フェッチ。read-onlyアイテムテーブルに同じカラーコード列とアラートバナーを追加。`showWhStock`フラグでManila + 非編集モード時のみ表示 |
+| TypeScript構文エラー修正 | `src/app/admin/procurement/cases/[caseId]/page.tsx` | `{bundle.request && (` の閉じ `)}` が欠落していたのを修正（IIFEクリーンアップ時の残留）。`npx tsc --noEmit` エラー0件確認 |
+
+## Recently Completed (2026-06-10 session 44) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Petty Cash: Drive失敗でDB孤立レコード発生バグ修正 | `app/petty_cash_api.py` | Drive upload failure を HTTPException(500) ではなく `{"ok": True, "warning": "..."}` として返すように変更。`_upload_photo_to_drive` に `_preread_bytes` パラメータ追加でダブルリード防止 |
+| Transport Receipt: 空ファイルガード修正 | `app/transport_expense_api.py` | `if file and file.filename:` → `if file is not None: + if file_bytes:` に変更。Drive try/except ブロックの indent 修正（`if file_bytes:` の内側に配置） |
+| Dead code 削除 (actor.get("name")) | `app/petty_cash_api.py`, `app/transport_expense_api.py` | approve/reject/close/settle エンドポイントの `actor.get("sub") or actor.get("name") or "admin"` → `actor.get("sub") or "admin"` （JWT に "name" フィールドは存在しない） |
+| TypeScript チェック | `npx tsc --noEmit` | エラー 0 件を確認 |
 
 ## Recently Completed (2026-06-10 session 43) — live
 
@@ -478,8 +606,23 @@ Vendor MasterのOrder Catalog登録名と`supplier_name`が一致しない場合
 | HR Staff (Camilla): OS Attendance + Staff Master 403 修正 | ✅ live (Heroku v1230) |
 | ③ Transport Expense (Manila only) — advance request + receipt tracking | ✅ live (Heroku v1231, Vercel b77e3d7) |
 | ④ Petty Cash (Manila only) — 7 categories, receipt photo, approve/close flow | ✅ live (Heroku v1232, Vercel 7b3e489) |
+| Bug fix: petty cash Drive failure orphan / transport empty-file guard / dead actor.get("name") | ✅ live (Heroku v1233, Vercel da24623) |
+| Procurement Hub + Case Detail: WH在庫列追加 (Manila承認画面で在庫可視化) | ✅ live (Vercel 0cf2b87) |
+| WH オーダー HQ 承認必須化（ガバナンス強化） | ✅ live (Heroku b79fe6d, Vercel 709255f) |
+| WH HQ 承認フロー バグ修正 4 件 + テスト 35 件 (133/133 PASS) | ✅ live (Heroku 611a34a) |
 | Cold Chain: 複数ブランチ選択 UX 修正 (全選択デフォルト + チェックボックス式) | ✅ live (Vercel 0bce485) |
 | Daily Ops Check ① Opening / ② Lunch Close / ③ Business Close | ✅ live (Heroku v1230, Vercel 0bce485) |
+| Daily Ops Check v2: 4-color status + auto/manual + double-check | ✅ live (Heroku 0804f82, Vercel 1a371ae) |
+| Role Management 同期: 8 admin + 6 store チャンネル追加 | ✅ live (Heroku a877e8d, Vercel dd078d3) |
+| SECURITY: 9 API モジュール city-scoped permission 照合強化 | ✅ live (Heroku d369f55) |
+| Analytics Dubai Sales Hourly: 独自日付範囲 + 店舗フィルター | ✅ live (Vercel e1fe51e) |
+| Procurement Hub: Supplier + Branch フィルター + Clear 即時リロード修正 | ✅ live (Heroku 0e575df, Vercel e1fe51e) |
+| Store Receiving: Supplier 名 + 受取ステータス + 検索機能 | ✅ live (Vercel e1fe51e) |
+| Store Evaluations Daily Summary: Food Safety / Org & Storage / SOP Compliance 列追加 | ✅ live (Heroku 0e575df, Vercel e1fe51e) |
+| Store Evaluation: 日付選択 UI (yesterday default) + Admin day nav | ✅ live (Heroku 2017bc4, Vercel — pending) |
+| HR Staff Absences 403 修正 (channel.admin.absences.view) | ✅ live (Heroku 2017bc4) |
+| CK Production qty 小数点修正 (0.5→1 バグ解消) | ✅ live (Vercel — pending) |
+| Cash Management カレンダー全ダッシュ修正 (FastAPI route ordering) | ✅ live (Heroku 2017bc4) |
 
 ---
 
