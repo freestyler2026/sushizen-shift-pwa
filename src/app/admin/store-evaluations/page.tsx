@@ -16,6 +16,7 @@ import {
   Plus,
   BarChart3,
   BookOpen,
+  Camera,
 } from "lucide-react";
 import {
   BarChart,
@@ -1599,10 +1600,18 @@ export default function StoreEvaluationsPage() {
                         ))}
                       </div>
                       {/* Compliance row */}
-                      <div className="flex gap-3 mt-2">
-                        {Object.keys(BINARY_LABELS).map((k) => (
-                          <BoolIcon key={k} v={ev[k as keyof EvalRow] as boolean | null} />
-                        ))}
+                      <div className="flex items-center justify-between mt-2">
+                        <div className="flex gap-3">
+                          {Object.keys(BINARY_LABELS).map((k) => (
+                            <BoolIcon key={k} v={ev[k as keyof EvalRow] as boolean | null} />
+                          ))}
+                        </div>
+                        {(ev.image_count ?? 0) > 0 && (
+                          <div className="flex items-center gap-1 text-[10px] text-violet-400">
+                            <Camera size={10} />
+                            <span>{ev.image_count}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1621,6 +1630,7 @@ export default function StoreEvaluationsPage() {
                           </th>
                         ))}
                         <th className={`${TABLE_HEADER} text-center`}>Compliance</th>
+                        <th className={`${TABLE_HEADER} text-center`}>📷</th>
                         <th className={`${TABLE_HEADER} text-left`}>Evaluator</th>
                       </tr>
                     </thead>
@@ -1661,6 +1671,17 @@ export default function StoreEvaluationsPage() {
                                   v={ev[k as keyof EvalRow] as boolean | null}
                                 />
                               ))}
+                            </div>
+                          </td>
+                          <td className={TABLE_CELL}>
+                            <div className="flex justify-center">
+                              {(ev.image_count ?? 0) > 0 ? (
+                                <span className="flex items-center gap-1 text-xs text-violet-400">
+                                  <Camera size={10} />{ev.image_count}
+                                </span>
+                              ) : (
+                                <span className="text-slate-700 text-xs">—</span>
+                              )}
                             </div>
                           </td>
                           <td className={`${TABLE_CELL} text-slate-400`}>
