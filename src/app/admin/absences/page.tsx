@@ -197,6 +197,59 @@ async function apiPost<T = any>(path: string, body: any): Promise<T> {
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
 
+// ── Note cell: truncated preview + click-to-expand modal ──────────────────
+
+function NoteCell({ note }: { note?: string | null }) {
+  const [open, setOpen] = useState(false);
+  const text = note?.trim() || "";
+  if (!text) return <span className="text-neutral-600">—</span>;
+  const isLong = text.length > 48;
+  return (
+    <>
+      <span className="flex items-center gap-1.5 min-w-0">
+        <span className={isLong ? "truncate max-w-[130px] inline-block align-bottom" : ""}>
+          {text}
+        </span>
+        {isLong && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+            className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-white/8 text-white/45 hover:bg-white/15 hover:text-white/80 transition-colors"
+          >
+            View
+          </button>
+        )}
+      </span>
+
+      {open && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-neutral-900 p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">
+                Note / Shift
+              </p>
+              <button
+                onClick={() => setOpen(false)}
+                className="rounded-full p-1 text-white/40 hover:bg-white/10 hover:text-white/80 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="text-sm leading-relaxed text-white/85 whitespace-pre-wrap break-words">
+              {text}
+            </p>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ── Absence Report city section ────────────────────────────────────────────
 
 function ReportCitySection({
@@ -283,8 +336,8 @@ function ReportCitySection({
                     {toTitleAbsenceType(r.absence_type)}
                   </span>
                 </td>
-                <td className={`${TABLE_CELL} px-4 text-xs text-neutral-400 max-w-[180px] truncate`}>
-                  {r.note || <span className="text-neutral-600">—</span>}
+                <td className={`${TABLE_CELL} px-4 text-xs text-neutral-400`}>
+                  <NoteCell note={r.note} />
                 </td>
               </tr>
             ))}
@@ -1235,8 +1288,8 @@ export default function AdminAbsencesPage() {
                             </span>
                           </td>
                           <td className={`${TABLE_CELL} px-4 text-zinc-400`}>{r.branch_hint || "-"}</td>
-                          <td className={`${TABLE_CELL} px-4 max-w-[180px] truncate text-xs text-zinc-400`}>
-                            {r.note || "-"}
+                          <td className={`${TABLE_CELL} px-4 text-xs text-zinc-400`}>
+                            <NoteCell note={r.note} />
                           </td>
                           <td className={`${TABLE_CELL} px-4`}>
                             {manual ? (
