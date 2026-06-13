@@ -139,6 +139,7 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/store/ck-production", label: "CK Dispatch", icon: Truck, match: "prefix" },
   { href: "/store/ck-inventory", label: "CK Inventory", icon: FlaskConical, match: "prefix" },
   { href: "/store/ck-production-plan", label: "CK Production Plan", icon: Factory, match: "prefix" },
+  { href: "/store/ck-delivery", label: "CK Delivery", icon: Truck, match: "prefix" },
   { href: "/store/receiving", label: "CK Receiving", icon: PackageCheck, match: "prefix" },
   { href: "/store/evaluation", label: "Store Evaluation", icon: ClipboardCheck, match: "prefix" },
   { href: "/store/cold-chain", label: "Cold Chain Log", icon: Thermometer, match: "prefix" },
@@ -633,6 +634,10 @@ export default function NavBar() {
           return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "HR_MANAGER"].includes(r);
         }
         if (item.href === "/store/ck-production-plan") {
+          const r = String(resolvedAuth?.role || "").toUpperCase();
+          return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "HR_MANAGER", "STAFF"].includes(r);
+        }
+        if (item.href === "/store/ck-delivery") {
           const r = String(resolvedAuth?.role || "").toUpperCase();
           return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "HR_MANAGER", "STAFF"].includes(r);
         }

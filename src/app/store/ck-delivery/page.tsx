@@ -1,0 +1,993 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import {
+  CheckCircle2, ChevronDown, ChevronRight, Loader2,
+  Package, Plus, RotateCcw, Send, Truck, X,
+} from "lucide-react";
+import { getAuth, getAuthHeaders } from "@/lib/auth";
+import {
+  GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, SMALL_BUTTON,
+  TABLE_CELL, TABLE_HEADER, TABLE_ROW,
+  T_CAPTION, T_PAGE_TITLE, T_SECTION,
+  KPI_CARD, KPI_LABEL, KPI_VALUE,
+  INPUT_CLASS, SELECT_CLASS, TEXTAREA_CLASS,
+} from "@/lib/ui-tokens";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type DeliveryStatus = "PENDING" | "DISPATCHED" | "CONFIRMED";
+
+type Delivery = {
+  id: number;
+  plan_id: number | null;
+  city: string;
+  delivery_date: string;
+  to_branch: string;
+  status: DeliveryStatus;
+  dispatched_by: string;
+  dispatched_at: string | null;
+  confirmed_by: string;
+  confirmed_at: string | null;
+  notes: string;
+  branch_notes: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  item_count?: number;
+  received_count?: number;
+  items?: DeliveryItem[];
+};
+
+type DeliveryItem = {
+  id: number;
+  delivery_id: number;
+  plan_item_id: number | null;
+  item_id: number | null;
+  item_name: string;
+  category: string;
+  qty: number;
+  unit: string;
+  notes: string;
+  received_qty: number | null;
+  received_notes: string;
+};
+
+type QcPassedItem = {
+  id: number;
+  item_id: number | null;
+  item_name: string;
+  category: string;
+  qc_actual_qty: number;
+  unit: string;
+  plan_item_id: number;
+};
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const MANILA_BRANCHES = ["Paranaque", "Taft", "Cubao"];
+const DUBAI_BRANCHES = ["AL BARSHA", "M CITY"];
+
+const STATUS_BADGE: Record<DeliveryStatus, string> = {
+  PENDING: "inline-flex items-center rounded-full bg-amber-500/15 border border-amber-500/25 px-2 py-0.5 text-xs font-semibold text-amber-400",
+  DISPATCHED: "inline-flex items-center rounded-full bg-blue-500/15 border border-blue-500/25 px-2 py-0.5 text-xs font-semibold text-blue-400",
+  CONFIRMED: "inline-flex items-center rounded-full bg-emerald-500/15 border border-emerald-500/25 px-2 py-0.5 text-xs font-semibold text-emerald-400",
+};
+
+const STATUS_LABEL: Record<DeliveryStatus, string> = {
+  PENDING: "Pending",
+  DISPATCHED: "Dispatched",
+  CONFIRMED: "Confirmed",
+};
+
+const AVAILABLE_UNITS = ["pc", "g", "kg", "ml", "L", "portion", "tray", "bag", "pack", "box", "unit", "set"];
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function todayIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function fmtDate(iso: string) {
+  if (!iso) return "—";
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return `${d}/${m}/${y}`;
+}
+
+function fmtQty(q: number) {
+  return q % 1 === 0 ? String(q) : q.toFixed(1);
+}
+
+async function apiFetch(path: string, opts?: RequestInit) {
+  const auth = getAuth();
+  const headers = { "Content-Type": "application/json", ...getAuthHeaders(auth) };
+  const res = await fetch(path, { ...opts, headers: { ...headers, ...(opts?.headers || {}) } });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    let msg = txt;
+    try { msg = JSON.parse(txt)?.detail || txt; } catch { /* */ }
+    throw new Error(msg || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+function isManager(auth: ReturnType<typeof getAuth>) {
+  if (!auth) return false;
+  const r = auth.role || "";
+  return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "DUBAI_MANAGEMENT"].includes(r);
+}
+
+// ── Main Page ──────────────────────────────────────────────────────────────────
+
+export default function CKDeliveryPage() {
+  const auth = getAuth();
+  const city = (auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila";
+  const userName = auth?.staffName || "";
+  const canManage = isManager(auth);
+  const branches = city === "dubai" ? DUBAI_BRANCHES : MANILA_BRANCHES;
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  const [deliveries, setDeliveries] = useState<Delivery[]>([]);
+  const [activeDelivery, setActiveDelivery] = useState<Delivery | null>(null);
+  const [loadingList, setLoadingList] = useState(false);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<DeliveryStatus | "">("");
+  const [filterBranch, setFilterBranch] = useState("");
+
+  // New Delivery modal
+  const [showNewDelivery, setShowNewDelivery] = useState(false);
+  const [newDate, setNewDate] = useState(todayIso());
+  const [newBranch, setNewBranch] = useState(branches[0] || "");
+  const [newNotes, setNewNotes] = useState("");
+  const [newPlanId, setNewPlanId] = useState("");
+  const [creatingDelivery, setCreatingDelivery] = useState(false);
+
+  // Add Items modal
+  const [showAddItems, setShowAddItems] = useState(false);
+  const [qcPassedItems, setQcPassedItems] = useState<QcPassedItem[]>([]);
+  const [selectedQcItemIds, setSelectedQcItemIds] = useState<Set<number>>(new Set());
+  const [manualItemName, setManualItemName] = useState("");
+  const [manualItemCategory, setManualItemCategory] = useState("");
+  const [manualItemQty, setManualItemQty] = useState("");
+  const [manualItemUnit, setManualItemUnit] = useState("pc");
+  const [addingItems, setAddingItems] = useState(false);
+
+  // Dispatch confirm
+  const [showDispatchConfirm, setShowDispatchConfirm] = useState(false);
+  const [dispatching, setDispatching] = useState(false);
+
+  // Confirm Receipt modal
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [receiptQtys, setReceiptQtys] = useState<Record<number, string>>({});
+  const [receiptNotes, setReceiptNotes] = useState<Record<number, string>>({});
+  const [branchNotes, setBranchNotes] = useState("");
+  const [confirming, setConfirming] = useState(false);
+
+  // Collapsed categories in detail view
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+
+  // Toast
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  function showToast(msg: string, ok = true) {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 3500);
+  }
+
+  // ── Data Loading ───────────────────────────────────────────────────────────
+  const loadDeliveries = useCallback(async () => {
+    setLoadingList(true);
+    try {
+      const params = new URLSearchParams({ city, limit: "40" });
+      if (filterStatus) params.set("status", filterStatus);
+      if (filterBranch) params.set("branch", filterBranch);
+      const data = await apiFetch(`/api/store/ck-delivery/deliveries?${params}`);
+      setDeliveries(data.deliveries || []);
+    } catch (e: unknown) {
+      showToast((e as Error).message, false);
+    } finally {
+      setLoadingList(false);
+    }
+  }, [city, filterStatus, filterBranch]);
+
+  const loadDeliveryDetail = useCallback(async (id: number) => {
+    setLoadingDetail(true);
+    try {
+      const data = await apiFetch(`/api/store/ck-delivery/deliveries/${id}`);
+      setActiveDelivery(data.delivery);
+    } catch (e: unknown) {
+      showToast((e as Error).message, false);
+    } finally {
+      setLoadingDetail(false);
+    }
+  }, []);
+
+  useEffect(() => { loadDeliveries(); }, [loadDeliveries]);
+
+  // ── Create Delivery ────────────────────────────────────────────────────────
+  async function handleCreateDelivery() {
+    if (!newDate || !newBranch) return;
+    setCreatingDelivery(true);
+    try {
+      const data = await apiFetch("/api/store/ck-delivery/deliveries", {
+        method: "POST",
+        body: JSON.stringify({
+          plan_id: parseInt(newPlanId) || 0,
+          city,
+          delivery_date: newDate,
+          to_branch: newBranch,
+          created_by: userName,
+          notes: newNotes.trim(),
+        }),
+      });
+      setShowNewDelivery(false);
+      setNewNotes("");
+      setNewPlanId("");
+      setNewDate(todayIso());
+      await loadDeliveries();
+      if (data.delivery?.id) {
+        await loadDeliveryDetail(data.delivery.id);
+      }
+      showToast("Delivery record created");
+    } catch (e: unknown) {
+      showToast((e as Error).message, false);
+    } finally {
+      setCreatingDelivery(false);
+    }
+  }
+
+  // ── Load QC-passed items from plan ─────────────────────────────────────────
+  async function openAddItems() {
+    setSelectedQcItemIds(new Set());
+    setManualItemName("");
+    setManualItemCategory("");
+    setManualItemQty("");
+    setManualItemUnit("pc");
+    setQcPassedItems([]);
+
+    if (activeDelivery?.plan_id) {
+      try {
+        const data = await apiFetch(`/api/store/ck-production-plan/plans/${activeDelivery.plan_id}`);
+        const items: QcPassedItem[] = (data.plan?.items || [])
+          .filter((i: { qc_result: string | null }) => i.qc_result === "PASS")
+          .map((i: { id: number; item_name: string; category: string; qc_actual_qty: number; unit: string }) => ({
+            id: i.id,
+            item_name: i.item_name,
+            category: i.category,
+            qc_actual_qty: i.qc_actual_qty || 0,
+            unit: i.unit,
+            plan_item_id: i.id,
+          }));
+        setQcPassedItems(items);
+      } catch { /* non-critical */ }
+    }
+    setShowAddItems(true);
+  }
+
+  async function handleAddItems() {
+    if (!activeDelivery) return;
+    const items: {
+      plan_item_id: number; item_id: number; item_name: string;
+      category: string; qty: number; unit: string; notes: string;
+    }[] = [];
+
+    // QC-passed items from plan
+    for (const item of qcPassedItems) {
+      if (selectedQcItemIds.has(item.id)) {
+        items.push({
+          plan_item_id: item.plan_item_id,
+          item_id: item.item_id || 0,
+          item_name: item.item_name,
+          category: item.category,
+          qty: item.qc_actual_qty,
+          unit: item.unit,
+          notes: "",
+        });
+      }
+    }
+    // Manual item
+    if (manualItemName.trim()) {
+      items.push({
+        plan_item_id: 0,
+        item_id: 0,
+        item_name: manualItemName.trim(),
+        category: manualItemCategory.trim(),
+        qty: parseFloat(manualItemQty) || 0,
+        unit: manualItemUnit,
+        notes: "",
+      });
+    }
+    if (items.length === 0) return;
+    setAddingItems(true);
+    try {
+      await apiFetch(`/api/store/ck-delivery/deliveries/${activeDelivery.id}/items`, {
+        method: "POST",
+        body: JSON.stringify({ items }),
+      });
+      await loadDeliveryDetail(activeDelivery.id);
+      setDeliveries(ds => ds.map(d => d.id === activeDelivery.id ? { ...d, item_count: (d.item_count || 0) + items.length } : d));
+      setShowAddItems(false);
+      showToast(`${items.length} item(s) added to delivery`);
+    } catch (e: unknown) {
+      showToast((e as Error).message, false);
+    } finally {
+      setAddingItems(false);
+    }
+  }
+
+  // ── Dispatch ───────────────────────────────────────────────────────────────
+  async function handleDispatch() {
+    if (!activeDelivery) return;
+    setDispatching(true);
+    try {
+      const data = await apiFetch(`/api/store/ck-delivery/deliveries/${activeDelivery.id}/dispatch`, {
+        method: "POST",
+        body: JSON.stringify({ dispatched_by: userName }),
+      });
+      setActiveDelivery(prev => prev ? { ...prev, ...data.delivery, items: prev.items } : null);
+      setDeliveries(ds => ds.map(d => d.id === data.delivery.id ? { ...d, status: "DISPATCHED" } : d));
+      setShowDispatchConfirm(false);
+      showToast("Delivery dispatched — branch can now confirm receipt");
+    } catch (e: unknown) {
+      showToast((e as Error).message, false);
+    } finally {
+      setDispatching(false);
+    }
+  }
+
+  // ── Confirm Receipt ────────────────────────────────────────────────────────
+  function openConfirmModal() {
+    const items = activeDelivery?.items || [];
+    const qtys: Record<number, string> = {};
+    const notes: Record<number, string> = {};
+    for (const item of items) {
+      qtys[item.id] = item.qty > 0 ? String(item.qty) : "";
+      notes[item.id] = "";
+    }
+    setReceiptQtys(qtys);
+    setReceiptNotes(notes);
+    setBranchNotes("");
+    setShowConfirmModal(true);
+  }
+
+  async function handleConfirmReceipt() {
+    if (!activeDelivery) return;
+    const items = activeDelivery.items || [];
+    const item_receipts = items.map(i => ({
+      item_id: i.id,
+      received_qty: parseFloat(receiptQtys[i.id] || "0") || 0,
+      received_notes: receiptNotes[i.id] || "",
+    }));
+    setConfirming(true);
+    try {
+      const data = await apiFetch(`/api/store/ck-delivery/deliveries/${activeDelivery.id}/confirm`, {
+        method: "POST",
+        body: JSON.stringify({
+          confirmed_by: userName,
+          branch_notes: branchNotes.trim(),
+          item_receipts,
+        }),
+      });
+      setActiveDelivery(data.delivery);
+      setDeliveries(ds => ds.map(d => d.id === data.delivery.id ? { ...d, status: "CONFIRMED", received_count: items.length } : d));
+      setShowConfirmModal(false);
+      showToast("Receipt confirmed. Thank you!");
+    } catch (e: unknown) {
+      showToast((e as Error).message, false);
+    } finally {
+      setConfirming(false);
+    }
+  }
+
+  // ── Grouped Items ──────────────────────────────────────────────────────────
+  const groupedItems = useMemo(() => {
+    const items = activeDelivery?.items || [];
+    const map: Record<string, DeliveryItem[]> = {};
+    for (const item of items) {
+      const cat = item.category || "Uncategorized";
+      if (!map[cat]) map[cat] = [];
+      map[cat].push(item);
+    }
+    return map;
+  }, [activeDelivery?.items]);
+
+  const deliveryStats = useMemo(() => {
+    if (!activeDelivery) return { total: 0, received: 0 };
+    const items = activeDelivery.items || [];
+    return {
+      total: items.length,
+      received: items.filter(i => i.received_qty !== null).length,
+    };
+  }, [activeDelivery]);
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/15 border border-blue-500/25">
+            <Truck className="h-5 w-5 text-blue-400" />
+          </div>
+          <div>
+            <h1 className={T_PAGE_TITLE}>CK Delivery</h1>
+            <p className={T_CAPTION}>{city === "dubai" ? "Dubai" : "Manila"} · Branch delivery tracking</p>
+          </div>
+        </div>
+        {canManage && (
+          <button className={PRIMARY_BUTTON} onClick={() => setShowNewDelivery(true)}>
+            <span className="flex items-center gap-2"><Plus className="h-4 w-4" /> New Delivery</span>
+          </button>
+        )}
+      </div>
+
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-4 right-4 z-[200] rounded-xl px-4 py-3 text-sm font-medium shadow-xl ${toast.ok ? "bg-emerald-500/90 text-white" : "bg-red-500/90 text-white"}`}>
+          {toast.msg}
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className={`${GLASS_CARD} flex flex-wrap items-center gap-3 p-3`}>
+        <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Filter:</span>
+        {(["", "PENDING", "DISPATCHED", "CONFIRMED"] as const).map(s => (
+          <button
+            key={s}
+            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${filterStatus === s ? "border border-violet-500/40 bg-violet-500/20 text-violet-300" : "border border-white/8 bg-white/4 text-zinc-400 hover:text-zinc-200"}`}
+            onClick={() => { setFilterStatus(s); }}
+          >
+            {s === "" ? "All" : STATUS_LABEL[s]}
+          </button>
+        ))}
+        <select
+          className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-zinc-300 outline-none focus:border-violet-500/50"
+          value={filterBranch}
+          onChange={e => setFilterBranch(e.target.value)}
+        >
+          <option value="">All Branches</option>
+          {branches.map(b => <option key={b} value={b}>{b}</option>)}
+        </select>
+      </div>
+
+      {/* Two-column layout */}
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-[300px_1fr]">
+        {/* Left: Deliveries list */}
+        <div className={`${GLASS_CARD} p-4 self-start sticky top-4 max-h-[calc(100vh-8rem)] overflow-y-auto`}>
+          <div className="mb-3 flex items-center justify-between">
+            <span className={T_SECTION + " text-base"}>Deliveries</span>
+            {loadingList && <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />}
+          </div>
+
+          {deliveries.length === 0 && !loadingList && (
+            <p className={T_CAPTION + " py-4 text-center"}>
+              {canManage ? "No deliveries yet. Create one." : "No deliveries yet."}
+            </p>
+          )}
+
+          <div className="space-y-2">
+            {deliveries.map(d => {
+              const isActive = activeDelivery?.id === d.id;
+              const progress = d.item_count ? Math.round(((d.received_count || 0) / d.item_count) * 100) : 0;
+              return (
+                <button
+                  key={d.id}
+                  onClick={() => loadDeliveryDetail(d.id)}
+                  className={`w-full rounded-xl border p-3 text-left transition-all duration-150 ${
+                    isActive
+                      ? "border-blue-500/40 bg-blue-500/15"
+                      : "border-white/8 bg-white/4 hover:border-blue-500/20 hover:bg-blue-500/8"
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold text-white">{fmtDate(d.delivery_date)}</p>
+                      <p className="text-xs text-blue-300 font-medium">{d.to_branch}</p>
+                    </div>
+                    <span className={STATUS_BADGE[d.status]}>{STATUS_LABEL[d.status]}</span>
+                  </div>
+                  <p className={T_CAPTION + " mt-1"}>
+                    {d.item_count || 0} items
+                    {d.status === "CONFIRMED" && d.received_count ? ` · ${d.received_count} received` : ""}
+                  </p>
+                  {d.status === "CONFIRMED" && (d.item_count || 0) > 0 && (
+                    <div className="mt-2 h-1.5 w-full rounded-full bg-white/10">
+                      <div
+                        className="h-1.5 rounded-full bg-gradient-to-r from-blue-500 to-emerald-500"
+                        style={{ width: `${progress}%` }}
+                      />
+                    </div>
+                  )}
+                  {d.created_by && <p className={T_CAPTION + " mt-1 truncate"}>by {d.created_by}</p>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Right: Delivery detail */}
+        <div>
+          {loadingDetail ? (
+            <div className={`${GLASS_CARD} flex items-center justify-center p-12`}>
+              <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+            </div>
+          ) : !activeDelivery ? (
+            <div className={`${GLASS_CARD} flex flex-col items-center justify-center p-12 text-center`}>
+              <Package className="h-12 w-12 text-zinc-600 mb-3" />
+              <p className="text-zinc-400">Select a delivery from the left, or create a new one.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Delivery header */}
+              <div className={`${GLASS_CARD} p-5`}>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className={T_SECTION}>
+                        <Truck className="inline h-4 w-4 mr-1 text-blue-400" />
+                        {fmtDate(activeDelivery.delivery_date)} → {activeDelivery.to_branch}
+                      </h2>
+                      <span className={STATUS_BADGE[activeDelivery.status]}>{STATUS_LABEL[activeDelivery.status]}</span>
+                    </div>
+                    <p className={T_CAPTION + " mt-1"}>Created by {activeDelivery.created_by || "—"}</p>
+                    {activeDelivery.notes && (
+                      <p className="mt-1 text-sm text-zinc-300">{activeDelivery.notes}</p>
+                    )}
+                    {activeDelivery.dispatched_by && (
+                      <p className={T_CAPTION + " mt-1 text-blue-400"}>
+                        Dispatched by {activeDelivery.dispatched_by}
+                        {activeDelivery.dispatched_at ? ` · ${activeDelivery.dispatched_at.slice(0, 16).replace("T", " ")}` : ""}
+                      </p>
+                    )}
+                    {activeDelivery.confirmed_by && (
+                      <p className={T_CAPTION + " mt-1 text-emerald-400"}>
+                        ✓ Confirmed by {activeDelivery.confirmed_by}
+                        {activeDelivery.confirmed_at ? ` · ${activeDelivery.confirmed_at.slice(0, 16).replace("T", " ")}` : ""}
+                      </p>
+                    )}
+                    {activeDelivery.branch_notes && (
+                      <p className="mt-2 rounded-lg border border-emerald-500/20 bg-emerald-500/8 px-3 py-2 text-sm text-emerald-300">
+                        Branch note: {activeDelivery.branch_notes}
+                      </p>
+                    )}
+                  </div>
+                  {/* Action buttons */}
+                  <div className="flex flex-wrap gap-2">
+                    {canManage && activeDelivery.status === "PENDING" && (
+                      <>
+                        <button className={SMALL_BUTTON} onClick={openAddItems}>
+                          <span className="flex items-center gap-1.5"><Plus className="h-3.5 w-3.5" /> Add Items</span>
+                        </button>
+                        {(activeDelivery.items || []).length > 0 && (
+                          <button
+                            className="rounded-lg border border-blue-500/30 bg-blue-500/10 px-3 py-1.5 text-sm font-semibold text-blue-400 hover:bg-blue-500/20"
+                            onClick={() => setShowDispatchConfirm(true)}
+                          >
+                            <span className="flex items-center gap-1.5"><Send className="h-3.5 w-3.5" /> Dispatch</span>
+                          </button>
+                        )}
+                      </>
+                    )}
+                    {activeDelivery.status === "DISPATCHED" && (
+                      <button
+                        className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-sm font-semibold text-emerald-400 hover:bg-emerald-500/20"
+                        onClick={openConfirmModal}
+                      >
+                        <span className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> Confirm Receipt</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* KPI bar */}
+                <div className="mt-4 grid grid-cols-3 gap-3">
+                  {[
+                    { label: "Total Items", value: deliveryStats.total, cls: "text-white" },
+                    { label: "Received", value: deliveryStats.received, cls: "text-emerald-400" },
+                    { label: "Branch", value: activeDelivery.to_branch, cls: "text-blue-400" },
+                  ].map(k => (
+                    <div key={k.label} className={KPI_CARD}>
+                      <p className={KPI_LABEL}>{k.label}</p>
+                      <p className={`${KPI_VALUE} text-xl ${k.cls}`}>{k.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Items table — grouped by category */}
+              {(activeDelivery.items || []).length === 0 ? (
+                <div className={`${GLASS_CARD} flex flex-col items-center justify-center p-8 text-center`}>
+                  <Package className="h-10 w-10 text-zinc-600 mb-2" />
+                  <p className="text-zinc-400 text-sm">No items added yet.</p>
+                  {canManage && activeDelivery.status === "PENDING" && (
+                    <button className={`${SMALL_BUTTON} mt-3`} onClick={openAddItems}>
+                      <span className="flex items-center gap-1.5"><Plus className="h-3.5 w-3.5" /> Add Items</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                Object.entries(groupedItems).map(([category, items]) => {
+                  const collapsed = collapsedCategories.has(category);
+                  return (
+                    <div key={category} className={GLASS_CARD}>
+                      <button
+                        className="flex w-full items-center justify-between p-4 text-left"
+                        onClick={() => setCollapsedCategories(prev => {
+                          const s = new Set(prev);
+                          if (s.has(category)) { s.delete(category); } else { s.add(category); }
+                          return s;
+                        })}
+                      >
+                        <div className="flex items-center gap-2">
+                          {collapsed ? <ChevronRight className="h-4 w-4 text-zinc-500" /> : <ChevronDown className="h-4 w-4 text-zinc-500" />}
+                          <span className="font-semibold text-white">{category}</span>
+                          <span className={T_CAPTION}>({items.length})</span>
+                        </div>
+                        <span className={T_CAPTION}>
+                          {items.filter(i => i.received_qty !== null).length}/{items.length} received
+                        </span>
+                      </button>
+
+                      {!collapsed && (
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead>
+                              <tr>
+                                <th className={`${TABLE_HEADER} pl-4 text-left`}>Item</th>
+                                <th className={`${TABLE_HEADER} text-right`}>Sent Qty</th>
+                                <th className={`${TABLE_HEADER} text-right`}>Received</th>
+                                <th className={`${TABLE_HEADER} pr-4 text-left`}>Notes</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {items.map(item => (
+                                <tr key={item.id} className={TABLE_ROW}>
+                                  <td className={`${TABLE_CELL} pl-4`}>
+                                    <p className="font-medium text-white">{item.item_name}</p>
+                                    {item.notes && <p className={T_CAPTION}>{item.notes}</p>}
+                                  </td>
+                                  <td className={`${TABLE_CELL} text-right font-mono text-zinc-300`}>
+                                    {item.qty > 0 ? `${fmtQty(item.qty)} ${item.unit}` : <span className="text-zinc-600">—</span>}
+                                  </td>
+                                  <td className={`${TABLE_CELL} text-right font-mono`}>
+                                    {item.received_qty !== null ? (
+                                      <span className="text-emerald-400">
+                                        ✓ {fmtQty(item.received_qty)} {item.unit}
+                                      </span>
+                                    ) : (
+                                      <span className="text-zinc-600">—</span>
+                                    )}
+                                  </td>
+                                  <td className={`${TABLE_CELL} pr-4 text-xs text-zinc-500`}>
+                                    {item.received_notes || "—"}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── New Delivery Modal ──────────────────────────────────────────────── */}
+      {showNewDelivery && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className={`${GLASS_CARD} w-full max-w-md p-6`}>
+            <div className="mb-5 flex items-center justify-between">
+              <h3 className={T_SECTION}>New Delivery</h3>
+              <button className="rounded-lg p-1 text-zinc-400 hover:text-white" onClick={() => setShowNewDelivery(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">Delivery Date</label>
+                  <input
+                    type="date"
+                    className={INPUT_CLASS}
+                    value={newDate}
+                    onChange={e => setNewDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">To Branch</label>
+                  <select
+                    className={SELECT_CLASS}
+                    value={newBranch}
+                    onChange={e => setNewBranch(e.target.value)}
+                  >
+                    {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                  Linked Plan ID <span className="text-zinc-600">(optional)</span>
+                </label>
+                <input
+                  type="number"
+                  className={INPUT_CLASS}
+                  placeholder="e.g. 42"
+                  value={newPlanId}
+                  onChange={e => setNewPlanId(e.target.value)}
+                />
+                <p className={T_CAPTION + " mt-1"}>Link to a production plan to auto-populate QC-passed items</p>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">Notes (optional)</label>
+                <textarea
+                  className={TEXTAREA_CLASS}
+                  rows={2}
+                  placeholder="Any dispatch notes..."
+                  value={newNotes}
+                  onChange={e => setNewNotes(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button className={`${SECONDARY_BUTTON} flex-1`} onClick={() => setShowNewDelivery(false)}>Cancel</button>
+              <button
+                className={`${PRIMARY_BUTTON} flex-1`}
+                onClick={handleCreateDelivery}
+                disabled={!newDate || !newBranch || creatingDelivery}
+              >
+                {creatingDelivery
+                  ? <span className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Creating...</span>
+                  : "Create Delivery"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Add Items Modal ─────────────────────────────────────────────────── */}
+      {showAddItems && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className={`${GLASS_CARD} w-full max-w-lg p-6`}>
+            <div className="mb-5 flex items-center justify-between">
+              <h3 className={T_SECTION}>Add Items</h3>
+              <button className="rounded-lg p-1 text-zinc-400 hover:text-white" onClick={() => setShowAddItems(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              {/* QC-passed items from linked plan */}
+              {qcPassedItems.length > 0 && (
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                    QC-Passed Items from Plan
+                  </p>
+                  <div className="max-h-48 overflow-y-auto space-y-1 rounded-xl border border-white/8 p-2">
+                    {qcPassedItems.map(item => {
+                      const selected = selectedQcItemIds.has(item.id);
+                      return (
+                        <button
+                          key={item.id}
+                          className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-all ${
+                            selected
+                              ? "border border-violet-500/40 bg-violet-500/15"
+                              : "border border-transparent bg-white/3 hover:bg-white/8"
+                          }`}
+                          onClick={() => setSelectedQcItemIds(prev => {
+                            const s = new Set(prev);
+                            if (s.has(item.id)) { s.delete(item.id); } else { s.add(item.id); }
+                            return s;
+                          })}
+                        >
+                          <div>
+                            <span className="text-zinc-200">{item.item_name}</span>
+                            <span className={T_CAPTION + " ml-2"}>{item.category}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs text-emerald-400">
+                              {fmtQty(item.qc_actual_qty)} {item.unit}
+                            </span>
+                            {selected && <CheckCircle2 className="h-3.5 w-3.5 text-violet-400" />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className={T_CAPTION + " mt-1"}>{selectedQcItemIds.size} selected</p>
+                </div>
+              )}
+
+              {/* Manual item */}
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                  {qcPassedItems.length > 0 ? "Or Add Manual Item" : "Add Item"}
+                </p>
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    className={INPUT_CLASS}
+                    placeholder="Item name"
+                    value={manualItemName}
+                    onChange={e => setManualItemName(e.target.value)}
+                  />
+                  {manualItemName && (
+                    <>
+                      <input
+                        type="text"
+                        className={INPUT_CLASS}
+                        placeholder="Category (optional)"
+                        value={manualItemCategory}
+                        onChange={e => setManualItemCategory(e.target.value)}
+                      />
+                      <div className="grid grid-cols-2 gap-3">
+                        <input
+                          type="number"
+                          className={INPUT_CLASS}
+                          placeholder="Qty"
+                          min="0"
+                          step="0.1"
+                          value={manualItemQty}
+                          onChange={e => setManualItemQty(e.target.value)}
+                        />
+                        <select
+                          className={SELECT_CLASS}
+                          value={manualItemUnit}
+                          onChange={e => setManualItemUnit(e.target.value)}
+                        >
+                          {AVAILABLE_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                        </select>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button className={`${SECONDARY_BUTTON} flex-1`} onClick={() => setShowAddItems(false)}>Cancel</button>
+              <button
+                className={`${PRIMARY_BUTTON} flex-1`}
+                onClick={handleAddItems}
+                disabled={selectedQcItemIds.size === 0 && !manualItemName.trim() || addingItems}
+              >
+                {addingItems
+                  ? <span className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Adding...</span>
+                  : `Add ${selectedQcItemIds.size + (manualItemName.trim() ? 1 : 0)} Item(s)`}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Dispatch Confirm Modal ──────────────────────────────────────────── */}
+      {showDispatchConfirm && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className={`${GLASS_CARD} w-full max-w-sm p-6`}>
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500/15 border border-blue-500/25">
+                <Truck className="h-5 w-5 text-blue-400" />
+              </div>
+              <h3 className={T_SECTION}>Dispatch Delivery?</h3>
+            </div>
+            <p className="text-sm text-zinc-400 mb-6">
+              Mark this delivery as dispatched to{" "}
+              <span className="font-semibold text-white">{activeDelivery?.to_branch}</span>.
+              The branch will be able to confirm receipt.
+            </p>
+            <div className="flex gap-3">
+              <button className={`${SECONDARY_BUTTON} flex-1`} onClick={() => setShowDispatchConfirm(false)}>
+                Cancel
+              </button>
+              <button
+                className="flex-1 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 px-5 py-2.5 font-semibold text-white transition-all hover:from-blue-400 hover:to-cyan-400 disabled:opacity-60"
+                onClick={handleDispatch}
+                disabled={dispatching}
+              >
+                {dispatching
+                  ? <span className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Dispatching...</span>
+                  : "Yes, Dispatch"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Confirm Receipt Modal ───────────────────────────────────────────── */}
+      {showConfirmModal && activeDelivery && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className={`${GLASS_CARD} w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto`}>
+            <div className="mb-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-500/25">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                </div>
+                <h3 className={T_SECTION}>Confirm Receipt</h3>
+              </div>
+              <button className="rounded-lg p-1 text-zinc-400 hover:text-white" onClick={() => setShowConfirmModal(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className={T_CAPTION + " mb-4"}>
+              Enter the quantity actually received for each item.
+            </p>
+
+            <div className="space-y-3">
+              {(activeDelivery.items || []).map(item => (
+                <div key={item.id} className="rounded-xl border border-white/8 bg-white/4 px-4 py-3">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div>
+                      <p className="text-sm font-semibold text-white">{item.item_name}</p>
+                      <p className={T_CAPTION}>Sent: {fmtQty(item.qty)} {item.unit}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        className={`${INPUT_CLASS} text-sm py-2`}
+                        placeholder="Received qty"
+                        min="0"
+                        step="0.1"
+                        value={receiptQtys[item.id] || ""}
+                        onChange={e => setReceiptQtys(prev => ({ ...prev, [item.id]: e.target.value }))}
+                      />
+                      <span className="text-xs text-zinc-500 whitespace-nowrap">{item.unit}</span>
+                    </div>
+                    <input
+                      type="text"
+                      className={`${INPUT_CLASS} text-sm py-2`}
+                      placeholder="Notes (optional)"
+                      value={receiptNotes[item.id] || ""}
+                      onChange={e => setReceiptNotes(prev => ({ ...prev, [item.id]: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4">
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                Branch Notes (optional)
+              </label>
+              <textarea
+                className={TEXTAREA_CLASS}
+                rows={2}
+                placeholder="Any issues, comments about this delivery..."
+                value={branchNotes}
+                onChange={e => setBranchNotes(e.target.value)}
+              />
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button className={`${SECONDARY_BUTTON} flex-1`} onClick={() => setShowConfirmModal(false)} disabled={confirming}>
+                Cancel
+              </button>
+              <button
+                className="flex-1 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-5 py-2.5 font-semibold text-white transition-all hover:from-emerald-400 hover:to-teal-400 disabled:opacity-60"
+                onClick={handleConfirmReceipt}
+                disabled={confirming}
+              >
+                {confirming
+                  ? <span className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Confirming...</span>
+                  : "Confirm Receipt"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
