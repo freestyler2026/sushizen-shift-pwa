@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CheckCircle2, ChevronDown, ChevronRight, Loader2,
-  Package, Plus, RotateCcw, Send, Truck, X,
+  Package, Plus, Send, Truck, X,
 } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import {
@@ -636,9 +636,9 @@ export default function CKDeliveryPage() {
                             <thead>
                               <tr>
                                 <th className={`${TABLE_HEADER} pl-4 text-left`}>Item</th>
-                                <th className={`${TABLE_HEADER} text-right`}>Sent Qty</th>
-                                <th className={`${TABLE_HEADER} text-right`}>Received</th>
-                                <th className={`${TABLE_HEADER} pr-4 text-left`}>Notes</th>
+                                <th className={`${TABLE_HEADER} px-3 text-right`}>Sent Qty</th>
+                                <th className={`${TABLE_HEADER} px-3 text-right`}>Received</th>
+                                <th className={`${TABLE_HEADER} pl-4 pr-4 text-left`}>Notes</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -648,10 +648,10 @@ export default function CKDeliveryPage() {
                                     <p className="font-medium text-white">{item.item_name}</p>
                                     {item.notes && <p className={T_CAPTION}>{item.notes}</p>}
                                   </td>
-                                  <td className={`${TABLE_CELL} text-right font-mono text-zinc-300`}>
+                                  <td className={`${TABLE_CELL} px-3 text-right font-mono text-zinc-300`}>
                                     {item.qty > 0 ? `${fmtQty(item.qty)} ${item.unit}` : <span className="text-zinc-600">—</span>}
                                   </td>
-                                  <td className={`${TABLE_CELL} text-right font-mono`}>
+                                  <td className={`${TABLE_CELL} px-3 text-right font-mono`}>
                                     {item.received_qty !== null ? (
                                       <span className="text-emerald-400">
                                         ✓ {fmtQty(item.received_qty)} {item.unit}
@@ -660,7 +660,7 @@ export default function CKDeliveryPage() {
                                       <span className="text-zinc-600">—</span>
                                     )}
                                   </td>
-                                  <td className={`${TABLE_CELL} pr-4 text-xs text-zinc-500`}>
+                                  <td className={`${TABLE_CELL} pl-4 pr-4 text-xs text-zinc-500`}>
                                     {item.received_notes || "—"}
                                   </td>
                                 </tr>
