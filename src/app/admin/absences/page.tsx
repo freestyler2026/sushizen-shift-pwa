@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertCircle,
@@ -248,9 +249,9 @@ function NoteCell({ note, category }: { note?: string | null; category?: string 
         )}
       </div>
 
-      {open && (
+      {open && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
           onClick={() => setOpen(false)}
         >
           <div
@@ -275,7 +276,8 @@ function NoteCell({ note, category }: { note?: string | null; category?: string 
               {text}
             </p>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
