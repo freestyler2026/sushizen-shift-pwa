@@ -1602,6 +1602,50 @@ export default function AdminDraftPage() {
         skipped_branches: [],
       });
       setApplyMonth(replaceGuard.target_month);
+
+      // Auto-export draft to Google Sheets (same as confirmGenerate)
+      if (canOperate && approverName.trim() && pin.trim()) {
+        setAutoExportResults({});
+        setAutoExportErrors({});
+        setAutoExportRan(true);
+        setAutoExportBusy(true);
+        const _city = replaceGuard.city;
+        const _month = replaceGuard.target_month;
+        const _approver = approverName;
+        const _pin = pin;
+        void (async () => {
+          const results: Record<string, string> = {};
+          const errors: Record<string, string> = {};
+          for (const v of nextVersions) {
+            try {
+              const prep = await apiPost<ExportPrepareResult>(`/api/admin/export/month/prepare`, {
+                city: _city,
+                branch_code: v.branch_code,
+                month: _month,
+                mode: "DRAFT",
+                approver_name: _approver,
+                pin: _pin,
+              });
+              const conf = await apiPost<ExportConfirmResult>(`/api/admin/export/month/confirm`, {
+                confirm_token: prep.confirm_token,
+                approver_name: _approver,
+                pin: _pin,
+              });
+              if (conf.ok) {
+                results[v.branch_code] = conf.main_url || conf.sheet_url || "";
+              } else {
+                errors[v.branch_code] = conf.warning || "Export returned ok=false";
+              }
+              await sleep(300);
+            } catch (e: any) {
+              errors[v.branch_code] = String(e?.message || e || "Export failed");
+            }
+          }
+          setAutoExportResults(results);
+          setAutoExportErrors(errors);
+          setAutoExportBusy(false);
+        })();
+      }
     }
     if (failedBranches.length) {
       setError(failedBranches.map((f) => `${f.branch_code}: ${f.detail}`).join("\n"));
@@ -2570,15 +2614,25 @@ export default function AdminDraftPage() {
               Exporting to spreadsheet… per-branch links will appear when done.
             </div>
           ) : (
-            <a
-              href={city === "dubai" ? DUBAI_DRAFT_SHEET_URL : MANILA_DRAFT_SHEET_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`${PRIMARY_BUTTON} inline-flex items-center gap-2.5 text-sm no-underline shadow-xl shadow-violet-500/40 ring-2 ring-violet-300/50 hover:ring-violet-200/60`}
-            >
-              <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
-              {city === "dubai" ? "Open Dubai draft spreadsheet" : "Open Manila draft spreadsheet"}
-            </a>
+            <div className="space-y-2">
+              {canOperate && (!approverName.trim() || !pin.trim()) && (
+                <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2 text-xs text-amber-300">
+                  <span className="mt-0.5 shrink-0">⚠</span>
+                  <span>
+                    Fill in <strong>Approver name</strong> and <strong>PIN</strong> above before generating — this enables auto-export and creates a direct link to the {targetMonth} tab. Without it, the button below opens the spreadsheet to the last-viewed tab (which may be a previous month).
+                  </span>
+                </div>
+              )}
+              <a
+                href={city === "dubai" ? DUBAI_DRAFT_SHEET_URL : MANILA_DRAFT_SHEET_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`${PRIMARY_BUTTON} inline-flex items-center gap-2.5 text-sm no-underline shadow-xl shadow-violet-500/40 ring-2 ring-violet-300/50 hover:ring-violet-200/60`}
+              >
+                <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
+                {city === "dubai" ? "Open Dubai draft spreadsheet" : "Open Manila draft spreadsheet"}
+              </a>
+            </div>
           )}
         </div>
 
