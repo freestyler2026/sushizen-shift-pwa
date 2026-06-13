@@ -61,15 +61,26 @@ type AbsenceType =
   | "ABSENT"
   | "BEREAVEMENT_LEAVE";
 
+type ReasonCategory = "SICK" | "FAMILY" | "PERSONAL" | "OTHER" | "";
+
 type AbsenceRow = {
   work_date: string;
   staff_name: string;
   absence_type: AbsenceType | string;
   note?: string;
   branch_hint?: string;
+  reason_category?: ReasonCategory | string;
   source_sheet_name?: string;
   created_at?: string | null;
 };
+
+const REASON_CATEGORIES: Array<{ value: ReasonCategory; label: string; emoji: string; color: string }> = [
+  { value: "",         label: "— No category —", emoji: "",   color: "" },
+  { value: "SICK",     label: "Sick",             emoji: "🤒", color: "bg-rose-500/15 text-rose-300 border-rose-500/30" },
+  { value: "FAMILY",   label: "Family",           emoji: "👨‍👩‍👧", color: "bg-blue-500/15 text-blue-300 border-blue-500/30" },
+  { value: "PERSONAL", label: "Personal",         emoji: "👤", color: "bg-purple-500/15 text-purple-300 border-purple-500/30" },
+  { value: "OTHER",    label: "Other",            emoji: "📝", color: "bg-neutral-500/15 text-neutral-300 border-neutral-500/30" },
+];
 
 type AbsenceListResp = {
   ok?: boolean;
@@ -199,26 +210,43 @@ async function apiPost<T = any>(path: string, body: any): Promise<T> {
 
 // ── Note cell: truncated preview + click-to-expand modal ──────────────────
 
-function NoteCell({ note }: { note?: string | null }) {
+function CategoryBadge({ category }: { category?: string | null }) {
+  const cat = REASON_CATEGORIES.find(c => c.value === (category || "").toUpperCase());
+  if (!cat || !cat.value) return null;
+  return (
+    <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-semibold ${cat.color}`}>
+      <span>{cat.emoji}</span>
+      <span>{cat.label}</span>
+    </span>
+  );
+}
+
+function NoteCell({ note, category }: { note?: string | null; category?: string | null }) {
   const [open, setOpen] = useState(false);
   const text = note?.trim() || "";
-  if (!text) return <span className="text-neutral-600">—</span>;
+  const hasCategory = !!(category || "").trim();
+  if (!text && !hasCategory) return <span className="text-neutral-600">—</span>;
   const isLong = text.length > 48;
   return (
     <>
-      <span className="flex items-center gap-1.5 min-w-0">
-        <span className={isLong ? "truncate max-w-[130px] inline-block align-bottom" : ""}>
-          {text}
-        </span>
-        {isLong && (
-          <button
-            onClick={(e) => { e.stopPropagation(); setOpen(true); }}
-            className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-white/8 text-white/45 hover:bg-white/15 hover:text-white/80 transition-colors"
-          >
-            View
-          </button>
+      <div className="flex flex-col gap-1 min-w-0">
+        {hasCategory && <CategoryBadge category={category} />}
+        {text && (
+          <span className="flex items-center gap-1.5 min-w-0">
+            <span className={isLong ? "truncate max-w-[130px] inline-block align-bottom" : ""}>
+              {text}
+            </span>
+            {isLong && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setOpen(true); }}
+                className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-white/8 text-white/45 hover:bg-white/15 hover:text-white/80 transition-colors"
+              >
+                View
+              </button>
+            )}
+          </span>
         )}
-      </span>
+      </div>
 
       {open && (
         <div
@@ -229,10 +257,13 @@ function NoteCell({ note }: { note?: string | null }) {
             className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-neutral-900 p-6 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">
-                Note / Shift
-              </p>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">
+                  Note / Shift
+                </p>
+                <CategoryBadge category={category} />
+              </div>
               <button
                 onClick={() => setOpen(false)}
                 className="rounded-full p-1 text-white/40 hover:bg-white/10 hover:text-white/80 transition-colors"
@@ -337,7 +368,7 @@ function ReportCitySection({
                   </span>
                 </td>
                 <td className={`${TABLE_CELL} px-4 text-xs text-neutral-400`}>
-                  <NoteCell note={r.note} />
+                  <NoteCell note={r.note} category={r.reason_category} />
                 </td>
               </tr>
             ))}
@@ -364,6 +395,7 @@ export default function AdminAbsencesPage() {
   const [absenceType, setAbsenceType] = useState<AbsenceType>("ABSENT");
   const [note, setNote] = useState<string>("");
   const [branchHint, setBranchHint] = useState<string>("");
+  const [reasonCategory, setReasonCategory] = useState<ReasonCategory>("");
 
   const [bulkSelectedNames, setBulkSelectedNames] = useState<string[]>([]);
   const [bulkNameSearch, setBulkNameSearch] = useState<string>("");
@@ -372,6 +404,7 @@ export default function AdminAbsencesPage() {
   const [bulkAbsenceType, setBulkAbsenceType] = useState<AbsenceType>("DAY_OFF");
   const [bulkNote, setBulkNote] = useState<string>("");
   const [bulkBranchHint, setBulkBranchHint] = useState<string>("");
+  const [bulkReasonCategory, setBulkReasonCategory] = useState<ReasonCategory>("");
 
   // Absence Report state (both cities, configurable date range)
   const [reportDateFrom, setReportDateFrom] = useState<string>(yesterdayIso());
@@ -578,6 +611,7 @@ export default function AdminAbsencesPage() {
         absence_type: absenceType,
         note: norm(note),
         branch_hint: norm(branchHint),
+        reason_category: reasonCategory,
         approver_name: nm,
         pin: p,
       });
@@ -628,6 +662,7 @@ export default function AdminAbsencesPage() {
             absence_type: bulkAbsenceType,
             note: norm(bulkNote),
             branch_hint: norm(bulkBranchHint),
+            reason_category: bulkReasonCategory,
             approver_name: nm,
             pin: p,
           });
@@ -679,20 +714,22 @@ export default function AdminAbsencesPage() {
 
   function downloadCsv() {
     const target = filteredRows ?? [];
-    const headers = ["staff", "date", "type", "branch", "note", "source", "created_at"];
+    const headers = ["staff", "date", "type", "branch", "reason_category", "note", "source", "created_at"];
     const lines = [
       headers.join(","),
-      ...target.map((r) =>
-        [
+      ...target.map((r) => {
+        const noteVal = norm(r.note);
+        return [
           norm(r.staff_name),
           norm(r.work_date),
           toTitleAbsenceType(r.absence_type),
           norm(r.branch_hint),
-          norm(r.note).includes(",") ? `"${norm(r.note).replace(/"/g, '""')}"` : norm(r.note),
+          norm(r.reason_category),
+          noteVal.includes(",") ? `"${noteVal.replace(/"/g, '""')}"` : noteVal,
           norm(r.source_sheet_name),
           norm(r.created_at),
-        ].join(",")
-      ),
+        ].join(",");
+      }),
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -964,13 +1001,27 @@ export default function AdminAbsencesPage() {
             </div>
           </div>
           <div className="mb-4">
+            <label className={`${T_LABEL} mb-1.5 block`}>Reason Category</label>
+            <select
+              value={reasonCategory}
+              onChange={(e) => setReasonCategory(e.target.value as ReasonCategory)}
+              className={SELECT_CLASS}
+            >
+              {REASON_CATEGORIES.map(c => (
+                <option key={c.value} value={c.value}>
+                  {c.emoji ? `${c.emoji} ${c.label}` : c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="mb-4">
             <label className={`${T_LABEL} mb-1.5 block`}>Note / Shift info</label>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              rows={2}
+              rows={3}
               className={TEXTAREA_CLASS}
-              placeholder="e.g. AM shift, 09:00-18:00, coverage needed"
+              placeholder="Paste Discord message or write details here…"
             />
           </div>
           <div className="flex items-center justify-between border-t border-white/5 pt-4">
@@ -1125,6 +1176,20 @@ export default function AdminAbsencesPage() {
                 <select value={bulkAbsenceType} onChange={(e) => setBulkAbsenceType(e.target.value as AbsenceType)} className={SELECT_CLASS}>
                   {ABSENCE_TYPES.map((x) => (
                     <option key={x.value} value={x.value}>{x.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={`${T_LABEL} mb-1.5 block`}>Reason Category</label>
+                <select
+                  value={bulkReasonCategory}
+                  onChange={(e) => setBulkReasonCategory(e.target.value as ReasonCategory)}
+                  className={SELECT_CLASS}
+                >
+                  {REASON_CATEGORIES.map(c => (
+                    <option key={c.value} value={c.value}>
+                      {c.emoji ? `${c.emoji} ${c.label}` : c.label}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -1289,7 +1354,7 @@ export default function AdminAbsencesPage() {
                           </td>
                           <td className={`${TABLE_CELL} px-4 text-zinc-400`}>{r.branch_hint || "-"}</td>
                           <td className={`${TABLE_CELL} px-4 text-xs text-zinc-400`}>
-                            <NoteCell note={r.note} />
+                            <NoteCell note={r.note} category={r.reason_category} />
                           </td>
                           <td className={`${TABLE_CELL} px-4`}>
                             {manual ? (
