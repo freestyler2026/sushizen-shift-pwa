@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-12 (session 54 — end)
+Last updated: 2026-06-13 (session 55 — end)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,12 +11,24 @@ Last updated: 2026-06-12 (session 54 — end)
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku 2017bc4, Vercel e1fe51e)
+なし — 全変更デプロイ済み (Heroku 2017bc4, Vercel 54814dd)
 
 ## ✅ ①②③④ All four features complete and live. All 11 bugs fixed.
 ## ✅ Daily Ops Check v2 complete and live (4-color status, auto/manual, double-check workflow)
 ## ✅ Role Management 自動同期 — 8 admin + 6 store チャンネルを登録済み
 ## ✅ 都市別アクセス制御 — バックエンド 9 モジュールで permission key + city 照合を実施
+
+## Recently Completed (2026-06-13 session 55) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Draft: Force-Replace後のGoogle Sheets自動エクスポートが実行されないバグ修正 | `src/app/admin/draft/page.tsx` | `handleForceReplace()` に auto-export ブロックを追加。全ブランチが 409 (SENT_TO_MANUAL) でブロックされたユーザーが "Force Replace All" を押して再生成した際、`confirmGenerate()` と同様の自動エクスポートが実行されず、Google Sheets の汎用 URL（`#gid` なし）が表示された問題を修正。|
+| Draft: PIN未入力時のGoogle Sheets警告バナー追加 | `src/app/admin/draft/page.tsx` | `canOperate=true` だが Approver name か PIN が未入力の場合、Google Sheets カードにアンバー警告を表示。「PINを入力しないと汎用 URL が開き前月タブが表示される可能性がある」ことを明示 |
+
+### 教訓 (session 55)
+- **handleForceReplace の export 漏れ**: `confirmGenerate()` に auto-export が追加されたとき、`handleForceReplace()` への複製が漏れた。同じ副作用を持つ 2 つの生成パスが分岐した場合は必ず両方に同じロジックを追加する
+- **7月ドラフト「6月が出力される」バグの根本原因**: バックエンドのコードは全て正しく 7 月の日付を生成していた。問題は UI 側 — Force Replace 後に auto-export が実行されず、汎用スプレッドシート URL が表示されたため、ユーザーがクリックするとスプレッドシートの最後に開いていたタブ（6月）に遷移した
+- **排除できた他の仮説**: acb8fe6 (EXISTS クエリ) で修正済みの fetch_draft_rows_for_branch_month バグ、planner の work_date ロジック（全て target_day_key で明示上書き済み）、insert_shift_draft_rows の変換バグ — いずれも最新コードでは問題なし
 
 ## Recently Completed (2026-06-12 session 54) — live
 
@@ -633,10 +645,12 @@ Vendor MasterのOrder Catalog登録名と`supplier_name`が一致しない場合
 | Procurement Hub: Supplier + Branch フィルター + Clear 即時リロード修正 | ✅ live (Heroku 0e575df, Vercel e1fe51e) |
 | Store Receiving: Supplier 名 + 受取ステータス + 検索機能 | ✅ live (Vercel e1fe51e) |
 | Store Evaluations Daily Summary: Food Safety / Org & Storage / SOP Compliance 列追加 | ✅ live (Heroku 0e575df, Vercel e1fe51e) |
-| Store Evaluation: 日付選択 UI (yesterday default) + Admin day nav | ✅ live (Heroku 2017bc4, Vercel — pending) |
+| Store Evaluation: 日付選択 UI (yesterday default) + Admin day nav | ✅ live (Heroku 2017bc4, Vercel e1fe51e) |
 | HR Staff Absences 403 修正 (channel.admin.absences.view) | ✅ live (Heroku 2017bc4) |
-| CK Production qty 小数点修正 (0.5→1 バグ解消) | ✅ live (Vercel — pending) |
+| CK Production qty 小数点修正 (0.5→1 バグ解消) | ✅ live (Vercel e1fe51e) |
 | Cash Management カレンダー全ダッシュ修正 (FastAPI route ordering) | ✅ live (Heroku 2017bc4) |
+| Draft Force-Replace 後 Google Sheets 自動エクスポートが実行されないバグ修正 | ✅ live (Vercel 54814dd) |
+| Draft PIN 未入力時 Google Sheets 警告バナー追加 | ✅ live (Vercel 54814dd) |
 
 ---
 
