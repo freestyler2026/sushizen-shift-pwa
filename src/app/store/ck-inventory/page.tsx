@@ -328,7 +328,7 @@ export default function CKInventoryPage() {
         <div className="grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
 
           {/* ── Left: Session List ─────────────────────────────────────────── */}
-          <div className={`${GLASS_CARD} p-4 h-fit sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto`}>
+          <div className={`${GLASS_CARD} p-4 self-start sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto`}>
             <h2 className={`${T_SECTION} mb-3`}>Sessions</h2>
 
             {sessions.length === 0 ? (
