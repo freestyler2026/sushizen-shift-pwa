@@ -533,7 +533,7 @@ export default function CKInventoryPage() {
                                               onChange={e => updateEntry(item.id, "unit", e.target.value)}
                                               className="w-full rounded-lg border border-white/10 bg-neutral-800 px-2 py-1 text-sm text-white focus:border-violet-500/50 focus:outline-none"
                                             >
-                                              {AVAILABLE_UNITS.map(u => (
+                                              {[...new Set([draft.unit, ...AVAILABLE_UNITS])].map(u => (
                                                 <option key={u} value={u}>{u}</option>
                                               ))}
                                             </select>
