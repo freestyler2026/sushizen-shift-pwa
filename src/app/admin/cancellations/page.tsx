@@ -73,9 +73,14 @@ type CancelRow = {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function todayIso() { return new Date().toISOString().slice(0, 10); }
+function todayIso() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 function daysAgoIso(n: number) {
-  const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10);
+  const [y, m, day] = todayIso().split("-").map(Number);
+  const utc = Date.UTC(y, m - 1, day - n);
+  return new Date(utc).toISOString().slice(0, 10);
 }
 function fmtDate(s: string) {
   if (!s) return "—";

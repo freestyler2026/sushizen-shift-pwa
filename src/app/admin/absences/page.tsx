@@ -107,7 +107,12 @@ const ABSENCE_TYPES: Array<{ value: AbsenceType; label: string }> = [
 ];
 
 function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  // Use local date to avoid UTC offset causing wrong date in Dubai/Manila timezones
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 function yesterdayIso() {
@@ -115,9 +120,10 @@ function yesterdayIso() {
 }
 
 function addDaysIso(base: string, days: number) {
-  const d = new Date(base + "T00:00:00");
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  // Parse date parts and use Date.UTC to avoid local timezone shifting the result
+  const [y, m, d] = base.split("-").map(Number);
+  const utc = Date.UTC(y, m - 1, d + days);
+  return new Date(utc).toISOString().slice(0, 10);
 }
 
 function norm(s: unknown) {
