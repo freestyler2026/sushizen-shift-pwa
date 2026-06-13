@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CheckCircle2, ChevronDown, ChevronRight, ClipboardList,
-  Loader2, Package, Play, Plus, RotateCcw, Send, Trash2, X,
+  FlaskConical, Loader2, Package, Play, Plus, RotateCcw, Send, Trash2, X,
 } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import {
@@ -52,6 +52,11 @@ type PlanItem = {
   completed_by: string;
   completed_at: string | null;
   sort_order: number;
+  qc_result: "PASS" | "FAIL" | null;
+  qc_actual_qty: number | null;
+  qc_notes: string;
+  qc_checked_by: string;
+  qc_checked_at: string | null;
 };
 
 type ProcessedItem = {
@@ -154,6 +159,14 @@ export default function CKProductionPlanPage() {
   // Publish confirm
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [publishing, setPublishing] = useState(false);
+
+  // QC Check modal
+  const [showQcModal, setShowQcModal] = useState(false);
+  const [qcTargetItem, setQcTargetItem] = useState<PlanItem | null>(null);
+  const [qcActualQty, setQcActualQty] = useState("");
+  const [qcResult, setQcResult] = useState<"PASS" | "FAIL">("PASS");
+  const [qcNotes, setQcNotes] = useState("");
+  const [submittingQc, setSubmittingQc] = useState(false);
 
   // Toast
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
@@ -363,6 +376,47 @@ export default function CKProductionPlanPage() {
     }
   }
 
+  // ── QC Check ──────────────────────────────────────────────────────────────
+  function openQcModal(item: PlanItem) {
+    setQcTargetItem(item);
+    setQcActualQty(item.target_qty > 0 ? String(item.target_qty) : "");
+    setQcResult("PASS");
+    setQcNotes("");
+    setShowQcModal(true);
+  }
+
+  async function handleQcSubmit() {
+    if (!qcTargetItem || !qcActualQty) return;
+    setSubmittingQc(true);
+    try {
+      const data = await apiFetch(
+        `/api/store/ck-production-plan/plans/${qcTargetItem.plan_id}/items/${qcTargetItem.id}/qc`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            actual_qty: parseFloat(qcActualQty),
+            unit: qcTargetItem.unit,
+            result: qcResult,
+            notes: qcNotes.trim(),
+            checked_by: userName,
+          }),
+        }
+      );
+      // Update the item in activePlan
+      setActivePlan(prev => prev ? {
+        ...prev,
+        items: (prev.items || []).map(i => i.id === qcTargetItem.id ? data.item : i),
+      } : null);
+      setShowQcModal(false);
+      const inv = data.inventory_updated ? " Inventory updated." : "";
+      showToast(`QC ${qcResult} recorded.${inv}`, true);
+    } catch (e: unknown) {
+      showToast((e as Error).message, false);
+    } finally {
+      setSubmittingQc(false);
+    }
+  }
+
   // ── Grouped Items ──────────────────────────────────────────────────────────
   const groupedItems = useMemo(() => {
     const items = activePlan?.items || [];
@@ -382,6 +436,7 @@ export default function CKProductionPlanPage() {
       pending: items.filter(i => i.status === "PENDING").length,
       inProgress: items.filter(i => i.status === "IN_PROGRESS").length,
       done: items.filter(i => i.status === "DONE").length,
+      qcPass: items.filter(i => i.qc_result === "PASS").length,
     };
   }, [activePlan?.items]);
 
@@ -517,12 +572,13 @@ export default function CKProductionPlanPage() {
                 </div>
 
                 {/* KPI bar */}
-                <div className="mt-4 grid grid-cols-4 gap-3">
+                <div className="mt-4 grid grid-cols-5 gap-3">
                   {[
                     { label: "Total", value: planStats.total, cls: "text-white" },
                     { label: "Pending", value: planStats.pending, cls: "text-zinc-400" },
                     { label: "In Progress", value: planStats.inProgress, cls: "text-blue-400" },
                     { label: "Done", value: planStats.done, cls: "text-emerald-400" },
+                    { label: "QC Pass", value: planStats.qcPass, cls: "text-violet-400" },
                   ].map(k => (
                     <div key={k.label} className={KPI_CARD}>
                       <p className={KPI_LABEL}>{k.label}</p>
@@ -593,6 +649,7 @@ export default function CKProductionPlanPage() {
                                 <th className={`${TABLE_HEADER} text-right`}>Target</th>
                                 <th className={`${TABLE_HEADER} text-center`}>Priority</th>
                                 <th className={`${TABLE_HEADER} text-center`}>Status</th>
+                                <th className={`${TABLE_HEADER} text-center`}>QC</th>
                                 <th className={`${TABLE_HEADER} pr-4 text-right`}>Actions</th>
                               </tr>
                             </thead>
@@ -619,6 +676,21 @@ export default function CKProductionPlanPage() {
                                   </td>
                                   <td className={`${TABLE_CELL} text-center`}>
                                     <span className={STATUS_CHIP[item.status]}>{item.status.replace("_", " ")}</span>
+                                  </td>
+                                  <td className={`${TABLE_CELL} text-center`}>
+                                    {item.qc_result === "PASS" && (
+                                      <span className="inline-flex items-center rounded-full bg-emerald-500/15 border border-emerald-500/25 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                                        ✓ PASS
+                                      </span>
+                                    )}
+                                    {item.qc_result === "FAIL" && (
+                                      <span className="inline-flex items-center rounded-full bg-red-500/15 border border-red-500/25 px-2 py-0.5 text-[10px] font-bold text-red-400">
+                                        ✗ FAIL
+                                      </span>
+                                    )}
+                                    {!item.qc_result && item.status === "DONE" && (
+                                      <span className="text-[10px] text-zinc-600">Pending</span>
+                                    )}
                                   </td>
                                   <td className={`${TABLE_CELL} pr-4 text-right`}>
                                     <div className="flex items-center justify-end gap-1.5">
@@ -655,13 +727,24 @@ export default function CKProductionPlanPage() {
                                             </>
                                           )}
                                           {item.status === "DONE" && (
-                                            <button
-                                              className="rounded-lg border border-zinc-500/30 bg-zinc-500/10 px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-500/20"
-                                              onClick={() => handleStatusChange(item, "PENDING")}
-                                              title="Reset"
-                                            >
-                                              <RotateCcw className="h-3.5 w-3.5" />
-                                            </button>
+                                            <>
+                                              {!item.qc_result && (
+                                                <button
+                                                  className="rounded-lg border border-violet-500/30 bg-violet-500/10 px-2 py-1 text-xs text-violet-400 hover:bg-violet-500/20"
+                                                  onClick={() => openQcModal(item)}
+                                                  title="QC Check"
+                                                >
+                                                  <FlaskConical className="h-3.5 w-3.5" />
+                                                </button>
+                                              )}
+                                              <button
+                                                className="rounded-lg border border-zinc-500/30 bg-zinc-500/10 px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-500/20"
+                                                onClick={() => handleStatusChange(item, "PENDING")}
+                                                title="Reset"
+                                              >
+                                                <RotateCcw className="h-3.5 w-3.5" />
+                                              </button>
+                                            </>
                                           )}
                                           {/* Delete — only in DRAFT for managers */}
                                           {canManage && activePlan.status === "DRAFT" && (
@@ -916,6 +999,122 @@ export default function CKProductionPlanPage() {
                 disabled={publishing}
               >
                 {publishing ? <span className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Publishing...</span> : "Yes, Publish"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── QC Check Modal ─────────────────────────────────────────────────── */}
+      {showQcModal && qcTargetItem && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className={`${GLASS_CARD} w-full max-w-md p-6`}>
+            <div className="mb-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/15 border border-violet-500/25">
+                  <FlaskConical className="h-4 w-4 text-violet-400" />
+                </div>
+                <h3 className={T_SECTION}>QC Check</h3>
+              </div>
+              <button className="rounded-lg p-1 text-zinc-400 hover:text-white" onClick={() => setShowQcModal(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Item info */}
+            <div className="mb-4 rounded-xl border border-white/8 bg-white/4 px-4 py-3">
+              <p className="font-semibold text-white">{qcTargetItem.item_name}</p>
+              <p className={T_CAPTION}>
+                Target: {qcTargetItem.target_qty > 0 ? `${qcTargetItem.target_qty} ${qcTargetItem.unit}` : "—"}
+                {qcTargetItem.completed_by && ` · Done by ${qcTargetItem.completed_by}`}
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Actual qty */}
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                  Actual Qty Produced <span className="text-red-400">*</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    className={`${INPUT_CLASS} flex-1`}
+                    placeholder="0"
+                    min="0"
+                    step="0.1"
+                    value={qcActualQty}
+                    onChange={e => setQcActualQty(e.target.value)}
+                  />
+                  <span className="flex items-center rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-zinc-400">
+                    {qcTargetItem.unit}
+                  </span>
+                </div>
+              </div>
+
+              {/* PASS / FAIL */}
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-zinc-500">Result</label>
+                <div className="flex gap-3">
+                  <button
+                    className={`flex-1 rounded-xl border py-2.5 text-sm font-semibold transition-all ${
+                      qcResult === "PASS"
+                        ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-400"
+                        : "border-white/10 bg-white/5 text-zinc-500 hover:border-emerald-500/20 hover:text-emerald-500/70"
+                    }`}
+                    onClick={() => setQcResult("PASS")}
+                  >
+                    ✓ PASS
+                  </button>
+                  <button
+                    className={`flex-1 rounded-xl border py-2.5 text-sm font-semibold transition-all ${
+                      qcResult === "FAIL"
+                        ? "border-red-500/50 bg-red-500/20 text-red-400"
+                        : "border-white/10 bg-white/5 text-zinc-500 hover:border-red-500/20 hover:text-red-500/70"
+                    }`}
+                    onClick={() => setQcResult("FAIL")}
+                  >
+                    ✗ FAIL
+                  </button>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">Notes (optional)</label>
+                <textarea
+                  className={TEXTAREA_CLASS}
+                  rows={2}
+                  placeholder="Any QC notes, issues found..."
+                  value={qcNotes}
+                  onChange={e => setQcNotes(e.target.value)}
+                />
+              </div>
+
+              {qcResult === "PASS" && (
+                <p className="rounded-xl border border-violet-500/20 bg-violet-500/8 px-3 py-2 text-xs text-violet-400">
+                  ✦ QC PASS will automatically update today&apos;s CK inventory with the actual quantity.
+                </p>
+              )}
+            </div>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                className={`${SECONDARY_BUTTON} flex-1`}
+                onClick={() => setShowQcModal(false)}
+                disabled={submittingQc}
+              >
+                Cancel
+              </button>
+              <button
+                className={`${PRIMARY_BUTTON} flex-1`}
+                onClick={handleQcSubmit}
+                disabled={!qcActualQty || submittingQc}
+              >
+                {submittingQc
+                  ? <span className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Submitting...</span>
+                  : `Submit QC ${qcResult}`}
               </button>
             </div>
           </div>
