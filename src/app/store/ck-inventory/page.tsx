@@ -328,7 +328,7 @@ export default function CKInventoryPage() {
         <div className="grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
 
           {/* ── Left: Session List ─────────────────────────────────────────── */}
-          <div className={`${GLASS_CARD} p-4 h-fit`}>
+          <div className={`${GLASS_CARD} p-4 h-fit sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto`}>
             <h2 className={`${T_SECTION} mb-3`}>Sessions</h2>
 
             {sessions.length === 0 ? (
@@ -543,7 +543,7 @@ export default function CKInventoryPage() {
                                           {prevQty !== null ? `${prevQty} ${prev?.unit || ""}` : "—"}
                                         </td>
                                         <td className={`${TABLE_CELL} px-3 text-right tabular-nums font-medium ${deltaColor}`}>
-                                          {delta !== null ? (delta > 0 ? `+${delta.toFixed(1)}` : delta.toFixed(1)) : "—"}
+                                          {delta !== null ? (delta > 0 ? `+${Number.isInteger(delta) ? delta : delta.toFixed(1)}` : `${Number.isInteger(delta) ? delta : delta.toFixed(1)}`) : "—"}
                                         </td>
                                         <td className={`${TABLE_CELL} px-5`}>
                                           {isFinalized ? (
