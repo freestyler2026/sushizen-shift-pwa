@@ -215,6 +215,10 @@ export default function CancellationReportPage() {
       setError("Authentication required. Please log in again.");
       return;
     }
+    if (dateFrom > dateTo) {
+      setError(`Invalid date range: "From" (${dateFrom}) must be on or before "To" (${dateTo}).`);
+      return;
+    }
     setLoading(true);
     setError(null);
     const qs = new URLSearchParams({
@@ -237,17 +241,6 @@ export default function CancellationReportPage() {
   }, [approverName, pin, dateFrom, dateTo, canLoad]);
 
   useEffect(() => { void fetchRecords(); }, [fetchRecords]);
-
-  // ── KPI computation ──────────────────────────────────────────────────────
-
-  const kpi = useMemo(() => {
-    const totalRefund = records.reduce((s, r) => s + (Number(r.refund_amount) || 0), 0);
-    const total = records.length;
-    const ticketSent = records.filter(r => isTicketSent(r.email_status)).length;
-    const resolved = records.filter(r => isResolved(r.refund_status)).length;
-    const pending = records.filter(r => isPending(r)).length;
-    return { totalRefund, total, ticketSent, resolved, pending };
-  }, [records]);
 
   // ── Filter + sort ────────────────────────────────────────────────────────
 
@@ -296,6 +289,17 @@ export default function CancellationReportPage() {
   function handleSort(col: SortKey) {
     if (col === sortCol) { setSortAsc((v) => !v); } else { setSortCol(col); setSortAsc(false); }
   }
+
+  // ── KPI computation (based on filtered — reflects active frontend filters) ──
+
+  const kpi = useMemo(() => {
+    const totalRefund = filtered.reduce((s, r) => s + (Number(r.refund_amount) || 0), 0);
+    const total = filtered.length;
+    const ticketSent = filtered.filter(r => isTicketSent(r.email_status)).length;
+    const resolved = filtered.filter(r => isResolved(r.refund_status)).length;
+    const pending = filtered.filter(r => isPending(r)).length;
+    return { totalRefund, total, ticketSent, resolved, pending };
+  }, [filtered]);
 
   // ── CSV download ─────────────────────────────────────────────────────────
 
