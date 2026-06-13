@@ -426,6 +426,36 @@ const TRACKS: Track[] = [
     glyph: "祭",
     category: "hype",
   },
+  {
+    id: 41,
+    title: "ZEN Rhythm",
+    subtitle: "Sushi ZEN Original",
+    file: "/music/zen-rhythm.mp3",
+    accent: "from-pink-500 via-purple-500 to-violet-600",
+    accentHex: "#a855f7",
+    glyph: "律",
+    category: "hype",
+  },
+  {
+    id: 42,
+    title: "The Meaning of a Life",
+    subtitle: "Sushi ZEN Original",
+    file: "/music/the-meaning-of-a-life.mp3",
+    accent: "from-blue-300 via-indigo-400 to-purple-500",
+    accentHex: "#818cf8",
+    glyph: "命",
+    category: "ballad",
+  },
+  {
+    id: 43,
+    title: "LET'S TRY TODAY",
+    subtitle: "Sushi ZEN Original",
+    file: "/music/lets-try-today.mp3",
+    accent: "from-yellow-300 via-orange-400 to-rose-500",
+    accentHex: "#fb923c",
+    glyph: "挑",
+    category: "hype",
+  },
 ];
 
 function fmt(sec: number) {
