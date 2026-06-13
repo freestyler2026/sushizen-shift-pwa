@@ -52,6 +52,7 @@ import {
   Warehouse,
   Thermometer,
   Coins,
+  FlaskConical,
   X,
 } from "lucide-react";
 import {
@@ -135,6 +136,7 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/store/procurement", label: "Store Procurement", icon: ShoppingCart, match: "prefix" },
   { href: "/store/purchase", label: "Direct Purchase", icon: ShoppingBag, match: "prefix" },
   { href: "/store/ck-production", label: "CK Dispatch", icon: Truck, match: "prefix" },
+  { href: "/store/ck-inventory", label: "CK Inventory", icon: FlaskConical, match: "prefix" },
   { href: "/store/receiving", label: "CK Receiving", icon: PackageCheck, match: "prefix" },
   { href: "/store/evaluation", label: "Store Evaluation", icon: ClipboardCheck, match: "prefix" },
   { href: "/store/cold-chain", label: "Cold Chain Log", icon: Thermometer, match: "prefix" },
@@ -623,6 +625,10 @@ export default function NavBar() {
         if (item.href === "/store/evaluation") {
           const r = String(resolvedAuth?.role || "").toUpperCase();
           return ["ADMIN", "HQ", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(r);
+        }
+        if (item.href === "/store/ck-inventory") {
+          const r = String(resolvedAuth?.role || "").toUpperCase();
+          return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "HR_MANAGER"].includes(r);
         }
         return true;
       })
