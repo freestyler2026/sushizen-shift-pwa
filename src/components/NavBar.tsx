@@ -39,6 +39,7 @@ import {
   Shield,
   Star,
   Tag,
+  TicketCheck,
   Trash2,
   ArchiveRestore,
   Truck,
@@ -151,6 +152,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/inventory", label: "Inventory", icon: Package, adminOnly: true, match: "prefix" },
   { href: "/admin/procurement", label: "Procurement", icon: Truck, adminOnly: true, match: "prefix" },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3, adminOnly: true, match: "exact" },
+  { href: "/admin/cancellations", label: "Cancellation Report", icon: TicketCheck, adminOnly: true, match: "exact" },
   { href: "/admin/finance", label: "Management P&L", icon: Receipt, adminOnly: true, match: "prefix" },
   { href: "/admin/cost-calculation", label: "Cost Calculation", icon: Calculator, adminOnly: true, match: "prefix" },
   { href: "/admin/menu", label: "Menu Builder", icon: UtensilsCrossed, adminOnly: true, match: "prefix" },
@@ -279,6 +281,7 @@ export default function NavBar() {
     if (href === "/admin/procurement") return canAccessProcurementAdmin(auth, auth.city);
     if (href === "/admin/cost-calculation") return canAccessCostAdmin(auth);
     if (href === "/admin/analytics") return canAccessAnalyticsAdmin(auth);
+    if (href === "/admin/cancellations") return canAccessAnalyticsAdmin(auth);
     if (href === "/admin/attendance") return canAccessAttendanceAdmin(auth);
     if (href === "/admin/os-attendance") return canAccessOsAttendanceAdmin(auth);
     if (href === "/admin/absences") return canAccessAbsencesAdmin(auth);
