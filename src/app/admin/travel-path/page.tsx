@@ -104,19 +104,37 @@ const BRANCH_LABELS: Record<Branch, string> = {
   CK: "CENTRAL KITCHEN",
 };
 
-const SECTIONS = ["OPENING", "MID_SHIFT", "CLOSING"] as const;
-type Section = (typeof SECTIONS)[number];
+// All section keys across branches. Standard branches use OPENING/MID_SHIFT/
+// CLOSING; Central Kitchen uses a time-blocked manager checklist
+// (MORNING/AFTERNOON/EVENING).
+type Section =
+  | "OPENING" | "MID_SHIFT" | "CLOSING"
+  | "MORNING" | "AFTERNOON" | "EVENING";
+
+// Which sections each branch shows (and in what order).
+const SECTIONS_BY_BRANCH: Record<Branch, readonly Section[]> = {
+  TAFT:  ["OPENING", "MID_SHIFT", "CLOSING"],
+  PAR:   ["OPENING", "MID_SHIFT", "CLOSING"],
+  CUBAO: ["OPENING", "MID_SHIFT", "CLOSING"],
+  CK:    ["MORNING", "AFTERNOON", "EVENING"],
+};
 
 const SECTION_LABELS: Record<Section, string> = {
   OPENING: "Opening",
   MID_SHIFT: "Mid-Shift",
   CLOSING: "Closing",
+  MORNING: "Morning (9–12)",
+  AFTERNOON: "Afternoon (14–18)",
+  EVENING: "Evening (18–02)",
 };
 
 const SECTION_COLORS: Record<Section, string> = {
   OPENING: "bg-amber-500/15 text-amber-300 border-amber-500/25",
   MID_SHIFT: "bg-sky-500/15 text-sky-300 border-sky-500/25",
   CLOSING: "bg-violet-500/15 text-violet-300 border-violet-500/25",
+  MORNING: "bg-amber-500/15 text-amber-300 border-amber-500/25",
+  AFTERNOON: "bg-sky-500/15 text-sky-300 border-sky-500/25",
+  EVENING: "bg-violet-500/15 text-violet-300 border-violet-500/25",
 };
 
 // ─── Temperature helpers ─────────────────────────────────────────────────────
@@ -341,6 +359,15 @@ function ChecklistView() {
     return () => { cancelled = true; };
   }, [branch]);
 
+  // Sections shown for the current branch (CK uses MORNING/AFTERNOON/EVENING).
+  const sections = SECTIONS_BY_BRANCH[branch];
+
+  // When branch changes, snap the active section to a valid one for that branch.
+  useEffect(() => {
+    if (!sections.includes(section)) setSection(sections[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branch]);
+
   // Load items when branch or section changes
   useEffect(() => {
     let cancelled = false;
@@ -541,7 +568,7 @@ function ChecklistView() {
               value={section}
               onChange={(e) => setSection(e.target.value as Section)}
             >
-              {SECTIONS.map((s) => (
+              {sections.map((s) => (
                 <option key={s} value={s}>{SECTION_LABELS[s]}</option>
               ))}
             </select>
@@ -569,7 +596,7 @@ function ChecklistView() {
 
         {/* Section tab pills */}
         <div className="flex flex-wrap gap-2">
-          {SECTIONS.map((s) => (
+          {sections.map((s) => (
             <button
               key={s}
               onClick={() => setSection(s)}
@@ -778,6 +805,9 @@ function ComplianceView() {
   const [tempLog, setTempLog] = useState<TempLogRow[]>([]);
   const [tempLogLoading, setTempLogLoading] = useState(false);
 
+  // Sections shown for the current branch (CK uses MORNING/AFTERNOON/EVENING).
+  const sections = SECTIONS_BY_BRANCH[branch];
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -941,7 +971,7 @@ function ComplianceView() {
               <thead>
                 <tr>
                   <th className="text-left pb-2 pr-2 font-semibold text-zinc-500 w-10">Day</th>
-                  {SECTIONS.map((s) => (
+                  {sections.map((s) => (
                     <th key={s} className="pb-2 text-center font-semibold text-zinc-400 px-1">
                       {SECTION_LABELS[s]}
                     </th>
@@ -967,7 +997,7 @@ function ComplianceView() {
                         {String(day).padStart(2, "0")}
                         {isToday && <span className="ml-1 text-[10px] text-violet-400">today</span>}
                       </td>
-                      {SECTIONS.map((s) => {
+                      {sections.map((s) => {
                         const row = dayRows[s];
                         return (
                           <td key={s} className="py-1 px-1 text-center">
@@ -1032,7 +1062,7 @@ function ComplianceView() {
               const dayRows = byDate[date];
               const d = new Date(date + "T00:00:00");
               const dayNum = d.getUTCDate();
-              const hasDanger = SECTIONS.some((sec) => {
+              const hasDanger = sections.some((sec) => {
                 const row = dayRows[sec];
                 if (!row) return false;
                 return row.temp_items.some((item) =>
@@ -1058,7 +1088,7 @@ function ComplianceView() {
 
                   {/* Sections side by side (stacked on small screens) */}
                   <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-white/8">
-                    {SECTIONS.map((sec) => {
+                    {sections.map((sec) => {
                       const row = dayRows[sec];
                       return (
                         <div key={sec} className="p-3 space-y-2">

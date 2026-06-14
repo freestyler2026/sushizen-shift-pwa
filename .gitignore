@@ -56,3 +56,6 @@ step3-deploy-dir/
 
 # Nested scaffold — never deploy this
 sushizen-shift-pwa/
+
+# Claude Code local settings (may contain secrets/tokens)
+.claude/settings.local.json
