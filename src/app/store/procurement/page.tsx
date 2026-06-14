@@ -570,6 +570,8 @@ export default function StoreProcurementHomePage() {
     return "";
   });
   const [rows, setRows] = useState<RequestRow[]>([]);
+  // KPI card filter: null = show all, else a status bucket (DRAFT/IN_REVIEW/APPROVED/RETURNED).
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [lastCreatedRequestId, setLastCreatedRequestId] = useState("");
   const [lastCreatedRequestNo, setLastCreatedRequestNo] = useState("");
   const [lastCreatedRequestAt, setLastCreatedRequestAt] = useState("");
@@ -864,6 +866,31 @@ export default function StoreProcurementHomePage() {
     return out;
   }, [activeRows]);
 
+  // Rows shown in the Requests list, narrowed by the selected KPI card (if any).
+  const displayedRows = useMemo(() => {
+    if (!statusFilter) return activeRows;
+    return activeRows.filter((row) => {
+      const s = String(row.status || "").toUpperCase();
+      if (statusFilter === "IN_REVIEW") return s === "IN_REVIEW" || s === "SUBMITTED";
+      return s === statusFilter;
+    });
+  }, [activeRows, statusFilter]);
+
+  const STATUS_FILTER_LABEL: Record<string, string> = {
+    DRAFT: "Draft", IN_REVIEW: "In Review", APPROVED: "Approved", RETURNED: "Returned",
+  };
+
+  // Toggle a KPI card filter and scroll the Requests list into view.
+  const toggleStatusFilter = (s: string) => {
+    setStatusFilter((cur) => (cur === s ? null : s));
+    if (typeof document !== "undefined") {
+      window.setTimeout(
+        () => document.getElementById("history")?.scrollIntoView({ behavior: "smooth", block: "start" }),
+        60,
+      );
+    }
+  };
+
   const recentActivities = useMemo<RecentActivityItem[]>(() => {
     const items: RecentActivityItem[] = [];
     if (lastCreatedRequestId) {
@@ -1143,34 +1170,50 @@ export default function StoreProcurementHomePage() {
 
           {/* KPI cards */}
           <div className="grid grid-cols-2 gap-3">
-            <div className={KPI_CARD}>
+            <button
+              type="button"
+              onClick={() => toggleStatusFilter("DRAFT")}
+              className={`${KPI_CARD} text-left cursor-pointer transition-all hover:border-white/20 ${statusFilter === "DRAFT" ? "ring-2 ring-zinc-400/60 border-zinc-400/40" : ""}`}
+            >
               <div className="mb-1.5 flex items-center gap-1.5">
                 <ClipboardList className="h-3.5 w-3.5 text-zinc-400" />
                 <p className={KPI_LABEL}>Draft</p>
               </div>
               <p className={`${KPI_VALUE} text-lg text-zinc-200`}>{counts.draft}</p>
-            </div>
-            <div className={KPI_CARD}>
+            </button>
+            <button
+              type="button"
+              onClick={() => toggleStatusFilter("IN_REVIEW")}
+              className={`${KPI_CARD} text-left cursor-pointer transition-all hover:border-white/20 ${statusFilter === "IN_REVIEW" ? "ring-2 ring-amber-400/60 border-amber-400/40" : ""}`}
+            >
               <div className="mb-1.5 flex items-center gap-1.5">
                 <Clock className="h-3.5 w-3.5 text-amber-400" />
                 <p className={KPI_LABEL}>In Review</p>
               </div>
               <p className={`${KPI_VALUE} text-lg ${counts.inReview > 0 ? "text-amber-400" : "text-zinc-500"}`}>{counts.inReview}</p>
-            </div>
-            <div className={KPI_CARD}>
+            </button>
+            <button
+              type="button"
+              onClick={() => toggleStatusFilter("APPROVED")}
+              className={`${KPI_CARD} text-left cursor-pointer transition-all hover:border-white/20 ${statusFilter === "APPROVED" ? "ring-2 ring-emerald-400/60 border-emerald-400/40" : ""}`}
+            >
               <div className="mb-1.5 flex items-center gap-1.5">
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
                 <p className={KPI_LABEL}>Approved</p>
               </div>
               <p className={`${KPI_VALUE} text-lg ${counts.approved > 0 ? "text-emerald-400" : "text-zinc-500"}`}>{counts.approved}</p>
-            </div>
-            <div className={KPI_CARD}>
+            </button>
+            <button
+              type="button"
+              onClick={() => toggleStatusFilter("RETURNED")}
+              className={`${KPI_CARD} text-left cursor-pointer transition-all hover:border-white/20 ${statusFilter === "RETURNED" ? "ring-2 ring-red-400/60 border-red-400/40" : ""}`}
+            >
               <div className="mb-1.5 flex items-center gap-1.5">
                 <RotateCcw className="h-3.5 w-3.5 text-red-400" />
                 <p className={KPI_LABEL}>Returned</p>
               </div>
               <p className={`${KPI_VALUE} text-lg ${counts.returned > 0 ? "text-red-400" : "text-zinc-500"}`}>{counts.returned}</p>
-            </div>
+            </button>
           </div>
 
           {/* Auth form + city */}
@@ -1557,19 +1600,35 @@ export default function StoreProcurementHomePage() {
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className={T_SECTION}>
                 Requests
-                <span className={`${T_CAPTION} ml-2 font-normal`}>({cityLabel} · {counts.total} active)</span>
+                <span className={`${T_CAPTION} ml-2 font-normal`}>
+                  ({cityLabel} · {statusFilter ? `${displayedRows.length} ${STATUS_FILTER_LABEL[statusFilter] ?? statusFilter}` : `${counts.total} active`})
+                </span>
               </h2>
-              {loading && <RefreshCw className="h-4 w-4 animate-spin text-zinc-500" />}
+              <div className="flex items-center gap-2">
+                {statusFilter && (
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter(null)}
+                    className="flex items-center gap-1 rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-zinc-300 transition hover:bg-white/10"
+                  >
+                    <X className="h-3 w-3" />
+                    Clear filter
+                  </button>
+                )}
+                {loading && <RefreshCw className="h-4 w-4 animate-spin text-zinc-500" />}
+              </div>
             </div>
 
-            {activeRows.length === 0 && !loading ? (
+            {displayedRows.length === 0 && !loading ? (
               <div className="flex flex-col items-center gap-2 py-10">
                 <ShoppingCart className="h-8 w-8 text-zinc-600" />
-                <p className={T_CAPTION}>No active requests.</p>
+                <p className={T_CAPTION}>
+                  {statusFilter ? `No ${STATUS_FILTER_LABEL[statusFilter] ?? statusFilter} requests.` : "No active requests."}
+                </p>
               </div>
             ) : (
               <div className="flex flex-col gap-3">
-                {activeRows.map((row) => {
+                {displayedRows.map((row) => {
                   const s = String(row.status || "").toUpperCase();
                   return (
                     <div

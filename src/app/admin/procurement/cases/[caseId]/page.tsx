@@ -169,6 +169,13 @@ export default function ProcurementCaseDetailPage() {
   }, [caseId, pin, requestedBy]);
 
   const act = async (path: string, body: Record<string, unknown>) => {
+    // Guard: don't let an approver finalize while item edits are unsaved — the
+    // approval does NOT persist edited quantities/prices, so approving here would
+    // silently discard them. Force an explicit Save Changes (or Cancel) first.
+    if (path === "approve" && editingItems) {
+      setError('You have unsaved item edits. Click "Save Changes" to apply them (or "Cancel" to discard) before approving.');
+      return;
+    }
     setBusy(path);
     setError("");
     setSuccessMsg("");
@@ -661,7 +668,7 @@ export default function ProcurementCaseDetailPage() {
           {/* Editing banner */}
           {editingItems && (
             <div className="mb-3 rounded-xl border border-violet-500/25 bg-violet-500/8 px-4 py-2.5 text-xs text-violet-300">
-              ✏ Editing mode — Edit Qty, Unit Price, Spec, and other fields. Use the delete button to remove items, or &quot;+ Add Item&quot; below to add new ones. Totals update automatically.
+              ✏ Editing mode — Edit Qty, Unit Price, Spec, and other fields. Use the delete button to remove items, or &quot;+ Add Item&quot; below to add new ones. Totals update automatically. <span className="font-semibold text-violet-200">Click &quot;Save Changes&quot; to apply your edits before approving</span> — approving with unsaved edits is blocked.
             </div>
           )}
 
