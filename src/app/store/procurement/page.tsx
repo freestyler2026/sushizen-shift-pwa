@@ -66,6 +66,8 @@ type RequestRow = {
   status: string;
   receiving_status?: string;
   current_approval_level: number;
+  vendor_summary?: string;   // supplier(s) for this request (comma-joined)
+  blocked_reason?: string;   // reject / return reason from Back Office
 };
 
 type RequestItem = {
@@ -200,6 +202,7 @@ function RequestDetailDrawer({
     const s = String(status || "").toUpperCase();
     if (s === "APPROVED") return <span className="rounded-full bg-emerald-900/40 border border-emerald-700/50 px-2.5 py-0.5 text-xs font-semibold text-emerald-300">APPROVED</span>;
     if (s === "RETURNED") return <span className="rounded-full bg-red-900/40 border border-red-700/50 px-2.5 py-0.5 text-xs font-semibold text-red-300">RETURNED</span>;
+    if (s === "REJECTED") return <span className="rounded-full bg-rose-900/50 border border-rose-600/60 px-2.5 py-0.5 text-xs font-semibold text-rose-300">REJECTED</span>;
     if (s === "IN_REVIEW" || s === "SUBMITTED") return <span className="rounded-full bg-blue-900/40 border border-blue-700/50 px-2.5 py-0.5 text-xs font-semibold text-blue-300">IN REVIEW</span>;
     if (s === "DRAFT") return <span className="rounded-full bg-amber-900/40 border border-amber-700/50 px-2.5 py-0.5 text-xs font-semibold text-amber-300">DRAFT</span>;
     return <span className="rounded-full bg-zinc-800 border border-zinc-700 px-2.5 py-0.5 text-xs text-zinc-400">{status}</span>;
@@ -454,6 +457,19 @@ function RequestDetailDrawer({
                   href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}&edit=${encodeURIComponent(requestId)}`}
                   onClick={onClose}
                   className="flex-1 rounded-xl border border-amber-500/40 bg-amber-950/30 py-2.5 text-center text-sm font-semibold text-amber-300 transition hover:bg-amber-900/40"
+                >
+                  Edit &amp; Resubmit
+                </Link>
+              </div>
+            );
+          }
+          if (s === "REJECTED") {
+            return (
+              <div className="border-t border-white/10 px-5 py-4 flex gap-3">
+                <Link
+                  href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}&edit=${encodeURIComponent(requestId)}`}
+                  onClick={onClose}
+                  className="flex-1 rounded-xl border border-rose-500/40 bg-rose-950/30 py-2.5 text-center text-sm font-semibold text-rose-300 transition hover:bg-rose-900/40"
                 >
                   Edit &amp; Resubmit
                 </Link>
@@ -722,8 +738,9 @@ export default function StoreProcurementHomePage() {
       }
       // Pass the resolved name directly to avoid stale closure
       await loadMyRequests(initialCity, resolvedName || requestedBy.trim());
-      // Load CK dispatch (non-blocking, silently fails if no access)
-      void loadCkDispatch(initialCity);
+      // Load CK dispatch (non-blocking, silently fails if no access).
+      // CK is a Manila-only facility — never load/show it for Dubai.
+      if (initialCity !== "dubai") void loadCkDispatch(initialCity);
     }
     void init();
   }, [auth, city, loadCkDispatch, loadMyRequests, requestedBy, router]);
@@ -848,6 +865,13 @@ export default function StoreProcurementHomePage() {
     return true;
   }), [rows]);
 
+  // Rejected requests are excluded from activeRows; surface them separately so the
+  // store can see (and re-submit) orders the Back Office rejected.
+  const rejectedRows = useMemo(
+    () => rows.filter((row) => String(row.status || "").toUpperCase() === "REJECTED"),
+    [rows],
+  );
+
   const counts = useMemo(() => {
     const out = {
       total: activeRows.length,
@@ -855,6 +879,7 @@ export default function StoreProcurementHomePage() {
       inReview: 0,
       approved: 0,
       returned: 0,
+      rejected: rejectedRows.length,
     };
     for (const row of activeRows) {
       const st = String(row.status || "").toUpperCase();
@@ -864,20 +889,21 @@ export default function StoreProcurementHomePage() {
       else if (st === "RETURNED") out.returned += 1;
     }
     return out;
-  }, [activeRows]);
+  }, [activeRows, rejectedRows]);
 
   // Rows shown in the Requests list, narrowed by the selected KPI card (if any).
   const displayedRows = useMemo(() => {
+    if (statusFilter === "REJECTED") return rejectedRows;
     if (!statusFilter) return activeRows;
     return activeRows.filter((row) => {
       const s = String(row.status || "").toUpperCase();
       if (statusFilter === "IN_REVIEW") return s === "IN_REVIEW" || s === "SUBMITTED";
       return s === statusFilter;
     });
-  }, [activeRows, statusFilter]);
+  }, [activeRows, rejectedRows, statusFilter]);
 
   const STATUS_FILTER_LABEL: Record<string, string> = {
-    DRAFT: "Draft", IN_REVIEW: "In Review", APPROVED: "Approved", RETURNED: "Returned",
+    DRAFT: "Draft", IN_REVIEW: "In Review", APPROVED: "Approved", RETURNED: "Returned", REJECTED: "Rejected",
   };
 
   // Toggle a KPI card filter and scroll the Requests list into view.
@@ -1013,6 +1039,20 @@ export default function StoreProcurementHomePage() {
         <Link
           href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}&edit=${encodeURIComponent(row.id)}`}
           className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-4 py-2 text-sm font-semibold text-amber-300 transition hover:bg-amber-900/40"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span className="flex items-center gap-2">
+            <RotateCcw className="h-4 w-4" />
+            Edit & Resubmit
+          </span>
+        </Link>
+      );
+    }
+    if (s === "REJECTED") {
+      return (
+        <Link
+          href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}&edit=${encodeURIComponent(row.id)}`}
+          className="rounded-xl border border-rose-500/40 bg-rose-950/30 px-4 py-2 text-sm font-semibold text-rose-300 transition hover:bg-rose-900/40"
           onClick={(e) => e.stopPropagation()}
         >
           <span className="flex items-center gap-2">
@@ -1214,6 +1254,17 @@ export default function StoreProcurementHomePage() {
               </div>
               <p className={`${KPI_VALUE} text-lg ${counts.returned > 0 ? "text-red-400" : "text-zinc-500"}`}>{counts.returned}</p>
             </button>
+            <button
+              type="button"
+              onClick={() => toggleStatusFilter("REJECTED")}
+              className={`${KPI_CARD} text-left cursor-pointer transition-all hover:border-white/20 ${statusFilter === "REJECTED" ? "ring-2 ring-rose-500/60 border-rose-500/40" : ""}`}
+            >
+              <div className="mb-1.5 flex items-center gap-1.5">
+                <X className="h-3.5 w-3.5 text-rose-500" />
+                <p className={KPI_LABEL}>Rejected</p>
+              </div>
+              <p className={`${KPI_VALUE} text-lg ${counts.rejected > 0 ? "text-rose-500" : "text-zinc-500"}`}>{counts.rejected}</p>
+            </button>
           </div>
 
           {/* Auth form + city */}
@@ -1276,7 +1327,8 @@ export default function StoreProcurementHomePage() {
         {/* ─── RIGHT PANEL ─── */}
         <div className="flex min-w-0 flex-1 flex-col gap-4">
 
-          {/* ── CK Dispatch Section ── */}
+          {/* ── CK Dispatch Section (Manila only — CK is a Manila facility; hide for Dubai) ── */}
+          {city !== "dubai" && (
           <div className={`${BLUSH_GLASS} overflow-hidden`}>
             <button
               type="button"
@@ -1472,6 +1524,7 @@ export default function StoreProcurementHomePage() {
               )}
             </AnimatePresence>
           </div>
+          )}
 
           {error ? <div className="rounded-xl border border-red-700/40 bg-red-900/20 px-4 py-3 text-sm text-red-300">{error}</div> : null}
 
@@ -1655,11 +1708,19 @@ export default function StoreProcurementHomePage() {
                               {Number(row.total_amount || 0).toFixed(2)} {currencyCode}
                             </span>
                           </div>
+                          {/* Supplier(s) — helps tell apart same-store, same-day orders */}
+                          {row.vendor_summary ? (
+                            <p className="mt-1 flex items-center gap-1 text-xs text-violet-300/90">
+                              <Building2 className="h-3 w-3 shrink-0" />
+                              <span className="break-words">{row.vendor_summary}</span>
+                            </p>
+                          ) : null}
                           {/* Status badge row */}
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             {s === "DRAFT" && <span className={BADGE_WARNING}>DRAFT · Level {row.current_approval_level || 0}</span>}
                             {s === "APPROVED" && <span className={BADGE_SUCCESS}>APPROVED</span>}
                             {s === "RETURNED" && <span className={BADGE_ERROR}>RETURNED</span>}
+                            {s === "REJECTED" && <span className={BADGE_ERROR}>REJECTED</span>}
                             {(s === "IN_REVIEW" || s === "SUBMITTED") && <span className={BADGE_INFO}>IN REVIEW</span>}
                             {s === "RECEIVED" && <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/15 border border-cyan-500/25 px-2.5 py-0.5 text-xs font-medium text-cyan-400">RECEIVED</span>}
                             {isHighValue(row) && (
@@ -1668,6 +1729,12 @@ export default function StoreProcurementHomePage() {
                               </span>
                             )}
                           </div>
+                          {/* Reject / return reason from Back Office */}
+                          {(s === "RETURNED" || s === "REJECTED") && row.blocked_reason ? (
+                            <p className="mt-1.5 rounded-lg border border-red-500/25 bg-red-500/8 px-2.5 py-1.5 text-xs text-red-300">
+                              {s === "REJECTED" ? "Rejected" : "Returned"}: {row.blocked_reason}
+                            </p>
+                          ) : null}
                         </div>
                         {/* Status-driven action button */}
                         <div className="shrink-0" onClick={(e) => e.stopPropagation()}>

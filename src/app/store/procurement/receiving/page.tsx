@@ -786,15 +786,54 @@ export default function StoreProcurementReceivingPage() {
                 </button>
               </div>
             ) : !showNewForm && rows.length > 0 && rows.some((r) => r.status === "DRAFT") ? (
-              /* Has unconfirmed receiving — prompt to confirm below */
-              <div className="flex flex-col items-center gap-3 py-8 text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-amber-500/40 bg-amber-500/15">
-                  <Clock className="h-7 w-7 text-amber-400" />
+              /* Unconfirmed receiving exists — show the recorded quantities and the
+                 Confirm button right here, so quantities are always reviewed before
+                 finalizing (no blind "confirm" without seeing what was received). */
+              <div className="space-y-3 py-1">
+                <div className="flex items-start gap-2 text-amber-200">
+                  <Clock className="mt-0.5 h-5 w-5 shrink-0" />
+                  <div>
+                    <div className="text-sm font-semibold">Delivery Recorded — Review &amp; Confirm</div>
+                    <div className="text-xs text-zinc-500">Check the received quantities below, then Confirm to finalize.</div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-base font-semibold text-amber-200">Delivery Recorded — Awaiting Confirmation</div>
-                  <div className="mt-1 text-xs text-zinc-500">Tap the <span className="font-bold text-emerald-300">Confirm</span> button below to finalize the delivery.</div>
-                </div>
+                {rows.filter((r) => r.status === "DRAFT").map((row) => {
+                  const shortage = Number(row.shortage_qty || 0);
+                  const excess = Number(row.excess_qty || 0);
+                  return (
+                    <div key={row.id} className="rounded-xl border border-amber-500/30 bg-amber-950/15 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-mono text-xs text-zinc-300">{row.receiving_no || "Draft"}</span>
+                        <span className="text-xs text-zinc-400">{Number(row.amount_received || 0).toFixed(2)} {currencyCode}</span>
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                        <span className="text-zinc-300">Received <span className="font-semibold text-white">{row.qty_received}</span> / {row.qty_expected} {row.unit}</span>
+                        {shortage > 0 && <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-xs text-red-300">Short {shortage}</span>}
+                        {excess > 0 && <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-xs text-blue-300">Excess {excess}</span>}
+                      </div>
+                      <div className="mt-2.5 flex items-center justify-end gap-2">
+                        {confirmTarget === row.id ? (
+                          <>
+                            <span className="text-xs text-amber-200">Finalize?</span>
+                            <button type="button" onClick={() => { setConfirmTarget(""); void confirmReceiving(row.id); }} disabled={busy === row.id} className={BTN_CONFIRM}>
+                              {busy === row.id ? <RefreshCw className="h-4 w-4 animate-spin" /> : <CheckCheck className="h-4 w-4" />}
+                              {busy === row.id ? "Confirming…" : "Yes, Confirm"}
+                            </button>
+                            <button type="button" onClick={() => setConfirmTarget("")} disabled={busy === row.id} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-400 hover:bg-white/10 transition disabled:opacity-60">Cancel</button>
+                          </>
+                        ) : (
+                          <button type="button" onClick={() => setConfirmTarget(row.id)} disabled={busy === row.id} className={BTN_CONFIRM}>
+                            <CheckCheck className="h-4 w-4" />
+                            Confirm Delivery
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                <p className="text-center text-[11px] text-zinc-500">
+                  Need to fix quantities or delete this draft? Use the <span className="text-zinc-300">Receiving Records</span> section below.
+                </p>
               </div>
             ) : detailBusy ? (
               <div className="py-6 text-center text-sm text-zinc-500">Loading items…</div>
