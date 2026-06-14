@@ -81,6 +81,18 @@ type IncidentReport = {
   category: string; severity: string; description: string;
   incident_datetime: string; status: string; created_at: string;
   replies: Reply[]; attachments: Attachment[];
+  store_eval_status?: string;
+  store_eval_note?: string;
+  store_eval_at?: string;
+};
+
+const STORE_EVAL_OPTIONS = [
+  { value: "resolved",  label: "Resolved 解決" },
+  { value: "partial",   label: "Partial 部分的" },
+  { value: "recurring", label: "Recurring 再発" },
+];
+const STORE_EVAL_LABEL: Record<string, string> = {
+  resolved: "Resolved", partial: "Partial", recurring: "Recurring",
 };
 
 function fmtDt(iso: string): string {
@@ -91,6 +103,75 @@ function fmtDt(iso: string): string {
       hour: "2-digit", minute: "2-digit",
     });
   } catch { return iso; }
+}
+
+// Store staff self-evaluation of whether their own reported issue is resolved.
+function SelfEvalBox({ item, onSaved }: { item: IncidentReport; onSaved: () => void }) {
+  const [status, setStatus] = useState(item.store_eval_status ?? "");
+  const [note, setNote]     = useState(item.store_eval_note ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState("");
+  const [done, setDone]     = useState(false);
+
+  const submit = async () => {
+    const a = getAuth();
+    if (!a || !status) return;
+    setSaving(true); setError(""); setDone(false);
+    try {
+      const res = await fetch(`${API_BASE}/api/incidents/${item.id}/self-eval`, {
+        method: "POST", headers: getAuthHeaders(a),
+        body: JSON.stringify({ status, note }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setDone(true);
+      onSaved();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to save");
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3.5 py-3">
+      <p className={`${T_LABEL} mb-2`}>Is this resolved? 解決しましたか？</p>
+      {item.store_eval_status && (
+        <p className="mb-2 text-[11px] text-zinc-500">
+          Last: {STORE_EVAL_LABEL[item.store_eval_status] ?? item.store_eval_status}
+          {item.store_eval_at ? ` · ${fmtDt(item.store_eval_at)}` : ""}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        {STORE_EVAL_OPTIONS.map((opt) => {
+          const active = status === opt.value;
+          return (
+            <button key={opt.value} type="button"
+              onClick={() => setStatus(opt.value)}
+              className={[
+                "rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all",
+                active
+                  ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-200"
+                  : "border-white/10 bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-zinc-200",
+              ].join(" ")}>
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+      <textarea
+        className={`${INPUT_CLASS} mt-2 min-h-[50px] resize-none`}
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="Note (optional) — what happened / what's still pending"
+      />
+      <div className="mt-2 flex items-center gap-3">
+        <button className={SMALL_BUTTON} onClick={submit} disabled={!status || saving}>
+          {saving && <Loader2 className="mr-1.5 inline h-3.5 w-3.5 animate-spin" />}
+          Submit evaluation
+        </button>
+        {error && <span className="text-xs text-red-400">{error}</span>}
+        {done && <span className="text-xs text-emerald-400">Saved ✓</span>}
+      </div>
+    </div>
+  );
 }
 
 export default function IncidentsPage() {
@@ -506,6 +587,8 @@ export default function IncidentsPage() {
                       </div>
                     </div>
                   )}
+
+                  <SelfEvalBox item={item} onSaved={fetchList} />
 
                   {(item.replies?.length ?? 0) > 0 && (
                     <div>
