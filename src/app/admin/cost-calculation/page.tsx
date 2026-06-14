@@ -811,6 +811,8 @@ export default function CostCalculationPage() {
   const [dirtyRows, setDirtyRows] = useState<Set<number>>(new Set());
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [recomputing, setRecomputing] = useState(false);
+  const [recomputeMsg, setRecomputeMsg] = useState("");
   const [importMessage, setImportMessage] = useState("");
   const [allIngredientOptions, setAllIngredientOptions] = useState<IngredientRow[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -3775,6 +3777,38 @@ export default function CostCalculationPage() {
                 <ExternalLink className="h-4 w-4" />
                 Spreadsheet
               </button>
+              {isMasterSection ? (
+                <button
+                  type="button"
+                  disabled={recomputing}
+                  title="Recompute all processed item / product costs from the latest ingredient prices"
+                  onClick={async () => {
+                    setRecomputing(true);
+                    setError("");
+                    setRecomputeMsg("");
+                    try {
+                      const res = await costJson<{ updated?: number }>(
+                        `/api/cost/recompute-all?city=${encodeURIComponent(city)}`,
+                        { method: "POST" },
+                      );
+                      await loadMasterItems(activeMasterType);
+                      setRecomputeMsg(`Recomputed ${res?.updated ?? 0} item(s) from latest prices.`);
+                      window.setTimeout(() => setRecomputeMsg(""), 5000);
+                    } catch (e: any) {
+                      setError(e?.message || String(e));
+                    } finally {
+                      setRecomputing(false);
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/15 px-3.5 py-2.5 text-sm font-medium text-emerald-200 transition hover:bg-emerald-500/25 disabled:opacity-50"
+                >
+                  <RotateCcw className={cx("h-4 w-4", recomputing && "animate-spin")} />
+                  {recomputing ? "Recomputing…" : "Recompute All"}
+                </button>
+              ) : null}
+              {recomputeMsg ? (
+                <span className="inline-flex items-center text-xs text-emerald-300">{recomputeMsg}</span>
+              ) : null}
               <div className="inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-zinc-300">
                 <Calculator className="h-4 w-4 text-violet-300" />
                 <span>{cityLabel}</span>
