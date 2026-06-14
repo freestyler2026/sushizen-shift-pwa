@@ -6,6 +6,7 @@ import { CheckCircle2, Circle, Clock, Package, ChevronRight, ChevronDown, CheckC
 import { ProcurementStepper } from "@/components/ProcurementStepper";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson } from "@/lib/procurementClient";
+import { receivingsForRequest, receivingStepState } from "@/lib/procurementStatus";
 import { formatRelativeAge, getRecentBadgeMaxAgeMs, isOlderThan, useRelativeAgeNow } from "@/lib/timeAgo";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -465,7 +466,10 @@ export default function StoreProcurementReceivingPage() {
       const initialCity = queryCity || city || String(refreshed?.city || auth?.city || "manila").toLowerCase();
       setCity(initialCity);
       if ((refreshed?.staffName || "").trim() && !requestedBy.trim()) setRequestedBy(String(refreshed.staffName).trim());
-      await Promise.all([loadMyRequests(initialCity), loadReceivings()]);
+      // Scope the initial receiving load to the URL's request_id (if any) so it
+      // doesn't load a global list that races with the per-request load below.
+      const initialReq = typeof window !== "undefined" ? (new URLSearchParams(window.location.search).get("request_id") || "") : "";
+      await Promise.all([loadMyRequests(initialCity), loadReceivings(initialReq)]);
     }
     void init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -486,6 +490,16 @@ export default function StoreProcurementReceivingPage() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   const selectedRequest = requests.find((r) => r.id === requestId);
+
+  // Receiving records that belong to the SELECTED request only. `rows` can briefly
+  // hold a global (unfiltered) load — Step 2's confirmed/draft/empty decision must
+  // be scoped to this request, or it shows another request's draft state.
+  const requestReceivings = useMemo(
+    () => receivingsForRequest(rows, requestId),
+    [rows, requestId],
+  );
+  // Step-2 panel: confirmed | review | form (scoped to THIS request only).
+  const receivingStep = receivingStepState(requestReceivings, showNewForm);
 
   const filteredRequests = useMemo(() => {
     let list = requests;
@@ -737,7 +751,7 @@ export default function StoreProcurementReceivingPage() {
             )}
 
             {/* Duplicate receiving warning */}
-            {selectedRequest && String(selectedRequest.status || "").toUpperCase() === "RECEIVED" && rows.length > 0 && !duplicateWarningConfirmed && (
+            {selectedRequest && String(selectedRequest.status || "").toUpperCase() === "RECEIVED" && requestReceivings.length > 0 && !duplicateWarningConfirmed && (
               <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-950/20 px-4 py-4">
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
@@ -762,7 +776,7 @@ export default function StoreProcurementReceivingPage() {
             )}
 
             {/* Already confirmed — show success state (unless user wants to add another) */}
-            {!showNewForm && rows.length > 0 && rows.every((r) => r.status === "CONFIRMED") ? (
+            {receivingStep === "confirmed" ? (
               <div className="flex flex-col items-center gap-4 py-6 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-emerald-500/40 bg-emerald-500/15">
                   <CheckCheck className="h-7 w-7 text-emerald-400" />
@@ -770,7 +784,7 @@ export default function StoreProcurementReceivingPage() {
                 <div>
                   <div className="text-base font-semibold text-emerald-300">Delivery Confirmed</div>
                   <div className="mt-1 text-xs text-zinc-400">
-                    {rows.length} delivery record{rows.length !== 1 ? "s" : ""} confirmed for this request.
+                    {requestReceivings.length} delivery record{requestReceivings.length !== 1 ? "s" : ""} confirmed for this request.
                   </div>
                   <div className="mt-2 text-xs text-zinc-500">
                     If a new shipment has arrived (e.g. back-ordered items), tap the button below to record it.
@@ -785,7 +799,7 @@ export default function StoreProcurementReceivingPage() {
                   Record additional delivery
                 </button>
               </div>
-            ) : !showNewForm && rows.length > 0 && rows.some((r) => r.status === "DRAFT") ? (
+            ) : receivingStep === "review" ? (
               /* Unconfirmed receiving exists — show the recorded quantities and the
                  Confirm button right here, so quantities are always reviewed before
                  finalizing (no blind "confirm" without seeing what was received). */
@@ -797,7 +811,7 @@ export default function StoreProcurementReceivingPage() {
                     <div className="text-xs text-zinc-500">Check the received quantities below, then Confirm to finalize.</div>
                   </div>
                 </div>
-                {rows.filter((r) => r.status === "DRAFT").map((row) => {
+                {requestReceivings.filter((r) => r.status === "DRAFT").map((row) => {
                   const shortage = Number(row.shortage_qty || 0);
                   const excess = Number(row.excess_qty || 0);
                   return (

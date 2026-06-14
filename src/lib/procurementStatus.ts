@@ -55,3 +55,38 @@ export function selectDisplayedRequests<T extends ProcurementStatusRow>(
 export function isCkDispatchVisible(city: string | null | undefined): boolean {
   return String(city || "").toLowerCase() !== "dubai";
 }
+
+// ── Receiving (Step 2) ────────────────────────────────────────────────────────
+
+export type ReceivingStatusRow = { status?: string | null; request_id?: string | null };
+
+/**
+ * Receiving records that belong to a specific request. `rows` may briefly hold a
+ * global (unfiltered) load, so the receiving UI must scope to the selected request.
+ */
+export function receivingsForRequest<T extends { request_id?: string | null }>(
+  rows: T[],
+  requestId: string,
+): T[] {
+  return rows.filter((r) => String(r.request_id ?? "") === String(requestId ?? ""));
+}
+
+export type ReceivingStep = "confirmed" | "review" | "form";
+
+/**
+ * Which Step-2 panel to show, based ONLY on the selected request's receiving
+ * records: all confirmed → "confirmed"; has a draft → "review" (review qty +
+ * confirm); otherwise → "form" (enter delivered quantities). `showNewForm` forces
+ * the entry form (record an additional delivery).
+ */
+export function receivingStepState(
+  requestReceivings: ReceivingStatusRow[],
+  showNewForm: boolean,
+): ReceivingStep {
+  if (showNewForm) return "form";
+  if (requestReceivings.length === 0) return "form";
+  const norm = (s: unknown) => String(s || "").toUpperCase();
+  if (requestReceivings.every((r) => norm(r.status) === "CONFIRMED")) return "confirmed";
+  if (requestReceivings.some((r) => norm(r.status) === "DRAFT")) return "review";
+  return "form";
+}

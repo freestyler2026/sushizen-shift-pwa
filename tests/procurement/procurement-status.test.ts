@@ -5,6 +5,8 @@ import {
   matchesStatusFilter,
   selectDisplayedRequests,
   isCkDispatchVisible,
+  receivingsForRequest,
+  receivingStepState,
   type ProcurementStatusRow,
 } from "@/lib/procurementStatus";
 
@@ -81,5 +83,39 @@ describe("isCkDispatchVisible", () => {
     expect(isCkDispatchVisible("manila")).toBe(true);
     expect(isCkDispatchVisible("")).toBe(true);
     expect(isCkDispatchVisible(null)).toBe(true);
+  });
+});
+
+describe("receivingsForRequest", () => {
+  const rows = [
+    { request_id: "A", status: "DRAFT" },
+    { request_id: "B", status: "DRAFT" },
+    { request_id: "A", status: "CONFIRMED" },
+  ];
+  it("returns only the selected request's records", () => {
+    expect(receivingsForRequest(rows, "A")).toHaveLength(2);
+    expect(receivingsForRequest(rows, "B")).toHaveLength(1);
+  });
+  it("returns empty when the request has no records", () => {
+    expect(receivingsForRequest(rows, "C")).toEqual([]);
+  });
+});
+
+describe("receivingStepState", () => {
+  it("shows the entry FORM when the selected request has no receivings (regression: MAN-PR-202606-0019)", () => {
+    // Other requests may have drafts, but this request has none → must show form.
+    expect(receivingStepState([], false)).toBe("form");
+  });
+  it("shows REVIEW when this request has an unconfirmed draft", () => {
+    expect(receivingStepState([{ status: "DRAFT", request_id: "A" }], false)).toBe("review");
+  });
+  it("shows CONFIRMED when all of this request's receivings are confirmed", () => {
+    expect(receivingStepState([{ status: "CONFIRMED" }, { status: "CONFIRMED" }], false)).toBe("confirmed");
+  });
+  it("forces the FORM when recording an additional delivery", () => {
+    expect(receivingStepState([{ status: "CONFIRMED" }], true)).toBe("form");
+  });
+  it("treats a mix of draft + confirmed as REVIEW (still has an open draft)", () => {
+    expect(receivingStepState([{ status: "CONFIRMED" }, { status: "DRAFT" }], false)).toBe("review");
   });
 });
