@@ -132,6 +132,40 @@ export function setAuth(a: Auth) {
   );
 }
 
+/**
+ * Guard a refresh against silently DOWNGRADING a working session. `/api/auth/session`
+ * is a non-authoritative poll; if it transiently returns STAFF or empty permissions
+ * (e.g. a backend profile-lookup fallback), we must not strip a privileged session —
+ * doing so kicks an admin out to the Staff Portal mid-task and silently drops edits.
+ * The server still enforces real permissions on every request, so keeping the client
+ * optimistic is safe.
+ */
+function nonDowngradedAccess(
+  current: Auth,
+  incomingRole: StaffRole | undefined,
+  incomingPermissions: string[],
+): { role: StaffRole; permissions: string[] } {
+  const currentRole = (current.role || "STAFF").toUpperCase();
+  const incoming = (incomingRole || "").toUpperCase();
+  const currentPerms = current.permissions || [];
+
+  let role: StaffRole = incomingRole || current.role || "STAFF";
+  // Never drop a non-STAFF session down to STAFF/unknown on a refresh.
+  if (currentRole !== "STAFF" && (incoming === "" || incoming === "STAFF")) {
+    role = current.role || role;
+  }
+
+  let permissions = incomingPermissions;
+  const lostStar = currentPerms.includes("*") && !incomingPermissions.includes("*");
+  // Keep permissions if the response would strip access we currently hold.
+  if (incomingPermissions.length === 0 && currentPerms.length > 0) {
+    permissions = currentPerms;
+  } else if (lostStar) {
+    permissions = currentPerms;
+  }
+  return { role, permissions };
+}
+
 export async function refreshAuthFromApi(
   a?: Auth | null,
   options?: {
@@ -158,14 +192,19 @@ export async function refreshAuthFromApi(
 
     const verified = await verifyRes.json();
     const verifiedCityLockRaw = String(verified?.city_lock ?? "").toLowerCase();
+    const verifiedAccess = nonDowngradedAccess(
+      current,
+      normalizeRole(verified?.role),
+      normalizePermissions(verified?.permissions),
+    );
     const migrated: Auth = {
       staffName: String(verified?.staff_name || current.staffName).trim(),
       city: normalizeCity(verified?.city || current.city),
       cityLock: verifiedCityLockRaw === "dubai" || verifiedCityLockRaw === "manila" ? verifiedCityLockRaw : "",
-      role: normalizeRole(verified?.role) || current.role || "STAFF",
+      role: verifiedAccess.role,
       pin: current.pin,
       accessToken: String(verified?.access_token || "").trim() || current.accessToken,
-      permissions: normalizePermissions(verified?.permissions),
+      permissions: verifiedAccess.permissions,
       mfa: normalizeMfaStatus(verified?.mfa) || current.mfa,
       stepUpToken: current.stepUpToken,
       stepUpLevel: current.stepUpLevel,
@@ -203,18 +242,23 @@ export async function refreshAuthFromApi(
 
     const data = await res.json();
     const sessionCityLockRaw = String(data?.city_lock ?? "").toLowerCase();
+    const sessionAccess = nonDowngradedAccess(
+      current,
+      normalizeRole(data?.role),
+      normalizePermissions(data?.permissions),
+    );
     const next: Auth = {
       staffName: String(data?.staff_name || current.staffName).trim(),
       city: normalizeCity(data?.city || current.city),
       cityLock: sessionCityLockRaw === "dubai" || sessionCityLockRaw === "manila" ? sessionCityLockRaw : (current.cityLock ?? ""),
-      role: normalizeRole(data?.role) || current.role || "STAFF",
+      role: sessionAccess.role,
       pin: current.pin,
       accessToken: current.accessToken,
       stepUpToken: current.stepUpToken,
       stepUpLevel: normalizeStepUpLevel(data?.step_up?.level) || current.stepUpLevel,
       stepUpMethod: String(data?.step_up?.method || current.stepUpMethod || ""),
       stepUpVerifiedAt: String(data?.step_up?.verified_at || current.stepUpVerifiedAt || ""),
-      permissions: normalizePermissions(data?.permissions),
+      permissions: sessionAccess.permissions,
       mfa: normalizeMfaStatus(data?.mfa) || current.mfa,
     };
     setAuth(next);
