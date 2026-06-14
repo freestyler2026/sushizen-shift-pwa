@@ -140,7 +140,7 @@ export function setAuth(a: Auth) {
  * The server still enforces real permissions on every request, so keeping the client
  * optimistic is safe.
  */
-function nonDowngradedAccess(
+export function nonDowngradedAccess(
   current: Auth,
   incomingRole: StaffRole | undefined,
   incomingPermissions: string[],

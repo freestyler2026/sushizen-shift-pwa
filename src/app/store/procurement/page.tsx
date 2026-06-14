@@ -33,6 +33,7 @@ import { ProcurementStepper } from "@/components/ProcurementStepper";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES } from "@/lib/branches";
 import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson } from "@/lib/procurementClient";
+import { isActiveRequest, isCkDispatchVisible, isRejectedRequest, selectDisplayedRequests } from "@/lib/procurementStatus";
 import { formatRelativeAge, getRecentBadgeMaxAgeMs, isOlderThan, parseIsoTimeMs, useRelativeAgeNow } from "@/lib/timeAgo";
 import {
   GLASS_CARD,
@@ -740,7 +741,7 @@ export default function StoreProcurementHomePage() {
       await loadMyRequests(initialCity, resolvedName || requestedBy.trim());
       // Load CK dispatch (non-blocking, silently fails if no access).
       // CK is a Manila-only facility — never load/show it for Dubai.
-      if (initialCity !== "dubai") void loadCkDispatch(initialCity);
+      if (isCkDispatchVisible(initialCity)) void loadCkDispatch(initialCity);
     }
     void init();
   }, [auth, city, loadCkDispatch, loadMyRequests, requestedBy, router]);
@@ -855,22 +856,11 @@ export default function StoreProcurementHomePage() {
   }, [LAST_CREATED_CLAIM_KEY, LAST_CREATED_MAX_AGE_MS, relativeNowMs]);
 
   // Filter out completed requests: receiving confirmed or terminal status
-  const activeRows = useMemo(() => rows.filter((row) => {
-    const s = String(row.status || "").toUpperCase();
-    const rs = String(row.receiving_status || "").toUpperCase();
-    // Terminal statuses — completely done
-    if (["CLOSED", "RECEIVED", "CANCELLED", "REJECTED", "PURCHASED"].includes(s)) return false;
-    // Receiving confirmed or claim filed — store's work is done
-    if (["CONFIRMED", "CLAIM_REVIEW"].includes(rs)) return false;
-    return true;
-  }), [rows]);
+  const activeRows = useMemo(() => rows.filter(isActiveRequest), [rows]);
 
   // Rejected requests are excluded from activeRows; surface them separately so the
   // store can see (and re-submit) orders the Back Office rejected.
-  const rejectedRows = useMemo(
-    () => rows.filter((row) => String(row.status || "").toUpperCase() === "REJECTED"),
-    [rows],
-  );
+  const rejectedRows = useMemo(() => rows.filter(isRejectedRequest), [rows]);
 
   const counts = useMemo(() => {
     const out = {
@@ -892,15 +882,10 @@ export default function StoreProcurementHomePage() {
   }, [activeRows, rejectedRows]);
 
   // Rows shown in the Requests list, narrowed by the selected KPI card (if any).
-  const displayedRows = useMemo(() => {
-    if (statusFilter === "REJECTED") return rejectedRows;
-    if (!statusFilter) return activeRows;
-    return activeRows.filter((row) => {
-      const s = String(row.status || "").toUpperCase();
-      if (statusFilter === "IN_REVIEW") return s === "IN_REVIEW" || s === "SUBMITTED";
-      return s === statusFilter;
-    });
-  }, [activeRows, rejectedRows, statusFilter]);
+  const displayedRows = useMemo(
+    () => selectDisplayedRequests(activeRows, rejectedRows, statusFilter),
+    [activeRows, rejectedRows, statusFilter],
+  );
 
   const STATUS_FILTER_LABEL: Record<string, string> = {
     DRAFT: "Draft", IN_REVIEW: "In Review", APPROVED: "Approved", RETURNED: "Returned", REJECTED: "Rejected",
@@ -1328,7 +1313,7 @@ export default function StoreProcurementHomePage() {
         <div className="flex min-w-0 flex-1 flex-col gap-4">
 
           {/* ── CK Dispatch Section (Manila only — CK is a Manila facility; hide for Dubai) ── */}
-          {city !== "dubai" && (
+          {isCkDispatchVisible(city) && (
           <div className={`${BLUSH_GLASS} overflow-hidden`}>
             <button
               type="button"
