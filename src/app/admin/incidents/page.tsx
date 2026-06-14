@@ -13,6 +13,7 @@ import {
   Loader2,
   MessageSquare,
   RefreshCw,
+  Store,
   TrendingUp,
   XCircle,
 } from "lucide-react";
@@ -57,6 +58,14 @@ const SEV_DOT: Record<string, string> = {
   low: "bg-emerald-400", medium: "bg-amber-400", high: "bg-orange-400", critical: "bg-red-400",
 };
 
+// Resolution evaluation (store self-eval + HQ final eval) values.
+const EVAL_LABEL: Record<string, string> = {
+  resolved: "Resolved", partial: "Partial", recurring: "Recurring",
+};
+const EVAL_BADGE: Record<string, string> = {
+  resolved: BADGE_SUCCESS, partial: BADGE_WARNING, recurring: BADGE_ERROR,
+};
+
 type IncidentRow = {
   id: string; city: string; branch: string; reporter_name: string;
   category: string; severity: string; description: string;
@@ -64,7 +73,25 @@ type IncidentRow = {
   replies?: { id: string }[];
   attachments?: { id: string }[];
   has_notes?: boolean;
+  // Issue-resolution lifecycle (Phase 1 backend)
+  proposed_solution?: string;
+  implementation_note?: string;
+  store_eval_status?: string;
+  store_eval_note?: string;
+  store_eval_at?: string;
+  store_eval_by?: string;
+  resolution_rating?: string;
+  resolution_note?: string;
+  resolved_at?: string;
+  resolved_by?: string;
 };
+
+function daysOpen(createdIso: string, resolvedIso?: string): number {
+  if (!createdIso) return 0;
+  const start = new Date(createdIso).getTime();
+  const end = resolvedIso ? new Date(resolvedIso).getTime() : Date.now();
+  return Math.max(0, Math.floor((end - start) / 86_400_000));
+}
 
 function fmtDt(iso: string): string {
   if (!iso) return "—";
@@ -82,18 +109,29 @@ export default function AdminIncidentsPage() {
   const cityLock = String(auth?.cityLock || "").toLowerCase();
   const isCityLocked = cityLock === "dubai" || cityLock === "manila";
 
+  const [view, setView]                     = useState<"reports" | "board">("reports");
   const [filterCity, setFilterCity]         = useState(isCityLocked ? cityLock : city);
   const [filterStatus, setFilterStatus]     = useState("");
   const [filterCategory, setFilterCategory] = useState("");
+  const [filterBranch, setFilterBranch]     = useState("");
   const [filterNotes, setFilterNotes]       = useState("");
   const [allItems, setAllItems] = useState<IncidentRow[]>([]);
   const [loading, setLoading]  = useState(false);
   const [error, setError]      = useState("");
 
-  /** Category filter is purely client-side — does NOT trigger an API call. */
+  /** Branch options derived from the loaded reports (city already applied). */
+  const branchOptions = useMemo(
+    () => Array.from(new Set(allItems.map((r) => r.branch).filter(Boolean))).sort(),
+    [allItems]
+  );
+
+  /** Category & branch filters are client-side — they do NOT trigger an API call. */
   const items = useMemo(
-    () => filterCategory ? allItems.filter((r) => r.category === filterCategory) : allItems,
-    [allItems, filterCategory]
+    () => allItems.filter(
+      (r) => (!filterCategory || r.category === filterCategory)
+          && (!filterBranch   || r.branch === filterBranch)
+    ),
+    [allItems, filterCategory, filterBranch]
   );
 
   const fetchList = useCallback(async () => {
@@ -153,6 +191,27 @@ export default function AdminIncidentsPage() {
         </Link>
       </div>
 
+      {/* ── Tabs ──────────────────────────────────────────────────── */}
+      <div className="flex gap-2">
+        {([
+          { key: "reports", label: "Reports", icon: <AlertTriangle className="h-3.5 w-3.5" /> },
+          { key: "board",   label: "Store Issue Board", icon: <Store className="h-3.5 w-3.5" /> },
+        ] as const).map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setView(t.key)}
+            className={[
+              "flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-semibold transition-all",
+              view === t.key
+                ? "border-amber-500/40 bg-amber-500/15 text-amber-200"
+                : "border-white/10 bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-zinc-200",
+            ].join(" ")}
+          >
+            {t.icon}{t.label}
+          </button>
+        ))}
+      </div>
+
       {/* ── KPI strip ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {KPI_CONFIG.map(({ label, value, color, icon, gradient }) => (
@@ -204,6 +263,14 @@ export default function AdminIncidentsPage() {
             </select>
           </div>
           <div className="flex items-center gap-2">
+            <label className={T_LABEL}>Branch</label>
+            <select className={`${SELECT_CLASS} w-auto min-w-[140px]`} value={filterBranch}
+              onChange={(e) => setFilterBranch(e.target.value)}>
+              <option value="">All Branches</option>
+              {branchOptions.map((b) => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
             <Lock className="h-3.5 w-3.5 text-amber-500/70" />
             <label className={T_LABEL}>Notes</label>
             <select className={`${SELECT_CLASS} w-auto min-w-[130px]`} value={filterNotes}
@@ -227,7 +294,11 @@ export default function AdminIncidentsPage() {
         </div>
       )}
 
+      {/* ── Store Issue Board ─────────────────────────────────────── */}
+      {view === "board" && <StoreIssueBoard items={items} loading={loading} />}
+
       {/* ── Table ─────────────────────────────────────────────────── */}
+      {view === "reports" && (
       <div className={`${GLASS_CARD} overflow-hidden`}>
         {loading && items.length === 0 ? (
           <div className="flex items-center justify-center py-16 text-zinc-400">
@@ -300,6 +371,127 @@ export default function AdminIncidentsPage() {
           </div>
         )}
       </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Store Issue Board ─────────────────────────────────────────────────────────
+// Per-branch view of OPEN issues (oldest first) so a store visitor can verify
+// whether previous days' issues are resolved. Each row links to the detail page
+// where the full lifecycle (proposal → implementation → evaluation) is edited.
+function StoreIssueBoard({ items, loading }: { items: IncidentRow[]; loading: boolean }) {
+  const [showResolved, setShowResolved] = useState(false);
+
+  const byBranch = useMemo(() => {
+    const map = new Map<string, IncidentRow[]>();
+    for (const r of items) {
+      const open = r.status !== "resolved";
+      if (!open && !showResolved) continue;
+      const key = r.branch || "—";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(r);
+    }
+    // Sort each branch: open first, then by oldest created_at.
+    for (const arr of map.values()) {
+      arr.sort((a, b) => {
+        const ao = a.status === "resolved" ? 1 : 0;
+        const bo = b.status === "resolved" ? 1 : 0;
+        if (ao !== bo) return ao - bo;
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      });
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [items, showResolved]);
+
+  if (loading && items.length === 0) {
+    return (
+      <div className={`${GLASS_CARD} flex items-center justify-center py-16 text-zinc-400`}>
+        <Loader2 className="mr-2 h-5 w-5 animate-spin" />Loading…
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className={`${T_CAPTION} text-zinc-400`}>
+          Open issues per store, oldest first — verify on store visits.
+        </p>
+        <label className="flex items-center gap-2 text-xs text-zinc-400">
+          <input type="checkbox" checked={showResolved}
+            onChange={(e) => setShowResolved(e.target.checked)} />
+          Include resolved
+        </label>
+      </div>
+
+      {byBranch.length === 0 ? (
+        <div className={`${GLASS_CARD} flex flex-col items-center py-16`}>
+          <CheckCircle2 className="h-8 w-8 text-emerald-500/60" />
+          <p className="mt-3 text-sm text-zinc-400">No open issues 🎉</p>
+        </div>
+      ) : byBranch.map(([branch, rows]) => {
+        const openCount = rows.filter((r) => r.status !== "resolved").length;
+        return (
+          <div key={branch} className={`${GLASS_CARD} overflow-hidden`}>
+            <div className="flex items-center justify-between border-b border-white/8 bg-white/3 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Store className="h-4 w-4 text-amber-400" />
+                <span className="font-semibold text-white">{branch}</span>
+              </div>
+              <span className="rounded-full bg-rose-500/15 px-2.5 py-0.5 text-xs font-semibold text-rose-300">
+                {openCount} open
+              </span>
+            </div>
+            <div className="divide-y divide-white/5">
+              {rows.map((r) => {
+                const opened = daysOpen(r.created_at, r.resolved_at);
+                const storeEval = r.store_eval_status?.toLowerCase();
+                const hqEval = r.resolution_rating?.toLowerCase();
+                return (
+                  <Link key={r.id} href={`/admin/incidents/${r.id}`}
+                    className="flex flex-col gap-2 px-4 py-3 transition-colors hover:bg-white/3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`h-2 w-2 shrink-0 rounded-full ${SEV_DOT[r.severity] ?? "bg-zinc-500"}`} />
+                        <span className="text-sm font-medium text-white">{r.category}</span>
+                        <span className={STATUS_BADGE[r.status] ?? BADGE_INFO}>
+                          {STATUS_LABEL[r.status] ?? r.status}
+                        </span>
+                      </div>
+                      <p className="mt-1 truncate text-xs text-zinc-400">{r.description || "—"}</p>
+                      <p className="mt-1 text-[11px] text-zinc-500">
+                        ① {r.reporter_name || "—"} · {fmtDt(r.incident_datetime || r.created_at)}
+                        {r.status !== "resolved" && (
+                          <span className={opened >= 1 ? "ml-2 text-amber-400" : "ml-2 text-zinc-500"}>
+                            · {opened}d open
+                          </span>
+                        )}
+                        {r.resolved_at && (
+                          <span className="ml-2 text-emerald-400">· resolved {fmtDt(r.resolved_at)}</span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {storeEval && (
+                        <span className={EVAL_BADGE[storeEval] ?? BADGE_INFO} title="Store self-evaluation">
+                          Store: {EVAL_LABEL[storeEval] ?? storeEval}
+                        </span>
+                      )}
+                      {hqEval && (
+                        <span className={EVAL_BADGE[hqEval] ?? BADGE_INFO} title="HQ evaluation">
+                          HQ: {EVAL_LABEL[hqEval] ?? hqEval}
+                        </span>
+                      )}
+                      <ChevronRight className="h-4 w-4 text-zinc-600" />
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -51,6 +51,29 @@ type IncidentDetail = {
   incident_datetime: string; status: string; created_at: string;
   updated_at: string; replies: Reply[]; attachments: Attachment[];
   internal_notes: InternalNote[];
+  // Issue-resolution lifecycle (Phase 1 backend)
+  proposed_solution?: string;
+  implementation_note?: string;
+  store_eval_status?: string;
+  store_eval_note?: string;
+  store_eval_at?: string;
+  store_eval_by?: string;
+  resolution_rating?: string;
+  resolution_note?: string;
+  resolved_at?: string;
+  resolved_by?: string;
+};
+
+const EVAL_OPTIONS = [
+  { value: "resolved",  label: "Resolved" },
+  { value: "partial",   label: "Partial" },
+  { value: "recurring", label: "Recurring" },
+];
+const EVAL_LABEL: Record<string, string> = {
+  resolved: "Resolved", partial: "Partial", recurring: "Recurring",
+};
+const EVAL_BADGE: Record<string, string> = {
+  resolved: BADGE_SUCCESS, partial: BADGE_WARNING, recurring: BADGE_ERROR,
 };
 
 function fmtDt(iso: string): string {
@@ -84,6 +107,15 @@ export default function AdminIncidentDetailPage() {
   const [noteError, setNoteError]         = useState("");
   const [noteSuccess, setNoteSuccess]     = useState("");
 
+  // Issue-resolution lifecycle (HQ-editable)
+  const [lifeProposed, setLifeProposed] = useState("");
+  const [lifeImpl, setLifeImpl]         = useState("");
+  const [lifeRating, setLifeRating]     = useState("");
+  const [lifeNote, setLifeNote]         = useState("");
+  const [savingLife, setSavingLife]     = useState(false);
+  const [lifeError, setLifeError]       = useState("");
+  const [lifeSuccess, setLifeSuccess]   = useState("");
+
   const fetchDetail = useCallback(async () => {
     const a = getAuth();
     if (!a || !reportId) return;
@@ -102,6 +134,16 @@ export default function AdminIncidentDetailPage() {
 
   useEffect(() => { void fetchDetail(); }, [fetchDetail]);
 
+  // Sync lifecycle editor fields whenever a (different) report loads.
+  useEffect(() => {
+    if (!item) return;
+    setLifeProposed(item.proposed_solution ?? "");
+    setLifeImpl(item.implementation_note ?? "");
+    setLifeRating(item.resolution_rating ?? "");
+    setLifeNote(item.resolution_note ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.id]);
+
   const handleStatusChange = async (newStatus: string) => {
     const a = getAuth();
     if (!a || !item) return;
@@ -114,9 +156,33 @@ export default function AdminIncidentDetailPage() {
       if (!res.ok) throw new Error(await res.text());
       setItem((prev) => prev ? { ...prev, status: newStatus } : prev);
       dispatchBadgeRefresh("adminIncidents");
+      // Refetch to pull server-stamped resolved_at / resolved_by.
+      void fetchDetail();
     } catch (e: unknown) {
       setStatusError(e instanceof Error ? e.message : "Failed to update");
     } finally { setStatusUpdating(false); }
+  };
+
+  const handleSaveLifecycle = async () => {
+    const a = getAuth();
+    if (!a) return;
+    setSavingLife(true); setLifeError(""); setLifeSuccess("");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/incidents/${reportId}/lifecycle`, {
+        method: "PATCH", headers: getAuthHeaders(a),
+        body: JSON.stringify({
+          proposed_solution: lifeProposed,
+          implementation_note: lifeImpl,
+          resolution_rating: lifeRating,
+          resolution_note: lifeNote,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setLifeSuccess("Saved.");
+      await fetchDetail();
+    } catch (e: unknown) {
+      setLifeError(e instanceof Error ? e.message : "Failed to save");
+    } finally { setSavingLife(false); }
   };
 
   const handleSaveNote = async () => {
@@ -319,6 +385,104 @@ export default function AdminIncidentDetailPage() {
           })}
         </div>
         {statusError && <p className="mt-2.5 text-xs text-red-400">{statusError}</p>}
+      </div>
+
+      {/* ── Issue Resolution Lifecycle ────────────────────────────── */}
+      <div className={`${GLASS_CARD} p-5`}>
+        <p className={`${T_SECTION} mb-1`}>Issue Resolution</p>
+        <p className="mb-4 text-xs text-zinc-500">
+          ① Recognize → ② Propose → ③ Implement → ④ Evaluate → ⑤ Resolved
+        </p>
+
+        {/* ① Recognized (read-only, from the report) */}
+        <div className="mb-4 rounded-lg border border-white/8 bg-white/3 px-3 py-2 text-xs text-zinc-400">
+          <span className="text-zinc-500">① Recognized:</span>{" "}
+          {item.reporter_name || "—"} · {fmtDt(item.incident_datetime || item.created_at)}
+        </div>
+
+        {/* ② Proposed solution */}
+        <label className={`${T_LABEL} mb-1 block`}>② Proposed solution</label>
+        <textarea
+          className={`${TEXTAREA_CLASS} min-h-[60px]`}
+          value={lifeProposed}
+          onChange={(e) => setLifeProposed(e.target.value)}
+          placeholder="What is the proposed fix for this issue?"
+        />
+
+        {/* ③ Implementation */}
+        <label className={`${T_LABEL} mb-1 mt-3 block`}>③ Implementation</label>
+        <textarea
+          className={`${TEXTAREA_CLASS} min-h-[60px]`}
+          value={lifeImpl}
+          onChange={(e) => setLifeImpl(e.target.value)}
+          placeholder="What was actually done, by whom and when?"
+        />
+
+        {/* ④ Store self-evaluation (read-only) */}
+        <div className="mt-4">
+          <p className={`${T_LABEL} mb-1`}>④ Store self-evaluation</p>
+          {item.store_eval_status ? (
+            <div className="rounded-lg border border-white/8 bg-white/3 px-3 py-2">
+              <span className={EVAL_BADGE[item.store_eval_status] ?? BADGE_INFO}>
+                {EVAL_LABEL[item.store_eval_status] ?? item.store_eval_status}
+              </span>
+              {item.store_eval_note && (
+                <p className="mt-1.5 text-xs text-zinc-300">{item.store_eval_note}</p>
+              )}
+              <p className="mt-1 text-[11px] text-zinc-500">
+                by {item.store_eval_by || "—"} · {fmtDt(item.store_eval_at || "")}
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-zinc-600">Not submitted by store yet</p>
+          )}
+        </div>
+
+        {/* ④ HQ final evaluation */}
+        <p className={`${T_LABEL} mb-1 mt-4`}>④ HQ evaluation</p>
+        <div className="flex flex-wrap gap-2">
+          {EVAL_OPTIONS.map((opt) => {
+            const active = lifeRating === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setLifeRating(active ? "" : opt.value)}
+                className={[
+                  "rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all",
+                  active
+                    ? (EVAL_BADGE[opt.value] ?? BADGE_INFO)
+                    : "border-white/10 bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-zinc-200",
+                ].join(" ")}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <textarea
+          className={`${TEXTAREA_CLASS} mt-2 min-h-[50px]`}
+          value={lifeNote}
+          onChange={(e) => setLifeNote(e.target.value)}
+          placeholder="HQ evaluation note (optional)"
+        />
+
+        {/* ⑤ Resolved date (read-only, stamped when status → Resolved) */}
+        {item.resolved_at && (
+          <div className="mt-4 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-300">
+            ⑤ Resolved: {fmtDt(item.resolved_at)}
+            {item.resolved_by ? ` · by ${item.resolved_by}` : ""}
+          </div>
+        )}
+
+        <div className="mt-4 flex items-center gap-3">
+          <button className={PRIMARY_BUTTON} onClick={handleSaveLifecycle} disabled={savingLife}>
+            {savingLife && <Loader2 className="mr-1.5 inline h-3.5 w-3.5 animate-spin" />}
+            Save Resolution
+          </button>
+          {lifeError && <span className="text-xs text-red-400">{lifeError}</span>}
+          {lifeSuccess && <span className="text-xs text-emerald-400">{lifeSuccess}</span>}
+        </div>
       </div>
 
       {/* ── HQ Internal Notes ─────────────────────────────────────── */}
