@@ -485,10 +485,11 @@ export default function ProcurementHubPage() {
                 <>
                   <option value="BB">Business Bay</option>
                   <option value="JLT">JLT</option>
+                  {/* Arjan and Motor City are the same physical branch — one option.
+                      Backend ARJ alias also matches legacy "M City"/"Motor City" data. */}
                   <option value="ARJ">Arjan</option>
                   <option value="AM">Al Mina</option>
                   <option value="AB">Al Barsha</option>
-                  <option value="MC">Motor City</option>
                   <option value="CK">Central Kitchen</option>
                   <option value="SH">Sharjah</option>
                 </>
