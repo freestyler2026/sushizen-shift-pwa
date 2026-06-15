@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-13 (session 55 — end)
+Last updated: 2026-06-15 (session 68 — HR Recruitment: 401時の再ログイン誘導 + Addモーダルのエラー表示)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,12 +11,223 @@ Last updated: 2026-06-13 (session 55 — end)
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku 2017bc4, Vercel 54814dd)
+なし — 全変更デプロイ済み (Heroku v1269, Vercel 57f9d1d)
+
+## Recently Completed (2026-06-15 session 68) — live
+
+スタッフ(Ayako/HQ)からの報告: HR Recruitment の「Add Requisition」で①Target Start Dateが入れられない ②Submitしても画面が変わらず提出できたか不明。背景に **HTTP 401**。
+
+**真因**: アクセストークンの期限切れ（16h, `ACCESS_TOKEN_TTL_SECONDS=57600`）。バック `_hr_auth_check`→`_actor_from_token_request`→`verify_access_token` が exp 切れで None を返し **401**（HQでも無関係、403ではない）。フロント `refreshAuthFromApi` はセッション確認OK時も**古いトークンを保持**して再mintせず、期限切れ後の再mintはPIN保存時のみ。それでも(停止トークンのrole=HQで)認証ガードを通過しページに入れてしまい、全API呼び出しが401 → Requisitionは**未保存**。さらに失敗時のエラーがページ下のバナーに出るが `z-50` モーダルの裏に隠れて見えず「提出できたか不明」に。
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| 401→再ログイン誘導 | `src/app/admin/hr/recruitment/page.tsx` | `redirectToLogin()`(=`clearAuth()`+`/login?next=...`) を追加。`loadData` と Requisition/Applicant 両POSTが **401検出で即リダイレクト**。期限切れセッションが明確に分かるように |
+| Addモーダルのエラー表示 | 同上 | `AddRequisitionModal`/`AddApplicantModal` の `onSave` を `Promise<string\|null>` 化。失敗時はモーダルを閉じずに**赤エラーを内側に表示**（バックの `detail` も反映）。成功時のみクローズ。401時は「Your session has expired…」表示しつつログインへ |
+
+検証: `npx tsc --noEmit` クリーン、対象ファイル eslint クリーン。
+
+### 教訓 (session 68)
+- **期限切れトークンでも画面に入れてしまう罠**: 認証ガードは(停止した)ローカルトークンの role で通過するため、API側だけ401になり「入れるのに全部失敗」状態に。**API応答の401を捕捉して明示的にログインへ送る**処理が各ページに必要
+- **モーダル内エラーは必ずモーダル内に出す**: ページ下バナーは `fixed inset-0 z-50` オーバーレイの裏に隠れる。Add系モーダルは `onSave` がエラー文字列を返し、成功時のみ親がクローズする契約に
+- **未対応(任意)**: トークンのスライディング更新(アクティブ中は切れない)は `refreshAuthFromApi` と バック `/api/auth/session` 両方の改修が必要で影響大 → 別途。Target Start Date はネイティブ日付ピッカーで非必須のため送信ブロックではなく、401が主因だった
+
+## Recently Completed (2026-06-14 session 67) — live
+
+③受領の継続バグ: APPROVED・受領記録なしの MAN-PR-202606-0019 を「Receive Now」しても数量入力フォームが出ず「Delivery Recorded — Review & Confirm」と誤表示（下の Receiving Records は別PRのKG記録）。
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Receiving Step 2 を選択中リクエストにスコープ | `src/app/store/procurement/receiving/page.tsx`, `src/lib/procurementStatus.ts` | **真因**: `rows`（受領記録）がマウント時の `loadReceivings()`(引数なし=全件) と requestId設定後の `loadReceivings(id)`(該当のみ) の**レース**で全件に上書きされ得る。Step 2 の confirmed/draft/form 判定が `rows`(他リクエストのドラフト含む)を見ていたため誤表示。`receivingsForRequest()` で選択中リクエストに限定し、`receivingStepState()` で判定。さらにマウント時の受領読込をURLの request_id にスコープしてレース解消 |
+| 回帰テスト | `tests/procurement/procurement-status.test.ts` | `receivingsForRequest`/`receivingStepState` の7件追加（記録なし→form、draft→review、全confirmed→confirmed、showNewForm→form 等）。procurement全体 vitest 20件PASS |
+
+### 教訓 (session 67)
+- **受領 `rows` のスコープ**: 受領画面の `rows` はリクエスト選択時のみ request_id でフィルタされる。マウントの引数なし `loadReceivings()`(requestId="") が全件を読み、URL遷移(Receive Now)時に per-request 読込と競合 → Step 2 が他リクエストの状態を誤参照。**表示判定は必ず `receivingsForRequest(rows, requestId)` でスコープする**こと
+- **レース回避**: マウントの初期 `loadReceivings` には URL の request_id を渡す
+- session 65 の③改善(数量サマリ+インラインConfirm)は正しかったが、判定が未スコープだったため特定経路で発火していなかった
+
+## Recently Completed (2026-06-14 session 66) — live
+
+session 65 の Procurement 実装に対する回帰テスト作成・実行。**バグは検出されず**（ロジックは正しく動作）。テストが実コードと同一ロジックを検証できるよう小リファクタ(挙動不変)。
+
+| 追加/変更 | ファイル | 内容 |
+|---|---|---|
+| バック: submit可否を定数/関数化 + pureテスト | `app/services/procurement_control.py`, `app/main.py`, `tests_pure/test_procurement_submit_pure.py` | `SUBMITTABLE_REQUEST_STATUSES`={DRAFT,RETURNED,REJECTED} と `can_submit_request_status()` を新設、submitエンドポイントが使用。pytest 19件 |
+| フロント: 申請ステータス判定を共通化 + vitest | `src/lib/procurementStatus.ts`(新規), `src/app/store/procurement/page.tsx`, `tests/procurement/procurement-status.test.ts` | `isActiveRequest`/`isRejectedRequest`/`matchesStatusFilter`/`selectDisplayedRequests`/`isCkDispatchVisible` を抽出し画面が使用。vitest 13件 |
+| フロント: 認証降格ガードのテスト | `src/lib/auth.ts`(export), `tests/auth/non-downgraded-access.test.ts` | `nonDowngradedAccess` を export しテスト。vitest 7件 |
+
+### テスト結果 (session 66)
+- バック: `tests_pure/` 全 **207 PASS**（既存188 + 新規19）
+- フロント: 新規 **20 PASS**（procurement 13 + auth 7）、tsc/eslint クリーン
+
+### 教訓 (session 66)
+- **テスト基盤**: フロント=vitest（`tests/**/*.test.{ts,tsx}`、`@`→src、`npx vitest run <path>`）、バック=pytest（`tests_pure/`、`app.services.*` の軽量モジュールのみ import 可。`app.main` は重く不可）
+- **テスト容易化の定石**: 画面のインラインロジックは `src/lib/*.ts` / `app/services/*.py` に純粋関数として抽出し、画面とテストで共用（単一ソース化）。`app.main` のインライン判定はテスト不可なので services 側へ
+- session 65 のロジック（active/rejected/displayed バケット、IN_REVIEW=SUBMITTED、CK Dispatch=Manila専用、submit可否）はすべて期待通りで**デグレ・バグなし**
+
+## Recently Completed (2026-06-14 session 65) — live
+
+Cyrineによるドバイ発注担当レクチャーでの質問5件。①Draft→Submitの流れ(仕様確認のみ・修正不要) ②Requestsにsupplier表示 ③Receive Nowで数量確認なし確定の懸念 ④RejectedがStore側に出ない ⑤Dubai選択時もCK DispatchにManila発注。方針: スタッフが直感的でミスが起きにくい形。
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| ⑤ Dubai時CK Dispatch非表示 | `src/app/store/procurement/page.tsx` | CKはManila拠点。`city !== "dubai"` でCK Dispatchセクションを非表示+Dubai時は `loadCkDispatch` もスキップ。誤Mark Dispatched防止 |
+| ② Requests一覧にSupplier表示 | `src/app/store/procurement/page.tsx` | `RequestRow` に `vendor_summary`/`blocked_reason` 追加(バックの `list_proc_requests` は既に両方返却済=バック改修不要)。各カードに仕入先を表示。同店舗同日の複数発注を見分けやすく |
+| ④ Rejected可視化+再申請 | `src/app/store/procurement/page.tsx`, `app/main.py` | 店舗一覧 `activeRows` はREJECTED除外のため、別途 `rejectedRows` を用意。KPIに「Rejected」カード追加(クリックで絞込)、カードに赤REJECTEDバッジ+却下理由(`blocked_reason`)表示、RETURNED同様の「Edit & Resubmit」アクション。バック: submit許可を `{DRAFT,RETURNED,REJECTED}` に拡張 |
+| ③ 受領: 確定前に数量レビュー | `src/app/store/procurement/receiving/page.tsx` | ドラフト未確定時の「Delivery Recorded — Awaiting Confirmation」(数量もConfirmも無い)を、**ドラフトの数量サマリ(Received/Expected・過不足)+インラインConfirmボタン**に置換。数量を見ずに確定する事故を防止 |
+
+### 教訓 (session 65)
+- **`list_proc_requests` は vendor_summary と blocked_reason を返す**(db.py:9143付近)。Store一覧の supplier/却下理由表示はフロントのみで可
+- **store一覧APIは status無指定で全statusを返す**(REJECTED含む)。`activeRows` がクライアントでREJECTED等を除外していた(page.tsx:843)。Rejected可視化は除外を回避して別bucket化
+- **再申請の許可statusはバック側 `/requests/submit`**(main.py:20768) で `{DRAFT,RETURNED}`→`{DRAFT,RETURNED,REJECTED}` に拡張が必要
+- **CKはManila専用**: `/ck-dispatch/pending` は city を渡してもManila発注を返す。フロントでDubai時非表示が最もクリーン
+- **受領の数量未確認リスク**: ドラフト受領は初期値=発注数量。確定前に必ず Received/Expected を見せること(Step 2 にインラインConfirm)
+
+## Recently Completed (2026-06-14 session 64) — live
+
+OSスタッフ問い合わせ2件。①Needs Approvalで数量をEdit→Submitしたが反映されなかった(MAN-PR-202606-0141)。②Store ProcurementのKPIカード(Draft/In Review/Approved/Returned)をクリックで該当オーダーを右に表示したい。
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| ① 承認画面: 未保存編集のまま承認をブロック+手順明示 | `src/app/admin/procurement/cases/[caseId]/page.tsx` | `act("approve")` 実行前に `editingItems`(編集モード=未保存)なら承認をブロックし「Save Changesしてから承認」警告。編集バナーにも「承認前にSave Changes必須」を追記。**根本**: Edit Items は qty/unit_price/spec すべて編集可だが、保存は独立した「Save Changes」(PATCH /items)。承認(Approve)は別アクションで未保存編集を保存しないため、Save Changesせず承認すると編集が黙って失われていた(さらにAPPROVED後は `isClosed` でEdit非表示=編集不可) |
+| ② Store Procurement: KPIカードをクリックで右リストをステータス絞り込み | `src/app/store/procurement/page.tsx` | `statusFilter` state + `displayedRows` useMemo追加。4カードを `<button>` 化し `toggleStatusFilter` でトグル(選択カードをring強調)+ Requestsリストへ自動スクロール。Requestsリストを `displayedRows` で描画、ヘッダにフィルタ名+「Clear filter」。Returned等を即特定可能に |
+
+### 教訓 (session 64)
+- **承認画面のEdit Itemsは「数量も」編集可**: 単価専用ではない(編集バナーに Qty/Unit Price/Spec と明記)。スタッフへの正しい運用案内=「Editで数量変更→**Save Changes**→Approve。承認後は編集不可なのでその場合のみ差し戻し→再申請」
+- **編集と承認が分離**: `saveItems`(PATCH `/cases/{id}/items`)と `act("approve")` は別。未保存のまま承認すると編集破棄。今回ガードで防止
+- **KPIカードのフィルタ**: 右の「Requests」リストは元々 `activeRows` を表示。`statusFilter` で `displayedRows` に絞るだけ。In Review は IN_REVIEW/SUBMITTED 両方を含める(counts と同基準)
+
+## Recently Completed (2026-06-14 session 63) — live
+
+報告(Yukihiro Nishimura/1230851, HQ): Cost Calculation 操作中に度々 HQ→Staff Portal に勝手に切り替わり、Staff Portal では操作できず、気づかず作業して変更が反映されないことがある。
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| フロント(主): リフレッシュで権限を降格させない | `src/lib/auth.ts` `refreshAuthFromApi` + 新規 `nonDowngradedAccess` | `/api/auth/session` ポーリングが一時的に空permissions/STAFFを返すと、role/permissionsを無条件上書き保存→HQの `*` 喪失→`canAccessAdminNav`(permベース)がfalse→Staff Portal化。ガードを追加: 非STAFFをSTAFFに落とさない・既存permissions(特に`*`)を空応答や`*`喪失で消さない。session/PIN再発行の両経路に適用 |
+| バック(保険): トークンroleを権威に | `app/main.py` `_actor_from_token_request` | profileがSTAFFフォールバックでも、トークンの強いrole(HQ等)を優先。HQは必ず`*`付与、空permissionsはrole由来で補完。サーバ側でも降格を防止 |
+
+### 教訓 (session 63)
+- **認証リフレッシュは「降格させない」**: `/api/auth/session` は非権威なポーリング。返り値で role/permissions を無条件上書きすると、一時的なバックエンドのフォールバック(役割割当ミス/DB例外)でHQが落ちる。クライアントは楽観的に保持してよい(サーバが各APIで実際の権限を再検証するため安全)
+- **`canAccessAdminNav` は permission ベース**: roleがHQでも `permissions` に `*` が無ければ管理ナビが消えStaff Portal化する。permissionsを失わせないことが要
+- **role解決の優先順位**: `_actor_from_token_request` は `profile.primary_role or claims.role or STAFF`。profileが非空の"STAFF"を返すとトークンのHQを上書きしてしまう。トークン(発行時に権威)を優先するのが安全
+- **恒久対策候補**: ①Role Managementで対象者のHQ割当をactive+primaryに ②env `HQ_APPROVER_NAMES` に氏名追加で氏名ベースの常時HQ+`*` 保証(`_effective_staff_profile`/`_is_hq_name_override`)
+- **確認結果(2026-06-14)**: `HQ_APPROVER_NAMES` は既に `Yukihiro Nishimura, Yusuke Uejima, Ayako Sakurai, Yuri Yamada` が設定済み(env追加は不要だった)。よって実際に効いたのはフロントの降格防止ガード。デプロイ+再読込後、ユーザーが「直った」と確認済み
+- **Heroku認証メモ**: `~/.netrc` の api.heroku.com 認証は期限切れ(401)。git push/API は git.heroku.com 用トークンで可。`.claude/settings.local.json` 内の `HRKU-AA22…` は漏洩済み・revoke待ち(別トークン)
+
+## Recently Completed (2026-06-14 session 62) — live
+
+OSスタッフ報告: ①食材値上げ後、食材マスタの単価を変えても加工品・商品の原価に自動反映されない(各品を開いて「自動計算」を押すと反映)。②一部食材の単位が本来「g」なのにランダムに「pc」に変わる(再選択でgに戻る)。
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| バグ②: コンポーネント単位が古い保存値("pc")で表示される | `app/db.py` `_compute_cost_master_item_totals`(24187,24212) | 単位を `mic.unit or component_unit` → **`component_unit`(食材マスタ `im.unit`/子の output_unit)優先**に変更。`menu_item_components.unit` に過去 空/"pc" で保存された値が表示の原因。食材マスタを正とし、次回保存で古い値も上書き |
+| バグ①案A: 食材単価更新時に依存先の原価を自動再計算 | `app/db.py` `update_cost_ingredient` + 新規 `recompute_costs_for_ingredient`/`_cost_dependency_order`/`_cost_recompute_frozen_in_order` | 価格/式変更後、その食材に依存する加工品・商品を多段BFSで収集→トポロジカル順(子→親)で凍結原価(`cost_unit_price>0`)を再計算・保存。**独立接続**で best-effort(失敗しても価格更新は守る) |
+| バグ①案B: 一括再計算 | `app/db.py` `recompute_all_cost_master_items`, `app/cost_api.py` `POST /api/cost/recompute-all`, `src/app/admin/cost-calculation/page.tsx` | city内の全凍結原価をトポロジカル順で最新化。ツールバーに緑「Recompute All」ボタン追加 |
+
+### 教訓 (session 62)
+- **原価の二系統**: `menu_item_master.cost_unit_price`(凍結=手動上書き値, >0で計算値より優先) vs `_compute_cost_master_item_totals` の `computed_unit_cost`(components由来のライブ値)。保存のたびに計算値が `cost_unit_price` に書き込まれ凍結されるため、食材値上げが届かなくなる。再計算は `computed_unit_cost` を `cost_unit_price` に書き戻す
+- **子の原価は子の凍結値を優先**: totals は子を再帰計算するが `child_totals.unit_cost` = 子の `final_unit_cost`(凍結優先)。よって多段再計算は**子→親の順(トポロジカル)**が必須。ライブ(`=0`)項目は対象外
+- **コンポーネント単位は食材マスタが正**: コスト = 数量 × 食材単価(食材の基準単位あたり)なので、component の単位は食材マスタの単位と一致すべき。`mic.unit` は信頼せず `im.unit` を使う
+- **教訓#7再確認**: 再計算を価格更新と同一トランザクションに入れると失敗時に価格更新もrollbackされる。独立接続+try/exceptで分離
+- `UNIQUE(city, name)` により ingredient_master に同名重複は無い(単位ばらつきは重複ではなく保存値の劣化が原因)
+
+## Recently Completed (2026-06-14 session 61) — live
+
+植嶋さんとの議論: 店舗別の課題共有を「①誰がいつ認識 → ②解決策提案 → ③実施 → ④解決評価 → ⑤解決日」で一覧追跡し、店舗訪問時に前日課題の解決を評価したい。→ 既存 **Incident Report 機能を拡張**して実現（新規システムは作らない）。評価は**店舗スタッフの自己評価 + HQ最終評価の2段階**。
+
+| Phase | ファイル | 内容 |
+|---|---|---|
+| **P1 バックエンド** (Heroku v1265) | `app/db.py`, `app/incident_api.py` | `incident_reports` に冪等ALTERで課題解決ライフサイクル列を追加: `proposed_solution`/`implementation_note`(②③)、`store_eval_status`/`store_eval_note`/`store_eval_at`/`store_eval_by`(④店舗自己評価)、`resolution_rating`/`resolution_note`(④HQ評価)、`resolved_at`/`resolved_by`(⑤)。DB関数: `update_incident_status` 拡張(resolved時に解決日/者を自動記録・後方互換)、`update_incident_lifecycle`(HQ部分更新)、`set_incident_store_eval`(店舗自己評価)。`list_incident_reports`/`get_incident_report` のSELECTに新列追加。API: `PATCH /api/admin/incidents/{id}/lifecycle`(HQ)、`POST /api/incidents/{id}/self-eval`(報告者本人のみ) |
+| **P2 管理画面** (Vercel e7b55ac) | `src/app/admin/incidents/page.tsx`, `.../[id]/page.tsx` | 一覧にタブ新設「Reports / **Store Issue Board**」+ **Branchフィルタ**。Store Issue Board = 店舗別に未解決課題を古い順表示(経過日数・店舗/HQ評価バッジ・「Include resolved」トグル)→店舗訪問用。詳細に「Issue Resolution」パネル(①〜⑤を1か所、②③HQ記入・④店舗自己評価表示+HQ評価ボタン・⑤解決日表示) |
+| **P3 店舗画面** (Vercel 14a2cbf) | `src/app/incidents/page.tsx` | 自分の報告の展開カードに自己評価ボックス(Resolved/Partial/Recurring + メモ)。`SelfEvalBox` コンポーネント |
+
+### 教訓 (session 61)
+- **似た用途の既存機能をまず探す**: 「店舗別課題共有」は新規実装ではなく既存 **Incident Report**(`/incidents`, `/admin/incidents`, `app/incident_api.py`, `incident_reports`テーブル) の拡張で実現できた。Explore で全体を調査してから設計
+- **Incident のステータス**: `new → acknowledged → in_progress → resolved` (STATUS_FLOW)。`incident_report.read`/`.reply`/`.submit.self` で権限制御。store側は報告者本人(`reporter_name == staff_name`)のみ自己評価可
+- **フロントの section/タブ追加は局所的に**: 一覧ページにタブstate(`view`)を足し、表示を分岐。Board は別fetch不要で `allItems` を再利用
+- **`git add -A` 厳禁**(再掲): 対象ファイルを明示。`.claude/settings.local.json` は gitignore 済
+
+## ✅ 解決(セキュリティ): Heroku APIトークン平文露出 — 2026-06-14 対応完了
+
+- `.claude/settings.local.json` の permission allowlist に Heroku APIトークン (`HRKU-AA22...` 6件 + `c4b07274...` 1件) が平文で混入していた(curlコマンドが許可リストに記録された際に巻き込まれた)。
+- session 60 の `git add -A` でコミットしようとし **GitHub push protection がブロック**(コミット履歴への混入は阻止済み)。
+- 対処済み: ① `.gitignore` に `.claude/settings.local.json` 追加 ② session 63 で該当7エントリを全て除去(JSON妥当性確認済・残存0) ③ **`HRKU-AA22…` は確認時点で既に失効(401 unauthorized)** = revoke作業不要。
+- `c4b07274…` は git/API 用の有効トークン(git.heroku.com 認証で使用中・漏洩ではない)。allowlistからは除去したが、netrc/git remoteの正規の場所に残るため失効しない。
+- 教訓: **`git add -A` 禁止** — 必ず対象ファイルを明示 (`git add <path>`)。`.claude/` には secret が入りうる。
+
+## Recently Completed (2026-06-14 session 60) — live
+
+ユーザー要望: 添付 `Store Management.xlsx` の「CK & CUBAO Task Checklist」タブの内容を Travel Path の Central Kitchen に反映(現行内容を全面置換)。
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| CK Travel Path をマネージャー日次タスクチェックリストへ全面置換 | `app/db_travel_path.py` (migration), `app/travel_path_default_items.py` | 旧シフト型(OPENING/MID_SHIFT/CLOSING)54項目を **時間割型(MORNING/AFTERNOON/EVENING)** の20タスクへ置換。各ラベルに時刻+担当(CK Mgr/HQ)を埋込。**本番反映は `ensure_travel_path_tables()` の毎起動migration**で実施(旧CK項目を `is_active=FALSE`、新20タスク+温度3項目をupsert)。`travel_path_default_items.py` は初期seed整合のため同期 |
+| CK温度記録(Temperature Log)を保持 | `app/db_travel_path.py` | 新3セクションに TEMPERATURE 型項目(CK_TEMP_MR/AF/EV, 11冷蔵冷凍ユニット)を各1つ追加し、元の3回/日の頻度を維持。旧 CK_TEMP_OP/MS/CL は無効化 |
+| Travel Path のセクションをブランチ別に | `src/app/admin/travel-path/page.tsx` | `SECTIONS_BY_BRANCH` 導入。CKのみ MORNING/AFTERNOON/EVENING、TAFT/PAR/CUBAO は従来の OPENING/MID_SHIFT/CLOSING。ブランチ変更時に section を有効値へリセット。Checklist/Compliance 両ビューを `sections` 駆動に変更 |
+
+### 教訓 (session 60)
+- **Travel Path のseedは「空テーブル時のみ」**: `travel_path_api.py` の `_ensure_seeded()` は `COUNT(*)==0` のときだけ default を流す。本番(既存データあり)へ変更を反映するには `ensure_travel_path_tables()` の毎起動migrationブロックに書く(既存の temp/drain 項目と同じ方式)。`default_items.py` 編集だけでは本番に反映されない
+- **`seed_travel_path_items` は item_type を扱わない**: TEMPERATURE 項目は default_items.py では表現できず、migration 側でのみ INSERT する(item_type/unit_labels_json 付き)
+- **フロントの section はブランチ共通だった**: `SECTIONS` 定数を単純変更すると全ブランチに波及。CK だけ変えるには `SECTIONS_BY_BRANCH` でブランチ別にする必要がある
+- **section は TEXT・CHECK制約なし**: 新セクションキー(MORNING等)はDB変更不要で追加可能
+- **Excelの時刻列が日付に化ける**: "10-11" 等のテキストが Excel で datetime に自動変換される。`data_only=True` 読込時は `v.month-v.day` で復元
+
+## Recently Completed (2026-06-14 session 59) — live
+
+スタッフ問い合わせ: 「Paranaque は昨日 Daily Inventory Report を提出済みなのに、Store Evaluation の Daily Inventory が『Not submitted』のまま。リロードしても変わらない」
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Store Evaluation: Daily Inventory バッジが常に「Not submitted」になるバグ修正 | `app/db_store_evaluation.py` (`get_eval_auto_data` L439付近) | `inventory_check_done` フラグが **存在しないテーブル `daily_inventory`** を `check_date/branch_code/city` で照合していた。実データは `daily_inv_reports`（`branch`=正式名大文字, `report_date`, `status`）にある。`_safe_query` が「relation does not exist」例外を握りつぶして `None` を返すため、フラグがデフォルト `False` のまま固定 → 常に「Not submitted」。クエリを `daily_inv_reports` に向け、ブランチコード(PAR/CUB/TAFT/CK)→正式名(PARANAQUE/CUBAO/TAFT/CENTRAL KITCHEN)をマッピングし、`status='SUBMITTED'` のみ true に修正 |
+
+### 教訓 (session 59)
+- **`_safe_query` の例外握りつぶし**: `db_store_evaluation.py` の `_safe_query` は全例外を `except Exception: return None` で握りつぶす。存在しないテーブル名を指定しても静かに失敗し、auto-data フラグがデフォルト値のまま固定される。auto-data 系のフラグが「ずっと false」のときは、まず参照テーブル名が実在するか確認する
+- **ブランチ識別子の二系統**: Store Evaluation は短縮コード(`PAR`/`CUB`/`TAFT`/`CK`)、Daily Inventory Report は正式名大文字(`PARANAQUE`/`CUBAO`/`TAFT`/`CENTRAL KITCHEN`)。両機能を跨ぐクエリでは必ずマッピングが必要。逆方向のマップは `daily_inventory_api.py` の `_report_branch_to_staff_master_branch` にもある
+- **daily_inventory テーブルは存在しない**: 実テーブルは `daily_inv_reports`（header）+ `daily_inv_report_items` + `daily_inv_entries`。`daily_inventory` という名前のテーブルはコードベースのどこにも作成されていない
 
 ## ✅ ①②③④ All four features complete and live. All 11 bugs fixed.
 ## ✅ Daily Ops Check v2 complete and live (4-color status, auto/manual, double-check workflow)
 ## ✅ Role Management 自動同期 — 8 admin + 6 store チャンネルを登録済み
 ## ✅ 都市別アクセス制御 — バックエンド 9 モジュールで permission key + city 照合を実施
+## ✅ CK Daily Inventory Phase 1 complete and live
+## ✅ CK Production Plan Phase 2 complete and live (Heroku v1259, Vercel 1e89301)
+## ✅ CK QC Check Phase 3 complete and live (Heroku v1260, Vercel 8bfab2f)
+## ✅ CK Branch Delivery Phase 4 complete and live (Heroku 2d533b6, Vercel 644390d)
+## ✅ Phase 1–4 フルブラウザテスト完了 + バグ2件修正 (Heroku eab2e0e, Vercel 0ffcdf0)
+
+## Recently Completed (2026-06-13 session 58) — live
+
+Phase 1–4 全機能ブラウザテスト完了。2バグ修正・デプロイ済み。
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Backend: `get_ck_production_plan()` QC列欠落修正 | `app/db.py` (Heroku eab2e0e) | `ck_production_plan_items` SELECT に `qc_result, qc_actual_qty, qc_notes, qc_checked_by, qc_checked_at` の5列が含まれていなかった。CK Delivery の「Add Items」モーダルで `i.qc_result === "PASS"` フィルタが常に空を返す原因。5列を追加して修正 |
+| Frontend: CK Delivery テーブルヘッダ/セル padding 修正 | `src/app/store/ck-delivery/page.tsx` (Vercel 0ffcdf0) | `TABLE_HEADER` トークンに横 padding なし。"Received" と "Notes" が隣接して "RECEIVEDNOTES" に見えた。Sent Qty・Received に `px-3`、Notes に `pl-4` を追加 |
+| Frontend: 未使用 `RotateCcw` import 削除 | `src/app/store/ck-delivery/page.tsx` | ESLint warning 除去 |
+
+### テスト結果 (session 58)
+- **Phase 1** `/store/ck-inventory`: セッション作成 POST 200・335アイテム読込・Qty入力・Save Draft ✅
+- **Phase 2** `/store/ck-production-plan`: プラン一覧・詳細・KPIバー(Total=1, QC Pass=1)・DONE+✓PASSバッジ ✅
+- **Phase 3** QC Checkモーダル: PASS送信 POST 200・QC列即時更新 ✅
+- **Phase 4** `/store/ck-delivery`: 新規作成→Add Items(QCリンク)→Dispatch→Confirm Receipt 全フロー ✅
+
+### 教訓 (session 58)
+- **TABLE_HEADER padding**: `TABLE_HEADER` トークンは `pb-2` のみで横 padding なし。隣接するカラムには必ず `px-N` または `pl-N`/`pr-N` を追加すること
+- **plan detail の QC 列**: `get_ck_production_plan()` の items SELECT には QC 関連列を明示的に含めること。フロントのフィルタが `undefined === "PASS"` で常に false になる
+
+---
+
+## Recently Completed (2026-06-13 session 56) — live
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| CK Inventory: Delta 小数点フォーマット修正 | `src/app/store/ck-inventory/page.tsx` | `delta.toFixed(1)` → `Number.isInteger(delta) ? delta : delta.toFixed(1)` に変更。整数のデルタが "+10.0" ではなく "+10" と表示されるように修正 |
+| CK Inventory: 左パネル sticky 修正 | `src/app/store/ck-inventory/page.tsx` | CSS Grid の sticky 問題。`h-fit` を `self-start` に変更。Grid アイテムは `align-self: start` がないと行全体の高さに引き伸ばされ sticky が機能しない |
+| CK Inventory: Unit select DB不一致修正 | `src/app/store/ck-inventory/page.tsx` | `AVAILABLE_UNITS` に含まれない "unit"/"set"/"pcs" が DB の output_unit にある場合、select の value と options が一致しなかった。`[...new Set([draft.unit, ...AVAILABLE_UNITS])]` パターンで現在値を常に先頭 option に追加 |
+
+### 教訓 (session 56)
+- **CSS Grid sticky の必須条件**: `position: sticky` を Grid アイテムに適用する場合、`align-self: start`（Tailwind: `self-start`）が必須。なければグリッドアイテムが行全体に伸び、sticky コンテナが「すでに最下部」な状態になり機能しない。`h-fit` だけでは不十分
+- **Unit select の DB 不一致**: DB の `output_unit` に UI の `AVAILABLE_UNITS` 配列にない値がある場合、`<select value="xyz">` で "xyz" が options にないとブラウザは最初の option を表示するが React state は "xyz" のまま。Set spread で現在値を先頭に追加する
+- **Delta 書式**: 整数デルタに `.toFixed(1)` を使うと "+10.0" になる。`Number.isInteger()` で先にチェックする
 
 ## Recently Completed (2026-06-13 session 55) — live
 
