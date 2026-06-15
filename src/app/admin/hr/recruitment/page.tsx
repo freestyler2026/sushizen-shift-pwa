@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Plus, ChevronRight, RefreshCw, Star, Calendar, ClipboardList } from "lucide-react";
-import { getAuth, refreshAuthFromApi, getAuthHeaders } from "@/lib/auth";
+import { getAuth, refreshAuthFromApi, getAuthHeaders, clearAuth } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
 import {
   GLASS_CARD,
@@ -910,7 +910,7 @@ function AddApplicantModal({
   saving,
 }: {
   requisitions: Requisition[];
-  onSave: (data: AddApplicantForm) => void;
+  onSave: (data: AddApplicantForm) => Promise<string | null>;
   onClose: () => void;
   saving: boolean;
 }) {
@@ -926,8 +926,14 @@ function AddApplicantModal({
     notes: "",
     applied_date: today,
   });
+  const [submitError, setSubmitError] = useState("");
   const set = (k: keyof AddApplicantForm, v: string) =>
     setForm((p) => ({ ...p, [k]: v }));
+  const handleSubmit = async () => {
+    setSubmitError("");
+    const err = await onSave(form);
+    if (err) setSubmitError(err);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
@@ -1041,11 +1047,17 @@ function AddApplicantModal({
           </div>
         </div>
 
+        {submitError && (
+          <p className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-400">
+            {submitError}
+          </p>
+        )}
+
         <div className="flex gap-2 pt-1">
           <button
             className={PRIMARY_BUTTON}
             disabled={saving || !form.full_name.trim()}
-            onClick={() => onSave(form)}
+            onClick={handleSubmit}
           >
             {saving ? "Saving..." : "Add Applicant"}
           </button>
@@ -1076,7 +1088,7 @@ function AddRequisitionModal({
   onClose,
   saving,
 }: {
-  onSave: (data: AddRequisitionForm) => void;
+  onSave: (data: AddRequisitionForm) => Promise<string | null>;
   onClose: () => void;
   saving: boolean;
 }) {
@@ -1090,8 +1102,14 @@ function AddRequisitionModal({
     requested_by: "",
     notes: "",
   });
+  const [submitError, setSubmitError] = useState("");
   const set = (k: keyof AddRequisitionForm, v: string) =>
     setForm((p) => ({ ...p, [k]: v }));
+  const handleSubmit = async () => {
+    setSubmitError("");
+    const err = await onSave(form);
+    if (err) setSubmitError(err);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60">
@@ -1191,11 +1209,17 @@ function AddRequisitionModal({
           </div>
         </div>
 
+        {submitError && (
+          <p className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-400">
+            {submitError}
+          </p>
+        )}
+
         <div className="flex gap-2 pt-1">
           <button
             className={PRIMARY_BUTTON}
             disabled={saving || !form.branch.trim() || !form.position.trim()}
-            onClick={() => onSave(form)}
+            onClick={handleSubmit}
           >
             {saving ? "Saving..." : "Add Requisition"}
           </button>
@@ -1246,6 +1270,15 @@ export default function HRRecruitmentPage() {
     });
   }, [router]);
 
+  // ── Session-expiry handling ───────────────────────────────────────────────
+  // A 401 means the access token expired/was rejected. Clearing the stale auth
+  // and sending the user back to login is the only real fix — otherwise every
+  // call silently fails behind a tiny banner (and modals look like they hang).
+  const redirectToLogin = useCallback(() => {
+    clearAuth();
+    router.replace("/login?next=/admin/hr/recruitment");
+  }, [router]);
+
   // ── Data load ─────────────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     const auth = authRef.current;
@@ -1264,6 +1297,10 @@ export default function HRRecruitmentPage() {
           cache: "no-store",
         }),
       ]);
+      if (appRes.status === 401 || reqRes.status === 401) {
+        redirectToLogin();
+        return;
+      }
       if (!appRes.ok) throw new Error(`Applicants: HTTP ${appRes.status}`);
       const appData = await appRes.json();
       setApplicants(Array.isArray(appData) ? appData : appData?.applicants || []);
@@ -1277,7 +1314,7 @@ export default function HRRecruitmentPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [redirectToLogin]);
 
   useEffect(() => {
     if (accessReady) void loadData();
@@ -1285,9 +1322,25 @@ export default function HRRecruitmentPage() {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const handleAddApplicant = async (form: AddApplicantForm) => {
+  // Extract a human-readable detail from a failed JSON response (backend
+  // returns {"detail": "..."} on validation errors).
+  const errorDetail = async (res: Response): Promise<string> => {
+    try {
+      const data = await res.json();
+      if (data?.detail) return String(data.detail);
+    } catch {
+      /* not JSON */
+    }
+    return `HTTP ${res.status}`;
+  };
+
+  // Both Add modals share the same contract: return null on success (modal
+  // closes), or an error string to show inside the still-open modal.
+  const handleAddApplicant = async (
+    form: AddApplicantForm
+  ): Promise<string | null> => {
     const auth = authRef.current;
-    if (!auth) return;
+    if (!auth) return "Not signed in.";
     setSavingApplicant(true);
     try {
       const res = await fetch(`${API_BASE}/api/admin/hr/applicants`, {
@@ -1295,19 +1348,26 @@ export default function HRRecruitmentPage() {
         headers: getAuthHeaders(auth),
         body: JSON.stringify({ city: "manila", ...form }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (res.status === 401) {
+        redirectToLogin();
+        return "Your session has expired. Redirecting to login…";
+      }
+      if (!res.ok) return `Failed to save applicant: ${await errorDetail(res)}`;
       setShowAddApplicant(false);
       void loadData();
+      return null;
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      return e instanceof Error ? e.message : String(e);
     } finally {
       setSavingApplicant(false);
     }
   };
 
-  const handleAddRequisition = async (form: AddRequisitionForm) => {
+  const handleAddRequisition = async (
+    form: AddRequisitionForm
+  ): Promise<string | null> => {
     const auth = authRef.current;
-    if (!auth) return;
+    if (!auth) return "Not signed in.";
     setSavingRequisition(true);
     try {
       const res = await fetch(`${API_BASE}/api/admin/hr/requisitions`, {
@@ -1315,11 +1375,16 @@ export default function HRRecruitmentPage() {
         headers: getAuthHeaders(auth),
         body: JSON.stringify({ city: "manila", ...form }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (res.status === 401) {
+        redirectToLogin();
+        return "Your session has expired. Redirecting to login…";
+      }
+      if (!res.ok) return `Failed to save requisition: ${await errorDetail(res)}`;
       setShowAddRequisition(false);
       void loadData();
+      return null;
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      return e instanceof Error ? e.message : String(e);
     } finally {
       setSavingRequisition(false);
     }
