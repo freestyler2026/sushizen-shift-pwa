@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-15 (session 68 — HR Recruitment: 401時の再ログイン誘導 + Addモーダルのエラー表示)
+Last updated: 2026-06-15 (session 69 — Procurement Hub: Branchフィルタのエイリアスマッチ)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,24 @@ Last updated: 2026-06-15 (session 68 — HR Recruitment: 401時の再ログイ�
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1269, Vercel 57f9d1d)
+なし — 全変更デプロイ済み (Heroku v1270, Vercel 57f9d1d)
+
+## Recently Completed (2026-06-15 session 69) — live
+
+スタッフ(Yuri Yamada)報告: Procurement Hub の Branchフィルタで **JLTは出るが他のBranch(Arjan等)は "No requests found."**。
+
+**真因**: Hubドロップダウンは略号コードを送る（`BB/JLT/ARJ/AM/AB/MC/CK/SH`、`hub/page.tsx:484`）が、`proc_requests.store_code` には Store発注フォームが送る**フルネーム**が `.strip().upper()` で保存される（`DUBAI_CURATED_STORES`=`["Al Barsha","Al Mina","B Bay","JLT","M City",...]`, `request/page.tsx:70` / `create_proc_request` `db.py`）。バックの `list_proc_hub_requests` は `upper(store_code)=sc` の完全一致のため、**JLTだけコード=店名が同一で一致**、他は `ARJ≠M CITY`/`BB≠B BAY`/`AM≠AL MINA` で全滅。「選択肢」「保存値」「正規コード定義(`branches.ts`)」の3つが不整合。
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| 案A: Branchフィルタのエイリアスマッチ | `app/db.py` (`list_proc_hub_requests`) | `_BRANCH_FILTER_ALIASES` + `_branch_filter_candidates()` を新設。フィルタコードを既知の全表記(コード/フルネーム)に展開し `upper(btrim(store_code)) = ANY(%s)` でマッチ。既存データ無改修・Store側書込形式そのままで全Branchが効くように。Arjan=Motor City は同一拠点として同一エイリアス共有 |
+
+検証: `ast.parse` OK、`_branch_filter_candidates` の展開を単体確認、`/`へのcurlで HTTP 405(稼働中)。Heroku v1270。
+
+### 教訓 (session 69)
+- **store_code の表記が3層で不整合**: ①Hubフィルタ=略号コード ②`proc_requests.store_code`=Storeフォームのフルネーム(uppercase) ③正規定義`branches.ts`=コード。`create_proc_request` は正規化せず `.strip().upper()` のみ。**Branchで絞る系は完全一致禁物**、エイリアス解決を挟む
+- **JLTだけ動く罠**: コードと店名が同一の拠点だけ偶然一致し、バグが「一部だけ動く」形で隠れる
+- **未対応(任意)**: ①Hubドロップダウンの `MC`(Motor City)と `ARJ`(Arjan)は同一拠点なので重複整理、`SH`(Sharjah)は curated stores に無い ②恒久対策は書込時 `store_code` 正規化＋既存行マイグレーション(案B)だが本番データ更新が必要なため今回は見送り
 
 ## Recently Completed (2026-06-15 session 68) — live
 
