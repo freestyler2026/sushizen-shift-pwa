@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-16 (session 79 — 食品安全④: 本部CK Label Complianceダッシュボード。残②⑤)
+Last updated: 2026-06-16 (session 80 — 食品安全②⑤: 受領ラベル検証UI + 不備→Incident即時起票。①〜⑤完了)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,9 +11,30 @@ Last updated: 2026-06-16 (session 79 — 食品安全④: 本部CK Label Complia
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1278, Vercel cc7c29c)
+なし — 全変更デプロイ済み (Heroku v1279, Vercel 9b36d6e)
 
-> **食品安全 残実装(設計確定済)**: ② 店舗Receivingの手動ラベル検証UI(label_ok/issueは backend済) / ⑤ 異臭・無日付の即時報告→Incident連携。
+## Recently Completed (2026-06-16 session 80) — live
+
+食品安全 **②⑤**（①〜⑤完了）。
+
+| 内容 | ファイル | 修正 |
+|---|---|---|
+| ② 受領ラベル検証UI | `src/app/store/ck-delivery/page.tsx` | Confirm Receiptモーダルに品目ごと「Label check: OK/Problem」+ Problem時の issue select(SPOILED/NO_LABEL/NO_DATE/EXPIRED/OTHER)。製造日/期限も表示。`item_receipts` に `label_ok`/`label_issue` 送信。フラグ時はトースト通知 |
+| ⑤ 即時Incident起票 | `app/db.py` (`confirm_ck_delivery`) | 受領時にフラグ付き品目があれば **「Food Safety — CK Label」Incidentを自動起票**(`insert_incident_report`、SPOILED/EXPIREDは severity=high)。既存incidentパイプライン(/admin/incidents・バッジ・escalation)でHQ/CKに即連携。`result["incident_raised"]` |
+
+検証: `tsc`/eslint クリーン、`npm run build` 成功、`ast.parse` OK。Heroku v1279 / Vercel 9b36d6e。
+
+### 食品安全シリーズ完了 (①〜⑤)
+- **①** CK Dispatch 製造日+期限+ラベル写真 必須ゲート(session78)
+- **②** 店舗Receiving ラベル検証UI(session80)
+- **③** Travel Path 日次チラー点検(session76)
+- **④** 本部 CK Label Compliance ダッシュボード(session79)
+- **⑤** 不備→Incident即時起票(session80)
+- 対象=マニラCK。Dubai展開は未(同パターンで横展開可)
+
+### 教訓 (session 80)
+- **Incident起票は `insert_incident_report(row)`**(city/branch/reporter_name/category/severity/description/incident_datetime)。既存の incident UI/バッジ/escalation を再利用すれば「即時連携」が低コスト
+- ②③④⑤すべて①で足した `label_*` カラムに集約。**最初にデータモデルを正しく置けば後段(検証/監視/escalation)は全部その上に乗る**
 
 ## Recently Completed (2026-06-16 session 79) — live
 
