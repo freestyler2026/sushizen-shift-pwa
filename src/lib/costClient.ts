@@ -1,6 +1,6 @@
 "use client";
 
-import { getAuth, refreshAuthFromApi, setAuth } from "@/lib/auth";
+import { getAuth, refreshAuthFromApi, setAuth, nonDowngradedAccess, type Auth } from "@/lib/auth";
 
 function parseApiErrorDetail(text: string, fallback: string): string {
   const trimmed = String(text || "").trim();
@@ -47,9 +47,13 @@ async function costTokenHeaders(): Promise<Record<string, string>> {
       pin,
       city: authCity,
     }).toString();
+    // Send the current (possibly just-expired) token so the backend can refuse
+    // to hand back a role weaker than the live session already holds.
+    const priorToken = String(refreshed?.accessToken || auth?.accessToken || "").trim();
     const verifyRes = await fetch(`/api/auth/verify?${qs}`, {
       method: "POST",
       cache: "no-store",
+      headers: priorToken ? { Authorization: `Bearer ${priorToken}` } : {},
     });
     const verifyText = await verifyRes.text();
     if (!verifyRes.ok) {
@@ -58,29 +62,45 @@ async function costTokenHeaders(): Promise<Record<string, string>> {
     const verifyJson = JSON.parse(verifyText || "{}");
     const remintedToken = String(verifyJson?.access_token || "").trim();
     if (!remintedToken) throw new Error("Access token could not be issued.");
+    // Guard against a transient STAFF fallback downgrading a privileged session
+    // mid-task (which would kick the user to the Staff Portal and drop edits).
+    const baseAuth = (refreshed || auth) as Auth;
+    const guarded = nonDowngradedAccess(
+      baseAuth,
+      verifyJson?.role,
+      Array.isArray(verifyJson?.permissions) ? verifyJson.permissions : [],
+    );
     setAuth({
       staffName: String(verifyJson?.staff_name || staffName).trim(),
       city: String(verifyJson?.city || authCity).toLowerCase() === "manila" ? "manila" : "dubai",
-      role: verifyJson?.role || refreshed?.role || auth?.role || "STAFF",
+      role: guarded.role,
       pin,
       accessToken: remintedToken,
       stepUpToken: stepUpToken || "",
       stepUpLevel: refreshed?.stepUpLevel || auth?.stepUpLevel,
       stepUpMethod: refreshed?.stepUpMethod || auth?.stepUpMethod,
       stepUpVerifiedAt: refreshed?.stepUpVerifiedAt || auth?.stepUpVerifiedAt,
-      permissions: Array.isArray(verifyJson?.permissions) ? verifyJson.permissions : (refreshed?.permissions || auth?.permissions || []),
+      permissions: guarded.permissions,
       mfa: refreshed?.mfa || auth?.mfa,
     });
     return remintedToken;
   }
 
   if (accessToken) {
-    const sessionRes = await fetch(`/api/auth/session`, {
-      method: "GET",
-      cache: "no-store",
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (!sessionRes.ok) accessToken = "";
+    try {
+      const sessionRes = await fetch(`/api/auth/session`, {
+        method: "GET",
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      // Only re-mint when the token is actually REJECTED (401/403). A transient
+      // 5xx/timeout must not trigger a re-mint — that races a STAFF fallback and
+      // can downgrade the session mid-task. The server still enforces real
+      // permissions on every subsequent request, so keeping the token is safe.
+      if (sessionRes.status === 401 || sessionRes.status === 403) accessToken = "";
+    } catch {
+      /* network hiccup — keep the current token */
+    }
   }
 
   if (!accessToken) accessToken = await remintAccessTokenWithPin();
