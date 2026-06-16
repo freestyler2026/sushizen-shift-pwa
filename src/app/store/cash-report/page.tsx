@@ -568,6 +568,10 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
   const [showDenoms, setShowDenoms] = useState(true);
   const [reportDate, setReportDate] = useState(today);
 
+  // Cashier Log day totals (SC/PWD & QRPH) — auto-fills the fields below.
+  const [logTotals, setLogTotals] = useState<{ SCPWD: { count: number; total: number }; QRPH: { count: number; total: number } } | null>(null);
+  const logPrefilled = useRef(false);
+
   useEffect(() => {
     fetch(`/api/store/cash-report/reference?branch=${branch}&report_date=${reportDate}&report_type=CLOSING`, {
       headers: getAuthHeaders(), cache: "no-store",
@@ -577,6 +581,36 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
       setScpwdUrl(d.scpwd_drive_url || "");
     }).catch(() => {});
   }, [branch, reportDate]);
+
+  useEffect(() => {
+    logPrefilled.current = false;
+    fetch(`/api/store/cashier-log/totals?branch=${branch}&entry_date=${reportDate}`, {
+      headers: getAuthHeaders(), cache: "no-store",
+    }).then((r) => r.json()).then((d) => setLogTotals(d.totals || null)).catch(() => {});
+  }, [branch, reportDate]);
+
+  // Auto-fill once into empty fields (manual override always wins).
+  useEffect(() => {
+    if (!logTotals || logPrefilled.current) return;
+    logPrefilled.current = true;
+    if (logTotals.SCPWD.count > 0) {
+      setScpwdCnt((p) => (p.trim() ? p : String(logTotals.SCPWD.count)));
+      setScpwdDis((p) => (p.trim() ? p : logTotals.SCPWD.total.toFixed(2)));
+    }
+    if (logTotals.QRPH.count > 0) {
+      setQrphAmt((p) => (p.trim() ? p : logTotals.QRPH.total.toFixed(2)));
+    }
+  }, [logTotals]);
+
+  const applyScpwdFromLog = () => {
+    if (!logTotals) return;
+    setScpwdCnt(String(logTotals.SCPWD.count));
+    setScpwdDis(logTotals.SCPWD.total.toFixed(2));
+  };
+  const applyQrphFromLog = () => {
+    if (!logTotals) return;
+    setQrphAmt(logTotals.QRPH.total.toFixed(2));
+  };
 
   const openingBalance = ref ? parseFloat(ref.cash_total || 0) : null;
   const sbDep  = parseFloat(sbDeposit) || 0;
@@ -719,6 +753,12 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
       {/* Section 3: QRPH / GCash */}
       <div className={`${GLASS_CARD} p-4 space-y-3`}>
         <SectionHeader title="③ QRPH / GCash Check" color="text-cyan-300" />
+        {logTotals && logTotals.QRPH.count > 0 && (
+          <div className="flex items-center justify-between rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2 text-xs text-cyan-300">
+            <span>Cashier Log today: {logTotals.QRPH.count} entries · {fmtPHP(logTotals.QRPH.total)}</span>
+            <button type="button" onClick={applyQrphFromLog} className="rounded border border-cyan-500/40 px-2 py-0.5 font-medium hover:bg-cyan-500/10">Use</button>
+          </div>
+        )}
         <NumInput label="Total Amount (POS)" value={qrphAmt} onChange={setQrphAmt} />
         {qrphDiff != null && <DiscrepancyBadge diff={qrphDiff} />}
         <MultiPhotoGrid
@@ -737,6 +777,12 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
           <SectionHeader title="④ SC / PWD Discounts" color="text-amber-300" />
           <p className="text-[11px] text-zinc-500">Enter totals from POS X / Z Report (all shifts combined)</p>
         </div>
+        {logTotals && logTotals.SCPWD.count > 0 && (
+          <div className="flex items-center justify-between rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
+            <span>Cashier Log today: {logTotals.SCPWD.count} entries · {fmtPHP(logTotals.SCPWD.total)}</span>
+            <button type="button" onClick={applyScpwdFromLog} className="rounded border border-amber-500/40 px-2 py-0.5 font-medium hover:bg-amber-500/10">Use</button>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <NumInput label="Total Count (POS)" value={scpwdCount} onChange={setScpwdCnt} prefix="#" placeholder="0" integer />
           <NumInput label="Total Discount (POS)" value={scpwdDisc} onChange={setScpwdDis} />

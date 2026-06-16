@@ -147,6 +147,7 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/store/transport-expense", label: "Transport Expense", icon: Receipt, match: "prefix" },
   { href: "/store/petty-cash", label: "Petty Cash", icon: Coins, match: "prefix" },
   { href: "/store/cash-report", label: "Cash Report", icon: Banknote, match: "prefix" },
+  { href: "/store/cashier-log", label: "Cashier Log", icon: ClipboardList, match: "prefix" },
   { href: "/swap-approve", label: "Swap Approve", icon: ArrowLeftRight, match: "exact" },
   { href: "/change-pin", label: "Change PIN", icon: KeyRound, match: "exact" },
 ];
