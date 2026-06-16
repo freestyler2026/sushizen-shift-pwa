@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-16 (session 72 — 認証降格バグ根治: Cost/Procurement の remint が Staff Portal へ降格していた)
+Last updated: 2026-06-16 (session 73 — Admin Dashboard 2×2レイアウト + Number of Orders の Share表示/PNG出力)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,27 @@ Last updated: 2026-06-16 (session 72 — 認証降格バグ根治: Cost/Procurem
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1273, Vercel d1bb060)
+なし — 全変更デプロイ済み (Heroku v1273, Vercel d834699)
+
+## Recently Completed (2026-06-16 session 73) — live
+
+代表(Yuri/HQ)依頼: Admin Dashboard 入力の横伸び＆下段3ブランドの窮屈さ、Number of Orders をスタッフ共有する際モバイルで文字が小さい。フロントのみ。
+
+| 内容 | ファイル | 修正 |
+|---|---|---|
+| ① 入力を2×2配置 | `src/components/admin/OrderEntryTab.tsx`, `src/app/admin/ratings-entry/page.tsx` | Sushi Zen全幅→下3列(`xl:grid-cols-3`) を、**Sushi Zen+Ramen Zen / All Veggie+J-Deli の2×2**(`lg:grid-cols-2`)に。データ多いSushi/Ramenを上段で広く。**Order EntryとRatings Entryは同一構造**なので両方修正。All Brands Combined は `max-w-4xl mx-auto` で横伸び抑制(OrderEntryのみ) |
+| ② Share表示+PNG | `src/components/analytics/dubai/NumberOfOrdersTab.tsx` | Dashboard/Share トグル追加。Share=縦長・大フォントのカード(Grand Total大／支店別合計／アグリゲーター内訳の**両方**)。`html-to-image` の `toPng` で **PNG ダウンロード**(背景`#0b0d12`, pixelRatio2)。スクショ不要・モバイル/PC/スクショ全てで可読 |
+| 依存追加 | `package.json` | `html-to-image@^1.11.13`（PNG出力用） |
+
+検証: `tsc --noEmit` exit0、`npm run build` 成功、対象 eslint クリーン（既存useMemo警告のみ）。Vercel d834699。
+
+### 教訓 (session 73)
+- **Order Entry と Ratings Entry はブランドカードのレイアウトが同一構造**（Sushi Zen全幅＋`xl:grid-cols-3`）。片方直すならもう片方も
+- **PNG出力は `html-to-image` の `toPng`**。透過を避けるため `backgroundColor` を明示（暗色`#0b0d12`）、`pixelRatio:2` で高精細。"use client" コンポーネントでトップレベルimportしてもビルドOK
+- **共有用UIは「縦長・大フォント・固定幅(max-w-[520px])・solid背景」**が鉄則。PC幅のスクショがモバイルで縮んでも読める
+- ブランド/支店/アグリゲーターのデータは `displayData.summary`(`total_orders`/`by_branch`/`by_aggregator`) に集約済み。Share カードはこれを参照
+
+## Recently Completed (2026-06-16 session 72) — live
 
 ## Recently Completed (2026-06-16 session 72) — live
 
