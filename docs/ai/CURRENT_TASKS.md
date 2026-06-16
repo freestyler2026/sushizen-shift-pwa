@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-16 (session 81 — 食品安全 統合テスト: ローカルPostgresで①〜⑤を実DB検証、空デリバリー発送バグ修正)
+Last updated: 2026-06-16 (session 82 — 認証降格 再発の真因: verifyがSTAFFトークンを発行。バック修正+HQ override)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,32 @@ Last updated: 2026-06-16 (session 81 — 食品安全 統合テスト: ローカ
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1280, Vercel 9b36d6e)
+なし — 全変更デプロイ済み (Heroku v1281, Vercel 3d61b7c)
+
+> **西村さん(Ayako/HQ)へ案内**: 既にSTAFFトークンで詰まっている場合、一度**ログアウト→ログイン**で新しいHQトークンを取得すれば定着します。
+
+## Recently Completed (2026-06-16 session 82) — live
+
+session72で直したはずの**Cost Calculation→Staff Portal降格が再発**。西村さん(HQ)で操作中に頻発・コスト未保存。
+
+**真因(session72で見落としていた本丸)**: `/api/auth/verify` のロール解決が `profile.primary_role OR row.role` で、`resolve_staff_access_profile` が **role assignment取得ミス時にSTAFFへフォールバック**すると、その**STAFFが staff_master の本来HQロールを上書き**し、**STAFFトークンを発行**していた。クライアントは `nonDowngradedAccess` でlocalStorageのrole=HQを維持するが、**トークン自体がSTAFF**→サーバが管理操作を拒否(コスト未保存)→やがてStaff Portal化。さらに `auth.ts` の remint が **verifyにbearerトークンを送っておらず**、session72のバック保護(トークン提示時のみ発動)が汎用更新経路に効いていなかった(=5つ目の穴)。
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| verify ロール解決 | `app/main.py` | **STAFFのprofileが非STAFFロールを上書きしない**(`_actor_from_token_request`と同ロジック)。HQは `permissions=['*']` |
+| verify トークン保護 grace | `app/main.py` | 1h→**7d**(期限切れ直後のHQトークンでも降格を防ぐ) |
+| HQ override 安全網 | `app/main.py` (`_hq_name_overrides`) | 確定HQリーダー `{yuri yamada, ayako nishimura}` を基準セット化(`HQ_APPROVER_NAMES` envと併用)。`_effective_staff_profile` がHQを確定的に返す→データ揺れに非依存 |
+| auth.ts remint | `src/lib/auth.ts` | remintで**現bearerトークンをverifyに送信**(汎用更新経路もバック保護対象に=5つ目の穴を塞ぐ) |
+
+検証: `ast.parse` OK、ロジック単体確認(profile=STAFF+row=HQ→HQ、override確認)、tsc/eslintクリーン。Heroku v1281 / Vercel 3d61b7c。verify 404(クラッシュ無し)。
+
+### 教訓 (session 82)
+- **降格の本丸はクライアントではなくバックの「トークン発行(verify)」**。クライアント側 `nonDowngradedAccess` はlocalStorage表示roleは守るが、**STAFFトークンが発行されると無力**(トークンがサーバ判断の真実)。verifyが**HQユーザーにSTAFFトークンを発行しない**のが根治
+- `resolve_staff_access_profile` は assignment→staff_auth→staff_master→fallback の順。**assignmentが一時的に取れないとSTAFFへ落ちる**。verifyは `profile OR row` で STAFF が staff_master HQ を上書きしていた
+- **確定的に守るべきリーダーは `HQ_APPROVER_NAMES`(コード基準セット併用)**で固定。データ起因の降格を構造的に排除
+- 既にSTAFFトークンで詰まったユーザーは**再ログインで回復**(新HQトークン発行)
+
+## Recently Completed (2026-06-16 session 81) — live
 
 ## Recently Completed (2026-06-16 session 81) — live
 
