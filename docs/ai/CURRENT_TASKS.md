@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-16 (session 77 — CME消失の真因: カタログにReactivate機能が無くdeactivate=一方通行だった)
+Last updated: 2026-06-16 (session 78 — 食品安全: CK Dispatch製造日ラベル必須ゲート(①)。②④⑤は次段)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,32 @@ Last updated: 2026-06-16 (session 77 — CME消失の真因: カタログにReac
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1276, Vercel 8d7c36e)
+なし — 全変更デプロイ済み (Heroku v1277, Vercel eaab8c7)
+
+> **次段の実装(未着手・design確定済)**: 食品安全 ② 店舗Receivingの手動ラベル検証UI(label_ok/issueは backend実装済・期限切れ自動flagも実装済、フロント未) / ④ 本部「CK Label Compliance」ダッシュボード(CK系配下) / ⑤ 異臭・無日付の即時報告→Incident連携。決定: 製造日+期限+ラベル写真すべて必須・空欄はDispatch不可・本部DBはCK系配下・**まずマニラのみ**。
+
+## Recently Completed (2026-06-16 session 78) — live
+
+食品安全インシデント: 豚骨スープに製造日ラベル無し→腐敗→Taftで客クレーム(サルモネラ主張)。真因=CKで製造日ラベルが個人裁量(植嶋さんは記載、Israelは未管理)で**強制点が無い**。代表方針: 既存CKパイプライン(生産プラン→QC→Dispatch→店舗Receiving)に製造日ラベル管理を組込み、本部も可視化。
+
+**① CK Dispatch 製造日ラベル必須ゲート（実装・デプロイ済）**
+| 内容 | ファイル | 修正 |
+|---|---|---|
+| スキーマ | `app/db.py` (`ensure_ck_delivery_tables`) | `ck_delivery_items` に `production_date`/`expiry_date`/`label_photo_url`/`label_ok`/`label_issue` 追加(ALTER) |
+| Dispatchゲート | `app/db.py` (`dispatch_ck_delivery`) | **全品目が製造日+期限+ラベル写真を持たないと発送不可**(欠落品目名を列挙してValueError→400)。`set_ck_delivery_item_label`/`set_ck_delivery_item_label_photo` 追加。`get_ck_delivery` で新列返却 |
+| Receiving検証(backend) | `app/db.py` (`confirm_ck_delivery`) | item_receiptsに `label_ok`/`label_issue` 反映 + **期限切れ品目を自動でlabel_ok=FALSE, issue=EXPIRED** |
+| API | `app/main.py` | `PATCH .../items/{id}/label`(日付)、`POST .../items/{id}/label-photo`(Drive `CK_Labels/<branch>/<date>`、cash_report_apiのdriveヘルパ再利用)、CKDeliveryItemReceiptInに label_ok/label_issue |
+| フロント | `src/app/store/ck-delivery/page.tsx` | PENDING時に「Production-date labels」カード: 品目ごと製造日/期限の日付入力+ラベル写真撮影、Ready/Incomplete表示。backendゲートで未完は発送不可 |
+
+検証: `ast.parse` OK、`tsc`/eslint クリーン、`npm run build` 成功(161p)。Heroku v1277 / Vercel eaab8c7。対象=マニラCK(`ck_delivery_items`)。
+
+### 教訓 (session 78)
+- **食品安全は「個人裁量」を「仕組みで強制」に**。製造日ラベルは Dispatch のハードゲート(空欄=発送不可)が根本対策。担当者(Israel等)の力量に依存しない
+- **CKパイプライン**: 生産プラン→QC(PASS/FAIL)→CK Delivery(dispatch)→店舗Receiving(confirm)。製造日はDispatchで取得しReceivingで検証する2段防衛
+- 写真はcash_report_apiのDriveヘルパ(`_drive_service`/`_ensure_cr_folder`/`_upload_to_drive`)を main.py から再利用(`CK_Labels/`配下)
+- **残実装**: ② Receiving手動flag UI(backend済)、④ 本部CK Label Complianceダッシュボード、⑤ 即時異臭報告→Incident。データ(production_date/expiry/photo/label_ok)は①で蓄積開始済なので④はこれを集計するだけ
+
+## Recently Completed (2026-06-16 session 77) — live
 
 > **代表アクション(要対応)**: CME(Chef Middle East)復旧 → Admin → Order Catalog → **Suppliers タブ** → 「Chef Middle East」(0 active / N inactive・"Hidden"表示)の **Reactivate All** をクリック。Suppliersタブに出てこない場合は deactivate 以外が原因なので連絡を。
 
