@@ -171,6 +171,9 @@ export default function CKDeliveryPage() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [receiptQtys, setReceiptQtys] = useState<Record<number, string>>({});
   const [receiptNotes, setReceiptNotes] = useState<Record<number, string>>({});
+  // ② Label verification at receiving: "" (unset) | "ok" | "problem", + issue code.
+  const [receiptLabelOk, setReceiptLabelOk] = useState<Record<number, "" | "ok" | "problem">>({});
+  const [receiptLabelIssue, setReceiptLabelIssue] = useState<Record<number, string>>({});
   const [branchNotes, setBranchNotes] = useState("");
   const [confirming, setConfirming] = useState(false);
 
@@ -410,12 +413,18 @@ export default function CKDeliveryPage() {
     const items = activeDelivery?.items || [];
     const qtys: Record<number, string> = {};
     const notes: Record<number, string> = {};
+    const labelOk: Record<number, "" | "ok" | "problem"> = {};
+    const labelIssue: Record<number, string> = {};
     for (const item of items) {
       qtys[item.id] = item.qty > 0 ? String(item.qty) : "";
       notes[item.id] = "";
+      labelOk[item.id] = "";
+      labelIssue[item.id] = "";
     }
     setReceiptQtys(qtys);
     setReceiptNotes(notes);
+    setReceiptLabelOk(labelOk);
+    setReceiptLabelIssue(labelIssue);
     setBranchNotes("");
     setShowConfirmModal(true);
   }
@@ -423,11 +432,17 @@ export default function CKDeliveryPage() {
   async function handleConfirmReceipt() {
     if (!activeDelivery) return;
     const items = activeDelivery.items || [];
-    const item_receipts = items.map(i => ({
-      item_id: i.id,
-      received_qty: parseFloat(receiptQtys[i.id] || "0") || 0,
-      received_notes: receiptNotes[i.id] || "",
-    }));
+    const item_receipts = items.map(i => {
+      const lo = receiptLabelOk[i.id];
+      return {
+        item_id: i.id,
+        received_qty: parseFloat(receiptQtys[i.id] || "0") || 0,
+        received_notes: receiptNotes[i.id] || "",
+        label_ok: lo === "ok" ? true : lo === "problem" ? false : null,
+        label_issue: lo === "problem" ? (receiptLabelIssue[i.id] || "OTHER") : "",
+      };
+    });
+    const flaggedCount = items.filter(i => receiptLabelOk[i.id] === "problem").length;
     setConfirming(true);
     try {
       const data = await apiFetch(`/api/store/ck-delivery/deliveries/${activeDelivery.id}/confirm`, {
@@ -441,7 +456,9 @@ export default function CKDeliveryPage() {
       setActiveDelivery(data.delivery);
       setDeliveries(ds => ds.map(d => d.id === data.delivery.id ? { ...d, status: "CONFIRMED", received_count: items.length } : d));
       setShowConfirmModal(false);
-      showToast("Receipt confirmed. Thank you!");
+      showToast(flaggedCount > 0
+        ? `Receipt confirmed. ${flaggedCount} item(s) flagged — an incident was raised for HQ & CK.`
+        : "Receipt confirmed. Thank you!");
     } catch (e: unknown) {
       showToast((e as Error).message, false);
     } finally {
@@ -1066,7 +1083,7 @@ export default function CKDeliveryPage() {
             </div>
 
             <p className={T_CAPTION + " mb-4"}>
-              Enter the quantity actually received for each item.
+              Enter the received quantity and check each item&apos;s label &amp; production date. Flagging a problem (spoiled, no label, expired) raises an incident for HQ &amp; CK.
             </p>
 
             <div className="space-y-3">
@@ -1098,6 +1115,43 @@ export default function CKDeliveryPage() {
                       value={receiptNotes[item.id] || ""}
                       onChange={e => setReceiptNotes(prev => ({ ...prev, [item.id]: e.target.value }))}
                     />
+                  </div>
+
+                  {/* ② Label & production-date verification */}
+                  <div className="mt-2 border-t border-white/8 pt-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-zinc-400">
+                        Label check
+                        {item.production_date && <span className="ml-1 text-zinc-500">· prod {item.production_date}</span>}
+                        {item.expiry_date && <span className="ml-1 text-zinc-500">· exp {item.expiry_date}</span>}
+                      </span>
+                      <div className="flex gap-1">
+                        <button type="button"
+                          onClick={() => setReceiptLabelOk(p => ({ ...p, [item.id]: "ok" }))}
+                          className={`rounded px-2 py-1 text-[11px] font-medium ${receiptLabelOk[item.id] === "ok" ? "bg-emerald-500/20 text-emerald-300" : "text-zinc-400 hover:bg-white/5"}`}>
+                          OK
+                        </button>
+                        <button type="button"
+                          onClick={() => setReceiptLabelOk(p => ({ ...p, [item.id]: "problem" }))}
+                          className={`rounded px-2 py-1 text-[11px] font-medium ${receiptLabelOk[item.id] === "problem" ? "bg-red-500/20 text-red-300" : "text-zinc-400 hover:bg-white/5"}`}>
+                          Problem
+                        </button>
+                      </div>
+                    </div>
+                    {receiptLabelOk[item.id] === "problem" && (
+                      <select
+                        className={`${INPUT_CLASS} mt-2 text-sm py-2`}
+                        value={receiptLabelIssue[item.id] || ""}
+                        onChange={e => setReceiptLabelIssue(p => ({ ...p, [item.id]: e.target.value }))}
+                      >
+                        <option value="">Select issue…</option>
+                        <option value="SPOILED">Spoiled / bad odor</option>
+                        <option value="NO_LABEL">No label</option>
+                        <option value="NO_DATE">No production date</option>
+                        <option value="EXPIRED">Expired</option>
+                        <option value="OTHER">Other</option>
+                      </select>
+                    )}
                   </div>
                 </div>
               ))}
