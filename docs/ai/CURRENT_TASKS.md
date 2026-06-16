@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-15 (session 69 — Procurement Hub: Branchフィルタのエイリアスマッチ)
+Last updated: 2026-06-16 (session 70 — Cash Report: Closing残高修正/Debit Card/レポート削除/SC-PWD件数整数化)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,31 @@ Last updated: 2026-06-15 (session 69 — Procurement Hub: Branchフィルタの�
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1270, Vercel 57f9d1d)
+なし — 全変更デプロイ済み (Heroku v1271, Vercel e2237f5)
+
+> Heroku DBマイグレーション: `cash_reports.pos_debit_card` 列は `ensure_cash_report_tables()` 内の `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` で**初回のcash-reportリクエスト時に自動追加**（api_cr_submit が submit前にensureを呼ぶ）。手動マイグレーション不要。
+
+## Recently Completed (2026-06-16 session 70) — live
+
+Taft店舗のClosing入れ忘れ→後追い入力で、店長(Yuri)経由のスタッフ依頼6件。Cash Report (`/store/cash-report`, 管理: `/admin/cash-management`)。
+
+| # | 内容 | 種別 | 修正 |
+|---|---|---|---|
+| 1 | Safety Box二重計上で巨額OVERAGE誤表示 | バグ(**フロントのみ**) | **真因**: バック `db_cash_report.submit_cash_report` は `expected = opening + cash_sales`(安全box引かない=正)だが、フロント `cash-report/page.tsx` が `- sbDep` していた。店舗の現金は全額カウント後に安全boxへ移すため、引くと預入額ぶん偽OVERAGE(例: 実50→誤7050)。`expectedClosing` から `- sbDep` 削除、表示ラベルも修正。DB保存値は元々正しいので管理側表示は影響なし |
+| 2+3 | 誤branch(Paranaque)/誤date(6/16)で送信→削除・訂正不可 | 機能欠如 | **真因**: `ON CONFLICT (branch, report_date, report_type) DO UPDATE` で一意管理だが**削除手段が皆無**。管理者専用 `DELETE /api/admin/cash-reports/{id}` 追加(`_require_admin`=`channel.admin.cash_management.view`)。`delete_cash_report()` は安全box預入を補正WITHDRAWALで戻し残高整合(NTEはCASCADE)。管理画面の詳細パネルに Delete ボタン |
+| 4 | Credit Cardに加えDebit Cardも | 機能追加(フルスタック) | `cash_reports.pos_debit_card` 列追加(migration+CREATE)。端末額は Credit+Debit 合計なので `cc_discrepancy = terminal − (credit+debit)` に変更。店舗フォームにDebit欄、管理側に表示 |
+| 補 | SC/PWD「Total Count」が小数(186.61)を受付 | 小バグ | `NumInput` に `integer` モード追加、Count欄を整数限定 |
+| 5+6 | Discord画像→件数/金額の自動集計 | 新機能要望 | **見送り**(ユーザー判断)。手入力＋目視確認を継続。OCR/Discord連携で別規模 |
+
+検証: `tsc --noEmit` exit0、対象ファイル eslint クリーン、`ast.parse` OK。Heroku起動確認(root 405, DELETE 401=認証要求で正常)。
+
+### 教訓 (session 70)
+- **フロント/バックで計算式が二重実装**されている箇所に注意。Closing残高はバックが正・フロントが誤で、画面だけ嘘をついていた(保存値は正)。**照合ロジックは片方に寄せるか、最低限フロント=バックで一致**させる
+- **upsertのみで削除無しのテーブル**は誤branch/誤dateの訂正が詰む。`(branch,date,type)` キーは便利だが削除導線を用意する
+- **安全box台帳は running_balance スナップショット方式**。レポート削除時はledger行を消すと後続のrunning_balanceが壊れるため、**補正イベント(WITHDRAWAL)を追記**して残高を戻す(`delete_cash_report` 参照)
+- 既知の別課題(今回未対応): submit再送のたびに安全box DEPOSIT台帳が**追記される**(多重計上の懸念)。delete側はSUMで全DEPOSITを反転して対処済みだが、submit側の重複は別途要検討
+
+## Recently Completed (2026-06-15 session 69) — live
 
 ## Recently Completed (2026-06-15 session 69) — live
 
