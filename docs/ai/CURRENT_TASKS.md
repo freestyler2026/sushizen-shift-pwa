@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-16 (session 80 — 食品安全②⑤: 受領ラベル検証UI + 不備→Incident即時起票。①〜⑤完了)
+Last updated: 2026-06-16 (session 81 — 食品安全 統合テスト: ローカルPostgresで①〜⑤を実DB検証、空デリバリー発送バグ修正)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,31 @@ Last updated: 2026-06-16 (session 80 — 食品安全②⑤: 受領ラベル検�
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1279, Vercel 9b36d6e)
+なし — 全変更デプロイ済み (Heroku v1280, Vercel 9b36d6e)
+
+## Recently Completed (2026-06-16 session 81) — live
+
+食品安全機能(①〜⑤)の**統合テスト**を実施し、バグ1件を発見・修正。
+
+**テスト環境**: ローカルにPostgres16起動(`pg_ctl`, `LC_ALL=C`回避 + `PGCLIENTENCODING=UTF8`)→ throwaway DB `sushizen_test` → `.venv/bin/python` で `app.db` を直接import、CK製造日ラベル全フローを実DBで実行する統合テストスクリプト(`_ck_label_test.py`、リポジトリには未コミット)。
+
+**結果: 23アサーション、最終的に全PASS**。検証項目:
+- ① Dispatchゲート: ラベル全欠落→ブロック(品目名列挙)、日付のみ写真無し→ブロック、3点完備→DISPATCHED成功
+- ② 受領: SPOILEDフラグ永続、OK品の label_ok=TRUE 記録
+- ⑤ Incident: フラグ品で1件自動起票、severity=high(SPOILED/EXPIRED)、`incident_raised`
+- 期限切れ品の受領で **label_issue自動EXPIRED**
+- ④ Compliance集計: total/with_production_date/with_photo/fully_labeled/expired/flagged が正確、delivery JOIN、branchフィルタ
+- 二重confirm拒否
+
+**発見・修正したバグ**: `dispatch_ck_delivery` が**品目ゼロの空デリバリーを発送できた**(ゲートは「ラベル欠落品目」のみ検査→品目0だと素通り)。**品目数0なら発送不可のガード追加**(`app/db.py`)。再テストで全PASS。Heroku v1280。
+
+### 教訓 (session 81)
+- **psycopg2のサーバ依存ロジックは実Postgresでテスト**(SQLite不可: `::date`/`ON CONFLICT`/`RETURNING`/`gen_random_uuid`)。ローカルPG16を `pg_ctl -D` で起動、throwaway DBで統合テスト
+- macOS PG起動失敗`postmaster became multithreaded` → `LC_ALL=C`。client_encoding ASCII(C locale)でSQL中の `→`/`—` がUnicodeError → `PGCLIENTENCODING=UTF8`(本番はUTF8で無問題)
+- **テストは隔離(TRUNCATE/unique key)必須**: 前回クラッシュ残骸で④集計が6件になり誤FAIL。製品バグではなくテスト未隔離だった
+- **「不足だけ検査」ゲートはゼロ件で素通りする**穴に注意(empty deliveryバグ)。"全件が条件を満たす"系は別途「最低1件」チェックを
+
+## Recently Completed (2026-06-16 session 80) — live
 
 ## Recently Completed (2026-06-16 session 80) — live
 
