@@ -6,7 +6,7 @@ import {
   DollarSign, Send, RefreshCw, CheckCircle2, XCircle,
   AlertTriangle, ExternalLink, Camera, X, ChevronDown, ChevronUp, Banknote,
 } from "lucide-react";
-import { getAuth, getAuthHeaders } from "@/lib/auth";
+import { getAuth, getAuthHeaders, getUploadHeaders } from "@/lib/auth";
 import {
   PRIMARY_BUTTON, SELECT_CLASS, INPUT_CLASS, TAB_CONTAINER, TAB_ACTIVE, TAB_INACTIVE,
   T_PAGE_TITLE, T_LABEL, T_CAPTION, GLASS_CARD,
@@ -639,7 +639,7 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
       fd.append("report_date", reportDate);
       fd.append("file", qrphPhotos[i].file);
       await fetch("/api/store/cash-report/upload-qrph-photo", {
-        method: "POST", headers: getAuthHeaders(), body: fd, cache: "no-store",
+        method: "POST", headers: getUploadHeaders(), body: fd, cache: "no-store",
       }).catch(() => {});
     }
   };
@@ -653,7 +653,7 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
       fd.append("doc_type", "receipt");
       fd.append("file", photo.file);
       await fetch("/api/store/cash-report/upload-scpwd-photo", {
-        method: "POST", headers: getAuthHeaders(), body: fd, cache: "no-store",
+        method: "POST", headers: getUploadHeaders(), body: fd, cache: "no-store",
       }).catch(() => {});
     }
   };
@@ -667,7 +667,7 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
       fd.append("doc_type", "id");
       fd.append("file", photo.file);
       await fetch("/api/store/cash-report/upload-scpwd-photo", {
-        method: "POST", headers: getAuthHeaders(), body: fd, cache: "no-store",
+        method: "POST", headers: getUploadHeaders(), body: fd, cache: "no-store",
       }).catch(() => {});
     }
   };

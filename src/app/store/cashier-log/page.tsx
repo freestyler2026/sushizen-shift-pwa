@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, Plus, RefreshCw, Trash2, X, ExternalLink, CheckCircle2, XCircle } from "lucide-react";
-import { getAuth, getAuthHeaders } from "@/lib/auth";
+import { getAuth, getAuthHeaders, getUploadHeaders } from "@/lib/auth";
 import {
   PRIMARY_BUTTON, SECONDARY_BUTTON, SELECT_CLASS, INPUT_CLASS,
   TAB_CONTAINER, TAB_ACTIVE, TAB_INACTIVE,
@@ -136,7 +136,7 @@ export default function CashierLogPage() {
     fd.append("entry_type", tab);
     fd.append("slot", slot);
     fd.append("file", photo.file);
-    await fetch(`${API}/entries/${entryId}/photo`, { method: "POST", headers: getAuthHeaders(), body: fd, cache: "no-store" }).catch(() => {});
+    await fetch(`${API}/entries/${entryId}/photo`, { method: "POST", headers: getUploadHeaders(), body: fd, cache: "no-store" }).catch(() => {});
   };
 
   const addEntry = async () => {

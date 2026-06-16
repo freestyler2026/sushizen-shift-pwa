@@ -318,6 +318,20 @@ export function getAuthHeaders(a?: Auth | null): HeadersInit {
   return headers;
 }
 
+// For multipart/FormData uploads: MUST NOT set Content-Type, or the browser
+// won't add the multipart boundary and the server can't read the file
+// (FastAPI then returns a 422 whose error object renders as "[object Object]").
+export function getUploadHeaders(a?: Auth | null): HeadersInit {
+  const current = a ?? getAuth();
+  const headers: Record<string, string> = {};
+  if (current?.accessToken) headers.Authorization = `Bearer ${current.accessToken}`;
+  if (current?.stepUpToken) headers["X-Step-Up-Token"] = current.stepUpToken;
+  if (typeof window !== "undefined" && window.location?.origin) {
+    headers["X-WebAuthn-Origin"] = window.location.origin;
+  }
+  return headers;
+}
+
 export function hasPermission(permission: string, a?: Auth | null): boolean {
   const current = a ?? getAuth();
   const permissions = current?.permissions || [];

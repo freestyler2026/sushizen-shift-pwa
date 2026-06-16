@@ -6,7 +6,7 @@ import {
   CheckCircle2, ChevronDown, ChevronRight, Loader2,
   Package, Plus, Send, Truck, X, Camera, AlertTriangle,
 } from "lucide-react";
-import { getAuth, getAuthHeaders } from "@/lib/auth";
+import { getAuth, getAuthHeaders, getUploadHeaders } from "@/lib/auth";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, SMALL_BUTTON,
   TABLE_CELL, TABLE_HEADER, TABLE_ROW,
@@ -372,10 +372,10 @@ export default function CKDeliveryPage() {
       fd.append("delivery_date", activeDelivery.delivery_date || "");
       fd.append("file", fileObj);
       const res = await fetch(`/api/store/ck-delivery/deliveries/${activeDelivery.id}/items/${itemId}/label-photo`, {
-        method: "POST", headers: getAuthHeaders(getAuth()), body: fd, cache: "no-store",
+        method: "POST", headers: getUploadHeaders(getAuth()), body: fd, cache: "no-store",
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Upload failed");
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data?.detail === "string" ? data.detail : "Upload failed");
       setActiveDelivery(prev => prev ? {
         ...prev,
         items: (prev.items || []).map(it => it.id === itemId ? { ...it, label_photo_url: data.photo_url } : it),
