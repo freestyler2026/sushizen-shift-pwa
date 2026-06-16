@@ -26,17 +26,38 @@ import {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const BRANCHES = [
-  { code: "PAR",  label: "Paranaque" },
-  { code: "CUB",  label: "Cubao" },
-  { code: "TAFT", label: "Taft" },
-];
+type CityKey = "manila" | "dubai";
 
-const AGGREGATORS = [
-  { key: "grabfood",  label: "GrabFood" },
-  { key: "foodpanda", label: "Foodpanda" },
-  { key: "beep",      label: "Beep" },
-];
+const BRANCHES_BY_CITY: Record<CityKey, { code: string; label: string }[]> = {
+  manila: [
+    { code: "PAR",  label: "Paranaque" },
+    { code: "CUB",  label: "Cubao" },
+    { code: "TAFT", label: "Taft" },
+  ],
+  dubai: [
+    { code: "BB",  label: "Business Bay" },
+    { code: "JLT", label: "JLT" },
+    { code: "ARJ", label: "Arjan" },
+    { code: "AM",  label: "Al Mina" },
+    { code: "AB",  label: "Al Barsha" },
+  ],
+};
+
+const AGGREGATORS_BY_CITY: Record<CityKey, { key: string; label: string }[]> = {
+  manila: [
+    { key: "grabfood",  label: "GrabFood" },
+    { key: "foodpanda", label: "Foodpanda" },
+    { key: "beep",      label: "Beep" },
+  ],
+  dubai: [
+    { key: "careem",    label: "Careem" },
+    { key: "noon",      label: "NOON" },
+    { key: "talabat",   label: "Talabat" },
+    { key: "deliveroo", label: "Deliveroo" },
+  ],
+};
+
+const TZ_BY_CITY: Record<CityKey, string> = { manila: "Asia/Manila", dubai: "Asia/Dubai" };
 
 const CHECK_TYPES = [
   { key: "OPENING",        label: "Opening Check",       icon: "🌅", desc: "Morning — all aggregators ON" },
@@ -46,17 +67,17 @@ const CHECK_TYPES = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function nowHHMM(): string {
-  return new Date().toLocaleTimeString("en-PH", {
-    timeZone: "Asia/Manila",
+function nowHHMM(tz = "Asia/Manila"): string {
+  return new Date().toLocaleTimeString("en-GB", {
+    timeZone: tz,
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
   });
 }
 
-function todayPH(): string {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+function todayInTz(tz = "Asia/Manila"): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: tz });
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -157,9 +178,15 @@ export default function DailyCheckPage() {
   const router = useRouter();
   const auth = getAuth();
 
-  // Session
-  const [city] = useState("manila");
-  const [branch, setBranch] = useState(BRANCHES[0].code);
+  // Session — Daily Check exists for both Manila and Dubai stores.
+  const canManage = ["ADMIN", "HQ", "MANILA_MANAGEMENT", "DUBAI_MANAGEMENT"].includes(String(auth?.role || ""));
+  const [city, setCity] = useState<CityKey>(
+    (String(auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila")
+  );
+  const branches = BRANCHES_BY_CITY[city];
+  const aggregators = AGGREGATORS_BY_CITY[city];
+  const tz = TZ_BY_CITY[city];
+  const [branch, setBranch] = useState(branches[0].code);
   const [staffName, setStaffName] = useState(auth?.staffName || "");
 
   // Check type selection
@@ -167,7 +194,7 @@ export default function DailyCheckPage() {
 
   // Aggregator statuses: {open: bool, mode: "auto"|"manual"}
   const [aggStatus, setAggStatus] = useState<Record<string, {open: boolean; mode: "auto" | "manual"}>>(
-    Object.fromEntries(AGGREGATORS.map((a) => [a.key, {open: false, mode: "auto" as const}]))
+    Object.fromEntries(aggregators.map((a) => [a.key, {open: false, mode: "auto" as const}]))
   );
   const [dineInOpen, setDineInOpen] = useState<boolean | null>(null);
   const [notes, setNotes] = useState("");
@@ -184,12 +211,18 @@ export default function DailyCheckPage() {
   const [submitting, setSubmitting] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
-  const today = todayPH();
+  const today = todayInTz(tz);
 
   // ── Auth guard ──
   useEffect(() => {
     if (!auth) { router.replace("/login?next=%2Fstore%2Fdaily-check"); }
   }, [auth, router]);
+
+  // When the city changes, reset branch + aggregator statuses to that city's set.
+  useEffect(() => {
+    setBranch(BRANCHES_BY_CITY[city][0].code);
+    setAggStatus(Object.fromEntries(AGGREGATORS_BY_CITY[city].map((a) => [a.key, { open: false, mode: "auto" as const }])));
+  }, [city]);
 
   // ── Load today's checks ──
   const loadTodayChecks = () => {
@@ -210,7 +243,7 @@ export default function DailyCheckPage() {
   useEffect(() => {
     setSubmittedId(null);
     setMsg(null);
-    setAggStatus(Object.fromEntries(AGGREGATORS.map((a) => [a.key, {open: false, mode: "auto" as const}])));
+    setAggStatus(Object.fromEntries(aggregators.map((a) => [a.key, {open: false, mode: "auto" as const}])));
     setDineInOpen(null);
     setNotes("");
     setUploadedPhotos({});
@@ -252,7 +285,7 @@ export default function DailyCheckPage() {
   };
 
   const checkTypeMeta = CHECK_TYPES.find((t) => t.key === checkType)!;
-  const branchLabel = BRANCHES.find((b) => b.code === branch)?.label ?? branch;
+  const branchLabel = branches.find((b) => b.code === branch)?.label ?? branch;
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-4 py-8">
@@ -267,11 +300,26 @@ export default function DailyCheckPage() {
 
         {/* Branch / Staff */}
         <div className={`${GLASS_CARD} space-y-3`}>
+          {canManage && (
+            <div className="flex rounded-xl border border-white/10 bg-white/[0.03] p-0.5 self-start w-fit">
+              {(["manila", "dubai"] as const).map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setCity(c)}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-medium capitalize transition ${
+                    city === c ? "bg-violet-500/20 text-violet-200" : "text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={`${T_LABEL} mb-1 block`}>Branch</label>
               <select className={SELECT_CLASS} value={branch} onChange={(e) => setBranch(e.target.value)}>
-                {BRANCHES.map((b) => <option key={b.code} value={b.code}>{b.label}</option>)}
+                {branches.map((b) => <option key={b.code} value={b.code}>{b.label}</option>)}
               </select>
             </div>
             <div>
@@ -309,7 +357,7 @@ export default function DailyCheckPage() {
             <div>
               <p className="font-medium">Already submitted today</p>
               <p className="text-xs text-amber-300/70 mt-0.5">
-                {alreadySubmitted[0].submitted_by} at {new Date(alreadySubmitted[0].submitted_at).toLocaleTimeString("en-PH", { timeZone: "Asia/Manila", hour: "2-digit", minute: "2-digit" })}
+                {alreadySubmitted[0].submitted_by} at {new Date(alreadySubmitted[0].submitted_at).toLocaleTimeString("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit" })}
                 {(alreadySubmitted[0].status === "CONFIRMED_OK" || alreadySubmitted[0].status === "CONFIRMED")
                   ? <span className="ml-2 text-emerald-400">🟢 Confirmed OK</span>
                   : alreadySubmitted[0].status === "CONFIRMED_ISSUE"
@@ -337,7 +385,7 @@ export default function DailyCheckPage() {
                 {isOpening ? "Aggregator devices are ON and showing as Open" : "Aggregator devices are closed / paused"}
               </p>
               <div className="space-y-2">
-                {AGGREGATORS.map((agg) => (
+                {aggregators.map((agg) => (
                   <div key={agg.key}
                     className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition-all ${
                       aggStatus[agg.key]?.open
@@ -443,7 +491,7 @@ export default function DailyCheckPage() {
             <p className="text-xs text-white/40">
               Take photos of each aggregator device showing it is open, and the dine-in area if applicable.
             </p>
-            {AGGREGATORS.map((agg) => (
+            {aggregators.map((agg) => (
               <div key={agg.key} className="flex items-center gap-3">
                 <span className={`text-xs font-medium w-24 ${aggStatus[agg.key]?.open ? "text-emerald-300" : "text-slate-500"}`}>
                   {agg.label}
@@ -472,7 +520,7 @@ export default function DailyCheckPage() {
               </div>
             )}
             <p className="text-xs text-white/30 pt-1">
-              {Object.keys(uploadedPhotos).length} / {AGGREGATORS.length + (dineInOpen === true ? 1 : 0)} photo(s) uploaded.
+              {Object.keys(uploadedPhotos).length} / {aggregators.length + (dineInOpen === true ? 1 : 0)} photo(s) uploaded.
               Photos are optional but recommended.
             </p>
           </div>
@@ -525,7 +573,7 @@ export default function DailyCheckPage() {
                         </span>
                       </div>
                       <div className="mt-0.5 text-white/30">
-                        by {c.submitted_by} · {new Date(c.submitted_at).toLocaleTimeString("en-PH", { timeZone: "Asia/Manila", hour: "2-digit", minute: "2-digit" })}
+                        by {c.submitted_by} · {new Date(c.submitted_at).toLocaleTimeString("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit" })}
                         {c.bo_confirmed_by && ` · confirmed by ${c.bo_confirmed_by}`}
                       </div>
                     </div>

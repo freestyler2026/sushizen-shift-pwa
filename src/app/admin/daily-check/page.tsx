@@ -24,17 +24,46 @@ import {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const BRANCHES = [
-  { code: "PAR",  label: "Paranaque" },
-  { code: "CUB",  label: "Cubao" },
-  { code: "TAFT", label: "Taft" },
-];
+type CityKey = "manila" | "dubai";
 
-const AGGREGATORS = [
-  { key: "grabfood",  label: "GrabFood" },
-  { key: "foodpanda", label: "Foodpanda" },
-  { key: "beep",      label: "Beep" },
-];
+const BRANCHES_BY_CITY: Record<CityKey, { code: string; label: string }[]> = {
+  manila: [
+    { code: "PAR",  label: "Paranaque" },
+    { code: "CUB",  label: "Cubao" },
+    { code: "TAFT", label: "Taft" },
+  ],
+  dubai: [
+    { code: "BB",  label: "Business Bay" },
+    { code: "JLT", label: "JLT" },
+    { code: "ARJ", label: "Arjan" },
+    { code: "AM",  label: "Al Mina" },
+    { code: "AB",  label: "Al Barsha" },
+  ],
+};
+
+const AGGREGATORS_BY_CITY: Record<CityKey, { key: string; label: string }[]> = {
+  manila: [
+    { key: "grabfood",  label: "GrabFood" },
+    { key: "foodpanda", label: "Foodpanda" },
+    { key: "beep",      label: "Beep" },
+  ],
+  dubai: [
+    { key: "careem",    label: "Careem" },
+    { key: "noon",      label: "NOON" },
+    { key: "talabat",   label: "Talabat" },
+    { key: "deliveroo", label: "Deliveroo" },
+  ],
+};
+
+const TZ_BY_CITY: Record<CityKey, string> = { manila: "Asia/Manila", dubai: "Asia/Dubai" };
+
+// Combined lookups so the admin view can render any city's submission correctly.
+const ALL_BRANCHES = [...BRANCHES_BY_CITY.manila, ...BRANCHES_BY_CITY.dubai];
+const AGG_LABEL: Record<string, string> = Object.fromEntries(
+  [...AGGREGATORS_BY_CITY.manila, ...AGGREGATORS_BY_CITY.dubai].map((a) => [a.key, a.label]),
+);
+const branchLabelOf = (code: string) => ALL_BRANCHES.find((b) => b.code === code)?.label ?? code;
+const tzOf = (city: string) => TZ_BY_CITY[(String(city || "manila").toLowerCase() as CityKey)] ?? "Asia/Manila";
 
 const CHECK_TYPES = [
   { key: "OPENING",        label: "Opening",       icon: "🌅" },
@@ -77,14 +106,14 @@ type SummaryRow = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function todayPH(): string {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+function todayInTz(tz = "Asia/Manila"): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: tz });
 }
 
-function fmtTime(iso: string | null): string {
+function fmtTime(iso: string | null, tz = "Asia/Manila"): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleTimeString("en-PH", {
-    timeZone: "Asia/Manila", hour: "2-digit", minute: "2-digit",
+  return new Date(iso).toLocaleTimeString("en-GB", {
+    timeZone: tz, hour: "2-digit", minute: "2-digit",
   });
 }
 
@@ -103,7 +132,7 @@ function aggMode(val: unknown): string | null {
 
 // ─── Summary Card ─────────────────────────────────────────────────────────────
 
-function SummaryGrid({ summary }: { summary: SummaryRow[] }) {
+function SummaryGrid({ summary, branches, tz }: { summary: SummaryRow[]; branches: { code: string; label: string }[]; tz: string }) {
   if (!summary.length) return (
     <p className="text-sm text-white/30 py-4 text-center">No submissions yet today.</p>
   );
@@ -122,7 +151,7 @@ function SummaryGrid({ summary }: { summary: SummaryRow[] }) {
           </tr>
         </thead>
         <tbody>
-          {BRANCHES.map((branch) => (
+          {branches.map((branch) => (
             <tr key={branch.code} className="border-b border-white/5">
               <td className="py-2 pr-3 font-semibold text-white/70">{branch.label}</td>
               {CHECK_TYPES.map((ct) => {
@@ -150,7 +179,7 @@ function SummaryGrid({ summary }: { summary: SummaryRow[] }) {
                           ? "OK"
                           : `${row.confirmed}/${row.total}`}
                     </span>
-                    <div className="text-white/25 mt-0.5">{fmtTime(row.last_submitted_at)}</div>
+                    <div className="text-white/25 mt-0.5">{fmtTime(row.last_submitted_at, tz)}</div>
                   </td>
                 );
               })}
@@ -195,7 +224,7 @@ function CheckCard({
   const doubleChecking = doubleCheckingId === check.id;
   const statusMeta = STATUS_META[check.status] ?? { label: check.status, dot: "⚪" };
   const meta = CHECK_TYPES.find((t) => t.key === check.check_type);
-  const branchLabel = BRANCHES.find((b) => b.code === check.branch_code)?.label ?? check.branch_code;
+  const branchLabel = branchLabelOf(check.branch_code);
 
   return (
     <div className={`rounded-2xl border p-4 space-y-3 ${
@@ -217,7 +246,7 @@ function CheckCard({
             {meta?.icon} {meta?.label} — {branchLabel}
           </p>
           <p className={`${T_CAPTION} mt-0.5`}>
-            by {check.submitted_by} · {fmtTime(check.submitted_at)}
+            by {check.submitted_by} · {fmtTime(check.submitted_at, tzOf(check.city))}
           </p>
         </div>
         <span className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${
@@ -237,18 +266,17 @@ function CheckCard({
 
       {/* Aggregator statuses */}
       <div className="flex flex-wrap gap-2">
-        {AGGREGATORS.map((agg) => {
-          const val = check.aggregator_statuses?.[agg.key];
+        {Object.entries(check.aggregator_statuses || {}).map(([key, val]) => {
           const ok = aggIsOpen(val);
           const mode = aggMode(val);
           return (
-            <span key={agg.key} className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-xs ${
+            <span key={key} className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-xs ${
               ok
                 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
                 : "border-red-500/25 bg-red-500/8 text-red-300"
             }`}>
               {ok ? <CheckCircle2 size={10} /> : <XCircle size={10} />}
-              {agg.label}
+              {AGG_LABEL[key] ?? key}
               {mode && (
                 <span className="ml-0.5 opacity-60">{mode === "manual" ? "M" : "A"}</span>
               )}
@@ -287,7 +315,7 @@ function CheckCard({
           {check.photo_urls.map((p, i) => (
             <a key={i} href={p.url} target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-1 rounded-lg border border-sky-500/25 bg-sky-500/8 px-2 py-1 text-xs text-sky-400 hover:bg-sky-500/15">
-              📎 {AGGREGATORS.find((a) => a.key === p.type)?.label ?? p.type} photo
+              📎 {AGG_LABEL[p.type] ?? p.type} photo
             </a>
           ))}
         </div>
@@ -376,7 +404,7 @@ function CheckCard({
         <div className="space-y-3 pt-2 border-t border-red-500/20">
           <p className="text-xs font-semibold text-red-300/70 uppercase tracking-wide">Follow-up Required</p>
           <p className={T_CAPTION}>
-            Flagged by {check.bo_confirmed_by ?? "back office"} at {fmtTime(check.bo_confirmed_at)}
+            Flagged by {check.bo_confirmed_by ?? "back office"} at {fmtTime(check.bo_confirmed_at, tzOf(check.city))}
             {check.discord_confirmed && <span className="ml-2 text-violet-400/80">· Discord ✓</span>}
           </p>
 
@@ -438,12 +466,12 @@ function CheckCard({
           <p className={T_CAPTION}>
             {statusMeta.dot} {statusMeta.label}
             {check.bo_confirmed_by && ` · by ${check.bo_confirmed_by}`}
-            {check.bo_confirmed_at && ` at ${fmtTime(check.bo_confirmed_at)}`}
+            {check.bo_confirmed_at && ` at ${fmtTime(check.bo_confirmed_at, tzOf(check.city))}`}
             {check.discord_confirmed && <span className="ml-2 text-violet-400/80">· Discord ✓</span>}
           </p>
           {check.double_checked_by && (
             <p className={`${T_CAPTION} mt-0.5`}>
-              Follow-up by {check.double_checked_by} at {fmtTime(check.double_checked_at)}
+              Follow-up by {check.double_checked_by} at {fmtTime(check.double_checked_at, tzOf(check.city))}
             </p>
           )}
         </div>
@@ -458,8 +486,12 @@ export default function AdminDailyCheckPage() {
   const router = useRouter();
   const auth = getAuth();
 
-  const [city] = useState("manila");
-  const [date, setDate] = useState(todayPH());
+  const [city, setCity] = useState<CityKey>(
+    (String(auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila")
+  );
+  const branches = BRANCHES_BY_CITY[city];
+  const tz = TZ_BY_CITY[city];
+  const [date, setDate] = useState(todayInTz(tz));
   const [branchFilter, setBranchFilter] = useState("");
   const [typeFilter, setTypeFilter]     = useState("");
   const [tab, setTab]                   = useState<"summary" | "detail">("summary");
@@ -574,6 +606,14 @@ export default function AdminDailyCheckPage() {
         {/* Filters */}
         <div className={`${GLASS_CARD} grid grid-cols-2 gap-3 sm:grid-cols-4`}>
           <div>
+            <label className={`${T_LABEL} mb-1 block`}>City</label>
+            <select className={SELECT_CLASS} value={city}
+              onChange={(e) => { setCity(e.target.value as CityKey); setBranchFilter(""); }}>
+              <option value="manila">Manila</option>
+              <option value="dubai">Dubai</option>
+            </select>
+          </div>
+          <div>
             <label className={`${T_LABEL} mb-1 block`}>Date</label>
             <input type="date" className={SELECT_CLASS} value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
@@ -581,7 +621,7 @@ export default function AdminDailyCheckPage() {
             <label className={`${T_LABEL} mb-1 block`}>Branch</label>
             <select className={SELECT_CLASS} value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
               <option value="">All branches</option>
-              {BRANCHES.map((b) => <option key={b.code} value={b.code}>{b.label}</option>)}
+              {branches.map((b) => <option key={b.code} value={b.code}>{b.label}</option>)}
             </select>
           </div>
           <div>
@@ -659,7 +699,7 @@ export default function AdminDailyCheckPage() {
         {/* Summary tab */}
         {tab === "summary" && (
           <div className={GLASS_CARD}>
-            <SummaryGrid summary={summary} />
+            <SummaryGrid summary={summary} branches={branches} tz={tz} />
           </div>
         )}
 
