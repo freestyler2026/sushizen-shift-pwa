@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-16 (session 83 — CK: 担当者複数選択① / 支店別デリバリー数量② / 写真アップロード[object Object]バグ③)
+Last updated: 2026-06-16 (session 84 — Store Procurement: 差し戻し編集は元サプライヤーのみ① / Store未選択ALL防止②)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,28 @@ Last updated: 2026-06-16 (session 83 — CK: 担当者複数選択① / 支店�
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1283, Vercel 97917a7)
+なし — 全変更デプロイ済み (Heroku v1283, Vercel 3c37c23)
+
+## Recently Completed (2026-06-16 session 84) — live
+
+ドバイ発注運用の2点（`src/app/store/procurement/request/page.tsx`、フロントのみ）。
+
+**① 差し戻し編集でサプライヤー混在**
+- 真因: 差し戻し(Return/Reject)オーダーの編集時、カタログが**全サプライヤー表示**のままで、スタッフが元(例SAFCO)以外(CME等)の商品にも数量入力→1申請に複数サプライヤー混在。
+- 修正: `supplierSections`(useMemo) に**編集モード時のフィルタ**追加。`editRequestId` がある時は `editRequestItems` の `vendor_name` 集合に限定→**元サプライヤーのみ表示**(チップ・セクション両方)。ヘッダーに注記。別サプライヤーは新規オーダーで。
+
+**② Store未選択で"ALL"発注**
+- 真因: Dubaiで店舗未指定だと `loadCatalogStores` が **`storeCode="ALL"` を自動セット**(表示は「Select store (required)」だが実態ALL)。送信検証は `!storeCode.trim()` だけで**"ALL"が素通り**。
+- 修正: ①Dubai未指定時の自動"ALL"をやめ空""に。②送信検証を **`!allStoresFlag && (空 or "ALL") → エラー`** に変更。**実店舗必須、ALLは「For All Stores」チェック時のみ**。
+
+検証: `tsc` exit0、`npm run build` 成功、eslintクリーン(既存warnのみ)。Vercel 3c37c23。
+
+### 教訓 (session 84)
+- **差し戻し編集は「元サプライヤーにスコープ」**が安全。`editRequestItems[].vendor_name` 集合で `supplierSections` を絞れば、チップ・セクション・入力対象すべてが連動
+- **"required" プレースホルダと実stateの不一致は罠**: 表示は「Select store」でも内部 `storeCode="ALL"` で素通りしていた。**デフォルトで危険値(ALL)を入れない**＋送信検証で明示チェック
+- 新規オーダーの複数サプライヤー混在は正常。問題は「差し戻し編集での意図しない追加」のみ
+
+## Recently Completed (2026-06-16 session 83) — live
 
 ## Recently Completed (2026-06-16 session 83) — live
 
