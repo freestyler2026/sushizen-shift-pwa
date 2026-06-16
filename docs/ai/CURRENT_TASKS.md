@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-16 (session 74 — 入力中データ消失の根治: AutoReloadが未保存入力を強制リロードしていた)
+Last updated: 2026-06-16 (session 75 — Cashier Log新設: SC/PWD・QRPHを1件ずつOS記録→Closing自動反映)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,31 @@ Last updated: 2026-06-16 (session 74 — 入力中データ消失の根治: Auto
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1273, Vercel 6fc51a4)
+なし — 全変更デプロイ済み (Heroku v1274, Vercel 3fd4ff3)
+
+> **代表アクション(未確認)**: SC/PWD割引レシート等の**現物保管がBIR等で法令上必要か**を確認（このログは証憑の電子化・突合用。現物保管要否は別途）。
+
+## Recently Completed (2026-06-16 session 75) — live
+
+スタッフ要望: Discordチャンネル(paranaque-sc-pwd-ids / qrph-cashless)をやめ、SC/PWD割引とQRPHを**どのキャッシャーも勤務中に1件ずつOSに記録**。日合計(件数・金額)は Closing Cash Count に入力。OCRはミス多いので不採用、金額は手入力。決定事項: 独立ページ／名前+PIN／Closingは自動セット+上書き可／マニラ全3支店同時／SC・QRPH同時。
+
+| 内容 | ファイル | 修正 |
+|---|---|---|
+| 記録テーブル+CRUD | `app/db_cash_report.py` | `cash_cashier_log_entries`(branch/entry_date/entry_type[SCPWD|QRPH]/cashier_name/amount/reference_no/receipt_url/id_front_url/id_back_url/notes) を ensure に追加。`create_cashier_log_entry`/`update_cashier_log_photo`/`list_cashier_log_entries`/`cashier_log_totals`/`delete_cashier_log_entry` |
+| API | `app/cash_report_api.py` | `POST/GET /api/store/cashier-log/entries`、`POST .../entries/{id}/photo`(Drive投入: SC_PWD_Receipts/SC_PWD_ID/QRPH 再利用)、`GET .../totals`、`DELETE .../entries/{id}`。`_require_token`(任意キャッシャー)、Manila支店のみ |
+| 新ページ | `src/app/store/cashier-log/page.tsx`(新規) | 名前+PIN+支店+日付、SC/PWD|QRPHタブ。SC/PWD=金額+OR番号(任意)+写真3(receipt/ID表/裏)、QRPH=金額+ref(任意)+確認画面写真1。本日ログ一覧(全キャッシャー)+日合計。作成→写真アップ→再読込 |
+| Closing連携 | `src/app/store/cash-report/page.tsx` | ClosingForm が `cashier-log/totals` を取得。空欄に自動セット(初回)+「Use」ボタンで再適用(手動上書き優先)。SC/PWD件数・割引額、QRPH金額に反映 |
+| ナビ | `src/components/NavBar.tsx` | 店舗ナビに「Cashier Log」追加 |
+
+検証: `tsc --noEmit` exit0、`npm run build` 成功(161ページ, 新route `/store/cashier-log`)、`ast.parse` OK。実API: totals→401 / create空→422。Heroku v1274。
+
+### 教訓 (session 75)
+- **既存Drive基盤を再利用**: `_drive_service`/`_ensure_cr_folder`/`_upload_to_drive`(cash_report_api) で写真投入。新機能でもフォルダ階層(SC_PWD_*/QRPH)を踏襲
+- **写真添付は「先にエントリ作成→IDで写真POST」**パターン(既存のreport→photoと同型)。multipartで receipt/id_front/id_back を slot 指定
+- **Closing自動反映は「空欄のみ初回プリフィル + Useで明示再適用」**。完全自動固定にせず手入力を尊重(代表方針)
+- Discord運用→OS移行: 「専用チャンネル」=支店×日付の本日ログ一覧で代替。各エントリに担当者名・時刻を残し個別保存
+
+## Recently Completed (2026-06-16 session 74) — live
 
 ## Recently Completed (2026-06-16 session 74) — live
 
