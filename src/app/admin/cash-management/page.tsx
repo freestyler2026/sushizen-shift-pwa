@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   CheckCircle2, XCircle, AlertTriangle, RefreshCw, DollarSign,
   Vault, Send, ChevronDown, ChevronUp,
-  ClipboardCheck, Landmark,
+  ClipboardCheck, Landmark, Trash2,
 } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
@@ -23,8 +23,8 @@ type FullReport = {
   staff_name: string; status: string;
   // POS
   pos_gross_sales: number | null; pos_cash_sales: number | null;
-  pos_credit_card: number | null; pos_qrph: number | null;
-  // CC reconciliation
+  pos_credit_card: number | null; pos_debit_card: number | null; pos_qrph: number | null;
+  // Card terminal reconciliation (terminal = credit + debit combined)
   terminal_credit_card_amt: number | null; cc_discrepancy: number | null;
   // QRPH
   qrph_terminal_amt: number | null; qrph_discrepancy: number | null;
@@ -144,16 +144,17 @@ function ReportDetailBody({ r }: { r: FullReport }) {
           <Row label="Gross Sales"    value={fmtPHP(r.pos_gross_sales)} />
           <Row label="Cash Sales"     value={fmtPHP(r.pos_cash_sales)} />
           <Row label="Credit Card"    value={fmtPHP(r.pos_credit_card)} />
+          <Row label="Debit Card"     value={fmtPHP(r.pos_debit_card)} />
           <Row label="QRPH"           value={fmtPHP(r.pos_qrph)} />
         </>
       )}
 
-      {/* ── CC Reconciliation (Closing only) ── */}
+      {/* ── Card Terminal Reconciliation (Closing only) — terminal = credit + debit ── */}
       {isClosing && (
         <>
-          <SectionHead label="Credit Card Reconciliation" />
-          <Row label="POS CC"             value={fmtPHP(r.pos_credit_card)} />
-          <Row label="Terminal CC"        value={fmtPHP(r.terminal_credit_card_amt)} />
+          <SectionHead label="Card Terminal Reconciliation" />
+          <Row label="POS Credit + Debit" value={fmtPHP((r.pos_credit_card ?? 0) + (r.pos_debit_card ?? 0))} />
+          <Row label="Terminal (Credit + Debit)" value={fmtPHP(r.terminal_credit_card_amt)} />
           <Row label="Discrepancy"
             value={fmtPHP(r.cc_discrepancy)}
             highlight={r.cc_discrepancy != null && r.cc_discrepancy !== 0 ? "red" : "green"} />
@@ -268,6 +269,29 @@ function ComplianceView() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [detail,   setDetail]  = useState<FullReport | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [deleting, setDeleting] = useState(false);
+
+  async function deleteReport(id: string, label: string) {
+    if (!confirm(`Delete this report (${label})? This removes the wrong-branch/date entry and reverses any safety-box deposit it added. This cannot be undone.`)) return;
+    setDeleting(true);
+    try {
+      const auth = getAuth();
+      const res = await fetch(`${API_BASE}/api/admin/cash-reports/${id}`, {
+        method: "DELETE", headers: getAuthHeaders(auth), cache: "no-store",
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.detail || `HTTP ${res.status}`);
+      }
+      setExpanded(null); setDetail(null);
+      setReloadKey((k) => k + 1);
+    } catch (e) {
+      alert(`Failed to delete: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   function openDetail(id: string) {
     if (expanded === id) { setExpanded(null); setDetail(null); return; }
@@ -292,7 +316,7 @@ function ComplianceView() {
       .catch(() => { if (!cancelled) setData([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [branch, year, month]);
+  }, [branch, year, month, reloadKey]);
 
   const byDaySec = useMemo(() => {
     const map: Record<number, Record<string, CompRow>> = {};
@@ -406,7 +430,15 @@ function ComplianceView() {
                   {BRANCH_LABELS[branch]} · Submitted by <strong className="text-zinc-200">{row.staff_name}</strong>
                 </p>
               </div>
-              <button onClick={() => { setExpanded(null); setDetail(null); }} className="text-zinc-400 hover:text-zinc-200 shrink-0">✕</button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => void deleteReport(row.id, `${row.report_date} ${SECTION_LABELS[row.report_type]} — ${BRANCH_LABELS[branch]}`)}
+                  disabled={deleting}
+                  className="inline-flex items-center gap-1 rounded-lg border border-red-500/30 bg-red-500/10 px-2.5 py-1 text-xs font-medium text-red-300 hover:bg-red-500/20 disabled:opacity-50">
+                  <Trash2 size={12} /> {deleting ? "Deleting…" : "Delete"}
+                </button>
+                <button onClick={() => { setExpanded(null); setDetail(null); }} className="text-zinc-400 hover:text-zinc-200">✕</button>
+              </div>
             </div>
 
             {/* Discrepancy summary banners */}

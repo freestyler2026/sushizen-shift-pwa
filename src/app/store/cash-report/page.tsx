@@ -122,17 +122,20 @@ function BalanceCheckCard({
   );
 }
 
-function NumInput({ label, value, onChange, prefix = "₱", placeholder = "0.00" }: {
+function NumInput({ label, value, onChange, prefix = "₱", placeholder = "0.00", integer = false }: {
   label: string; value: string; onChange: (v: string) => void;
-  prefix?: string; placeholder?: string;
+  prefix?: string; placeholder?: string; integer?: boolean;
 }) {
+  // For count fields (e.g. SC/PWD transactions) keep input to whole numbers only.
+  const handle = (raw: string) => onChange(integer ? raw.replace(/[^\d]/g, "") : raw);
   return (
     <div>
       <label className={`${T_LABEL} mb-1 block`}>{label}</label>
       <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
         <span className="text-zinc-500 text-sm">{prefix}</span>
-        <input type="number" step="0.01" placeholder={placeholder} value={value}
-          onChange={(e) => onChange(e.target.value)}
+        <input type="number" step={integer ? "1" : "0.01"} inputMode={integer ? "numeric" : "decimal"}
+          placeholder={placeholder} value={value}
+          onChange={(e) => handle(e.target.value)}
           className="flex-1 bg-transparent text-sm text-white outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none" />
       </div>
     </div>
@@ -301,7 +304,7 @@ type HistoryReport = {
   staff_name: string; cash_total: number;
   cc_discrepancy: number | null; qrph_discrepancy: number | null; cash_discrepancy: number | null;
   pos_gross_sales: number | null; pos_cash_sales: number | null;
-  pos_credit_card: number | null; pos_qrph: number | null;
+  pos_credit_card: number | null; pos_debit_card: number | null; pos_qrph: number | null;
   opening_balance: number | null; expected_closing_balance: number | null;
   safety_box_deposit_amt: number; discrepancy_notes: string;
   bill_1000: number; bill_500: number; bill_200: number; bill_100: number;
@@ -535,6 +538,7 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
   const [grossSales, setGross]    = useState("");
   const [cashSales,  setCash]     = useState("");
   const [posCc,      setPosCc]    = useState("");
+  const [posDebit,   setPosDebit] = useState("");
   const [posQrph,    setPosQrph]  = useState("");
   // CC terminal
   const [termCc, setTermCc]       = useState("");
@@ -577,10 +581,16 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
   const openingBalance = ref ? parseFloat(ref.cash_total || 0) : null;
   const sbDep  = parseFloat(sbDeposit) || 0;
   const cashSalesNum = parseFloat(cashSales) || 0;
-  const expectedClosing = openingBalance != null ? openingBalance + cashSalesNum - sbDep : null;
+  // Cashiers count ALL cash first, then deposit to the safety box separately, so
+  // the safety box deposit must NOT be subtracted here (it is still in the count).
+  // Subtracting it created a false overage equal to the deposit. Matches backend.
+  const expectedClosing = openingBalance != null ? openingBalance + cashSalesNum : null;
   const cashTotal = calcTotal(denoms);
   const cashDiff  = expectedClosing != null ? Math.round((cashTotal - expectedClosing) * 100) / 100 : null;
-  const ccDiff    = termCc && posCc ? Math.round((parseFloat(termCc) - parseFloat(posCc)) * 100) / 100 : null;
+  // Card terminal total covers credit + debit, so compare against their sum.
+  const posCcNum    = parseFloat(posCc) || 0;
+  const posDebitNum = parseFloat(posDebit) || 0;
+  const ccDiff    = termCc ? Math.round((parseFloat(termCc) - (posCcNum + posDebitNum)) * 100) / 100 : null;
   const qrphDiff  = qrphAmt && posQrph ? Math.round((parseFloat(qrphAmt) - parseFloat(posQrph)) * 100) / 100 : null;
 
   const sbRunning = parseFloat(sbInfo.balance || 0) + sbDep;
@@ -637,6 +647,7 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
         pos_gross_sales:   parseFloat(grossSales) || null,
         pos_cash_sales:    parseFloat(cashSales)  || null,
         pos_credit_card:   parseFloat(posCc)      || null,
+        pos_debit_card:    parseFloat(posDebit)   || null,
         pos_qrph:          parseFloat(posQrph)    || null,
         terminal_credit_card_amt: termCc ? parseFloat(termCc) : null,
         qrph_terminal_amt:    qrphAmt ? parseFloat(qrphAmt) : null,
@@ -692,14 +703,16 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
           <NumInput label="Gross Sales (Dine-in)" value={grossSales} onChange={setGross} />
           <NumInput label="Cash Sales (Dine-in)" value={cashSales} onChange={setCash} />
           <NumInput label="Credit Card (POS)" value={posCc} onChange={setPosCc} />
+          <NumInput label="Debit Card (POS)" value={posDebit} onChange={setPosDebit} />
           <NumInput label="QRPH / Cashless (POS)" value={posQrph} onChange={setPosQrph} />
         </div>
       </div>
 
-      {/* Section 2: Credit Card Terminal */}
+      {/* Section 2: Card Terminal (Credit + Debit) */}
       <div className={`${GLASS_CARD} p-4 space-y-3`}>
-        <SectionHeader title="② Credit Card Terminal Check" color="text-sky-300" />
-        <NumInput label="Credit Card Terminal Amount" value={termCc} onChange={setTermCc} />
+        <SectionHeader title="② Card Terminal Check (Credit + Debit)" color="text-sky-300" />
+        <NumInput label="Card Terminal Amount (Credit + Debit)" value={termCc} onChange={setTermCc} />
+        <p className="text-[11px] text-zinc-500">Compared against Credit Card (POS) + Debit Card (POS)</p>
         {ccDiff != null && <DiscrepancyBadge diff={ccDiff} />}
       </div>
 
@@ -725,7 +738,7 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
           <p className="text-[11px] text-zinc-500">Enter totals from POS X / Z Report (all shifts combined)</p>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <NumInput label="Total Count (POS)" value={scpwdCount} onChange={setScpwdCnt} prefix="#" placeholder="0" />
+          <NumInput label="Total Count (POS)" value={scpwdCount} onChange={setScpwdCnt} prefix="#" placeholder="0" integer />
           <NumInput label="Total Discount (POS)" value={scpwdDisc} onChange={setScpwdDis} />
         </div>
 
@@ -785,7 +798,7 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
         {expectedClosing != null && cashDiff != null && (
           <BalanceCheckCard
             label="Closing Balance Check"
-            subLabel={`Opening ₱${openingBalance?.toFixed(2)} + Cash Sales ₱${cashSalesNum.toFixed(2)} − Safety Box ₱${sbDep.toFixed(2)}`}
+            subLabel={`Opening ₱${openingBalance?.toFixed(2)} + Cash Sales ₱${cashSalesNum.toFixed(2)} (Safety Box ₱${sbDep.toFixed(2)} counted separately)`}
             expected={expectedClosing}
             actual={cashTotal}
             diff={cashDiff}
