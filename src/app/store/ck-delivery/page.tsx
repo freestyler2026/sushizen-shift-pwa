@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CheckCircle2, ChevronDown, ChevronRight, Loader2,
-  Package, Plus, Send, Truck, X,
+  Package, Plus, Send, Truck, X, Camera, AlertTriangle,
 } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import {
@@ -52,6 +52,11 @@ type DeliveryItem = {
   notes: string;
   received_qty: number | null;
   received_notes: string;
+  production_date: string | null;
+  expiry_date: string | null;
+  label_photo_url: string;
+  label_ok: boolean | null;
+  label_issue: string;
 };
 
 type QcPassedItem = {
@@ -332,6 +337,51 @@ export default function CKDeliveryPage() {
       showToast((e as Error).message, false);
     } finally {
       setAddingItems(false);
+    }
+  }
+
+  // ── Production-date labels (required before dispatch) ───────────────────────
+  const [labelBusy, setLabelBusy] = useState<number | null>(null);
+
+  async function saveItemLabel(itemId: number, productionDate: string, expiryDate: string) {
+    if (!activeDelivery) return;
+    try {
+      await apiFetch(`/api/store/ck-delivery/deliveries/${activeDelivery.id}/items/${itemId}/label`, {
+        method: "PATCH",
+        body: JSON.stringify({ production_date: productionDate, expiry_date: expiryDate }),
+      });
+      setActiveDelivery(prev => prev ? {
+        ...prev,
+        items: (prev.items || []).map(it => it.id === itemId
+          ? { ...it, production_date: productionDate || null, expiry_date: expiryDate || null } : it),
+      } : null);
+    } catch (e: unknown) {
+      showToast((e as Error).message, false);
+    }
+  }
+
+  async function uploadLabelPhoto(itemId: number, fileObj: File) {
+    if (!activeDelivery) return;
+    setLabelBusy(itemId);
+    try {
+      const fd = new FormData();
+      fd.append("branch", activeDelivery.to_branch || "");
+      fd.append("delivery_date", activeDelivery.delivery_date || "");
+      fd.append("file", fileObj);
+      const res = await fetch(`/api/store/ck-delivery/deliveries/${activeDelivery.id}/items/${itemId}/label-photo`, {
+        method: "POST", headers: getAuthHeaders(getAuth()), body: fd, cache: "no-store",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Upload failed");
+      setActiveDelivery(prev => prev ? {
+        ...prev,
+        items: (prev.items || []).map(it => it.id === itemId ? { ...it, label_photo_url: data.photo_url } : it),
+      } : null);
+      showToast("Label photo saved");
+    } catch (e: unknown) {
+      showToast((e as Error).message, false);
+    } finally {
+      setLabelBusy(null);
     }
   }
 
@@ -630,6 +680,58 @@ export default function CKDeliveryPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Production-date labels — required before dispatch */}
+              {canManage && activeDelivery.status === "PENDING" && (activeDelivery.items || []).length > 0 && (
+                <div className={`${GLASS_CARD} p-4`}>
+                  <div className="mb-1 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-400" />
+                    <h3 className="text-sm font-bold text-white">Production-date labels</h3>
+                  </div>
+                  <p className={`${T_CAPTION} mb-3`}>Required for every item before dispatch: production date, expiry / best-before date, and a photo of the label.</p>
+                  <div className="space-y-2">
+                    {(activeDelivery.items || []).map(item => {
+                      const complete = !!item.production_date && !!item.expiry_date && !!item.label_photo_url;
+                      return (
+                        <div key={item.id} className={`rounded-xl border p-3 ${complete ? "border-emerald-500/25 bg-emerald-500/5" : "border-amber-500/30 bg-amber-500/5"}`}>
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <span className="text-sm font-medium text-white">{item.item_name}</span>
+                            {complete
+                              ? <span className="flex items-center gap-1 text-xs text-emerald-400"><CheckCircle2 className="h-3.5 w-3.5" /> Ready</span>
+                              : <span className="text-xs text-amber-400">Incomplete</span>}
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className={`${T_CAPTION} mb-0.5 block`}>Production date</label>
+                              <input type="date" className={`${INPUT_CLASS} w-full`} value={item.production_date || ""}
+                                onChange={e => void saveItemLabel(item.id, e.target.value, item.expiry_date || "")} />
+                            </div>
+                            <div>
+                              <label className={`${T_CAPTION} mb-0.5 block`}>Expiry / best-before</label>
+                              <input type="date" className={`${INPUT_CLASS} w-full`} value={item.expiry_date || ""}
+                                onChange={e => void saveItemLabel(item.id, item.production_date || "", e.target.value)} />
+                            </div>
+                          </div>
+                          <div className="mt-2 flex items-center gap-2">
+                            {item.label_photo_url ? (
+                              <a href={item.label_photo_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300">
+                                <CheckCircle2 className="h-3.5 w-3.5" /> Label photo saved
+                              </a>
+                            ) : (
+                              <label className={`${SMALL_BUTTON} inline-flex cursor-pointer items-center gap-1.5`}>
+                                {labelBusy === item.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
+                                Add label photo
+                                <input type="file" accept="image/*" capture="environment" className="hidden"
+                                  onChange={e => { const f = e.target.files?.[0]; if (f) void uploadLabelPhoto(item.id, f); e.target.value = ""; }} />
+                              </label>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* Items table — grouped by category */}
               {(activeDelivery.items || []).length === 0 ? (
