@@ -184,9 +184,13 @@ export async function refreshAuthFromApi(
       city: current.city,
       ...(includeMfa ? { include_mfa: "1" } : {}),
     }).toString();
+    // Send the current (possibly just-expired) token so the backend refuses to
+    // hand back a role weaker than the live session already holds.
+    const priorToken = String(current.accessToken || "").trim();
     const verifyRes = await fetch(buildAuthApiUrl(`/api/auth/verify?${qs}`), {
       method: "POST",
       cache: "no-store",
+      headers: priorToken ? { Authorization: `Bearer ${priorToken}` } : {},
     });
     if (!verifyRes.ok) return null;
 
