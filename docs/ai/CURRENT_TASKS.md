@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-16 (session 70 — Cash Report: Closing残高修正/Debit Card/レポート削除/SC-PWD件数整数化)
+Last updated: 2026-06-16 (session 71 — CK生産管理: Manila/Dubai切替/アイテム源をDaily Inventory統一/追加削除/Deliveryのプラン紐付けドロップダウン)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,29 @@ Last updated: 2026-06-16 (session 70 — Cash Report: Closing残高修正/Debit 
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1271, Vercel e2237f5)
+なし — 全変更デプロイ済み (Heroku v1272, Vercel 48063b5)
+
+## Recently Completed (2026-06-16 session 71) — live
+
+CK新生産管理システム（`/store/ck-inventory`, `/store/ck-delivery`, `/store/ck-production-plan`）へのスタッフ依頼。
+
+| # | 内容 | 真因 | 修正 |
+|---|---|---|---|
+| ①(a) | CK Inventory/Delivery が Dubaiのみ表示 | 3ページとも `city` が `auth.city` 固定の **const（切替UI無し）**。HQ/Dubai-cityアカウントだとManilaを見られない。Deliveryは支店ドロップダウンも `DUBAI_BRANCHES` 固定で症状が顕著 | 3ページに **Manila/Dubai切替**（canManage向け、**Manilaデフォルト**＝CKはManila拠点）。state化し既存の `[city]` deps で再読込 |
+| ①(b) | アイテムが Daily Inventory(CK) と別物 | CK Inventoryは `menu_item_master`(processed, 224件=メニュー全カタログ)、Daily InventoryはCKは `daily_inv_report_items`(is_commissary) と**別テーブル** | `get_ck_processed_items`: **Manilaはcommissaryリストに統一**（198件、実APIで確認）。Dubaiは従来の `menu_item_master` 維持で既存非破壊 |
+| ①(c) | CKアイテムの追加/削除ができない | menu_item_master読取専用、CK側に管理UI無し | CK Inventoryに **「Manage Items」モーダル**（Manila/canManage）。`POST/DELETE /api/store/ck-inventory/items` 新設→commissaryに書込（論理削除 is_active）。Daily Inventoryと共有なので両画面に反映。Salmon Loverのソース追加可 |
+| ② | CK Delivery「Add Item」でQC合格品が候補に出ない | Delivery作成時のプラン紐付けが**手入力の数値「Linked Plan ID」(optional)**。スタッフは内部IDを知らず空欄→`plan_id=0`→`openAddItems` が `activeDelivery?.plan_id` 無しで候補読込を丸ごとスキップ。QC値("PASS")保存・判定自体は正常 | 手入力を**生産プランのドロップダウン**に置換（日付/status/done件数表示、`GET /api/store/ck-production-plan/plans?city=`）。新規Deliveryで正しく紐付く |
+
+検証: `tsc --noEmit` exit0、3ページ eslint クリーン（既存BADGE_SUCCESS警告のみ）、`ast.parse` OK。実API: Manila CK items=198(commissary)、POST空→422 / Dubai→400「Manila only」 / DELETE不在→404。Heroku v1272。
+
+### 教訓 (session 71)
+- **CKは3テーブルが別管理**: ①CK Inventory=`menu_item_master`(processed) ②Daily Inventory CK=`daily_inv_report_items`(is_commissary) ③CK生産プランitems=`ck_production_plan_items`。「Daily Inventoryと揃える」=参照先を `daily_inv_report_items` に変えること
+- **`daily_inv_report_items` にはcity列が無い**（Daily Inventory自体がManila専用 `_MANILA`）。CKもManila拠点なので整合。Dubaiは別ソース(menu_master)維持が安全
+- **city固定の罠ふたたび**（session69のProcurement Hubと同型）: `const city = auth.city...` は管理者が別cityを見られない。CK系3ページ横断で発生していた。**管理者向けページはcity切替を標準装備**に
+- **plan_id=0 で候補消失**: 内部数値IDの手入力は使われない→紐付け切れ。**IDの手入力ではなくドロップダウン選択**にする
+- **未対応(任意)**: ①既存の未紐付けDelivery(plan_id=0)は新ドロップダウンで作り直しが必要（プラン未紐付け時の直近QC合格品フォールバックは未実装） ②CKアイテムのadd/deleteはDaily Inventory commissaryを直接変更するため、削除は論理削除(is_active=FALSE)で履歴保全。Dubaiのadd/deleteは非対応(menu_master管理)
+
+## Recently Completed (2026-06-16 session 70) — live
 
 > Heroku DBマイグレーション: `cash_reports.pos_debit_card` 列は `ensure_cash_report_tables()` 内の `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` で**初回のcash-reportリクエスト時に自動追加**（api_cr_submit が submit前にensureを呼ぶ）。手動マイグレーション不要。
 
