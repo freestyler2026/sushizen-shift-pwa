@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-16 (session 76 — Travel Path文言/チラー点検追加 + Product Scoringで返信コメントを採点除外)
+Last updated: 2026-06-16 (session 77 — CME消失の真因: カタログにReactivate機能が無くdeactivate=一方通行だった)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,32 @@ Last updated: 2026-06-16 (session 76 — Travel Path文言/チラー点検追加
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1275, Vercel 3fd4ff3)
+なし — 全変更デプロイ済み (Heroku v1276, Vercel 8d7c36e)
+
+> **代表アクション(要対応)**: CME(Chef Middle East)復旧 → Admin → Order Catalog → **Suppliers タブ** → 「Chef Middle East」(0 active / N inactive・"Hidden"表示)の **Reactivate All** をクリック。Suppliersタブに出てこない場合は deactivate 以外が原因なので連絡を。
+
+## Recently Completed (2026-06-16 session 77) — live
+
+緊急: ドバイJLTで Chef Middle East (CME) が New Request カタログにも Admin/Order Catalog にも出ない(昨日まで表示)。
+
+**真因**: curatedカタログのサプライヤーは **Deactivate(active=FALSE)はできるが Reactivate が無い一方通行**だった。CMEが(意図/誤操作で)deactivateされ、注文フォーム(active_only)からも消え、**UIから戻す手段が無かった**。curatedカタログの item は削除されず active=FALSE で残存(`proc_curated_catalog_items`)するため、Reactivateで完全復旧可能。
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| Reactivate関数+API | `app/db.py`, `app/main.py` | `reactivate_proc_catalog_supplier`(active=TRUE) + `POST /api/admin/procurement/catalog/supplier/reactivate`(deactivateの対) |
+| UI | `src/app/admin/procurement/catalog/page.tsx` | Suppliersタブに **「Reactivate All」ボタン**(inactive_count>0時)+ 0-active供給元に **"Hidden — deactivated"** タグ |
+
+**環境制約**: このセッションから Heroku CLI/API/DB へ直接アクセス不可(netrcのAPIトークン失効・401、`.env`のDATABASE_URL credentialローテーション済み、`heroku pg:psql`は対話ログイン要求)。**git push(deploy)のみ可**。よって私からCMEを直接reactivateできず、**代表がReactivateボタンで実施**する必要あり。
+
+検証: `ast.parse` OK、tsc/eslint クリーン、reactivate endpoint 403(認証要求=正常)。Heroku v1276 / Vercel 8d7c36e。
+
+### 教訓 (session 77)
+- **deactivateを作るなら必ずreactivateも**。一方通行の無効化は、誤操作時に復旧不能でデータが「消えた」ように見える(今回のCME)
+- **curatedカタログのサプライヤーはUIから削除不可・deactivateのみ** → 消失=ほぼ必ずdeactivate。Suppliersタブはinactive件数も返すので、deactivated供給元はそこで見える(今回"Hidden"タグも追加)
+- **Heroku直アクセス不可の制約下では、DB修正は「デプロイ可能なコード(エンドポイント/UI)を出してユーザーがアプリ内で実行」**が現実的。緊急データ復旧もこの形に倒す
+- (未確定)CMEがdeactivateされた経緯は不明。Reactivate後、必要なら監査ログ(`procurement.curated_catalog.supplier_deactivate`)で誰がいつ実行したか追える
+
+## Recently Completed (2026-06-16 session 76) — live
 
 ## Recently Completed (2026-06-16 session 76) — live
 
