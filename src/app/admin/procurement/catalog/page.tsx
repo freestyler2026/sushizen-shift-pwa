@@ -262,6 +262,25 @@ export default function ProcurementCatalogPage() {
     }
   }
 
+  async function reactivateSupplier(supplierName: string) {
+    setError("");
+    try {
+      await procurementJson(
+        "/api/admin/procurement/catalog/supplier/reactivate",
+        {
+          method: "POST",
+          body: JSON.stringify({ approver_name: requestedBy, pin, city, supplier_name: supplierName }),
+        },
+        requestedBy,
+        pin,
+      );
+      setSuccessMsg(`All items from "${supplierName}" reactivated.`);
+      await loadSuppliers();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   function openEdit(row: CatalogRow) {
     setEditRow(row);
     setEditForm({ ...row });
@@ -559,6 +578,9 @@ export default function ProcurementCatalogPage() {
                   <tr key={s.supplier_name} className="border-b border-white/5 hover:bg-white/3 transition-colors">
                     <td className="px-4 py-2.5 font-medium text-white">
                       {s.supplier_name === "(blank)" ? <span className="text-zinc-500 italic">(no supplier name)</span> : s.supplier_name}
+                      {s.active_count === 0 && s.inactive_count > 0 && (
+                        <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">Hidden — deactivated</span>
+                      )}
                     </td>
                     <td className="px-3 py-2.5 text-right text-green-400">{s.active_count}</td>
                     <td className="px-3 py-2.5 text-right text-zinc-500">{s.inactive_count}</td>
@@ -570,6 +592,14 @@ export default function ProcurementCatalogPage() {
                         >
                           Rename
                         </button>
+                        {s.inactive_count > 0 && s.supplier_name !== "(blank)" && (
+                          <button
+                            onClick={() => void reactivateSupplier(s.supplier_name)}
+                            className="rounded px-2 py-1 text-xs text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                          >
+                            Reactivate All
+                          </button>
+                        )}
                         {s.active_count > 0 && s.supplier_name !== "(blank)" && (
                           <button
                             onClick={() => setDeactivateConfirm(s.supplier_name)}
