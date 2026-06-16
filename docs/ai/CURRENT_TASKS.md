@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-16 (session 75 — Cashier Log新設: SC/PWD・QRPHを1件ずつOS記録→Closing自動反映)
+Last updated: 2026-06-16 (session 76 — Travel Path文言/チラー点検追加 + Product Scoringで返信コメントを採点除外)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,34 @@ Last updated: 2026-06-16 (session 75 — Cashier Log新設: SC/PWD・QRPHを1件
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1274, Vercel 3fd4ff3)
+なし — 全変更デプロイ済み (Heroku v1275, Vercel 3fd4ff3)
+
+## Recently Completed (2026-06-16 session 76) — live
+
+代表依頼2件。バックエンドのみ。決定: ①全店(CK含む)適用 ②返信を採点しない(方法A)・過去データは対応しない。
+
+**① Travel Path 文言変更/項目追加**
+- Mid-Shift 04 (`TP_MS_004`): `number` → `numbers`。CUBAO の `CB_MS_004` も grammar 修正(Discord接尾辞は付けず)。
+- **新規 Closing チラー/フリーザー点検**項目を全店に追加(`ensure_travel_path_tables` の冪等マイグレーション + default_items):
+  - TAFT_PAR `TP_CL_CHILLER`(CLOSING, sort 145=14番目の直後)、CUBAO `CB_CL_CHILLER`(CLOSING 236)、**CK `CK_EV_CHILLER`(EVENING 110)**。
+  - **CKはOPENING/MID_SHIFT/CLOSINGでなくMORNING/AFTERNOON/EVENINGのマネージャーチェックリスト**なので、Closing相当のEVENINGに配置。
+- ファイル: `app/travel_path_default_items.py`, `app/db_travel_path.py`
+
+**② Product Scoring で管理者の返信コメントを採点除外**
+- **真因**: `backfill_qc_scores.py` の `build_tasks` が、登録Discordチャンネルの画像を**投稿者・意図に関係なく全部AI採点**。完成画像チャンネルで管理者が画像付き返信(フィードバック)するとディスパッチ写真として採点され、スコア・件数に混入。
+- **修正(方法A)**: `_is_reply(msg)`(Discord `type==19` or `message_reference.message_id`)で**返信メッセージを採点対象から除外**。人(author)に依存せず、管理者自身のtop-levelディスパッチ写真は引き続き採点。スキップ件数をログ出力。
+- ライブ採点も `fetch_messages_for_date`(=`build_tasks`)経由の1パスのみ(`backfill_qc_scores.py`)なので網羅。
+- **過去の誤採点分は今回未対応**(代表判断)。
+
+検証: `ast.parse` OK、`_is_reply` 単体確認(top-level採点/返信スキップ)。Heroku v1275、items endpoint 401(認証要求=正常)。Travel Pathマイグレーションは次回ページ閲覧時に冪等適用(drain項目と同パターン)。
+
+### 教訓 (session 76)
+- **CKのTravel Pathは別スキーマ**(MORNING/AFTERNOON/EVENINGのマネージャーtask)。「Closing項目」をCKに足す=EVENINGに配置
+- **Travel Path項目の追加/変更は `ensure_travel_path_tables` の `ON CONFLICT (item_code) DO UPDATE` 冪等マイグレーション** + `travel_path_default_items.py`(新規seed用)の二箇所
+- **Product Scoringは登録チャンネルの全画像を採点**。「人ではなく内容で除外」=Discordの**返信(reply)判定**が最もクリーン(フィードバックは返信、提出はtop-level)。`type==19`/`message_reference` で判定
+- QC採点の取り込みゲートは `backfill_qc_scores.py` の `build_tasks` 一箇所(main.pyのcronには無し、Heroku Scheduler等で実行)
+
+## Recently Completed (2026-06-16 session 75) — live
 
 > **代表アクション(未確認)**: SC/PWD割引レシート等の**現物保管がBIR等で法令上必要か**を確認（このログは証憑の電子化・突合用。現物保管要否は別途）。
 
