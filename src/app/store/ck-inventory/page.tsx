@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CheckCircle2, ChevronDown, ChevronRight, ClipboardList,
-  Loader2, Lock, Package, Plus, Save, X,
+  Loader2, Lock, Package, Plus, Save, X, Trash2, Settings2,
 } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 import {
@@ -93,9 +93,19 @@ async function apiFetch(path: string, opts?: RequestInit) {
 
 // ── Main Page ──────────────────────────────────────────────────────────────
 
+function isManager(auth: ReturnType<typeof getAuth>): boolean {
+  const r = auth?.role || "";
+  return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "DUBAI_MANAGEMENT"].includes(r);
+}
+
 export default function CKInventoryPage() {
   const auth = getAuth();
-  const city = (auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila";
+  const canManage = isManager(auth);
+  // CK is a Manila operation, so managers default to Manila and can toggle to
+  // Dubai. Non-managers stay on their own city.
+  const [city, setCity] = useState<"manila" | "dubai">(
+    canManage ? "manila" : ((auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila")
+  );
 
   // ── State ────────────────────────────────────────────────────────────────
   const [processedItems, setProcessedItems] = useState<ProcessedItem[]>([]);
@@ -123,6 +133,14 @@ export default function CKInventoryPage() {
   const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
 
+  // Manage items (Manila only) — add/delete shares the Daily Inventory commissary list
+  const [showManageItems, setShowManageItems] = useState(false);
+  const [newItemName, setNewItemName] = useState("");
+  const [newItemCategory, setNewItemCategory] = useState("");
+  const [newItemUnit, setNewItemUnit] = useState("pc");
+  const [itemBusy, setItemBusy] = useState(false);
+  const canManageItems = canManage && city === "manila";
+
   // ── Load data ─────────────────────────────────────────────────────────────
   const loadItems = useCallback(async () => {
     try {
@@ -141,6 +159,39 @@ export default function CKInventoryPage() {
       setError(e?.message || String(e));
     }
   }, [city]);
+
+  // ── Manage items (add / delete) ────────────────────────────────────────────
+  const createItem = async () => {
+    if (!newItemName.trim()) return;
+    setItemBusy(true);
+    try {
+      await apiFetch("/api/store/ck-inventory/items", {
+        method: "POST",
+        body: JSON.stringify({ city, name: newItemName.trim(), category: newItemCategory.trim(), unit: newItemUnit }),
+      });
+      setNewItemName(""); setNewItemCategory("");
+      await loadItems();
+      setSuccessMsg("Item added.");
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setItemBusy(false);
+    }
+  };
+
+  const removeItem = async (id: number, name: string) => {
+    if (!confirm(`Remove "${name}" from the CK item list? It will also be hidden from Daily Inventory (existing reports are kept).`)) return;
+    setItemBusy(true);
+    try {
+      await apiFetch(`/api/store/ck-inventory/items/${id}?city=${encodeURIComponent(city)}`, { method: "DELETE" });
+      await loadItems();
+      setSuccessMsg("Item removed.");
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setItemBusy(false);
+    }
+  };
 
   const loadSession = useCallback(async (sessionId: number) => {
     setLoading(true);
@@ -303,13 +354,39 @@ export default function CKInventoryPage() {
               Record and track CK production inventory — pre/post delivery and daily checks.
             </p>
           </div>
-          <button
-            onClick={() => setShowNewSession(true)}
-            className={`${PRIMARY_BUTTON} flex items-center gap-2`}
-          >
-            <Plus className="h-4 w-4" />
-            New Session
-          </button>
+          <div className="flex items-center gap-2">
+            {canManage && (
+              <div className="flex rounded-xl border border-white/10 bg-white/[0.03] p-0.5">
+                {(["manila", "dubai"] as const).map(c => (
+                  <button
+                    key={c}
+                    onClick={() => { setCity(c); setActiveSession(null); }}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-medium capitalize transition ${
+                      city === c ? "bg-violet-500/20 text-violet-200" : "text-zinc-400 hover:text-zinc-200"
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            )}
+            {canManageItems && (
+              <button
+                onClick={() => setShowManageItems(true)}
+                className={`${SECONDARY_BUTTON} flex items-center gap-2`}
+              >
+                <Settings2 className="h-4 w-4" />
+                Manage Items
+              </button>
+            )}
+            <button
+              onClick={() => setShowNewSession(true)}
+              className={`${PRIMARY_BUTTON} flex items-center gap-2`}
+            >
+              <Plus className="h-4 w-4" />
+              New Session
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -601,6 +678,83 @@ export default function CKInventoryPage() {
       </div>
 
       {/* ── New Session Modal ─────────────────────────────────────────────── */}
+      {showManageItems && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
+          onClick={() => setShowManageItems(false)}
+        >
+          <div
+            className="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border border-white/10 bg-neutral-900 p-6 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mb-1 flex items-center justify-between">
+              <h2 className={T_SECTION}>Manage CK Items</h2>
+              <button onClick={() => setShowManageItems(false)} className="rounded-full p-1.5 text-white/40 hover:bg-white/10 hover:text-white transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className={`${T_CAPTION} mb-4`}>Shared with Daily Inventory (Central Kitchen). Adds/removes apply to both.</p>
+
+            {/* Add form */}
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3 mb-4 space-y-2">
+              <input
+                type="text" value={newItemName} onChange={e => setNewItemName(e.target.value)}
+                placeholder="New item name (e.g. Salmon Lover Sauce)"
+                className="w-full rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-violet-500/50 focus:outline-none"
+              />
+              <div className="flex gap-2">
+                <input
+                  type="text" value={newItemCategory} onChange={e => setNewItemCategory(e.target.value)}
+                  placeholder="Section (e.g. SAUCE)"
+                  className="flex-1 rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-violet-500/50 focus:outline-none"
+                />
+                <select
+                  value={newItemUnit} onChange={e => setNewItemUnit(e.target.value)}
+                  className="rounded-lg border border-white/10 bg-neutral-800 px-3 py-2 text-sm text-white focus:border-violet-500/50 focus:outline-none"
+                >
+                  {AVAILABLE_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
+                <button
+                  onClick={() => void createItem()}
+                  disabled={!newItemName.trim() || itemBusy}
+                  className={`${PRIMARY_BUTTON} flex items-center gap-1 px-3 py-2 text-sm disabled:opacity-50`}
+                >
+                  {itemBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                  Add
+                </button>
+              </div>
+            </div>
+
+            {/* Item list */}
+            <div className="space-y-1">
+              {processedItems.length === 0 ? (
+                <p className={`${T_CAPTION} py-6 text-center`}>No items yet. Add the first one above.</p>
+              ) : (
+                Object.entries(groupedItems).map(([category, items]) => (
+                  <div key={category} className="mb-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 px-1 py-1">{category}</p>
+                    {items.map(item => (
+                      <div key={item.id} className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 mb-1">
+                        <span className="text-sm text-white">{item.name} <span className="text-zinc-500">({item.output_unit})</span></span>
+                        <button
+                          onClick={() => void removeItem(item.id, item.name)}
+                          disabled={itemBusy}
+                          className="rounded-lg p-1.5 text-red-400 hover:bg-red-500/10 disabled:opacity-50"
+                          title="Remove item"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {showNewSession && typeof document !== "undefined" && createPortal(
         <div
           className="fixed inset-0 z-[200] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"

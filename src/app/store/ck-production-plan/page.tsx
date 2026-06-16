@@ -121,9 +121,12 @@ function isManager(auth: ReturnType<typeof getAuth>) {
 
 export default function CKProductionPlanPage() {
   const auth = getAuth();
-  const city = (auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila";
   const userName = auth?.staffName || "";
   const canManage = isManager(auth);
+  // CK is a Manila operation, so managers default to Manila and can toggle.
+  const [city, setCity] = useState<"manila" | "dubai">(
+    canManage ? "manila" : ((auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila")
+  );
 
   // ── State ─────────────────────────────────────────────────────────────────
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -454,16 +457,33 @@ export default function CKProductionPlanPage() {
             <p className={T_CAPTION}>{city === "dubai" ? "Dubai" : "Manila"} Central Kitchen</p>
           </div>
         </div>
-        {canManage && (
-          <button
-            className={PRIMARY_BUTTON}
-            onClick={() => setShowNewPlan(true)}
-          >
-            <span className="flex items-center gap-2">
-              <Plus className="h-4 w-4" /> New Plan
-            </span>
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {canManage && (
+            <div className="flex rounded-xl border border-white/10 bg-white/[0.03] p-0.5">
+              {(["manila", "dubai"] as const).map(c => (
+                <button
+                  key={c}
+                  onClick={() => { setCity(c); setActivePlan(null); }}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-medium capitalize transition ${
+                    city === c ? "bg-violet-500/20 text-violet-200" : "text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          )}
+          {canManage && (
+            <button
+              className={PRIMARY_BUTTON}
+              onClick={() => setShowNewPlan(true)}
+            >
+              <span className="flex items-center gap-2">
+                <Plus className="h-4 w-4" /> New Plan
+              </span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Toast */}

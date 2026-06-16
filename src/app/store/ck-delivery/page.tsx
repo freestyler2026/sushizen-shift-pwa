@@ -123,9 +123,12 @@ function isManager(auth: ReturnType<typeof getAuth>) {
 
 export default function CKDeliveryPage() {
   const auth = getAuth();
-  const city = (auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila";
   const userName = auth?.staffName || "";
   const canManage = isManager(auth);
+  // CK is a Manila operation, so managers default to Manila and can toggle.
+  const [city, setCity] = useState<"manila" | "dubai">(
+    canManage ? "manila" : ((auth?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila")
+  );
   const branches = city === "dubai" ? DUBAI_BRANCHES : MANILA_BRANCHES;
 
   // ── State ─────────────────────────────────────────────────────────────────
@@ -143,6 +146,7 @@ export default function CKDeliveryPage() {
   const [newNotes, setNewNotes] = useState("");
   const [newPlanId, setNewPlanId] = useState("");
   const [creatingDelivery, setCreatingDelivery] = useState(false);
+  const [plans, setPlans] = useState<{ id: number; plan_date: string; status: string; item_count: number; done_count: number }[]>([]);
 
   // Add Items modal
   const [showAddItems, setShowAddItems] = useState(false);
@@ -205,6 +209,20 @@ export default function CKDeliveryPage() {
   }, []);
 
   useEffect(() => { loadDeliveries(); }, [loadDeliveries]);
+
+  // Load production plans for the city so deliveries can be linked via a dropdown
+  // (instead of typing an internal plan ID). This is what feeds QC-passed items.
+  const loadPlans = useCallback(async () => {
+    try {
+      const data = await apiFetch(`/api/store/ck-production-plan/plans?city=${encodeURIComponent(city)}&limit=30`);
+      setPlans(Array.isArray(data.plans) ? data.plans : []);
+    } catch { /* non-critical */ }
+  }, [city]);
+
+  useEffect(() => { loadPlans(); }, [loadPlans]);
+
+  // Reset the new-delivery branch when the city toggles (branch lists differ).
+  useEffect(() => { setNewBranch(branches[0] || ""); setActiveDelivery(null); }, [city]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Create Delivery ────────────────────────────────────────────────────────
   async function handleCreateDelivery() {
@@ -416,11 +434,28 @@ export default function CKDeliveryPage() {
             <p className={T_CAPTION}>{city === "dubai" ? "Dubai" : "Manila"} · Branch delivery tracking</p>
           </div>
         </div>
-        {canManage && (
-          <button className={PRIMARY_BUTTON} onClick={() => setShowNewDelivery(true)}>
-            <span className="flex items-center gap-2"><Plus className="h-4 w-4" /> New Delivery</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {canManage && (
+            <div className="flex rounded-xl border border-white/10 bg-white/[0.03] p-0.5">
+              {(["manila", "dubai"] as const).map(c => (
+                <button
+                  key={c}
+                  onClick={() => setCity(c)}
+                  className={`rounded-lg px-3 py-1.5 text-sm font-medium capitalize transition ${
+                    city === c ? "bg-blue-500/20 text-blue-200" : "text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          )}
+          {canManage && (
+            <button className={PRIMARY_BUTTON} onClick={() => setShowNewDelivery(true)}>
+              <span className="flex items-center gap-2"><Plus className="h-4 w-4" /> New Delivery</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Toast */}
@@ -713,16 +748,25 @@ export default function CKDeliveryPage() {
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
-                  Linked Plan ID <span className="text-zinc-600">(optional)</span>
+                  Linked Production Plan <span className="text-zinc-600">(for QC-passed items)</span>
                 </label>
-                <input
-                  type="number"
+                <select
                   className={INPUT_CLASS}
-                  placeholder="e.g. 42"
                   value={newPlanId}
                   onChange={e => setNewPlanId(e.target.value)}
-                />
-                <p className={T_CAPTION + " mt-1"}>Link to a production plan to auto-populate QC-passed items</p>
+                >
+                  <option value="">— No plan (manual items only) —</option>
+                  {plans.map(p => (
+                    <option key={p.id} value={String(p.id)}>
+                      {fmtDate(p.plan_date)} · {p.status} · {p.done_count}/{p.item_count} done
+                    </option>
+                  ))}
+                </select>
+                <p className={T_CAPTION + " mt-1"}>
+                  {plans.length === 0
+                    ? "No production plans found for this city. Create a plan first to auto-populate QC-passed items."
+                    : "Pick the plan whose QC-passed items should be available to add."}
+                </p>
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">Notes (optional)</label>
