@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-16 (session 84 — Store Procurement: 差し戻し編集は元サプライヤーのみ① / Store未選択ALL防止②)
+Last updated: 2026-06-16 (session 85 — Daily Check ドバイ版: 店舗入力＋本部監視を city対応)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,27 @@ Last updated: 2026-06-16 (session 84 — Store Procurement: 差し戻し編集�
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1283, Vercel 3c37c23)
+なし — 全変更デプロイ済み (Heroku v1283, Vercel 6bdabfc)
+
+> **代表確認(任意)**: Daily Check ドバイのアグリゲーターは `Careem/NOON/Talabat/Deliveroo`(ratings-entryのSushi Zen Dubai準拠)、支店は `Business Bay/JLT/Arjan/Al Mina/Al Barsha` で実装。実運用と差があれば配列を直すだけで調整可。
+
+## Recently Completed (2026-06-16 session 85) — live
+
+Daily Check の**ドバイ版**要望(現状Manila固定)。フロントのみ(バックは元々city非依存でJSONB保存)。
+
+| 内容 | ファイル | 修正 |
+|---|---|---|
+| 店舗入力をcity対応 | `src/app/store/daily-check/page.tsx` | `BRANCHES/AGGREGATORS/TZ` を **city別マップ**化。city は `auth.city` 既定＋**マネージャー向けManila/Dubaiトグル**。city変更で branch/aggStatus リセット。Dubai: 支店BB/JLT/Arjan/Al Mina/Al Barsha・アグリ Careem/NOON/Talabat/Deliveroo・tz Asia/Dubai |
+| 本部監視をcity対応 | `src/app/admin/daily-check/page.tsx` | City フィルタ追加。サブコンポーネントは**提出データ駆動**(`Object.entries(check.aggregator_statuses)`)＋統合ラベルマップ`AGG_LABEL`/`branchLabelOf`で任意都市を正しく表示。時刻は `tzOf(check.city)` |
+
+検証: `tsc` exit0、`npm run build` 成功、eslint エラー0。Vercel 6bdabfc。
+
+### 教訓 (session 85)
+- **Daily Check のバックは city非依存**(city/branch_code/aggregator_statuses[JSONB]を汎用保存)→ ドバイ版はフロント定数のcity別化だけで実現
+- **管理画面のサブコンポーネントは「固定リスト反復」をやめ「提出データのキーを反復」**にすると多都市対応が楽(ラベルは両都市統合マップから)。時刻TZは `check.city` から導出
+- アグリゲーター名の正典: ratings-entry の Sushi Zen Dubai = Careem/NOON/Talabat/Deliveroo
+
+## Recently Completed (2026-06-16 session 84) — live
 
 ## Recently Completed (2026-06-16 session 84) — live
 
