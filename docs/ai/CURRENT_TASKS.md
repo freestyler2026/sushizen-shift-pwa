@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-16 (session 85 — Daily Check ドバイ版: 店舗入力＋本部監視を city対応)
+Last updated: 2026-06-16 (session 86 — Procurement: store必須化の回帰修正(カタログ0件)＋Manilaも実店舗必須化)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,28 @@ Last updated: 2026-06-16 (session 85 — Daily Check ドバイ版: 店舗入力�
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1283, Vercel 6bdabfc)
+なし — 全変更デプロイ済み (Heroku v1283, Vercel 057ae0b)
+
+## Recently Completed (2026-06-16 session 86) — live
+
+session84 の ②(store未選択ALL防止)の**回帰**＋Manila未対応をスタッフ報告→修正。`src/app/store/procurement/request/page.tsx`。
+
+**回帰**: store必須化で `storeCode` を "ALL"→"" にしたが、`loadItemCatalog` が **store空だとカタログを空にして早期return**(`if(!activeStore){setCatalogSuppliers([]);return;}`)→**Dubaiで Kitchen Ingredients が supplier0・発注不可**。
+**Manila未対応**: catalog-stores APIの "ALL" が dropdown に残り、`storeCode` を `allStores[0]`(="ALL"の場合あり)に自動既定していた。
+
+| 修正 | 内容 |
+|---|---|
+| カタログ閲覧を store非依存に | `loadItemCatalog` の `activeStore` を `... || "ALL"` にフォールバック(早期returnを廃止)。**店舗未選択でも閲覧可**、送信は実店舗必須のまま。店舗選択で per-store 再読込 |
+| Manila も実店舗必須(Dubai同様) | catalog-stores の "ALL" を **dropdownから除外**(`.filter(≠ALL)`)、`storeCode` の **自動既定(allStores[0])を廃止**、localStorageの stale "ALL" preference も無視 |
+
+検証: `tsc` exit0、`npm run build` 成功、eslint エラー0。Vercel 057ae0b。
+
+### 教訓 (session 86)
+- **「必須化」と「カタログ閲覧」は別物**: store_code を空必須にすると、storeに依存するカタログ読込が連鎖で壊れる。**閲覧用は "ALL" フォールバックで常時表示、送信検証で実店舗を強制**、と分離する
+- ドロップダウンの危険値("ALL")は**選択肢から除外＋自動既定しない**＋**stale preference(localStorage)も弾く**の3点セット
+- Manila/Dubai で同じ「実店舗必須」を実現。ALLは「For All Stores」チェックのみ
+
+## Recently Completed (2026-06-16 session 85) — live
 
 > **代表確認(任意)**: Daily Check ドバイのアグリゲーターは `Careem/NOON/Talabat/Deliveroo`(ratings-entryのSushi Zen Dubai準拠)、支店は `Business Bay/JLT/Arjan/Al Mina/Al Barsha` で実装。実運用と差があれば配列を直すだけで調整可。
 
