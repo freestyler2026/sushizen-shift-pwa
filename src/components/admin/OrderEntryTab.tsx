@@ -399,20 +399,11 @@ export default function OrderEntryTab() {
         <p className="text-sm text-amber-300">Fill approver name and PIN above to load and save.</p>
       ) : null}
 
-      <BrandGrid
-        brand="Sushi Zen"
-        selectedDate={selectedDate}
-        gridData={gridData}
-        onChange={handleCellChange}
-        onKeyDown={handleKeyDown}
-        onSave={() => void saveBrand("Sushi Zen")}
-        saving={saving["Sushi Zen"] ?? false}
-        saved={saved["Sushi Zen"] ?? false}
-        dirty={dirty["Sushi Zen"] ?? false}
-      />
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        {(["Ramen Zen", "All Veggie Sushi", "J-Deli"] as Brand[]).map((brand) => (
+      {/* 2×2 layout: the data-heavy brands (Sushi Zen + Ramen Zen) on top,
+          the smaller ones (All Veggie + J-Deli) below — keeps each card roomy
+          instead of squeezing three brands into one narrow row. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {(["Sushi Zen", "Ramen Zen", "All Veggie Sushi", "J-Deli"] as Brand[]).map((brand) => (
           <BrandGrid
             key={brand}
             brand={brand}
@@ -428,7 +419,9 @@ export default function OrderEntryTab() {
         ))}
       </div>
 
-      <CombinedGrid gridData={gridData} selectedDate={selectedDate} />
+      <div className="mx-auto w-full max-w-4xl">
+        <CombinedGrid gridData={gridData} selectedDate={selectedDate} />
+      </div>
     </div>
   );
 }

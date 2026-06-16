@@ -12,7 +12,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { MapPin, Package, RefreshCw, ShoppingBag, TrendingUp, Trophy } from "lucide-react";
+import { Download, LayoutDashboard, MapPin, Package, RefreshCw, ShoppingBag, Smartphone, TrendingUp, Trophy } from "lucide-react";
+import { toPng } from "html-to-image";
 
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { BADGE_INFO, SECONDARY_BUTTON } from "@/lib/ui-tokens";
@@ -89,6 +90,13 @@ const DATE_PRESETS = [
   { label: "90D" as const, days: 90 },
   { label: "All" as const, days: null },
 ];
+
+function branchShort(b: string): string {
+  if (b === "Business Bay") return "Biz Bay";
+  if (b === "Al Hudaiba") return "Hudaiba";
+  if (b === "Al Barsha") return "Al Barsha";
+  return b;
+}
 
 const PAGE_SIZE = 30;
 
@@ -359,6 +367,31 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [page, setPage] = useState(0);
+  // Share view: a compact, large-font, vertically-stacked summary that reads
+  // well on a phone and as a (PC) screenshot, plus a one-click PNG export.
+  const [view, setView] = useState<"dashboard" | "share">("dashboard");
+  const [exporting, setExporting] = useState(false);
+  const shareRef = useRef<HTMLDivElement>(null);
+
+  const downloadSharePng = useCallback(async () => {
+    if (!shareRef.current) return;
+    setExporting(true);
+    try {
+      const dataUrl = await toPng(shareRef.current, {
+        pixelRatio: 2,
+        cacheBust: true,
+        backgroundColor: "#0b0d12",
+      });
+      const a = document.createElement("a");
+      a.download = `orders_${String(brand).replace(/\s+/g, "-")}_${dateFrom}_to_${dateTo}.png`;
+      a.href = dataUrl;
+      a.click();
+    } catch {
+      setError("Could not generate the image. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  }, [brand, dateFrom, dateTo]);
 
   const dateFromRef = useRef(dateFrom);
   const dateToRef = useRef(dateTo);
@@ -669,17 +702,49 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
               Manual aggregator × branch counts (imported from HQ spreadsheets). Dubai data only.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => void fetchData()}
-            disabled={loading || !canLoad}
-            className={
-              SECONDARY_BUTTON + " inline-flex items-center gap-2 text-sm"
-            }
-          >
-            {loading ? <Spinner size="sm" /> : <RefreshCw className="h-3.5 w-3.5" />}
-            Refresh
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex rounded-lg border border-white/10 bg-white/[0.03] p-0.5">
+              <button
+                type="button"
+                onClick={() => setView("dashboard")}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  view === "dashboard" ? "bg-white/10 text-white" : "text-neutral-400 hover:text-neutral-200"
+                }`}
+              >
+                <LayoutDashboard className="h-3.5 w-3.5" /> Dashboard
+              </button>
+              <button
+                type="button"
+                onClick={() => setView("share")}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  view === "share" ? "bg-white/10 text-white" : "text-neutral-400 hover:text-neutral-200"
+                }`}
+              >
+                <Smartphone className="h-3.5 w-3.5" /> Share
+              </button>
+            </div>
+            {view === "share" ? (
+              <button
+                type="button"
+                onClick={() => void downloadSharePng()}
+                disabled={exporting || !summary || loading}
+                className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
+              >
+                {exporting ? <Spinner size="sm" /> : <Download className="h-3.5 w-3.5" />}
+                Download PNG
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void fetchData()}
+                disabled={loading || !canLoad}
+                className={SECONDARY_BUTTON + " inline-flex items-center gap-2 text-sm"}
+              >
+                {loading ? <Spinner size="sm" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                Refresh
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="mb-1 flex flex-wrap gap-2">
@@ -856,6 +921,69 @@ export default function NumberOfOrdersTab({ approverName, pin, stepUpReady, exte
               <p className="mb-3 text-4xl">📭</p>
               <p className="font-medium text-neutral-300">No data for this period</p>
               <p className="mt-1 text-sm">Try expanding the date range or switching brand.</p>
+            </div>
+          ) : view === "share" ? (
+            <div className="flex justify-center">
+              <div ref={shareRef} className="w-full max-w-[520px] rounded-2xl border border-white/10 bg-[#0b0d12] p-6">
+                <div className="mb-4 flex items-center gap-2.5">
+                  <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ backgroundColor: BRAND_CONFIG[brand].color }} />
+                  <div>
+                    <p className="text-xl font-bold text-white">{brand === "Overall" ? "All Brands" : brand}</p>
+                    <p className="text-sm text-neutral-400">Dubai · Number of orders · {dateFrom} → {dateTo}</p>
+                  </div>
+                </div>
+
+                <div className="mb-6 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-5 py-4">
+                  <p className="text-sm font-medium uppercase tracking-wide text-indigo-300">Grand total</p>
+                  <p className="text-5xl font-bold leading-tight text-white tabular-nums">
+                    {(summary?.total_orders ?? 0).toLocaleString()}
+                  </p>
+                  <p className="mt-1 text-sm text-neutral-400">orders</p>
+                </div>
+
+                <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-neutral-400">By branch</p>
+                <div className="mb-6 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                  {BRANCHES.filter((b) => (summary?.by_branch?.[b] ?? 0) > 0).map((b) => (
+                    <div key={b} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5">
+                      <p className="text-sm text-neutral-400">{branchShort(b)}</p>
+                      <p className="text-2xl font-bold text-white tabular-nums">
+                        {(summary?.by_branch?.[b] ?? 0).toLocaleString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="mb-2 text-sm font-semibold uppercase tracking-wide text-neutral-400">By aggregator</p>
+                <div className="space-y-1.5">
+                  {DISPLAY_AGGS.filter((a) => (summary?.by_aggregator?.[a] ?? 0) > 0).map((a) => (
+                    <div key={a} className="flex items-center justify-between rounded-lg bg-white/[0.03] px-3 py-2">
+                      <span className="flex items-center gap-2 text-base text-neutral-200">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: AGG_CHART_COLORS[a] ?? "#64748b" }} />
+                        {a}
+                      </span>
+                      <span className="text-xl font-bold text-white tabular-nums">
+                        {(summary?.by_aggregator?.[a] ?? 0).toLocaleString()}
+                      </span>
+                    </div>
+                  ))}
+                  {(() => {
+                    const dispSum = DISPLAY_AGGS.reduce((s, a) => s + (summary?.by_aggregator?.[a] ?? 0), 0);
+                    const others = Math.max(0, (summary?.total_orders ?? 0) - dispSum);
+                    if (others <= 0) return null;
+                    return (
+                      <div className="flex items-center justify-between rounded-lg bg-white/[0.03] px-3 py-2">
+                        <span className="flex items-center gap-2 text-base text-neutral-200">
+                          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: "#64748b" }} />
+                          Others
+                        </span>
+                        <span className="text-xl font-bold text-white tabular-nums">{others.toLocaleString()}</span>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <p className="mt-5 text-center text-xs text-neutral-600">Sushi ZEN Workforce OS</p>
+              </div>
             </div>
           ) : (
             <>

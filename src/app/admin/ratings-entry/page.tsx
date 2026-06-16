@@ -601,20 +601,10 @@ export default function RatingsEntryStandalonePage() {
         <p className="text-sm text-amber-300">Enter approver name and PIN above to load data.</p>
       ) : null}
 
-      <BrandGrid
-        brand="Sushi Zen"
-        selectedDate={selectedDate}
-        gridData={gridData}
-        onChange={handleCellChange}
-        onKeyDown={handleKeyDown}
-        onSave={() => void saveBrand("Sushi Zen")}
-        saving={saving["Sushi Zen"] ?? false}
-        saved={saved["Sushi Zen"] ?? false}
-        dirty={dirty["Sushi Zen"] ?? false}
-      />
-
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        {(["Ramen Zen", "All Veggie Sushi", "J-Deli"] as RatingBrand[]).map((brand) => (
+      {/* 2×2 layout: Sushi Zen + Ramen Zen on top, All Veggie + J-Deli below —
+          matches the Order Entry layout and keeps each card roomy. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {(["Sushi Zen", "Ramen Zen", "All Veggie Sushi", "J-Deli"] as RatingBrand[]).map((brand) => (
           <BrandGrid
             key={brand}
             brand={brand}
