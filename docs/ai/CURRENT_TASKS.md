@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-16 (session 71 — CK生産管理: Manila/Dubai切替/アイテム源をDaily Inventory統一/追加削除/Deliveryのプラン紐付けドロップダウン)
+Last updated: 2026-06-16 (session 72 — 認証降格バグ根治: Cost/Procurement の remint が Staff Portal へ降格していた)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,31 @@ Last updated: 2026-06-16 (session 71 — CK生産管理: Manila/Dubai切替/ア�
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1272, Vercel 48063b5)
+なし — 全変更デプロイ済み (Heroku v1273, Vercel d1bb060)
+
+## Recently Completed (2026-06-16 session 72) — live
+
+西村さん(HQ)報告: Cost Calculation 操作中に**度々 Staff Portal へ切り替わり**、気づかず作業すると保存されない。「以前直したはずが直っていない」。
+
+**真因（前回修正が当たっていなかった理由）**: 以前の修正は汎用ポーリング `refreshAuthFromApi` に `nonDowngradedAccess` を入れたもの。しかし **Cost/Procurement のクライアントは独自の remint 経路**を持ち、`/api/auth/verify` の生 `role` を `nonDowngradedAccess` を通さず `setAuth` に直書きしていた。バックの verify は `_effective_staff_profile` でロール解決するが、これは役割取得の一時ミス時に **STAFF へフォールバック**し得る（`_actor_from_token_request` 側はコメント付きで保護済みだが verify は未保護）。→ Cost操作中、API毎の `costTokenHeaders` が `/api/auth/session` の一時失敗で remint 発火 → verify が transient STAFF → localStorage が STAFF に降格 → NavBar が `canAccessAdminNav`=false で **Staff Portal 表示**＋ページが権限ガードで弾く＝編集消失。
+
+**同一バグが4箇所中3箇所に残存**していた（`auth.ts` の remint だけ保護済み）:
+| ファイル | 修正 |
+|---|---|
+| `src/lib/costClient.ts` | remint に `nonDowngradedAccess`、verify に現トークン送信、session失敗時の remint を **401/403限定**（5xx/timeoutでは降格させない） |
+| `src/lib/procurementClient.ts` | 同上 |
+| `src/app/admin/procurement/page.tsx` (`tokenHeaders`) | 同上（procurementClientの複製インライン版） |
+| `app/main.py` `/api/auth/verify` | **多層防御**: リクエストに現トークン(grace)があり同一staffで非STAFFなら、解決結果がSTAFF/空でも降格させない。新規PINログイン(トークン無し)は無影響 |
+
+検証: `tsc --noEmit` exit0、対象 eslint クリーン、`ast.parse` OK。Heroku v1273 起動確認(root 405, verify不正→404でクラッシュ無し)。
+
+### 教訓 (session 72)
+- **remint 経路は4つある**（`auth.ts`/`costClient`/`procurementClient`/`admin/procurement/page.tsx`）。`/api/auth/verify` で再mintして `setAuth` する箇所は**必ず `nonDowngradedAccess` を通す**。1箇所直しても他が残ると同じ症状が再発（今回がまさにそれ）
+- **`/api/auth/verify` はログインと remint の両用**。verify自体は STAFF を返し得る（`_effective_staff_profile` の一時フォールバック）。クライアント側ガード＋バック側(現トークン参照)の**二重防御**にする
+- **session確認の失敗で安易に remint しない**: 一時的5xx/timeoutでも remint→降格レースが起きる。**401/403のときだけ** remint
+- 新規 verify caller を足すときは `grep -rn 'verifyJson?.role' src/` で生role直書きが無いか必ず確認
+
+## Recently Completed (2026-06-16 session 71) — live
 
 ## Recently Completed (2026-06-16 session 71) — live
 
