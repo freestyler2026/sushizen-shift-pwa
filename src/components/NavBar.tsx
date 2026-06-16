@@ -37,6 +37,7 @@ import {
   ShoppingBag,
   ShoppingCart,
   Shield,
+  ShieldCheck,
   Star,
   Tag,
   TicketCheck,
@@ -175,6 +176,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/backoffice-evaluation", label: "Backoffice Eval", icon: ClipboardCheck, adminOnly: true, match: "exact" },
   { href: "/admin/store-evaluations", label: "Store Evaluations", icon: BarChart3, adminOnly: true, match: "prefix" },
   { href: "/admin/cold-chain", label: "Cold Chain", icon: Thermometer, adminOnly: true, match: "prefix" },
+  { href: "/admin/ck-label-compliance", label: "CK Label Compliance", icon: ShieldCheck, adminOnly: true, match: "prefix" },
   { href: "/admin/daily-check", label: "Daily Check", icon: ClipboardList, adminOnly: true, match: "prefix" },
   { href: "/admin/transport-expense", label: "Transport Expense", icon: Receipt, adminOnly: true, match: "prefix" },
   { href: "/admin/petty-cash", label: "Petty Cash", icon: Coins, adminOnly: true, match: "prefix" },
@@ -298,6 +300,7 @@ export default function NavBar() {
     if (href === "/admin/backoffice-evaluation") return canAccessBackofficeEvaluationAdmin(auth);
     if (href === "/admin/store-evaluations") return canAccessStoreEvaluationsAdmin(auth);
     if (href === "/admin/cold-chain") return canAccessColdChainAdmin(auth);
+    if (href === "/admin/ck-label-compliance") return ["HQ", "ADMIN", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
     if (href === "/admin/daily-check") return canAccessDailyCheckAdmin(auth);
     if (href === "/admin/transport-expense") return canAccessTransportExpenseAdmin(auth);
     if (href === "/admin/petty-cash") return canAccessPettyCashAdmin(auth);
