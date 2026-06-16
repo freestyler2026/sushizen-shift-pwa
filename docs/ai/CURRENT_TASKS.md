@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-16 (session 73 — Admin Dashboard 2×2レイアウト + Number of Orders の Share表示/PNG出力)
+Last updated: 2026-06-16 (session 74 — 入力中データ消失の根治: AutoReloadが未保存入力を強制リロードしていた)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,31 @@ Last updated: 2026-06-16 (session 73 — Admin Dashboard 2×2レイアウト + N
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1273, Vercel d834699)
+なし — 全変更デプロイ済み (Heroku v1273, Vercel 6fc51a4)
+
+## Recently Completed (2026-06-16 session 74) — live
+
+代表報告: Number of Stock(=Number of Orders 入力)で**入力途中にRefreshされデータが消える**。フロントのみ。
+
+**真因（2つの合わせ技）**:
+1. `AutoReload`（[components/AutoReload.tsx](src/components/AutoReload.tsx)）は3秒毎に `/api/version` をポーリングし、新デプロイ検知で**問答無用の `hardReload()`**（`location.replace`）。**未保存入力のチェック皆無**。本日多数デプロイ→入力中スタッフの画面が強制リロード。
+2. `OrderEntryTab` の `gridData` は**Reactステートのみ**（sessionStorage退避なし）→ どんなリロードでも未保存分消失。Ratings Entry も同構造。
+
+| 修正 | ファイル | 内容 |
+|---|---|---|
+| 共通ガード新設 | `src/lib/unsavedGuard.ts`(新規) | グローバル未保存レジストリ `setUnsaved/hasUnsavedEdits`＋`UNSAVED_EVENT`。フック `useUnsavedGuard(key, dirty)`（A登録＋C: beforeunload警告）。ドラフトヘルパー `saveDraft/loadDraft/clearDraft`(sessionStorage) |
+| A: リロード延期 | `src/components/AutoReload.tsx` | `triggerReload()` を新設し全hardReload経路を置換。`hasUnsavedEdits()` が真なら `pendingReload` に退避し**保留**。保存で未保存が解消した瞬間（`UNSAVED_EVENT`）または次ポーリングでリロード。AutoReload自体は維持（CLAUDE.md教訓: 削除禁止） |
+| B: ドラフト退避 | `OrderEntryTab.tsx`, `ratings-entry/page.tsx` | `anyDirty` 時に `gridData+dirty` を sessionStorage(`order-entry-draft:<date>` / `ratings-entry-draft:<date>`)へ保存。`loadDate` で復元（サーバ値に未保存編集を上書き、復元通知表示）。保存成功で破棄 |
+| C: 離脱警告 | 同上（`useUnsavedGuard` 内） | 未保存時のみ `beforeunload` 警告（手動更新・タブ閉じ・遷移対策） |
+
+検証: `tsc --noEmit` exit0、`npm run build` 成功(160ページ)、対象 eslint クリーン。Vercel 6fc51a4。
+
+### 教訓 (session 74)
+- **AutoReload は未保存入力を破壊し得る**。新デプロイ即リロードは便利だが、入力中ページには致命的。**未保存中はリロードを延期**（`hasUnsavedEdits()` ガード）。新たな入力系ページを足したら `useUnsavedGuard(key, anyDirty)` を呼ぶこと
+- **入力系は sessionStorage にドラフト退避**を標準に。Reactステートのみは reload で即消える。`loadDate` 等の初期読込で復元
+- 頻繁なデプロイ期は特に①が顕在化する（本日 v1268→v1273 + Vercel多数）。スタッフ入力中の強制リロードは「不具合」として報告されやすい
+
+## Recently Completed (2026-06-16 session 73) — live
 
 ## Recently Completed (2026-06-16 session 73) — live
 
