@@ -541,7 +541,11 @@ export default function StoreProcurementRequestPage() {
         const missingBranches = BRANCHES.manila
           .filter((b) => !apiLower.has(b.name.toLowerCase()) && !apiLower.has(b.code.toLowerCase()))
           .map((b) => b.name); // Use human-readable name — same format the API uses
-        const allStores = [...apiStores, ...missingBranches];
+        // Exclude "ALL" from the store dropdown — all-stores ordering is only via
+        // the explicit "For All Stores" checkbox (same rule as Dubai).
+        const allStores = [...apiStores, ...missingBranches].filter(
+          (s) => String(s || "").trim().toUpperCase() !== "ALL",
+        );
         setCatalogStores(allStores);
         setCatalogCategories([]);
 
@@ -562,24 +566,23 @@ export default function StoreProcurementRequestPage() {
           }
         };
 
-        if (storeCodePreference !== undefined) {
-          if (storeCodePreference.trim()) {
-            const normalised = normalise(storeCodePreference);
-            setStoreCode(normalised);
-            autoSetCategory(normalised);
-          } else {
-            const defaultStore = allStores[0] || "";
-            if (defaultStore) { setStoreCode(defaultStore); autoSetCategory(defaultStore); }
-          }
-        } else if (!resolvedStore.trim()) {
-          const defaultStore = allStores[0] || "";
-          if (defaultStore) { setStoreCode(defaultStore); autoSetCategory(defaultStore); }
+        // Do NOT auto-default the store (previously fell back to allStores[0],
+        // which could be "ALL"). Require an explicit store selection — same as Dubai.
+        // Ignore a stale "ALL" preference left in localStorage from the old behaviour.
+        if (
+          storeCodePreference !== undefined &&
+          storeCodePreference.trim() &&
+          storeCodePreference.trim().toUpperCase() !== "ALL"
+        ) {
+          const normalised = normalise(storeCodePreference);
+          setStoreCode(normalised);
+          autoSetCategory(normalised);
         }
       } catch (e: any) {
         setError(friendlyProcurementError(e));
         // Even if the catalog-stores API fails, still apply the store preference
         // so that edit mode can pre-fill the store and trigger loadItemCatalog.
-        if (storeCodePreference?.trim()) {
+        if (storeCodePreference?.trim() && storeCodePreference.trim().toUpperCase() !== "ALL") {
           const normalise2 = (s: string): string =>
             MANILA_CODE_TO_NAME.get(s.toUpperCase() as Parameters<typeof MANILA_CODE_TO_NAME["get"]>[0]) ?? s;
           const normalised2 = normalise2(storeCodePreference);
@@ -598,11 +601,10 @@ export default function StoreProcurementRequestPage() {
   const loadItemCatalog = useCallback(
     async (opts?: { cityOverride?: string; storeOverride?: string }) => {
       const activeCity = String(opts?.cityOverride || city || "manila").trim().toLowerCase() || "manila";
-      const activeStore = String(opts?.storeOverride || storeCode || "").trim();
-      if (!activeStore) {
-        setCatalogSuppliers([]);
-        return;
-      }
+      // Browse the catalog with "ALL" when no specific store is chosen yet, so the
+      // list is always visible. The submitted store_code is still required to be a
+      // real store (enforced on submit); picking a store reloads the per-store view.
+      const activeStore = String(opts?.storeOverride || storeCode || "").trim() || "ALL";
       // Clear immediately so stale catalog (e.g. WH/Cartimar items) is not shown
       // while the new category's API call is in-flight.
       // Without this, slow mobile networks show the old supplier list for several seconds.
