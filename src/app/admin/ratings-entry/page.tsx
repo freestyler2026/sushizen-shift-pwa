@@ -11,6 +11,9 @@ import Link from "next/link";
 
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { GLASS_CARD, INPUT_CLASS, SMALL_BUTTON, T_CAPTION, T_LABEL, T_PAGE_TITLE } from "@/lib/ui-tokens";
+import { useUnsavedGuard, saveDraft, loadDraft, clearDraft } from "@/lib/unsavedGuard";
+
+const ratingsDraftKey = (date: string) => `ratings-entry-draft:${date}`;
 
 const RATING_GRID_CONFIG = {
   "Sushi Zen": {
@@ -369,7 +372,17 @@ export default function RatingsEntryStandalonePage() {
             count: String(row.review_count ?? "").trim(),
           };
         }
-        setGridData(next);
+        // Restore any unsaved draft for this date (survives reloads).
+        const draft = loadDraft<{ gridData: RatingGridData; dirty: Partial<Record<RatingBrand, boolean>> }>(
+          ratingsDraftKey(date),
+        );
+        if (draft && draft.dirty && Object.values(draft.dirty).some(Boolean)) {
+          setGridData({ ...next, ...draft.gridData });
+          setDirty(draft.dirty);
+          setLoadError("Restored unsaved changes from your last session. Review and save.");
+        } else {
+          setGridData(next);
+        }
       } catch (e: unknown) {
         setGridData({});
         setLoadError(e instanceof Error ? e.message : String(e));
@@ -496,6 +509,16 @@ export default function RatingsEntryStandalonePage() {
   };
 
   const anyDirty = BRAND_ORDER.some((b) => dirty[b]);
+
+  // A: defer AutoReload while editing + C: warn on unload.
+  useUnsavedGuard("ratings-entry", anyDirty);
+
+  // B: persist the in-progress grid so a reload never loses it.
+  useEffect(() => {
+    const key = ratingsDraftKey(selectedDate);
+    if (anyDirty) saveDraft(key, { gridData, dirty });
+    else clearDraft(key);
+  }, [gridData, dirty, anyDirty, selectedDate]);
 
   return (
     <div className="space-y-6">

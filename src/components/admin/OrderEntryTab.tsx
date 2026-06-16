@@ -5,6 +5,10 @@ import { useCallback, useEffect, useState } from "react";
 
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { GLASS_CARD, INPUT_CLASS, T_CAPTION, T_LABEL } from "@/lib/ui-tokens";
+import { useUnsavedGuard, saveDraft, loadDraft, clearDraft } from "@/lib/unsavedGuard";
+
+const orderEntryDraftKey = (date: string) => `order-entry-draft:${date}`;
+type OrderEntryDraft = { gridData: GridData; dirty: Partial<Record<Brand, boolean>> };
 
 export const BRAND_GRID_CONFIG = {
   "Sushi Zen": {
@@ -170,7 +174,16 @@ export default function OrderEntryTab() {
           const k = cellKey(row.brand, row.aggregator, row.branch);
           next[k] = Number(row.order_count) || 0;
         }
-        setGridData(next);
+        // Restore any unsaved draft for this date (survives reloads), overlaying
+        // the staff's in-progress edits on top of the latest saved server values.
+        const draft = loadDraft<OrderEntryDraft>(orderEntryDraftKey(date));
+        if (draft && draft.dirty && Object.values(draft.dirty).some(Boolean)) {
+          setGridData({ ...next, ...draft.gridData });
+          setDirty(draft.dirty);
+          setLoadError("Restored unsaved changes from your last session. Review and save.");
+        } else {
+          setGridData(next);
+        }
       } catch (e: unknown) {
         setGridData({});
         setLoadError(e instanceof Error ? e.message : String(e));
@@ -299,6 +312,16 @@ export default function OrderEntryTab() {
   };
 
   const anyDirty = ORDER_ENTRY_BRANDS.some((b) => dirty[b]);
+
+  // A: tell AutoReload to defer reloads while editing + C: warn on unload.
+  useUnsavedGuard("order-entry", anyDirty);
+
+  // B: persist the in-progress grid to sessionStorage so a reload never loses it.
+  useEffect(() => {
+    const key = orderEntryDraftKey(selectedDate);
+    if (anyDirty) saveDraft(key, { gridData, dirty });
+    else clearDraft(key);
+  }, [gridData, dirty, anyDirty, selectedDate]);
 
   return (
     <div className="space-y-6">

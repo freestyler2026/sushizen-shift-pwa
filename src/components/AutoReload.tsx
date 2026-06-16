@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+import { hasUnsavedEdits, UNSAVED_EVENT } from "@/lib/unsavedGuard";
 
 // Poll every 3 seconds — fast enough to feel near-instant without hammering the server.
 const POLL_INTERVAL_MS = 3 * 1000;
@@ -46,11 +47,33 @@ export default function AutoReload() {
   const frontendBaseline = useRef<string | null>(null);
   const backendBaseline = useRef<string | null>(null);
   const reloading = useRef(false);
+  const pendingReload = useRef(false);
   const earlyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    // Reload now, UNLESS the user has unsaved edits (e.g. mid-input on the
+    // Number of Orders / Ratings grids). In that case defer: remember a reload
+    // is due and apply it the moment the edits are saved (see check() + the
+    // UNSAVED_EVENT listener). AutoReload must never wipe in-progress input.
+    function triggerReload() {
+      if (reloading.current) return;
+      if (hasUnsavedEdits()) {
+        pendingReload.current = true;
+        return;
+      }
+      reloading.current = true;
+      hardReload();
+    }
+
     function check() {
       if (reloading.current) return;
+      // A deploy was detected earlier but deferred for unsaved edits — apply it
+      // as soon as the edits are gone.
+      if (pendingReload.current && !hasUnsavedEdits()) {
+        reloading.current = true;
+        hardReload();
+        return;
+      }
       fetchFrontendVersion().then((v) => {
         if (reloading.current) return;
         if (!v) return; // fetch failed — skip this tick
@@ -61,8 +84,7 @@ export default function AutoReload() {
           return;
         }
         if (v !== frontendBaseline.current) {
-          reloading.current = true;
-          hardReload();
+          triggerReload();
         }
       });
       fetchBackendVersion().then((v) => {
@@ -73,8 +95,7 @@ export default function AutoReload() {
           return;
         }
         if (v !== backendBaseline.current) {
-          reloading.current = true;
-          hardReload();
+          triggerReload();
         }
       });
     }
@@ -84,10 +105,9 @@ export default function AutoReload() {
       if (reloading.current) return;
       // Skip comparison if either side is "dev" (local environment — no stable ID).
       if (serverV && serverV !== "dev" && BUNDLE_BUILD_ID !== "dev" && serverV !== BUNDLE_BUILD_ID) {
-        // Old cached bundle — reload now.
-        reloading.current = true;
-        hardReload();
-        return;
+        // Old cached bundle — reload now (deferred if the user has unsaved edits).
+        triggerReload();
+        if (reloading.current) return;
       }
       // IMPORTANT: only set baseline if we got a valid value.
       // If serverV is null (network error), leave baseline as null so the
@@ -122,12 +142,24 @@ export default function AutoReload() {
     }
     window.addEventListener("pageshow", onPageShow);
 
+    // When unsaved edits clear (user saved), apply any deferred reload at once
+    // instead of waiting for the next poll.
+    function onUnsavedChange() {
+      if (reloading.current) return;
+      if (pendingReload.current && !hasUnsavedEdits()) {
+        reloading.current = true;
+        hardReload();
+      }
+    }
+    window.addEventListener(UNSAVED_EVENT, onUnsavedChange);
+
     return () => {
       clearInterval(timer);
       if (earlyTimerRef.current) clearTimeout(earlyTimerRef.current);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("focus", check);
       window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener(UNSAVED_EVENT, onUnsavedChange);
     };
   }, []);
 
@@ -139,6 +171,10 @@ export default function AutoReload() {
     fetchFrontendVersion().then((v) => {
       if (reloading.current) return;
       if (v && frontendBaseline.current && v !== frontendBaseline.current) {
+        if (hasUnsavedEdits()) {
+          pendingReload.current = true;
+          return;
+        }
         reloading.current = true;
         hardReload();
       }
