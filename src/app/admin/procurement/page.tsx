@@ -3,7 +3,7 @@
 import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, CheckCircle, ShoppingCart } from "lucide-react";
-import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi, setAuth } from "@/lib/auth";
+import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi, setAuth, nonDowngradedAccess, type Auth } from "@/lib/auth";
 import DatePicker from "@/components/DatePicker";
 import MonthPicker from "@/components/MonthPicker";
 import { fmtNum } from "@/lib/formatters";
@@ -117,26 +117,37 @@ export default function AdminProcurementPage() {
         pin: pin.trim(),
         city,
       }).toString();
+      // Send the current (possibly just-expired) token so the backend can refuse
+      // to hand back a role weaker than the live session already holds.
+      const priorToken = String(refreshed?.accessToken || latest?.accessToken || auth?.accessToken || "").trim();
       const verifyRes = await fetch(`/api/auth/verify?${qs}`, {
         method: "POST",
         cache: "no-store",
+        headers: priorToken ? { Authorization: `Bearer ${priorToken}` } : {},
       });
       const verifyText = await verifyRes.text();
       if (!verifyRes.ok) throw new Error(verifyText || `Auth verify failed (${verifyRes.status})`);
       const verifyJson = JSON.parse(verifyText || "{}");
       const remintedToken = String(verifyJson?.access_token || "").trim();
       if (!remintedToken) throw new Error("Access token could not be issued.");
+      // Guard against a transient STAFF fallback downgrading a privileged session.
+      const baseAuth = (refreshed || latest || auth) as Auth;
+      const guarded = nonDowngradedAccess(
+        baseAuth,
+        verifyJson?.role,
+        Array.isArray(verifyJson?.permissions) ? verifyJson.permissions : [],
+      );
       setAuth({
         staffName: String(verifyJson?.staff_name || requestedBy).trim(),
         city: (String(verifyJson?.city || "manila").toLowerCase() === "manila" ? "manila" : "dubai"),
-        role: (verifyJson?.role || refreshed?.role || latest?.role || auth?.role || "STAFF"),
+        role: guarded.role,
         pin: pin.trim(),
         accessToken: remintedToken,
         stepUpToken: stepUpToken || "",
         stepUpLevel: refreshed?.stepUpLevel || latest?.stepUpLevel || auth?.stepUpLevel,
         stepUpMethod: refreshed?.stepUpMethod || latest?.stepUpMethod || auth?.stepUpMethod,
         stepUpVerifiedAt: refreshed?.stepUpVerifiedAt || latest?.stepUpVerifiedAt || auth?.stepUpVerifiedAt,
-        permissions: Array.isArray(verifyJson?.permissions) ? verifyJson.permissions : (refreshed?.permissions || latest?.permissions || auth?.permissions || []),
+        permissions: guarded.permissions,
         mfa: refreshed?.mfa || latest?.mfa || auth?.mfa,
       });
       return remintedToken;
@@ -144,13 +155,19 @@ export default function AdminProcurementPage() {
 
     // Access token may exist but already be expired; verify before using it.
     if (accessToken) {
-      const sessionRes = await fetch(`/api/auth/session`, {
-        method: "GET",
-        cache: "no-store",
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      if (!sessionRes.ok) {
-        accessToken = "";
+      try {
+        const sessionRes = await fetch(`/api/auth/session`, {
+          method: "GET",
+          cache: "no-store",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        // Only re-mint when the token is actually REJECTED (401/403); a transient
+        // 5xx/timeout must not trigger a re-mint that can downgrade the session.
+        if (sessionRes.status === 401 || sessionRes.status === 403) {
+          accessToken = "";
+        }
+      } catch {
+        /* network hiccup — keep the current token */
       }
     }
 
