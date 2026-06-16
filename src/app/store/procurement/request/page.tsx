@@ -433,13 +433,25 @@ export default function StoreProcurementRequestPage() {
       existing.push(item);
       groups.set(supplier, existing);
     }
-    return Array.from(groups.entries()).map(([supplier, rows]) => ({
+    let sections = Array.from(groups.entries()).map(([supplier, rows]) => ({
       supplier,
       anchor: toSupplierAnchor(supplier),
       rows,
       enteredCount: rows.filter((row) => Number(row.qty || 0) > 0).length,
     }));
-  }, [items]);
+    // On a returned/rejected edit, restrict the catalog to the original request's
+    // supplier(s) so staff can't accidentally mix in items from other suppliers
+    // (e.g. adding CME items while re-submitting a SAFCO order).
+    if (editRequestId && editRequestItems.length > 0) {
+      const orig = new Set(
+        editRequestItems.map((it) => String(it.vendor_name || "").trim().toLowerCase()).filter(Boolean),
+      );
+      if (orig.size > 0) {
+        sections = sections.filter((s) => orig.has(s.supplier.trim().toLowerCase()));
+      }
+    }
+    return sections;
+  }, [items, editRequestId, editRequestItems]);
 
   // Tracks which row_keys were pre-filled from the edit request (not user-entered).
   // Only the FIRST matching catalog row per item_name::vendor_name is included —
@@ -506,11 +518,12 @@ export default function StoreProcurementRequestPage() {
           if (!DUBAI_CURATED_CATEGORIES.includes(selectedCatalogCategory)) {
             setSelectedCatalogCategory(DUBAI_CURATED_CATEGORIES[0]);
           }
-          // Apply preference (or fall back to ALL if not a valid Dubai store)
+          // Require an explicit store selection — never silently fall back to
+          // "ALL" (that is reserved for the explicit "For All Stores" checkbox).
           if (storeCodePreference !== undefined) {
-            setStoreCode(DUBAI_CURATED_STORES.includes(storeCodePreference) ? storeCodePreference : "ALL");
+            setStoreCode(DUBAI_CURATED_STORES.includes(storeCodePreference) ? storeCodePreference : "");
           } else if (!DUBAI_CURATED_STORES.includes(resolvedStore)) {
-            setStoreCode("ALL");
+            setStoreCode("");
           }
           return;
         }
@@ -662,8 +675,9 @@ export default function StoreProcurementRequestPage() {
       setError("Request date is required.");
       return;
     }
-    if (!storeCode.trim()) {
-      setError("Store selection is required.");
+    // A specific store is required unless "For All Stores" is explicitly checked.
+    if (!allStoresFlag && (!storeCode.trim() || storeCode === "ALL")) {
+      setError("Please select a store (or check 'For All Stores').");
       return;
     }
     if (!validItems.length) {
@@ -1069,7 +1083,7 @@ export default function StoreProcurementRequestPage() {
             </div>
             <p className="text-sm text-zinc-400 mt-1">
               {editRequestId
-                ? "Update items and re-submit for approval when ready."
+                ? "Update items and re-submit for approval when ready. Only the original supplier(s) are shown — to order from a different supplier, create a new request."
                 : "Browse catalog, build your order, and submit for approval."}
             </p>
           </div>
