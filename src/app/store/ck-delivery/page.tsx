@@ -64,7 +64,8 @@ type QcPassedItem = {
   item_id: number | null;
   item_name: string;
   category: string;
-  qc_actual_qty: number;
+  qc_actual_qty: number;   // total produced & QC-passed (includes today's stock)
+  delivered_qty: number;   // already allocated to other deliveries
   unit: string;
   plan_item_id: number;
 };
@@ -157,6 +158,7 @@ export default function CKDeliveryPage() {
   const [showAddItems, setShowAddItems] = useState(false);
   const [qcPassedItems, setQcPassedItems] = useState<QcPassedItem[]>([]);
   const [selectedQcItemIds, setSelectedQcItemIds] = useState<Set<number>>(new Set());
+  const [qcItemQtys, setQcItemQtys] = useState<Record<number, string>>({});
   const [manualItemName, setManualItemName] = useState("");
   const [manualItemCategory, setManualItemCategory] = useState("");
   const [manualItemQty, setManualItemQty] = useState("");
@@ -272,21 +274,30 @@ export default function CKDeliveryPage() {
     setManualItemQty("");
     setManualItemUnit("pc");
     setQcPassedItems([]);
+    setQcItemQtys({});
 
     if (activeDelivery?.plan_id) {
       try {
         const data = await apiFetch(`/api/store/ck-production-plan/plans/${activeDelivery.plan_id}`);
         const items: QcPassedItem[] = (data.plan?.items || [])
           .filter((i: { qc_result: string | null }) => i.qc_result === "PASS")
-          .map((i: { id: number; item_name: string; category: string; qc_actual_qty: number; unit: string }) => ({
+          .map((i: { id: number; item_name: string; category: string; qc_actual_qty: number; delivered_qty: number; unit: string }) => ({
             id: i.id,
             item_name: i.item_name,
             category: i.category,
             qc_actual_qty: i.qc_actual_qty || 0,
+            delivered_qty: i.delivered_qty || 0,
             unit: i.unit,
             plan_item_id: i.id,
           }));
         setQcPassedItems(items);
+        // Default each item's qty to what's still available (produced − already delivered).
+        const defaults: Record<number, string> = {};
+        for (const it of items) {
+          const remaining = Math.max(0, it.qc_actual_qty - it.delivered_qty);
+          defaults[it.id] = remaining > 0 ? String(remaining) : "";
+        }
+        setQcItemQtys(defaults);
       } catch { /* non-critical */ }
     }
     setShowAddItems(true);
@@ -299,15 +310,20 @@ export default function CKDeliveryPage() {
       category: string; qty: number; unit: string; notes: string;
     }[] = [];
 
-    // QC-passed items from plan
+    // QC-passed items from plan — use the per-branch quantity entered (capped at
+    // what's still available: produced − already delivered to other branches).
     for (const item of qcPassedItems) {
       if (selectedQcItemIds.has(item.id)) {
+        const remaining = Math.max(0, item.qc_actual_qty - item.delivered_qty);
+        const entered = parseFloat(qcItemQtys[item.id] || "0") || 0;
+        const qty = Math.min(entered, remaining);
+        if (qty <= 0) continue;
         items.push({
           plan_item_id: item.plan_item_id,
           item_id: item.item_id || 0,
           item_name: item.item_name,
           category: item.category,
-          qty: item.qc_actual_qty,
+          qty,
           unit: item.unit,
           notes: "",
         });
@@ -937,31 +953,49 @@ export default function CKDeliveryPage() {
                   <div className="max-h-48 overflow-y-auto space-y-1 rounded-xl border border-white/8 p-2">
                     {qcPassedItems.map(item => {
                       const selected = selectedQcItemIds.has(item.id);
+                      const remaining = Math.max(0, item.qc_actual_qty - item.delivered_qty);
+                      const entered = parseFloat(qcItemQtys[item.id] || "0") || 0;
+                      const over = entered > remaining;
                       return (
-                        <button
+                        <div
                           key={item.id}
-                          className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm transition-all ${
-                            selected
-                              ? "border border-violet-500/40 bg-violet-500/15"
-                              : "border border-transparent bg-white/3 hover:bg-white/8"
+                          className={`rounded-lg px-3 py-2 text-sm transition-all ${
+                            selected ? "border border-violet-500/40 bg-violet-500/15" : "border border-transparent bg-white/3"
                           }`}
-                          onClick={() => setSelectedQcItemIds(prev => {
-                            const s = new Set(prev);
-                            if (s.has(item.id)) { s.delete(item.id); } else { s.add(item.id); }
-                            return s;
-                          })}
                         >
-                          <div>
-                            <span className="text-zinc-200">{item.item_name}</span>
-                            <span className={T_CAPTION + " ml-2"}>{item.category}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs text-emerald-400">
-                              {fmtQty(item.qc_actual_qty)} {item.unit}
-                            </span>
-                            {selected && <CheckCircle2 className="h-3.5 w-3.5 text-violet-400" />}
-                          </div>
-                        </button>
+                          <button
+                            className="flex w-full items-center justify-between text-left"
+                            onClick={() => setSelectedQcItemIds(prev => {
+                              const s = new Set(prev);
+                              if (s.has(item.id)) { s.delete(item.id); } else { s.add(item.id); }
+                              return s;
+                            })}
+                          >
+                            <div>
+                              <span className="text-zinc-200">{item.item_name}</span>
+                              <span className={T_CAPTION + " ml-2"}>{item.category}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-[11px] text-zinc-400">
+                                made {fmtQty(item.qc_actual_qty)} · left {fmtQty(remaining)} {item.unit}
+                              </span>
+                              {selected && <CheckCircle2 className="h-3.5 w-3.5 text-violet-400" />}
+                            </div>
+                          </button>
+                          {selected && (
+                            <div className="mt-2 flex items-center gap-2">
+                              <span className="text-[11px] text-zinc-500">Deliver to {activeDelivery?.to_branch}:</span>
+                              <input
+                                type="number" min="0" max={remaining} step="0.1"
+                                className={`${INPUT_CLASS} h-8 w-24 py-1 text-sm ${over ? "border-red-500/50" : ""}`}
+                                value={qcItemQtys[item.id] || ""}
+                                onChange={e => setQcItemQtys(p => ({ ...p, [item.id]: e.target.value }))}
+                              />
+                              <span className="text-[11px] text-zinc-500">{item.unit}</span>
+                              {over && <span className="text-[11px] text-red-400">capped to {fmtQty(remaining)}</span>}
+                            </div>
+                          )}
+                        </div>
                       );
                     })}
                   </div>

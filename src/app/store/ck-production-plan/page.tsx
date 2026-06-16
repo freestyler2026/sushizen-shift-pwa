@@ -28,6 +28,7 @@ type Plan = {
   status: PlanStatus;
   created_by: string;
   notes: string;
+  assigned_staff?: string[];
   created_at: string;
   updated_at: string;
   published_at: string | null;
@@ -140,6 +141,10 @@ export default function CKProductionPlanPage() {
   const [newPlanDate, setNewPlanDate] = useState(todayIso());
   const [newPlanNotes, setNewPlanNotes] = useState("");
   const [creatingPlan, setCreatingPlan] = useState(false);
+  // ① CK staff in charge (multi-select from the staff master)
+  const [staffOptions, setStaffOptions] = useState<string[]>([]);
+  const [newPlanStaff, setNewPlanStaff] = useState<string[]>([]);
+  const [staffFilter, setStaffFilter] = useState("");
 
   // Add Item modal
   const [showAddItem, setShowAddItem] = useState(false);
@@ -220,6 +225,15 @@ export default function CKProductionPlanPage() {
   }, [loadPlans, loadProcessedItems]);
 
   // ── Create Plan ────────────────────────────────────────────────────────────
+  const loadStaffOptions = useCallback(async () => {
+    try {
+      const data = await apiFetch(`/api/staff/names?city=${encodeURIComponent(city)}`);
+      setStaffOptions(Array.isArray(data?.names) ? data.names : []);
+    } catch { /* non-critical */ }
+  }, [city]);
+
+  useEffect(() => { void loadStaffOptions(); }, [loadStaffOptions]);
+
   async function handleCreatePlan() {
     if (!newPlanDate) return;
     setCreatingPlan(true);
@@ -231,10 +245,12 @@ export default function CKProductionPlanPage() {
           plan_date: newPlanDate,
           created_by: userName,
           notes: newPlanNotes.trim(),
+          assigned_staff: newPlanStaff,
         }),
       });
       setShowNewPlan(false);
       setNewPlanNotes("");
+      setNewPlanStaff([]);
       setNewPlanDate(todayIso());
       await loadPlans();
       // Auto-select the new plan
@@ -570,6 +586,14 @@ export default function CKProductionPlanPage() {
                     {activePlan.created_by && (
                       <p className={T_CAPTION + " mt-1"}>Created by {activePlan.created_by}</p>
                     )}
+                    {activePlan.assigned_staff && activePlan.assigned_staff.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <span className={T_CAPTION}>In charge:</span>
+                        {activePlan.assigned_staff.map(name => (
+                          <span key={name} className="inline-flex rounded-full bg-violet-500/15 px-2 py-0.5 text-xs text-violet-200">{name}</span>
+                        ))}
+                      </div>
+                    )}
                     {activePlan.notes && (
                       <p className="mt-2 text-sm text-zinc-300">{activePlan.notes}</p>
                     )}
@@ -832,6 +856,43 @@ export default function CKProductionPlanPage() {
                   value={newPlanDate}
                   onChange={e => setNewPlanDate(e.target.value)}
                 />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                  CK Staff in charge {newPlanStaff.length > 0 && <span className="text-violet-300">({newPlanStaff.length})</span>}
+                </label>
+                {newPlanStaff.length > 0 && (
+                  <div className="mb-2 flex flex-wrap gap-1.5">
+                    {newPlanStaff.map(name => (
+                      <span key={name} className="inline-flex items-center gap-1 rounded-full bg-violet-500/20 px-2.5 py-0.5 text-xs text-violet-200">
+                        {name}
+                        <button onClick={() => setNewPlanStaff(s => s.filter(n => n !== name))} className="hover:text-white">×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <input
+                  type="text"
+                  className={`${INPUT_CLASS} mb-1`}
+                  placeholder="Search staff to add…"
+                  value={staffFilter}
+                  onChange={e => setStaffFilter(e.target.value)}
+                />
+                <div className="max-h-36 overflow-y-auto rounded-xl border border-white/10 bg-white/[0.02]">
+                  {staffOptions
+                    .filter(n => !newPlanStaff.includes(n) && n.toLowerCase().includes(staffFilter.toLowerCase()))
+                    .slice(0, 30)
+                    .map(name => (
+                      <button
+                        key={name}
+                        onClick={() => { setNewPlanStaff(s => [...s, name]); setStaffFilter(""); }}
+                        className="block w-full px-3 py-1.5 text-left text-sm text-zinc-300 hover:bg-white/5"
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  {staffOptions.length === 0 && <p className="px-3 py-2 text-xs text-zinc-500">No staff list loaded.</p>}
+                </div>
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-zinc-500">Notes (optional)</label>
