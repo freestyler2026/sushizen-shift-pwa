@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-16 (session 82 — 認証降格 再発の真因: verifyがSTAFFトークンを発行。バック修正+HQ override)
+Last updated: 2026-06-16 (session 83 — CK: 担当者複数選択① / 支店別デリバリー数量② / 写真アップロード[object Object]バグ③)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,34 @@ Last updated: 2026-06-16 (session 82 — 認証降格 再発の真因: verifyが
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1281, Vercel 3d61b7c)
+なし — 全変更デプロイ済み (Heroku v1283, Vercel 97917a7)
+
+## Recently Completed (2026-06-16 session 83) — live
+
+スタッフからCKプロダクション〜デリバリーの3点。
+
+**③ 写真アップロード「[object Object]」バグ（緊急・先行デプロイ）**
+- 真因: `getAuthHeaders()` が **multipart送信に `Content-Type: application/json` を強制**→ブラウザがboundaryを付けず→FastAPIがファイルを読めず**422**→検証エラーオブジェクトが「[object Object]」表示でCK発送がブロック。
+- 修正: `getUploadHeaders()`(Authorizationのみ、Content-Type無し)を `src/lib/auth.ts` に新設し、**CKラベル写真・Cashier Log・Cash Report(SC/PWD/ID/QRPH)** の全アップロードに適用(同じ潜在バグ)。エラーdetailのstring判定も追加。
+
+**① CK Production Plan に担当者（複数）選択**
+- `ck_production_plans.assigned_staff`(JSONB配列)追加。create で受領、get/listで返却。
+- フロント: New Production Plan に **スタッフ複数選択**(検索付き、`/api/staff/names?city=manila` から、チップ表示)。プラン詳細に「In charge」表示。指定6名はマニラ名簿に含まれ選択可、入替・追加・削除はOS上で自由。
+
+**② CK Delivery を支店別の個数で**
+- 真因: Add Items が QC実績数(`qc_actual_qty`)を**全量そのまま**デリバリーに入れていた。
+- `get_ck_production_plan` の各itemに **`delivered_qty`(plan_item_id単位の割当合計)** を追加。
+- フロント: Add Items の各QC品目に**数量入力**。初期値=残数(`qc_actual_qty − delivered_qty`)、**上限=残数**(超過は自動cap)。「made X · left Y」表示。300pcを Taft150/Paranaque100 に分配可。
+- **QC実績数は実際に作った数＝当日在庫も含む**ので、これを上限にすれば「生産＋在庫」の合計が上限。前日在庫はmanual itemで対応。
+
+検証: `tsc` exit0、`npm run build` 成功、`ast.parse` OK。`/api/staff/names` 疎通(マニラ名簿)。Heroku v1283 / Vercel 97917a7。
+
+### 教訓 (session 83)
+- **FormData(multipart)アップロードに `getAuthHeaders()` は厳禁**(Content-Type: application/json が付きboundary消失→422→「[object Object]」)。**`getUploadHeaders()`(Content-Type無し)を使う**。SC/PWDレシートをDiscordに上げていた一因の可能性
+- **QC実績数(`qc_actual_qty`)＝実際に作った数(在庫込み)**。デリバリー上限はこれ−既割当(`delivered_qty`)。`plan_item_id` で割当を集計
+- スタッフ選択は `/api/staff/names?city=` を名簿ソースに(複数選択＝JSONB配列)
+
+## Recently Completed (2026-06-16 session 82) — live
 
 > **西村さん(Ayako/HQ)へ案内**: 既にSTAFFトークンで詰まっている場合、一度**ログアウト→ログイン**で新しいHQトークンを取得すれば定着します。
 
