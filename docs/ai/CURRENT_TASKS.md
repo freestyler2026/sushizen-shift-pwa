@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-16 (session 78 — 食品安全: CK Dispatch製造日ラベル必須ゲート(①)。②④⑤は次段)
+Last updated: 2026-06-16 (session 79 — 食品安全④: 本部CK Label Complianceダッシュボード。残②⑤)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,29 @@ Last updated: 2026-06-16 (session 78 — 食品安全: CK Dispatch製造日ラ�
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1277, Vercel eaab8c7)
+なし — 全変更デプロイ済み (Heroku v1278, Vercel cc7c29c)
+
+> **食品安全 残実装(設計確定済)**: ② 店舗Receivingの手動ラベル検証UI(label_ok/issueは backend済) / ⑤ 異臭・無日付の即時報告→Incident連携。
+
+## Recently Completed (2026-06-16 session 79) — live
+
+食品安全 **④ 本部「CK Label Compliance」ダッシュボード**（①のデータを集計）。
+
+| 内容 | ファイル | 修正 |
+|---|---|---|
+| 集計関数 | `app/db.py` (`ck_label_compliance`) | city/date範囲/branchで `ck_deliveries`×`ck_delivery_items` をJOIN。品目ごとの製造日/期限/写真/label_ok/issue/期限切れ + summary(total/with_production_date/with_photo/fully_labeled/expired/flagged) |
+| API | `app/main.py` | `GET /api/admin/ck-delivery/label-compliance`(HQ/ADMIN/MANILA_MANAGEMENT/MANAGER)。`_actor_from_token_request` でrole gate |
+| 管理ページ | `src/app/admin/ck-label-compliance/page.tsx`(新規) | 日付/支店フィルタ、KPI(fully labeled%・with photo%・expired・flagged)、配送ごとの品目テーブル(製造日/期限/写真リンク/検証状態、欠落・期限切れ・flagを赤ハイライト) |
+| ナビ | `src/components/NavBar.tsx` | admin nav に「CK Label Compliance」(ShieldCheck) 追加、role gate |
+
+検証: `ast.parse` OK、tsc/eslint クリーン、`npm run build` 成功(162p, 新route)。Heroku v1278 / Vercel cc7c29c。endpoint 403(認証要求=正常)。
+
+### 教訓 (session 79)
+- ①で `production_date/expiry/label_photo_url/label_ok/label_issue` を蓄積→④はJOIN集計するだけ。**データを先に取る設計が後段の可視化を軽くする**
+- 本部監視は `_actor_from_token_request` の role gate(HQ/ADMIN/MANILA_*)。CK系の置き場所として admin nav の Cold Chain 隣に配置
+- **残**: ② Receiving手動flag UI(店舗が「ラベル無し/異臭」をその場で記録)、⑤ 即時異臭報告→Incident。①④で「強制+可視化」は完成、②⑤は「現場検知+急性対応」
+
+## Recently Completed (2026-06-16 session 78) — live
 
 > **次段の実装(未着手・design確定済)**: 食品安全 ② 店舗Receivingの手動ラベル検証UI(label_ok/issueは backend実装済・期限切れ自動flagも実装済、フロント未) / ④ 本部「CK Label Compliance」ダッシュボード(CK系配下) / ⑤ 異臭・無日付の即時報告→Incident連携。決定: 製造日+期限+ラベル写真すべて必須・空欄はDispatch不可・本部DBはCK系配下・**まずマニラのみ**。
 
