@@ -11,7 +11,32 @@ Last updated: 2026-06-16 (session 87 — CK Delivery: 数量ハードキャッ�
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku 101c2fb, Vercel main HEAD)
+なし — 全変更デプロイ済み (Heroku 0067f7e, Vercel main HEAD)
+
+## Recently Completed (2026-06-17 session 91) — live
+
+**Staff Portal 降格の真の構造的根本原因を修正(session90 は不完全だった)。** 西村さんアカウントで「food master 登録→reload で Staff Portal、再ログインで戻る」が継続。「カツ」登録時に2件重複も発生。
+
+**session90 が不完全だった理由**: フォールバック権限を `permissions_for_role(role, staff_name=...)` から導出していたが、これは内部で **`resolve_staff_access_profile(staff_name)` を再呼び出し**([security_tokens.py:26](../../../sushizen_shift_app_clean/app/security_tokens.py))= flake する当の関数。さらに `issue_access_token` も同じ経路で権限を焼くため **token の権限claim も STAFF になり得た**。→ role は守られても**権限が flake し続けた**。
+
+**最終的な発生源**: 全 cost エンドポイントの認可 `_token_actor`([cost_api.py:89](../../../sushizen_shift_app_clean/app/cost_api.py)) が `permissions_for_role(staff_name=...)` で権限算出 → flake で `cost.write` 消失 → **保存/読込が 403**。この「一見失敗→再送」が**重複INSERT競合**の引き金でもある(`create_cost_ingredient` は重複名チェックを持つが一意制約が無く、ほぼ同時の2POSTが両方チェック通過)。
+
+**修正(原則: 維持した権威ロールの権限は、staff 再解決ではなく ROLE 定義から導出)**:
+- `resolve_role_permissions(role)`([db.py:682](../../../sushizen_shift_app_clean/app/db.py)) は **staff 非依存・role→権限を直接解決**(HQ→`['*']`)で flake しない。これをフォールバック源に。
+- `_actor_from_token_request`(/api/auth/session)・`api_auth_verify`: profile_role != 維持role の時は `resolve_role_permissions(role)` で導出。
+- `_token_actor`(全 cost API): role の権限を **union** し、flake が role 付与権限を剥奪できないように。
+
+**西村さん**: HQ override(`{yuri yamada, ayako nishimura}`)に**名前が一致していない疑い**(綴り違い)→ `staff_role_assignments` 経由で flake 露出。HQ 扱いなら実 `display_name` を確認し `HQ_APPROVER_NAMES` env に追加すると確実。
+
+検証: `ast.parse` OK。Heroku 0067f7e。**詰まっているユーザーは一度ログアウト→再ログイン**。
+
+### 未対応(別タスク)
+- 食材作成の **check-then-insert 競合**で重複(「カツ」×2)。一意制約 or `INSERT ... ON CONFLICT` でレース耐性化が必要。既存重複データのクリーンアップも。auth flake 解消で再送トリガーは減るはず。
+
+### 教訓 (session 91)
+- **権限を per-staff プロファイル再解決から導出してはいけない**。`resolve_staff_access_profile`/`permissions_for_role(staff_name=...)` は role-assignment 照会の一時ミスで STAFF に落ちる。維持した権威ロールの権限は必ず **role 定義(`resolve_role_permissions`)**から。
+- role を守っても、権限を flake する関数から取れば降格する。**権限の導出元まで flake-free にする**のが完全修正
+- [[auth-remint-downgrade]] 参照
 
 ## Recently Completed (2026-06-17 session 90) — live
 
