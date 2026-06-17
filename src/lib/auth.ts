@@ -151,14 +151,22 @@ export function nonDowngradedAccess(
 
   let role: StaffRole = incomingRole || current.role || "STAFF";
   // Never drop a non-STAFF session down to STAFF/unknown on a refresh.
+  let keptRole = false;
   if (currentRole !== "STAFF" && (incoming === "" || incoming === "STAFF")) {
     role = current.role || role;
+    keptRole = true;
   }
 
   let permissions = incomingPermissions;
   const lostStar = currentPerms.includes("*") && !incomingPermissions.includes("*");
-  // Keep permissions if the response would strip access we currently hold.
-  if (incomingPermissions.length === 0 && currentPerms.length > 0) {
+  if (keptRole && currentPerms.length > 0) {
+    // We just refused a STAFF/empty role downgrade. The permission list in the
+    // SAME response came from that downgraded resolution, so it's STAFF-level
+    // too — adopting it would strip a privileged (non-"*") session and bounce the
+    // user to the Staff Portal mid-task. Keep the permissions we already hold.
+    permissions = currentPerms;
+  } else if (incomingPermissions.length === 0 && currentPerms.length > 0) {
+    // Keep permissions if the response would strip access we currently hold.
     permissions = currentPerms;
   } else if (lostStar) {
     permissions = currentPerms;
