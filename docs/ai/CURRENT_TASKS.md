@@ -11,7 +11,27 @@ Last updated: 2026-06-16 (session 87 — CK Delivery: 数量ハードキャッ�
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1283, Vercel main HEAD)
+なし — 全変更デプロイ済み (Heroku 0fc6d9b, Vercel main HEAD)
+
+## Recently Completed (2026-06-17 session 89) — live
+
+**Cost Calculation > New Product Costing: 保存したドラフトを別の原価計算で部品として再利用可能に。** スタッフ要望「Half Gyudon をドラフト登録 → 次のメニュー(Miso Ramen + Half Gyudon)でそのまま部品に使いたい」が**できなかった**問題。
+
+**原因**: ドラフトは `menu_item_master` に `item_type='draft'` で保存されるが、部品候補を返す `list_cost_component_options`([db.py:24581](../../../sushizen_shift_app_clean/app/db.py)) が `item_type IN ('processed','product')` のみで **draft を除外**していた。再利用するには Publish して product 昇格するしかなかった(`publish_cost_product_draft` が draft→product 変換)。
+
+**修正(両方=(b)で実装)**:
+- backend `list_cost_component_options`: `IN ('processed','product','draft')` に拡張。draft は `status='draft'`(≠archived)で既に `is_active=TRUE` なので候補に出る。返却dictは元々 `item_type` を含む。
+- frontend `loadComponentOptions`: `item_type` を ComponentOption へ通すように(従来は破棄)。
+- frontend ピッカー: ドラフト候補に**琥珀色「Draft」バッジ**を候補ドロップダウン＋選択行に表示(processed/productとの混同防止)。
+- frontend `processedComponentOptions`: **編集中アイテム自身を候補から除外**(自己参照→backendの循環参照ガード `"Circular processed item reference is not allowed."` を踏まないため)。
+
+**設計上の安全性**: コスト計算 `_compute_cost_master_item_totals`([db.py:24232](../../../sushizen_shift_app_clean/app/db.py)) は**ネスト対応済み**＋**循環参照ガード**(`active_stack`)実装済み。よってドラフトを部品にすると原価がライブ計算され、子ドラフトを直すと親も再計算される(=スタッフ要望の「そのまま使える」)。
+
+検証: `tsc --noEmit` exit0、eslint touched files 0 error、db.py `ast.parse` OK。Heroku 0fc6d9b。
+
+### 教訓 (session 89)
+- New Product Costing の「ドラフト」「Processed」「Product」は**同じ `menu_item_master` テーブルを `item_type` で区別**している。部品候補・コスト計算は item_type フィルタ次第で対象が変わる
+- 自分自身を部品にできる UI は循環参照を生む。候補生成側で**編集中アイテムを除外**するのが定石(backendガードはあるが、UIで防ぐ方が親切)
 
 ## Recently Completed (2026-06-17 session 88) — live
 
