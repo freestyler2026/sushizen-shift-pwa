@@ -11,7 +11,25 @@ Last updated: 2026-06-16 (session 87 — CK Delivery: 数量ハードキャッ�
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1283, Vercel 957d76d)
+なし — 全変更デプロイ済み (Heroku v1283, Vercel main HEAD)
+
+## Recently Completed (2026-06-17 session 88) — live
+
+CK Inventory の**モバイルでNew Sessionボタンが見えない**＋**カスタムロール「CK MANILA」にInventoryチャンネル権限を付けてもCK Inventoryがナビに出ない**問題をスタッフ報告で修正。
+
+**問題1 (モバイルヘッダー)**: `src/app/store/ck-inventory/page.tsx:350` のヘッダーが `flex items-center justify-between`(折返し無し)で、右側ボタン群[Manila/Dubai切替][Manage Items][New Session]が幅~390pxで画面外に溢れ、New Session が見えない。
+**修正**: ヘッダーを `flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between` でモバイル縦積み、ボタン群を `flex flex-wrap` に。
+
+**問題2 (権限でナビに出ない)**: `src/components/NavBar.tsx:636-647` の CK Inventory/Production Plan/Delivery のナビ可視性は**ロール固定リスト(ADMIN/HQ/MANILA_MANAGEMENT等)で判定**しており、**チャンネル権限を一切見ていなかった**。よってカスタムロール「CK MANILA」はリストに無く、どのチャンネル権限を付けても非表示。
+**修正**: 3ページとも固定リストに加え `|| canAccessInventoryAdminNav(resolvedAuth)`(= `channel.admin.inventory.view/write` 保持)で通すように。→ **「Inventory」チャンネル権限を持つ任意のロールでCK系3ページが表示される**。CK Inventory ページ自体にロールガードは無い(`return null`は空表示用のみ)ためナビ修正で完結。
+
+**代表への回答**: 付与すべきは **「Inventory」チャンネル** (`admin.inventory` / `/admin/inventory`)。既にそれを付けていたが、上記のコード側がチャンネル権限を見ていなかったのが原因。今回の修正で既存の付与がそのまま有効になる。
+
+検証: `tsc --noEmit` exit0。
+
+### 教訓 (session 88)
+- **store系ナビの一部はチャンネル権限ではなくロール固定リストで判定している**(NavBar `staffItems` filter)。カスタムロール+チャンネル権限が効かない時はここを疑う。固定リストに `|| canAccessXxxAdminNav()` を足して権限ベースへ寄せる
+- モバイルヘッダーのボタン群は `justify-between`単独だと溢れる。`flex-col→sm:flex-row` + ボタン群 `flex-wrap` が定石
 
 ## Recently Completed (2026-06-16 session 87) — live
 
