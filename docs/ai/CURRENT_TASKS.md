@@ -11,7 +11,24 @@ Last updated: 2026-06-16 (session 87 — CK Delivery: 数量ハードキャッ�
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku 29b10d5, Vercel main HEAD)
+なし — 全変更デプロイ済み (Heroku b27f567, Vercel main HEAD)
+
+## Recently Completed (2026-06-17 session 91c) — live
+
+**ロールマネジメントが権威ソースとして機能していなかった構造バグを修正。** 代表指摘「HQをロールマネジメントで最初から登録済み＝全ページ閲覧可のはず。効かない＝ロールマネジメントが機能していない。ロール権限はロールマネジメントが最優先でなければ意味がない」。
+
+**真因(名前マッチの不整合)**: `resolve_staff_access_profile` の割当照会([db.py:1220](../../../sushizen_shift_app_clean/app/db.py))は `LOWER(staff_name)=LOWER(%s)` のみ(trim も空白正規化も無し)。一方システムの他部分 `_resolve_staff_auth_identity` は `regexp_replace(lower(trim(staff_name)),'\s+',' ','g')` で頑健マッチ。→ **割当名と照会名に空白/書式差があると HQ 割当を取りこぼし**、`staff_master`/STAFF にフォールバック = ロールマネジメントが無視される。
+
+**修正**: 割当照会(と staff_master フォールバック照会)を `_resolve_staff_auth_identity` と**同じ正規化マッチ**に統一。→ ロールマネジメントの割当は空白/大小文字差に関係なく**常に検出され、最優先の権威ソース**として機能する。
+
+これで HQ ユーザーは3重に保護: ①HQ name override(91b) ②robust 割当マッチ(91c) ③万一ミスでも token role 維持＋role定義から権限導出(91)。
+
+検証: `ast.parse` OK。Heroku b27f567。**該当ユーザーは一度ログアウト→再ログイン**で確実反映。
+
+### 教訓 (session 91c)
+- 名前ベースの照合は**システム全体で同一の正規化**(trim+空白collapse+lower)を使うこと。1箇所だけ素の `LOWER()` だと、そこだけ取りこぼして権限喪失する
+- ロールマネジメント(`staff_role_assignments`)は role の**単一の真実源**。照会ミス=STAFF降格という設計は、照会を頑健にして初めて成立する
+- [[auth-remint-downgrade]] 参照
 
 ## Recently Completed (2026-06-17 session 91b) — live
 
