@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-16 (session 86 — Procurement: store必須化の回帰修正(カタログ0件)＋Manilaも実店舗必須化)
+Last updated: 2026-06-16 (session 87 — CK Delivery: 数量ハードキャップ撤廃→ソフト警告(在庫から配れない問題))
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,25 @@ Last updated: 2026-06-16 (session 86 — Procurement: store必須化の回帰修
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1283, Vercel 057ae0b)
+なし — 全変更デプロイ済み (Heroku v1283, Vercel 957d76d)
+
+## Recently Completed (2026-06-16 session 87) — live
+
+session83 の②(支店別数量)の**ハードキャップが在庫配送をブロック**→スタッフ報告で修正。`src/app/store/ck-delivery/page.tsx`。
+
+**問題**: 「made 300 · left 0」(既に他デリバリーで全量割当済)の品目に 150 を入れると `Math.min(entered, remaining)=0` で **qty 0→`if(qty<=0)continue`でスキップ**＝追加されず「Add Items」が無反応。在庫から配るケースを物理的に出せない。
+**修正(ハードキャップ→ソフト警告)**:
+- `handleAddItems`: `Math.min` 撤廃、**入力値をそのまま採用**(`qty<=0`のみスキップ)。
+- UI: 入力の `max={remaining}` 撤廃、超過時は「capped to 0」→ **琥珀色「over made by N — from stock? (allowed)」** に変更(ブロックしない)。
+- backend は元々qtyキャップ無し(`add_ck_delivery_items`は挿入のみ)なので変更不要。
+
+検証: `tsc` exit0、`npm run build` 成功、eslint エラー0。Vercel 957d76d。
+
+### 教訓 (session 87)
+- **現場の数量上限は「ハードキャップ」にしない**。在庫・繰越など系統外の実在庫があるため、超過は**警告で許可**(ソフト)が正解。session83で「在庫がある場合がある」と言われていた通り、ハードキャップは現実に詰まる
+- `Math.min(entered, remaining)` + `if(qty<=0)continue` の組合せは、remaining=0の時に**無言で何も追加しない**最悪UX。入力はそのまま使い、超過は注記で伝える
+
+## Recently Completed (2026-06-16 session 86) — live
 
 ## Recently Completed (2026-06-16 session 86) — live
 
