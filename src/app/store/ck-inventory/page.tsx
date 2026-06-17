@@ -347,14 +347,14 @@ export default function CKInventoryPage() {
       <div className="mx-auto max-w-7xl px-4 py-8">
 
         {/* Header */}
-        <div className="mb-8 flex items-center justify-between gap-4">
+        <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div>
             <h1 className={T_PAGE_TITLE}>CK Daily Inventory</h1>
             <p className={T_CAPTION + " mt-1"}>
               Record and track CK production inventory — pre/post delivery and daily checks.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {canManage && (
               <div className="flex rounded-xl border border-white/10 bg-white/[0.03] p-0.5">
                 {(["manila", "dubai"] as const).map(c => (

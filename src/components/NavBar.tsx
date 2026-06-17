@@ -635,15 +635,18 @@ export default function NavBar() {
         }
         if (item.href === "/store/ck-inventory") {
           const r = String(resolvedAuth?.role || "").toUpperCase();
-          return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "HR_MANAGER"].includes(r);
+          return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "HR_MANAGER"].includes(r)
+            || canAccessInventoryAdminNav(resolvedAuth);
         }
         if (item.href === "/store/ck-production-plan") {
           const r = String(resolvedAuth?.role || "").toUpperCase();
-          return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "HR_MANAGER", "STAFF"].includes(r);
+          return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "HR_MANAGER", "STAFF"].includes(r)
+            || canAccessInventoryAdminNav(resolvedAuth);
         }
         if (item.href === "/store/ck-delivery") {
           const r = String(resolvedAuth?.role || "").toUpperCase();
-          return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "HR_MANAGER", "STAFF"].includes(r);
+          return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "MANILA_MANAGER", "HR_MANAGER", "STAFF"].includes(r)
+            || canAccessInventoryAdminNav(resolvedAuth);
         }
         return true;
       })
