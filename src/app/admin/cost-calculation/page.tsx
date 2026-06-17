@@ -1268,6 +1268,9 @@ export default function CostCalculationPage() {
             category: String(item.category || ""),
             unit: String(item.unit || ""),
             unit_cost: Number(item.unit_cost || 0),
+            item_type: (["processed", "product", "draft"].includes(String(item.item_type || ""))
+              ? (String(item.item_type) as "processed" | "product" | "draft")
+              : undefined),
           }))
         : [];
       setComponentOptions(items);
@@ -1817,8 +1820,13 @@ export default function CostCalculationPage() {
   }, [activeMasterType, masterItemsByType, searchText]);
 
   const processedComponentOptions = useMemo(
-    () => componentOptions.filter((option) => option.component_type === "processed_item"),
-    [componentOptions],
+    () => componentOptions.filter((option) =>
+      option.component_type === "processed_item"
+      // Exclude the item currently being edited so a draft/product can't reference itself
+      // (a self-reference would trigger the backend's circular-reference guard).
+      && !(masterEditor?.id && String(option.id) === String(masterEditor.id)),
+    ),
+    [componentOptions, masterEditor?.id],
   );
 
   const masterComponentSummary = useMemo(() => {
@@ -4247,7 +4255,13 @@ export default function CostCalculationPage() {
                                           }}
                                           className="flex w-full items-center justify-between gap-3 border-b border-white/5 px-3 py-2 text-left text-sm text-zinc-200 transition last:border-b-0 hover:bg-white/[0.06]"
                                         >
-                                          <span className="flex-1">{option.name}</span>
+                                          <span className="flex flex-1 items-center gap-2">
+                                            {option.name}
+                                            {option.component_type === "processed_item"
+                                              && (option as ComponentOption).item_type === "draft" ? (
+                                              <span className="shrink-0 rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-300">Draft</span>
+                                            ) : null}
+                                          </span>
                                           <span className="shrink-0 text-xs text-zinc-500">{option.category} · {option.unit || "—"}</span>
                                         </button>
                                       ))
@@ -4259,8 +4273,12 @@ export default function CostCalculationPage() {
                                   </div>
                                 ) : null}
                                 {selectedOption ? (
-                                  <div className="mt-1 text-[11px] text-zinc-500">
-                                    {selectedOption.category} · {selectedOption.unit || "—"}
+                                  <div className="mt-1 flex items-center gap-1.5 text-[11px] text-zinc-500">
+                                    {component.component_type === "processed_item"
+                                      && (selectedOption as ComponentOption).item_type === "draft" ? (
+                                      <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-300">Draft</span>
+                                    ) : null}
+                                    <span>{selectedOption.category} · {selectedOption.unit || "—"}</span>
                                   </div>
                                 ) : component.name.trim() ? (
                                   <div className="mt-1 text-[11px] text-amber-300">Please select from suggestions</div>
