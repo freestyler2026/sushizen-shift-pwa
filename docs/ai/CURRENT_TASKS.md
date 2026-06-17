@@ -11,7 +11,27 @@ Last updated: 2026-06-16 (session 87 — CK Delivery: 数量ハードキャッ�
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku acbaca7, Vercel main HEAD)
+なし — 全変更デプロイ済み (Heroku 101c2fb, Vercel main HEAD)
+
+## Recently Completed (2026-06-17 session 90) — live
+
+**再発した Staff Portal 降格バグの真の根本原因(permissions 版)を修正。** スタッフ報告「食材登録→reload で Staff Portal に切り替わり登録が反映されない。Cost Calculation 操作中に発生、昨日から継続」。
+
+**根本原因**: session82 は `role` の STAFF 降格は防いだが **`permissions` は守っていなかった**。`_actor_from_token_request`([main.py:2072](../../../sushizen_shift_app_clean/app/main.py)) と `api_auth_verify` は role を token/staff_master の強い方で維持する一方、**permissions は profile から先に取得**。`resolve_staff_access_profile` が一瞬 STAFF にフォールバック(昇格ロールが `staff_role_assignments` のみに在り `staff_master.role` は STAFF — session88 で作った **CK MANILA 等のカスタムロール**が該当)すると、**非空の STAFF 権限**を返す → `if not permissions` 再導出ガードを素通り → **role=admin・permissions=STAFF** の不整合 → フロントは permission ベース(`canAccessAdminNav`)で Staff Portal 判定 → 落ちる。Cost Calculation は毎リクエスト＆reload で session/verify を叩くため頻発。
+
+**修正(3点)**:
+- backend `_actor_from_token_request`: 「**profile_role == 解決後role の時のみ profile 権限を信頼**、それ以外は token の権限(`claims.permissions`)/role 由来へ」。token は `permissions_for_role(role)` を埋め込み済みなので強ロール権限が取れる。
+- backend `api_auth_verify`: 同様に「profile_role==role 時のみ profile 権限、それ以外は `permissions_for_role(role)`」。HQ は従来通り `['*']`。
+- frontend `nonDowngradedAccess`([auth.ts](src/lib/auth.ts)): **role 降格を拒否した時(`keptRole`)は現在の権限を維持**(同レスポンスの権限も STAFF 級のため)。`lostStar` ガードが拾えない非`*`ロールの多層防御。
+
+**重要**: HQ override ユーザー(Yuri/西村)は常に `['*']` で免疫だったため再現せず、**カスタムロール運用開始(昨日)で表面化**した。
+
+検証: `ast.parse` OK、`tsc --noEmit` exit0。Heroku 101c2fb。**既に STAFF トークンで詰まっているユーザーは一度ログアウト→再ログインで解消**。
+
+### 教訓 (session 90)
+- **role-keep と permission-keep は別ガード**。片方だけ守っても、フロントの導線が permission ベースなら降格する。auth は「role と permissions が常に同じ解決元から来る」よう整合させる
+- token に権限を埋め込んでいる(`issue_access_token`)ので、profile フォールバック時は **token の権限が信頼できる強ロール権限**として使える
+- [[auth-remint-downgrade]] メモリ参照
 
 ## Recently Completed (2026-06-17 session 89b) — live
 
