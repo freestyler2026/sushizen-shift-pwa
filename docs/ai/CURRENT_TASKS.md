@@ -11,7 +11,15 @@ Last updated: 2026-06-16 (session 87 — CK Delivery: 数量ハードキャッ�
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku 0067f7e, Vercel main HEAD)
+なし — 全変更デプロイ済み (Heroku 29b10d5, Vercel main HEAD)
+
+## Recently Completed (2026-06-17 session 91b) — live
+
+**HQ 固定リストに不足2名を追加。** session91 で「西村さんが override に一致せず flake 露出」と推測 → 本人確認の結果、**影響を受けたのは Yukihiro Nishimura(「ayako nishimura」とは別人)**。確定 HQ は **4名**: Yuri Yamada / Ayako Nishimura / Yukihiro Nishimura / Yusuke Uejima。
+
+`_hq_name_overrides()` の `base`([main.py](../../../sushizen_shift_app_clean/app/main.py))に `yukihiro nishimura`・`yusuke uejima` を追加(小文字)。→ この4名は `_effective_staff_profile` が**決定的に HQ + `['*']`** を返し、role-assignment 照会の flake に完全免疫。Heroku 29b10d5。
+
+(注: session91 の構造修正で flake 自体は全ロールで解消済み。本追加は HQ 4名を二重に堅牢化するもの。)
 
 ## Recently Completed (2026-06-17 session 91) — live
 
