@@ -310,13 +310,12 @@ export default function CKDeliveryPage() {
       category: string; qty: number; unit: string; notes: string;
     }[] = [];
 
-    // QC-passed items from plan — use the per-branch quantity entered (capped at
-    // what's still available: produced − already delivered to other branches).
+    // QC-passed items from plan — use the per-branch quantity entered. We show
+    // "made / left" as guidance and warn when it exceeds what's left, but do NOT
+    // hard-cap: stores may deliver from existing stock beyond the QC-produced amount.
     for (const item of qcPassedItems) {
       if (selectedQcItemIds.has(item.id)) {
-        const remaining = Math.max(0, item.qc_actual_qty - item.delivered_qty);
-        const entered = parseFloat(qcItemQtys[item.id] || "0") || 0;
-        const qty = Math.min(entered, remaining);
+        const qty = parseFloat(qcItemQtys[item.id] || "0") || 0;
         if (qty <= 0) continue;
         items.push({
           plan_item_id: item.plan_item_id,
@@ -983,16 +982,20 @@ export default function CKDeliveryPage() {
                             </div>
                           </button>
                           {selected && (
-                            <div className="mt-2 flex items-center gap-2">
+                            <div className="mt-2 flex items-center gap-2 flex-wrap">
                               <span className="text-[11px] text-zinc-500">Deliver to {activeDelivery?.to_branch}:</span>
                               <input
-                                type="number" min="0" max={remaining} step="0.1"
-                                className={`${INPUT_CLASS} h-8 w-24 py-1 text-sm ${over ? "border-red-500/50" : ""}`}
+                                type="number" min="0" step="0.1"
+                                className={`${INPUT_CLASS} h-8 w-24 py-1 text-sm ${over ? "border-amber-500/50" : ""}`}
                                 value={qcItemQtys[item.id] || ""}
                                 onChange={e => setQcItemQtys(p => ({ ...p, [item.id]: e.target.value }))}
                               />
                               <span className="text-[11px] text-zinc-500">{item.unit}</span>
-                              {over && <span className="text-[11px] text-red-400">capped to {fmtQty(remaining)}</span>}
+                              {over && (
+                                <span className="text-[11px] text-amber-400">
+                                  over made by {fmtQty(entered - remaining)} — from stock? (allowed)
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>
