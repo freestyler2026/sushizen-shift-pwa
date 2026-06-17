@@ -11,7 +11,20 @@ Last updated: 2026-06-16 (session 87 — CK Delivery: 数量ハードキャッ�
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku 0fc6d9b, Vercel main HEAD)
+なし — 全変更デプロイ済み (Heroku acbaca7, Vercel main HEAD)
+
+## Recently Completed (2026-06-17 session 89b) — live
+
+session89 のフォローアップ。ドラフトが部品候補に**出る**ようになったが、保存時に「Processed master items can include processed components only; product and draft items can include processed or product components.」の赤帯エラーで**保存できなかった**(親draft・子draftのコンボ)。
+
+**原因**: `_validate_cost_item_components`([db.py:24113](../../../sushizen_shift_app_clean/app/db.py)) の許可子タイプが `parent==processed ? {processed} : {processed, product}` で、**draft 子が常に除外**されていた。候補には出せても保存バリデーションで弾かれていた。
+
+**修正**: parent別に分岐 — `processed→{processed}` / **`draft→{processed, product, draft}`** / `product→{processed, product}`。draft 親のみ draft 子を許可(公開済み product は不安定回避のため published 限定維持)。エラーメッセージも更新。循環参照は `_assert_cost_component_descends_to_target`([db.py:24046](../../../sushizen_shift_app_clean/app/db.py)) が再帰walkで保存時にも防ぐ(draft子にも適用)。
+
+検証: `ast.parse` OK。Heroku acbaca7。
+
+### 教訓 (session 89b)
+- 「候補に出す(`list_cost_component_options`)」と「保存を許可する(`_validate_cost_item_components`)」は**別々のバリデーション**。一方だけ直すと"選べるのに保存できない"状態になる。component再利用系は両方セットで確認
 
 ## Recently Completed (2026-06-17 session 89) — live
 
