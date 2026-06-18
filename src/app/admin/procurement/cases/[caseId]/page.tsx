@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { canAccessProcurementAdmin, getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson, procurementTokenHeaders } from "@/lib/procurementClient";
@@ -104,6 +104,7 @@ function lookupWhStock(itemName: string, map: Map<string, WhStockItem>): WhStock
 
 export default function ProcurementCaseDetailPage() {
   const auth = useMemo(() => getAuth(), []);
+  const router = useRouter();
   const params = useParams<{ caseId: string }>();
   const searchParams = useSearchParams();
   const fromParam = searchParams?.get("from") ?? "";
@@ -194,6 +195,10 @@ export default function ProcurementCaseDetailPage() {
       setSuccessMsg(`Action "${path}" completed successfully.`);
       await load();
       window.dispatchEvent(new Event("procurement-badge-refresh"));
+      if (path === "approve") {
+        const dest = fromParam === "hub" ? "/admin/procurement/hub" : "/admin/procurement/approval-inbox";
+        setTimeout(() => router.push(dest), 1200);
+      }
     } catch (e: any) {
       setError(e?.message || String(e));
     } finally {

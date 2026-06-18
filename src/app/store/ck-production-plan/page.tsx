@@ -528,6 +528,7 @@ export default function CKProductionPlanPage() {
             {plans.map(plan => {
               const isActive = activePlan?.id === plan.id;
               const progress = plan.item_count ? Math.round(((plan.done_count || 0) / plan.item_count) * 100) : 0;
+              const isAssignedToMe = userName ? (plan.assigned_staff || []).includes(userName) : false;
               return (
                 <button
                   key={plan.id}
@@ -535,7 +536,9 @@ export default function CKProductionPlanPage() {
                   className={`w-full rounded-xl border p-3 text-left transition-all duration-150 ${
                     isActive
                       ? "border-violet-500/40 bg-violet-500/15"
-                      : "border-white/8 bg-white/4 hover:border-violet-500/20 hover:bg-violet-500/8"
+                      : isAssignedToMe
+                        ? "border-emerald-500/30 bg-emerald-500/8 hover:border-emerald-500/40 hover:bg-emerald-500/12"
+                        : "border-white/8 bg-white/4 hover:border-violet-500/20 hover:bg-violet-500/8"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -553,9 +556,29 @@ export default function CKProductionPlanPage() {
                       />
                     </div>
                   )}
-                  {plan.created_by && (
+                  {(plan.assigned_staff || []).length > 0 ? (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {(plan.assigned_staff || []).slice(0, 3).map(name => (
+                        <span
+                          key={name}
+                          className={`inline-flex rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                            name === userName
+                              ? "border border-emerald-500/50 bg-emerald-500/20 text-emerald-300"
+                              : "border border-white/10 bg-white/8 text-zinc-400"
+                          }`}
+                        >
+                          {name === userName ? `★ ${name}` : name}
+                        </span>
+                      ))}
+                      {(plan.assigned_staff || []).length > 3 && (
+                        <span className="inline-flex rounded-full border border-white/10 bg-white/8 px-1.5 py-0.5 text-[9px] text-zinc-500">
+                          +{(plan.assigned_staff || []).length - 3}
+                        </span>
+                      )}
+                    </div>
+                  ) : plan.created_by ? (
                     <p className={T_CAPTION + " mt-1 truncate"}>by {plan.created_by}</p>
-                  )}
+                  ) : null}
                 </button>
               );
             })}
