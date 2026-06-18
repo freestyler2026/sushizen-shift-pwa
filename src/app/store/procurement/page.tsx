@@ -153,6 +153,8 @@ function RequestDetailDrawer({
   const [error, setError] = useState("");
   const [submitConfirm, setSubmitConfirm] = useState(false);
   const [submitBusy, setSubmitBusy] = useState(false);
+  const [cancelConfirm, setCancelConfirm] = useState(false);
+  const [cancelBusy, setCancelBusy] = useState(false);
 
   const handleSubmitForApproval = async () => {
     setSubmitBusy(true);
@@ -177,6 +179,33 @@ function RequestDetailDrawer({
       setError(friendlyProcurementError(e));
       setSubmitBusy(false);
       setSubmitConfirm(false);
+    }
+  };
+
+  const handleCancelRequest = async () => {
+    setCancelBusy(true);
+    setError("");
+    try {
+      await procurementJson(
+        `/api/admin/procurement/requests/${encodeURIComponent(requestId)}/cancel`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            request_id: requestId,
+            approver_name: requestedBy.trim(),
+            pin: pin.trim(),
+          }),
+        },
+        requestedBy,
+        pin,
+      );
+      onClose();
+      onSubmitSuccess?.("cancelled");
+    } catch (e: unknown) {
+      setError(friendlyProcurementError(e));
+      setCancelBusy(false);
+      setCancelConfirm(false);
     }
   };
 
@@ -453,14 +482,44 @@ function RequestDetailDrawer({
           }
           if (s === "RETURNED") {
             return (
-              <div className="border-t border-white/10 px-5 py-4 flex gap-3">
-                <Link
-                  href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}&edit=${encodeURIComponent(requestId)}`}
-                  onClick={onClose}
-                  className="flex-1 rounded-xl border border-amber-500/40 bg-amber-950/30 py-2.5 text-center text-sm font-semibold text-amber-300 transition hover:bg-amber-900/40"
-                >
-                  Edit &amp; Resubmit
-                </Link>
+              <div className="border-t border-white/10 px-5 py-4 space-y-2">
+                <div className="flex gap-3">
+                  <Link
+                    href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}&edit=${encodeURIComponent(requestId)}`}
+                    onClick={onClose}
+                    className="flex-1 rounded-xl border border-amber-500/40 bg-amber-950/30 py-2.5 text-center text-sm font-semibold text-amber-300 transition hover:bg-amber-900/40"
+                  >
+                    Edit &amp; Resubmit
+                  </Link>
+                  {!cancelConfirm ? (
+                    <button
+                      type="button"
+                      onClick={() => setCancelConfirm(true)}
+                      className="rounded-xl border border-red-500/30 bg-red-950/20 px-4 py-2.5 text-sm font-semibold text-red-400 transition hover:bg-red-950/35"
+                    >
+                      Cancel Request
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-white/50">Sure?</span>
+                      <button
+                        type="button"
+                        onClick={handleCancelRequest}
+                        disabled={cancelBusy}
+                        className="rounded-lg border border-red-500/50 bg-red-500/20 px-3 py-1.5 text-xs font-semibold text-red-300 disabled:opacity-50"
+                      >
+                        {cancelBusy ? "Cancelling…" : "Yes, Cancel"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCancelConfirm(false)}
+                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/50"
+                      >
+                        Keep
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             );
           }
@@ -608,6 +667,8 @@ export default function StoreProcurementHomePage() {
   const [loading, setLoading] = useState(false);
   const [canOpenAdminCase, setCanOpenAdminCase] = useState(false);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  const [cancellingRowId, setCancellingRowId] = useState<string | null>(null);
+  const [cancelConfirmRowId, setCancelConfirmRowId] = useState<string | null>(null);
   // CK Dispatch state
   const [ckDispatchRows, setCkDispatchRows] = useState<CkDispatchRow[]>([]);
   const [ckDispatchLoading, setCkDispatchLoading] = useState(false);
@@ -710,6 +771,33 @@ export default function StoreProcurementHomePage() {
     }
   }, [city, pin, requestedBy]);
 
+
+  const handleCancelRow = async (rowId: string) => {
+    setCancellingRowId(rowId);
+    setError("");
+    try {
+      await procurementJson(
+        `/api/admin/procurement/requests/${encodeURIComponent(rowId)}/cancel`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            request_id: rowId,
+            approver_name: requestedBy.trim(),
+            pin: pin.trim(),
+          }),
+        },
+        requestedBy,
+        pin,
+      );
+      setCancelConfirmRowId(null);
+      await loadMyRequests();
+    } catch (e: unknown) {
+      setError(friendlyProcurementError(e));
+    } finally {
+      setCancellingRowId(null);
+    }
+  };
 
   useEffect(() => {
     if (!submitSuccessMsg) return;
@@ -1021,16 +1109,45 @@ export default function StoreProcurementHomePage() {
     }
     if (s === "RETURNED") {
       return (
-        <Link
-          href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}&edit=${encodeURIComponent(row.id)}`}
-          className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-4 py-2 text-sm font-semibold text-amber-300 transition hover:bg-amber-900/40"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <span className="flex items-center gap-2">
-            <RotateCcw className="h-4 w-4" />
-            Edit & Resubmit
-          </span>
-        </Link>
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          <Link
+            href={`/store/procurement/request?city=${encodeURIComponent(city || "manila")}&edit=${encodeURIComponent(row.id)}`}
+            className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-4 py-2 text-sm font-semibold text-amber-300 transition hover:bg-amber-900/40"
+          >
+            <span className="flex items-center gap-2">
+              <RotateCcw className="h-4 w-4" />
+              Edit & Resubmit
+            </span>
+          </Link>
+          {cancelConfirmRowId !== row.id ? (
+            <button
+              type="button"
+              onClick={() => setCancelConfirmRowId(row.id)}
+              className="rounded-xl border border-red-500/30 bg-red-950/15 px-3 py-2 text-sm font-semibold text-red-400 transition hover:bg-red-950/30"
+            >
+              Cancel
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-white/40">Sure?</span>
+              <button
+                type="button"
+                onClick={() => void handleCancelRow(row.id)}
+                disabled={cancellingRowId === row.id}
+                className="rounded-lg border border-red-500/50 bg-red-500/20 px-2.5 py-1.5 text-xs font-semibold text-red-300 disabled:opacity-50"
+              >
+                {cancellingRowId === row.id ? "…" : "Yes"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setCancelConfirmRowId(null)}
+                className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-white/40"
+              >
+                Keep
+              </button>
+            </div>
+          )}
+        </div>
       );
     }
     if (s === "REJECTED") {
