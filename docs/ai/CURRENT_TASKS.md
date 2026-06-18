@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-16 (session 87 — CK Delivery: 数量ハードキャップ撤廃→ソフト警告(在庫から配れない問題))
+Last updated: 2026-06-18 (session 92 — CK Production Plan assigned staff in list; Procurement auto-redirect; Cancellation Report order no. + detail modal; Dubai Cancellation order ID lock + layout; Store Procurement RETURNED cancel)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,42 @@ Last updated: 2026-06-16 (session 87 — CK Delivery: 数量ハードキャッ�
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku b27f567, Vercel main HEAD)
+なし — 全変更デプロイ済み (Heroku v1291, Vercel 80509c1)
+
+## ⚠️ Pending Investigation
+
+- **Store Procurement: Submit → editable bug** — スタッフ報告「一度Submitした注文が再度編集可能になっている」。代表が詳細確認してフィードバック予定。
+
+## Recently Completed (2026-06-18 session 92) — live
+
+スタッフ依頼5件 + ストア調達RETURNED削除機能。
+
+**① CK Production Plan — リストにアサインスタッフ表示**
+- リストカードに `assigned_staff` チップを表示(最大3名+"N more")。自分の名前は ★ + emerald ハイライト。自分がアサインされたプランは emerald ボーダー
+- `src/app/store/ck-production-plan/page.tsx`
+
+**② Procurement 承認後の自動遷移**
+- `path === "approve"` 成功後 1.2s で自動 `router.push` (inbox or hub)
+- `src/app/admin/procurement/cases/[caseId]/page.tsx`
+
+**③ Cancellation Report — Order Number 列 + 行クリックで詳細モーダル**
+- Order No. 列を Date 直後に追加(colSpan 8→9)
+- 行クリックで DetailModal: 全フィールド read-only 表示
+- `src/app/admin/cancellations/page.tsx`
+
+**④⑤ Dubai Cancellation 入力 — Order ID 保存後ロック + レイアウト改善**
+- 保存済みレコードの Order ID を read-only `<span>` に切替
+- Order ID コンテナ `flex-1` → `w-36 shrink-0`、ヘッダー右に Branch/Brand 表示
+- `src/components/admin/AdminDubaiCancellationInputTab.tsx`
+
+**⑥ Store Procurement — RETURNED オーダーのキャンセル機能**
+- バックエンド: `POST /api/admin/procurement/requests/{id}/cancel` (RETURNED/REJECTED/DRAFT → CANCELLED)
+- フロント: ドロワー + リスト行 両方に 2ステップ Cancel ボタン
+- `sushizen_shift_app_clean/app/main.py`, `src/app/store/procurement/page.tsx`
+
+### 教訓 (session 92)
+- **Cancel 機能はドロワーと行の両方に要実装**。ドロワー内ボタンのみだと行表示が古いままになりやすい
+- 2ステップ確認は `confirmRowId` state で管理。`onClick={(e) => e.stopPropagation()}` で行クリック伝播を防ぐ
 
 ## Recently Completed (2026-06-17 session 91c) — live
 
