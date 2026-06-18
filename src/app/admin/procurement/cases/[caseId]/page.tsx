@@ -118,8 +118,8 @@ export default function ProcurementCaseDetailPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [escalateRole, setEscalateRole] = useState("HQ");
-  const [uploadStage, setUploadStage] = useState("01_PR");
-  const [uploadDocType, setUploadDocType] = useState("PR");
+  const [uploadStage, setUploadStage] = useState("03_PO");
+  const [uploadDocType, setUploadDocType] = useState("PO");
 
   // WH stock — loaded once when request city is known (Manila only)
   const [whStockMap, setWhStockMap] = useState<Map<string, WhStockItem>>(new Map());
@@ -1144,7 +1144,7 @@ export default function ProcurementCaseDetailPage() {
           <p className={`${T_CARD_TITLE} mb-4`}>Document Chain</p>
           <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <select value={uploadStage} onChange={(e) => setUploadStage(e.target.value)} className={`${SELECT_CLASS} col-span-2 sm:col-span-1`}>
-              {["01_PR","02_RFQ","03_PO","04_RECEIVING","05_INVOICE","06_PAYMENT","07_EXCEPTION"].map((s) => (
+              {["02_RFQ","03_PO","04_RECEIVING","05_INVOICE","06_PAYMENT","07_EXCEPTION"].map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
