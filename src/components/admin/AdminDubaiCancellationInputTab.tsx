@@ -459,24 +459,44 @@ function RecordCard({
         rec.saved ? "border-emerald-500/40 bg-emerald-500/5" : rec.error ? "border-red-500/40 bg-red-500/5" : "border-white/10 bg-white/[0.03]"
       }`}
     >
-      <div className="flex cursor-pointer items-center gap-3 px-4 py-3" onClick={() => setExpanded((p) => !p)}>
-        <span className="w-4 text-xs text-white/25">{expanded ? "▾" : "▸"}</span>
+      <div className="flex cursor-pointer items-center gap-2 px-4 py-3" onClick={() => setExpanded((p) => !p)}>
+        <span className="w-4 shrink-0 text-xs text-white/25">{expanded ? "▾" : "▸"}</span>
         <span
-          className="whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium"
+          className="shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium"
           style={{ backgroundColor: ps.bg, color: ps.text, border: `1px solid ${ps.border}` }}
           onClick={(e) => e.stopPropagation()}
         >
           {rec.platform}
         </span>
-        <div className="min-w-0 flex-1" onClick={(e) => e.stopPropagation()}>
-          <TextIn value={rec.order_id ?? ""} onChange={(v) => onUpdate("order_id", v)} placeholder="Order ID (required)" />
+        {/* Order ID — fixed width; read-only after save */}
+        <div className="w-36 shrink-0" onClick={(e) => e.stopPropagation()}>
+          {rec.saved ? (
+            <span className="block truncate font-mono text-sm text-white/70">{rec.order_id || "—"}</span>
+          ) : (
+            <TextIn value={rec.order_id ?? ""} onChange={(v) => onUpdate("order_id", v)} placeholder="Order ID (required)" />
+          )}
         </div>
+        {/* Branch + Brand — visible after save */}
+        {rec.branch ? (
+          <span
+            className="hidden shrink-0 text-xs font-medium sm:block"
+            style={{ color: BRANCH_COLORS[rec.branch] ?? "#ccc" }}
+          >
+            {rec.branch === "Business Bay" ? "Biz Bay" : rec.branch === "Al Hudaiba" ? "Hudaiba" : rec.branch}
+          </span>
+        ) : null}
+        {rec.brand ? (
+          <span className="hidden shrink-0 text-xs text-white/30 lg:block">
+            {rec.brand.replace(" ZEN", "")}
+          </span>
+        ) : null}
+        <div className="flex-1" />
         {totalPreview != null && totalPreview > 0 ? (
-          <span className="whitespace-nowrap text-sm font-semibold text-white">AED {totalPreview.toLocaleString("en-AE")}</span>
+          <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-white">AED {totalPreview.toLocaleString("en-AE")}</span>
         ) : null}
         {rec.category ? (
           <span
-            className={`hidden whitespace-nowrap rounded-full px-2 py-0.5 text-xs sm:block ${
+            className={`hidden shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-xs sm:block ${
               rec.category === "Cancellation" ? "bg-red-500/15 text-red-400" : "bg-amber-500/15 text-amber-400"
             }`}
           >

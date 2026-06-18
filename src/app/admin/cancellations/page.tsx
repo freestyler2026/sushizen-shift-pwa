@@ -62,13 +62,21 @@ type CancelRow = {
   brand: string | null;
   category: string | null;
   order_id: string | null;
+  time_reported: string | null;
+  ordered_items: string | null;
+  basket_amount: number | null;
   total_amount: number | null;
   refund_amount: number | null;
+  compensation_amount: number | null;
   cancellation_reason: string | null;
   encoded_by: string | null;
-  email_status: string | null;
-  refund_status: string | null;
+  customer_note: string | null;
   photo_status: string | null;
+  double_checked_by: string | null;
+  email_status: string | null;
+  kitchen_notes: string | null;
+  platform_notes: string | null;
+  refund_status: string | null;
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -111,6 +119,134 @@ function isResolved(refund_status: string | null): boolean {
 function isPending(row: CancelRow): boolean {
   // Plan A: email_status contains "sent" AND refund_status is empty
   return isTicketSent(row.email_status) && !isResolved(row.refund_status);
+}
+
+// ── Detail modal ──────────────────────────────────────────────────────────
+
+const DETAIL_PLATFORM_COLORS: Record<string, string> = {
+  Careem: "#00c896", Keeta: "#ff6b35", Talabat: "#ff2d55",
+};
+const DETAIL_BRANCH_COLORS: Record<string, string> = {
+  "Business Bay": "#6366f1", Arjan: "#10b981", "Al Barsha": "#f59e0b",
+  "Al Hudaiba": "#ec4899", JLT: "#8b5cf6",
+};
+
+function DetailModal({ row, onClose }: { row: CancelRow; onClose: () => void }) {
+  const isCancel = row.category === "Cancellation";
+  const pc = DETAIL_PLATFORM_COLORS[row.platform] ?? "#888";
+  const bc = DETAIL_BRANCH_COLORS[row.branch] ?? "#ccc";
+
+  function Field({ label, value, mono }: { label: string; value: string | null | undefined; mono?: boolean }) {
+    const v = (value ?? "").trim();
+    return (
+      <div>
+        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/30">{label}</p>
+        <p className={`text-sm ${mono ? "font-mono" : ""} ${v ? "text-white/80" : "text-white/20"}`}>
+          {v || "—"}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border border-white/10 bg-neutral-900 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/8 bg-neutral-900 px-5 py-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span
+              className="rounded-full px-2.5 py-0.5 text-xs font-semibold"
+              style={{ backgroundColor: `${pc}20`, color: pc, border: `1px solid ${pc}40` }}
+            >
+              {row.platform}
+            </span>
+            <span className="font-mono text-sm font-semibold text-white">{row.order_id || "—"}</span>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${isCancel ? "bg-red-500/15 text-red-400" : "bg-amber-500/15 text-amber-400"}`}
+            >
+              {row.category ?? "—"}
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-full p-1.5 text-white/40 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-5 px-5 py-5">
+          {/* Row 1: Date / Branch / Brand */}
+          <div className="grid grid-cols-3 gap-4">
+            <Field label="Date" value={fmtDate(row.incident_date)} />
+            <div>
+              <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/30">Branch</p>
+              <p className="text-sm font-medium" style={{ color: bc }}>{row.branch || "—"}</p>
+            </div>
+            <Field label="Brand" value={row.brand} />
+          </div>
+
+          {/* Row 2: Time / Basket / Total / Refund */}
+          <div className="grid grid-cols-4 gap-4">
+            <Field label="Time" value={row.time_reported} />
+            <Field label="Basket (AED)" value={row.basket_amount != null ? String(row.basket_amount) : null} mono />
+            <Field label="Total (AED)" value={row.total_amount != null ? String(row.total_amount) : null} mono />
+            <Field label="Refund (AED)" value={row.refund_amount != null ? String(row.refund_amount) : null} mono />
+          </div>
+
+          {/* Ordered Items */}
+          {row.ordered_items && (
+            <div>
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/30">Ordered Items</p>
+              <p className="rounded-lg border border-white/8 bg-white/4 px-3 py-2.5 text-sm text-white/80 whitespace-pre-wrap">
+                {row.ordered_items}
+              </p>
+            </div>
+          )}
+
+          {/* Cancellation Reason + Encoded By */}
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Cancellation Reason" value={row.cancellation_reason} />
+            <Field label="Encoded By" value={row.encoded_by} />
+          </div>
+
+          {/* Customer Note */}
+          {row.customer_note && (
+            <div>
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/30">Customer Note</p>
+              <p className="rounded-lg border border-white/8 bg-white/4 px-3 py-2.5 text-sm text-white/70 whitespace-pre-wrap">
+                {row.customer_note}
+              </p>
+            </div>
+          )}
+
+          {/* Photo / Double Checked / Kitchen / Platform Notes */}
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Photo Status" value={row.photo_status} />
+            <Field label="Double Checked By" value={row.double_checked_by} />
+          </div>
+          {(row.kitchen_notes || row.platform_notes) && (
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Kitchen Notes" value={row.kitchen_notes} />
+              <Field label="Platform Response Notes" value={row.platform_notes} />
+            </div>
+          )}
+
+          {/* Ticket / Refund Status */}
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Email / Ticket Status" value={row.email_status} />
+            <Field label="Refund Status" value={row.refund_status} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── Full-text note modal ───────────────────────────────────────────────────
@@ -212,6 +348,9 @@ export default function CancellationReportPage() {
   // Sort
   const [sortCol, setSortCol] = useState<SortKey>("incident_date");
   const [sortAsc, setSortAsc] = useState(false);
+
+  // Detail modal
+  const [selectedRow, setSelectedRow] = useState<CancelRow | null>(null);
 
   const canLoad = Boolean(approverName.trim() && pin.trim());
 
@@ -345,6 +484,7 @@ export default function CancellationReportPage() {
 
   const COLS: { key: SortKey; label: string }[] = [
     { key: "incident_date",      label: "Date" },
+    { key: "order_id",           label: "Order No." },
     { key: "branch",             label: "Branch" },
     { key: "platform",           label: "Platform" },
     { key: "category",           label: "Category" },
@@ -535,12 +675,12 @@ export default function CancellationReportPage() {
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-white/30">Loading…</td>
+                    <td colSpan={9} className="px-4 py-8 text-center text-white/30">Loading…</td>
                   </tr>
                 )}
                 {!loading && sorted.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-white/25">
+                    <td colSpan={9} className="px-4 py-8 text-center text-white/25">
                       {loaded ? "No records match the current filter." : "Select a date range and click Load."}
                     </td>
                   </tr>
@@ -549,10 +689,18 @@ export default function CancellationReportPage() {
                   const isCancel = r.category === "Cancellation";
                   const rowPending = isPending(r);
                   return (
-                    <tr key={r.id ?? i} className={`${TABLE_ROW} ${rowPending ? "bg-rose-500/5" : ""}`}>
+                    <tr
+                      key={r.id ?? i}
+                      className={`${TABLE_ROW} cursor-pointer ${rowPending ? "bg-rose-500/5" : ""}`}
+                      onClick={() => setSelectedRow(r)}
+                    >
                       {/* Date */}
                       <td className={`${TABLE_CELL} whitespace-nowrap px-4 text-white/50`}>
                         {fmtDate(r.incident_date)}
+                      </td>
+                      {/* Order No. */}
+                      <td className={`${TABLE_CELL} whitespace-nowrap px-4 font-mono text-white/60`}>
+                        {r.order_id || <span className="text-white/20">—</span>}
                       </td>
                       {/* Branch */}
                       <td className={`${TABLE_CELL} whitespace-nowrap px-4`}>
@@ -606,6 +754,11 @@ export default function CancellationReportPage() {
           </div>
         </div>
       </div>
+
+      {/* Detail modal */}
+      {selectedRow && (
+        <DetailModal row={selectedRow} onClose={() => setSelectedRow(null)} />
+      )}
     </main>
   );
 }
