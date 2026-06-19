@@ -765,6 +765,9 @@ export default function StoreProcurementRequestPage() {
           pin,
         );
         setInfo(`Request submitted: ${requestNo || requestId}`);
+        // Clear all quantities so the form resets to blank after submit,
+        // preventing accidental double-submission.
+        setItems((prev) => prev.map((item) => ({ ...item, qty: 0 })));
       } else {
         setInfo(`Request created as draft: ${requestNo || requestId}`);
       }
