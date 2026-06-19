@@ -51,11 +51,13 @@ function fmtPHP(v: number | null | undefined): string {
 
 // ─── Small components ─────────────────────────────────────────────────────────
 
+const DISC_THRESHOLD = 5; // ₱5.00 — centavo rounding errors below this are ignored
+
 function DiscrepancyBadge({ diff }: { diff: number | null }) {
   if (diff == null) return null;
-  if (diff === 0) return (
+  if (Math.abs(diff) < DISC_THRESHOLD) return (
     <span className="inline-flex items-center gap-1 text-emerald-400 text-xs font-bold">
-      <CheckCircle2 size={13} /> MATCH (₱0.00)
+      <CheckCircle2 size={13} /> MATCH ({diff === 0 ? "₱0.00" : `±${fmtPHP(Math.abs(diff))}`})
     </span>
   );
   return (
@@ -79,7 +81,7 @@ function BalanceCheckCard({
   actual: number;
   diff: number;
 }) {
-  const isMatch   = diff === 0;
+  const isMatch   = Math.abs(diff) < DISC_THRESHOLD;
   const isShort   = diff < 0;  // cashier is short (less than expected)
   const isOver    = diff > 0;  // cashier has more than expected
   const diffColor = isMatch ? "text-emerald-400" : "text-red-400";
@@ -314,9 +316,9 @@ type HistoryReport = {
 };
 
 function hasAnyDisc(r: HistoryReport): boolean {
-  return (r.cc_discrepancy != null && r.cc_discrepancy !== 0)
-    || (r.qrph_discrepancy != null && r.qrph_discrepancy !== 0)
-    || (r.cash_discrepancy != null && r.cash_discrepancy !== 0);
+  return (r.cc_discrepancy != null && Math.abs(r.cc_discrepancy) >= DISC_THRESHOLD)
+    || (r.qrph_discrepancy != null && Math.abs(r.qrph_discrepancy) >= DISC_THRESHOLD)
+    || (r.cash_discrepancy != null && Math.abs(r.cash_discrepancy) >= DISC_THRESHOLD);
 }
 
 function HistoryTab({ branch }: { branch: string }) {
@@ -841,7 +843,7 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
           {showDenoms ? <ChevronUp size={16} className="text-zinc-400" /> : <ChevronDown size={16} className="text-zinc-400" />}
         </button>
         {showDenoms && <DenomGrid denoms={denoms} onChange={setDenoms} />}
-        {expectedClosing != null && cashDiff != null && (
+        {expectedClosing != null && cashDiff != null && cashTotal > 0 && (
           <BalanceCheckCard
             label="Closing Balance Check"
             subLabel={`Opening ₱${openingBalance?.toFixed(2)} + Cash Sales ₱${cashSalesNum.toFixed(2)} (Safety Box ₱${sbDep.toFixed(2)} counted separately)`}
@@ -969,8 +971,8 @@ function OpeningForm({ branch, today }: { branch: string; today: string }) {
         {showDenoms && <DenomGrid denoms={denoms} onChange={setDenoms} />}
       </div>
 
-      {/* Prominent balance check — always visible after counting */}
-      {expectedOpening != null && diff != null && (
+      {/* Prominent balance check — only shown once staff have entered a cash count */}
+      {expectedOpening != null && diff != null && cashTotal > 0 && (
         <BalanceCheckCard
           label="Night Shift Verification"
           subLabel="Does your count match yesterday's closing drawer?"
@@ -980,7 +982,7 @@ function OpeningForm({ branch, today }: { branch: string; today: string }) {
         />
       )}
 
-      {diff != null && diff !== 0 && (
+      {diff != null && Math.abs(diff) >= DISC_THRESHOLD && (
         <div>
           <label className={`${T_LABEL} mb-1 block text-red-400`}>⚠️ Discrepancy Explanation (required)</label>
           <textarea className={`${INPUT_CLASS} min-h-[80px] resize-none border-red-500/40`}
