@@ -620,21 +620,24 @@ export default function ManualShiftPage() {
           `/api/admin/shifts/draft_week?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}&week_start=${encodeURIComponent(weekStart)}`
         );
         if (!cancelled && draftData.rows.length > 0) {
-          const draftKeys = new Set<string>();
+          // Pre-compute draft keys outside the state updater (pure, no side effects)
+          const draftKeys = new Set<string>(
+            (draftData.rows as any[]).map((r) => `${r.staff_name}|${r.work_date}`)
+          );
           setGridData((prev) => {
             const next: GridData = {};
             for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
-            for (const r of draftData.rows) {
+            for (const r of draftData.rows as any[]) {
               const rName = r.staff_name as string;
               const rDate = r.work_date as string;
-              if (!next[rName]) next[rName] = {};
+              // Skip draft rows for staff not already in the grid (prevent phantom rows)
+              if (!next[rName]) continue;
               next[rName][rDate] = {
                 start_hour: Number(r.start_hour),
                 end_hour: Number(r.end_hour),
                 role: String(r.role || ""),
                 note: r.note ? String(r.note) : undefined,
               };
-              draftKeys.add(`${rName}|${rDate}`);
             }
             return next;
           });
