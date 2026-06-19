@@ -438,11 +438,18 @@ export default function ProcurementVendorsPage() {
               </div>
               <div>
                 <label className={`${T_LABEL} mb-1.5 block`}>City *</label>
-                <select value={form.city} onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))} className={SELECT_CLASS}>
-                  <option value="">Select city</option>
-                  <option value="dubai">Dubai</option>
-                  <option value="manila">Manila</option>
-                </select>
+                {selectedRow ? (
+                  <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5">
+                    <span className="flex-1 text-sm capitalize text-white">{form.city}</span>
+                    <span className="text-[10px] text-zinc-500">🔒 locked</span>
+                  </div>
+                ) : (
+                  <select value={form.city} onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))} className={SELECT_CLASS}>
+                    <option value="">Select city</option>
+                    <option value="dubai">Dubai</option>
+                    <option value="manila">Manila</option>
+                  </select>
+                )}
               </div>
             </div>
             <div>
