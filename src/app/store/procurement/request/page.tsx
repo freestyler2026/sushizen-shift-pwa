@@ -68,6 +68,20 @@ type CatalogResponse = {
 };
 
 const DUBAI_CURATED_STORES = ["Al Barsha", "Al Mina", "B Bay", "JLT", "M City", "Central Kitchen", "Warehouse"];
+
+// Map branch codes (from localStorage / URL params) to the curated store names above.
+const DUBAI_CODE_TO_CURATED: Record<string, string> = {
+  BB: "B Bay",
+  JLT: "JLT",
+  ARJ: "M City",
+  MC: "M City",
+  AM: "Al Mina",
+  AB: "Al Barsha",
+  CK: "Central Kitchen",
+  WH: "Warehouse",
+};
+const normaliseDubaiStore = (s: string): string =>
+  DUBAI_CODE_TO_CURATED[s.toUpperCase()] ?? s;
 const DUBAI_CURATED_CATEGORIES = ["Kitchen Ingredients", "Warehouse", "Central Kitchen"];
 
 function todayIso(): string {
@@ -421,7 +435,7 @@ export default function StoreProcurementRequestPage() {
             catalog_price: Number(item.suggested_unit_price || 0),
           })),
         ),
-      ),
+      ).sort((a, b) => a.item_name.localeCompare(b.item_name)),
     [catalogSuppliers, requestDate],
   );
 
@@ -520,9 +534,11 @@ export default function StoreProcurementRequestPage() {
           }
           // Require an explicit store selection — never silently fall back to
           // "ALL" (that is reserved for the explicit "For All Stores" checkbox).
+          // Normalise branch codes (BB, ARJ, …) to curated names before comparing.
           if (storeCodePreference !== undefined) {
-            setStoreCode(DUBAI_CURATED_STORES.includes(storeCodePreference) ? storeCodePreference : "");
-          } else if (!DUBAI_CURATED_STORES.includes(resolvedStore)) {
+            const normalised = normaliseDubaiStore(storeCodePreference);
+            setStoreCode(DUBAI_CURATED_STORES.includes(normalised) ? normalised : "");
+          } else if (!DUBAI_CURATED_STORES.includes(normaliseDubaiStore(resolvedStore))) {
             setStoreCode("");
           }
           return;
@@ -1652,7 +1668,7 @@ export default function StoreProcurementRequestPage() {
                           <input
                             type="number"
                             min="0"
-                            step="0.01"
+                            step="1"
                             inputMode="decimal"
                             value={item.qty}
                             onFocus={(e) => e.target.select()}
