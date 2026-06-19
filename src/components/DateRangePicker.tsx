@@ -194,7 +194,7 @@ export default function DateRangePicker({ value, onChange, className = "" }: Pro
     return startOfMonth(parsed);
   });
   const [portalReady, setPortalReady] = useState(false);
-  const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0, width: 240 });
+  const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0, width: 240, maxHeight: 600 });
 
   useEffect(() => {
     if (!open) {
@@ -241,11 +241,18 @@ export default function DateRangePicker({ value, onChange, className = "" }: Pro
         Math.max(8, rect.left),
         Math.max(8, window.innerWidth - desiredWidth - 8),
       );
-      setPopoverPos({
-        top: rect.bottom + 8,
-        left,
-        width: desiredWidth,
-      });
+      // Flip upward if there is not enough space below the trigger button.
+      const ESTIMATED_HEIGHT = isCustomOpen ? 600 : 380;
+      const spaceBelow = window.innerHeight - rect.bottom - 8;
+      const spaceAbove = rect.top - 8;
+      const flipUp = spaceBelow < ESTIMATED_HEIGHT && spaceAbove > spaceBelow;
+
+      const top = flipUp
+        ? Math.max(8, rect.top - Math.min(spaceAbove, ESTIMATED_HEIGHT) - 8)
+        : rect.bottom + 8;
+      const maxHeight = Math.max(200, flipUp ? spaceAbove : spaceBelow);
+
+      setPopoverPos({ top, left, width: desiredWidth, maxHeight });
     };
 
     updatePosition();
@@ -309,7 +316,7 @@ export default function DateRangePicker({ value, onChange, className = "" }: Pro
         <div
           ref={popoverRef}
           className="fixed z-[9999] overflow-hidden rounded-2xl border border-white/10 bg-neutral-950/95 text-white shadow-2xl shadow-black/40 backdrop-blur-sm"
-          style={{ top: popoverPos.top, left: popoverPos.left, width: popoverPos.width }}
+          style={{ top: popoverPos.top, left: popoverPos.left, width: popoverPos.width, maxHeight: popoverPos.maxHeight, overflowY: 'auto' }}
         >
           <div className={`grid ${isCustomOpen ? "grid-cols-1 xl:grid-cols-[220px_minmax(0,1fr)]" : "grid-cols-1"}`}>
             <div className={`bg-white/5 p-2 ${isCustomOpen ? "border-b border-white/10 xl:border-b-0 xl:border-r xl:border-white/10" : ""}`}>

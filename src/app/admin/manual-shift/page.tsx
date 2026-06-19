@@ -168,9 +168,9 @@ function getModalStyle(rect: DOMRect, modalW = 340): React.CSSProperties {
     left = rect.left - modalW - 8;
     if (left < 16) left = Math.max(16, Math.min(rect.left - modalW / 2 + rect.width / 2, vW - modalW - 16));
   }
-  // Clamp top so the modal doesn't overflow the bottom
+  // Clamp top so the modal fits within the viewport, then cap its height to the remaining space.
   const top = Math.max(16, Math.min(rect.top, vH - 480));
-  return { position: "fixed", top, left, width: modalW, zIndex: 9999 };
+  return { position: "fixed", top, left, width: modalW, zIndex: 9999, maxHeight: vH - top - 16, overflowY: "auto" as const };
 }
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -1522,8 +1522,7 @@ export default function ManualShiftPage() {
             className="fixed z-[9999] rounded-2xl border border-violet-500/40 bg-[#1e1730] shadow-2xl"
             style={getModalStyle(editCellRect)}
           >
-            {/* Inner scroll container in case viewport is very short */}
-            <div className="max-h-[90vh] overflow-y-auto p-5">
+            <div className="p-5">
 
               {/* Header */}
               <div className="mb-4 flex items-start justify-between gap-3">
