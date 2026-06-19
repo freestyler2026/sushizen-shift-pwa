@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CheckCircle2, ChevronDown, ChevronRight, Loader2,
   Package, Plus, Send, Truck, X, Camera, AlertTriangle,
 } from "lucide-react";
-import { getAuth, getAuthHeaders, getUploadHeaders } from "@/lib/auth";
+import { getAuth, getAuthHeaders, getUploadHeaders, canAccessInventoryAdminNav } from "@/lib/auth";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, SMALL_BUTTON,
   TABLE_CELL, TABLE_HEADER, TABLE_ROW,
@@ -122,7 +122,7 @@ async function apiFetch(path: string, opts?: RequestInit) {
 function isManager(auth: ReturnType<typeof getAuth>) {
   if (!auth) return false;
   const r = auth.role || "";
-  return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "DUBAI_MANAGEMENT"].includes(r);
+  return ["ADMIN", "HQ", "MANILA_MANAGEMENT", "DUBAI_MANAGEMENT"].includes(r) || canAccessInventoryAdminNav(auth);
 }
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
@@ -184,6 +184,16 @@ export default function CKDeliveryPage() {
 
   // Toast
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  // ── Refs ──────────────────────────────────────────────────────────────────
+  const detailRef = useRef<HTMLDivElement>(null);
+
+  // On mobile (single-column), auto-scroll to detail panel when a delivery is selected.
+  useEffect(() => {
+    if (activeDelivery && detailRef.current && window.innerWidth < 768) {
+      detailRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [activeDelivery]);
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
@@ -266,7 +276,7 @@ export default function CKDeliveryPage() {
     }
   }
 
-  // ── Load QC-passed items from plan ─────────────────────────────────────────
+  // ── Load QC-passed items from all plans matching the delivery date ────────
   async function openAddItems() {
     setSelectedQcItemIds(new Set());
     setManualItemName("");
@@ -276,24 +286,42 @@ export default function CKDeliveryPage() {
     setQcPassedItems([]);
     setQcItemQtys({});
 
-    if (activeDelivery?.plan_id) {
+    const deliveryDate = activeDelivery?.delivery_date;
+    const matchingPlans = plans.filter(p => p.plan_date === deliveryDate);
+    // Fall back to the linked plan if no date-matched plans found
+    const planIdsToLoad = matchingPlans.length > 0
+      ? matchingPlans.map(p => p.id)
+      : activeDelivery?.plan_id ? [activeDelivery.plan_id] : [];
+
+    if (planIdsToLoad.length > 0) {
       try {
-        const data = await apiFetch(`/api/store/ck-production-plan/plans/${activeDelivery.plan_id}`);
-        const items: QcPassedItem[] = (data.plan?.items || [])
-          .filter((i: { qc_result: string | null }) => i.qc_result === "PASS")
-          .map((i: { id: number; item_name: string; category: string; qc_actual_qty: number; delivered_qty: number; unit: string }) => ({
-            id: i.id,
-            item_name: i.item_name,
-            category: i.category,
-            qc_actual_qty: i.qc_actual_qty || 0,
-            delivered_qty: i.delivered_qty || 0,
-            unit: i.unit,
-            plan_item_id: i.id,
-          }));
-        setQcPassedItems(items);
-        // Default each item's qty to what's still available (produced − already delivered).
+        const results = await Promise.all(
+          planIdsToLoad.map(id => apiFetch(`/api/store/ck-production-plan/plans/${id}`))
+        );
+        const seen = new Set<number>();
+        const allItems: QcPassedItem[] = [];
+        for (const data of results) {
+          const items: QcPassedItem[] = (data.plan?.items || [])
+            .filter((i: { qc_result: string | null }) => i.qc_result === "PASS")
+            .map((i: { id: number; item_name: string; category: string; qc_actual_qty: number; delivered_qty: number; unit: string }) => ({
+              id: i.id,
+              item_name: i.item_name,
+              category: i.category,
+              qc_actual_qty: i.qc_actual_qty || 0,
+              delivered_qty: i.delivered_qty || 0,
+              unit: i.unit,
+              plan_item_id: i.id,
+            }));
+          for (const item of items) {
+            if (!seen.has(item.id)) {
+              seen.add(item.id);
+              allItems.push(item);
+            }
+          }
+        }
+        setQcPassedItems(allItems);
         const defaults: Record<number, string> = {};
-        for (const it of items) {
+        for (const it of allItems) {
           const remaining = Math.max(0, it.qc_actual_qty - it.delivered_qty);
           defaults[it.id] = remaining > 0 ? String(remaining) : "";
         }
@@ -625,7 +653,7 @@ export default function CKDeliveryPage() {
         </div>
 
         {/* Right: Delivery detail */}
-        <div>
+        <div ref={detailRef}>
           {loadingDetail ? (
             <div className={`${GLASS_CARD} flex items-center justify-center p-12`}>
               <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
