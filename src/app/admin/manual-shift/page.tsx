@@ -437,6 +437,9 @@ export default function ManualShiftPage() {
   const [view, setView] = useState<PageView>("edit");
   const [publishedCount, setPublishedCount] = useState(0);
   const [hasDraft, setHasDraft] = useState(false);
+  const [draftSaving, setDraftSaving] = useState(false);
+  const [serverDraftSavedAt, setServerDraftSavedAt] = useState<string | null>(null);
+  const [serverDraftCells, setServerDraftCells] = useState<Set<string>>(new Set());
   const [deletingCell, setDeletingCell] = useState<{ staffName: string; dateStr: string } | null>(null);
   const [deletingStaffGrid, setDeletingStaffGrid] = useState<string | null>(null);
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
@@ -603,11 +606,46 @@ export default function ManualShiftPage() {
     let cancelled = false;
     const savedDraft = loadDraft(city, branchCode, weekStart);
     bayzatAppliedRef.current = {};
+    setServerDraftCells(new Set());
+    setServerDraftSavedAt(null);
     void (async () => {
       const staffOk = await loadStaff();
       if (cancelled) return;
       if (!staffOk) return; // staff load failed — keep the error visible
       await loadExistingShifts(true);
+      if (cancelled) return;
+      // Load server draft rows and apply on top of published shifts
+      try {
+        const draftData = await apiFetch<{ version_id: string | null; rows: any[] }>(
+          `/api/admin/shifts/draft_week?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}&week_start=${encodeURIComponent(weekStart)}`
+        );
+        if (!cancelled && draftData.rows.length > 0) {
+          const draftKeys = new Set<string>();
+          setGridData((prev) => {
+            const next: GridData = {};
+            for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
+            for (const r of draftData.rows) {
+              const rName = r.staff_name as string;
+              const rDate = r.work_date as string;
+              if (!next[rName]) next[rName] = {};
+              next[rName][rDate] = {
+                start_hour: Number(r.start_hour),
+                end_hour: Number(r.end_hour),
+                role: String(r.role || ""),
+                note: r.note ? String(r.note) : undefined,
+              };
+              draftKeys.add(`${rName}|${rDate}`);
+            }
+            return next;
+          });
+          if (!cancelled) {
+            setServerDraftCells(draftKeys);
+            setServerDraftSavedAt("loaded");
+          }
+        }
+      } catch {
+        // Server draft is optional — ignore load errors silently
+      }
       if (cancelled) return;
       if (Object.keys(savedDraft).length > 0) {
         setGridData((prev) => {
@@ -1067,11 +1105,38 @@ export default function ManualShiftPage() {
       setPublishedCount(result.rows_copied);
       clearDraft(city, branchCode, weekStart);
       setHasDraft(false);
+      setServerDraftCells(new Set());
+      setServerDraftSavedAt(null);
       setView("published");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSaveDraft() {
+    setError("");
+    const rows = buildRows();
+    if (rows.length === 0) {
+      setError("No shifts to save as draft. Please add at least one shift.");
+      return;
+    }
+    setDraftSaving(true);
+    try {
+      const result = await apiFetch<{ ok: boolean; version_id: string; saved_at: string }>(
+        "/api/admin/shifts/save_draft_only",
+        {
+          method: "POST",
+          body: JSON.stringify({ city, branch_code: branchCode, week_start: weekStart, rows }),
+        }
+      );
+      setServerDraftSavedAt(result.saved_at);
+      setServerDraftCells(new Set(rows.map((r) => `${r.staff_name}|${r.work_date}`)));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDraftSaving(false);
     }
   }
 
@@ -1285,7 +1350,12 @@ export default function ManualShiftPage() {
               </p>
               {hasDraft && (
                 <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
-                  ● Unsaved draft
+                  ● Unsaved local draft
+                </span>
+              )}
+              {serverDraftCells.size > 0 && (
+                <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-[11px] font-semibold text-indigo-700">
+                  ◈ Server draft ({serverDraftCells.size} cell{serverDraftCells.size !== 1 ? "s" : ""}) — not yet published
                 </span>
               )}
             </div>
@@ -1372,6 +1442,7 @@ export default function ManualShiftPage() {
                         {weekDates.map((d) => {
                           const cellRaw = gridData[name]?.[d] ?? null;
                           const shifts = cellsOf(cellRaw);
+                          const isDraft = serverDraftCells.has(`${name}|${d}`);
                           return (
                             <td key={d} className="px-1 py-1 text-center align-top">
                               {shifts.length > 0 ? (
@@ -1380,7 +1451,7 @@ export default function ManualShiftPage() {
                                     <button
                                       type="button"
                                       onClick={(e) => openEdit(name, d, e)}
-                                      className={`w-full rounded-lg border px-1.5 py-2 text-center text-[11px] font-semibold hover:opacity-80 transition ${specialStyle(shifts[0].role)}`}
+                                      className={`w-full rounded-lg border px-1.5 py-2 text-center text-[11px] font-semibold hover:opacity-80 transition ${specialStyle(shifts[0].role)}${isDraft ? " ring-2 ring-indigo-400 ring-inset" : ""}`}
                                     >
                                       {specialLabel(shifts[0].role)}
                                       {shifts[0].note && (
@@ -1410,7 +1481,7 @@ export default function ManualShiftPage() {
                                           key={idx}
                                           type="button"
                                           onClick={(e) => openEdit(name, d, e)}
-                                          className={`w-full rounded-lg border px-1.5 py-1.5 text-center transition ${tc.cell}`}
+                                          className={`w-full rounded-lg border px-1.5 py-1.5 text-center transition ${tc.cell}${isDraft ? " ring-2 ring-indigo-400 ring-inset" : ""}`}
                                         >
                                           <div className={`text-xs leading-tight ${tc.time}`}>
                                             {fmtHour(c.start_hour)}–{fmtHour(c.end_hour)}
@@ -1462,17 +1533,31 @@ export default function ManualShiftPage() {
             </div>
 
             {/* Publish footer */}
-            <div className="flex flex-wrap items-center gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={handleSaveDraft}
+                disabled={draftSaving || saving}
+                className={`${SECONDARY_BUTTON} min-w-[160px]`}
+              >
+                {draftSaving ? "Saving..." : "📝 Save Draft"}
+              </button>
               <button
                 type="button"
                 onClick={handlePublish}
-                disabled={saving}
-                className={`${PRIMARY_BUTTON} min-w-[200px]`}
+                disabled={saving || draftSaving}
+                className={`${PRIMARY_BUTTON} min-w-[180px]`}
               >
-                {saving ? "Publishing..." : "💾 Save & Publish"}
+                {saving ? "Publishing..." : "🚀 Publish"}
               </button>
-              <p className="text-xs text-gray-400">
-                Publishes {shiftCount} shift{shiftCount !== 1 ? "s" : ""} to Week / My-Shift and exports to Google Sheets.
+              {serverDraftSavedAt && (
+                <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-600 ring-1 ring-indigo-200">
+                  ✓ Draft saved to server
+                </span>
+              )}
+              <p className="w-full text-xs text-gray-400 sm:w-auto">
+                Save Draft: keeps {shiftCount} shift{shiftCount !== 1 ? "s" : ""} as a draft (not visible to staff).&nbsp;
+                Publish: sends to Week / My-Shift &amp; exports to Google Sheets.
               </p>
               {shiftCount > 0 && (
                 <button
