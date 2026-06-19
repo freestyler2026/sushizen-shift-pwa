@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-18 (session 92 — CK Production Plan assigned staff in list; Procurement auto-redirect; Cancellation Report order no. + detail modal; Dubai Cancellation order ID lock + layout; Store Procurement RETURNED cancel)
+Last updated: 2026-06-19 (session 93 — Manual Shift Draft Phase 1; vendor city lock; UI clipping; Procurement branch/sort/step; Cash Report threshold)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,11 +11,44 @@ Last updated: 2026-06-18 (session 92 — CK Production Plan assigned staff in li
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1291, Vercel 80509c1)
+なし — 全変更デプロイ済み (Heroku v1295, Vercel 8edaf40)
 
 ## ⚠️ Pending Investigation
 
 - **Store Procurement: Submit → editable bug** — スタッフ報告「一度Submitした注文が再度編集可能になっている」。代表が詳細確認してフィードバック予定。
+
+## Recently Completed (2026-06-19 session 93) — live
+
+**Manual Shift Draft → Publish 2段階フロー + その他スタッフ依頼**
+
+**① Manual Shift: Save Draft → Publish 2段階フロー（Phase 1）**
+- バックエンド: `POST /api/admin/shifts/save_draft_only`（公開せずにサーバー保存）+ `GET /api/admin/shifts/draft_week`（最新draft取得）
+- フロントエンド: 「📝 Save Draft」ボタン追加、「🚀 Publish」に改名
+- 週/支店を開く際にサーバーdraftを自動ロード→公開済みシフトの上に重ねて表示
+- Draft cellは **indigo ring（ring-2 ring-indigo-400）** で視覚区別
+- ステータスバーに「◈ Server draft (N cells) — not yet published」チップ表示
+- `src/app/admin/manual-shift/page.tsx`, `sushizen_shift_app_clean/app/main.py`
+
+**② Vendor City ロック（編集時）** — Heroku v1292
+- 既存ベンダー編集時、City フィールドを read-only（🔒 locked）に変更
+- `UNIQUE(vendor_code, city)` 複合キーによる重複レコード防止
+
+**③ UIクリッピング修正** — Vercel f78b81a
+- DateRangePicker: 下に空きが足りない時に上方向フリップ
+- Manual Shift 入力モーダル: `maxHeight: vH - top - 16` でビューポート下端を超えない
+
+**④ Store Procurement 3点改善** — Vercel 845d207
+- Dubai支店コード→curated店舗名マッピング（BB→B Bay, ARJ→M City等）
+- カタログアイテムをサプライヤーセクション内でアルファベット順ソート
+- 数量inputのstepを0.01→1
+
+**⑤ Cash Report 改善** — Vercel e182082
+- cashTotal=0の時は警告を表示しない（premature warning抑制）
+- 差異閾値₱0→₱5（軽微な誤差を警告しない）
+
+### 教訓 (session 93)
+- **`fetch_draft_rows_for_week` は main.py に top-level import なし** → エンドポイント内でインライン import（既存パターン踏襲）
+- **Draft cell の視覚区別は ring 系CSS**（`ring-2 ring-indigo-400 ring-inset`）— 背景色変更は色テーマを壊すリスクがある
 
 ## Recently Completed (2026-06-18 session 92) — live
 
