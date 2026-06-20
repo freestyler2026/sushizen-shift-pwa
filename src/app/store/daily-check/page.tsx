@@ -54,15 +54,18 @@ const AGGREGATORS_BY_CITY: Record<CityKey, { key: string; label: string }[]> = {
     { key: "noon",      label: "NOON" },
     { key: "talabat",   label: "Talabat" },
     { key: "deliveroo", label: "Deliveroo" },
+    { key: "keeta",     label: "Keeta" },
+    { key: "smiles",    label: "Smiles" },
   ],
 };
 
 const TZ_BY_CITY: Record<CityKey, string> = { manila: "Asia/Manila", dubai: "Asia/Dubai" };
 
-const CHECK_TYPES = [
-  { key: "OPENING",        label: "Opening Check",       icon: "🌅", desc: "Morning — all aggregators ON" },
-  { key: "LUNCH_CLOSE",    label: "Lunch Close",         icon: "🌤", desc: "Pause lunch service" },
-  { key: "BUSINESS_CLOSE", label: "Business Close",      icon: "🌙", desc: "End of day close" },
+const CHECK_TYPES: { key: string; label: string; icon: string; desc: string; cities: CityKey[] }[] = [
+  { key: "OPENING",        label: "Opening Check",  icon: "🌅", desc: "Morning — all aggregators ON",   cities: ["manila", "dubai"] },
+  { key: "LUNCH_OPEN",     label: "Lunch Open",     icon: "🍽️", desc: "Lunch service — aggregators ON", cities: ["dubai"] },
+  { key: "LUNCH_CLOSE",    label: "Lunch Close",    icon: "🌤", desc: "Pause lunch service",             cities: ["manila", "dubai"] },
+  { key: "BUSINESS_CLOSE", label: "Business Close", icon: "🌙", desc: "End of day close",                cities: ["manila", "dubai"] },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -219,9 +222,14 @@ export default function DailyCheckPage() {
   }, [auth, router]);
 
   // When the city changes, reset branch + aggregator statuses to that city's set.
+  // Also reset check type if the current selection isn't available in the new city.
   useEffect(() => {
     setBranch(BRANCHES_BY_CITY[city][0].code);
     setAggStatus(Object.fromEntries(AGGREGATORS_BY_CITY[city].map((a) => [a.key, { open: false, mode: "auto" as const }])));
+    setCheckType((prev) => {
+      const available = CHECK_TYPES.filter((t) => t.cities.includes(city)).map((t) => t.key);
+      return available.includes(prev) ? prev : "OPENING";
+    });
   }, [city]);
 
   // ── Load today's checks ──
@@ -284,8 +292,10 @@ export default function DailyCheckPage() {
     }
   };
 
+  const visibleCheckTypes = CHECK_TYPES.filter((t) => t.cities.includes(city));
   const checkTypeMeta = CHECK_TYPES.find((t) => t.key === checkType)!;
   const branchLabel = branches.find((b) => b.code === branch)?.label ?? branch;
+  const isLunchOpen = checkType === "LUNCH_OPEN";
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-4 py-8">
@@ -333,8 +343,8 @@ export default function DailyCheckPage() {
         {/* Check type selector */}
         <div className={GLASS_CARD}>
           <label className={`${T_LABEL} mb-2 block`}>Check Type</label>
-          <div className="grid grid-cols-3 gap-2">
-            {CHECK_TYPES.map((t) => (
+          <div className={`grid gap-2 ${visibleCheckTypes.length > 3 ? "grid-cols-2" : "grid-cols-3"}`}>
+            {visibleCheckTypes.map((t) => (
               <button key={t.key} type="button"
                 onClick={() => setCheckType(t.key)}
                 className={`rounded-xl border px-3 py-3 text-center transition-all ${
@@ -382,7 +392,7 @@ export default function DailyCheckPage() {
             {/* Aggregator status */}
             <div>
               <p className={`${T_CAPTION} mb-2`}>
-                {isOpening ? "Aggregator devices are ON and showing as Open" : "Aggregator devices are closed / paused"}
+                {isOpening || isLunchOpen ? "Aggregator devices are ON and showing as Open" : "Aggregator devices are closed / paused"}
               </p>
               <div className="space-y-2">
                 {aggregators.map((agg) => (

@@ -52,6 +52,8 @@ const AGGREGATORS_BY_CITY: Record<CityKey, { key: string; label: string }[]> = {
     { key: "noon",      label: "NOON" },
     { key: "talabat",   label: "Talabat" },
     { key: "deliveroo", label: "Deliveroo" },
+    { key: "keeta",     label: "Keeta" },
+    { key: "smiles",    label: "Smiles" },
   ],
 };
 
@@ -67,6 +69,7 @@ const tzOf = (city: string) => TZ_BY_CITY[(String(city || "manila").toLowerCase(
 
 const CHECK_TYPES = [
   { key: "OPENING",        label: "Opening",       icon: "🌅" },
+  { key: "LUNCH_OPEN",     label: "Lunch Open",    icon: "🍽️" },
   { key: "LUNCH_CLOSE",    label: "Lunch Close",   icon: "🌤" },
   { key: "BUSINESS_CLOSE", label: "Business Close", icon: "🌙" },
 ];
