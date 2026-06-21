@@ -28,6 +28,8 @@ import {
   PlusCircle,
   Truck,
   ImageIcon,
+  PackageSearch,
+  TriangleAlert,
 } from "lucide-react";
 import { ProcurementStepper } from "@/components/ProcurementStepper";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
@@ -669,6 +671,29 @@ export default function StoreProcurementHomePage() {
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
   const [cancellingRowId, setCancellingRowId] = useState<string | null>(null);
   const [cancelConfirmRowId, setCancelConfirmRowId] = useState<string | null>(null);
+  // Pending Deliveries state
+  type PendingDeliveryRow = {
+    id: string;
+    po_no: string;
+    vendor_name: string;
+    amount: number;
+    line_items_json: { item_name: string; qty: number; unit: string }[];
+    status: string;
+    delivery_date?: string;
+    dispatched_at?: string;
+    receipt_confirmed_at?: string;
+    has_shortage: boolean;
+    delivery_note?: string;
+    request_id: string;
+    request_no: string;
+    store_code: string;
+    pending_status: "not_dispatched" | "in_transit" | "short_delivered";
+  };
+  const [pendingDeliveries, setPendingDeliveries] = useState<PendingDeliveryRow[]>([]);
+  const [pendingDeliveriesLoading, setPendingDeliveriesLoading] = useState(false);
+  const [pendingDeliveriesSectionOpen, setPendingDeliveriesSectionOpen] = useState(true);
+  const [pendingDeliveriesExpanded, setPendingDeliveriesExpanded] = useState<string | null>(null);
+
   // CK Dispatch state
   const [ckDispatchRows, setCkDispatchRows] = useState<CkDispatchRow[]>([]);
   const [ckDispatchLoading, setCkDispatchLoading] = useState(false);
@@ -685,6 +710,23 @@ export default function StoreProcurementHomePage() {
   const currencyCode = city === "dubai" ? "AED" : "PHP";
   const APPROVAL_THRESHOLD = city === "dubai" ? 500 : 15000;
   const isHighValue = (row: RequestRow) => Number(row.total_amount || 0) > APPROVAL_THRESHOLD;
+
+  const loadPendingDeliveries = useCallback(async (cityOverride?: string, storeCodeOverride?: string) => {
+    const activeCity = cityOverride ?? city;
+    const activeStore = storeCodeOverride ?? storeCode;
+    if (!activeStore) return;
+    setPendingDeliveriesLoading(true);
+    try {
+      const qs = new URLSearchParams({ city: activeCity, store_code: activeStore });
+      const res = await fetch(`/api/store/procurement/pending-deliveries?${qs}`, { method: "GET", cache: "no-store" });
+      const data = await res.json();
+      setPendingDeliveries(Array.isArray(data?.rows) ? data.rows : []);
+    } catch {
+      setPendingDeliveries([]);
+    } finally {
+      setPendingDeliveriesLoading(false);
+    }
+  }, [city, storeCode]);
 
   const loadCkDispatch = useCallback(async (cityOverride?: string) => {
     const activeCity = cityOverride ?? city;
@@ -830,9 +872,11 @@ export default function StoreProcurementHomePage() {
       // Load CK dispatch (non-blocking, silently fails if no access).
       // CK is a Manila-only facility — never load/show it for Dubai.
       if (isCkDispatchVisible(initialCity)) void loadCkDispatch(initialCity);
+      // Load pending deliveries if a branch is already selected
+      if (storeCode) void loadPendingDeliveries(initialCity, storeCode);
     }
     void init();
-  }, [auth, city, loadCkDispatch, loadMyRequests, requestedBy, router]);
+  }, [auth, city, loadCkDispatch, loadMyRequests, loadPendingDeliveries, requestedBy, router, storeCode]);
 
 
   useEffect(() => {
@@ -860,6 +904,12 @@ export default function StoreProcurementHomePage() {
       window.localStorage.setItem(RECENT_ACTIVITY_EXPANDED_KEY, showAllRecentActivities ? "1" : "0");
     } catch {}
   }, [RECENT_ACTIVITY_EXPANDED_KEY, showAllRecentActivities]);
+
+  useEffect(() => {
+    if (storeCode) void loadPendingDeliveries();
+    else setPendingDeliveries([]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeCode]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1428,6 +1478,155 @@ export default function StoreProcurementHomePage() {
 
         {/* ─── RIGHT PANEL ─── */}
         <div className="flex min-w-0 flex-1 flex-col gap-4">
+
+          {/* ── Pending Deliveries Section ── */}
+          {storeCode && (
+          <div className={`${BLUSH_GLASS} overflow-hidden`}>
+            <button
+              type="button"
+              className="w-full px-5 py-3.5 flex items-center justify-between gap-3"
+              onClick={() => setPendingDeliveriesSectionOpen((v) => !v)}
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/15 border border-sky-500/30">
+                  <PackageSearch className="h-4 w-4 text-sky-400" />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-semibold text-white flex items-center gap-2">
+                    Pending Deliveries
+                    {pendingDeliveries.length > 0 && (
+                      <span className="inline-flex items-center justify-center rounded-full bg-sky-500/20 border border-sky-500/40 px-2 py-0.5 text-[11px] font-bold text-sky-300">
+                        {pendingDeliveries.length}
+                      </span>
+                    )}
+                    {pendingDeliveriesLoading && <RefreshCw className="h-3 w-3 animate-spin text-zinc-500" />}
+                  </p>
+                  <p className="text-xs text-zinc-500">Vendor POs not yet received</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); void loadPendingDeliveries(); }}
+                  className="rounded-lg p-1 text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
+                  title="Refresh"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </button>
+                {pendingDeliveriesSectionOpen
+                  ? <ChevronUp className="h-4 w-4 text-zinc-500 shrink-0" />
+                  : <ChevronDown className="h-4 w-4 text-zinc-500 shrink-0" />}
+              </div>
+            </button>
+
+            <AnimatePresence initial={false}>
+              {pendingDeliveriesSectionOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="border-t border-white/8 px-5 pb-4 pt-3">
+                    {pendingDeliveries.length === 0 && !pendingDeliveriesLoading ? (
+                      <div className="flex items-center gap-2 py-3 text-sm text-zinc-500">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500/60" />
+                        No pending deliveries for {storeCode}.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {pendingDeliveries.map((row) => {
+                          const isExp = pendingDeliveriesExpanded === row.id;
+                          const statusLabel =
+                            row.pending_status === "short_delivered"
+                              ? { label: "Short Delivered", cls: "bg-amber-900/30 border-amber-700/50 text-amber-300" }
+                              : row.pending_status === "in_transit"
+                                ? { label: "In Transit", cls: "bg-sky-900/30 border-sky-700/50 text-sky-300" }
+                                : { label: "Not Dispatched", cls: "bg-zinc-800 border-zinc-700 text-zinc-400" };
+                          return (
+                            <div
+                              key={row.id}
+                              className={`rounded-xl border overflow-hidden transition-all duration-200 ${
+                                isExp
+                                  ? "border-sky-500/40 bg-sky-950/15"
+                                  : row.pending_status === "short_delivered"
+                                    ? "border-amber-700/40 bg-amber-950/10 hover:border-amber-500/40"
+                                    : "border-white/8 bg-white/3 hover:border-sky-500/25"
+                              }`}
+                            >
+                              <button
+                                type="button"
+                                className="w-full px-3 py-2.5 flex items-start justify-between gap-2 text-left"
+                                onClick={() => setPendingDeliveriesExpanded(isExp ? null : row.id)}
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-semibold text-white font-mono flex items-center gap-2 flex-wrap">
+                                    {row.po_no}
+                                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusLabel.cls}`}>
+                                      {statusLabel.label}
+                                    </span>
+                                    {row.pending_status === "short_delivered" && (
+                                      <TriangleAlert className="h-3.5 w-3.5 text-amber-400" />
+                                    )}
+                                  </p>
+                                  <div className="mt-0.5 flex flex-wrap gap-2 text-xs text-zinc-500">
+                                    <span>{row.vendor_name}</span>
+                                    {row.delivery_date && <span>📅 {row.delivery_date}</span>}
+                                    <span>{(row.line_items_json || []).length} item{(row.line_items_json || []).length !== 1 ? "s" : ""}</span>
+                                    {row.dispatched_at && <span>Dispatched {new Date(row.dispatched_at).toLocaleDateString()}</span>}
+                                  </div>
+                                </div>
+                                <div className="shrink-0 pt-0.5">
+                                  {isExp
+                                    ? <ChevronUp className="h-3.5 w-3.5 text-sky-400" />
+                                    : <ChevronDown className="h-3.5 w-3.5 text-zinc-500" />}
+                                </div>
+                              </button>
+                              {isExp && (
+                                <div className="border-t border-white/8 px-3 py-3 space-y-3">
+                                  {row.delivery_note && (
+                                    <p className="text-xs text-zinc-400 italic">{row.delivery_note}</p>
+                                  )}
+                                  <div className="space-y-1">
+                                    {(Array.isArray(row.line_items_json) ? row.line_items_json : []).map((item, i) => (
+                                      <div key={i} className="flex items-center justify-between text-xs text-zinc-300">
+                                        <span>{item.item_name}</span>
+                                        <span className="text-zinc-500">{item.qty} {item.unit}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <div className="flex gap-2 pt-1">
+                                    <a
+                                      href={`/store/procurement/receiving?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.request_id)}`}
+                                      className={`${BLUSH_SMALL} text-xs`}
+                                    >
+                                      <PackageCheck className="h-3 w-3" />
+                                      Receiving
+                                    </a>
+                                    {row.pending_status === "short_delivered" && (
+                                      <a
+                                        href={`/store/procurement/claim?city=${encodeURIComponent(city || "manila")}&request_id=${encodeURIComponent(row.request_id)}`}
+                                        className={`${DANGER_BUTTON} text-xs`}
+                                      >
+                                        <AlertCircle className="h-3 w-3" />
+                                        Claim
+                                      </a>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+          )}
 
           {/* ── CK Dispatch Section (Manila only — CK is a Manila facility; hide for Dubai) ── */}
           {isCkDispatchVisible(city) && (
