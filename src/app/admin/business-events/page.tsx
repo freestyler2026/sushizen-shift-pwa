@@ -21,9 +21,27 @@ type BusinessEvent = {
   event_name: string;
   affected_cities: string;
   impact_direction: string;
+  impact_level: number;
+  event_type: string;
   notes: string;
   created_at: string;
 };
+
+const EVENT_TYPE_OPTIONS = [
+  { value: "", label: "— Select type —" },
+  { value: "geopolitical_supply_shock", label: "Geopolitical / Supply Shock" },
+  { value: "seasonal_religious", label: "Seasonal / Religious (Ramadan etc.)" },
+  { value: "weather_disaster", label: "Weather / Disaster" },
+  { value: "macroeconomic_inflation", label: "Macroeconomic / Inflation" },
+  { value: "macroeconomic_growth", label: "Macroeconomic / Growth" },
+  { value: "demand_suppression", label: "Demand Suppression" },
+  { value: "demand_boost", label: "Demand Boost" },
+  { value: "labor_cost", label: "Labor Cost Change" },
+  { value: "regulatory", label: "Regulatory / Tax" },
+  { value: "regulatory_relief", label: "Regulatory Relief" },
+  { value: "platform_outage", label: "Platform Outage" },
+  { value: "other", label: "Other" },
+];
 
 const CITY_OPTIONS = [
   { value: "all", label: "Both cities (Dubai + Manila)" },
@@ -79,6 +97,8 @@ export default function BusinessEventsPage() {
   const [eventName, setEventName] = useState("");
   const [affectedCities, setAffectedCities] = useState("all");
   const [impactDir, setImpactDir] = useState("negative");
+  const [impactLevel, setImpactLevel] = useState(3);
+  const [eventType, setEventType] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
@@ -110,6 +130,8 @@ export default function BusinessEventsPage() {
     setEventName("");
     setAffectedCities("all");
     setImpactDir("negative");
+    setImpactLevel(3);
+    setEventType("");
     setNotes("");
     setSaveMsg("");
   };
@@ -130,6 +152,8 @@ export default function BusinessEventsPage() {
           event_name: eventName.trim(),
           affected_cities: affectedCities,
           impact_direction: impactDir,
+          impact_level: impactLevel,
+          event_type: eventType,
           notes: notes.trim(),
         }),
       });
@@ -241,6 +265,36 @@ export default function BusinessEventsPage() {
                 className={INPUT_CLASS}
               />
             </div>
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>
+                Impact Level <span className="text-zinc-500">(1=minor · 5=critical)</span>
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min={1}
+                  max={5}
+                  value={impactLevel}
+                  onChange={(e) => setImpactLevel(Number(e.target.value))}
+                  className="flex-1 accent-violet-500"
+                />
+                <span className={`w-6 text-center font-bold text-lg ${
+                  impactLevel >= 5 ? "text-red-400" : impactLevel >= 4 ? "text-amber-400" : "text-zinc-300"
+                }`}>{impactLevel}</span>
+              </div>
+            </div>
+            <div>
+              <label className={`${T_LABEL} mb-1.5 block`}>Event Type</label>
+              <select
+                value={eventType}
+                onChange={(e) => setEventType(e.target.value)}
+                className={INPUT_CLASS}
+              >
+                {EVENT_TYPE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
             <div className="sm:col-span-2">
               <label className={`${T_LABEL} mb-1.5 block`}>Impact Direction</label>
               <div className="flex flex-wrap gap-2">
@@ -330,6 +384,20 @@ export default function BusinessEventsPage() {
                     <span className="font-mono text-xs text-zinc-500">{ev.event_date}</span>
                     <ImpactBadge dir={ev.impact_direction} />
                     <CityBadge cities={ev.affected_cities} />
+                    {ev.impact_level >= 4 && (
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                        ev.impact_level === 5
+                          ? "bg-red-900/50 border-red-600 text-red-200"
+                          : "bg-amber-900/40 border-amber-600 text-amber-300"
+                      }`}>
+                        Lv.{ev.impact_level}
+                      </span>
+                    )}
+                    {ev.event_type && (
+                      <span className="rounded-full bg-zinc-800 border border-zinc-600 px-2 py-0.5 text-[10px] text-zinc-400">
+                        {ev.event_type.replace(/_/g, " ")}
+                      </span>
+                    )}
                   </div>
                   <p className="font-semibold text-white">{ev.event_name}</p>
                   {ev.notes && (
