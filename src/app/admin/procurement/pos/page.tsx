@@ -21,7 +21,7 @@ import {
   BADGE_ERROR,
   BADGE_INFO,
 } from "@/lib/ui-tokens";
-import { RefreshCw, AlertCircle, CheckCircle, Send, Package, ExternalLink } from "lucide-react";
+import { RefreshCw, AlertCircle, CheckCircle, Send, Package, ExternalLink, Phone, X } from "lucide-react";
 
 type PoRow = {
   id: string;
@@ -37,6 +37,19 @@ type PoRow = {
   last_email_sent_at: string;
   receipt_confirmed_at: string;
   receipt_confirmed_by: string;
+  supplier_confirmation_status?: string;
+  supplier_confirmation_notes?: string;
+  created_at: string;
+};
+
+type SupplierCallLog = {
+  id: number;
+  call_date: string;
+  called_by: string;
+  call_time: string;
+  result: string;
+  expected_delivery_date?: string;
+  notes: string;
   created_at: string;
 };
 
@@ -152,6 +165,15 @@ function emailStatusBadge(status: string) {
   return <span className={BADGE_INFO}>{s}</span>;
 }
 
+function supplierConfBadge(status?: string) {
+  const s = (status || "").toLowerCase();
+  if (s === "confirmed") return <span className="rounded-full bg-emerald-900/40 border border-emerald-700/50 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">✓ Confirmed</span>;
+  if (s === "rescheduled") return <span className="rounded-full bg-amber-900/40 border border-amber-700/50 px-2 py-0.5 text-[10px] font-semibold text-amber-300">↻ Rescheduled</span>;
+  if (s === "no_answer") return <span className="rounded-full bg-red-900/40 border border-red-700/50 px-2 py-0.5 text-[10px] font-semibold text-red-300">✗ No Answer</span>;
+  if (s === "pending") return <span className="rounded-full bg-zinc-800 border border-zinc-600 px-2 py-0.5 text-[10px] font-semibold text-zinc-400">Call Pending</span>;
+  return null;
+}
+
 export default function ProcurementPoPage() {
   const auth = useMemo(() => getAuth(), []);
   const [allowed, setAllowed] = useState(false);
@@ -179,6 +201,15 @@ export default function ProcurementPoPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  // Supplier confirmation state
+  const [confirmModal, setConfirmModal] = useState<{ poId: string; poNo: string; vendorName: string } | null>(null);
+  const [callLog, setCallLog] = useState<Record<string, SupplierCallLog[]>>({});
+  const [confResult, setConfResult] = useState<"confirmed" | "rescheduled" | "no_answer">("confirmed");
+  const [confCallTime, setConfCallTime] = useState("");
+  const [confExpDate, setConfExpDate] = useState("");
+  const [confNotes, setConfNotes] = useState("");
+  const [confBusy, setConfBusy] = useState(false);
+  const [confSuccess, setConfSuccess] = useState("");
 
   const currency = city === "dubai" ? "AED" : "PHP";
 
@@ -270,6 +301,62 @@ export default function ProcurementPoPage() {
       setLoading(false);
     }
   }, [city, deliveryAddress, paymentTerms, pin, requestId, requestedBy]);
+
+  const openConfirmModal = async (poId: string, poNo: string, vendorName: string) => {
+    setConfirmModal({ poId, poNo, vendorName });
+    setConfResult("confirmed");
+    setConfCallTime("");
+    setConfExpDate("");
+    setConfNotes("");
+    setConfSuccess("");
+    if (!callLog[poId]) {
+      try {
+        const data = await procurementJson<{ ok: boolean; calls: SupplierCallLog[] }>(
+          `/api/admin/supplier-confirmation/${encodeURIComponent(poId)}/calls`,
+          { method: "GET" },
+          requestedBy,
+          pin,
+        );
+        setCallLog((prev) => ({ ...prev, [poId]: data?.calls || [] }));
+      } catch { setCallLog((prev) => ({ ...prev, [poId]: [] })); }
+    }
+  };
+
+  const submitConfirmationCall = async () => {
+    if (!confirmModal) return;
+    setConfBusy(true);
+    setConfSuccess("");
+    try {
+      await procurementJson(
+        "/api/admin/supplier-confirmation/log",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            po_id: confirmModal.poId,
+            called_by: requestedBy.trim(),
+            result: confResult,
+            call_time: confCallTime.trim(),
+            expected_delivery_date: confExpDate || null,
+            notes: confNotes.trim(),
+          }),
+        },
+        requestedBy,
+        pin,
+      );
+      setConfSuccess("Call logged.");
+      setCallLog((prev) => ({ ...prev, [confirmModal.poId]: [] }));
+      setRows((prev) => prev.map((r) => r.id === confirmModal.poId ? { ...r, supplier_confirmation_status: confResult } : r));
+      setConfResult("confirmed");
+      setConfCallTime("");
+      setConfExpDate("");
+      setConfNotes("");
+    } catch (e: unknown) {
+      setConfSuccess("Error: " + String((e as Error)?.message || e));
+    } finally {
+      setConfBusy(false);
+    }
+  };
 
   const loadDeliveryStatus = async (poId: string) => {
     setBusy(true);
@@ -813,6 +900,7 @@ export default function ProcurementPoPage() {
                     <span className="font-mono text-sm font-semibold text-white">{row.po_no}</span>
                     {poStatusBadge(row.status)}
                     {emailStatusBadge(row.last_email_status)}
+                    {city === "manila" && row.supplier_confirmation_status !== "not_required" && supplierConfBadge(row.supplier_confirmation_status)}
                   </div>
                   <div className={`mt-1 ${T_CAPTION}`}>
                     {row.parent_case_no} | {row.vendor_name || "-"} | {currency} {money(row.amount)}
@@ -822,17 +910,29 @@ export default function ProcurementPoPage() {
                     {row.receipt_confirmed_at ? String(row.receipt_confirmed_at).slice(0, 16).replace("T", " ") : "Pending"}
                   </div>
                 </div>
-                {row.drive_file_url && (
-                  <a
-                    href={row.drive_file_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs text-sky-400 hover:text-sky-300 transition-colors shrink-0"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    Open PO in Drive
-                  </a>
-                )}
+                <div className="flex items-start gap-2 shrink-0">
+                  {city === "manila" && row.supplier_confirmation_status !== "not_required" && (
+                    <button
+                      type="button"
+                      onClick={() => void openConfirmModal(row.id, row.po_no, row.vendor_name)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-violet-700/50 bg-violet-900/25 px-2.5 py-1.5 text-xs font-semibold text-violet-300 hover:bg-violet-900/40 hover:text-violet-100 transition-colors"
+                    >
+                      <Phone className="h-3 w-3" />
+                      Log Call
+                    </button>
+                  )}
+                  {row.drive_file_url && (
+                    <a
+                      href={row.drive_file_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs text-sky-400 hover:text-sky-300 transition-colors"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Open PO in Drive
+                    </a>
+                  )}
+                </div>
               </div>
 
               {/* Per-PO email controls */}
@@ -935,6 +1035,121 @@ export default function ProcurementPoPage() {
       {!loading && !rows.length && (
         <div className={`${GLASS_CARD} p-10 flex items-center justify-center`}>
           <p className={T_CAPTION}>No purchase orders. Enter a Request ID and load to see or create POs.</p>
+        </div>
+      )}
+
+      {/* Supplier Confirmation Call Modal */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-900 shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
+              <div>
+                <p className="text-sm font-semibold text-white flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-violet-400" />
+                  Log Supplier Confirmation Call
+                </p>
+                <p className="text-xs text-zinc-500 mt-0.5">{confirmModal.poNo} — {confirmModal.vendorName}</p>
+              </div>
+              <button type="button" onClick={() => setConfirmModal(null)} className="rounded-lg p-1.5 text-zinc-500 hover:text-white hover:bg-white/8">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              {/* Result */}
+              <div>
+                <label className={`${T_LABEL} mb-2 block`}>Call Result</label>
+                <div className="flex gap-2">
+                  {(["confirmed", "rescheduled", "no_answer"] as const).map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setConfResult(r)}
+                      className={`flex-1 rounded-xl border py-2 text-xs font-semibold transition-all ${
+                        confResult === r
+                          ? r === "confirmed"
+                            ? "border-emerald-600 bg-emerald-900/40 text-emerald-300"
+                            : r === "rescheduled"
+                              ? "border-amber-600 bg-amber-900/40 text-amber-300"
+                              : "border-red-600 bg-red-900/40 text-red-300"
+                          : "border-white/10 bg-white/3 text-zinc-400 hover:bg-white/6"
+                      }`}
+                    >
+                      {r === "confirmed" ? "✓ Confirmed" : r === "rescheduled" ? "↻ Rescheduled" : "✗ No Answer"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Call time */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={`${T_LABEL} mb-1.5 block`}>Call Time (optional)</label>
+                  <input
+                    type="time"
+                    value={confCallTime}
+                    onChange={(e) => setConfCallTime(e.target.value)}
+                    className={INPUT_CLASS}
+                  />
+                </div>
+                <div>
+                  <label className={`${T_LABEL} mb-1.5 block`}>Expected Delivery</label>
+                  <input
+                    type="date"
+                    value={confExpDate}
+                    onChange={(e) => setConfExpDate(e.target.value)}
+                    className={INPUT_CLASS}
+                  />
+                </div>
+              </div>
+              {/* Notes */}
+              <div>
+                <label className={`${T_LABEL} mb-1.5 block`}>Notes</label>
+                <textarea
+                  value={confNotes}
+                  onChange={(e) => setConfNotes(e.target.value)}
+                  placeholder="Contact person, agreed delivery window, etc."
+                  rows={2}
+                  className={TEXTAREA_CLASS}
+                />
+              </div>
+              {confSuccess && (
+                <div className={`rounded-xl border px-4 py-2 text-sm ${confSuccess.startsWith("Error") ? "border-red-700/50 bg-red-900/20 text-red-300" : "border-emerald-700/50 bg-emerald-900/20 text-emerald-300"}`}>
+                  {confSuccess}
+                </div>
+              )}
+              {/* Previous calls */}
+              {(callLog[confirmModal.poId] || []).length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600 mb-2">Previous Calls</p>
+                  <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                    {(callLog[confirmModal.poId] || []).map((c) => (
+                      <div key={c.id} className="rounded-xl border border-white/6 bg-white/3 px-3 py-2 text-xs text-zinc-300">
+                        <span className="font-semibold">{c.result}</span>
+                        <span className="text-zinc-500"> · {c.call_date} {c.call_time && `${c.call_time} · `}by {c.called_by}</span>
+                        {c.notes && <p className="text-zinc-500 mt-0.5">{c.notes}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3 border-t border-white/8 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => void submitConfirmationCall()}
+                disabled={confBusy}
+                className="flex-1 rounded-xl border border-violet-600/50 bg-violet-700/30 py-2.5 text-sm font-semibold text-violet-200 hover:bg-violet-700/50 transition-colors disabled:opacity-50"
+              >
+                {confBusy ? "Saving…" : "Save Call"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmModal(null)}
+                className="rounded-xl border border-white/10 bg-white/3 px-4 py-2.5 text-sm text-zinc-400 hover:text-zinc-200 hover:bg-white/6 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -56,6 +56,7 @@ import {
   Coins,
   FlaskConical,
   Factory,
+  PhoneCall,
   X,
 } from "lucide-react";
 import {
@@ -161,6 +162,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/inventory", label: "Inventory", icon: Package, adminOnly: true, match: "prefix" },
   { href: "/admin/procurement", label: "Procurement", icon: Truck, adminOnly: true, match: "prefix" },
   { href: "/admin/emergency-requests", label: "Emergency Requests", icon: Siren, adminOnly: true, match: "prefix" },
+  { href: "/admin/supplier-confirmations", label: "Supplier Confirmations", icon: PhoneCall, adminOnly: true, match: "prefix" },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3, adminOnly: true, match: "exact" },
   { href: "/admin/cancellations", label: "Cancellation Report", icon: TicketCheck, adminOnly: true, match: "exact" },
   { href: "/admin/finance", label: "Management P&L", icon: Receipt, adminOnly: true, match: "prefix" },
