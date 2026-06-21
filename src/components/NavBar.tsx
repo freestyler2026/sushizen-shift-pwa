@@ -58,6 +58,7 @@ import {
   FlaskConical,
   Factory,
   PhoneCall,
+  Globe,
   X,
 } from "lucide-react";
 import {
@@ -172,6 +173,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/menu", label: "Menu Builder", icon: UtensilsCrossed, adminOnly: true, match: "prefix" },
   { href: "/admin/private-reports", label: "Private Reports", icon: FileBarChart, adminOnly: true, match: "exact" },
   { href: "/admin/ai-analytics-pro", label: "AI Analytics Pro", icon: Bot, adminOnly: true, match: "exact" },
+  { href: "/admin/business-events", label: "Business Events Log", icon: Globe, adminOnly: true, match: "prefix" },
   { href: "/admin/attendance", label: "Attendance", icon: UserCheck, adminOnly: true, match: "prefix" },
   { href: "/admin/os-attendance", label: "OS Attendance", icon: Fingerprint, adminOnly: true, match: "prefix" },
   { href: "/admin/absences", label: "Absences", icon: UserX, adminOnly: true, match: "exact" },
@@ -289,6 +291,7 @@ export default function NavBar() {
     if (role === "HQ" || role === "ADMIN") return true;
     if (href === "/admin") return canAccessAdminDashboard(auth);
     if (href === "/admin/ai-analytics-pro") return canAccessAiAnalyticsProAdmin(auth);
+    if (href === "/admin/business-events") return canAccessAiAnalyticsProAdmin(auth);
     if (href === "/admin/inventory") return canAccessInventoryAdminNav(auth);
     if (href === "/admin/daily-inventory") return canAccessDailyInventoryAdmin(auth);
     if (href === "/admin/travel-path") return canAccessTravelPathAdmin(auth);
