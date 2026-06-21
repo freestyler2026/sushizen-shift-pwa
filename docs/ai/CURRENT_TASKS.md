@@ -1,6 +1,7 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-21 (session 98 — CK Ingredient Receiving page + 3-bug fix)
+Last updated: 2026-06-21 (session 99 — AI Analytics Pro: fix + Business Events Log)
+
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +12,25 @@ Last updated: 2026-06-21 (session 98 — CK Ingredient Receiving page + 3-bug fi
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku cd6df3d, Vercel 5fa3d4f)
+なし — 全変更デプロイ済み (Heroku 9654824 v1310, Vercel dd2ae0d)
+
+## Recently Completed (2026-06-21 session 99) — live (Heroku v1310, Vercel dd2ae0d)
+
+**AI Analytics Pro 修正 + Business Events Log 新機能**
+
+**① AI Analytics Pro バグ修正** (Heroku v1309)
+- `SYSTEM_PROMPT.format(today=today)` → `.replace("{today}", today)` に変更
+- SYSTEM_PROMPTに含まれる `{}` がPythonの `.format()` に誤解釈されて "Replacement index 0 out of range" エラーが発生していた問題を解消
+
+**② Business Events Log フルスタック実装** (Heroku v1310, Vercel dd2ae0d)
+- **DB**: `business_events` テーブル新設 (event_date/event_name/affected_cities/impact_direction/notes)
+- **AI Tool**: `get_business_events` ツール追加 — 分析前に自動呼び出し、外部イベントを内部診断より優先
+- **SYSTEM_PROMPT**: 「分析前に必ず `get_business_events` を呼ぶ」「外部イベントがあれば内部要因より優先する」ルールを追加
+- **API**: `GET/POST /api/admin/business-events`、`DELETE /api/admin/business-events/{id}`
+- **Frontend**: `/admin/business-events` 管理ページ新設（イベント追加・削除UI）
+- **NavBar**: AI Analytics Pro の直下に「Business Events Log」リンク追加（Globe アイコン）
+
+**背景**: Claudeの学習データカットオフは2025年8月。それ以降の出来事（イラン戦争など）はBusinessEventsログに登録することでAIが参照できるようになった。
 
 ## Recently Completed (2026-06-21 session 98) — live (Vercel 5fa3d4f)
 
