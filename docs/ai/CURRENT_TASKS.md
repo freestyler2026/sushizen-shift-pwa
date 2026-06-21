@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-21 (session 97 — Vendor Pending Deliveries + EPR Phase B Supplier Confirmation Calls)
+Last updated: 2026-06-21 (session 98 — CK Ingredient Receiving page + 3-bug fix)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,7 +11,21 @@ Last updated: 2026-06-21 (session 97 — Vendor Pending Deliveries + EPR Phase B
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku cd6df3d, Vercel 0c81c14)
+なし — 全変更デプロイ済み (Heroku cd6df3d, Vercel 5fa3d4f)
+
+## Recently Completed (2026-06-21 session 98) — live (Vercel 5fa3d4f)
+
+**CK Ingredient Receiving 専用ページ + バグ修正3件**
+
+**① `/store/ck-ingredient-receiving` 新ページ**
+- CKリーダーがサプライヤーに発注した食材の未着一覧
+- `/api/store/procurement/pending-deliveries?city=manila&store_code=CK` を再利用
+- NavBar: CK Delivery の直下に追加（Manila全ロール閲覧可）
+
+**② バグ修正3件**
+- `amount` NULL クラッシュ: `row.amount.toLocaleString()` → `(row.amount ?? 0).toLocaleString()`
+- NavBar `canSeeAdminItem` に `/admin/supplier-confirmations`・`/admin/emergency-requests` チェック追加（MANILA_MANAGEMENTが見えなかった）
+- CK Delivery の「Ingredient Deliveries」タブを削除（専用ページと重複）
 
 ## ⚠️ Pending Investigation
 
