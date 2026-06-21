@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-21 (session 97 — Vendor Pending Deliveries section on store procurement page)
+Last updated: 2026-06-21 (session 97 — Vendor Pending Deliveries + EPR Phase B Supplier Confirmation Calls)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,25 +11,32 @@ Last updated: 2026-06-21 (session 97 — Vendor Pending Deliveries section on st
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1307, Vercel cf10c5e)
+なし — 全変更デプロイ済み (Heroku cd6df3d, Vercel 0c81c14)
 
 ## ⚠️ Pending Investigation
 
 - **Store Procurement: Submit → editable bug** — スタッフ報告「一度Submitした注文が再度編集可能になっている」。代表が詳細確認してフィードバック予定。
 
-## Recently Completed (2026-06-21 session 97) — live (Heroku v1307, Vercel cf10c5e)
+## Recently Completed (2026-06-21 session 97) — live (Heroku cd6df3d, Vercel 0c81c14)
 
-**Vendor Pending Deliveries section on `/store/procurement`**
+**Vendor Pending Deliveries + EPR Phase B Supplier Confirmation Calls**
 
-- DB: `list_pending_deliveries_for_store(city, store_code)` 新設。`proc_purchase_orders JOIN proc_requests` で `receipt_confirmed_at IS NULL` のPOを返す。CK(Central Kitchen)は除外。
-- Backend: `GET /api/store/procurement/pending-deliveries?city=&store_code=` 追加 (Heroku v1307)
-- Frontend: `/store/procurement/page.tsx` の右パネルに折りたたみ式「Pending Deliveries」セクション追加(CK Dispatch セクションの上)
-  - ステータス別バッジ: Not Dispatched(zinc) / In Transit(sky) / Short Delivered(amber + TriangleAlert)
-  - 行を展開すると品目一覧 + Receiving/Claim クイックリンク
-  - 支店選択時に自動ロード、リフレッシュボタン付き
+**① Vendor Pending Deliveries section on `/store/procurement`** (Heroku v1307)
+- DB: `list_pending_deliveries_for_store(city, store_code)` — `proc_purchase_orders JOIN proc_requests WHERE receipt_confirmed_at IS NULL`、CK除外
+- API: `GET /api/store/procurement/pending-deliveries?city=&store_code=`
+- Frontend: 右パネルに折りたたみ式「Pending Deliveries」セクション(CK Dispatchの上)
+  - Not Dispatched / In Transit / Short Delivered バッジ
+  - 展開で品目一覧 + Receiving/Claim クイックリンク
+  - 支店選択時に自動ロード
 
-**残タスク:**
-- EPR Phase B: サプライヤー事前確認コール機能 (supplier_confirmation_calls テーブル + 既存PO画面への統合)
+**② EPR Phase B — Supplier Confirmation Calls** (Heroku cd6df3d, Vercel 0c81c14)
+- DB: `supplier_confirmation_calls` テーブル新設。`proc_purchase_orders` に `supplier_confirmation_status`(pending/confirmed/rescheduled/no_answer/not_required) + `supplier_confirmation_notes` カラム追加。Dubai PO は自動で `not_required` に設定。
+- API: `POST /api/admin/supplier-confirmation/log`、`GET /api/admin/supplier-confirmation/pending`、`GET /api/admin/supplier-confirmation/{po_id}/calls`
+- `/admin/supplier-confirmations` 新ページ: Manila POの確認コールキュー一覧 + Log Call モーダル(result/call_time/expected_delivery_date/notes)
+- `/admin/procurement/pos`: 各PO行にLog Callボタン + 確認ステータスバッジ追加(Manila限定)
+- NavBar: PhoneCall アイコン + Supplier Confirmationsリンク追加
+
+**残タスク:** なし (EPR Phase A+B完了)
 
 ## Recently Completed (2026-06-21 session 96) — live (Heroku v1306, Vercel 1b14f2a)
 
