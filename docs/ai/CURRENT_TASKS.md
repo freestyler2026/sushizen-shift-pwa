@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-19 (session 93 — Manual Shift Draft Phase 1; vendor city lock; UI clipping; Procurement branch/sort/step; Cash Report threshold)
+Last updated: 2026-06-21 (session 95 — AI Analytics Pro deep audit round 3: 17 data accuracy fixes)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,11 +11,43 @@ Last updated: 2026-06-19 (session 93 — Manual Shift Draft Phase 1; vendor city
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1295, Vercel 8edaf40)
+なし — 全変更デプロイ済み (Heroku a826178)
 
 ## ⚠️ Pending Investigation
 
 - **Store Procurement: Submit → editable bug** — スタッフ報告「一度Submitした注文が再度編集可能になっている」。代表が詳細確認してフィードバック予定。
+
+## Recently Completed (2026-06-21 session 95) — live (Heroku a826178)
+
+**AI Analytics Pro 深層監査 Round 3 — 17件修正**
+
+43エージェントによる6次元並列監査 (tool_dispatch / DB field contracts / system prompt / aggregation math / Manila pipeline / Dubai pipeline)。36候補 → 30確認 → 17件修正デプロイ。
+
+**Critical/High 修正:**
+- **Dubai branch breakdown**: `_list_pos_revenue_daily_rows` のSELECT+GROUP BYに branch_code/brand_name を追加。以前は全ブランチが"Unknown"1件に集約されていた
+- **Manila group_by_month**: ハードコードされた`False`を除去。月次トレンドクエリが正しく機能するように
+- **auto_ prefix**: `get_store_evaluation_scores` の tool description と scoring_note の `attendance_rate`→`auto_attendance_rate` 等を修正
+- **get_menu_performance branch**: `_normalize_manila_branch_arg` 未適用を修正。QC/Parañaqueエイリアスが空結果を返していた
+- **avg_order_value_aed**: total_orders=0時に売上総額を返していたバグを `None` センチネルで修正
+
+**Medium 修正:**
+- **channel_mix >100%問題**: Beep追加前のtotal_ordersを分母に使うと100%超えする問題をmax(DB合計, チャンネル合計)で修正
+- **QC/Cubao二重計上**: `_aggregate_manila_sales` のb_mapでブランチ名正規化を実施
+- **調達データ切り捨て**: 300件超えのPOをキャップした際に DATA_WARNING を返すように
+- **get_store_evaluation_scores**: `required: ["city"]` を追加（未指定時マニラにサイレントデフォルト防止）
+- **get_dubai_sales説明文**: 実際のテーブル名(pos_revenue_location_daily)に修正、city-wide時はブランチ非対応と明記
+- **get_pnl facts key名**: "verbatim Google Sheet row labels" と明記、dict.keys()で確認推奨
+
+**Low 修正:**
+- get_dubai_sales schemaから group_by_month 削除（無視されていたパラメータ）
+- category_breakdownから gross_profit/gross_profit_pct をサーバーサイドでストリップ
+- NOON→Noon 表記統一（_normalize_revenue_aggregator_nameの実際の出力に合わせる）
+- 出勤データソース: "OS check-in records" → "Bayzat import data" に修正
+- Manila sales描述にBeep (GCash QR) チャンネルを追加
+- Menu engineering: top-N バイアスの免責事項を追加
+- _aggregate_cancellations の city 比較を小文字正規化
+
+---
 
 ## Recently Completed (2026-06-19 session 93) — live
 
@@ -1327,7 +1359,24 @@ Phase 1–4 全機能ブラウザテスト完了。2バグ修正・デプロイ�
 
 ## Pending Tasks
 
-なし
+### 緊急調達・サプライヤー確認システム（設計完了・実装待ち）
+詳細仕様: `docs/ai/SPEC_EMERGENCY_PROCUREMENT.md`
+
+**背景:** マニラでサプライヤー短納品が週2〜3件発生。本部把握・承認フローがない。
+
+**実装内容:**
+- **Phase A（先に実装）: EPR（緊急調達リクエスト）**
+  - 店舗スタッフが `/store/emergency-request` から申請
+  - 承認なしに調達・配送を進められないハードルール
+  - ≤₱5,000 → Ops Manager承認 / >₱5,000 → HQ承認
+  - 管理者 `/admin/emergency-requests` で承認・Analytics（根本原因別・店舗別集計）
+  - 新規テーブル: `emergency_procurement_requests`
+
+- **Phase B（後で実装）: サプライヤー事前確認コール（Manila のみ）**
+  - PO作成後、本部AdminがサプライヤーへTEL確認 → 結果をOSに記録
+  - 欠品確認時はマネージャーへ通知・代替手配フロー
+  - 新規テーブル: `supplier_confirmation_calls` + 既存POテーブルに confirmation_status 列追加
+  - Dubai は不要（欠品なし）
 
 ### Phase 3: 自動データ精度向上
 - cancel_count: Manila branch名のマッピング精度改善（cancellations.branch vs branch_code）
