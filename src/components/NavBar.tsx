@@ -8,6 +8,7 @@ import { usePathname, useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
+  Siren,
   ArrowLeftRight,
   Banknote,
   BarChart3,
@@ -136,6 +137,7 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/admin/daily-inventory", label: "Daily Inventory", icon: Warehouse, match: "exact" },
   { href: "/admin/travel-path", label: "Travel Path", icon: ClipboardList, match: "exact" },
   { href: "/store/procurement", label: "Store Procurement", icon: ShoppingCart, match: "prefix" },
+  { href: "/store/emergency-request", label: "Emergency Request", icon: Siren, match: "prefix" },
   { href: "/store/purchase", label: "Direct Purchase", icon: ShoppingBag, match: "prefix" },
   { href: "/store/ck-production", label: "CK Dispatch", icon: Truck, match: "prefix" },
   { href: "/store/ck-inventory", label: "CK Inventory", icon: FlaskConical, match: "prefix" },
@@ -158,6 +160,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin", label: "Admin Dashboard", icon: LayoutDashboard, adminOnly: true, match: "exact" },
   { href: "/admin/inventory", label: "Inventory", icon: Package, adminOnly: true, match: "prefix" },
   { href: "/admin/procurement", label: "Procurement", icon: Truck, adminOnly: true, match: "prefix" },
+  { href: "/admin/emergency-requests", label: "Emergency Requests", icon: Siren, adminOnly: true, match: "prefix" },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3, adminOnly: true, match: "exact" },
   { href: "/admin/cancellations", label: "Cancellation Report", icon: TicketCheck, adminOnly: true, match: "exact" },
   { href: "/admin/finance", label: "Management P&L", icon: Receipt, adminOnly: true, match: "prefix" },
@@ -263,6 +266,7 @@ export default function NavBar() {
   const [displayName, setDisplayName] = useState("");
   const [procurementBadgeCount, setProcurementBadgeCount] = useState(0);
   const [procurementBadgeCritical, setProcurementBadgeCritical] = useState(false);
+  const [eprBadge, setEprBadge] = useState(0);
   const [renewalBadge, setRenewalBadge] = useState(0);
   const [incidentBadge, setIncidentBadge] = useState(0);
   const [adminIncidentBadge, setAdminIncidentBadge] = useState(0);
@@ -593,6 +597,24 @@ export default function NavBar() {
         }
       }
 
+      // EPR pending badge (non-blocking)
+      try {
+        const authForEpr = resolved || a;
+        const eprRole = String(authForEpr?.role || "").toUpperCase();
+        if (["HQ", "ADMIN", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(eprRole)) {
+          const eprRes = await fetch("/api/admin/emergency-requests?status=pending&limit=200", {
+            cache: "no-store",
+            headers: { Authorization: `Bearer ${authForEpr?.accessToken}` },
+          });
+          if (eprRes.ok) {
+            const eprJson = await eprRes.json();
+            if (!cancelled) setEprBadge(Number((eprJson?.requests || []).length));
+          }
+        }
+      } catch {
+        // optional badge
+      }
+
       // Price Check badge (non-blocking)
       try {
         const authForPriceCheck = resolved || a;
@@ -669,6 +691,8 @@ export default function NavBar() {
             ? { ...item, badgeCount: privateReportBadge, badgePink: privateReportBadge > 0 }
             : item.href === "/admin/procurement"
           ? { ...item, badgeCount: procurementBadgeCount, badgeCritical: procurementBadgeCritical, badgeSuccess: true }
+          : item.href === "/admin/emergency-requests"
+          ? { ...item, badgeCount: eprBadge, badgeWarning: eprBadge > 0 }
           : item.href === "/admin/renewals"
             ? { ...item, badgeCount: renewalBadge, badgeWarning: true }
           : item.href === "/admin/incidents"
@@ -677,7 +701,7 @@ export default function NavBar() {
             ? { ...item, badgeCount: priceCheckBadge, badgeCritical: priceCheckBadge > 0 }
           : item,
       );
-  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge, priceCheckBadge, adminRequestBadge, privateReportBadge]);
+  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge, priceCheckBadge, adminRequestBadge, privateReportBadge, eprBadge]);
 
   const navItems = useMemo(() => [...staffItems, ...adminItems], [staffItems, adminItems]);
 

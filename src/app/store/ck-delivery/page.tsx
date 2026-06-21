@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CheckCircle2, ChevronDown, ChevronRight, Loader2,
-  Package, Plus, Send, Truck, X, Camera, AlertTriangle,
+  Package, Plus, Send, Truck, X, Camera, AlertTriangle, Clock, RefreshCw,
 } from "lucide-react";
 import { getAuth, getAuthHeaders, getUploadHeaders, canAccessInventoryAdminNav } from "@/lib/auth";
 import {
@@ -13,6 +13,8 @@ import {
   T_CAPTION, T_PAGE_TITLE, T_SECTION,
   KPI_CARD, KPI_LABEL, KPI_VALUE,
   INPUT_CLASS, SELECT_CLASS, TEXTAREA_CLASS,
+  BADGE_SUCCESS, BADGE_WARNING, BADGE_ERROR, BADGE_INFO,
+  TAB_CONTAINER, TAB_ACTIVE, TAB_INACTIVE,
 } from "@/lib/ui-tokens";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -185,6 +187,16 @@ export default function CKDeliveryPage() {
   // Toast
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
+  // ── Page tab (main CK Delivery view vs. Pending for My Branch) ────────────
+  const [pageTab, setPageTab] = useState<"deliveries" | "pending">("deliveries");
+
+  // ── Pending for branch state ───────────────────────────────────────────────
+  type PendingItem = { item_id: number; item_name: string; category: string; qty: number; unit: string; received_qty: number | null; notes: string };
+  type PendingDelivery = { delivery_id: number; plan_id: number | null; status: string; dispatched_by: string; dispatched_at: string | null; confirmed_by: string; confirmed_at: string | null; notes: string; items: PendingItem[] };
+  const [pendingDeliveries, setPendingDeliveries] = useState<PendingDelivery[]>([]);
+  const [pendingBranch, setPendingBranch] = useState("");
+  const [pendingLoading, setPendingLoading] = useState(false);
+
   // ── Refs ──────────────────────────────────────────────────────────────────
   const detailRef = useRef<HTMLDivElement>(null);
 
@@ -243,6 +255,29 @@ export default function CKDeliveryPage() {
 
   // Reset the new-delivery branch when the city toggles (branch lists differ).
   useEffect(() => { setNewBranch(branches[0] || ""); setActiveDelivery(null); }, [city]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Pending for branch ────────────────────────────────────────────────────
+  const loadPending = useCallback(async (branchOverride?: string) => {
+    const b = branchOverride ?? pendingBranch;
+    if (!b.trim()) return;
+    setPendingLoading(true);
+    try {
+      const res = await fetch(
+        `/api/store/ck-delivery/pending-for-branch?city=${encodeURIComponent(city)}&branch=${encodeURIComponent(b)}`,
+        { headers: getAuthHeaders() },
+      );
+      const data = await res.json();
+      if (data.ok) setPendingDeliveries(data.deliveries || []);
+    } catch {
+      // ignore
+    } finally {
+      setPendingLoading(false);
+    }
+  }, [city, pendingBranch]);
+
+  useEffect(() => {
+    if (pageTab === "pending" && pendingBranch) loadPending();
+  }, [pageTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Create Delivery ────────────────────────────────────────────────────────
   async function handleCreateDelivery() {
@@ -574,6 +609,131 @@ export default function CKDeliveryPage() {
           {toast.msg}
         </div>
       )}
+
+      {/* Page tabs */}
+      <div className={TAB_CONTAINER}>
+        <button className={pageTab === "deliveries" ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => setPageTab("deliveries")}>
+          <Truck className="h-3.5 w-3.5 inline mr-1.5" />CK Delivery
+        </button>
+        <button className={pageTab === "pending" ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => setPageTab("pending")}>
+          <Clock className="h-3.5 w-3.5 inline mr-1.5" />Pending for My Branch
+        </button>
+      </div>
+
+      {/* ── Pending for Branch view ── */}
+      {pageTab === "pending" && (
+        <div className="space-y-4">
+          <div className={`${GLASS_CARD} flex flex-wrap items-center gap-3 p-3`}>
+            <select
+              className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-zinc-300 outline-none focus:border-violet-500/50"
+              value={pendingBranch}
+              onChange={(e) => { setPendingBranch(e.target.value); loadPending(e.target.value); }}
+            >
+              <option value="">Select branch</option>
+              {(city === "dubai" ? DUBAI_BRANCHES : MANILA_BRANCHES).map((b) => <option key={b} value={b}>{b}</option>)}
+            </select>
+            <button className={SECONDARY_BUTTON} onClick={() => loadPending()} disabled={pendingLoading || !pendingBranch}>
+              <RefreshCw className={`h-4 w-4 ${pendingLoading ? "animate-spin" : ""}`} />
+            </button>
+            <span className={T_CAPTION}>Today&apos;s deliveries for your branch</span>
+          </div>
+
+          {pendingLoading && <p className="text-sm text-zinc-400">Loading…</p>}
+
+          {!pendingLoading && pendingDeliveries.length === 0 && pendingBranch && (
+            <div className={`${GLASS_CARD} p-6 text-center`}>
+              <CheckCircle2 className="h-8 w-8 text-emerald-400 mx-auto mb-2" />
+              <p className="text-sm text-zinc-400">No CK deliveries scheduled for today.</p>
+            </div>
+          )}
+
+          {!pendingLoading && !pendingBranch && (
+            <div className={`${GLASS_CARD} p-6 text-center`}>
+              <p className="text-sm text-zinc-400">Select your branch to see today&apos;s delivery status.</p>
+            </div>
+          )}
+
+          {pendingDeliveries.map((d) => {
+            const totalItems = d.items.length;
+            const receivedItems = d.items.filter((i) => i.received_qty != null).length;
+            const allReceived = totalItems > 0 && receivedItems === totalItems;
+            const statusColors: Record<string, string> = {
+              PENDING: "border-zinc-500/30 bg-zinc-500/5",
+              DISPATCHED: "border-amber-500/30 bg-amber-500/5",
+              CONFIRMED: "border-emerald-500/30 bg-emerald-500/5",
+            };
+            return (
+              <div key={d.delivery_id} className={`rounded-xl border p-4 space-y-3 ${statusColors[d.status] || "border-white/10 bg-white/4"}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {d.status === "CONFIRMED" || allReceived
+                      ? <span className={BADGE_SUCCESS}><CheckCircle2 className="h-3 w-3" />Received</span>
+                      : d.status === "DISPATCHED"
+                      ? <span className={BADGE_WARNING}><Truck className="h-3 w-3" />In Transit</span>
+                      : <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-500/15 border border-zinc-500/25 px-2.5 py-0.5 text-xs font-medium text-zinc-400"><Clock className="h-3 w-3" />Not Dispatched</span>
+                    }
+                    {d.dispatched_by && <span className="text-xs text-zinc-500">by {d.dispatched_by}</span>}
+                  </div>
+                  <span className="text-xs text-zinc-500">{receivedItems}/{totalItems} items received</span>
+                </div>
+
+                {/* Progress bar */}
+                {totalItems > 0 && (
+                  <div className="h-1.5 rounded-full bg-white/8 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${allReceived ? "bg-emerald-500" : d.status === "DISPATCHED" ? "bg-amber-500" : "bg-zinc-600"}`}
+                      style={{ width: `${Math.round(receivedItems / totalItems * 100)}%` }}
+                    />
+                  </div>
+                )}
+
+                {/* Item list */}
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr>
+                      <th className="text-left text-zinc-500 pb-1 font-semibold uppercase tracking-wide">Item</th>
+                      <th className="text-right text-zinc-500 pb-1 font-semibold uppercase tracking-wide">Ordered</th>
+                      <th className="text-right text-zinc-500 pb-1 font-semibold uppercase tracking-wide">Received</th>
+                      <th className="text-right text-zinc-500 pb-1 font-semibold uppercase tracking-wide">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {d.items.map((item) => {
+                      const rec = item.received_qty;
+                      const short = rec != null && rec < item.qty;
+                      return (
+                        <tr key={item.item_id} className="border-t border-white/5">
+                          <td className="py-1.5 text-zinc-200">{item.item_name}</td>
+                          <td className="py-1.5 text-right text-zinc-400">{item.qty} {item.unit}</td>
+                          <td className={`py-1.5 text-right ${rec != null ? (short ? "text-amber-400" : "text-emerald-400") : "text-zinc-600"}`}>
+                            {rec != null ? `${rec} ${item.unit}` : "—"}
+                          </td>
+                          <td className="py-1.5 text-right">
+                            {rec == null && d.status === "DISPATCHED" && <span className="text-amber-400">Awaiting</span>}
+                            {rec == null && d.status === "PENDING" && <span className="text-zinc-500">Not sent</span>}
+                            {rec != null && short && <span className="text-amber-400">Short</span>}
+                            {rec != null && !short && <span className="text-emerald-400">OK</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+
+                {d.status === "PENDING" && (
+                  <p className="text-xs text-zinc-500">CK has not dispatched this delivery yet. Contact CK if urgent.</p>
+                )}
+                {d.status === "DISPATCHED" && d.dispatched_at && (
+                  <p className="text-xs text-zinc-500">Dispatched at {d.dispatched_at.slice(0, 16)}. Confirm receipt on the CK Delivery tab.</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Main CK Delivery view (existing) ── */}
+      {pageTab === "deliveries" && <>
 
       {/* Filters */}
       <div className={`${GLASS_CARD} flex flex-wrap items-center gap-3 p-3`}>
@@ -1253,6 +1413,8 @@ export default function CKDeliveryPage() {
         </div>,
         document.body
       )}
+
+      </> /* end pageTab === "deliveries" */}
     </div>
   );
 }
