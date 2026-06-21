@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-21 (session 95 — AI Analytics Pro deep audit round 3: 17 data accuracy fixes)
+Last updated: 2026-06-21 (session 97 — Vendor Pending Deliveries section on store procurement page)
 
 > **New session start protocol:**
 > 1. Read `CLAUDE.md` (root) — always first
@@ -11,13 +11,61 @@ Last updated: 2026-06-21 (session 95 — AI Analytics Pro deep audit round 3: 17
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku a826178)
+なし — 全変更デプロイ済み (Heroku v1307, Vercel cf10c5e)
 
 ## ⚠️ Pending Investigation
 
 - **Store Procurement: Submit → editable bug** — スタッフ報告「一度Submitした注文が再度編集可能になっている」。代表が詳細確認してフィードバック予定。
 
-## Recently Completed (2026-06-21 session 95) — live (Heroku a826178)
+## Recently Completed (2026-06-21 session 97) — live (Heroku v1307, Vercel cf10c5e)
+
+**Vendor Pending Deliveries section on `/store/procurement`**
+
+- DB: `list_pending_deliveries_for_store(city, store_code)` 新設。`proc_purchase_orders JOIN proc_requests` で `receipt_confirmed_at IS NULL` のPOを返す。CK(Central Kitchen)は除外。
+- Backend: `GET /api/store/procurement/pending-deliveries?city=&store_code=` 追加 (Heroku v1307)
+- Frontend: `/store/procurement/page.tsx` の右パネルに折りたたみ式「Pending Deliveries」セクション追加(CK Dispatch セクションの上)
+  - ステータス別バッジ: Not Dispatched(zinc) / In Transit(sky) / Short Delivered(amber + TriangleAlert)
+  - 行を展開すると品目一覧 + Receiving/Claim クイックリンク
+  - 支店選択時に自動ロード、リフレッシュボタン付き
+
+**残タスク:**
+- EPR Phase B: サプライヤー事前確認コール機能 (supplier_confirmation_calls テーブル + 既存PO画面への統合)
+
+## Recently Completed (2026-06-21 session 96) — live (Heroku v1306, Vercel 1b14f2a)
+
+**緊急調達システム Phase A + CK Pending Deliveries タブ**
+
+**① Emergency Procurement System (EPR Phase A)**
+- DB: `emergency_procurement_requests` テーブル新設。urgency/items(JSONB)/root_cause/approval_level等
+- 承認ロジック: ≤5,000 PHP → ops_manager / >5,000 PHP → hq を自動判定
+- 店舗側: `/store/emergency-request` — 品目追加フォーム(qty/unit/PHP単価/合計/root cause) + My Requests履歴タブ
+- 管理者側: `/admin/emergency-requests` — Pending承認キュー(approve/reject/complete 2-step確認) + Analytics(root cause別/店舗別棒グラフ + KPI4枚)
+- NavBar: Siren アイコン。管理者ナビは pending 件数バッジ付き
+
+**② CK Pending Deliveries タブ** (`/store/ck-delivery`)
+- "Pending for My Branch" タブ追加
+- 今日の CK 配送を支店別に表示。Status: Not Dispatched / In Transit / Received
+- 品目ごとに ordered qty vs received qty を比較。不足品目は amber でハイライト
+- "Dispatched but not confirmed → CK Delivery タブで受取確認" の誘導テキスト付き
+
+## Recently Completed (2026-06-21 session 95 Rounds 4–5) — live (Heroku ee8c25a)
+
+**AI Analytics Pro 信頼度向上 ~83→~90点**
+
+**Round 4 修正:**
+- **P&L 日本語キー→英語正規化**: `_pl_rollup_to_summary()` 新設。`rollup_four_buckets()` を全P&Lデータに適用し food_cost/labor_cost/rent_utilities/other_opex/profit_pl + %KPI を返す
+- **メニュー工学 母集団バイアス修正**: `get_manila_sales_by_product` にウィンドウ関数追加(`COUNT(*)/AVG() OVER()`)。TOP-30偏りを排除し全メニュー母集団平均でStar/Plow Horse/Puzzle/Dog分類
+- **Manila キャンセルプラットフォーム名**: `LOWER(platform)=LOWER(%s)` 対応
+
+**Round 5 修正:**
+- **P&L 支店別サマリー**: `__stores__` サブdictの各支店に `_pl_rollup_to_summary()` 適用→ `store_summaries{}` として返却
+- **Dubai支店カバレッジ警告**: 5支店未満のデータ時に `DATA_WARNING` 付与(欠損≠売上ゼロと明示)
+- **調達金額NULL対応**: `list_proc_purchase_orders_for_analytics` で `COALESCE(p.amount, 0)`
+- **メニュー工学ORDER BY**: `total_sales DESC` → `item_net_sales DESC` に修正
+- **評価スコア11項目全取得**: `get_evaluations_trend` SELECT に food_safety/organization/sop_compliance 追加
+- **scoring_note 全11サブスコア基準**: ≥85=Excellent ✅, 70-84=Acceptable 🟡, <70=🔴 に統一
+
+## Recently Completed (2026-06-21 session 95 Round 3) — live (Heroku a826178)
 
 **AI Analytics Pro 深層監査 Round 3 — 17件修正**
 
