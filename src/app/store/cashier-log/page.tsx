@@ -84,7 +84,6 @@ function PhotoSlot({ label, photo, onPick, onClear }: {
         ref={ref}
         type="file"
         accept="image/*"
-        capture="environment"
         className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) onPick(f); e.target.value = ""; }}
       />
