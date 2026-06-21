@@ -16,7 +16,6 @@ import {
   SMALL_BUTTON,
   T_PAGE_TITLE,
   T_SECTION,
-  T_LABEL,
   T_CAPTION,
 } from "@/lib/ui-tokens";
 
@@ -192,7 +191,7 @@ export default function CkIngredientReceivingPage() {
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-2">
                     <span className="text-sm font-semibold text-zinc-200">
-                      ₱{row.amount.toLocaleString()}
+                      ₱{(row.amount ?? 0).toLocaleString()}
                     </span>
                     {isOpen ? (
                       <ChevronUp className="h-4 w-4 text-zinc-500" />

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CheckCircle2, ChevronDown, ChevronRight, Loader2,
-  Package, Plus, Send, Truck, X, Camera, AlertTriangle, Clock, RefreshCw, PackageSearch,
+  Package, Plus, Send, Truck, X, Camera, AlertTriangle, Clock, RefreshCw,
 } from "lucide-react";
 import { getAuth, getAuthHeaders, getUploadHeaders, canAccessInventoryAdminNav } from "@/lib/auth";
 import {
@@ -188,7 +188,7 @@ export default function CKDeliveryPage() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
   // ── Page tab ──────────────────────────────────────────────────────────────
-  const [pageTab, setPageTab] = useState<"deliveries" | "pending" | "ingredients">("deliveries");
+  const [pageTab, setPageTab] = useState<"deliveries" | "pending">("deliveries");
 
   // ── Pending for branch state ───────────────────────────────────────────────
   type PendingItem = { item_id: number; item_name: string; category: string; qty: number; unit: string; received_qty: number | null; notes: string };
@@ -196,17 +196,6 @@ export default function CKDeliveryPage() {
   const [pendingDeliveries, setPendingDeliveries] = useState<PendingDelivery[]>([]);
   const [pendingBranch, setPendingBranch] = useState("");
   const [pendingLoading, setPendingLoading] = useState(false);
-
-  // ── CK Ingredient Deliveries (vendor POs for CK) ──────────────────────────
-  type IngredientPoRow = {
-    id: string; po_no: string; vendor_name: string; amount: number;
-    line_items_json: { item_name: string; qty: number; unit: string }[];
-    delivery_date?: string; dispatched_at?: string; has_shortage: boolean;
-    request_no: string; pending_status: "not_dispatched" | "in_transit" | "short_delivered";
-  };
-  const [ingredientPos, setIngredientPos] = useState<IngredientPoRow[]>([]);
-  const [ingredientLoading, setIngredientLoading] = useState(false);
-  const [ingredientExpanded, setIngredientExpanded] = useState<string | null>(null);
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const detailRef = useRef<HTMLDivElement>(null);
@@ -288,22 +277,7 @@ export default function CKDeliveryPage() {
 
   useEffect(() => {
     if (pageTab === "pending" && pendingBranch) loadPending();
-    if (pageTab === "ingredients") void loadIngredientPos();
   }, [pageTab]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const loadIngredientPos = useCallback(async () => {
-    setIngredientLoading(true);
-    try {
-      const qs = new URLSearchParams({ city: "manila", store_code: "CK" });
-      const res = await fetch(`/api/store/procurement/pending-deliveries?${qs}`, { headers: getAuthHeaders(), cache: "no-store" });
-      const data = await res.json();
-      setIngredientPos(Array.isArray(data?.rows) ? data.rows : []);
-    } catch {
-      setIngredientPos([]);
-    } finally {
-      setIngredientLoading(false);
-    }
-  }, []);
 
   // ── Create Delivery ────────────────────────────────────────────────────────
   async function handleCreateDelivery() {
@@ -644,14 +618,6 @@ export default function CKDeliveryPage() {
         <button className={pageTab === "pending" ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => setPageTab("pending")}>
           <Clock className="h-3.5 w-3.5 inline mr-1.5" />Pending for My Branch
         </button>
-        <button className={pageTab === "ingredients" ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => setPageTab("ingredients")}>
-          <PackageSearch className="h-3.5 w-3.5 inline mr-1.5" />Ingredient Deliveries
-          {ingredientPos.length > 0 && (
-            <span className="ml-1.5 inline-flex items-center justify-center rounded-full bg-amber-500/25 border border-amber-500/40 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">
-              {ingredientPos.length}
-            </span>
-          )}
-        </button>
       </div>
 
       {/* ── Pending for Branch view ── */}
@@ -759,95 +725,6 @@ export default function CKDeliveryPage() {
                 )}
                 {d.status === "DISPATCHED" && d.dispatched_at && (
                   <p className="text-xs text-zinc-500">Dispatched at {d.dispatched_at.slice(0, 16)}. Confirm receipt on the CK Delivery tab.</p>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ── CK Ingredient Deliveries tab ── */}
-      {pageTab === "ingredients" && (
-        <div className="space-y-3">
-          <div className={`${GLASS_CARD} flex items-center justify-between gap-3 p-3`}>
-            <p className={T_CAPTION}>Vendor POs for CK ingredients not yet received</p>
-            <button className={SMALL_BUTTON} onClick={() => void loadIngredientPos()} disabled={ingredientLoading}>
-              <RefreshCw className={`h-4 w-4 ${ingredientLoading ? "animate-spin" : ""}`} />
-            </button>
-          </div>
-
-          {ingredientLoading && <p className="text-sm text-zinc-400 px-1">Loading…</p>}
-
-          {!ingredientLoading && ingredientPos.length === 0 && (
-            <div className={`${GLASS_CARD} p-8 text-center`}>
-              <CheckCircle2 className="h-8 w-8 text-emerald-400 mx-auto mb-2" />
-              <p className="text-sm text-zinc-400">No pending ingredient deliveries. All POs received!</p>
-            </div>
-          )}
-
-          {ingredientPos.map((po) => {
-            const isExp = ingredientExpanded === po.id;
-            const statusLabel =
-              po.pending_status === "short_delivered"
-                ? { label: "Short Delivered", cls: "bg-amber-900/30 border-amber-700/50 text-amber-300" }
-                : po.pending_status === "in_transit"
-                  ? { label: "In Transit", cls: "bg-sky-900/30 border-sky-700/50 text-sky-300" }
-                  : { label: "Not Dispatched", cls: "bg-zinc-800 border-zinc-700 text-zinc-400" };
-            return (
-              <div
-                key={po.id}
-                className={`rounded-2xl border overflow-hidden transition-all duration-200 ${
-                  isExp
-                    ? "border-sky-500/40 bg-sky-950/15"
-                    : po.pending_status === "short_delivered"
-                      ? "border-amber-700/40 bg-amber-950/10"
-                      : "border-white/8 bg-white/3"
-                }`}
-              >
-                <button
-                  type="button"
-                  className="w-full px-4 py-3 flex items-start justify-between gap-3 text-left"
-                  onClick={() => setIngredientExpanded(isExp ? null : po.id)}
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <span className="font-mono text-sm font-semibold text-white">{po.po_no}</span>
-                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusLabel.cls}`}>
-                        {statusLabel.label}
-                      </span>
-                      {po.has_shortage && <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />}
-                    </div>
-                    <p className="text-xs text-zinc-400">
-                      {po.vendor_name}
-                      {po.delivery_date && <span className="ml-2 text-amber-400">📅 {po.delivery_date}</span>}
-                      {po.dispatched_at && <span className="ml-2 text-zinc-500">Dispatched {po.dispatched_at.slice(0, 10)}</span>}
-                    </p>
-                    <p className="text-xs text-zinc-500 mt-0.5">
-                      {(po.line_items_json || []).length} item{(po.line_items_json || []).length !== 1 ? "s" : ""} · {po.request_no}
-                    </p>
-                  </div>
-                  {isExp
-                    ? <ChevronDown className="h-4 w-4 text-sky-400 shrink-0 mt-0.5" />
-                    : <ChevronRight className="h-4 w-4 text-zinc-500 shrink-0 mt-0.5" />}
-                </button>
-
-                {isExp && (
-                  <div className="border-t border-white/8 px-4 py-3 space-y-2">
-                    <div className="space-y-1">
-                      {(Array.isArray(po.line_items_json) ? po.line_items_json : []).map((item, i) => (
-                        <div key={i} className="flex items-center justify-between text-xs text-zinc-300">
-                          <span>{item.item_name}</span>
-                          <span className="text-zinc-500 tabular-nums">{item.qty} {item.unit}</span>
-                        </div>
-                      ))}
-                    </div>
-                    {po.pending_status === "not_dispatched" && (
-                      <p className="text-xs text-zinc-500 italic pt-1">Vendor has not dispatched yet — contact supplier to confirm shipment.</p>
-                    )}
-                    {po.pending_status === "short_delivered" && (
-                      <p className="text-xs text-amber-400 italic pt-1">Short delivery reported. File a claim through Store Procurement → Claim.</p>
-                    )}
-                  </div>
                 )}
               </div>
             );
