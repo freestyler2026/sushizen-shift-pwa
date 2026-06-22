@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CheckCircle2, ChevronDown, ChevronRight, Loader2,
-  Package, Plus, Send, Truck, X, Camera, AlertTriangle, Clock, RefreshCw,
+  Package, Plus, Send, Truck, X, Camera, AlertTriangle, Clock, RefreshCw, Trash2,
 } from "lucide-react";
 import { getAuth, getAuthHeaders, getUploadHeaders, canAccessInventoryAdminNav } from "@/lib/auth";
 import {
@@ -463,6 +463,25 @@ export default function CKDeliveryPage() {
       showToast((e as Error).message, false);
     } finally {
       setLabelBusy(null);
+    }
+  }
+
+  // ── Delete Item ────────────────────────────────────────────────────────────
+  async function handleDeleteItem(itemId: number) {
+    if (!activeDelivery) return;
+    if (!confirm("Delete this item from the delivery?")) return;
+    try {
+      await apiFetch(`/api/store/ck-delivery/deliveries/${activeDelivery.id}/items/${itemId}`, { method: "DELETE" });
+      setActiveDelivery(prev => prev ? {
+        ...prev,
+        items: (prev.items || []).filter(i => i.id !== itemId),
+      } : null);
+      setDeliveries(ds => ds.map(d => d.id === activeDelivery.id
+        ? { ...d, item_count: Math.max(0, (d.item_count || 1) - 1) }
+        : d));
+      showToast("Item deleted");
+    } catch (e: unknown) {
+      showToast((e as Error).message, false);
     }
   }
 
@@ -941,7 +960,7 @@ export default function CKDeliveryPage() {
                               <label className={`${SMALL_BUTTON} inline-flex cursor-pointer items-center gap-1.5`}>
                                 {labelBusy === item.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
                                 Add label photo
-                                <input type="file" accept="image/*" capture="environment" className="hidden"
+                                <input type="file" accept="image/*" className="hidden"
                                   onChange={e => { const f = e.target.files?.[0]; if (f) void uploadLabelPhoto(item.id, f); e.target.value = ""; }} />
                               </label>
                             )}
@@ -996,6 +1015,9 @@ export default function CKDeliveryPage() {
                                 <th className={`${TABLE_HEADER} px-3 text-right`}>Sent Qty</th>
                                 <th className={`${TABLE_HEADER} px-3 text-right`}>Received</th>
                                 <th className={`${TABLE_HEADER} pl-4 pr-4 text-left`}>Notes</th>
+                                {canManage && activeDelivery.status === "PENDING" && (
+                                  <th className={`${TABLE_HEADER} pr-3`} />
+                                )}
                               </tr>
                             </thead>
                             <tbody>
@@ -1020,6 +1042,17 @@ export default function CKDeliveryPage() {
                                   <td className={`${TABLE_CELL} pl-4 pr-4 text-xs text-zinc-500`}>
                                     {item.received_notes || "—"}
                                   </td>
+                                  {canManage && activeDelivery.status === "PENDING" && (
+                                    <td className={`${TABLE_CELL} pr-3 text-right`}>
+                                      <button
+                                        onClick={() => void handleDeleteItem(item.id)}
+                                        className="rounded-lg p-1.5 text-red-400 hover:bg-red-500/10"
+                                        aria-label="Delete item"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    </td>
+                                  )}
                                 </tr>
                               ))}
                             </tbody>
