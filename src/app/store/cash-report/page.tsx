@@ -530,7 +530,7 @@ function HistoryDetailPanel({ r }: { r: HistoryReport }) {
 
 // ─── Closing Report Form ──────────────────────────────────────────────────────
 
-function ClosingForm({ branch, today }: { branch: string; today: string }) {
+function ClosingForm({ branch, onBranchChange, today }: { branch: string; onBranchChange: (b: string) => void; today: string }) {
   const auth = getAuth();
   // Reference
   const [ref, setRef]             = useState<Record<string, any> | null>(null);
@@ -726,6 +726,21 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
           <input type="date" className={`${INPUT_CLASS} w-full max-w-full`} value={reportDate} onChange={(e) => setReportDate(e.target.value)} />
         </div>
       </div>
+
+      {/* Branch confirmation — prominent to prevent wrong-branch submissions */}
+      <div className="rounded-xl border-2 border-amber-500/50 bg-amber-500/10 px-4 py-3">
+        <label className="block text-xs font-bold uppercase tracking-widest text-amber-400 mb-2">
+          ⚠️ Submitting for Branch
+        </label>
+        <select
+          className="w-full rounded-lg border border-amber-500/40 bg-slate-800 px-3 py-2 text-base font-bold text-white outline-none focus:ring-2 focus:ring-amber-500/50"
+          value={branch}
+          onChange={(e) => onBranchChange(e.target.value)}
+        >
+          {BRANCHES.map((b) => <option key={b.code} value={b.code}>{b.label}</option>)}
+        </select>
+      </div>
+
       {openingBalance != null && (
         <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 px-4 py-2 text-sm text-sky-300">
           Opening Balance (from morning report): <strong>{fmtPHP(openingBalance)}</strong>
@@ -897,7 +912,7 @@ function ClosingForm({ branch, today }: { branch: string; today: string }) {
 
 // ─── Opening Report Form ──────────────────────────────────────────────────────
 
-function OpeningForm({ branch, today }: { branch: string; today: string }) {
+function OpeningForm({ branch, onBranchChange, today }: { branch: string; onBranchChange: (b: string) => void; today: string }) {
   const auth = getAuth();
   const [ref, setRef]           = useState<Record<string, any> | null>(null);
   const [denoms, setDenoms]     = useState<Denoms>(emptyDenoms());
@@ -954,6 +969,20 @@ function OpeningForm({ branch, today }: { branch: string; today: string }) {
           <label className={`${T_LABEL} mb-1 block`}>Report Date</label>
           <input type="date" className={`${INPUT_CLASS} w-full max-w-full`} value={reportDate} onChange={(e) => setReportDate(e.target.value)} />
         </div>
+      </div>
+
+      {/* Branch confirmation — prominent to prevent wrong-branch submissions */}
+      <div className="rounded-xl border-2 border-amber-500/50 bg-amber-500/10 px-4 py-3">
+        <label className="block text-xs font-bold uppercase tracking-widest text-amber-400 mb-2">
+          ⚠️ Submitting for Branch
+        </label>
+        <select
+          className="w-full rounded-lg border border-amber-500/40 bg-slate-800 px-3 py-2 text-base font-bold text-white outline-none focus:ring-2 focus:ring-amber-500/50"
+          value={branch}
+          onChange={(e) => onBranchChange(e.target.value)}
+        >
+          {BRANCHES.map((b) => <option key={b.code} value={b.code}>{b.label}</option>)}
+        </select>
       </div>
 
       {expectedOpening != null && (
@@ -1054,8 +1083,8 @@ export default function CashReportPage() {
         </div>
 
         <div className="rounded-xl border border-white/20 bg-white/5 p-4">
-          {tab === "closing" ? <ClosingForm branch={branch} today={today} />
-            : tab === "opening" ? <OpeningForm branch={branch} today={today} />
+          {tab === "closing" ? <ClosingForm branch={branch} onBranchChange={setBranch} today={today} />
+            : tab === "opening" ? <OpeningForm branch={branch} onBranchChange={setBranch} today={today} />
             : <HistoryTab branch={branch} />}
         </div>
       </div>
