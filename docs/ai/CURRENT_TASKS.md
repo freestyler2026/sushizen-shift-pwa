@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-21 (session 99 — AI Analytics Pro: fix + Business Events Log)
+Last updated: 2026-06-23 (session 100 — Cash Report branch selector + CK Delivery fixes + Store Receiving city filter)
 
 
 > **New session start protocol:**
@@ -12,7 +12,30 @@ Last updated: 2026-06-21 (session 99 — AI Analytics Pro: fix + Business Events
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku 9654824 v1310, Vercel dd2ae0d)
+なし — 全変更デプロイ済み (Heroku v1314, Vercel 846ec0f)
+
+## Recently Completed (2026-06-23 session 100) — live (Heroku v1314, Vercel 846ec0f)
+
+**Cash Report branch selector + CK Delivery 2件修正 + Store Receiving city filter**
+
+**① Cash Report — Opening/Closing フォーム内ブランチ確認セレクター** (Vercel 2c8ce3b)
+- `ClosingForm` / `OpeningForm` 両方に amber ハイライトのブランチ確認セレクターを Staff Name + Date グリッドの下に追加
+- `onBranchChange` コールバックで親 page と双方向同期。TaftスタッフがパラニヤーケのままSubmitするミスを防止
+
+**② CK Delivery — Androidモバイル画面崩れ修正** (Vercel 3a39a9c)
+- ラベル写真input から `capture="environment"` を削除
+- PWA/WebView Android環境でカメラ強制起動→描画衝突→画面グリッチが発生していた。削除後はOS標準のカメラ/ギャラリー選択が表示される
+
+**③ CK Delivery — アイテム削除ボタン追加** (Heroku v1314, Vercel 3a39a9c)
+- DB: `delete_ck_delivery_item(item_id, delivery_id)` — SQLでPENDINGチェックしてDELETE
+- API: `DELETE /api/store/ck-delivery/deliveries/{delivery_id}/items/{item_id}`
+- フロント: PENDING + canManage 時のみ各アイテム行に Trash2 ボタン。確認ダイアログ付き
+
+**④ Store Receiving — Receiving Records が Manila/Dubai 混在する問題修正** (Vercel 846ec0f)
+- `loadReceivings()` が `city` パラメーターをAPIに渡していなかった → バックエンドが全都市のデータを返していた
+- 修正: `cityOverride?: string` パラメーター追加、`city` を常にクエリに含める。backend は `request_id` 指定時は city フィルターを自動スキップするため安全
+- 初期化時は `loadReceivings(initialReq, initialCity)` でURL解決済みcityを確実に渡す
+- Refresh ボタン: スピナー(`animate-spin`) + "Refreshing…" テキスト + disabled 状態を追加。「クリックしても反応がない」ように見えていた原因は同じ無フィルターデータを再ロードしていたため
 
 ## Recently Completed (2026-06-21 session 99) — live (Heroku v1310, Vercel dd2ae0d)
 
