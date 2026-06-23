@@ -132,6 +132,7 @@ export default function StoreProcurementReceivingPage() {
   const [formError, setFormError] = useState("");
   const [showNewForm, setShowNewForm] = useState(false);
   const [duplicateWarningConfirmed, setDuplicateWarningConfirmed] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const cityLabel = city === "dubai" ? "Dubai" : "Manila";
   const currencyCode = city === "dubai" ? "AED" : "PHP";
@@ -156,9 +157,10 @@ export default function StoreProcurementReceivingPage() {
 
   // ── Load receivings ────────────────────────────────────────────────────────
 
-  const loadReceivings = useCallback(async (rid?: string) => {
+  const loadReceivings = useCallback(async (rid?: string, cityOverride?: string) => {
     try {
-      const qs = new URLSearchParams({ limit: "200" });
+      const activeCity = cityOverride || city || "manila";
+      const qs = new URLSearchParams({ limit: "200", city: activeCity });
       const targetId = (rid ?? requestId).trim();
       if (targetId) qs.set("request_id", targetId);
       const data = await procurementJson<{ rows: ReceivingRow[] }>(
@@ -171,7 +173,7 @@ export default function StoreProcurementReceivingPage() {
     } catch (e: any) {
       setError(friendlyProcurementError(e));
     }
-  }, [pin, requestId, requestedBy]);
+  }, [city, pin, requestId, requestedBy]);
 
   // ── Load request detail (items) ───────────────────────────────────────────
 
@@ -469,7 +471,7 @@ export default function StoreProcurementReceivingPage() {
       // Scope the initial receiving load to the URL's request_id (if any) so it
       // doesn't load a global list that races with the per-request load below.
       const initialReq = typeof window !== "undefined" ? (new URLSearchParams(window.location.search).get("request_id") || "") : "";
-      await Promise.all([loadMyRequests(initialCity), loadReceivings(initialReq)]);
+      await Promise.all([loadMyRequests(initialCity), loadReceivings(initialReq, initialCity)]);
     }
     void init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -575,10 +577,15 @@ export default function StoreProcurementReceivingPage() {
             </select>
             <button
               type="button"
-              onClick={() => void Promise.all([loadMyRequests(), loadReceivings()])}
-              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-violet-400/15 bg-violet-950/30 py-2 text-xs text-white transition hover:bg-violet-950/45"
+              disabled={refreshing}
+              onClick={async () => {
+                setRefreshing(true);
+                try { await Promise.all([loadMyRequests(), loadReceivings()]); }
+                finally { setRefreshing(false); }
+              }}
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-violet-400/15 bg-violet-950/30 py-2 text-xs text-white transition hover:bg-violet-950/45 disabled:opacity-50"
             >
-              <RefreshCw className="h-3.5 w-3.5" /> Refresh
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} /> {refreshing ? "Refreshing…" : "Refresh"}
             </button>
           </div>
 
