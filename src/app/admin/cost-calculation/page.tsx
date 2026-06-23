@@ -1472,7 +1472,7 @@ export default function CostCalculationPage() {
       const adjusted = editedStr !== undefined ? parseFloat(editedStr) : undefined;
       await costJson(`/api/cost/price-pending/${item.id}/apply`, {
         method: "POST",
-        body: JSON.stringify({ city: item.city, adjusted_unit_price: adjusted && !isNaN(adjusted) ? adjusted : null }),
+        body: JSON.stringify({ city: item.city, adjusted_unit_price: adjusted !== undefined && !isNaN(adjusted) ? adjusted : null }),
       });
       const res = await costJson<{ items?: PricePendingEntry[] }>(
         `/api/cost/price-pending?city=${encodeURIComponent(city)}&status=pending`,
@@ -1849,6 +1849,11 @@ export default function CostCalculationPage() {
     if (!allowed || !isRatioSection) return;
     void loadMasterItems("product");
   }, [allowed, isRatioSection, loadMasterItems]);
+
+  useEffect(() => {
+    if (!allowed) return;
+    void loadPricePending();
+  }, [allowed, city, loadPricePending]);
 
   useEffect(() => {
     if (!allowed || !isPendingSection) return;
