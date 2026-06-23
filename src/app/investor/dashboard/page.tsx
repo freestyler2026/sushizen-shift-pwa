@@ -54,7 +54,10 @@ type Store = "almina" | "taft";
 type Tab = "orders" | "hourly" | "items" | "ratings" | "simulation";
 
 function investorFetch(path: string): Promise<unknown> {
-  return fetch(path, { cache: "no-store" }).then((r) => r.json());
+  // Route through /investor-api/ (not /api/) so Vercel's /api/* rewrite
+  // doesn't bypass the Next.js route handler that injects x-investor-key.
+  const routed = path.replace(/^\/api\/investor\//, "/investor-api/");
+  return fetch(routed, { cache: "no-store" }).then((r) => r.json());
 }
 
 function fmtMonth(m: string) {
