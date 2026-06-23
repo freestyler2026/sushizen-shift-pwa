@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getInvestorSession } from "./layout";
+import { getInvestorSession } from "@/lib/investor-auth";
 
 const VALID_NAME = "test";
 const VALID_PW = "sushizen";

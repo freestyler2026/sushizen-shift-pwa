@@ -5,7 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, Legend, ReferenceLine,
 } from "recharts";
-import { getInvestorSession } from "../layout";
+import { getInvestorSession } from "@/lib/investor-auth";
 
 // ── Static investment simulation data (from Excel SushiZEN_FOCO_投資家用.xlsx) ─
 
