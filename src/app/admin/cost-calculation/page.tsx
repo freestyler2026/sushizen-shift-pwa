@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Calculator, ChevronDown, ChevronRight, Clock, Database, ExternalLink, History, LayoutGrid, Loader2, Percent, Pencil, Plus, RotateCcw, Save, Search, ShieldCheck, SkipForward, Trash2, User, X } from "lucide-react";
+import { AlertTriangle, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Database, ExternalLink, History, LayoutGrid, Loader2, Percent, Pencil, Plus, RefreshCcw, RotateCcw, Save, Search, ShieldCheck, SkipForward, Trash2, User, X } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
@@ -133,7 +133,26 @@ type MenuItemDetail = MenuItemRow & {
   price_history: MenuPriceHistoryEntry[];
 };
 
-type CostSection = "ingredient" | "processed" | "product" | "draft" | "invoice" | "cost-ratio";
+type CostSection = "ingredient" | "processed" | "product" | "draft" | "invoice" | "cost-ratio" | "price-pending";
+
+type PricePendingEntry = {
+  id: number;
+  ingredient_id: number;
+  ingredient_name: string;
+  ingredient_unit: string;
+  city: string;
+  supplier_id: number | null;
+  supplier_name: string;
+  old_unit_price: number;
+  new_unit_price: number;
+  proposed_unit_price: number;
+  purchase_unit: string;
+  purchase_qty: number;
+  purchase_price: number;
+  status: string;
+  created_at: string;
+  created_by: string;
+};
 
 type PriceAuditItem = {
   id: string;
@@ -843,6 +862,10 @@ export default function CostCalculationPage() {
   const [priceAuditItems, setPriceAuditItems] = useState<PriceAuditItem[] | null>(null);
   const [priceAuditLoading, setPriceAuditLoading] = useState(false);
   const [priceAuditClearingId, setPriceAuditClearingId] = useState<string | null>(null);
+  const [pricePendingItems, setPricePendingItems] = useState<PricePendingEntry[] | null>(null);
+  const [pricePendingLoading, setPricePendingLoading] = useState(false);
+  const [pricePendingActionId, setPricePendingActionId] = useState<number | null>(null);
+  const [pricePendingEdits, setPricePendingEdits] = useState<Record<number, string>>({});
   const [showAddItemForm, setShowAddItemForm] = useState(false);
   const [newItemName, setNewItemName] = useState("");
   const [newItemCategory, setNewItemCategory] = useState("");
@@ -927,6 +950,7 @@ export default function CostCalculationPage() {
   const isIngredientSection = activeSection === "ingredient";
   const isInvoiceSection = activeSection === "invoice";
   const isRatioSection = activeSection === "cost-ratio";
+  const isPendingSection = activeSection === "price-pending";
   const isMasterSection = activeSection === "processed" || activeSection === "draft" || activeSection === "product";
   const showLegacyRecipeSection = activeSection === "product" && showLegacyProductSheets;
   const ingredientColumns = useMemo<SpreadsheetColumn[]>(
@@ -1426,6 +1450,62 @@ export default function CostCalculationPage() {
     }
   }, [city]);
 
+  const loadPricePending = useCallback(async () => {
+    setPricePendingLoading(true);
+    try {
+      const res = await costJson<{ items?: PricePendingEntry[] }>(
+        `/api/cost/price-pending?city=${encodeURIComponent(city)}&status=pending`,
+      );
+      setPricePendingItems(Array.isArray(res?.items) ? res.items : []);
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setPricePendingLoading(false);
+    }
+  }, [city]);
+
+  const applyPricePending = useCallback(async (item: PricePendingEntry) => {
+    setPricePendingActionId(item.id);
+    setError("");
+    try {
+      const editedStr = pricePendingEdits[item.id];
+      const adjusted = editedStr !== undefined ? parseFloat(editedStr) : undefined;
+      await costJson(`/api/cost/price-pending/${item.id}/apply`, {
+        method: "POST",
+        body: JSON.stringify({ city: item.city, adjusted_unit_price: adjusted && !isNaN(adjusted) ? adjusted : null }),
+      });
+      const res = await costJson<{ items?: PricePendingEntry[] }>(
+        `/api/cost/price-pending?city=${encodeURIComponent(city)}&status=pending`,
+      );
+      setPricePendingItems(Array.isArray(res?.items) ? res.items : []);
+      setPricePendingEdits((prev) => { const n = { ...prev }; delete n[item.id]; return n; });
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setPricePendingActionId(null);
+    }
+  }, [city, pricePendingEdits]);
+
+  const dismissPricePending = useCallback(async (item: PricePendingEntry) => {
+    setPricePendingActionId(item.id);
+    setError("");
+    try {
+      await costJson(`/api/cost/price-pending/${item.id}/dismiss`, {
+        method: "POST",
+        body: JSON.stringify({ city: item.city }),
+      });
+      const res = await costJson<{ items?: PricePendingEntry[] }>(
+        `/api/cost/price-pending?city=${encodeURIComponent(city)}&status=pending`,
+      );
+      setPricePendingItems(Array.isArray(res?.items) ? res.items : []);
+      setPricePendingEdits((prev) => { const n = { ...prev }; delete n[item.id]; return n; });
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setPricePendingActionId(null);
+    }
+  }, [city]);
+
   const clearPriceOverride = useCallback(async (item: PriceAuditItem) => {
     setPriceAuditClearingId(item.id);
     try {
@@ -1769,6 +1849,11 @@ export default function CostCalculationPage() {
     if (!allowed || !isRatioSection) return;
     void loadMasterItems("product");
   }, [allowed, isRatioSection, loadMasterItems]);
+
+  useEffect(() => {
+    if (!allowed || !isPendingSection) return;
+    void loadPricePending();
+  }, [allowed, isPendingSection, loadPricePending]);
 
   // 仕入連動チェックページの「商品マスタで編集」ボタンから飛んできた場合、
   // sessionStorage に保存された商品IDを読み取って自動でその商品を開く。
@@ -3597,6 +3682,7 @@ export default function CostCalculationPage() {
               { key: "draft" as CostSection, label: "New Product Costing" },
               { key: "invoice" as CostSection, label: "Invoice Mapping" },
               { key: "cost-ratio" as CostSection, label: "Cost Rate Overview" },
+              { key: "price-pending" as CostSection, label: "Price Pending" },
             ].map((section) => (
               <button
                 key={section.key}
@@ -3617,6 +3703,11 @@ export default function CostCalculationPage() {
                 )}
               >
                 {section.label}
+                {section.key === "price-pending" && pricePendingItems && pricePendingItems.length > 0 && (
+                  <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-black">
+                    {pricePendingItems.length}
+                  </span>
+                )}
               </button>
             ))}
             <Link
@@ -5034,9 +5125,117 @@ export default function CostCalculationPage() {
                 </div>
               </div>
             );
-          })() : null}
+          })() : isPendingSection ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Supplier Price Changes</h2>
+                  <p className="mt-0.5 text-sm text-zinc-500">
+                    Review price changes submitted by staff. Adjust if needed, then Apply or Dismiss.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void loadPricePending()}
+                  disabled={pricePendingLoading}
+                  className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm text-zinc-400 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
+                >
+                  <RefreshCcw className={cx("h-3.5 w-3.5", pricePendingLoading && "animate-spin")} />
+                  Refresh
+                </button>
+              </div>
 
-          <div className={cx((isMasterSection && !showLegacyRecipeSection || isInvoiceSection || isRatioSection) && "hidden")}>
+              {pricePendingLoading && !pricePendingItems ? (
+                <div className="flex items-center justify-center gap-2 py-16 text-zinc-500">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span className="text-sm">Loading…</span>
+                </div>
+              ) : !pricePendingItems || pricePendingItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/[0.02] py-20 text-sm text-zinc-500">
+                  <CheckCircle2 className="h-8 w-8 text-zinc-700" />
+                  No pending price changes.
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-white/8">
+                  <table className="w-full text-sm">
+                    <thead className="bg-white/[0.03]">
+                      <tr>
+                        <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Ingredient</th>
+                        <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Supplier</th>
+                        <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Current Price</th>
+                        <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">New Price</th>
+                        <th className="px-3 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Apply As</th>
+                        <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Submitted</th>
+                        <th className="px-3 py-2.5 text-center text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/[0.04]">
+                      {pricePendingItems.map((item) => {
+                        const isBusy = pricePendingActionId === item.id;
+                        const editVal = pricePendingEdits[item.id];
+                        const applyPrice = editVal !== undefined && editVal !== "" ? parseFloat(editVal) : item.new_unit_price;
+                        const priceUp = item.new_unit_price > item.old_unit_price;
+                        return (
+                          <tr key={item.id} className="hover:bg-white/[0.02]">
+                            <td className="px-4 py-3">
+                              <div className="font-medium text-white">{item.ingredient_name}</div>
+                              <div className="text-[11px] text-zinc-500">{item.ingredient_unit}</div>
+                            </td>
+                            <td className="px-4 py-3 text-zinc-400">{item.supplier_name || "—"}</td>
+                            <td className="px-3 py-3 text-right font-mono text-zinc-400">
+                              {currencyCode} {item.old_unit_price.toFixed(4)}
+                            </td>
+                            <td className="px-3 py-3 text-right font-mono">
+                              <span className={priceUp ? "text-red-400" : "text-emerald-400"}>
+                                {priceUp ? "▲" : "▼"} {currencyCode} {item.new_unit_price.toFixed(4)}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3 text-right">
+                              <input
+                                type="number"
+                                step="0.0001"
+                                value={editVal !== undefined ? editVal : item.new_unit_price.toFixed(4)}
+                                onChange={(e) => setPricePendingEdits((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                                className="w-28 rounded-lg border border-white/10 bg-white/[0.05] px-2 py-1 text-right font-mono text-sm text-white focus:border-indigo-500/50 focus:outline-none"
+                              />
+                            </td>
+                            <td className="px-3 py-3 text-[11px] text-zinc-500">
+                              <div>{item.created_at?.slice(0, 10)}</div>
+                              <div>{item.created_by}</div>
+                            </td>
+                            <td className="px-3 py-3">
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => void applyPricePending(item)}
+                                  disabled={isBusy || isNaN(applyPrice)}
+                                  className="flex items-center gap-1 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-indigo-500 disabled:opacity-50"
+                                >
+                                  {isBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                                  Apply
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => void dismissPricePending(item)}
+                                  disabled={isBusy}
+                                  className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-zinc-400 transition hover:bg-white/[0.08] hover:text-zinc-200 disabled:opacity-50"
+                                >
+                                  {isBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+                                  Dismiss
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          <div className={cx((isMasterSection && !showLegacyRecipeSection || isInvoiceSection || isRatioSection || isPendingSection) && "hidden")}>
           {activeSheet === INGREDIENT_SHEET && loading ? (
             <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-6 animate-pulse">
               <div className="h-10 rounded-lg bg-white/[0.05]" />
