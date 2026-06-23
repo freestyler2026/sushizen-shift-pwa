@@ -406,42 +406,31 @@ function DubaiRatings({ data }: { data: Record<string, unknown> }) {
 
 // ── Manila Ratings component ──────────────────────────────────────────────────
 function ManilaRatings({ data }: { data: Record<string, unknown> }) {
-  const monthly = (data.monthly_low_ratings ?? []) as { month: string; count: number }[];
-  const byPlatform = (data.by_platform ?? {}) as Record<string, number>;
-  const totalLow = monthly.reduce((s, r) => s + r.count, 0);
+  const ratings = (data.ratings ?? {}) as Record<string, number | null>;
+  const latestDate = (data.latest_record_date as string) || "";
+  const entries = Object.entries(ratings).filter(([, v]) => v != null);
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-2xl border border-white/8 bg-white/4 p-4 text-center">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">低評価件数（期間合計）</p>
-          <p className="mt-2 text-3xl font-bold text-amber-400">{totalLow}</p>
-          <p className="mt-0.5 text-xs text-slate-400">件（直近6ヶ月）</p>
-        </div>
-        <div className="rounded-2xl border border-white/8 bg-white/4 p-4">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-2">プラットフォーム別</p>
-          {Object.entries(byPlatform).map(([p, c]) => (
-            <div key={p} className="flex justify-between text-sm py-0.5">
-              <span className="text-slate-300">{p}</span>
-              <span className="font-bold text-white">{c}件</span>
-            </div>
-          ))}
-        </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {entries.map(([platform, v]) => (
+          <div key={platform} className="rounded-2xl border border-white/8 bg-white/4 p-4 text-center">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">{platform}</p>
+            <p className="mt-2 text-3xl font-bold text-indigo-400">{(v as number).toFixed(1)}</p>
+            <p className="mt-0.5 text-xs text-slate-400">/ 5.0</p>
+          </div>
+        ))}
+        {entries.length === 0 && (
+          <div className="col-span-3 rounded-2xl border border-white/8 bg-white/4 p-8 text-center text-sm text-slate-500">
+            評価データがありません
+          </div>
+        )}
       </div>
-      {monthly.length > 0 && (
-        <div className="rounded-2xl border border-white/8 bg-white/3 p-5">
-          <h2 className="mb-4 text-sm font-semibold text-slate-300">月別 低評価件数推移</h2>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={monthly}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="month" tick={{ fill: "#94a3b8", fontSize: 11 }} tickFormatter={fmtMonth} />
-              <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} />
-              <Tooltip content={<ChartTip unit=" 件" />} />
-              <Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} name="低評価数" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
+      <div className="rounded-2xl border border-white/8 bg-white/4 px-5 py-4 text-sm text-slate-400">
+        <p className="font-semibold text-white mb-1">Taft店 — 配信プラットフォーム評価</p>
+        <p>FoodPanda・GrabFood等の配達プラットフォームからの顧客評価スコアです。</p>
+        {latestDate && <p className="mt-1 text-xs text-slate-500">最終記録日: {latestDate}</p>}
+      </div>
     </>
   );
 }
