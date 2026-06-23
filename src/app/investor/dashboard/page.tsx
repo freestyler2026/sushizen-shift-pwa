@@ -6,6 +6,7 @@ import {
   LineChart, Line, Legend, ReferenceLine,
 } from "recharts";
 import { getInvestorSession } from "@/lib/investor-auth";
+import DateRangePicker from "@/components/DateRangePicker";
 
 // ── Static investment simulation data (from Excel SushiZEN_FOCO_投資家用.xlsx) ─
 
@@ -52,12 +53,20 @@ const SIM = {
 
 type Store = "almina" | "taft";
 type Tab = "orders" | "hourly" | "items" | "ratings" | "simulation";
+type DateRange = { from: string; to: string };
 
 function investorFetch(path: string): Promise<unknown> {
-  // Route through /investor-api/ (not /api/) so Vercel's /api/* rewrite
-  // doesn't bypass the Next.js route handler that injects x-investor-key.
-  const routed = path.replace(/^\/api\/investor\//, "/investor-api/");
-  return fetch(routed, { cache: "no-store" }).then((r) => r.json());
+  // /investor-api/* bypasses Vercel's /api/* rewrite so the route handler
+  // can inject x-investor-key before forwarding to Heroku.
+  return fetch(path, { cache: "no-store" }).then((r) => r.json());
+}
+
+function defaultDateRange(): DateRange {
+  const today = new Date();
+  const to = today.toISOString().slice(0, 10);
+  const from = new Date(today.getFullYear(), today.getMonth() - 3, today.getDate())
+    .toISOString().slice(0, 10);
+  return { from, to };
 }
 
 function fmtMonth(m: string) {
@@ -99,6 +108,7 @@ export default function InvestorDashboard() {
   const router = useRouter();
   const [store, setStore] = useState<Store>("almina");
   const [tab, setTab] = useState<Tab>("orders");
+  const [dateRange, setDateRange] = useState<DateRange>(defaultDateRange);
 
   // Data states
   const [ordersData, setOrdersData] = useState<{ month: string; orders: number }[]>([]);
@@ -112,49 +122,48 @@ export default function InvestorDashboard() {
     if (!getInvestorSession()) { router.replace("/investor"); return; }
   }, [router]);
 
-  const loadOrders = useCallback(async (s: Store) => {
-    const d = await investorFetch(`/api/investor/analytics/orders?store=${s}&months=13`) as { rows?: { month: string; orders: number }[] };
+  const loadOrders = useCallback(async (s: Store, r: DateRange) => {
+    const d = await investorFetch(
+      `/investor-api/analytics/orders?store=${s}&date_from=${r.from}&date_to=${r.to}`
+    ) as { rows?: { month: string; orders: number }[] };
     setOrdersData(d.rows ?? []);
   }, []);
 
-  const loadHourly = useCallback(async (s: Store) => {
-    const now = new Date();
-    const to = now.toISOString().slice(0, 10);
-    const from3m = new Date(now.setMonth(now.getMonth() - 3)).toISOString().slice(0, 10);
-    const d = await investorFetch(`/api/investor/analytics/hourly?store=${s}&date_from=${from3m}&date_to=${to}`) as { rows?: { hour_of_day: number; orders: number }[] };
+  const loadHourly = useCallback(async (s: Store, r: DateRange) => {
+    const d = await investorFetch(
+      `/investor-api/analytics/hourly?store=${s}&date_from=${r.from}&date_to=${r.to}`
+    ) as { rows?: { hour_of_day: number; orders: number }[] };
     setHourlyData(d.rows ?? []);
   }, []);
 
-  const loadItems = useCallback(async (s: Store) => {
-    const now = new Date();
-    const to = now.toISOString().slice(0, 10);
-    const from3m = new Date(now.setMonth(now.getMonth() - 3)).toISOString().slice(0, 10);
-    const d = await investorFetch(`/api/investor/analytics/items?store=${s}&date_from=${from3m}&date_to=${to}&limit=15`) as { items?: { item_name: string; order_line_count: number }[] };
+  const loadItems = useCallback(async (s: Store, r: DateRange) => {
+    const d = await investorFetch(
+      `/investor-api/analytics/items?store=${s}&date_from=${r.from}&date_to=${r.to}&limit=15`
+    ) as { items?: { item_name: string; order_line_count: number }[] };
     setItemsData(d.items ?? []);
   }, []);
 
-  const loadRatings = useCallback(async (s: Store) => {
-    const now = new Date();
-    const to = now.toISOString().slice(0, 10);
-    const from6m = new Date(now.setMonth(now.getMonth() - 6)).toISOString().slice(0, 10);
-    const d = await investorFetch(`/api/investor/analytics/ratings?store=${s}&date_from=${from6m}&date_to=${to}`);
+  const loadRatings = useCallback(async (s: Store, r: DateRange) => {
+    const d = await investorFetch(
+      `/investor-api/analytics/ratings?store=${s}&date_from=${r.from}&date_to=${r.to}`
+    );
     setRatingsData(d as Record<string, unknown>);
   }, []);
 
   useEffect(() => {
     setError("");
     setLoading(true);
-    const loaders: Record<Tab, (s: Store) => Promise<void>> = {
+    const loaders: Record<Tab, (s: Store, r: DateRange) => Promise<void>> = {
       orders: loadOrders,
       hourly: loadHourly,
       items: loadItems,
       ratings: loadRatings,
       simulation: async () => {},
     };
-    loaders[tab](store)
+    loaders[tab](store, dateRange)
       .catch(() => setError("データの読み込みに失敗しました。"))
       .finally(() => setLoading(false));
-  }, [store, tab, loadOrders, loadHourly, loadItems, loadRatings]);
+  }, [store, tab, dateRange, loadOrders, loadHourly, loadItems, loadRatings]);
 
   function logout() {
     localStorage.removeItem("sushizen_investor_session");
@@ -207,9 +216,9 @@ export default function InvestorDashboard() {
       </header>
 
       <div className="mx-auto max-w-6xl px-5 py-8">
-        {/* ── Store selector ───────────────────────────────────────────────── */}
-        <div className="mb-6 flex items-center gap-3">
-          <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">店舗選択</p>
+        {/* ── Store selector + Date range ──────────────────────────────────── */}
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">店舗</p>
           {(["almina", "taft"] as Store[]).map((s) => (
             <button
               key={s}
@@ -223,6 +232,15 @@ export default function InvestorDashboard() {
               {s === "almina" ? "🇦🇪 Al Mina店（Dubai）" : "🇵🇭 Taft店（Manila）"}
             </button>
           ))}
+        </div>
+        <div className="mb-5 flex flex-wrap items-center gap-3">
+          <p className="text-xs font-semibold uppercase tracking-widest text-slate-500 whitespace-nowrap">期間</p>
+          <div className="flex-1 min-w-[220px] max-w-xs">
+            <DateRangePicker value={dateRange} onChange={setDateRange} />
+          </div>
+          <p className="text-xs text-slate-600">
+            {dateRange.from} 〜 {dateRange.to}
+          </p>
         </div>
 
         {/* ── Tab bar ─────────────────────────────────────────────────────── */}
