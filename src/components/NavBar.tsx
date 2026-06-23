@@ -59,6 +59,7 @@ import {
   Factory,
   PhoneCall,
   Globe,
+  TrendingUp,
   X,
 } from "lucide-react";
 import {
@@ -113,6 +114,7 @@ type NavItem = {
   icon: LucideIcon;
   adminOnly?: boolean;
   match?: "exact" | "prefix";
+  external?: boolean;
   badgeCount?: number;
   badgeCritical?: boolean;
   badgeWarning?: boolean;
@@ -203,6 +205,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/daily-report", label: "Daily Report", icon: CalendarDays, adminOnly: true, match: "prefix" },
   { href: "/admin/discord-inbox", label: "Discord Inbox", icon: MessageSquare, adminOnly: true, match: "prefix" },
   { href: "/admin/payroll", label: "Payroll", icon: Banknote, adminOnly: true, match: "prefix" },
+  { href: "/investor", label: "FOCO Investor Portal", icon: TrendingUp, adminOnly: true, match: "prefix", external: true },
 ];
 
 // Primary bottom-tab hrefs — these 4 always appear in the bottom nav bar.
@@ -219,16 +222,14 @@ function isActive(pathname: string, item: NavItem) {
 function SidebarItem({ item, active }: { item: NavItem; active: boolean }) {
   const badge = Number(item.badgeCount || 0);
   const showDot = badge <= 0 && (item.badgeYellow || item.badgePink || item.badgeWarning);
-  return (
-    <Link
-      href={item.href}
-      className={[
-        "mx-2 flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-        active
-          ? "bg-violet-600/20 text-white font-medium"
-          : "text-neutral-400 hover:bg-white/6 hover:text-white",
-      ].join(" ")}
-    >
+  const cls = [
+    "mx-2 flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+    active
+      ? "bg-violet-600/20 text-white font-medium"
+      : "text-neutral-400 hover:bg-white/6 hover:text-white",
+  ].join(" ");
+  const inner = (
+    <>
       <item.icon className="h-4 w-4 shrink-0" />
       <span className="flex-1 truncate">{item.label}</span>
       {badge > 0 && (
@@ -261,7 +262,12 @@ function SidebarItem({ item, active }: { item: NavItem; active: boolean }) {
           ].join(" ")}
         />
       )}
-    </Link>
+    </>
+  );
+  return item.external ? (
+    <a href={item.href} target="_blank" rel="noopener noreferrer" className={cls}>{inner}</a>
+  ) : (
+    <Link href={item.href} className={cls}>{inner}</Link>
   );
 }
 
@@ -921,17 +927,33 @@ export default function NavBar() {
               {mobileMoreItems.map((item) => {
                 const active = isActive(pathname, item);
                 const badge = item.badgeCount || 0;
-                return (
+                const mobileCls = [
+                  "relative flex flex-col items-center gap-1.5 rounded-xl p-3 text-center transition-colors",
+                  active
+                    ? "bg-violet-900/30 text-violet-300"
+                    : "bg-white/5 text-neutral-400 hover:bg-white/10 hover:text-white",
+                ].join(" ");
+                const mobileInner = (
+                  <>
+                    <item.icon className="h-5 w-5" />
+                    <span className="text-[10px] leading-tight">{item.label}</span>
+                  </>
+                );
+                return item.external ? (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setMoreOpen(false)}
+                    className={mobileCls}
+                  >{mobileInner}</a>
+                ) : (
                   <Link
                     key={item.href}
                     href={item.href}
                     onClick={() => setMoreOpen(false)}
-                    className={[
-                      "relative flex flex-col items-center gap-1.5 rounded-xl p-3 text-center transition-colors",
-                      active
-                        ? "bg-violet-900/30 text-violet-300"
-                        : "bg-white/5 text-neutral-400 hover:bg-white/10 hover:text-white",
-                    ].join(" ")}
+                    className={mobileCls}
                   >
                     <item.icon className="h-5 w-5" />
                     <span className="text-[10px] leading-tight">{item.label}</span>
