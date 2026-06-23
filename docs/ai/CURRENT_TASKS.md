@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-23 (session 100 — Cash Report branch selector + CK Delivery fixes + Store Receiving city filter)
+Last updated: 2026-06-24 (session 101 — Investor portal date range picker + Cost Calculation price pending workflow)
 
 
 > **New session start protocol:**
@@ -12,7 +12,31 @@ Last updated: 2026-06-23 (session 100 — Cash Report branch selector + CK Deliv
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1314, Vercel 846ec0f)
+なし — 全変更デプロイ済み (Heroku 35db92e, Vercel 47d95cb)
+
+## Recently Completed (2026-06-24 session 101) — live (Heroku 35db92e, Vercel 47d95cb)
+
+**Investor portal date range picker + Cost Calculation ingredient price pending workflow**
+
+**① Investor Portal — Taft データ表示修正** (前セッション完了)
+- Taft の hourly/items/ratings が "データがありません" → Manila専用テーブル(`manila_sales_hourly`, `manila_sales_by_product`, `manila_aggregator_ratings_analytics`)に切替
+- Vercelの `/api/*` rewrite がNext.jsルートハンドラーをバイパスする問題 → `/investor-api/[...slug]/route.ts`(新プロキシ)で解決
+
+**② Investor Portal — 日付範囲ピッカー追加** (前セッション完了)
+- 全4タブ(Revenue/Items/Ratings/Hourly)に共通 `DateRangePicker` コンポーネントを追加
+- デフォルト: 過去3ヶ月。日付変更で全データが再取得される
+
+**③ Cost Calculation — 食材価格 仮置き(Pending)ワークフロー実装** (今セッション)
+- **以前の動作**: サプライヤーフォームで仕入れ価格を更新すると、`ingredient_master.unit_price`(マスター価格)に自動反映 → 加工品・商品マスターのg単価計算が複雑でスタッフが一つ一つ設定する必要があり運用困難だった
+- **新しい動作**:
+  - 仕入れ価格更新 → `ingredient_price_pending` テーブルに「仮置き」レコードを作成(マスター自動書換なし)
+  - Cost Calculation画面に「**Price Pending**」タブを新設。マネージャーが変更一覧を確認し、提案価格を調整可能
+  - **Apply**: マスター価格を更新 + 価格履歴記録 + 加工品/商品マスターへ自動原価再計算
+  - **Dismiss**: 変更を棄却
+- **DB変更**: `ingredient_price_pending` テーブル新設(ensure_cost_tables内でCREATE IF NOT EXISTS)
+- **新関数**: `list_ingredient_price_pending`, `apply_ingredient_price_pending`, `dismiss_ingredient_price_pending`
+- **新API**: `GET /api/cost/price-pending`, `POST /api/cost/price-pending/{id}/apply`, `POST /api/cost/price-pending/{id}/dismiss`
+- **フロント**: タブにペンディング件数バッジ、価格一覧テーブル(現在価格/新価格/調整入力/Apply+Dismissボタン)
 
 ## Recently Completed (2026-06-23 session 100) — live (Heroku v1314, Vercel 846ec0f)
 
