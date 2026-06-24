@@ -119,6 +119,7 @@ export default function ProcurementCatalogPage() {
   const [renameTo, setRenameTo] = useState("");
   const [renameBusy, setRenameBusy] = useState(false);
   const [deactivateConfirm, setDeactivateConfirm] = useState<string | null>(null);
+  const [deleteSupplierConfirm, setDeleteSupplierConfirm] = useState<string | null>(null);
 
   useEffect(() => {
     const role = auth?.role || "";
@@ -281,6 +282,27 @@ export default function ProcurementCatalogPage() {
     }
   }
 
+  async function deleteSupplier(supplierName: string) {
+    setError("");
+    try {
+      await procurementJson(
+        "/api/admin/procurement/catalog/supplier/delete",
+        {
+          method: "POST",
+          body: JSON.stringify({ approver_name: requestedBy, pin, city, supplier_name: supplierName }),
+        },
+        requestedBy,
+        pin,
+      );
+      setSuccessMsg(`Supplier "${supplierName}" and all its items permanently deleted.`);
+      setDeleteSupplierConfirm(null);
+      await loadSuppliers();
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   function openEdit(row: CatalogRow) {
     setEditRow(row);
     setEditForm({ ...row });
@@ -328,7 +350,7 @@ export default function ProcurementCatalogPage() {
         pin,
       );
       setSuccessMsg(`Deleted: "${row.item_name}"`);
-      setDeleteConfirm(null);
+      setDeleteSupplierConfirm(null);
       await load();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
@@ -608,6 +630,14 @@ export default function ProcurementCatalogPage() {
                             Deactivate All
                           </button>
                         )}
+                        {s.active_count === 0 && s.inactive_count > 0 && s.supplier_name !== "(blank)" && (
+                          <button
+                            onClick={() => setDeleteSupplierConfirm(s.supplier_name)}
+                            className="rounded px-2 py-1 text-xs text-red-600 hover:bg-red-500/10 transition-colors font-semibold"
+                          >
+                            Delete
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -616,7 +646,7 @@ export default function ProcurementCatalogPage() {
             </table>
           )}
           <p className={`px-4 py-2 ${BADGE_INFO} text-xs rounded-none rounded-b-xl`}>
-            💡 Rename merges the old name into the new one (all active + inactive items updated). Deactivate hides all items from order forms.
+            💡 Rename merges the old name into the new one (all active + inactive items updated). Deactivate hides all items from order forms. Delete permanently removes all deactivated items (irreversible).
           </p>
         </div>
       )}
@@ -809,6 +839,31 @@ export default function ProcurementCatalogPage() {
                 className="inline-flex items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-950/30 px-4 py-2 text-sm font-medium text-red-300 hover:bg-red-950/50 transition-colors"
               >
                 Deactivate All Items
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Supplier Modal */}
+      {deleteSupplierConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-zinc-900 border border-white/10 p-6 space-y-4">
+            <h2 className="text-sm font-semibold text-red-400">Delete Supplier Permanently</h2>
+            <p className="text-sm text-zinc-300">
+              This will <span className="text-red-400 font-semibold">permanently delete</span> all items from{" "}
+              <span className="text-white font-medium">{deleteSupplierConfirm}</span> from the database. This cannot be undone.
+            </p>
+            <p className="text-xs text-amber-400/80">
+              ⚠️ Only suppliers with all items deactivated can be deleted. Active items are blocked automatically.
+            </p>
+            <div className="flex justify-end gap-3 pt-1">
+              <button onClick={() => setDeleteSupplierConfirm(null)} className={SECONDARY_BUTTON}>Cancel</button>
+              <button
+                onClick={() => void deleteSupplier(deleteSupplierConfirm)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-red-600/50 bg-red-950/50 px-4 py-2 text-sm font-semibold text-red-300 hover:bg-red-950/70 transition-colors"
+              >
+                Delete Permanently
               </button>
             </div>
           </div>
