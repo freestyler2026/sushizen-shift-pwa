@@ -4430,7 +4430,7 @@ export default function CostCalculationPage() {
                                   type="button"
                                   className="flex w-full items-start gap-2 rounded px-1 py-0.5 text-left text-xs hover:bg-white/5 transition-colors"
                                   onClick={() => {
-                                    setActiveSection(u.item_type === "processed" ? "processed" : "product");
+                                    setActiveSection(u.item_type === "processed" ? "processed" : u.item_type === "draft" ? "draft" : "product");
                                     void loadMasterDetail(String(u.id));
                                   }}
                                 >
@@ -4442,7 +4442,7 @@ export default function CostCalculationPage() {
                                         ? "bg-emerald-500/15 text-emerald-300"
                                         : "bg-zinc-500/15 text-zinc-400",
                                   ].join(" ")}>
-                                    {u.item_type === "processed" ? "加工" : u.item_type === "product" ? "商品" : u.item_type}
+                                    {u.item_type === "processed" ? "加工" : u.item_type === "product" ? "商品" : u.item_type === "draft" ? "DRAFT" : u.item_type}
                                   </span>
                                   <span className={u.is_active === false ? "text-zinc-500 line-through" : "text-zinc-300 underline decoration-zinc-600 underline-offset-2"}>{u.name}</span>
                                   {u.is_active === false && (
@@ -6330,7 +6330,7 @@ export default function CostCalculationPage() {
                               type="button"
                               className="flex w-full items-start gap-2 rounded px-1 py-0.5 text-left text-xs hover:bg-white/5 transition-colors"
                               onClick={() => {
-                                setActiveSection(u.item_type === "processed" ? "processed" : "product");
+                                setActiveSection(u.item_type === "processed" ? "processed" : u.item_type === "draft" ? "draft" : "product");
                                 setSelectedIngredientDetail(null);
                                 setHighlightedIngredientId(null);
                                 void loadMasterDetail(String(u.id));
@@ -6344,7 +6344,7 @@ export default function CostCalculationPage() {
                                     ? "bg-emerald-500/15 text-emerald-300"
                                     : "bg-zinc-500/15 text-zinc-400",
                               ].join(" ")}>
-                                {u.item_type === "processed" ? "加工" : u.item_type === "product" ? "商品" : u.item_type}
+                                {u.item_type === "processed" ? "加工" : u.item_type === "product" ? "商品" : u.item_type === "draft" ? "DRAFT" : u.item_type}
                               </span>
                               <span className={u.is_active === false ? "text-zinc-500 line-through" : "text-zinc-300 underline decoration-zinc-600 underline-offset-2"}>{u.name}</span>
                               {u.is_active === false && (
