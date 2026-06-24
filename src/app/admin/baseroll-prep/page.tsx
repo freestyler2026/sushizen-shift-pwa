@@ -33,6 +33,12 @@ type StoreResult = {
   matched_products: MatchedProduct[];
   lunch: RollQty[];
   dinner: RollQty[];
+  lunch_hosomaki: RollQty[];
+  dinner_hosomaki: RollQty[];
+  lunch_nigiri: RollQty[];
+  dinner_nigiri: RollQty[];
+  lunch_topping: RollQty[];
+  dinner_topping: RollQty[];
 };
 type ApiResult = {
   ok: boolean;
@@ -96,6 +102,10 @@ const ROLL_COLORS: Record<string, string> = {
   "Shrimp Tempura Base Roll":               "bg-amber-500/20 text-amber-200 border-amber-500/30",
   "Crunchy Fish Base Roll":                 "bg-sky-500/20 text-sky-200 border-sky-500/30",
   "Crunchy Salmon Base Roll":               "bg-violet-500/20 text-violet-200 border-violet-500/30",
+  "Salmon Skin Roll":                       "bg-pink-500/20 text-pink-200 border-pink-500/30",
+  "Salmon & Tempura Roll":                  "bg-fuchsia-500/20 text-fuchsia-200 border-fuchsia-500/30",
+  "Mango & Lettuce Roll":                   "bg-lime-500/20 text-lime-200 border-lime-500/30",
+  "Mango & Cheese Roll":                    "bg-yellow-600/20 text-yellow-100 border-yellow-600/30",
   "Crabstick Upo Base Roll":                "bg-teal-500/20 text-teal-200 border-teal-500/30",
   "Philadelphia Base Roll":                 "bg-indigo-500/20 text-indigo-200 border-indigo-500/30",
 };
@@ -108,8 +118,21 @@ const BASE_ROLL_OPTIONS = [
   "Shrimp Tempura Base Roll",
   "Crunchy Fish Base Roll",
   "Crunchy Salmon Base Roll",
+  "Salmon Skin Roll",
+  "Salmon & Tempura Roll",
+  "Mango & Lettuce Roll",
+  "Mango & Cheese Roll",
   "Crabstick Upo Base Roll",
   "Philadelphia Base Roll",
+  "— Hosomaki —",
+  "Salmon Hosomaki",
+  "— Nigiri —",
+  "Salmon Nigiri",
+  "— Toppings —",
+  "Avocado Topping",
+  "Rainbow Topping",
+  "Salmon Mango Topping",
+  "Salmon Topping",
 ];
 
 function rollColor(name: string) {
@@ -197,6 +220,30 @@ function StoreCard({ s }: { s: StoreResult }) {
             <SessionTable label="Dinner Prep (×0.9)" emoji="🌙" rows={s.dinner} />
           </div>
 
+          {/* Hosomaki */}
+          {((s.lunch_hosomaki?.length ?? 0) > 0 || (s.dinner_hosomaki?.length ?? 0) > 0) && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <SideItemTable label="Lunch — Hosomaki" emoji="🍣" rows={s.lunch_hosomaki ?? []} colorClass="bg-cyan-500/20 text-cyan-200 border-cyan-500/30" />
+              <SideItemTable label="Dinner — Hosomaki" emoji="🍣" rows={s.dinner_hosomaki ?? []} colorClass="bg-cyan-500/20 text-cyan-200 border-cyan-500/30" />
+            </div>
+          )}
+
+          {/* Nigiri */}
+          {((s.lunch_nigiri?.length ?? 0) > 0 || (s.dinner_nigiri?.length ?? 0) > 0) && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <SideItemTable label="Lunch — Nigiri" emoji="🐟" rows={s.lunch_nigiri ?? []} colorClass="bg-orange-500/20 text-orange-200 border-orange-500/30" />
+              <SideItemTable label="Dinner — Nigiri" emoji="🐟" rows={s.dinner_nigiri ?? []} colorClass="bg-orange-500/20 text-orange-200 border-orange-500/30" />
+            </div>
+          )}
+
+          {/* Toppings */}
+          {((s.lunch_topping?.length ?? 0) > 0 || (s.dinner_topping?.length ?? 0) > 0) && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <SideItemTable label="Lunch — Toppings" emoji="🧄" rows={s.lunch_topping ?? []} colorClass="bg-lime-500/20 text-lime-200 border-lime-500/30" />
+              <SideItemTable label="Dinner — Toppings" emoji="🧄" rows={s.dinner_topping ?? []} colorClass="bg-lime-500/20 text-lime-200 border-lime-500/30" />
+            </div>
+          )}
+
           {/* Matched products detail (collapsible) */}
           {s.matched_products.length > 0 && (
             <details className="rounded-xl border border-white/8 bg-white/[0.02]">
@@ -215,6 +262,36 @@ function StoreCard({ s }: { s: StoreResult }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function SideItemTable({ label, emoji, rows, colorClass }: {
+  label: string; emoji: string; rows: RollQty[]; colorClass: string;
+}) {
+  if (rows.length === 0) return null;
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] overflow-hidden">
+      <div className="flex items-center gap-2 border-b border-white/8 bg-white/[0.04] px-4 py-2.5">
+        <span className="text-sm font-semibold text-white">{emoji} {label}</span>
+        <span className="ml-auto text-xs text-neutral-500">{rows.length} item{rows.length > 1 ? "s" : ""}</span>
+      </div>
+      <div className="divide-y divide-white/5">
+        {rows.map((r) => (
+          <div key={r.roll} className="flex items-center justify-between px-4 py-2.5">
+            <span className={`inline-flex items-center rounded-lg border px-2.5 py-0.5 text-xs font-medium ${colorClass}`}>
+              {r.roll}
+            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-neutral-500">{r.qty_raw} × 0.9 =</span>
+              <span className="min-w-[2.5rem] rounded-lg bg-violet-600 px-3 py-1 text-center text-sm font-bold text-white tabular-nums">
+                {r.qty_prep}
+              </span>
+              <span className="text-xs text-neutral-400">pcs</span>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
