@@ -83,6 +83,13 @@ function todayInTz(tz = "Asia/Manila"): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: tz });
 }
 
+function yesterdayInTz(tz = "Asia/Manila"): string {
+  const t = new Date().toLocaleDateString("en-CA", { timeZone: tz });
+  const [y, m, d] = t.split("-").map(Number);
+  const dt = new Date(y, m - 1, d - 1);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type SubmittedCheck = {
@@ -215,6 +222,9 @@ export default function DailyCheckPage() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const today = todayInTz(tz);
+  const yesterday = yesterdayInTz(tz);
+  // BUSINESS_CLOSE records the previous business day (stores close after midnight)
+  const checkDate = checkType === "BUSINESS_CLOSE" ? yesterday : today;
 
   // ── Auth guard ──
   useEffect(() => {
@@ -233,10 +243,10 @@ export default function DailyCheckPage() {
   }, [city]);
 
   // ── Load today's checks ──
-  const loadTodayChecks = () => {
+  const loadTodayChecks = (date: string) => {
     if (!branch) return;
     setLoadingToday(true);
-    fetch(`/api/store/daily-check/today?city=${city}&branch_code=${branch}&check_date=${today}`, {
+    fetch(`/api/store/daily-check/today?city=${city}&branch_code=${branch}&check_date=${date}`, {
       headers: getAuthHeaders(), cache: "no-store",
     })
       .then((r) => r.json())
@@ -245,7 +255,7 @@ export default function DailyCheckPage() {
       .finally(() => setLoadingToday(false));
   };
 
-  useEffect(() => { loadTodayChecks(); }, [branch]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadTodayChecks(checkDate); }, [branch, checkType]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Reset after check type change ──
   useEffect(() => {
@@ -272,7 +282,7 @@ export default function DailyCheckPage() {
           city,
           branch_code: branch,
           check_type: checkType,
-          check_date: today,
+          check_date: checkDate,
           submitted_by: staffName.trim(),
           aggregator_statuses: aggStatus,
           dine_in_open: dineInOpen,
@@ -284,7 +294,7 @@ export default function DailyCheckPage() {
       if (!r.ok) throw new Error(d.detail || "Submission failed.");
       setSubmittedId(d.check?.id ?? null);
       setMsg({ ok: true, text: isOpening ? "Opening check submitted! Add photos below." : "Check submitted successfully." });
-      loadTodayChecks();
+      loadTodayChecks(checkDate);
     } catch (e: unknown) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -358,6 +368,12 @@ export default function DailyCheckPage() {
             ))}
           </div>
           <p className="mt-2 text-xs text-white/30">{checkTypeMeta.desc}</p>
+          {checkType === "BUSINESS_CLOSE" && (
+            <p className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-300/80">
+              <Clock size={11} />
+              Recorded as previous business day: <strong>{yesterday}</strong>
+            </p>
+          )}
         </div>
 
         {/* Already submitted notice */}
@@ -511,7 +527,7 @@ export default function DailyCheckPage() {
                   photoKey={agg.key}
                   checkId={submittedId}
                   city={city}
-                  checkDate={today}
+                  checkDate={checkDate}
                   onUploaded={(key, url) => setUploadedPhotos((p) => ({ ...p, [key]: url }))}
                 />
               </div>
@@ -524,7 +540,7 @@ export default function DailyCheckPage() {
                   photoKey="dine_in"
                   checkId={submittedId}
                   city={city}
-                  checkDate={today}
+                  checkDate={checkDate}
                   onUploaded={(key, url) => setUploadedPhotos((p) => ({ ...p, [key]: url }))}
                 />
               </div>
@@ -543,7 +559,7 @@ export default function DailyCheckPage() {
             className="w-full flex items-center justify-between text-sm font-medium text-white/70">
             <span className="flex items-center gap-2">
               <Clock size={14} />
-              Today&apos;s Submissions — {branchLabel}
+              {checkType === "BUSINESS_CLOSE" ? `${yesterday} Submissions` : "Today's Submissions"} — {branchLabel}
               {loadingToday
                 ? <span className="text-xs text-white/30 ml-1">loading...</span>
                 : <span className="ml-1 rounded-full bg-white/10 px-2 py-0.5 text-xs">{todayChecks.length}</span>}
