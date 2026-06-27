@@ -730,6 +730,8 @@ export default function StoreProcurementReceivingPage() {
                 <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-zinc-400">
                   <span>{selectedRequest.request_no} · {selectedRequest.store_code}</span>
                   <span className="text-zinc-600">·</span>
+                  <span>{formatDate(selectedRequest.request_date)}</span>
+                  <span className="text-zinc-600">·</span>
                   <span>PR Total: {Number(selectedRequest.total_amount || 0).toFixed(2)} {currencyCode}</span>
                   {computedTotals.checkedCount > 0 && (
                     <span className="font-medium text-emerald-400">

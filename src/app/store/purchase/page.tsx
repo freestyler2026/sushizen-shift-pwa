@@ -85,6 +85,7 @@ export default function StorePurchasePage() {
   // ── Form ──
   const today = new Date().toISOString().slice(0, 10);
   const [requestDate, setRequestDate] = useState(today);
+  const [storeCode, setStoreCode]     = useState("");
   const [items, setItems]             = useState<ItemRow[]>([newItem()]);
 
   // ── Item suggestion dropdown state ──
@@ -280,6 +281,7 @@ export default function StorePurchasePage() {
       fd.append("approver_name", name.trim());
       fd.append("pin", pin.trim());
       fd.append("city", city);
+      fd.append("store_code", storeCode);
       fd.append("vendor_name", vendorName.trim());
       fd.append("request_date", requestDate);
       fd.append("items_json", JSON.stringify(payload));
@@ -407,6 +409,15 @@ export default function StorePurchasePage() {
         <div>
           <label className={`${T_LABEL} mb-1.5 block`}>Purchase Date</label>
           <input type="date" value={requestDate} onChange={(e) => setRequestDate(e.target.value)} className={INPUT_CLASS} />
+        </div>
+
+        <div>
+          <label className={`${T_LABEL} mb-1.5 block`}>Location / Branch</label>
+          <select value={storeCode} onChange={(e) => setStoreCode(e.target.value)} className={INPUT_CLASS}>
+            <option value="">— Select branch —</option>
+            <option value="CK">Central Kitchen (CK)</option>
+            <option value="WH">Warehouse (WH)</option>
+          </select>
         </div>
 
         {/* Vendor field */}

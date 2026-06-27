@@ -433,6 +433,7 @@ export default function DirectPurchasesAdminPage() {
                     </div>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
                       <span>By <span className="text-zinc-300">{row.requested_by}</span></span>
+                      {row.store_code && <span>Branch <span className="text-zinc-300">{row.store_code}</span></span>}
                       <span>Date <span className="text-zinc-300">{row.request_date || createdDt}</span></span>
                       <span>Vendor <span className="text-zinc-200 font-medium">{row.items[0]?.vendor_name || "—"}</span></span>
                       <span>Total <span className="font-semibold text-amber-300">PHP {Number(row.total_amount || 0).toFixed(2)}</span></span>
