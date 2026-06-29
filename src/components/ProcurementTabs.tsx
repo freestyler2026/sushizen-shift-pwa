@@ -199,7 +199,9 @@ export default function ProcurementTabs() {
 
   useEffect(() => {
     void loadBadge();
-    const timer = window.setInterval(() => void loadBadge(), 15_000);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void loadBadge();
+    }, 15_000);
     // Listen for immediate refresh requests (e.g., after approve/reject)
     const onRefresh = () => void loadBadge();
     window.addEventListener("procurement-badge-refresh", onRefresh);

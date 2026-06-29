@@ -376,7 +376,7 @@ export default function NavBar() {
       } catch {}
     };
     void fetchBadge();
-    const id = window.setInterval(fetchBadge, 60_000);
+    const id = window.setInterval(() => { if (document.visibilityState === "visible") void fetchBadge(); }, 60_000);
     window.addEventListener(RENEWALS_BADGE_EVENT, onBadgeEvent as EventListener);
     window.addEventListener("storage", onStorage);
     return () => {
@@ -408,7 +408,7 @@ export default function NavBar() {
       } catch {}
     };
     void fetchIncidentBadge();
-    const id = window.setInterval(fetchIncidentBadge, 60_000);
+    const id = window.setInterval(() => { if (document.visibilityState === "visible") void fetchIncidentBadge(); }, 60_000);
     const onRefresh = () => void fetchIncidentBadge();
     window.addEventListener(BADGE_EVENTS.incidents, onRefresh);
     return () => {
@@ -440,7 +440,7 @@ export default function NavBar() {
       } catch {}
     };
     void fetchAdminIncidentBadge();
-    const id = window.setInterval(fetchAdminIncidentBadge, 60_000);
+    const id = window.setInterval(() => { if (document.visibilityState === "visible") void fetchAdminIncidentBadge(); }, 60_000);
     const onRefresh = () => void fetchAdminIncidentBadge();
     window.addEventListener(BADGE_EVENTS.adminIncidents, onRefresh);
     return () => {
@@ -468,7 +468,7 @@ export default function NavBar() {
       } catch {}
     };
     void fetchAdminRequestBadge();
-    const id = window.setInterval(fetchAdminRequestBadge, 30_000);
+    const id = window.setInterval(() => { if (document.visibilityState === "visible") void fetchAdminRequestBadge(); }, 30_000);
     // Immediately re-poll when a request is approved/rejected on the Admin Dashboard
     const onRefresh = () => void fetchAdminRequestBadge();
     window.addEventListener("sushizen:requests:badge:refresh", onRefresh);
@@ -496,7 +496,7 @@ export default function NavBar() {
       } catch {}
     };
     void fetchPrivateReportBadge();
-    const id = window.setInterval(fetchPrivateReportBadge, 30_000);
+    const id = window.setInterval(() => { if (document.visibilityState === "visible") void fetchPrivateReportBadge(); }, 30_000);
     const onRefresh = () => void fetchPrivateReportBadge();
     window.addEventListener(BADGE_EVENTS.privateReports, onRefresh);
     return () => {
@@ -523,7 +523,7 @@ export default function NavBar() {
       } catch {}
     };
     void fetchInboxBadge();
-    const id = window.setInterval(fetchInboxBadge, 30_000);
+    const id = window.setInterval(() => { if (document.visibilityState === "visible") void fetchInboxBadge(); }, 30_000);
     const onRefresh = () => void fetchInboxBadge();
     window.addEventListener(BADGE_EVENTS.inbox, onRefresh);
     return () => {

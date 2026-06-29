@@ -4,8 +4,9 @@ import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { hasUnsavedEdits, UNSAVED_EVENT } from "@/lib/unsavedGuard";
 
-// Poll every 3 seconds — fast enough to feel near-instant without hammering the server.
-const POLL_INTERVAL_MS = 3 * 1000;
+// Poll every 30 seconds — deploys take minutes to propagate; 3s was needlessly aggressive.
+// Visibility/focus/pageshow events handle the "tab comes back" case instantly.
+const POLL_INTERVAL_MS = 30 * 1000;
 
 // Baked into the JavaScript bundle at build time by next.config.ts.
 // If a PWA is running an old cached bundle, this will differ from what
@@ -67,6 +68,9 @@ export default function AutoReload() {
 
     function check() {
       if (reloading.current) return;
+      // Skip polling when the tab is hidden — visibility/focus events will trigger
+      // a check the moment the user returns, so no requests are wasted in background.
+      if (document.visibilityState !== "visible") return;
       // A deploy was detected earlier but deferred for unsaved edits — apply it
       // as soon as the edits are gone.
       if (pendingReload.current && !hasUnsavedEdits()) {
