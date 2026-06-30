@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-24 (session 101 — Investor portal date range picker + Cost Calculation price pending workflow)
+Last updated: 2026-06-24 (session 102 — Order Catalog supplier delete + Base Roll PREP overhaul + Manila Draft ingredient fix)
 
 
 > **New session start protocol:**
@@ -12,7 +12,31 @@ Last updated: 2026-06-24 (session 101 — Investor portal date range picker + Co
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku 35db92e, Vercel 47d95cb)
+なし — 全変更デプロイ済み (Heroku 318884b, Vercel b430a7e)
+
+## Recently Completed (2026-06-24 session 102) — live (Heroku 318884b, Vercel b430a7e)
+
+**Order Catalog supplier delete + Base Roll PREP overhaul + Manila Draft ingredient fix**
+
+**① Order Catalog — Supplier Management: Delete ボタン追加** (Heroku / Vercel b430a7e)
+- 非アクティブ品目のみのサプライヤーに「Delete」ボタンを追加 (active_count===0 && inactive_count>0 の時のみ表示)
+- DB: `delete_proc_catalog_supplier(city, supplier_name)` — active品目残存時は ValueError→HTTP 409
+- API: `POST /api/admin/procurement/catalog/supplier/delete`
+- フロント: 確認モーダル(Delete Permanently ボタン)付き。`deleteSupplierConfirm` state(既存の `deleteConfirm: CatalogRow|null` と命名衝突を回避)
+
+**② Base Roll PREP — 新ベースロール・新商品追加** (Heroku db.py / Vercel page.tsx)
+- 新ベースロール: Salmon Skin Roll, Mango & Lettuce Roll, Mango & Cheese Roll, Salmon & Tempura Roll
+- 新商品: Salmon Lover 12/16/24pcs, Premium Salmon Lover 12/16/24pcs, Supreme 10pcs
+- BV boxes: Crunchy Salmon Base Roll → Salmon Skin Roll に変更
+- Ramen Combo B (California/Crunchy Salmon): 別商品として StoreHub 登録済み確認済み
+- 新カテゴリ: Hosomaki (🍣) / Nigiri (🐟) / Topping (🧄) をベースロールとは別セクションで表示
+- _BASEROLL_V2_ADD_ROWS migration (sentinel: "Salmon Lover 12pcs" 存在チェック) で冪等実行
+
+**③ Manila Cost Calculation — Draft カテゴリ食材を is_active=TRUE に修正** (Heroku 318884b)
+- 問題: ingredient_master で city='manila' AND category='Draft' の食材が is_active=FALSE → list_cost_ingredients() のデフォルトフィルタで非表示
+- 原因: 意図せず非アクティブ化されていた (Draft カテゴリ = ワークフロータグとして使用すべきで、非アクティブ化は意図しない)
+- 修正: ensure_cost_tables() 内に冪等 UPDATE を追加 (LOWER(TRIM(category))='draft' AND is_active=FALSE → TRUE)
+- デプロイ後、初回 cost API アクセス時に自動実行される
 
 ## Recently Completed (2026-06-24 session 101) — live (Heroku 35db92e, Vercel 47d95cb)
 

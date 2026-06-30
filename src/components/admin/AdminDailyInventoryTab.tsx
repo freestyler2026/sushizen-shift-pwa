@@ -191,6 +191,13 @@ function formatDate(d: string) {
 }
 
 /* ── Report Detail View ── */
+type GeneratedPR = {
+  type: string;
+  request_no: string;
+  case_no: string;
+  request_id: string;
+};
+
 function ReportDetailView({
   detail,
   items,
@@ -215,6 +222,65 @@ function ReportDetailView({
       warnItems.push({ item, entry });
     }
   });
+
+  // Generate Order modal state
+  const [orderModalOpen, setOrderModalOpen] = useState(false);
+  const [orderQtys, setOrderQtys] = useState<Record<string, string>>({});
+  const [orderSelected, setOrderSelected] = useState<Record<string, boolean>>({});
+  const [orderBusy, setOrderBusy] = useState(false);
+  const [orderError, setOrderError] = useState("");
+  const [generatedPRs, setGeneratedPRs] = useState<GeneratedPR[]>([]);
+
+  function openOrderModal() {
+    // Pre-fill suggested order qty = max(0, min_level - current_qty)
+    const qtys: Record<string, string> = {};
+    const sel: Record<string, boolean> = {};
+    lowItems.forEach(({ item, entry }) => {
+      const deficit = item.min_level !== null
+        ? Math.max(0, Number(item.min_level) - Number(entry.qty))
+        : 0;
+      qtys[item.item_code] = deficit > 0 ? String(deficit) : "";
+      sel[item.item_code] = deficit > 0;
+    });
+    setOrderQtys(qtys);
+    setOrderSelected(sel);
+    setOrderError("");
+    setGeneratedPRs([]);
+    setOrderModalOpen(true);
+  }
+
+  async function submitGenerateOrder() {
+    const auth = getAuth();
+    const requestedBy = auth?.staffName || "";
+    const selectedItems = lowItems
+      .filter(({ item }) => orderSelected[item.item_code])
+      .map(({ item }) => ({
+        item_code: item.item_code,
+        order_qty: parseFloat(orderQtys[item.item_code] || "0"),
+      }))
+      .filter((x) => x.order_qty > 0);
+
+    if (!selectedItems.length) {
+      setOrderError("Select at least one item with a quantity > 0.");
+      return;
+    }
+    setOrderBusy(true);
+    setOrderError("");
+    try {
+      const res = await apiFetch(`/api/daily-inventory/reports/${detail.id}/generate-order`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requested_by: requestedBy, items: selectedItems }),
+      });
+      const data = await res.json() as { ok?: boolean; created?: GeneratedPR[]; detail?: string };
+      if (!res.ok) throw new Error(data.detail || "Failed to generate order");
+      setGeneratedPRs(data.created || []);
+    } catch (err) {
+      setOrderError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setOrderBusy(false);
+    }
+  }
 
   // Central Kitchen shows sections derived from actual item data; other branches show KITCHEN only
   const sections: string[] = detail.branch === "CENTRAL KITCHEN"
@@ -266,11 +332,21 @@ function ReportDetailView({
       {/* Low stock alert */}
       {lowItems.length > 0 && (
         <div className="rounded-2xl border border-red-500/30 bg-red-500/8 p-4">
-          <div className="mb-2 flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-red-400" />
-            <p className="text-sm font-semibold text-red-300">
-              Low Stock Alert — {lowItems.length} item{lowItems.length > 1 ? "s" : ""} below minimum
-            </p>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-red-400" />
+              <p className="text-sm font-semibold text-red-300">
+                Low Stock Alert — {lowItems.length} item{lowItems.length > 1 ? "s" : ""} below minimum
+              </p>
+            </div>
+            {detail.status === "SUBMITTED" && (
+              <button
+                onClick={openOrderModal}
+                className="rounded-lg border border-red-400/40 bg-red-500/15 px-3 py-1.5 text-xs font-semibold text-red-200 transition hover:bg-red-500/25"
+              >
+                Generate Purchase Request
+              </button>
+            )}
           </div>
           <ul className="space-y-1">
             {lowItems.map(({ item, entry }) => (
@@ -284,6 +360,127 @@ function ReportDetailView({
             ))}
           </ul>
         </div>
+      )}
+
+      {/* Generate Purchase Request modal */}
+      {orderModalOpen && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-slate-900 shadow-2xl">
+            <div className="border-b border-white/8 px-6 py-4">
+              <h3 className="text-base font-semibold text-white">Generate Purchase Request</h3>
+              <p className="mt-0.5 text-xs text-zinc-400">
+                {detail.branch} · {formatDate(detail.report_date)} — select items to order
+              </p>
+            </div>
+
+            {generatedPRs.length > 0 ? (
+              <div className="px-6 py-5 space-y-3">
+                <p className="text-sm font-semibold text-emerald-300">Orders created successfully!</p>
+                {generatedPRs.map((pr) => (
+                  <div key={pr.request_id} className="flex items-center justify-between rounded-xl border border-white/8 bg-white/5 px-4 py-3">
+                    <div>
+                      <p className="text-xs font-semibold text-zinc-300">{pr.type} Order</p>
+                      <p className="text-xs text-zinc-500">{pr.request_no} · Case {pr.case_no}</p>
+                    </div>
+                    <a
+                      href="/admin/procurement/hub"
+                      className="rounded-lg border border-violet-500/40 bg-violet-500/15 px-3 py-1 text-xs font-semibold text-violet-200 hover:bg-violet-500/25"
+                    >
+                      View in Hub →
+                    </a>
+                  </div>
+                ))}
+                <div className="pt-2 flex justify-end">
+                  <button onClick={() => setOrderModalOpen(false)} className={SECONDARY_BUTTON}>Close</button>
+                </div>
+              </div>
+            ) : (
+              <div className="px-6 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
+                {/* Supplier items */}
+                {lowItems.filter(({ item }) => !item.is_commissary).length > 0 && (
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">Supplier Items</p>
+                    {lowItems.filter(({ item }) => !item.is_commissary).map(({ item, entry }) => (
+                      <div key={item.item_code} className="mb-2 flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={!!orderSelected[item.item_code]}
+                          onChange={(e) => setOrderSelected((p) => ({ ...p, [item.item_code]: e.target.checked }))}
+                          className="h-4 w-4 rounded border-zinc-600 accent-violet-500"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm text-zinc-200">{item.item_name}</p>
+                          <p className="text-xs text-zinc-500">
+                            Stock: {entry.qty} / Min: {item.min_level} {entry.unit ?? item.default_unit}
+                          </p>
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={orderQtys[item.item_code] ?? ""}
+                          onChange={(e) => setOrderQtys((p) => ({ ...p, [item.item_code]: e.target.value }))}
+                          placeholder="qty"
+                          className="w-20 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-right text-sm text-white focus:outline-none focus:ring-1 focus:ring-violet-500"
+                        />
+                        <span className="text-xs text-zinc-500 w-10">{entry.unit ?? item.default_unit}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* CK items */}
+                {lowItems.filter(({ item }) => item.is_commissary).length > 0 && (
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">Central Kitchen Items</p>
+                    {lowItems.filter(({ item }) => item.is_commissary).map(({ item, entry }) => (
+                      <div key={item.item_code} className="mb-2 flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={!!orderSelected[item.item_code]}
+                          onChange={(e) => setOrderSelected((p) => ({ ...p, [item.item_code]: e.target.checked }))}
+                          className="h-4 w-4 rounded border-zinc-600 accent-violet-500"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm text-zinc-200">{item.item_name}</p>
+                          <p className="text-xs text-zinc-500">
+                            Stock: {entry.qty} / Min: {item.min_level} {entry.unit ?? item.default_unit}
+                          </p>
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={orderQtys[item.item_code] ?? ""}
+                          onChange={(e) => setOrderQtys((p) => ({ ...p, [item.item_code]: e.target.value }))}
+                          placeholder="qty"
+                          className="w-20 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-right text-sm text-white focus:outline-none focus:ring-1 focus:ring-violet-500"
+                        />
+                        <span className="text-xs text-zinc-500 w-10">{entry.unit ?? item.default_unit}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {orderError && <p className="text-xs text-red-400">{orderError}</p>}
+              </div>
+            )}
+
+            {generatedPRs.length === 0 && (
+              <div className="flex justify-end gap-3 border-t border-white/8 px-6 py-4">
+                <button onClick={() => setOrderModalOpen(false)} className={SECONDARY_BUTTON} disabled={orderBusy}>
+                  Cancel
+                </button>
+                <button
+                  onClick={() => void submitGenerateOrder()}
+                  className={PRIMARY_BUTTON}
+                  disabled={orderBusy}
+                >
+                  {orderBusy ? "Generating…" : "Generate Orders"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Watch alert */}

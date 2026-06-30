@@ -479,9 +479,17 @@ export default function ProcurementCaseDetailPage() {
           {loading && <RefreshCw className="h-4 w-4 animate-spin text-zinc-500" />}
           <button
             type="button"
+            onClick={() => window.print()}
+            className={`${SECONDARY_BUTTON} flex items-center gap-2 px-4 py-2 text-sm print:hidden`}
+            title="Print this order"
+          >
+            🖨 Print
+          </button>
+          <button
+            type="button"
             onClick={() => void load()}
             disabled={loading}
-            className={`${SECONDARY_BUTTON} flex items-center gap-2 px-4 py-2 text-sm`}
+            className={`${SECONDARY_BUTTON} flex items-center gap-2 px-4 py-2 text-sm print:hidden`}
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
