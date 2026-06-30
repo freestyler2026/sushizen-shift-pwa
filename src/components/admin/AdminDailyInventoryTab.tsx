@@ -251,7 +251,11 @@ function ReportDetailView({
 
   async function submitGenerateOrder() {
     const auth = getAuth();
-    const requestedBy = auth?.staffName || "";
+    const requestedBy = auth?.staffName || detail.staff_name || "";
+    if (!requestedBy) {
+      setOrderError("Could not identify current user. Please refresh and try again.");
+      return;
+    }
     const selectedItems = lowItems
       .filter(({ item }) => orderSelected[item.item_code])
       .map(({ item }) => ({
@@ -272,9 +276,16 @@ function ReportDetailView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ requested_by: requestedBy, items: selectedItems }),
       });
-      const data = await res.json() as { ok?: boolean; created?: GeneratedPR[]; detail?: string };
-      if (!res.ok) throw new Error(data.detail || "Failed to generate order");
-      setGeneratedPRs(data.created || []);
+      const json = await res.json() as { ok?: boolean; created?: GeneratedPR[]; detail?: unknown };
+      if (!res.ok) {
+        const errMsg = typeof json.detail === "string"
+          ? json.detail
+          : Array.isArray(json.detail)
+            ? (json.detail as { msg?: string }[])[0]?.msg ?? "Request failed"
+            : "Failed to generate order";
+        throw new Error(errMsg);
+      }
+      setGeneratedPRs((json.created as GeneratedPR[]) || []);
     } catch (err) {
       setOrderError(err instanceof Error ? err.message : "Unknown error");
     } finally {
