@@ -171,9 +171,9 @@ function DetailStatusBadge({
   parLevel: number | null;
 }) {
   if (qty === null) return <span className="text-xs text-zinc-600">—</span>;
-  if (minLevel !== null && qty < minLevel)
+  if (minLevel !== null && Number(qty) < Number(minLevel))
     return <span className={BADGE_ERROR}>🔴 LOW</span>;
-  if (parLevel !== null && qty < parLevel)
+  if (parLevel !== null && Number(qty) < Number(parLevel))
     return <span className={BADGE_WARNING}>🟡 WARN</span>;
   return <span className={BADGE_SUCCESS}>🟢 OK</span>;
 }
@@ -209,9 +209,9 @@ function ReportDetailView({
   items.forEach((item) => {
     const entry = entryMap[item.item_code];
     if (!entry || entry.qty === null) return;
-    if (item.min_level !== null && entry.qty < item.min_level) {
+    if (item.min_level !== null && Number(entry.qty) < Number(item.min_level)) {
       lowItems.push({ item, entry });
-    } else if (item.par_level !== null && entry.qty < item.par_level) {
+    } else if (item.par_level !== null && Number(entry.qty) < Number(item.par_level)) {
       warnItems.push({ item, entry });
     }
   });
@@ -337,8 +337,8 @@ function ReportDetailView({
                   {sectionItems.map((item) => {
                     const entry = entryMap[item.item_code];
                     if (!entry) return null;
-                    const isLow = item.min_level !== null && entry.qty !== null && entry.qty < item.min_level;
-                    const isWarn = !isLow && item.par_level !== null && entry.qty !== null && entry.qty < item.par_level;
+                    const isLow = item.min_level !== null && entry.qty !== null && Number(entry.qty) < Number(item.min_level);
+                    const isWarn = !isLow && item.par_level !== null && entry.qty !== null && Number(entry.qty) < Number(item.par_level);
                     return (
                       <tr
                         key={item.item_code}
