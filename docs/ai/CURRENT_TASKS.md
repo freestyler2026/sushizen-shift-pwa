@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-30 (session 103 — Daily Inventory ordering cycle Phase 2-5)
+Last updated: 2026-06-30 (session 104 — Phase 2-5 testing & bug fixes + print polish)
 
 
 > **New session start protocol:**
@@ -12,7 +12,23 @@ Last updated: 2026-06-30 (session 103 — Daily Inventory ordering cycle Phase 2
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1331, Vercel d7f37b6)
+なし — 全変更デプロイ済み (Heroku 1656498, Vercel c717e1b)
+
+## Recently Completed (2026-06-30 session 104) — live (Heroku 1656498, Vercel c717e1b)
+
+**Phase 2-5 テスト・バグ修正 + 印刷UIポリッシュ**
+
+**① Phase 5 バグ修正2件 (backend)**
+- Bug A: `inv_report_date` が `after.get("created_at")` (受取作成日=過去の可能性) → `date.today().isoformat()` に修正
+- Bug B: `req.get("store_code")` (get_proc_request()がNone返しあり) → `after.get("store_code")` (RETURNING句で確実取得)に修正
+
+**② Phase 2 フロントバグ修正2件**
+- Bug C: `requestedBy` 空の場合に明示チェックなし → 早期returnで明確なエラーメッセージ表示に修正
+- Bug D: Pydantic `detail` が配列形式の時 `"[object Object]"` → 型チェックで配列/文字列分岐に修正
+
+**③ 調達ケース詳細 印刷ポリッシュ**
+- `print:hidden`: ← Hub/← Inbox ナビ、Session/Auth バー、Case Actions パネルを非表示に
+- 印刷結果: ケースのメタ情報・品目テーブル・合計金額のみが白紙に印刷される
 
 ## Recently Completed (2026-06-30 session 103) — live (Heroku v1331, Vercel d7f37b6)
 
