@@ -495,11 +495,11 @@ export default function ProcurementCaseDetailPage() {
             Refresh
           </button>
           {fromParam === "hub" ? (
-            <Link href="/admin/procurement/hub" className={`${SMALL_BUTTON} flex items-center gap-1.5`}>
+            <Link href="/admin/procurement/hub" className={`${SMALL_BUTTON} flex items-center gap-1.5 print:hidden`}>
               ← Hub
             </Link>
           ) : (
-            <Link href="/admin/procurement/approval-inbox" className={`${SMALL_BUTTON} flex items-center gap-1.5`}>
+            <Link href="/admin/procurement/approval-inbox" className={`${SMALL_BUTTON} flex items-center gap-1.5 print:hidden`}>
               ← Inbox
             </Link>
           )}
@@ -507,7 +507,7 @@ export default function ProcurementCaseDetailPage() {
       </div>
 
       {/* Session / Auth bar */}
-      <div className={`${GLASS_CARD} p-4`}>
+      <div className={`${GLASS_CARD} p-4 print:hidden`}>
         <p className="mb-3 text-sm font-semibold text-white">Session</p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div>
@@ -910,7 +910,7 @@ export default function ProcurementCaseDetailPage() {
 
       {/* Case Actions panel */}
       {bundle.case && (
-        <div className={`${GLASS_CARD} p-5`}>
+        <div className={`${GLASS_CARD} p-5 print:hidden`}>
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <p className={T_SECTION}>Actions</p>
             <span className={T_CAPTION}>Assignee: <span className="text-zinc-300">{bundle.case.current_assignee_role || "-"}</span></span>
