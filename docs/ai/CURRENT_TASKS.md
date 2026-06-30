@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-24 (session 102 — Order Catalog supplier delete + Base Roll PREP overhaul + Manila Draft ingredient fix)
+Last updated: 2026-06-30 (session 103 — Daily Inventory ordering cycle Phase 2-5)
 
 
 > **New session start protocol:**
@@ -12,7 +12,37 @@ Last updated: 2026-06-24 (session 102 — Order Catalog supplier delete + Base R
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku 318884b, Vercel b430a7e)
+なし — 全変更デプロイ済み (Heroku v1331, Vercel d7f37b6)
+
+## Recently Completed (2026-06-30 session 103) — live (Heroku v1331, Vercel d7f37b6)
+
+**Daily Inventory → Ordering Cycle (Phase 1〜5)**
+
+**① Phase 1 (前セッション) — LOW/WATCH アラートバグ修正**
+- `Decimal`→文字列シリアライズ→JS辞書順比較バグを `Number()` 強制変換で修正
+- 対象: `AdminDailyInventoryTab.tsx` の3箇所 (DetailStatusBadge, ReportDetailView計算, テーブル行)
+
+**② Phase 2 — "Generate Purchase Request" ボタン**
+- SUBMITTED レポートの Low Stock Alert セクションに「Generate Purchase Request」ボタンを追加
+- モーダル: LOW在庫品を Supplier / CK に自動分類、発注数量を事前計算(min_level - 現在在庫)、個別選択・数量編集可
+- バックエンド: `POST /api/daily-inventory/reports/{id}/generate-order`
+  - Supplier品目 → 通常 proc_request を作成してSUBMIT
+  - CK品目 → is_ck_order=true の proc_request を作成してSUBMIT
+  - 両方とも既存の調達ハブに即時反映
+- 成功後: 作成されたPR番号とHubリンクを表示
+
+**③ Phase 3 — 承認ルーティング**
+- 既存の調達ハブが自動処理するため追加実装なし
+
+**④ Phase 4 — 印刷ボタン**
+- 調達ケース詳細ページ(`/admin/procurement/cases/[caseId]`)に「🖨 Print」ボタンを追加
+- `window.print()` + `globals.css` に印刷用メディアクエリ追加
+
+**⑤ Phase 5 — 受取確定 → Daily Inventory 自動反映**
+- `db_daily_inventory.py`: `add_received_qty_to_daily_inv(store_code, report_date, received_items)` 追加
+  - store_code → branch 変換 (PAR→PARANAQUE, CB→CUBAO, etc.)
+  - DRAFT状態のレポートが存在する場合のみ、アイテム名マッチングで受取数量を加算
+- `main.py`: 受取確定エンドポイントにhookを追加 (best-effort: 失敗しても確認はキャンセルしない)
 
 ## Recently Completed (2026-06-24 session 102) — live (Heroku 318884b, Vercel b430a7e)
 
