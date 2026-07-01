@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-01 (session 105 — Spot Purchase system + baseroll-prep case-insensitive fix)
+Last updated: 2026-07-01 (session 106 — Spot Purchase bug fixes deployed)
 
 
 > **New session start protocol:**
@@ -12,7 +12,32 @@ Last updated: 2026-07-01 (session 105 — Spot Purchase system + baseroll-prep c
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1334, Vercel d4216e3)
+なし — 全変更デプロイ済み (Heroku v1335, Vercel d53783d)
+
+## Recently Completed (2026-07-01 session 106) — live (Heroku v1335, Vercel d53783d)
+
+**Spot Purchase — バグ修正 (11件) + テスト**
+
+前セッション(105)の実装に対し、テスト・コードレビューで11件のバグを発見し修正・デプロイ。
+
+**Backend (db_spot_purchase.py + main.py):**
+- [CRITICAL] 競合条件: `_next_request_no()` を独立接続で実行 → `pg_advisory_xact_lock(2026072601)` を使った同一トランザクション内での原子的番号生成に変更
+- [HIGH] プライバシーリーク: `api_spr_list_my` でstaff_nameが空の場合に全件返却 → 空ガードで空配列を返すよう修正
+- [HIGH] 日付バリデーション未実施: `needed_by_date` を直接DBに渡すと500エラー → `date.fromisoformat()` で事前検証し400を返す
+- [HIGH] 品目名バリデーション: 空白のみの品目名が通過 → `i.name.strip()` でフィルタ
+- [MEDIUM] status パラメーター未検証 → `_SPR_VALID_STATUSES` セットで検証
+- [MEDIUM] limit パラメーターに負数が通過 → `max(1, min(limit, 500))`
+- [MEDIUM] purchased_by 未検証 → 空の場合は400エラー
+
+**Frontend (store/spot-purchase/page.tsx):**
+- [HIGH] リスト取得失敗時にエラーが表示されない → `myLoadError` state追加
+- [LOW] 過去日付が選択可能 → `min={today}` を日付inputに追加
+- [LOW] タブ切り替え時に展開状態がリセットされない → `setExpandedId(null)` 追加
+- [LOW] Refresh ボタン + リクエスト件数表示を追加
+
+**Frontend (admin/spot-purchase/page.tsx):**
+- [LOW] approve/reject/complete 後のサクセスフィードバックなし → `actionSuccess` state + 3秒自動クリア追加
+- [LOW] doComplete での purchased_by 空チェックをフロントにも追加、JSXに成功メッセージ表示
 
 ## Recently Completed (2026-07-01 session 105) — live (Heroku v1334, Vercel d4216e3)
 
