@@ -161,6 +161,7 @@ function SpotPurchaseAdmin({ auth }: { auth: ReturnType<typeof getAuth> }) {
   const [actionMode, setActionMode] = useState<Record<number, "approve" | "reject" | "complete" | null>>({});
   const [actionLoading, setActionLoading] = useState<Record<number, boolean>>({});
   const [actionError, setActionError] = useState<Record<number, string>>({});
+  const [actionSuccess, setActionSuccess] = useState<Record<number, string>>({});
 
   // Complete form
   const [completePurchasedBy, setCompletePurchasedBy] = useState<Record<number, string>>({});
@@ -205,6 +206,8 @@ function SpotPurchaseAdmin({ auth }: { auth: ReturnType<typeof getAuth> }) {
         throw new Error(err.detail || "Failed");
       }
       setActionMode((p) => ({ ...p, [id]: null }));
+      setActionSuccess((p) => ({ ...p, [id]: "Approved" }));
+      setTimeout(() => setActionSuccess((p) => ({ ...p, [id]: "" })), 3000);
       loadRequests(tab);
     } catch (e: unknown) {
       setActionError((p) => ({ ...p, [id]: e instanceof Error ? e.message : "Error" }));
@@ -231,6 +234,8 @@ function SpotPurchaseAdmin({ auth }: { auth: ReturnType<typeof getAuth> }) {
         throw new Error(err.detail || "Failed");
       }
       setActionMode((p) => ({ ...p, [id]: null }));
+      setActionSuccess((p) => ({ ...p, [id]: "Rejected" }));
+      setTimeout(() => setActionSuccess((p) => ({ ...p, [id]: "" })), 3000);
       loadRequests(tab);
     } catch (e: unknown) {
       setActionError((p) => ({ ...p, [id]: e instanceof Error ? e.message : "Error" }));
@@ -240,11 +245,16 @@ function SpotPurchaseAdmin({ auth }: { auth: ReturnType<typeof getAuth> }) {
   }
 
   async function doComplete(id: number) {
+    const pb = (completePurchasedBy[id] || auth?.staffName || "").trim();
+    if (!pb) {
+      setActionError((p) => ({ ...p, [id]: "Purchased By name is required" }));
+      return;
+    }
     setActionLoading((p) => ({ ...p, [id]: true }));
     setActionError((p) => ({ ...p, [id]: "" }));
     try {
       const form = new FormData();
-      form.append("purchased_by", completePurchasedBy[id] || auth?.staffName || "");
+      form.append("purchased_by", pb);
       form.append("receipt_notes", completeNotes[id] || "");
       if (receiptFile[id]) form.append("receipt_file", receiptFile[id] as File);
       const res = await fetch(`/api/admin/spot-purchase/requests/${id}/complete`, {
@@ -258,6 +268,8 @@ function SpotPurchaseAdmin({ auth }: { auth: ReturnType<typeof getAuth> }) {
       }
       setActionMode((p) => ({ ...p, [id]: null }));
       setReceiptFile((p) => ({ ...p, [id]: null }));
+      setActionSuccess((p) => ({ ...p, [id]: "Marked as Purchased" }));
+      setTimeout(() => setActionSuccess((p) => ({ ...p, [id]: "" })), 3000);
       loadRequests(tab);
     } catch (e: unknown) {
       setActionError((p) => ({ ...p, [id]: e instanceof Error ? e.message : "Error" }));
@@ -500,6 +512,10 @@ function SpotPurchaseAdmin({ auth }: { auth: ReturnType<typeof getAuth> }) {
                       </div>
                     )}
                   </div>
+                )}
+
+                {actionSuccess[req.id] && (
+                  <p className="mt-2 text-sm font-medium text-emerald-400">✓ {actionSuccess[req.id]}</p>
                 )}
               </div>
             )}

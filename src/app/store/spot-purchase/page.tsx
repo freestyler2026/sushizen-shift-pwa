@@ -159,11 +159,14 @@ function SpotPurchaseApp({ auth }: { auth: ReturnType<typeof getAuth> }) {
   const [submitError, setSubmitError] = useState("");
   const [submitted, setSubmitted] = useState<SPRRequest | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [myLoadError, setMyLoadError] = useState("");
 
   const photoInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const today = new Date().toISOString().split("T")[0];
 
   async function loadMyRequests() {
     setLoadingMy(true);
+    setMyLoadError("");
     try {
       const res = await fetch("/api/store/spot-purchase/requests/my", {
         headers: getAuthHeaders(auth),
@@ -171,14 +174,22 @@ function SpotPurchaseApp({ auth }: { auth: ReturnType<typeof getAuth> }) {
       if (res.ok) {
         const data = await res.json();
         setMyRequests(data.requests || []);
+      } else {
+        const err = await res.json().catch(() => ({ detail: "Failed to load requests" }));
+        setMyLoadError(typeof err.detail === "string" ? err.detail : "Failed to load requests");
       }
+    } catch {
+      setMyLoadError("Network error — please try again.");
     } finally {
       setLoadingMy(false);
     }
   }
 
   useEffect(() => {
-    if (tab === "my") loadMyRequests();
+    if (tab === "my") {
+      setExpandedId(null);
+      loadMyRequests();
+    }
   }, [tab]);
 
   // ─── Item helpers ───────────────────────────────────────────────────────────
@@ -323,6 +334,7 @@ function SpotPurchaseApp({ auth }: { auth: ReturnType<typeof getAuth> }) {
                     <label className={`${T_LABEL} block mb-1.5`}>Needed By Date</label>
                     <input
                       type="date"
+                      min={today}
                       className={INPUT_CLASS}
                       value={neededBy}
                       onChange={(e) => setNeededBy(e.target.value)}
@@ -496,8 +508,16 @@ function SpotPurchaseApp({ auth }: { auth: ReturnType<typeof getAuth> }) {
         {/* ── My Requests Tab ──────────────────────────────────────────────── */}
         {tab === "my" && (
           <div className="space-y-3">
-            {loadingMy && <p className={T_CAPTION}>Loading…</p>}
-            {!loadingMy && myRequests.length === 0 && (
+            <div className="flex items-center justify-between">
+              <span className={T_CAPTION}>{myRequests.length} request{myRequests.length !== 1 ? "s" : ""}</span>
+              <button className={SMALL_BUTTON} disabled={loadingMy} onClick={loadMyRequests}>
+                {loadingMy ? "Loading…" : "Refresh"}
+              </button>
+            </div>
+            {myLoadError && (
+              <p className="text-sm text-red-400">{myLoadError}</p>
+            )}
+            {!loadingMy && !myLoadError && myRequests.length === 0 && (
               <div className={`${GLASS_CARD} p-6 text-center`}>
                 <p className="text-zinc-400">No spot purchase requests yet.</p>
               </div>
