@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-06-30 (session 104 — Phase 2-5 testing & bug fixes + print polish)
+Last updated: 2026-07-01 (session 105 — Spot Purchase system + baseroll-prep case-insensitive fix)
 
 
 > **New session start protocol:**
@@ -12,7 +12,30 @@ Last updated: 2026-06-30 (session 104 — Phase 2-5 testing & bug fixes + print 
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku 1656498, Vercel c717e1b)
+なし — 全変更デプロイ済み (Heroku v1334, Vercel d4216e3)
+
+## Recently Completed (2026-07-01 session 105) — live (Heroku v1334, Vercel d4216e3)
+
+**Spot Purchase System (新機能) + Base Roll Prep バグ修正**
+
+**① Spot Purchase Request System — フルスタック実装**
+
+Manila限定の新しい発注チャンネル。キッチン機器・調理器具・備品のスポット購入フロー。
+
+- **DB** (`app/db_spot_purchase.py` — 新規):
+  - `spot_purchase_requests` テーブル: JSONB items配列、PENDING→APPROVED/REJECTED→PURCHASEDステータス
+  - SPR-YYYY-NNNN番号体系。関数: create/list/get/approve/reject/complete/count_pending
+- **API** (`app/main.py` に追記): create/list-my/upload-photo (store), list-all/approve/reject/complete/pending-count (admin)
+  - 写真・レシートはGoogle Drive (SpotPurchase/Items/YYYY-MM/, SpotPurchase/Receipts/YYYY-MM/)
+  - 承認ロール: ADMIN/HQ/HR_MANAGER/MANILA_MANAGEMENT
+- **Store page** (`src/app/store/spot-purchase/page.tsx`): New Request タブ (複数品目・写真) + My Requests タブ
+- **Admin page** (`src/app/admin/spot-purchase/page.tsx`): Pending/Approved/Purchased/All タブ、approve/reject/complete アクション、レシートアップロード
+- **NavBar**: store nav + admin nav に Spot Purchase リンク追加
+
+**② Base Roll Prep — Calculator タブで新商品が表示されない問題修正** (Heroku v1333)
+
+- 修正: COEFF構築・検索時に `strip().lower()` 適用 (ケース不一致マッチング)
+- データ問題: 新商品はSales参照日に売上ゼロ → 7月8日以降に自然表示
 
 ## Recently Completed (2026-06-30 session 104) — live (Heroku 1656498, Vercel c717e1b)
 
