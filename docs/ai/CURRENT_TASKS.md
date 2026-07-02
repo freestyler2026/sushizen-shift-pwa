@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-01 (session 106 — Spot Purchase bug fixes deployed)
+Last updated: 2026-07-02 (session 107 — Disposal Report 写真アップロード機能追加)
 
 
 > **New session start protocol:**
@@ -12,7 +12,29 @@ Last updated: 2026-07-01 (session 106 — Spot Purchase bug fixes deployed)
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1335, Vercel d53783d)
+なし — 全変更デプロイ済み (Heroku v1336, Vercel 5e58e61)
+
+## Recently Completed (2026-07-02 session 107) — live (Heroku v1336, Vercel 5e58e61)
+
+**Disposal Report — 写真アップロード機能追加**
+
+スタッフからのリクエスト: Disposal Report提出時に証拠写真をアップロードできるようにする。
+
+**Backend:**
+- `db.py`: `disposal_reports` テーブルに `photo_urls JSONB NOT NULL DEFAULT '[]'` カラム追加 (migration: `ADD COLUMN IF NOT EXISTS`)
+- `db.py`: `list_disposal_reports()` の SELECT に `r.photo_urls` を追加
+- `db.py`: `add_disposal_photo(report_id, photo_url)` 新関数 — JSONB配列にURLをappend
+- `main.py`: `POST /api/admin/disposal/report/{report_id}/upload-photo` エンドポイント追加
+  - 認証: 既存の `_require_disposal_access` (全認証スタッフ)
+  - Google Drive フォルダ: `Disposal/{city}/{branch_code}/{YYYY-MM}/` (既存の `PROCUREMENT_DATA_FOLDER_ID` 配下に自動作成)
+  - ファイルサイズ制限: 20MB、画像のみ
+
+**Frontend (`src/app/admin/disposal/page.tsx`):**
+- Report Details フォームに写真選択UI追加 (複数選択可、サムネイルプレビュー、個別削除ボタン)
+- Submit後にレポートIDを取得してから写真を順次アップロード (失敗しても本体提出は成功)
+- アップロード進捗を success メッセージに反映 (`N/M photos uploaded`)
+- Past Reports の展開時に写真サムネイルを表示 (クリックでGoogleドライブのリンクを開く)
+- `getUploadHeaders(auth)` を使用 (multipartのContent-Typeを壊さない)
 
 ## Recently Completed (2026-07-01 session 106) — live (Heroku v1335, Vercel d53783d)
 
