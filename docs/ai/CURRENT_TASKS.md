@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-02 (session 107 — Disposal Report 写真アップロード機能追加)
+Last updated: 2026-07-02 (session 108 — Base Roll Prep Salmon Lover 名前修正)
 
 
 > **New session start protocol:**
@@ -12,7 +12,26 @@ Last updated: 2026-07-02 (session 107 — Disposal Report 写真アップロー�
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1336, Vercel 5e58e61)
+なし — 全変更デプロイ済み (Heroku v1337, Vercel 5e58e61)
+
+## Recently Completed (2026-07-02 session 108) — live (Heroku v1337)
+
+**Base Roll Prep — Salmon Lover 商品名修正 (StoreHubの名称に合わせて "Box" を追加)**
+
+スタッフ報告: 8日設定(基準日1日)でSalmon Loverがベースロール計算に出ない。
+7月1日にSalmon Loverは販売済み(アイテム売上グラフ4位)なのに表示されなかった。
+
+**原因**: `_BASEROLL_DEFAULT_ROWS` の商品名が "Salmon Lover 12pcs" 等(Box なし)だったが、
+StoreHubの実際の商品名は "Salmon Lover **Box** 12pcs"。
+COEFFディクショナリのキーと販売データのプロダクト名が不一致 → 係数が0となり `to_prep()` の `if v > 0` フィルターで除外されていた。
+
+**修正 (db.py):**
+- `_BASEROLL_DEFAULT_ROWS` の7商品名を正しい名称に更新:
+  - Salmon Lover 12/16/24pcs → Salmon Lover **Box** 12/16/24pcs
+  - Premium Salmon Lover 12/16/24pcs → Premium Salmon Lover **Box** 12/16/24pcs
+  - Supreme 10pcs → **Salmon Supreme Box** 10pcs
+- `_BASEROLL_V2_ADD_ROWS` セットも同様に更新
+- v3 migration 追加: sentinel "Salmon Lover 12pcs" が DB に存在する場合に全7件をUPDATEする (冪等)
 
 ## Recently Completed (2026-07-02 session 107) — live (Heroku v1336, Vercel 5e58e61)
 
