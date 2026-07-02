@@ -3,7 +3,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { getAuth, getAuthHeaders } from "@/lib/auth";
+import { getAuth, getAuthHeaders, getUploadHeaders } from "@/lib/auth";
 import { BRANCHES, type BranchCode, type City } from "@/lib/branches";
 import {
   BADGE_ERROR,
@@ -78,6 +78,7 @@ interface DisposalReport {
   notes: string;
   status: string;
   created_at: string;
+  photo_urls: string[];
   lines: DisposalReportLine[];
 }
 
@@ -547,6 +548,21 @@ function PastReports({ city, isAdmin }: { city: City; isAdmin: boolean }) {
               <div className="border-t border-white/8 px-4 py-3">
                 {r.notes && <p className="text-xs text-zinc-400 mb-3 italic">{r.notes}</p>}
 
+                {/* Photos */}
+                {(r.photo_urls ?? []).length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {(r.photo_urls ?? []).map((url, i) => (
+                      <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                        className="block rounded-lg overflow-hidden border border-white/10 hover:border-violet-400/50 transition-colors">
+                        <img src={url} alt={`Disposal photo ${i + 1}`}
+                          className="h-20 w-20 object-cover"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                        />
+                      </a>
+                    ))}
+                  </div>
+                )}
+
                 {/* Mobile: stacked cards */}
                 <div className="space-y-2 sm:hidden">
                   {(r.lines ?? []).map((l) => (
@@ -644,6 +660,10 @@ export default function DisposalPage() {
   // ── Staff list for autocomplete ──
   const [staffNames, setStaffNames] = useState<string[]>([]);
 
+  // ── Photo state ──
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
   // ── Submit state ──
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -730,7 +750,33 @@ export default function DisposalPage() {
           }),
         }
       );
-      setSubmitSuccess(`Report #${result.report_id} submitted.`);
+
+      // Upload photos (non-blocking; failures are non-fatal)
+      let uploadedCount = 0;
+      if (photoFiles.length > 0) {
+        setSubmitSuccess(`Report #${result.report_id} submitted. Uploading photos...`);
+        for (const file of photoFiles) {
+          try {
+            const form = new FormData();
+            form.append("photo", file);
+            form.append("city", city);
+            form.append("branch_code", branchCode);
+            form.append("report_date", reportDate);
+            const res = await fetch(`/api/admin/disposal/report/${result.report_id}/upload-photo`, {
+              method: "POST",
+              headers: getUploadHeaders(auth),
+              body: form,
+            });
+            if (res.ok) uploadedCount++;
+          } catch { /* non-fatal */ }
+        }
+        setPhotoFiles([]);
+      }
+
+      const photoNote = photoFiles.length > 0
+        ? ` (${uploadedCount}/${photoFiles.length} photo${photoFiles.length !== 1 ? "s" : ""} uploaded)`
+        : "";
+      setSubmitSuccess(`Report #${result.report_id} submitted.${photoNote}`);
       setLines([]); setHeaderNotes("");
       setDraftRestored(false);
       clearDraft();
@@ -823,6 +869,48 @@ export default function DisposalPage() {
                 <input type="text" className={`${INPUT_CLASS} py-3 text-base`} value={headerNotes}
                   onChange={(e) => setHeaderNotes(e.target.value)} placeholder="e.g. public holiday, event..." />
               </div>
+            </div>
+
+            {/* Photo upload */}
+            <div className="mt-4 pt-4 border-t border-white/8">
+              <label className={`${T_LABEL} block mb-2`}>Photos (optional)</label>
+              <div className="flex flex-wrap gap-2 items-center">
+                {photoFiles.map((file, i) => (
+                  <div key={i} className="relative group">
+                    <img
+                      src={URL.createObjectURL(file)}
+                      alt={file.name}
+                      className="h-16 w-16 rounded-lg object-cover border border-white/10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPhotoFiles((prev) => prev.filter((_, j) => j !== i))}
+                      className="absolute -top-1 -right-1 hidden group-hover:flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold"
+                    >✕</button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => photoInputRef.current?.click()}
+                  className="flex h-16 w-16 items-center justify-center rounded-lg border border-dashed border-white/20 text-zinc-500 hover:border-violet-400/50 hover:text-violet-400 transition-colors text-2xl"
+                >+</button>
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files ?? []);
+                    setPhotoFiles((prev) => [...prev, ...files]);
+                    e.target.value = "";
+                  }}
+                />
+                {photoFiles.length > 0 && (
+                  <span className="text-xs text-zinc-500">{photoFiles.length} photo{photoFiles.length !== 1 ? "s" : ""} selected</span>
+                )}
+              </div>
+              <p className="mt-1.5 text-xs text-zinc-600">Photos are uploaded to Google Drive after report submission. Max 20 MB each.</p>
             </div>
           </div>
 
