@@ -149,7 +149,7 @@ function rowAction(row: HubRow): { label: string; href: string; style: string } 
   // Draft — go to edit
   if (rs === "DRAFT") return {
     label: "Edit →",
-    href: `/store/procurement/request?city=${row.city}&editId=${row.id}`,
+    href: `/store/procurement/request?city=${row.city}&edit=${row.id}`,
     style: "border-zinc-600/40 bg-zinc-800/20 text-zinc-300 hover:bg-zinc-700/30",
   };
 
