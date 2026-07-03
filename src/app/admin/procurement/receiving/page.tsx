@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
+import { canAccessProcurementAdmin, getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, procurementJson } from "@/lib/procurementClient";
 import DatePicker from "@/components/DatePicker";
 import {
@@ -242,13 +242,16 @@ export default function ProcurementReceivingPage() {
     setLoadingRequest(true);
     setError("");
     try {
-      const data = await procurementJson<{ request: { id: string; vendor_name: string; items: Array<{ id: string; item_name: string; category: string; vendor_name: string; unit: string; qty: number; unit_price: number }> } }>(
+      const res = await fetch(
         `/api/admin/procurement/requests/${encodeURIComponent(rid)}`,
-        { method: "GET" },
-        requestedBy,
-        pin,
+        { method: "GET", headers: getAuthHeaders(getAuth()), cache: "no-store" },
       );
-      const req = data?.request;
+      const json = await res.json() as { request?: { id: string; vendor_name: string; items: Array<{ id: string; item_name: string; category: string; vendor_name: string; unit: string; qty: number; unit_price: number }> }; detail?: unknown };
+      if (!res.ok) {
+        const msg = typeof json.detail === "string" ? json.detail : `Failed to load order (${res.status})`;
+        throw new Error(msg);
+      }
+      const req = json?.request;
       if (!req) { setItemForms([]); return; }
       if (!vendorName && req.vendor_name) setVendorName(req.vendor_name);
       const forms = (req.items || []).map((it) => ({
@@ -263,8 +266,10 @@ export default function ProcurementReceivingPage() {
         notes: "",
       }));
       setItemForms(forms);
-    } catch {
+      if (forms.length === 0) setError("No items found on this order. Check the Request ID.");
+    } catch (e: unknown) {
       setItemForms([]);
+      setError(e instanceof Error ? e.message : "Failed to load order items.");
     } finally {
       setLoadingRequest(false);
     }

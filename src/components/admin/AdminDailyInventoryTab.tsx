@@ -386,18 +386,21 @@ function ReportDetailView({
 
             {generatedPRs.length > 0 ? (
               <div className="px-6 py-5 space-y-3">
-                <p className="text-sm font-semibold text-emerald-300">Orders created successfully!</p>
+                <p className="text-sm font-semibold text-emerald-300">Draft orders created!</p>
+                <p className="text-xs text-amber-300/80">
+                  Each order is saved as <span className="font-semibold">DRAFT</span>. Go to the Hub, review quantities, then click <span className="font-semibold">Submit</span> to send for approval.
+                </p>
                 {generatedPRs.map((pr) => (
                   <div key={pr.request_id} className="flex items-center justify-between rounded-xl border border-white/8 bg-white/5 px-4 py-3">
                     <div>
                       <p className="text-xs font-semibold text-zinc-300">{pr.type} Order</p>
-                      <p className="text-xs text-zinc-500">{pr.request_no} · Case {pr.case_no}</p>
+                      <p className="text-xs text-zinc-500">{pr.request_no}</p>
                     </div>
                     <a
                       href="/admin/procurement/hub"
                       className="rounded-lg border border-violet-500/40 bg-violet-500/15 px-3 py-1 text-xs font-semibold text-violet-200 hover:bg-violet-500/25"
                     >
-                      View in Hub →
+                      Review & Submit →
                     </a>
                   </div>
                 ))}
