@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-02 (session 108 — Base Roll Prep Salmon Lover 名前修正)
+Last updated: 2026-07-04 (session 109 — CK Delivery Auto-Generation + Delivery Note)
 
 
 > **New session start protocol:**
@@ -12,7 +12,51 @@ Last updated: 2026-07-02 (session 108 — Base Roll Prep Salmon Lover 名前修�
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1337, Vercel 5e58e61)
+なし — 全変更デプロイ済み (Heroku 9057d10, Vercel 7361089)
+
+## Recently Completed (2026-07-04 session 109) — live (Heroku 9057d10, Vercel 7361089)
+
+**CK Delivery Auto-Generation from Approved CK Store Procurement Orders**
+
+スタッフ要望: CK Store Procurementオーダーが承認された際に、CK Deliveryを自動生成してほしい。
+また冷蔵庫ストック品を手動追加した場合に自動品と視覚的に区別できるようにしてほしい。
+
+**Backend (db.py):**
+- `ck_deliveries` テーブルに `proc_request_id UUID` (FK) と `proc_request_no TEXT` カラム追加 (v2 migration)
+- `ck_delivery_items` テーブルに `source TEXT DEFAULT 'manual'` カラム追加
+  - `'auto'` = 承認されたオーダーから自動追加、`'manual'` = 後から手動追加
+- `create_ck_delivery()` に `proc_request_id`, `proc_request_no` パラメータ追加
+- `get_ck_delivery()`, `list_ck_deliveries()` の SELECT に新カラム追加
+- `add_ck_delivery_items()` の INSERT に `source` 追加
+- 新関数 `create_ck_delivery_from_proc_request()` 追加:
+  - `store_code` → `to_branch` マッピング (PAR→Paranaque, CB→Cubao, TAFT→Taft)
+  - `needed_by_date` がアイテムにあればそれを `delivery_date` に使用
+  - アイテムは全て `source='auto'` で挿入
+
+**Backend (main.py):**
+- 両方の `/api/admin/procurement/cases/{case_id}/approve` エンドポイントに CK Delivery 自動生成フックを追加
+  - `approvals_complete_in_order()` → APPROVED かつ `is_ck_order=True` の場合のみ実行
+  - `try/except` で保護: 自動生成失敗が承認フローをロールバックしない
+
+**Frontend (ck-delivery/page.tsx):**
+- `Delivery` 型に `proc_request_id`, `proc_request_no` 追加
+- `DeliveryItem` 型に `source: "auto" | "manual"` 追加
+- 詳細ヘッダーに `proc_request_no` 表示 (オレンジ)
+- アイテム行にソースバッジ: "From Order" (amber) / "Manual" (slate)
+  - `proc_request_id` がある場合のみバッジを表示
+- "Delivery Note" ボタン追加 (PENDING/DISPATCHED 時のみ、新タブで開く)
+- リスト左パネルに `proc_request_no` 表示
+
+**Frontend (新規: /store/ck-delivery/[id]/note/page.tsx):**
+- 印刷用 Delivery Note ページ
+- カテゴリ別アイテム一覧、数量、ソースバッジ、チェックボックス欄
+- CK / 店舗のサイン欄
+- `@media print` でボタン非表示、A4印刷対応
+
+**Known behavior:**
+- `plan_id=NULL` で生成されるため CK Production Plan 由来でない配送として記録される
+- 生成後にアイテムを追加/削除可能 (通常通り編集できる)
+- 承認エンドポイントが2箇所に重複しているため両方に同じフックを適用
 
 ## Recently Completed (2026-07-02 session 108) — live (Heroku v1337)
 
