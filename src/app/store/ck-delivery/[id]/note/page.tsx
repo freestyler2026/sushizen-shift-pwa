@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
 
@@ -34,7 +35,9 @@ function groupBy<T>(arr: T[], key: (item: T) => string): Record<string, T[]> {
   }, {});
 }
 
-export default function CKDeliveryNotePage({ params }: { params: { id: string } }) {
+export default function CKDeliveryNotePage() {
+  const params = useParams();
+  const id = params?.id as string;
   const [delivery, setDelivery] = useState<Delivery | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -42,7 +45,7 @@ export default function CKDeliveryNotePage({ params }: { params: { id: string } 
   useEffect(() => {
     const auth = getAuth();
     if (!auth) { setError("Not authenticated"); setLoading(false); return; }
-    fetch(`/api/store/ck-delivery/deliveries/${params.id}`, {
+    fetch(`/api/store/ck-delivery/deliveries/${id}`, {
       headers: getAuthHeaders(auth),
     })
       .then(r => r.json())
@@ -51,7 +54,7 @@ export default function CKDeliveryNotePage({ params }: { params: { id: string } 
       })
       .catch(() => setError("Failed to load delivery"))
       .finally(() => setLoading(false));
-  }, [params.id]);
+  }, [id]);
 
   if (loading) {
     return (
