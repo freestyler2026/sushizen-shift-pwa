@@ -35,6 +35,8 @@ type Delivery = {
   notes: string;
   branch_notes: string;
   created_by: string;
+  proc_request_id: string | null;
+  proc_request_no: string;
   created_at: string;
   updated_at: string;
   item_count?: number;
@@ -59,6 +61,7 @@ type DeliveryItem = {
   label_photo_url: string;
   label_ok: boolean | null;
   label_issue: string;
+  source: "auto" | "manual";
 };
 
 type QcPassedItem = {
@@ -815,6 +818,7 @@ export default function CKDeliveryPage() {
                   <p className={T_CAPTION + " mt-1"}>
                     {d.item_count || 0} items
                     {d.status === "CONFIRMED" && d.received_count ? ` · ${d.received_count} received` : ""}
+                    {d.proc_request_no ? ` · ${d.proc_request_no}` : ""}
                   </p>
                   {d.status === "CONFIRMED" && (d.item_count || 0) > 0 && (
                     <div className="mt-2 h-1.5 w-full rounded-full bg-white/10">
@@ -856,6 +860,11 @@ export default function CKDeliveryPage() {
                       <span className={STATUS_BADGE[activeDelivery.status]}>{STATUS_LABEL[activeDelivery.status]}</span>
                     </div>
                     <p className={T_CAPTION + " mt-1"}>Created by {activeDelivery.created_by || "—"}</p>
+                    {activeDelivery.proc_request_no && (
+                      <p className={T_CAPTION + " mt-0.5"}>
+                        From order: <span className="text-amber-400 font-medium">{activeDelivery.proc_request_no}</span>
+                      </p>
+                    )}
                     {activeDelivery.notes && (
                       <p className="mt-1 text-sm text-zinc-300">{activeDelivery.notes}</p>
                     )}
@@ -879,6 +888,19 @@ export default function CKDeliveryPage() {
                   </div>
                   {/* Action buttons */}
                   <div className="flex flex-wrap gap-2">
+                    {(activeDelivery.status === "PENDING" || activeDelivery.status === "DISPATCHED") && (
+                      <a
+                        href={`/store/ck-delivery/${activeDelivery.id}/note`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded-lg border border-zinc-600/40 bg-zinc-700/30 px-3 py-1.5 text-sm font-semibold text-zinc-300 hover:bg-zinc-700/50"
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                          Delivery Note
+                        </span>
+                      </a>
+                    )}
                     {canManage && activeDelivery.status === "PENDING" && (
                       <>
                         <button className={SMALL_BUTTON} onClick={openAddItems}>
@@ -1024,7 +1046,14 @@ export default function CKDeliveryPage() {
                               {items.map(item => (
                                 <tr key={item.id} className={TABLE_ROW}>
                                   <td className={`${TABLE_CELL} pl-4`}>
-                                    <p className="font-medium text-white">{item.item_name}</p>
+                                    <div className="flex items-center gap-1.5">
+                                      <p className="font-medium text-white">{item.item_name}</p>
+                                      {activeDelivery.proc_request_id && (
+                                        item.source === "auto"
+                                          ? <span className="inline-flex items-center rounded-full bg-amber-500/15 border border-amber-500/25 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400">From Order</span>
+                                          : <span className="inline-flex items-center rounded-full bg-zinc-700/60 border border-zinc-600/40 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-400">Manual</span>
+                                      )}
+                                    </div>
                                     {item.notes && <p className={T_CAPTION}>{item.notes}</p>}
                                   </td>
                                   <td className={`${TABLE_CELL} px-3 text-right font-mono text-zinc-300`}>
