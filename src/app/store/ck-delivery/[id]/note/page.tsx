@@ -46,7 +46,9 @@ export default function CKDeliveryNotePage({ params }: { params: { id: string } 
       headers: getAuthHeaders(auth),
     })
       .then(r => r.json())
-      .then((data: Delivery) => { setDelivery(data); })
+      .then((data: { delivery?: Delivery } & Delivery) => {
+        setDelivery(data.delivery ?? data);
+      })
       .catch(() => setError("Failed to load delivery"))
       .finally(() => setLoading(false));
   }, [params.id]);
