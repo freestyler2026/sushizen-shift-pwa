@@ -267,9 +267,8 @@ function DispatchForm({ city }: { city: string }) {
   const [destBranches,  setDestBranches]  = useState<string[]>(() => (city === "manila" ? MANILA_BRANCHES : DUBAI_BRANCHES));
   const [equipmentQty,  setEquipmentQty]  = useState<EquipmentQty>({});
   const [notes,         setNotes]         = useState("");
-  // Per-box dispatch data (Manila only in new flow)
-  const [boxCount,  setBoxCount]  = useState(1);
-  const [boxes,     setBoxes]     = useState<DispatchBoxForm[]>([emptyDispatchBox(1)]);
+  // Per-box dispatch data (Manila only in new flow) — keyed by physical box number
+  const [boxes,     setBoxes]     = useState<DispatchBoxForm[]>([]);
   // Photo upload
   const photoRef                          = useRef<HTMLInputElement>(null);
   const [photoFile,    setPhotoFile]      = useState<File | null>(null);
@@ -286,26 +285,18 @@ function DispatchForm({ city }: { city: string }) {
       .catch(() => {});
   }, [city]);
 
-  // Sync boxCount → boxes array (Manila only new flow)
-  useEffect(() => {
-    if (city !== "manila") return;
-    setBoxes((prev) => {
-      if (boxCount === prev.length) return prev;
-      if (boxCount > prev.length) {
-        const extras: DispatchBoxForm[] = [];
-        for (let i = prev.length + 1; i <= boxCount; i++) extras.push(emptyDispatchBox(i));
-        return [...prev, ...extras];
-      }
-      return prev.slice(0, boxCount);
-    });
-  }, [boxCount, city]);
-
   const toggle     = (b: string) =>
     setDestBranches((p) => p.includes(b) ? p.filter((x) => x !== b) : [...p, b]);
   const setEqQty   = (id: string, val: number) =>
     setEquipmentQty((p) => ({ ...p, [id]: val }));
   const updateBox  = (idx: number, patch: Partial<DispatchBoxForm>) =>
     setBoxes((prev) => prev.map((b, i) => i === idx ? { ...b, ...patch } : b));
+  const toggleBox  = (n: number) =>
+    setBoxes((prev) =>
+      prev.some(b => b.box_number === n)
+        ? prev.filter(b => b.box_number !== n)
+        : [...prev, emptyDispatchBox(n)].sort((a, b) => a.box_number - b.box_number)
+    );
 
   const buildEquipmentJson = () =>
     MANILA_EQUIPMENT
@@ -367,7 +358,7 @@ function DispatchForm({ city }: { city: string }) {
 
       setMsg({ ok: true, text: `Dispatch created. Notify branches: ${destBranches.join(", ")}` });
       setNotes(""); setEquipmentQty({}); setPhotoFile(null); setPhotoPreview("");
-      setBoxes([emptyDispatchBox(1)]); setBoxCount(1);
+      setBoxes([]);
       setDestBranches([...branches]); // reset to all-selected for next dispatch
     } catch (e: unknown) {
       setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
@@ -437,20 +428,39 @@ function DispatchForm({ city }: { city: string }) {
       {/* Per-box dispatch temps — Manila only */}
       {city === "manila" && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <label className={`${T_LABEL}`}>Cooler Boxes to Dispatch</label>
-            <div className="flex items-center gap-3">
-              <button type="button" onClick={() => setBoxCount((n) => Math.max(1, n - 1))}
-                className="rounded-xl border border-white/10 bg-white/5 p-1.5 hover:bg-white/10">
-                <Minus size={14} className="text-slate-300" />
-              </button>
-              <span className="text-lg font-bold text-white w-6 text-center">{boxCount}</span>
-              <button type="button" onClick={() => setBoxCount((n) => Math.min(10, n + 1))}
-                className="rounded-xl border border-white/10 bg-white/5 p-1.5 hover:bg-white/10">
-                <Plus size={14} className="text-slate-300" />
-              </button>
-            </div>
+          <div className="flex items-center justify-between mb-1">
+            <label className={`${T_LABEL}`}>Select Physical Box Numbers</label>
+            {boxes.length > 0 && (
+              <span className="text-xs text-emerald-400">{boxes.length} box{boxes.length !== 1 ? "es" : ""} selected</span>
+            )}
           </div>
+          <p className={`${T_CAPTION} text-zinc-500 -mt-1`}>Tap the テプラ label number on each cooler box you are dispatching.</p>
+          <div className="grid grid-cols-6 gap-2">
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => {
+              const selected = boxes.some(b => b.box_number === n);
+              const box = boxes.find(b => b.box_number === n);
+              return (
+                <button key={n} type="button"
+                  onClick={() => toggleBox(n)}
+                  disabled={submitting}
+                  className={`relative rounded-xl border py-2.5 text-base font-bold transition-all ${
+                    selected
+                      ? box?.item_type === "FROZEN"
+                        ? "border-blue-500/50 bg-blue-500/20 text-blue-300"
+                        : "border-cyan-500/50 bg-cyan-500/20 text-cyan-300"
+                      : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
+                  }`}>
+                  {n}
+                  {selected && (
+                    <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-500 text-[8px] text-white font-bold">✓</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {boxes.length === 0 && (
+            <p className="text-xs text-amber-400">⚠ No box selected — tap box numbers above.</p>
+          )}
           {boxes.map((box, idx) => (
             <DispatchBoxRow
               key={box.box_number}
