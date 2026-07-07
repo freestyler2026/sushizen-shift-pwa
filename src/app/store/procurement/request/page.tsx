@@ -919,6 +919,10 @@ export default function StoreProcurementRequestPage() {
   useEffect(() => {
     setItems((prev) => {
       const prevMap = new Map(prev.map((item) => [String(item.row_key || ""), item]));
+      // Fallback lookup by name+vendor for items whose row_key shifted due to catalog reload
+      // (items without source_row_id use positional index in row_key; adding a new catalog item
+      // can shift that index, causing prevMap misses and qty resets to 0).
+      const prevByName = new Map(prev.map((item) => [`${item.item_name}::${item.vendor_name}`, item]));
       // Build a lookup for edit-mode pre-fill: "item_name_lower::vendor_name_lower" → item
       const editMap = new Map(
         editRequestItems.map((it) => [`${it.item_name}::${it.vendor_name}`, it])
@@ -927,7 +931,7 @@ export default function StoreProcurementRequestPage() {
       // (same item + vendor appearing multiple times in the catalog) only get pre-filled once.
       const usedEditKeys = new Set<string>();
       const catalogMapped = catalogGridItems.map((item) => {
-        const existing = prevMap.get(String(item.row_key || ""));
+        const existing = prevMap.get(String(item.row_key || "")) ?? prevByName.get(`${item.item_name}::${item.vendor_name}`);
         if (existing) {
           return {
             ...item,

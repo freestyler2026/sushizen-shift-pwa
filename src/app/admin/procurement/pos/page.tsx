@@ -657,8 +657,15 @@ export default function ProcurementPoPage() {
           </div>
           {requestSummary && (
             <div className="shrink-0 text-right">
-              <div className="text-sm font-medium text-white">{requestSummary.request_no}</div>
-              <div className={T_CAPTION}>{requestSummary.store_code} | {requestSummary.request_date} | {requestSummary.status}</div>
+              <div className="flex items-center justify-end gap-2">
+                <div className="text-sm font-medium text-white">{requestSummary.request_no}</div>
+                {requestSummary.store_code && (
+                  <span className="rounded-md border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-xs font-semibold text-violet-300">
+                    {BRANCH_LABELS[requestSummary.store_code.toUpperCase()] ?? requestSummary.store_code}
+                  </span>
+                )}
+              </div>
+              <div className={T_CAPTION}>{requestSummary.request_date} | {requestSummary.status}</div>
             </div>
           )}
         </div>
