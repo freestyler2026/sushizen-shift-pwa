@@ -23,6 +23,14 @@ import {
 } from "@/lib/ui-tokens";
 import { RefreshCw, AlertCircle, CheckCircle, Send, Package, ExternalLink, Phone, X } from "lucide-react";
 
+const BRANCH_LABELS: Record<string, string> = {
+  PAR: "Paranaque", PARANAQUE: "Paranaque",
+  CUB: "Cubao", CUBAO: "Cubao",
+  TAFT: "Taft", TAFT_AV: "Taft",
+  CK: "Central Kitchen",
+  BB: "Business Bay", JLT: "JLT", ARJ: "Arjan", AM: "Al Mina", AB: "Al Barsha",
+};
+
 type PoRow = {
   id: string;
   request_id: string;
@@ -31,6 +39,7 @@ type PoRow = {
   vendor_name: string;
   amount: number;
   status: string;
+  store_code: string;
   drive_file_url: string;
   last_email_status: string;
   last_recipient_email: string;
@@ -901,6 +910,11 @@ export default function ProcurementPoPage() {
                     {poStatusBadge(row.status)}
                     {emailStatusBadge(row.last_email_status)}
                     {city === "manila" && row.supplier_confirmation_status !== "not_required" && supplierConfBadge(row.supplier_confirmation_status)}
+                    {row.store_code && (
+                      <span className="rounded-md border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-xs font-semibold text-violet-300">
+                        {BRANCH_LABELS[row.store_code.toUpperCase()] ?? row.store_code}
+                      </span>
+                    )}
                   </div>
                   <div className={`mt-1 ${T_CAPTION}`}>
                     {row.parent_case_no} | {row.vendor_name || "-"} | {currency} {money(row.amount)}
