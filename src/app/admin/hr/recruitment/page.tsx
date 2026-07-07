@@ -1155,6 +1155,7 @@ function AddRequisitionModal({
               <option value="replacement">Replacement</option>
               <option value="new_hire">New Hire</option>
               <option value="expansion">Expansion</option>
+              <option value="buffer">Buffer</option>
             </select>
           </div>
           {form.reason === "replacement" && (
@@ -1246,6 +1247,7 @@ export default function HRRecruitmentPage() {
   const [selectedApplicant, setSelectedApplicant] = useState<Applicant | null>(null);
   const [showAddApplicant, setShowAddApplicant] = useState(false);
   const [showAddRequisition, setShowAddRequisition] = useState(false);
+  const [showRequisitionsList, setShowRequisitionsList] = useState(false);
   const [savingApplicant, setSavingApplicant] = useState(false);
   const [savingRequisition, setSavingRequisition] = useState(false);
 
@@ -1484,7 +1486,7 @@ export default function HRRecruitmentPage() {
         </div>
 
         {/* KPI summary */}
-        <div className="mt-2 flex flex-wrap gap-3">
+        <div className="mt-2 flex flex-wrap items-center gap-3">
           <span className={`${T_CAPTION} text-zinc-400`}>
             Total:{" "}
             <span className="font-semibold text-white">{applicants.length}</span>
@@ -1499,7 +1501,41 @@ export default function HRRecruitmentPage() {
               </span>
             );
           })}
+          <button
+            onClick={() => setShowRequisitionsList((v) => !v)}
+            className={`ml-auto flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-all ${
+              showRequisitionsList
+                ? "border-violet-500/40 bg-violet-500/15 text-violet-300"
+                : "border-white/10 bg-white/5 text-zinc-400 hover:text-white"
+            }`}
+          >
+            <ClipboardList className="h-3 w-3" />
+            Open Requisitions ({requisitions.length})
+            <span className="ml-0.5">{showRequisitionsList ? "▲" : "▼"}</span>
+          </button>
         </div>
+
+        {/* Requisitions list panel */}
+        {showRequisitionsList && (
+          <div className="mt-3 border-t border-white/10 pt-3">
+            {requisitions.length === 0 ? (
+              <p className="text-xs text-zinc-500">No open requisitions.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {requisitions.map((r) => (
+                  <div key={r.id} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs min-w-[160px]">
+                    <p className="font-semibold text-white">{r.branch} — {r.position}</p>
+                    <p className="text-zinc-400 capitalize">{r.reason.replace("_", " ")} · {r.priority}</p>
+                    <p className="text-zinc-500 mt-0.5">by {r.requested_by}</p>
+                    {r.target_start_date && (
+                      <p className="text-zinc-600 mt-0.5">Start: {r.target_start_date}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {error && (
           <p className="mt-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-400">
