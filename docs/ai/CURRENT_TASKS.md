@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-04 (session 109 — CK Delivery Auto-Generation + Delivery Note)
+Last updated: 2026-07-08 (session 111 — Daily Inventory: CK/Supplier/Warehouse source split + Excel item master + Back Office)
 
 
 > **New session start protocol:**
@@ -12,7 +12,68 @@ Last updated: 2026-07-04 (session 109 — CK Delivery Auto-Generation + Delivery
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku 9057d10, Vercel 7361089)
+なし — 全変更デプロイ済み (Heroku 94464e1, Vercel d7c0ae2)
+
+## 📌 Post-deploy: Admin must seed Excel items
+
+After first login as manager, go to **Daily Inventory → Manage Items → Seed Excel Items**.
+This imports 103 CK + 23 Supplier items from the July 2026 Excel master list.
+
+## Recently Completed (2026-07-08 session 111) — live (Heroku 94464e1, Vercel d7c0ae2)
+
+**Daily Inventory — CK/Supplier/Warehouse source split + Excel item master + Back Office**
+
+Staff request (3 parts):
+① Split Kitchen into CK / Supplier / Warehouse. Role-based: Kitchen Staff uses CK+Supplier, Cashier uses Warehouse.
+② Replace incomplete item list with July 2026 Excel master (103 CK items + 23 Supplier items).
+③ Back Office for add/delete items and edit Par Level.
+
+**Backend** (`app/db_daily_inventory.py`, `app/daily_inventory_api.py`, `app/daily_inv_excel_items.py`):
+- Added `source_type TEXT NOT NULL DEFAULT 'ck'` column to `daily_inv_report_items` (idempotent migration)
+- Updated `list_daily_inv_items()` with `source_type` filter (overrides branch-based commissary filter)
+- Updated `seed_daily_inv_items()` to persist `source_type`
+- Added `create_daily_inv_item()`, `update_daily_inv_item()`, `deactivate_daily_inv_item()` functions
+- New API endpoints: `POST /items`, `PATCH /items/{code}`, `DELETE /items/{code}`, `POST /items/seed-excel`
+- `daily_inv_excel_items.py`: hardcoded 103 CK + 23 Supplier items from Excel
+
+**Frontend** (`src/components/admin/AdminDailyInventoryTab.tsx`):
+- Source tabs: Central Kitchen / Supplier / Warehouse (with role hint per tab)
+- Items fetched by `?source_type=...`; entries persist across tab switches (one save covers all tabs)
+- Managers get "Manage Items" button → Item Master Back Office
+- Item Master: view by source, add new items, edit par level inline (click cell), deactivate items, Seed Excel button
+
+**One-time setup required**: Manager must click "Manage Items → Seed Excel Items" to import the Excel item master.
+
+## Recently Completed (2026-07-07 session 110) — live (Heroku v1340/3a45346, Vercel e383c30)
+
+**Store Procurement / New Request — Add Item が数量をリセットするバグ修正**
+
+スタッフ報告: 「+ Add Item」で新しいカタログ品目を追加すると、それまでに入力した全数量が0にリセットされる。
+
+**原因**: `addCatalogItemFn` 成功後に `loadItemCatalog()` を呼び出してカタログを再読み込み。
+`catalogGridItems` useMemo が再計算され、`useEffect` で `setItems` を実行。
+`source_row_id` を持たない品目は `fallbackIndex`(カテゴリ内の位置)を `row_key` に使用しているため、
+新品目の挿入でインデックスがズレると `prevMap.get(row_key)` のルックアップが失敗 → qty=0にリセット。
+
+**修正** (`src/app/store/procurement/request/page.tsx`):
+- `prevByName` マップ (`item_name::vendor_name` → item) を追加
+- 既存qtys のルックアップを `prevMap.get(row_key) ?? prevByName.get(name::vendor)` にフォールバック
+- row_key がシフトしても品目名+サプライヤーで一致 → 数量が保持される
+
+**Branch badge — PO Builderヘッダーに追加** (`src/app/admin/procurement/pos/page.tsx`):
+
+スタッフが見ていたのは PO Builder 上部の `requestSummary.store_code` 表示エリア(line 661)だった。
+紫バッジを個別 PO カードに追加済みだったが、ヘッダーには平テキストのままだった。
+
+**修正**: `requestSummary` ヘッダー(request番号の隣)に紫バッジを追加。
+平テキストの store_code 表示を削除し、date | status のみ残す。
+
+**Cold Chain / HR / PO その他修正 (session 110前半 — Heroku v1340/commit 3a45346)**:
+- ① Cold Chain: +/-ボックスカウンター → 1-12物理グリッドに変更 (Vercel dd01524)
+- ② HR Recruitment: "Buffer" 採用理由追加 + Open Requisitions パネル (Vercel dba72b6)
+- ③ PO Vendor名正規化: "Three - S" vs "Three-S" の不一致をregex正規化で解決
+- ④ Dubai PO メール通貨: PHP→AED に修正 (city=="dubai"判定)
+- ⑤ PO list: proc_requests LEFT JOINで store_code を各PO行に付与 (Heroku v1340)
 
 ## Recently Completed (2026-07-04 session 109) — live (Heroku 9057d10, Vercel 7361089)
 
