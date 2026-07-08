@@ -204,11 +204,12 @@ export default function CKDeliveryPage() {
   const detailRef = useRef<HTMLDivElement>(null);
 
   // On mobile (single-column), auto-scroll to detail panel when a delivery is selected.
+  // Depend only on the ID so that data updates (label saves, qty changes) don't re-trigger scroll.
   useEffect(() => {
     if (activeDelivery && detailRef.current && window.innerWidth < 768) {
       detailRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [activeDelivery]);
+  }, [activeDelivery?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function showToast(msg: string, ok = true) {
     setToast({ msg, ok });
