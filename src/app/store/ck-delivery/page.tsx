@@ -101,6 +101,12 @@ function todayIso() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function daysAgoIso(n: number) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function fmtDate(iso: string) {
   if (!iso) return "—";
   const [y, m, d] = iso.slice(0, 10).split("-");
@@ -965,12 +971,16 @@ export default function CKDeliveryPage() {
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className={`${T_CAPTION} mb-0.5 block`}>Production date</label>
-                              <input type="date" className={`${INPUT_CLASS} w-full`} value={item.production_date || ""}
+                              <input type="date" className={`${INPUT_CLASS} w-full`}
+                                value={item.production_date || todayIso()}
+                                min={daysAgoIso(14)}
                                 onChange={e => void saveItemLabel(item.id, e.target.value, item.expiry_date || "")} />
                             </div>
                             <div>
                               <label className={`${T_CAPTION} mb-0.5 block`}>Expiry / best-before</label>
-                              <input type="date" className={`${INPUT_CLASS} w-full`} value={item.expiry_date || ""}
+                              <input type="date" className={`${INPUT_CLASS} w-full`}
+                                value={item.expiry_date || todayIso()}
+                                min={todayIso()}
                                 onChange={e => void saveItemLabel(item.id, item.production_date || "", e.target.value)} />
                             </div>
                           </div>
