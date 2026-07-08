@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Upload, CheckCircle, AlertTriangle, FileSpreadsheet } from "lucide-react";
-import { getAuth, getAuthHeaders, getUploadHeaders } from "@/lib/auth";
+import { getAuth, getAuthHeaders } from "@/lib/auth";
 import { GLASS_CARD, PRIMARY_BUTTON, T_PAGE_TITLE } from "@/lib/ui-tokens";
 
 interface PublishedWeek {
@@ -85,7 +85,7 @@ export default function BayzatImportPage() {
       <div className="mx-auto max-w-3xl space-y-6">
         <h1 className={T_PAGE_TITLE}>Bayzat Schedule Import</h1>
         <p className="text-sm text-white/60">
-          Upload the Bayzat "Shifts Schedule" Excel export to import all Dubai staff shifts into the OS.
+          Upload the Bayzat &quot;Shifts Schedule&quot; Excel export to import all Dubai staff shifts into the OS.
           All branches and all weeks in the file will be published automatically.
         </p>
 
