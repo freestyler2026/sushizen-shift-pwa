@@ -1083,8 +1083,8 @@ export default function CashReportPage() {
         </div>
 
         <div className="rounded-xl border border-white/20 bg-white/5 p-4">
-          {tab === "closing" ? <ClosingForm branch={branch} onBranchChange={setBranch} today={today} />
-            : tab === "opening" ? <OpeningForm branch={branch} onBranchChange={setBranch} today={today} />
+          {tab === "closing" ? <ClosingForm key={branch} branch={branch} onBranchChange={setBranch} today={today} />
+            : tab === "opening" ? <OpeningForm key={branch} branch={branch} onBranchChange={setBranch} today={today} />
             : <HistoryTab branch={branch} />}
         </div>
       </div>
