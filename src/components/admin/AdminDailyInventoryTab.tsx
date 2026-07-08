@@ -758,6 +758,25 @@ export default function AdminDailyInventoryTab() {
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Load all items at mount for detail view (ensures allItems is complete regardless of which tabs are visited)
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await apiFetch("/api/daily-inventory/items");
+        const text = await res.text();
+        if (!res.ok) return;
+        const data = JSON.parse(text || "[]") as InvItem[];
+        if (Array.isArray(data)) {
+          setAllItems((prev) => {
+            const map = new Map(prev.map((i) => [i.item_code, i]));
+            data.forEach((i) => map.set(i.item_code, i));
+            return [...map.values()];
+          });
+        }
+      } catch { /* non-critical */ }
+    })();
+  }, []); // mount only
+
   // Staff names
   useEffect(() => {
     let cancelled = false;
@@ -878,7 +897,8 @@ export default function AdminDailyInventoryTab() {
       const res = await apiFetch(`/api/daily-inventory/reports?branch=${encodeURIComponent(branch)}&limit=30`);
       const text = await res.text();
       if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
-      setHistory(Array.isArray(JSON.parse(text || "[]")) ? JSON.parse(text) as ReportHeader[] : []);
+      const parsed = JSON.parse(text || "[]") as unknown;
+      setHistory(Array.isArray(parsed) ? (parsed as ReportHeader[]) : []);
     } catch { setError("Failed to load history."); }
     finally { setHistoryLoading(false); }
   };
