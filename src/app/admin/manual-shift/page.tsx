@@ -620,29 +620,33 @@ export default function ManualShiftPage() {
           `/api/admin/shifts/draft_week?city=${encodeURIComponent(city)}&branch_code=${encodeURIComponent(branchCode)}&week_start=${encodeURIComponent(weekStart)}`
         );
         if (!cancelled && draftData.rows.length > 0) {
-          // Pre-compute draft keys outside the state updater (pure, no side effects)
-          const draftKeys = new Set<string>(
-            (draftData.rows as any[]).map((r) => `${r.staff_name}|${r.work_date}`)
-          );
+          // Manual (published) shifts take priority over draft shifts.
+          // Draft rows only fill slots where no published shift exists.
+          let appliedDraftKeys = new Set<string>();
           setGridData((prev) => {
             const next: GridData = {};
+            const applied = new Set<string>();
             for (const [name, days] of Object.entries(prev)) next[name] = { ...days };
             for (const r of draftData.rows as any[]) {
               const rName = r.staff_name as string;
               const rDate = r.work_date as string;
               // Skip draft rows for staff not already in the grid (prevent phantom rows)
               if (!next[rName]) continue;
+              // Skip if a published (manual) shift already exists for this slot
+              if (next[rName][rDate] != null) continue;
               next[rName][rDate] = {
                 start_hour: Number(r.start_hour),
                 end_hour: Number(r.end_hour),
                 role: String(r.role || ""),
                 note: r.note ? String(r.note) : undefined,
               };
+              applied.add(`${rName}|${rDate}`);
             }
+            appliedDraftKeys = applied;
             return next;
           });
           if (!cancelled) {
-            setServerDraftCells(draftKeys);
+            setServerDraftCells(appliedDraftKeys);
             setServerDraftSavedAt("loaded");
           }
         }
@@ -1070,8 +1074,10 @@ export default function ManualShiftPage() {
     for (const [staffName, days] of Object.entries(gridData)) {
       for (const [dateStr, cell] of Object.entries(days)) {
         for (const c of cellsOf(cell)) {
-          if (c.role) {
-            rows.push({ work_date: dateStr, staff_name: staffName, role: c.role, start_hour: c.start_hour, end_hour: c.end_hour, note: c.note || "" });
+          // Include shifts with valid times even if role is empty (e.g. Bayzat imports).
+          // Fall back to "STAFF" so the row isn't silently dropped on publish.
+          if (c.role || c.start_hour || c.end_hour) {
+            rows.push({ work_date: dateStr, staff_name: staffName, role: c.role || "STAFF", start_hour: c.start_hour, end_hour: c.end_hour, note: c.note || "" });
           }
         }
       }
