@@ -198,15 +198,15 @@ export default function AdminOvertimePage() {
         </div>
 
         {/* KPI summary */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 gap-3">
           {[
             { label: "Pending", value: pending.length, color: "text-amber-400" },
             { label: "Approved", value: approved.length, color: "text-green-400" },
             { label: "Total Approved OT", value: formatMinutes(totalApprovedMin), color: "text-purple-300" },
           ].map((k) => (
-            <div key={k.label} className={`${GLASS_CARD} p-4 text-center`}>
-              <p className={`text-2xl font-bold ${k.color}`}>{k.value}</p>
-              <p className={T_CAPTION}>{k.label}</p>
+            <div key={k.label} className={`${GLASS_CARD} p-3 sm:p-4 text-center`}>
+              <p className={`text-lg sm:text-2xl font-bold ${k.color}`}>{k.value}</p>
+              <p className={`${T_CAPTION} text-[10px] sm:text-xs leading-tight mt-0.5`}>{k.label}</p>
             </div>
           ))}
         </div>
@@ -273,69 +273,110 @@ export default function AdminOvertimePage() {
           ) : requests.length === 0 ? (
             <p className={`${T_CAPTION} p-6`}>No overtime requests found.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className={TABLE_HEADER}>
-                    <th className={TABLE_CELL}>Staff</th>
-                    <th className={TABLE_CELL}>Branch</th>
-                    <th className={TABLE_CELL}>Date</th>
-                    <th className={TABLE_CELL}>Type</th>
-                    <th className={TABLE_CELL}>OT Time</th>
-                    <th className={TABLE_CELL}>Reason</th>
-                    <th className={TABLE_CELL}>Status</th>
-                    <th className={TABLE_CELL}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {requests.map((r) => (
-                    <tr key={r.id} className={TABLE_ROW}>
-                      <td className={TABLE_CELL}><span className="font-medium text-white">{r.staff_name}</span></td>
-                      <td className={TABLE_CELL}>{r.branch_code}</td>
-                      <td className={TABLE_CELL}>{r.work_date}</td>
-                      <td className={TABLE_CELL}>
-                        <span className={r.request_type === "pre" ? BADGE_INFO : "text-white/50 text-xs"}>
-                          {r.request_type === "pre" ? "Pre" : "Post"}
-                        </span>
-                      </td>
-                      <td className={TABLE_CELL}>
+            <>
+              {/* Mobile cards */}
+              <div className="divide-y divide-white/5 sm:hidden">
+                {requests.map((r) => (
+                  <div key={r.id} className="p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-white text-sm">{r.staff_name}</p>
+                        <p className="text-xs text-white/50 mt-0.5">{r.work_date} · {r.branch_code}</p>
+                      </div>
+                      {statusBadge(r.status)}
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className={r.request_type === "pre" ? BADGE_INFO : "text-white/50 text-xs"}>
+                        {r.request_type === "pre" ? "Pre" : "Post"}
+                      </span>
+                      <span className="text-white">
                         {formatHour(r.ot_start_hour)}–{formatHour(r.ot_end_hour)}
-                        <br />
-                        <span className="text-white/50">{formatMinutes(r.ot_minutes)}</span>
-                      </td>
-                      <td className={TABLE_CELL}>
-                        <span className="line-clamp-2 max-w-[200px]" title={r.reason}>{r.reason}</span>
-                        {r.review_note && (
-                          <span className="block text-white/50 text-xs mt-0.5">Note: {r.review_note}</span>
-                        )}
-                      </td>
-                      <td className={TABLE_CELL}>{statusBadge(r.status)}</td>
-                      <td className={TABLE_CELL}>
-                        {r.status === "pending" && (
-                          <button
-                            onClick={() => { setReviewing(r); setReviewStatus("approved"); setReviewNote(""); setReviewError(""); }}
-                            className="rounded-lg bg-purple-600/30 border border-purple-500/30 px-3 py-1 text-xs text-purple-300 hover:bg-purple-600/50 transition"
-                          >
-                            Review
-                          </button>
-                        )}
-                        {r.status !== "pending" && (
-                          <span className="text-white/40 text-xs">{r.reviewed_by || "—"}</span>
-                        )}
-                      </td>
+                      </span>
+                      <span className="text-white/50 text-xs">{formatMinutes(r.ot_minutes)}</span>
+                    </div>
+                    <p className="text-sm text-white/70 line-clamp-2">{r.reason}</p>
+                    {r.review_note && (
+                      <p className="text-xs text-white/50">Note: {r.review_note}</p>
+                    )}
+                    {r.status === "pending" ? (
+                      <button
+                        onClick={() => { setReviewing(r); setReviewStatus("approved"); setReviewNote(""); setReviewError(""); }}
+                        className="w-full mt-1 rounded-xl bg-purple-600/30 border border-purple-500/30 px-4 py-2.5 text-sm font-semibold text-purple-300 hover:bg-purple-600/50 transition"
+                      >
+                        Review
+                      </button>
+                    ) : r.reviewed_by ? (
+                      <p className="text-xs text-white/40">Reviewed by: {r.reviewed_by}</p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className={TABLE_HEADER}>
+                      <th className={TABLE_CELL}>Staff</th>
+                      <th className={TABLE_CELL}>Branch</th>
+                      <th className={TABLE_CELL}>Date</th>
+                      <th className={TABLE_CELL}>Type</th>
+                      <th className={TABLE_CELL}>OT Time</th>
+                      <th className={TABLE_CELL}>Reason</th>
+                      <th className={TABLE_CELL}>Status</th>
+                      <th className={TABLE_CELL}>Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {requests.map((r) => (
+                      <tr key={r.id} className={TABLE_ROW}>
+                        <td className={TABLE_CELL}><span className="font-medium text-white">{r.staff_name}</span></td>
+                        <td className={TABLE_CELL}>{r.branch_code}</td>
+                        <td className={TABLE_CELL}>{r.work_date}</td>
+                        <td className={TABLE_CELL}>
+                          <span className={r.request_type === "pre" ? BADGE_INFO : "text-white/50 text-xs"}>
+                            {r.request_type === "pre" ? "Pre" : "Post"}
+                          </span>
+                        </td>
+                        <td className={TABLE_CELL}>
+                          {formatHour(r.ot_start_hour)}–{formatHour(r.ot_end_hour)}
+                          <br />
+                          <span className="text-white/50">{formatMinutes(r.ot_minutes)}</span>
+                        </td>
+                        <td className={TABLE_CELL}>
+                          <span className="line-clamp-2 max-w-[200px]" title={r.reason}>{r.reason}</span>
+                          {r.review_note && (
+                            <span className="block text-white/50 text-xs mt-0.5">Note: {r.review_note}</span>
+                          )}
+                        </td>
+                        <td className={TABLE_CELL}>{statusBadge(r.status)}</td>
+                        <td className={TABLE_CELL}>
+                          {r.status === "pending" && (
+                            <button
+                              onClick={() => { setReviewing(r); setReviewStatus("approved"); setReviewNote(""); setReviewError(""); }}
+                              className="rounded-lg bg-purple-600/30 border border-purple-500/30 px-3 py-1 text-xs text-purple-300 hover:bg-purple-600/50 transition"
+                            >
+                              Review
+                            </button>
+                          )}
+                          {r.status !== "pending" && (
+                            <span className="text-white/40 text-xs">{r.reviewed_by || "—"}</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </div>
 
       {/* Review Modal */}
       {reviewing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className={`${GLASS_CARD} w-full max-w-md p-6 space-y-4`}>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
+          <div className={`${GLASS_CARD} w-full sm:max-w-md p-4 sm:p-6 space-y-4 max-h-[90vh] overflow-y-auto rounded-b-none sm:rounded-2xl`}>
             <h3 className={T_SECTION}>Review OT Request</h3>
             <div className="space-y-1 rounded-lg bg-white/5 p-3 text-sm">
               <p><span className="text-white/50">Staff:</span> <strong className="text-white">{reviewing.staff_name}</strong></p>

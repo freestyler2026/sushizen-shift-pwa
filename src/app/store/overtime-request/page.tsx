@@ -171,13 +171,13 @@ export default function OvertimeRequestPage() {
                     key={t}
                     type="button"
                     onClick={() => setRequestType(t)}
-                    className={`flex-1 rounded-lg py-2 text-sm font-semibold transition ${
+                    className={`flex-1 rounded-lg py-3 text-sm font-semibold transition ${
                       requestType === t
                         ? "bg-purple-600 text-white"
                         : "bg-white/10 text-white/60 hover:bg-white/20"
                     }`}
                   >
-                    {t === "pre" ? "Pre-approval (before OT)" : "Post-report (after OT)"}
+                    {t === "pre" ? "Pre-approval" : "Post-report"}
                   </button>
                 ))}
               </div>
@@ -290,50 +290,81 @@ export default function OvertimeRequestPage() {
         </div>
 
         {/* History */}
-        <div className={`${GLASS_CARD} p-6`}>
+        <div className={`${GLASS_CARD} p-4 sm:p-6`}>
           <h2 className={`${T_SECTION} mb-4`}>My OT Requests</h2>
           {loadingHistory ? (
             <p className={T_CAPTION}>Loading…</p>
           ) : requests.length === 0 ? (
             <p className={T_CAPTION}>No overtime requests yet.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className={TABLE_HEADER}>
-                    <th className={TABLE_CELL}>Date</th>
-                    <th className={TABLE_CELL}>Branch</th>
-                    <th className={TABLE_CELL}>Type</th>
-                    <th className={TABLE_CELL}>OT Hours</th>
-                    <th className={TABLE_CELL}>Status</th>
-                    <th className={TABLE_CELL}>Note</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {requests.map((r) => (
-                    <tr key={r.id} className={TABLE_ROW}>
-                      <td className={TABLE_CELL}>{r.work_date}</td>
-                      <td className={TABLE_CELL}>{r.branch_code}</td>
-                      <td className={TABLE_CELL}>
-                        <span className={r.request_type === "pre" ? BADGE_INFO : "text-white/60 text-xs"}>
-                          {r.request_type === "pre" ? "Pre" : "Post"}
-                        </span>
-                      </td>
-                      <td className={TABLE_CELL}>
-                        {formatHour(r.ot_start_hour)}–{formatHour(r.ot_end_hour)}
-                        <span className="ml-1 text-white/50">
-                          ({Math.floor(r.ot_minutes / 60)}h{r.ot_minutes % 60 > 0 ? `${r.ot_minutes % 60}m` : ""})
-                        </span>
-                      </td>
-                      <td className={TABLE_CELL}>{statusBadge(r.status)}</td>
-                      <td className={TABLE_CELL}>
-                        <span className="text-white/60">{r.review_note || "—"}</span>
-                      </td>
+            <>
+              {/* Mobile cards */}
+              <div className="space-y-3 sm:hidden">
+                {requests.map((r) => (
+                  <div key={r.id} className="rounded-xl bg-white/5 border border-white/10 p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-white text-sm">{r.work_date}</span>
+                      {statusBadge(r.status)}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-white/50">
+                      <span>{r.branch_code}</span>
+                      <span>·</span>
+                      <span className={r.request_type === "pre" ? BADGE_INFO : "text-white/50"}>
+                        {r.request_type === "pre" ? "Pre-approval" : "Post-report"}
+                      </span>
+                    </div>
+                    <p className="text-sm text-white">
+                      {formatHour(r.ot_start_hour)}–{formatHour(r.ot_end_hour)}
+                      <span className="ml-2 text-white/50 text-xs">
+                        ({Math.floor(r.ot_minutes / 60)}h{r.ot_minutes % 60 > 0 ? `${r.ot_minutes % 60}m` : ""})
+                      </span>
+                    </p>
+                    {r.review_note && (
+                      <p className="text-xs text-white/50 border-t border-white/10 pt-2">Note: {r.review_note}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className={TABLE_HEADER}>
+                      <th className={TABLE_CELL}>Date</th>
+                      <th className={TABLE_CELL}>Branch</th>
+                      <th className={TABLE_CELL}>Type</th>
+                      <th className={TABLE_CELL}>OT Hours</th>
+                      <th className={TABLE_CELL}>Status</th>
+                      <th className={TABLE_CELL}>Note</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {requests.map((r) => (
+                      <tr key={r.id} className={TABLE_ROW}>
+                        <td className={TABLE_CELL}>{r.work_date}</td>
+                        <td className={TABLE_CELL}>{r.branch_code}</td>
+                        <td className={TABLE_CELL}>
+                          <span className={r.request_type === "pre" ? BADGE_INFO : "text-white/60 text-xs"}>
+                            {r.request_type === "pre" ? "Pre" : "Post"}
+                          </span>
+                        </td>
+                        <td className={TABLE_CELL}>
+                          {formatHour(r.ot_start_hour)}–{formatHour(r.ot_end_hour)}
+                          <span className="ml-1 text-white/50">
+                            ({Math.floor(r.ot_minutes / 60)}h{r.ot_minutes % 60 > 0 ? `${r.ot_minutes % 60}m` : ""})
+                          </span>
+                        </td>
+                        <td className={TABLE_CELL}>{statusBadge(r.status)}</td>
+                        <td className={TABLE_CELL}>
+                          <span className="text-white/60">{r.review_note || "—"}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </div>
