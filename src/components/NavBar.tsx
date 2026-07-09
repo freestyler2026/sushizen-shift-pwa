@@ -61,6 +61,7 @@ import {
   Globe,
   TrendingUp,
   X,
+  BookOpen,
 } from "lucide-react";
 import {
   canAccessAbsencesAdmin,
@@ -161,6 +162,7 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/store/cashier-log", label: "Cashier Log", icon: ClipboardList, match: "prefix" },
   { href: "/swap-approve", label: "Swap Approve", icon: ArrowLeftRight, match: "exact" },
   { href: "/change-pin", label: "Change PIN", icon: KeyRound, match: "exact" },
+  { href: "/staff-guide", label: "Staff Guide (JA)", icon: BookOpen, match: "prefix" },
 ];
 
 // Admin routes here must match ACCESS_CHANNELS (group admin) in backend `app/access_control.py`.
