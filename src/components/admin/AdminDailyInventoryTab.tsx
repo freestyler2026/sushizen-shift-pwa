@@ -459,6 +459,11 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
   // Purge retired items
   const [purging, setPurging] = useState(false);
 
+  // Excel import/export
+  const [importing, setImporting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   async function loadItems() {
     setLoading(true); setError("");
     try {
@@ -561,6 +566,48 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
     } finally { setPurging(false); }
   }
 
+  async function handleDownloadTemplate() {
+    setDownloading(true); setError("");
+    try {
+      const res = await apiFetch("/api/daily-inventory/items/template-excel");
+      if (!res.ok) throw new Error(`Download failed: HTTP ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "daily_inventory_template.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Download failed");
+    } finally { setDownloading(false); }
+  }
+
+  async function handleImportExcel(file: File) {
+    if (!file) return;
+    setImporting(true); setError(""); setMsg("");
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await apiFetch("/api/daily-inventory/items/import-excel", {
+        method: "POST",
+        body: formData,
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || "Import failed");
+      const data = JSON.parse(text) as { upserted?: number; total_processed?: number; skipped_blank?: number };
+      setMsg(`Import complete: ${data.upserted ?? data.total_processed ?? "?"} items upserted.`);
+      await loadItems();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Import failed");
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   const sections = [...new Set(items.map((i) => i.section))].sort();
   const retiredCount = items.filter((i) => !i.is_active && i.item_name.startsWith("[Retired]")).length;
 
@@ -583,13 +630,40 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
                 Purge [{retiredCount}] Retired
               </button>
             )}
+            {/* Hidden file input for Excel import */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleImportExcel(f); }}
+            />
+            <button
+              onClick={() => void handleDownloadTemplate()}
+              disabled={downloading}
+              className="flex items-center gap-2 rounded-xl border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-300 hover:bg-sky-500/20 disabled:opacity-50"
+              title="Download current items as Excel template"
+            >
+              {downloading ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="text-xs">↓</span>}
+              Template
+            </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importing}
+              className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500/20 disabled:opacity-50"
+              title="Upload edited Excel file to import items"
+            >
+              {importing ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="text-xs">↑</span>}
+              Import Excel
+            </button>
             <button
               onClick={() => void handleSeedExcel()}
               disabled={seeding}
               className="flex items-center gap-2 rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-xs font-semibold text-violet-300 hover:bg-violet-500/20 disabled:opacity-50"
+              title="Reset to built-in July 2026 master list"
             >
               {seeding ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-              Seed Excel Items
+              Reset to Default
             </button>
             <button
               onClick={() => setAddOpen((v) => !v)}
