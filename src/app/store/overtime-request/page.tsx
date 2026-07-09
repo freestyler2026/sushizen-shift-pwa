@@ -18,6 +18,7 @@ import {
   BADGE_SUCCESS,
   BADGE_WARNING,
   BADGE_ERROR,
+  BADGE_INFO,
   TABLE_HEADER,
   TABLE_ROW,
   TABLE_CELL,
@@ -69,7 +70,7 @@ export default function OvertimeRequestPage() {
 
   const city = (auth?.city || "dubai").toLowerCase() as "dubai" | "manila";
   const branches = BRANCHES[city] ?? BRANCHES.dubai;
-  const staffBranch = auth?.branch_code ?? "";
+  const staffBranch = (auth as Record<string, unknown>)?.branch_code as string ?? "";
 
   // Form state
   const [branchCode, setBranchCode] = useState(staffBranch);
