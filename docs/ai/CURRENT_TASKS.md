@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-08 (session 111 — Daily Inventory: CK/Supplier/Warehouse source split + Excel item master + Back Office)
+Last updated: 2026-07-09 (session 116 — Daily Inventory bug fixes: Excel download/import, is_active preservation)
 
 
 > **New session start protocol:**
@@ -12,12 +12,118 @@ Last updated: 2026-07-08 (session 111 — Daily Inventory: CK/Supplier/Warehouse
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku 94464e1, Vercel d7c0ae2)
+なし — 全変更デプロイ済み (Heroku v1351, Vercel 494c3db)
+
+## Recently Completed (2026-07-09 session 116) — live (Heroku v1351, Vercel 494c3db)
+
+**Daily Inventory — Excel import/download bug fixes**
+
+**① Excel download binary corruption (CRITICAL fix)** (Vercel 494c3db)
+- `handleDownloadTemplate` が `apiFetch` を使っていたため、レスポンスを `res.text()` で読み取りバイナリを壊していた
+- 修正: raw `fetch` + `getAuthHeaders()` を直接使用 (apiFetch をバイパス)
+
+**② Excel import Content-Type 破壊 (CRITICAL fix)** (Vercel 494c3db)
+- `handleImportExcel` が `apiFetch` を使っていたため、`Content-Type: application/json` が FormData の multipart boundary を上書きし、FastAPI が 422 エラーを返していた
+- 修正: raw `fetch` + `getUploadHeaders()` を使用 (`getUploadHeaders` は Content-Type を設定しないので browser が multipart を自動設定)
+
+**③ Excel import で is_active が強制 True になるバグ** (Heroku v1351)
+- テンプレートを DL して再インポートすると非アクティブ・retired アイテムが全て再アクティブ化されていた
+- 修正: `import_daily_inv_items_from_excel()` 新関数 — ON CONFLICT 時は `is_active` を更新しない (既存値保持)
+
+## Recently Completed (2026-07-09 session 115) — live (Heroku v1348)
+
+**Role Management — 8 missing channels + access control fixes**
+
+**① Manual Shift: Draft vs Published 優先度修正** (Vercel e8659a7)
+- Draft ロード時に公開済みシフトを上書きしないよう修正
+- Bayzat インポートシフト(role="")が Publish から除外されるバグ修正
+
+**② CK Delivery unclickable — view permission 自動生成** (Heroku e075ba9)
+- `loadChannelRoleMatrix` に try/catch + setError 追加
+- seed_access_control_defaults() + create_access_channel() で view permission 自動修復
+
+**③ 8 missing channels を access_control.py に追加** (Heroku v1348)
+- Staff: staff_guide, store_expense_request, store_ck_inventory, store_ck_production_plan, store_ck_delivery
+- Admin: admin.expense_requests, admin.bayzat_import, admin.emergency_requests
+- 各 view / manage 権限も ACCESS_PERMISSIONS に追加済み
+- **注意: 既存DBのロール権限は Role Management UIで手動設定が必要** (DEFAULT_ROLE_GRANTS は新規DB用のみ)
+
+## Recently Completed (2026-07-09 session 114) — live (Vercel ea314c7)
+
+**Japanese Staff Manual — /staff-guide ページ新設**
+
+- `/staff-guide/page.tsx` — ログイン不要のモバイル向け日本語マニュアル
+- タブ構成: タイムイン / ブレイクイン / ブレイクアウト / タイムアウト / 経費申請 / 受信箱 / 困ったとき
+- 各セクション: ステップ番号付き手順 + コード風ボタン表示 + 注意事項・完了メッセージ
+- NavBar に「Staff Guide (JA)」リンク追加 (BookOpen アイコン、全スタッフ閲覧可)
+
+## Recently Completed (2026-07-09 session 113) — live (Heroku v1346, Vercel)
+
+**Expense Reimbursement Request System**
+
+Approach A: 既存 `/inbox` を拡張して統合通知センター化。
+
+**DB (`app/db.py`)**:
+- `expense_reimbursement_requests` テーブル (id/staff_name/city/category/amount/currency/expense_date/status/reviewed_by/review_note/submitted_at)
+- `private_report_notifications` に `notification_type TEXT DEFAULT 'private_report'` + `ref_id UUID` カラムをマイグレーション追加
+- `list_private_report_notifications` の SELECT に `notification_type`, `ref_id` 追加
+- 新関数: `ensure_expense_tables`, `create_expense_request`, `list_my_expense_requests`, `list_expense_requests_admin`, `get_expense_request`, `update_expense_request_status`, `get_expense_payroll_summary`, `insert_staff_notification`
+
+**API (`app/main.py`)**:
+- `POST /api/expense/request` — スタッフ申請 (category/amount/currency/expense_date/description)
+- `GET /api/expense/requests` — 自分の申請一覧
+- `GET /api/admin/expense-requests` — 管理者: 一覧 (city/status/staff_name/from_date/to_date フィルター)
+- `PATCH /api/admin/expense-requests/{id}` — 承認/却下/支払済 + inbox DM送信
+- `GET /api/admin/expense-requests/summary` — 給与計算サマリー (スタッフ別合計)
+- `GET /api/admin/expense-requests/pending-count` — ペンディング件数バッジ用
+
+**Frontend**:
+- `/store/expense-request/page.tsx` — スタッフ申請フォーム + 申請履歴テーブル + KPI
+- `/admin/expense-requests/page.tsx` — Pending/All/Payroll Summary 3タブ + Review Modal
+- `/inbox/page.tsx` — `notification_type` + `ref_id` フィールド追加、expense通知を緑テーマで専用レンダリング
 
 ## 📌 Post-deploy: Admin must seed Excel items
 
 After first login as manager, go to **Daily Inventory → Manage Items → Seed Excel Items**.
 This imports 103 CK + 23 Supplier items from the July 2026 Excel master list.
+
+## Recently Completed (2026-07-09 session 112) — live (Heroku v1345, Vercel auto-deploy)
+
+**Break In / Break Out — Full 4-Phase Implementation + Bug Testing**
+
+Attendance system upgraded with break tracking for Dubai and Manila staff.
+
+**Phase 1 — DB Tables** (`app/db.py`):
+- New `os_attendance_breaks` table (session FK, city, staff_name, break_in/out timestamps + GPS, reminder_sent)
+- New `os_break_push_subscriptions` table (VAPID push endpoint per staff device)
+- All DB functions: `record_break_in`, `record_break_out`, `get_active_break`, `list_breaks_today`, `list_breaks_for_range`, `list_sessions_with_breaks`, `get_pending_break_reminders`, `mark_break_reminder_sent`, `upsert/delete/get_break_push_subscriptions`
+
+**Phase 2 — Backend API** (`app/main.py`):
+- Extended `break_in` / `break_out` as valid WebAuthn actions
+- `GET /api/attendance/today` extended with `breaks: []` array
+- `break_in` handler: validates clocked-in, no double-break, calls `record_break_in`
+- `break_out` handler: validates active break, calls `record_break_out`
+- `GET /api/attendance/vapid-public-key`, `POST/DELETE /api/attendance/break-push-subscribe`
+- `GET /api/admin/attendance/staff-report` (city + staff_name + date range → sessions with nested breaks, violations, summary)
+
+**Phase 3 — Push Notifications** (`app/main.py`, `public/sw-push.js`):
+- Background daemon thread polls every 60s for 50-min break reminders
+- Uses `pywebpush` VAPID to push to subscribed devices
+- SW message handler for client-side `SHOW_BREAK_REMINDER` fallback
+
+**Phase 4 — Frontend** (`src/app/attendance/page.tsx`, `src/app/admin/os-attendance/page.tsx`):
+- Break In / Break Out buttons (sky/amber) between visits and Clock Out; Clock Out hidden while on break
+- Live elapsed timer with 50-min warning (amber) and 60-min overrun (red)
+- `subscribeBreakPush()` + `scheduleBreakReminder()` on break_in
+- Admin: Staff Report tab with staff autocomplete, date range, summary KPIs, sessions table, violations badges
+
+**Testing Results (session 112)**:
+- Tables confirmed created in production DB ✓
+- All DB functions work correctly (`list_sessions_with_breaks` returns `breaks` as Python list) ✓  
+- `upsert/delete/get_break_push_subscriptions` CRUD verified ✓
+- New API endpoints return 401 when unauthenticated ✓
+- TypeScript: zero compile errors ✓
+- ESLint: zero errors in source files ✓
 
 ## Recently Completed (2026-07-08 session 111) — live (Heroku 94464e1, Vercel d7c0ae2)
 
