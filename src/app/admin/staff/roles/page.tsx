@@ -239,12 +239,15 @@ function StaffRolesPageInner() {
     const active = currentAuth || auth;
     if (!active || !channelKey) return;
     setChannelMatrixBusy(true);
+    setError("");
     try {
       const data = await apiRequest<ChannelRoleMatrixResp>(`/api/admin/access/channels/${encodeURIComponent(channelKey)}/role-matrix`, {}, active);
       setChannelMatrix(data);
       setSelectedChannelKey(channelKey);
       applyChannelRoleDrafts(data);
       syncChannelCount(channelKey, data.assigned_count || 0);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setChannelMatrixBusy(false);
     }
