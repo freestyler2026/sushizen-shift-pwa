@@ -49,11 +49,21 @@ interface AttendanceVisit {
   distance_m: number | null;
 }
 
+interface AttendanceBreak {
+  id: string;
+  session_id: string;
+  break_in_at: string;
+  break_out_at: string | null;
+  duration_min: number | null;
+  reminder_sent: boolean;
+}
+
 interface TodayData {
   today: string;
   passkey_count: number;
   session: AttendanceSession | null;
   visits: AttendanceVisit[];
+  breaks: AttendanceBreak[];
 }
 
 // ─── WebAuthn helpers (native API) ───────────────────────────────────────────
@@ -280,6 +290,10 @@ export default function AttendancePage() {
   const [wfhToday, setWfhToday] = useState(false);
   const [wfhBusy, setWfhBusy] = useState(false);
   const wfhTodayRef = useRef(false);
+  const [breaks, setBreaks] = useState<AttendanceBreak[]>([]);
+  const [breakElapsedSec, setBreakElapsedSec] = useState(0);
+  const breakTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const breakReminderRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ─── Auth guard ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -306,7 +320,9 @@ export default function AttendancePage() {
         try { const j = JSON.parse(text) as { detail?: string; message?: string }; msg = j.detail || j.message || text; } catch { /* non-JSON */ }
         throw new Error(msg);
       }
-      setData(await res.json());
+      const d = await res.json() as TodayData;
+      setData(d);
+      setBreaks(d.breaks ?? []);
     } catch (e) {
       if (!silent) setError(String(e));
     } finally {
@@ -485,6 +501,8 @@ export default function AttendancePage() {
           checkout: "Clocked out ✓",
           visit_start: "Visit started ✓",
           visit_end: "Visit ended ✓",
+          break_in: "Break started ✓",
+          break_out: "Break ended ✓",
         };
         setSuccess(labels[action] ?? "Done ✓");
         if (action === "checkout") {
@@ -502,6 +520,20 @@ export default function AttendancePage() {
           if (verJson?.probation && verJson.probation.is_probation) {
             setProbationStatus(verJson.probation);
           }
+        }
+        if (action === "break_in") {
+          const newBreak = (verJson as { break?: { break_in_at?: string } })?.break;
+          if (newBreak?.break_in_at) {
+            scheduleBreakReminder(newBreak.break_in_at);
+          }
+          // Request notification permission and subscribe to push
+          if (typeof Notification !== "undefined" && Notification.permission === "default") {
+            await Notification.requestPermission().catch(() => {});
+          }
+          void subscribeBreakPush();
+        }
+        if (action === "break_out") {
+          if (breakReminderRef.current) { clearTimeout(breakReminderRef.current); breakReminderRef.current = null; }
         }
         await fetchToday({ silent: true });
       } catch (e: unknown) {
@@ -572,6 +604,18 @@ export default function AttendancePage() {
   const today = data?.today ?? new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
   const isCheckedIn = !!session?.check_in_at;
   const isCheckedOut = !!session?.check_out_at;
+  const activeBreak = breaks.find((b) => b.break_in_at && !b.break_out_at) ?? null;
+  const isOnBreak = !!activeBreak;
+
+  // Re-schedule break reminder on page load if a break is already active
+  useEffect(() => {
+    if (activeBreak?.break_in_at) {
+      scheduleBreakReminder(activeBreak.break_in_at);
+    }
+    return () => {
+      if (breakReminderRef.current) { clearTimeout(breakReminderRef.current); breakReminderRef.current = null; }
+    };
+  }, [activeBreak?.break_in_at]);
   const openVisits = visits.filter((v) => !v.visit_end);
   const closedVisits = visits.filter((v) => v.visit_end);
   // Branches already being visited (open visit) are excluded from picker to avoid duplicates
@@ -584,7 +628,77 @@ export default function AttendancePage() {
     : 0;
   const wauSupported = typeof window !== "undefined" && !!window.PublicKeyCredential;
 
-  // ─── WFH declaration ─────────────────────────────────────────────────────
+  // ─── Break elapsed timer ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (activeBreak) {
+      const update = () => {
+        const elapsed = Math.floor((Date.now() - new Date(activeBreak.break_in_at).getTime()) / 1000);
+        setBreakElapsedSec(Math.max(0, elapsed));
+      };
+      update();
+      breakTimerRef.current = setInterval(update, 1000);
+    } else {
+      if (breakTimerRef.current) { clearInterval(breakTimerRef.current); breakTimerRef.current = null; }
+      setBreakElapsedSec(0);
+    }
+    return () => { if (breakTimerRef.current) { clearInterval(breakTimerRef.current); breakTimerRef.current = null; } };
+  }, [activeBreak]);
+
+  // ─── Break push subscription ──────────────────────────────────────────────
+  async function subscribeBreakPush() {
+    try {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+      const reg = await navigator.serviceWorker.register("/sw-push.js");
+      await navigator.serviceWorker.ready;
+      const a = getAuth();
+      if (!a) return;
+      const keyRes = await fetch(`${API_BASE}/api/attendance/vapid-public-key`, {
+        headers: getAuthHeaders(a),
+      });
+      if (!keyRes.ok) return;
+      const { public_key: vapidKey } = await keyRes.json() as { public_key: string };
+      if (!vapidKey) return;
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: vapidKey,
+      });
+      const subJson = sub.toJSON();
+      await fetch(`${API_BASE}/api/attendance/break-push-subscribe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders(a) },
+        body: JSON.stringify({
+          endpoint: subJson.endpoint,
+          p256dh: subJson.keys?.p256dh ?? "",
+          auth: subJson.keys?.auth ?? "",
+        }),
+      });
+    } catch { /* best-effort */ }
+  }
+
+  // Client-side 50-min fallback reminder via SW message (works if tab is open)
+  function scheduleBreakReminder(breakInAt: string) {
+    if (breakReminderRef.current) { clearTimeout(breakReminderRef.current); breakReminderRef.current = null; }
+    const elapsed = Date.now() - new Date(breakInAt).getTime();
+    const remaining = 50 * 60 * 1000 - elapsed;
+    if (remaining <= 0) return;
+    breakReminderRef.current = setTimeout(async () => {
+      try {
+        if ("serviceWorker" in navigator) {
+          const reg = await navigator.serviceWorker.getRegistration("/sw-push.js");
+          if (reg?.active) {
+            reg.active.postMessage({ type: "SHOW_BREAK_REMINDER" });
+            return;
+          }
+        }
+      } catch { /* fall through */ }
+      // Fallback: browser Notification API
+      if (Notification.permission === "granted") {
+        new Notification("Break reminder", { body: "10 minutes left on your break — time to head back!" });
+      }
+    }, remaining);
+  }
+
+  // WFH declaration ─────────────────────────────────────────────────────
   async function declareWfh() {
     const a = getAuth();
     if (!a) return;
@@ -979,14 +1093,60 @@ export default function AttendancePage() {
             </div>
           )}
           {isCheckedIn && !isCheckedOut && (
-            <button
-              onClick={() => void doAction("checkout")}
-              disabled={busy || (!gpsValid && !wfhToday)}
-              className="w-full rounded-xl bg-rose-700 py-4 text-base font-bold text-white disabled:opacity-30 hover:bg-rose-600 transition-colors flex items-center justify-center gap-2"
-            >
-              <LogOut size={18} />
-              {busy ? "Authenticating..." : "Clock Out"}
-            </button>
+            <div className="space-y-2">
+              {/* Break status banner */}
+              {isOnBreak && (
+                <div className="rounded-xl bg-amber-950/50 border border-amber-500/40 px-4 py-3 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-amber-300">On Break</span>
+                    {breakElapsedSec > 0 && (
+                      <span className={`text-sm font-bold tabular-nums ${breakElapsedSec >= 60 * 65 ? "text-red-400" : breakElapsedSec >= 60 * 50 ? "text-amber-300" : "text-white"}`}>
+                        {Math.floor(breakElapsedSec / 60)}:{String(breakElapsedSec % 60).padStart(2, "0")}
+                      </span>
+                    )}
+                  </div>
+                  {breakElapsedSec >= 60 * 50 && breakElapsedSec < 60 * 60 && (
+                    <p className="text-[11px] text-amber-300">⚠ 10 minutes left on your break</p>
+                  )}
+                  {breakElapsedSec >= 60 * 60 && (
+                    <p className="text-[11px] text-red-400">⛔ Break overrun — please return to work</p>
+                  )}
+                </div>
+              )}
+
+              {/* Break In / Break Out button */}
+              {isOnBreak ? (
+                <button
+                  onClick={() => void doAction("break_out")}
+                  disabled={busy}
+                  className="w-full rounded-xl bg-amber-600 py-3.5 text-base font-bold text-white disabled:opacity-30 hover:bg-amber-500 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Square size={16} fill="currentColor" />
+                  {busy ? "Authenticating..." : "Break Out (Return to Work)"}
+                </button>
+              ) : (
+                <button
+                  onClick={() => void doAction("break_in")}
+                  disabled={busy}
+                  className="w-full rounded-xl bg-sky-700/80 py-3 text-sm font-semibold text-white disabled:opacity-30 hover:bg-sky-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Clock size={16} />
+                  {busy ? "Authenticating..." : "Break In"}
+                </button>
+              )}
+
+              {/* Clock Out — hidden while on break */}
+              {!isOnBreak && (
+                <button
+                  onClick={() => void doAction("checkout")}
+                  disabled={busy || (!gpsValid && !wfhToday)}
+                  className="w-full rounded-xl bg-rose-700 py-4 text-base font-bold text-white disabled:opacity-30 hover:bg-rose-600 transition-colors flex items-center justify-center gap-2"
+                >
+                  <LogOut size={18} />
+                  {busy ? "Authenticating..." : "Clock Out"}
+                </button>
+              )}
+            </div>
           )}
           {isCheckedOut && (
             <div className="space-y-2">

@@ -2,7 +2,7 @@
 
 import {
   CheckCircle, ChevronDown, ChevronRight, Download, Fingerprint,
-  Loader2, MapPin, Pencil, Plus, RefreshCw, Trash2, XCircle,
+  Loader2, MapPin, Pencil, Plus, RefreshCw, Trash2, XCircle, User,
 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -187,6 +187,248 @@ function GpsBadge({ ok }: { ok: boolean | null }) {
   if (ok) return <span className={BADGE_SUCCESS}><CheckCircle size={10} />In Range</span>;
   return <span className={BADGE_ERROR}><XCircle size={10} />Out of Range</span>;
 }
+
+// ── Staff Report Tab ──────────────────────────────────────────────────────────
+
+interface BreakRecord {
+  id: string;
+  break_in_at: string | null;
+  break_out_at: string | null;
+  duration_min: number | null;
+}
+
+interface SessionRow {
+  work_date: string;
+  branch_code: string;
+  check_in_at: string | null;
+  check_out_at: string | null;
+  work_min: number | null;
+  break_min: number;
+  net_work_min: number | null;
+  breaks: BreakRecord[];
+  violations: string[];
+  has_open_break: boolean;
+}
+
+interface StaffReport {
+  staff_name: string;
+  summary: { work_days: number; total_work_min: number; total_break_min: number };
+  sessions: SessionRow[];
+}
+
+function fmtMin(min: number | null): string {
+  if (min === null || min === undefined) return "—";
+  const h = Math.floor(min / 60);
+  const m = Math.round(min % 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function fmtTs(ts: string | null, city: string): string {
+  if (!ts) return "—";
+  const tz = city === "dubai" ? "Asia/Dubai" : "Asia/Manila";
+  return new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit", minute: "2-digit", timeZone: tz,
+  }).format(new Date(ts));
+}
+
+function StaffReportTab({ city }: { city: string }) {
+  const [staffInput, setStaffInput] = useState("");
+  const [fromDate, setFromDate] = useState(() => {
+    const d = new Date();
+    d.setDate(1);
+    return d.toISOString().slice(0, 10);
+  });
+  const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [report, setReport] = useState<StaffReport | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+  const [staffList, setStaffList] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Fetch staff names from recent sessions for autocomplete
+  useEffect(() => {
+    async function load() {
+      try {
+        const r = await apiFetch(`${API}/sessions?city=${city}&limit=200`);
+        if (!r.ok) return;
+        const d = await r.json() as { sessions?: { staff_name: string }[] };
+        const names = [...new Set((d.sessions ?? []).map((s) => s.staff_name))].sort();
+        setStaffList(names);
+      } catch { /* best-effort */ }
+    }
+    void load();
+  }, [city]);
+
+  async function fetchReport(name: string) {
+    if (!name.trim()) return;
+    setLoading(true); setErr(""); setReport(null);
+    try {
+      const params = new URLSearchParams({ city, staff_name: name, from_date: fromDate, to_date: toDate });
+      const r = await apiFetch(`${API}/staff-report?${params}`);
+      if (!r.ok) { setErr(await r.text()); return; }
+      setReport(await r.json() as StaffReport);
+    } catch (e) { setErr(String(e)); }
+    finally { setLoading(false); }
+  }
+
+  const filtered = staffInput
+    ? staffList.filter((s) => s.toLowerCase().includes(staffInput.toLowerCase()))
+    : staffList;
+
+  return (
+    <div className="space-y-5">
+      {/* Search controls */}
+      <div className="flex flex-wrap gap-3 items-end">
+        <div className="relative flex-1 min-w-[200px]">
+          <label className="text-xs text-zinc-500 mb-1 block">Staff Name</label>
+          <input
+            value={staffInput}
+            onChange={(e) => { setStaffInput(e.target.value); setShowSuggestions(true); }}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+            onFocus={() => setShowSuggestions(true)}
+            placeholder="Search staff..."
+            className="w-full rounded-lg border border-zinc-700/50 bg-zinc-800/60 px-3 py-2 text-sm text-white placeholder-zinc-500 focus:border-violet-500/50 focus:outline-none"
+          />
+          {showSuggestions && filtered.length > 0 && (
+            <div className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl">
+              {filtered.slice(0, 20).map((name) => (
+                <button key={name} onMouseDown={() => { setStaffInput(name); setShowSuggestions(false); }}
+                  className="w-full px-3 py-2 text-left text-sm text-zinc-300 hover:bg-zinc-800">
+                  {name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="text-xs text-zinc-500 mb-1 block">From</label>
+          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
+            className="rounded-lg border border-zinc-700/50 bg-zinc-800/60 px-3 py-2 text-sm text-white focus:border-violet-500/50 focus:outline-none" />
+        </div>
+        <div>
+          <label className="text-xs text-zinc-500 mb-1 block">To</label>
+          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)}
+            className="rounded-lg border border-zinc-700/50 bg-zinc-800/60 px-3 py-2 text-sm text-white focus:border-violet-500/50 focus:outline-none" />
+        </div>
+        <button
+          onClick={() => { void fetchReport(staffInput); }}
+          disabled={loading || !staffInput.trim()}
+          className={PRIMARY_BUTTON + " py-2 px-5 text-sm disabled:opacity-40"}
+        >
+          {loading ? <Loader2 size={14} className="animate-spin" /> : "Search"}
+        </button>
+      </div>
+
+      {err && <p className="text-sm text-red-400">{err}</p>}
+
+      {/* Summary KPIs */}
+      {report && (
+        <>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: "Days Worked", value: String(report.summary.work_days) },
+              { label: "Total Work", value: fmtMin(report.summary.total_work_min) },
+              { label: "Total Break", value: fmtMin(report.summary.total_break_min) },
+            ].map(({ label, value }) => (
+              <div key={label} className={`${GLASS_CARD} p-4 text-center`}>
+                <div className="text-xl font-bold text-white">{value}</div>
+                <div className="text-xs text-zinc-500 mt-1">{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Sessions table */}
+          <div className="overflow-x-auto rounded-xl border border-white/5">
+            <table className="w-full text-sm min-w-[700px]">
+              <thead>
+                <tr className="border-b border-white/10 text-xs text-zinc-500 uppercase tracking-wide">
+                  <th className="py-3 pr-3 text-left pl-3">Date</th>
+                  <th className="py-3 pr-3 text-left">Branch</th>
+                  <th className="py-3 pr-3 text-left">Clock In</th>
+                  <th className="py-3 pr-3 text-left">Break In</th>
+                  <th className="py-3 pr-3 text-left">Break Out</th>
+                  <th className="py-3 pr-3 text-left">Clock Out</th>
+                  <th className="py-3 pr-3 text-left">Work</th>
+                  <th className="py-3 pr-3 text-left">Break</th>
+                  <th className="py-3 pr-3 text-left">Net Work</th>
+                  <th className="py-3 text-left">Flags</th>
+                </tr>
+              </thead>
+              <tbody>
+                {report.sessions.map((s, i) => {
+                  const hasViolation = s.violations.length > 0;
+                  const rowBg = hasViolation ? "bg-red-950/20" : i % 2 === 0 ? "bg-zinc-900/30" : "";
+                  const firstBreak = s.breaks[0] ?? null;
+                  return (
+                    <tr key={s.work_date} className={`border-b border-white/5 ${rowBg}`}>
+                      <td className="py-2.5 pr-3 pl-3 text-zinc-300 font-medium">{s.work_date}</td>
+                      <td className="py-2.5 pr-3 text-zinc-400">{s.branch_code || "—"}</td>
+                      <td className="py-2.5 pr-3 tabular-nums text-zinc-300">{fmtTs(s.check_in_at, city)}</td>
+                      <td className="py-2.5 pr-3 tabular-nums text-zinc-300">{firstBreak ? fmtTs(firstBreak.break_in_at, city) : "—"}</td>
+                      <td className={`py-2.5 pr-3 tabular-nums ${s.has_open_break ? "text-amber-400" : "text-zinc-300"}`}>
+                        {firstBreak ? (firstBreak.break_out_at ? fmtTs(firstBreak.break_out_at, city) : "⚠ open") : "—"}
+                      </td>
+                      <td className={`py-2.5 pr-3 tabular-nums ${!s.check_out_at && s.check_in_at ? "text-orange-400" : "text-zinc-300"}`}>
+                        {fmtTs(s.check_out_at, city)}
+                      </td>
+                      <td className="py-2.5 pr-3 tabular-nums text-zinc-400">{fmtMin(s.work_min)}</td>
+                      <td className={`py-2.5 pr-3 tabular-nums ${s.violations.some((v) => v.includes("break_overrun")) ? "text-red-400 font-semibold" : "text-zinc-400"}`}>
+                        {s.break_min > 0 ? fmtMin(s.break_min) : "—"}
+                      </td>
+                      <td className="py-2.5 pr-3 tabular-nums text-white font-semibold">{fmtMin(s.net_work_min)}</td>
+                      <td className="py-2.5">
+                        {s.violations.map((v, vi) => (
+                          <span key={vi} className={`inline-block mr-1 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                            v.includes("overrun") ? "bg-red-900/60 text-red-300" :
+                            v.includes("missing_checkout") ? "bg-orange-900/60 text-orange-300" :
+                            "bg-amber-900/60 text-amber-300"
+                          }`}>
+                            {v.replace(/_/g, " ")}
+                          </span>
+                        ))}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {report.sessions.length === 0 && (
+                  <tr><td colSpan={10} className="py-8 text-center text-zinc-500">No records found</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Multiple breaks per day — expand */}
+          {report.sessions.some((s) => s.breaks.length > 1) && (
+            <div className="rounded-xl border border-white/10 p-4 space-y-3">
+              <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">All Break Records (multiple breaks)</p>
+              {report.sessions.filter((s) => s.breaks.length > 1).map((s) => (
+                <div key={s.work_date} className="space-y-1">
+                  <p className="text-xs font-semibold text-zinc-300">{s.work_date}</p>
+                  {s.breaks.map((b, bi) => (
+                    <div key={bi} className="flex gap-4 text-xs text-zinc-400 pl-2">
+                      <span>Break {bi + 1}</span>
+                      <span>In: {fmtTs(b.break_in_at, city)}</span>
+                      <span>Out: {b.break_out_at ? fmtTs(b.break_out_at, city) : "⚠ open"}</span>
+                      <span>{b.duration_min !== null ? fmtMin(b.duration_min) : "—"}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {!report && !loading && !err && (
+        <div className="flex flex-col items-center gap-2 py-12 text-zinc-500">
+          <User size={28} className="opacity-40" />
+          <p className="text-sm">Select a staff member and date range to view their attendance report</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 // ── GPS Settings Tab ──────────────────────────────────────────────────────────
 
@@ -1172,7 +1414,7 @@ function CorrectionsTab({ city }: { city: string }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-type Tab = "report" | "gps" | "corrections";
+type Tab = "report" | "staff_report" | "gps" | "corrections";
 
 export default function OsAttendanceAdminPage() {
   const router = useRouter();
@@ -1232,9 +1474,13 @@ export default function OsAttendanceAdminPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button onClick={() => setTab("report")} className={tab === "report" ? TAB_ACTIVE : TAB_INACTIVE}>
             Daily Report
+          </button>
+          <button onClick={() => setTab("staff_report")} className={`${tab === "staff_report" ? TAB_ACTIVE : TAB_INACTIVE} flex items-center gap-1.5`}>
+            <User size={13} />
+            Staff Report
           </button>
           <button onClick={() => setTab("corrections")} className={`${tab === "corrections" ? TAB_ACTIVE : TAB_INACTIVE} relative`}>
             Corrections
@@ -1252,6 +1498,7 @@ export default function OsAttendanceAdminPage() {
         {/* Content */}
         <div className={GLASS_CARD + " p-6"}>
           {tab === "report" && <DailyReportTab city={city} />}
+          {tab === "staff_report" && <StaffReportTab city={city} />}
           {tab === "corrections" && <CorrectionsTab city={city} />}
           {tab === "gps" && <GpsTab city={city} />}
         </div>

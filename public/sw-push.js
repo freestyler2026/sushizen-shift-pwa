@@ -32,3 +32,17 @@ self.addEventListener("notificationclick", (event) => {
     })
   );
 });
+
+// Allow pages to post a message triggering a local notification (break reminder fallback)
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SHOW_BREAK_REMINDER") {
+    self.registration.showNotification("Break reminder", {
+      body: "10 minutes left on your break — time to head back!",
+      icon: "/icons/icon-192x192.png",
+      badge: "/icons/icon-72x72.png",
+      tag: "break-reminder",
+      requireInteraction: true,
+      data: { url: "/attendance" },
+    });
+  }
+});
