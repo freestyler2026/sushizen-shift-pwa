@@ -33,7 +33,8 @@ const UNITS = [
   "Box", "Bag", "Bottle", "Sack", "Can", "Tin",
   "pcs", "pkt", "Tray", "Case",
   "Portion", "Batch", "Block", "Slab",
-  "KG", "BTL", "PKT", "PCS", "CAN", "PTN", "LTR", "BOX", "BTL",
+  // Legacy/abbreviated forms kept for backward compatibility with existing items
+  "KG", "BTL", "PKT", "PCS", "CAN", "PTN", "LTR", "BOX",
 ] as const;
 
 type SourceType = "ck" | "supplier" | "warehouse";
@@ -455,6 +456,9 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
   const [editParVal, setEditParVal] = useState("");
   const [editParBusy, setEditParBusy] = useState(false);
 
+  // Purge retired items
+  const [purging, setPurging] = useState(false);
+
   async function loadItems() {
     setLoading(true); setError("");
     try {
@@ -541,7 +545,24 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
     }
   }
 
+  async function handlePurgeRetired() {
+    const retiredCount = items.filter((i) => !i.is_active && i.item_name.startsWith("[Retired]")).length;
+    if (!window.confirm(`Permanently delete ${retiredCount} [Retired] items? This cannot be undone.`)) return;
+    setPurging(true); setError(""); setMsg("");
+    try {
+      const res = await apiFetch("/api/daily-inventory/items/purge-retired", { method: "POST" });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || "Purge failed");
+      const data = JSON.parse(text) as { deleted?: number };
+      setMsg(`Deleted ${data.deleted ?? "?"} retired items.`);
+      setItems((prev) => prev.filter((i) => !(i.item_name.startsWith("[Retired]") && !i.is_active)));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Purge failed");
+    } finally { setPurging(false); }
+  }
+
   const sections = [...new Set(items.map((i) => i.section))].sort();
+  const retiredCount = items.filter((i) => !i.is_active && i.item_name.startsWith("[Retired]")).length;
 
   return (
     <div className="space-y-5">
@@ -551,7 +572,17 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
             <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Back Office</p>
             <h2 className="mt-0.5 text-lg font-semibold text-white">Item Master</h2>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            {retiredCount > 0 && (
+              <button
+                onClick={() => void handlePurgeRetired()}
+                disabled={purging}
+                className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-400 hover:bg-red-500/20 disabled:opacity-50"
+              >
+                {purging ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                Purge [{retiredCount}] Retired
+              </button>
+            )}
             <button
               onClick={() => void handleSeedExcel()}
               disabled={seeding}
@@ -662,7 +693,7 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
                         {editParCode === item.item_code ? (
                           <div className="flex items-center gap-1 justify-center">
                             <input
-                              type="number" step="any" min="0"
+                              type="text" inputMode="decimal"
                               value={editParVal}
                               onChange={(e) => setEditParVal(e.target.value)}
                               onKeyDown={(e) => { if (e.key === "Enter") void handleSaveParLevel(item.item_code); if (e.key === "Escape") setEditParCode(null); }}
@@ -680,7 +711,7 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
                             onClick={() => { setEditParCode(item.item_code); setEditParVal(String(item.par_level ?? "")); }}
                             className="rounded-lg px-2 py-1 text-zinc-300 hover:bg-white/5 hover:text-white"
                           >
-                            {item.par_level ?? <span className="text-zinc-600">—</span>}
+                            {item.par_level != null ? parseFloat(String(item.par_level)).toFixed(3) : <span className="text-zinc-600">—</span>}
                           </button>
                         )}
                       </td>
