@@ -125,20 +125,21 @@ type NavItem = {
 };
 
 const PRIMARY: NavItem[] = [
-  { href: "/staff-guide", label: "Staff Guide", icon: BookOpen, match: "prefix" },
-  { href: "/attendance", label: "Time-in / Time-out", icon: Fingerprint, match: "exact" },
-  { href: "/my-shift", label: "My Shift", icon: CalendarClock, match: "exact" },
-  { href: "/week", label: "Week", icon: CalendarDays, match: "exact" },
-  { href: "/request", label: "Request", icon: ClipboardList, match: "exact" },
-  { href: "/my-pay", label: "My Pay", icon: Receipt, match: "prefix" },
-  { href: "/private-report", label: "Private Report", icon: FileText, match: "exact" },
+  { href: "/staff-guide",           label: "Staff Guide",           icon: BookOpen,      match: "prefix" },
+  { href: "/attendance",            label: "Time-in / Time-out",    icon: Fingerprint,   match: "exact" },
+  { href: "/my-shift",              label: "My Shift",              icon: CalendarClock, match: "exact" },
+  { href: "/week",                  label: "Week",                  icon: CalendarDays,  match: "exact" },
+  { href: "/calendar",              label: "Calendar",              icon: Calendar,      match: "exact" },
+  { href: "/store/expense-request", label: "Expense Reimbursement", icon: Receipt,       match: "prefix" },
+  { href: "/request",               label: "Request",               icon: ClipboardList, match: "exact" },
+  { href: "/private-report",        label: "Private Report",        icon: FileText,      match: "exact" },
+  { href: "/inbox",                 label: "Inbox",                 icon: InboxIcon,     match: "exact" },
+  { href: "/incidents",             label: "Incident Report",       icon: AlertTriangle, match: "prefix" },
+  { href: "/my-pay",                label: "My Pay",                icon: Receipt,       match: "prefix" },
 ];
 
 const SECONDARY_BASE: NavItem[] = [
-  { href: "/calendar", label: "Calendar", icon: Calendar, match: "exact" },
   { href: "/zen-music", label: "ZEN Music", icon: Headphones, match: "exact" },
-  { href: "/inbox", label: "Inbox", icon: InboxIcon, match: "exact" },
-  { href: "/incidents", label: "Incident Report", icon: AlertTriangle, match: "prefix" },
   { href: "/admin/disposal", label: "Disposal Report", icon: Trash2, match: "prefix" },
   { href: "/admin/backup", label: "Backup Report", icon: ArchiveRestore, match: "prefix" },
   { href: "/admin/daily-inventory", label: "Daily Inventory", icon: Warehouse, match: "exact" },
@@ -156,7 +157,6 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/store/evaluation", label: "Store Evaluation", icon: ClipboardCheck, match: "prefix" },
   { href: "/store/cold-chain", label: "Cold Chain Log", icon: Thermometer, match: "prefix" },
   { href: "/store/daily-check", label: "Daily Check", icon: ClipboardList, match: "prefix" },
-  { href: "/store/expense-request", label: "Expense Reimbursement", icon: Receipt, match: "prefix" },
   { href: "/store/transport-expense", label: "Transport Expense", icon: Receipt, match: "prefix" },
   { href: "/store/petty-cash", label: "Petty Cash", icon: Coins, match: "prefix" },
   { href: "/store/cash-report", label: "Cash Report", icon: Banknote, match: "prefix" },
