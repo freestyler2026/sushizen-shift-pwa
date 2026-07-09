@@ -7,7 +7,7 @@ import {
   Plus, Trash2, Settings2, Loader2, RefreshCw,
 } from "lucide-react";
 
-import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
+import { getAuth, getAuthHeaders, getUploadHeaders, refreshAuthFromApi } from "@/lib/auth";
 import {
   GLASS_CARD,
   PRIMARY_BUTTON,
@@ -569,7 +569,11 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
   async function handleDownloadTemplate() {
     setDownloading(true); setError("");
     try {
-      const res = await apiFetch("/api/daily-inventory/items/template-excel");
+      // Use fetch directly — apiFetch reads body as text which corrupts binary Excel data
+      const res = await fetch(`${API_BASE}/api/daily-inventory/items/template-excel`, {
+        headers: new Headers(getAuthHeaders()),
+        cache: "no-store",
+      });
       if (!res.ok) throw new Error(`Download failed: HTTP ${res.status}`);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -591,9 +595,13 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await apiFetch("/api/daily-inventory/items/import-excel", {
+      // Use fetch directly with getUploadHeaders — apiFetch injects Content-Type: application/json
+      // which overrides the multipart/form-data boundary the browser must set for file uploads
+      const res = await fetch(`${API_BASE}/api/daily-inventory/items/import-excel`, {
         method: "POST",
+        headers: new Headers(getUploadHeaders()),
         body: formData,
+        cache: "no-store",
       });
       const text = await res.text();
       if (!res.ok) throw new Error(text || "Import failed");
