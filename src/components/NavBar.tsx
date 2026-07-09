@@ -62,6 +62,7 @@ import {
   TrendingUp,
   X,
   BookOpen,
+  Clock,
 } from "lucide-react";
 import {
   canAccessAbsencesAdmin,
@@ -145,7 +146,8 @@ const SECONDARY_BASE: NavItem[] = [
   { href: "/admin/daily-inventory", label: "Daily Inventory", icon: Warehouse, match: "exact" },
   { href: "/admin/travel-path", label: "Travel Path", icon: ClipboardList, match: "exact" },
   { href: "/store/procurement", label: "Store Procurement", icon: ShoppingCart, match: "prefix" },
-  { href: "/store/emergency-request", label: "Emergency Request", icon: Siren, match: "prefix" },
+  { href: "/store/emergency-request", label: "Emergency Request", icon: Siren,  match: "prefix" },
+  { href: "/store/overtime-request",  label: "Overtime Request",  icon: Clock,  match: "prefix" },
   { href: "/store/purchase", label: "Direct Purchase", icon: ShoppingBag, match: "prefix" },
   { href: "/store/spot-purchase", label: "Spot Purchase", icon: ShoppingBag, match: "prefix" },
   { href: "/store/ck-production", label: "CK Dispatch", icon: Truck, match: "prefix" },
@@ -195,7 +197,8 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/cold-chain", label: "Cold Chain", icon: Thermometer, adminOnly: true, match: "prefix" },
   { href: "/admin/ck-label-compliance", label: "CK Label Compliance", icon: ShieldCheck, adminOnly: true, match: "prefix" },
   { href: "/admin/daily-check", label: "Daily Check", icon: ClipboardList, adminOnly: true, match: "prefix" },
-  { href: "/admin/expense-requests", label: "Expense Requests", icon: Receipt, adminOnly: true, match: "prefix" },
+  { href: "/admin/expense-requests", label: "Expense Requests",  icon: Receipt, adminOnly: true, match: "prefix" },
+  { href: "/admin/overtime",         label: "Overtime Requests", icon: Clock,   adminOnly: true, match: "prefix" },
   { href: "/admin/transport-expense", label: "Transport Expense", icon: Receipt, adminOnly: true, match: "prefix" },
   { href: "/admin/petty-cash", label: "Petty Cash", icon: Coins, adminOnly: true, match: "prefix" },
   { href: "/admin/cash-management", label: "Cash Management", icon: Banknote, adminOnly: true, match: "prefix" },
@@ -293,6 +296,7 @@ export default function NavBar() {
   const [adminRequestBadge, setAdminRequestBadge] = useState(0);
   const [privateReportBadge, setPrivateReportBadge] = useState(0);
   const [inboxBadge, setInboxBadge] = useState(0);
+  const [otBadge, setOtBadge] = useState(0);
   const [moreOpen, setMoreOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -327,6 +331,7 @@ export default function NavBar() {
     if (href === "/admin/ck-label-compliance") return ["HQ", "ADMIN", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
     if (href === "/admin/daily-check") return canAccessDailyCheckAdmin(auth);
     if (href === "/admin/expense-requests") return ["ADMIN", "HQ", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT", "HR_MANAGER"].includes(role);
+    if (href === "/admin/overtime") return ["ADMIN", "HQ", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT", "MANAGER"].includes(role);
     if (href === "/admin/transport-expense") return canAccessTransportExpenseAdmin(auth);
     if (href === "/admin/petty-cash") return canAccessPettyCashAdmin(auth);
     if (href === "/admin/cash-management") return canAccessCashManagementAdmin(auth);
@@ -639,6 +644,24 @@ export default function NavBar() {
         // optional badge
       }
 
+      // OT pending badge (non-blocking)
+      try {
+        const authForOt = resolved || a;
+        const otRole = String(authForOt?.role || "").toUpperCase();
+        if (["ADMIN", "HQ", "DUBAI_MANAGEMENT", "MANILA_MANAGEMENT", "MANAGER"].includes(otRole)) {
+          const otRes = await fetch(`${API_BASE}/api/admin/overtime/pending-count`, {
+            cache: "no-store",
+            headers: { Authorization: `Bearer ${authForOt?.accessToken}` },
+          });
+          if (otRes.ok) {
+            const otJson = await otRes.json();
+            if (!cancelled) setOtBadge(Number(otJson?.count || 0));
+          }
+        }
+      } catch {
+        // optional badge
+      }
+
       // Price Check badge (non-blocking)
       try {
         const authForPriceCheck = resolved || a;
@@ -728,9 +751,11 @@ export default function NavBar() {
             ? { ...item, badgeCount: adminIncidentBadge, badgeWarning: adminIncidentBadge > 0 }
           : item.href === "/admin/price-check"
             ? { ...item, badgeCount: priceCheckBadge, badgeCritical: priceCheckBadge > 0 }
+          : item.href === "/admin/overtime"
+            ? { ...item, badgeCount: otBadge, badgeWarning: otBadge > 0 }
           : item,
       );
-  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge, priceCheckBadge, adminRequestBadge, privateReportBadge, eprBadge]);
+  }, [resolvedAuth, procurementBadgeCount, procurementBadgeCritical, renewalBadge, adminIncidentBadge, priceCheckBadge, adminRequestBadge, privateReportBadge, eprBadge, otBadge]);
 
   const navItems = useMemo(() => [...staffItems, ...adminItems], [staffItems, adminItems]);
 
