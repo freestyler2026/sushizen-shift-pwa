@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-09 (session 116 — Daily Inventory bug fixes: Excel download/import, is_active preservation)
+Last updated: 2026-07-09 (session 116c — Overtime request system + security fixes deployed)
 
 
 > **New session start protocol:**
@@ -12,7 +12,50 @@ Last updated: 2026-07-09 (session 116 — Daily Inventory bug fixes: Excel downl
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1351, Vercel 494c3db)
+なし — 全変更デプロイ済み (Heroku v1352, Vercel 891f137)
+
+## Recently Completed (2026-07-09 session 116c) — live (Heroku v1352, Vercel 891f137)
+
+**Overtime Request System + Security Fixes**
+
+**① overtime_requests テーブル新設 (DB + API)**
+- 新テーブル: `overtime_requests` (pre/post申請タイプ、承認フロー、給与連携エクスポート)
+- エンドポイント: POST /store/overtime/request, GET /store/overtime/my-requests
+- 管理エンドポイント: GET /admin/overtime/list, pending-count, export; PATCH /admin/overtime/{id}/review
+- 承認者ロール: ADMIN, HQ, DUBAI_MANAGEMENT, MANILA_MANAGEMENT, MANAGER
+
+**② フロントエンド 2ページ新設**
+- `/store/overtime-request` — スタッフ向けOT申請フォーム (pre/post切替、時間範囲、深夜越え対応、申請履歴)
+- `/admin/overtime` — マネージャー向け承認画面 (KPIサマリー、フィルター、レビューモーダル、CSV出力)
+
+**③ NavBar統合**
+- スタッフナビ: "Overtime Request" (Clock アイコン, /store/overtime-request)
+- 管理ナビ: "Overtime Requests" (Clock アイコン, /admin/overtime) — ADMIN/HQ/DUBAI_MANAGEMENT/MANILA_MANAGEMENT/MANAGER のみ表示
+- 保留中バッジ: /api/admin/overtime/pending-count をポーリング
+
+**④ セキュリティ修正 — 他人名義投稿を全エンドポイントで禁止**
+- POST /store/emergency-request: `requested_by` をトークンから取得
+- POST /store/spot-purchase/requests: `requested_by` をトークン固定
+- POST /store/ck-inventory/sessions: `created_by` をトークンから取得
+- POST /store/ck-production-plan/plans: `created_by` をトークンから取得
+- POST /store/ck-delivery/deliveries: `created_by` をトークンから取得
+
+## Recently Completed (2026-07-09 session 116b) — DB直接更新 (デプロイ不要)
+
+**July Dubai shift deduplication — 6名の名前重複を解消**
+
+直接 psql で production DB に適用。shift_published_rows + base_shift_normalized 両テーブルを更新。
+
+| 旧名（alias） | 正規名（staff master） | 操作 |
+|---|---|---|
+| Ashik Khan | Ashik Kahn | 20行→26行 rename |
+| Lyssa Rae Adan | Lyssa Rae | Jul 14-19 重複6行DELETE + 24行 rename → 計30行 |
+| Hayat Ullah Khan (S) | Hayat Ullah Khan | 36行 rename → 計47行 |
+| Nabaraj Sapkota (N) | Nabaraj Sapkota | 17行 rename → 計28行 |
+| Kapil Bahadur Khati | Kapil Bahadur | 25行 rename → 計31行 |
+| Puker KC | Pukar K C | 6行 rename → 計28行 |
+
+base_shift_normalized: Hayat/Nabaraj/PukarKC は既に正規名で格納されていたため更新不要 (0行)。
 
 ## Recently Completed (2026-07-09 session 116) — live (Heroku v1351, Vercel 494c3db)
 
