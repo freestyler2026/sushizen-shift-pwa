@@ -28,17 +28,43 @@ const BLUSH_SMALL = `${SMALL_BUTTON} bg-violet-950/30 hover:bg-violet-950/45`;
 type InboxRow = {
   id: number;
   report_id: string;
+  notification_type: string;
+  ref_id: string | null;
   message: string;
   is_read: boolean;
   created_at: string;
 };
 
-// Parse "[Request Submitted] ..." style messages into structured data
-function parseRequestMessage(message: string) {
-  if (!message.startsWith("[Request Submitted]")) return null;
+// Parse "[Tag] title\nKey: Value\n..." style messages into structured data
+function parseBracketMessage(message: string, prefix: string) {
+  if (!message.startsWith(prefix)) return null;
   const lines = message.split("\n");
-  const title = lines[0].replace("[Request Submitted]", "").trim();
+  const title = lines[0].replace(prefix, "").trim();
   const data: Record<string, string> = {};
+  lines.slice(1).forEach((line) => {
+    const colonIdx = line.indexOf(":");
+    if (colonIdx > -1) {
+      const key = line.slice(0, colonIdx).trim();
+      const val = line.slice(colonIdx + 1).trim();
+      data[key] = val;
+    }
+  });
+  return { title, ...data };
+}
+
+function parseRequestMessage(message: string) {
+  return parseBracketMessage(message, "[Request Submitted]");
+}
+
+function parseExpenseMessage(message: string) {
+  if (!message.startsWith("[Expense Request")) return null;
+  const lines = message.split("\n");
+  const firstLine = lines[0];
+  const bracketEnd = firstLine.indexOf("]");
+  if (bracketEnd === -1) return null;
+  const tag = firstLine.slice(1, bracketEnd);
+  const title = firstLine.slice(bracketEnd + 1).trim();
+  const data: Record<string, string> = { _tag: tag };
   lines.slice(1).forEach((line) => {
     const colonIdx = line.indexOf(":");
     if (colonIdx > -1) {
@@ -200,15 +226,41 @@ export default function InboxPage() {
 
       <div className="space-y-3">
         {rows.map((row) => {
-          const parsed = parseRequestMessage(row.message);
+          const isExpense = row.notification_type === "expense_request";
+          const parsedExpense = isExpense ? parseExpenseMessage(row.message) : null;
+          const parsed = !isExpense ? parseRequestMessage(row.message) : null;
+
+          const statusColor = parsedExpense?.["Status"]
+            ? parsedExpense["Status"].includes("Approved") || parsedExpense["Status"].includes("Paid")
+              ? "text-emerald-300"
+              : parsedExpense["Status"].includes("Rejected")
+              ? "text-red-300"
+              : "text-amber-300"
+            : "text-amber-300";
+
+          const borderColor = isExpense
+            ? parsedExpense?.["Status"]?.includes("Approved") || parsedExpense?.["Status"]?.includes("Paid")
+              ? "border-emerald-500"
+              : parsedExpense?.["Status"]?.includes("Rejected")
+              ? "border-red-500"
+              : "border-amber-500"
+            : "border-violet-500";
+
           return (
-          <div key={row.id} className={`${BLUSH_GLASS} p-4 ${!row.is_read ? "border-l-2 border-violet-500" : ""}`}>
+          <div key={row.id} className={`${BLUSH_GLASS} p-4 ${!row.is_read ? `border-l-2 ${borderColor}` : ""}`}>
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2">
-                {parsed
+                {isExpense
+                  ? <ClipboardList className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
+                  : parsed
                   ? <ClipboardList className="h-4 w-4 text-violet-400 shrink-0 mt-0.5" />
                   : <Bell className="h-4 w-4 text-neutral-400 shrink-0 mt-0.5" />
                 }
+                {isExpense && (
+                  <span className="rounded-full bg-emerald-500/15 border border-emerald-500/25 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                    Expense
+                  </span>
+                )}
                 <div className="text-xs text-neutral-400">{new Date(row.created_at).toLocaleString()}</div>
               </div>
               {!row.is_read ? (
@@ -228,7 +280,40 @@ export default function InboxPage() {
               )}
             </div>
 
-            {parsed ? (
+            {parsedExpense ? (
+              <div className="mt-3">
+                <div className="text-sm font-semibold text-emerald-300 mb-2">{parsedExpense.title}</div>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {parsedExpense["Date"] && (
+                    <div className="rounded-md bg-emerald-950/30 px-3 py-2">
+                      <div className="text-[10px] uppercase tracking-wide text-neutral-500">Expense Date</div>
+                      <div className="text-xs text-neutral-200">{parsedExpense["Date"]}</div>
+                    </div>
+                  )}
+                  {parsedExpense["Status"] && (
+                    <div className="rounded-md bg-emerald-950/30 px-3 py-2">
+                      <div className="text-[10px] uppercase tracking-wide text-neutral-500">Status</div>
+                      <div className={`text-xs font-medium ${statusColor}`}>{parsedExpense["Status"]}</div>
+                    </div>
+                  )}
+                  {parsedExpense["Reviewed by"] && (
+                    <div className="rounded-md bg-emerald-950/30 px-3 py-2">
+                      <div className="text-[10px] uppercase tracking-wide text-neutral-500">Reviewed by</div>
+                      <div className="text-xs text-neutral-200">{parsedExpense["Reviewed by"]}</div>
+                    </div>
+                  )}
+                  {parsedExpense["Note"] && (
+                    <div className="rounded-md bg-emerald-950/30 px-3 py-2 col-span-2 sm:col-span-3">
+                      <div className="text-[10px] uppercase tracking-wide text-neutral-500">Note</div>
+                      <div className="text-xs text-neutral-200">{parsedExpense["Note"]}</div>
+                    </div>
+                  )}
+                </div>
+                {parsedExpense["Request ID"] && (
+                  <div className="mt-2 text-[10px] text-neutral-500 font-mono">ID: {parsedExpense["Request ID"]}</div>
+                )}
+              </div>
+            ) : parsed ? (
               <div className="mt-3">
                 <div className="text-sm font-semibold text-violet-300 mb-2">{parsed.title}</div>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
