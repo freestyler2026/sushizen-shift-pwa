@@ -14,6 +14,7 @@ const SECTIONS = [
   { id: "request",  label: "Request",    emoji: "📝" },
   { id: "inbox",    label: "Inbox",      emoji: "📬" },
   { id: "expense",  label: "Expense",    emoji: "💳" },
+  { id: "overtime", label: "Overtime",   emoji: "⏰" },
   { id: "trouble",  label: "Help",       emoji: "🆘" },
 ];
 
@@ -457,6 +458,111 @@ export default function StaffGuidePage() {
 
             <Note>
               If your request is rejected, the reason will appear in your <span className="font-bold text-amber-300">Inbox</span>. You may correct and resubmit if needed.
+            </Note>
+
+          </SectionCard>
+        )}
+
+        {/* OVERTIME */}
+        {activeSection === "overtime" && (
+          <SectionCard title="Overtime Request" emoji="⏰" color="border-orange-800">
+
+            <Info>
+              If you need to work beyond your scheduled shift hours, you must submit an <span className="font-bold text-white">Overtime Request</span>. Your manager will review and approve or decline it. There are two types depending on <span className="font-bold text-white">when</span> you submit.
+            </Info>
+
+            {/* Two types */}
+            <div>
+              <p className="text-sm font-bold text-zinc-200 mb-2">Which type should I use?</p>
+              <div className="space-y-2">
+                <div className="rounded-xl border border-blue-500/40 bg-blue-950/30 px-4 py-3 space-y-1">
+                  <p className="text-sm font-bold text-blue-300">Pre-approval — Submit BEFORE working OT</p>
+                  <p className="text-sm text-zinc-300">Use this when you know in advance that you will need to stay late. Submit it <span className="font-bold text-white">before</span> the overtime starts so your manager can approve it first.</p>
+                  <p className="text-xs text-zinc-400 mt-1">Example: &quot;I need to finish closing prep tonight, may I stay until midnight?&quot;</p>
+                </div>
+                <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-4 py-3 space-y-1">
+                  <p className="text-sm font-bold text-amber-300">Post-report — Submit AFTER working OT</p>
+                  <p className="text-sm text-zinc-300">Use this to report overtime hours you have <span className="font-bold text-white">already worked</span>. Submit it as soon as possible after finishing — ideally the same day.</p>
+                  <p className="text-xs text-zinc-400 mt-1">Example: &quot;I stayed 2 hours late last night due to a rush — reporting the hours now.&quot;</p>
+                </div>
+              </div>
+            </div>
+
+            <Note>When possible, always use <span className="font-bold text-blue-300">Pre-approval</span>. Post-report OT may not always be approved if the reason is unclear.</Note>
+
+            {/* How to submit */}
+            <div>
+              <p className="text-sm font-bold text-zinc-200 mb-3">How to submit:</p>
+              <div className="space-y-3">
+                <Step num={1}>
+                  Tap <Tag>Overtime Request</Tag> in the left menu
+                </Step>
+                <Step num={2}>
+                  Choose the type:
+                  <div className="mt-1.5 flex gap-2">
+                    <span className="rounded-lg border border-blue-500/40 bg-blue-950/30 px-3 py-1 text-xs font-semibold text-blue-300">Pre-approval</span>
+                    <span className="rounded-lg border border-amber-500/40 bg-amber-950/30 px-3 py-1 text-xs font-semibold text-amber-300">Post-report</span>
+                  </div>
+                </Step>
+                <Step num={3}>
+                  Select your <span className="font-bold text-violet-300">Branch</span>
+                </Step>
+                <Step num={4}>
+                  Select the <span className="font-bold text-violet-300">Work Date</span> — the day the overtime is (or was) worked
+                </Step>
+                <Step num={5}>
+                  Set <span className="font-bold text-violet-300">OT Start Time</span> and <span className="font-bold text-violet-300">OT End Time</span>
+                  <div className="mt-1.5 rounded-lg bg-zinc-800 px-3 py-2 text-sm text-zinc-300">
+                    The total OT duration is calculated automatically and shown on screen. Midnight-crossing is supported (e.g. 23:00 → 01:00 = 2 hours).
+                  </div>
+                </Step>
+                <Step num={6}>
+                  Write a clear <span className="font-bold text-violet-300">Reason</span>
+                  <div className="mt-1.5 rounded-lg bg-zinc-800 px-3 py-2 text-sm text-zinc-300">
+                    <p className="text-xs text-zinc-400 mb-1">Good example:</p>
+                    <p className="italic text-zinc-300">&quot;Large event booking — needed extra time to prepare 50 sets before store opening&quot;</p>
+                    <p className="text-xs text-zinc-400 mt-2 mb-1">Poor example (likely to be declined):</p>
+                    <p className="italic text-red-300/70">&quot;Stayed late&quot;</p>
+                  </div>
+                </Step>
+                <Step num={7}>
+                  Tap <Tag color="bg-violet-700 text-violet-100">Submit Pre-approval Request</Tag> or <Tag color="bg-violet-700 text-violet-100">Submit OT Report</Tag>
+                </Step>
+              </div>
+            </div>
+
+            <Good>Request submitted! It will appear in your history below the form. Your manager will review it and the result will appear in your Inbox.</Good>
+
+            {/* Status guide */}
+            <div>
+              <p className="text-sm font-bold text-zinc-200 mb-2">Request status meanings:</p>
+              <div className="space-y-1.5">
+                {[
+                  { color: "bg-amber-500",   label: "Pending",  desc: "Waiting for your manager to review" },
+                  { color: "bg-emerald-500", label: "Approved", desc: "OT hours confirmed — will be processed in payroll" },
+                  { color: "bg-red-500",     label: "Rejected", desc: "Not approved — check your Inbox for the reason" },
+                ].map(({ color, label, desc }) => (
+                  <div key={label} className="flex items-center gap-3 rounded-lg bg-zinc-800 px-3 py-2">
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold text-white ${color}`}>{label}</span>
+                    <span className="text-zinc-300 text-sm">{desc}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Tips */}
+            <div className="rounded-xl bg-orange-950/40 border border-orange-500/30 px-4 py-3 space-y-2">
+              <p className="text-sm font-bold text-orange-300">💡 Tips</p>
+              <ul className="text-sm text-zinc-300 space-y-1.5 list-disc list-inside">
+                <li>Submit pre-approval <span className="font-bold text-white">before</span> the overtime whenever possible</li>
+                <li>Submit post-reports on the <span className="font-bold text-white">same day</span> you work OT — do not leave it for later</li>
+                <li>Enter the exact times you worked, not rounded estimates</li>
+                <li>Check your <span className="font-bold text-white">Inbox</span> for the manager&apos;s decision</li>
+              </ul>
+            </div>
+
+            <Note>
+              Working overtime without any request on record may result in the hours not being paid. Always submit — even if it is a Post-report after the fact.
             </Note>
 
           </SectionCard>
