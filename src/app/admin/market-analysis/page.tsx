@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { getAuth, getAuthHeaders } from "@/lib/auth";
+import "leaflet/dist/leaflet.css";
 
 type SpotResult = {
   rank: number;
@@ -56,16 +57,12 @@ export default function MarketAnalysisPage() {
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
 
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-    document.head.appendChild(link);
+    let ro: ResizeObserver | null = null;
 
     import("leaflet").then((L) => {
       if (!mapRef.current || mapInstanceRef.current) return;
       leafletRef.current = L;
 
-      // Fix default icon paths
       delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
       L.Icon.Default.mergeOptions({
         iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
@@ -80,16 +77,23 @@ export default function MarketAnalysisPage() {
       }).addTo(map);
 
       mapInstanceRef.current = map;
-      // Force layout recalculation so tiles render correctly
-      setTimeout(() => {
-        map.invalidateSize();
-      }, 100);
+
+      // ResizeObserver: re-layout map whenever container dimensions change
+      if (mapRef.current) {
+        ro = new ResizeObserver(() => map.invalidateSize());
+        ro.observe(mapRef.current);
+      }
+      // Belt-and-suspenders: explicit calls at 0 / 150 / 500ms
+      map.invalidateSize();
+      setTimeout(() => map.invalidateSize(), 150);
+      setTimeout(() => map.invalidateSize(), 500);
       setMapReady(true);
     });
 
     return () => {
+      ro?.disconnect();
       if (mapInstanceRef.current) {
-          (mapInstanceRef.current as import("leaflet").Map).remove();
+        (mapInstanceRef.current as import("leaflet").Map).remove();
         mapInstanceRef.current = null;
       }
     };
@@ -317,9 +321,9 @@ export default function MarketAnalysisPage() {
         {/* Map + Results side by side */}
         <div className="flex gap-4 flex-col lg:flex-row">
           {/* Map */}
-          <div className="relative flex-1">
+          <div className="relative min-w-0 flex-1" style={{ height: "520px" }}>
             {mode === "manual" && !pinLatLng && (
-              <div className="absolute inset-0 z-10 flex items-start justify-center pt-8 pointer-events-none">
+              <div className="absolute inset-x-0 top-8 z-10 flex justify-center pointer-events-none">
                 <div className="rounded-lg bg-black/70 px-4 py-2 text-sm text-neutral-300 backdrop-blur-sm">
                   Click anywhere on the map to place a pin
                 </div>
@@ -327,8 +331,7 @@ export default function MarketAnalysisPage() {
             )}
             <div
               ref={mapRef}
-              className="rounded-xl overflow-hidden border border-white/10 w-full"
-              style={{ height: "520px", minHeight: "520px" }}
+              className="absolute inset-0 rounded-xl overflow-hidden border border-white/10"
             />
           </div>
 
