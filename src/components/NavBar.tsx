@@ -96,6 +96,7 @@ import {
   canAccessCashManagementAdmin,
   canAccessMealAllowanceAdmin,
   canAccessProbationAdmin,
+  canAccessMarketAnalysisAdmin,
   canAccessAttendancePage,
   canAccessWeekPage,
   canAccessMyShiftPage,
@@ -354,7 +355,7 @@ export default function NavBar() {
     if (href === "/admin/daily-report") return canAccessAnalyticsAdmin(auth);
     if (href === "/admin/discord-inbox") return canAccessAdminNav(auth);
     if (href === "/admin/payroll") return canAccessPayrollAdmin(auth);
-    if (href === "/admin/market-analysis") return ["ADMIN", "HQ", "MANILA_MANAGEMENT"].includes(role);
+    if (href === "/admin/market-analysis") return canAccessMarketAnalysisAdmin(auth);
     return false;
   }
 
