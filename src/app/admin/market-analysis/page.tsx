@@ -73,13 +73,17 @@ export default function MarketAnalysisPage() {
         shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
       });
 
-      const map = L.map(mapRef.current).setView([14.5995, 120.9842], 12);
+      const map = L.map(mapRef.current, { zoomControl: true }).setView([14.5995, 120.9842], 12);
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "© OpenStreetMap contributors",
         maxZoom: 19,
       }).addTo(map);
 
       mapInstanceRef.current = map;
+      // Force layout recalculation so tiles render correctly
+      setTimeout(() => {
+        map.invalidateSize();
+      }, 100);
       setMapReady(true);
     });
 
@@ -323,8 +327,8 @@ export default function MarketAnalysisPage() {
             )}
             <div
               ref={mapRef}
-              className="rounded-xl overflow-hidden border border-white/10"
-              style={{ height: 480 }}
+              className="rounded-xl overflow-hidden border border-white/10 w-full"
+              style={{ height: "520px", minHeight: "520px" }}
             />
           </div>
 

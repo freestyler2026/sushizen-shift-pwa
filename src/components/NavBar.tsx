@@ -59,6 +59,7 @@ import {
   Factory,
   PhoneCall,
   Globe,
+  MapPin,
   TrendingUp,
   X,
   BookOpen,
@@ -215,6 +216,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/daily-report", label: "Daily Report", icon: CalendarDays, adminOnly: true, match: "prefix" },
   { href: "/admin/discord-inbox", label: "Discord Inbox", icon: MessageSquare, adminOnly: true, match: "prefix" },
   { href: "/admin/payroll", label: "Payroll", icon: Banknote, adminOnly: true, match: "prefix" },
+  { href: "/admin/market-analysis", label: "Market Analysis", icon: MapPin, adminOnly: true, match: "prefix" },
   { href: "/investor", label: "FOCO Investor Portal", icon: TrendingUp, adminOnly: true, match: "prefix", external: true },
 ];
 
@@ -352,6 +354,7 @@ export default function NavBar() {
     if (href === "/admin/daily-report") return canAccessAnalyticsAdmin(auth);
     if (href === "/admin/discord-inbox") return canAccessAdminNav(auth);
     if (href === "/admin/payroll") return canAccessPayrollAdmin(auth);
+    if (href === "/admin/market-analysis") return ["ADMIN", "HQ", "MANILA_MANAGEMENT"].includes(role);
     return false;
   }
 
