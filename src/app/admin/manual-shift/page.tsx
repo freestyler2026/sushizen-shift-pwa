@@ -18,7 +18,7 @@ const W_CTRL = "rounded-2xl border border-gray-200 bg-white shadow-sm p-5";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type ShiftCell = { start_hour: number; end_hour: number; role: string; note?: string };
+type ShiftCell = { start_hour: number; end_hour: number; role: string; branch_code?: string; note?: string };
 type GridData = Record<string, Record<string, ShiftCell | ShiftCell[] | null>>; // staffName → dateStr → cell(s)
 
 /** Normalise a grid cell to an array (empty for null/undefined). */
@@ -427,6 +427,7 @@ export default function ManualShiftPage() {
   const [editNote, setEditNote] = useState("");
   const [timeError, setTimeError] = useState("");
   const [editShiftIndex, setEditShiftIndex] = useState<number | null>(null);
+  const [editBranchCode, setEditBranchCode] = useState<string>(branchCode);
   const [bayzatResult, setBayzatResult] = useState<BayzatResult | null>(null);
   const [bayzatImporting, setBayzatImporting] = useState(false);
   const [bayzatAllApplied, setBayzatAllApplied] = useState<string[] | null>(null);
@@ -684,6 +685,7 @@ export default function ManualShiftPage() {
     setEditShiftIndex(index);
     setTimeError("");
     setEditNote(shift?.note ?? "");
+    setEditBranchCode(shift?.branch_code ?? branchCode);
     if (shift && isSpecialRole(shift.role)) {
       setEditMode("special");
       setEditSpecialType(shift.role as SpecialRole);
@@ -734,7 +736,7 @@ export default function ManualShiftPage() {
     }
     const role = editRole === "OTHER" ? editCustomRole.trim() : editRole;
     if (!role) return;
-    const newShift: ShiftCell = { start_hour: editStart, end_hour: editEnd, role, note };
+    const newShift: ShiftCell = { start_hour: editStart, end_hour: editEnd, role, branch_code: editBranchCode || undefined, note };
     setGridData((prev) => {
       const raw = prev[staffName]?.[dateStr];
       const existing = cellsOf(raw);
@@ -1527,6 +1529,9 @@ export default function ManualShiftPage() {
                                             {fmtHour(c.start_hour)}–{fmtHour(c.end_hour)}
                                           </div>
                                           <div className={`text-[10px] ${tc.role}`}>{c.role}</div>
+                                          {c.branch_code && (
+                                            <div className="mt-0.5 truncate text-[9px] font-semibold text-indigo-300 opacity-80">{c.branch_code}</div>
+                                          )}
                                           {c.note && (
                                             <div className="mt-0.5 truncate text-[9px] opacity-50">{c.note}</div>
                                           )}
@@ -1678,6 +1683,9 @@ export default function ManualShiftPage() {
                       <div className="min-w-0">
                         <span className="text-xs font-semibold text-white">{fmtHour(s.start_hour)}–{fmtHour(s.end_hour)}</span>
                         <span className="ml-2 text-[10px] text-neutral-400">{s.role}</span>
+                        {s.branch_code && (
+                          <span className="ml-1.5 rounded bg-indigo-900/60 px-1.5 py-0.5 text-[9px] font-semibold text-indigo-300">{s.branch_code}</span>
+                        )}
                       </div>
                       <div className="flex shrink-0 gap-1">
                         <button
@@ -1782,6 +1790,18 @@ export default function ManualShiftPage() {
                       onChange={(e) => setEditCustomRole(e.target.value)}
                     />
                   )}
+                  <div className="mb-2.5 flex items-center gap-3">
+                    <label className="w-12 shrink-0 text-[11px] font-medium text-neutral-400">Branch</label>
+                    <select
+                      className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-2.5 py-2 text-xs text-white focus:border-violet-500 focus:outline-none"
+                      value={editBranchCode}
+                      onChange={(e) => setEditBranchCode(e.target.value)}
+                    >
+                      {BRANCHES[city].map((b) => (
+                        <option key={b.code} value={b.code}>{b.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </>
               ) : (
                 <div className="mb-2.5 flex flex-col gap-2">
