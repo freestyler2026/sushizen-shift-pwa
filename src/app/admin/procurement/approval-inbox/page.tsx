@@ -43,7 +43,20 @@ type CaseRow = {
   city?: string;
   request_date?: string;
   vendor_names?: string;
+  is_ck_order?: boolean;
+  is_wh_order?: boolean;
 };
+
+type DestFilter = "ALL" | "CK" | "WH" | "Supplier";
+
+function getDestType(row: CaseRow): "CK" | "WH" | "Supplier" {
+  if (row.is_ck_order) return "CK";
+  if (row.is_wh_order) return "WH";
+  const v = (row.vendor_names || "").toLowerCase();
+  if (v.includes("central kitchen")) return "CK";
+  if (v.includes("warehouse")) return "WH";
+  return "Supplier";
+}
 
 function severityBadge(severity: string) {
   const s = String(severity || "").toUpperCase();
@@ -80,8 +93,14 @@ export default function ProcurementApprovalInboxPage() {
   const [busyId, setBusyId] = useState("");
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<"needs_approval" | "awaiting_execution">("needs_approval");
+  const [destFilter, setDestFilter] = useState<DestFilter>("ALL");
 
   const APPROVAL_THRESHOLD = city === "dubai" ? 500 : 15000;
+
+  function applyDestFilter(list: CaseRow[]): CaseRow[] {
+    if (destFilter === "ALL") return list;
+    return list.filter((r) => getDestType(r) === destFilter);
+  }
 
   // "Needs Approval": open cases not yet approved/rejected/returned
   const needsApprovalRows = useMemo(
@@ -288,6 +307,46 @@ export default function ProcurementApprovalInboxPage() {
         </button>
       </div>
 
+      {/* Destination filter chips */}
+      {(() => {
+        const baseRows = activeTab === "needs_approval" ? needsApprovalRows : awaitingExecutionRows;
+        const counts: Record<DestFilter, number> = {
+          ALL: baseRows.length,
+          CK: baseRows.filter((r) => getDestType(r) === "CK").length,
+          WH: baseRows.filter((r) => getDestType(r) === "WH").length,
+          Supplier: baseRows.filter((r) => getDestType(r) === "Supplier").length,
+        };
+        const chips: { key: DestFilter; label: string; color: string; activeColor: string }[] = [
+          { key: "ALL",      label: "All",      color: "border-white/10 bg-white/5 text-zinc-300",          activeColor: "border-violet-500/50 bg-violet-500/20 text-violet-200" },
+          { key: "CK",       label: "CK",       color: "border-white/10 bg-white/5 text-zinc-300",          activeColor: "border-sky-500/50 bg-sky-500/20 text-sky-200" },
+          { key: "WH",       label: "WH",       color: "border-white/10 bg-white/5 text-zinc-300",          activeColor: "border-emerald-500/50 bg-emerald-500/20 text-emerald-200" },
+          { key: "Supplier", label: "Supplier", color: "border-white/10 bg-white/5 text-zinc-300",          activeColor: "border-amber-500/50 bg-amber-500/20 text-amber-200" },
+        ];
+        return (
+          <div className="flex flex-wrap items-center gap-2">
+            {chips.map(({ key, label, color, activeColor }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setDestFilter(key)}
+                className={[
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all",
+                  destFilter === key ? activeColor : color,
+                ].join(" ")}
+              >
+                {label}
+                <span className={[
+                  "rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none",
+                  destFilter === key ? "bg-white/20" : "bg-white/8 text-zinc-400",
+                ].join(" ")}>
+                  {counts[key]}
+                </span>
+              </button>
+            ))}
+          </div>
+        );
+      })()}
+
       {/* Loading skeleton */}
       {loading && !rows.length && (
         <div className={`${GLASS_CARD} p-8 flex items-center justify-center gap-3 text-zinc-500`}>
@@ -297,25 +356,27 @@ export default function ProcurementApprovalInboxPage() {
       )}
 
       {/* Case list */}
-      {!loading && activeTab === "needs_approval" && !needsApprovalRows.length && (
+      {!loading && activeTab === "needs_approval" && !applyDestFilter(needsApprovalRows).length && (
         <div className={`${GLASS_CARD} p-10 flex flex-col items-center gap-3`}>
           <Inbox className="h-8 w-8 text-zinc-600" />
-          <p className={T_CAPTION}>No pending approval cases.</p>
+          <p className={T_CAPTION}>{destFilter === "ALL" ? "No pending approval cases." : `No pending cases for ${destFilter}.`}</p>
         </div>
       )}
 
-      {!loading && activeTab === "awaiting_execution" && !awaitingExecutionRows.length && (
+      {!loading && activeTab === "awaiting_execution" && !applyDestFilter(awaitingExecutionRows).length && (
         <div className={`${GLASS_CARD} p-10 flex flex-col items-center gap-3`}>
           <Inbox className="h-8 w-8 text-zinc-600" />
-          <p className={T_CAPTION}>No approved orders awaiting execution.</p>
-          <p className="text-xs text-zinc-500 text-center max-w-xs">
-            Cash &amp; Carry and EC orders that have been approved but not yet purchased will appear here.
-          </p>
+          <p className={T_CAPTION}>{destFilter === "ALL" ? "No approved orders awaiting execution." : `No awaiting execution cases for ${destFilter}.`}</p>
+          {destFilter === "ALL" && (
+            <p className="text-xs text-zinc-500 text-center max-w-xs">
+              Cash &amp; Carry and EC orders that have been approved but not yet purchased will appear here.
+            </p>
+          )}
         </div>
       )}
 
       <div className="space-y-3">
-        {(activeTab === "needs_approval" ? needsApprovalRows : awaitingExecutionRows).map((row) => {
+        {applyDestFilter(activeTab === "needs_approval" ? needsApprovalRows : awaitingExecutionRows).map((row) => {
           const isHighValue = Number(row.total_amount || 0) > APPROVAL_THRESHOLD;
           const hasPushFail = Number(row.notification_failed_count || 0) > 0;
           return (
@@ -339,6 +400,12 @@ export default function ProcurementApprovalInboxPage() {
                       {row.parent_case_no || row.request_no}
                     </span>
                     {statusBadge(row.status)}
+                    {(() => {
+                      const dt = getDestType(row);
+                      if (dt === "CK")  return <span className="rounded-full border border-sky-500/40 bg-sky-500/15 px-2 py-0.5 text-[11px] font-semibold text-sky-300">CK</span>;
+                      if (dt === "WH")  return <span className="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-300">WH</span>;
+                      return <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-300">Supplier</span>;
+                    })()}
                     {activeTab === "awaiting_execution" && (
                       <span className="rounded-full border border-amber-500/40 bg-amber-950/30 px-2 py-0.5 text-[11px] font-semibold text-amber-300">
                         ⚡ Action Required
