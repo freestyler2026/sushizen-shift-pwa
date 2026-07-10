@@ -359,36 +359,106 @@ export default function StaffGuidePage() {
         {/* EXPENSE */}
         {activeSection === "expense" && (
           <SectionCard title="Expense Reimbursement" emoji="💳" color="border-violet-800">
-            <Info>Submit work-related expenses for reimbursement. HQ will review your request.</Info>
-            <div className="space-y-3">
-              <Step num={1}>Tap <Tag>Expense Reimbursement</Tag> in the menu</Step>
-              <Step num={2}>
-                <div>
-                  Select a category:
-                  <div className="mt-2 grid grid-cols-2 gap-1.5">
-                    {[
-                      ["Ingredients", "food / ingredients"],
-                      ["Transport",   "transport costs"],
-                      ["Uniform",     "uniform items"],
-                      ["Equipment",   "tools / equipment"],
-                      ["Mobile",      "phone expenses"],
-                      ["Other",       "anything else"],
-                    ].map(([l, d]) => (
-                      <div key={l} className="rounded-lg bg-zinc-800 px-3 py-2">
-                        <div className="text-violet-300 font-mono text-xs">{l}</div>
-                        <div className="text-zinc-400 text-xs">{d}</div>
-                      </div>
-                    ))}
+
+            <Info>
+              If you paid for something out of your own pocket for work, you can request the company to pay you back. This is called an <span className="font-bold text-white">expense reimbursement</span>. Your manager will review and approve or decline each request.
+            </Info>
+
+            {/* What you can claim */}
+            <div>
+              <p className="text-sm font-bold text-zinc-200 mb-2">What you can submit:</p>
+              <div className="grid grid-cols-1 gap-1.5">
+                {[
+                  { cat: "Ingredients",  emoji: "🥩", ex: "Items you bought for the store because we ran out" },
+                  { cat: "Transport",    emoji: "🚌", ex: "Bus, train, taxi fare for work travel (not commuting)" },
+                  { cat: "Uniform",      emoji: "👕", ex: "Uniform items purchased on instruction from management" },
+                  { cat: "Equipment",    emoji: "🔧", ex: "Small tools or supplies needed for your job" },
+                  { cat: "Mobile",       emoji: "📱", ex: "Work-related phone expenses (e.g. data used for work calls)" },
+                  { cat: "Other",        emoji: "📋", ex: "Anything else — explain clearly in the description" },
+                ].map(({ cat, emoji, ex }) => (
+                  <div key={cat} className="flex gap-3 rounded-lg bg-zinc-800 px-3 py-2.5 items-start">
+                    <span className="text-xl shrink-0">{emoji}</span>
+                    <div>
+                      <span className="text-violet-300 font-semibold text-sm">{cat}</span>
+                      <p className="text-zinc-400 text-xs mt-0.5">{ex}</p>
+                    </div>
                   </div>
-                </div>
-              </Step>
-              <Step num={3}>Enter the amount (Dubai → AED / Manila → PHP)</Step>
-              <Step num={4}>Select the date the expense occurred</Step>
-              <Step num={5}>Add a description if needed (optional)</Step>
-              <Step num={6}>Tap <Tag color="bg-violet-700 text-violet-100">Submit Request</Tag></Step>
+                ))}
+              </div>
             </div>
-            <Good>Request submitted! Confirmation and the review result will appear in your Inbox.</Good>
-            <Note>Submit one expense per request. Multiple expenses must be submitted separately.</Note>
+
+            <Note>
+              Regular daily commuting costs are <span className="font-bold">NOT</span> reimbursable. Only submit expenses that were directly required for your work duties.
+            </Note>
+
+            {/* How to submit */}
+            <div>
+              <p className="text-sm font-bold text-zinc-200 mb-3">How to submit:</p>
+              <div className="space-y-3">
+                <Step num={1}>
+                  Tap <Tag>Expense Reimbursement</Tag> in the left menu
+                </Step>
+                <Step num={2}>
+                  Select the <span className="font-bold text-violet-300">Category</span> that best fits your expense from the dropdown
+                </Step>
+                <Step num={3}>
+                  Enter the <span className="font-bold text-violet-300">Amount</span>
+                  <div className="mt-1.5 flex gap-2">
+                    <span className="rounded bg-zinc-800 px-2 py-1 text-xs text-zinc-300">Dubai → AED</span>
+                    <span className="rounded bg-zinc-800 px-2 py-1 text-xs text-zinc-300">Manila → PHP</span>
+                  </div>
+                </Step>
+                <Step num={4}>
+                  Select the <span className="font-bold text-violet-300">Expense Date</span> — the day you actually paid, not today
+                </Step>
+                <Step num={5}>
+                  Write a clear <span className="font-bold text-violet-300">Description</span>
+                  <div className="mt-1.5 rounded-lg bg-zinc-800 px-3 py-2 text-sm text-zinc-300">
+                    <p className="text-xs text-zinc-400 mb-1">Example:</p>
+                    <p className="italic text-zinc-300">&quot;Bought 2 kg salmon from supermarket because we ran out before closing — receipt available&quot;</p>
+                  </div>
+                </Step>
+                <Step num={6}>
+                  Tap <Tag color="bg-violet-700 text-violet-100">Submit Request</Tag>
+                </Step>
+              </div>
+            </div>
+
+            <Good>Request submitted! You will see it in your request history below the form. Check your Inbox for the manager&apos;s decision.</Good>
+
+            {/* Status guide */}
+            <div>
+              <p className="text-sm font-bold text-zinc-200 mb-2">Request status meanings:</p>
+              <div className="space-y-1.5">
+                {[
+                  { color: "bg-amber-500",  label: "Pending",  desc: "Waiting for your manager to review" },
+                  { color: "bg-emerald-500",label: "Approved", desc: "Manager approved — will be included in your next payroll" },
+                  { color: "bg-blue-500",   label: "Paid",     desc: "The amount has been added to your salary" },
+                  { color: "bg-red-500",    label: "Rejected", desc: "Not approved — check your Inbox for the reason" },
+                ].map(({ color, label, desc }) => (
+                  <div key={label} className="flex items-center gap-3 rounded-lg bg-zinc-800 px-3 py-2">
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold text-white ${color}`}>{label}</span>
+                    <span className="text-zinc-300 text-sm">{desc}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Tips */}
+            <div className="rounded-xl bg-indigo-950/40 border border-indigo-500/30 px-4 py-3 space-y-2">
+              <p className="text-sm font-bold text-indigo-300">💡 Tips for faster approval</p>
+              <ul className="text-sm text-zinc-300 space-y-1.5 list-disc list-inside">
+                <li>Keep your receipt — your manager may ask for a photo of it</li>
+                <li>Submit as soon as possible after the expense (same day is best)</li>
+                <li>One expense per submission — do not combine multiple items into one request</li>
+                <li>Write a specific description — vague reasons are often declined</li>
+              </ul>
+            </div>
+
+            <Note>
+              If your request is rejected, the reason will appear in your <span className="font-bold text-amber-300">Inbox</span>. You may correct and resubmit if needed.
+            </Note>
+
           </SectionCard>
         )}
 
