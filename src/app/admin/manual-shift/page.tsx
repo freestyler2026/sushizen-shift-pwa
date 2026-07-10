@@ -426,6 +426,7 @@ export default function ManualShiftPage() {
   const [editSpecialType, setEditSpecialType] = useState<SpecialRole>("DAY_OFF");
   const [editNote, setEditNote] = useState("");
   const [timeError, setTimeError] = useState("");
+  const [editShiftIndex, setEditShiftIndex] = useState<number | null>(null);
   const [bayzatResult, setBayzatResult] = useState<BayzatResult | null>(null);
   const [bayzatImporting, setBayzatImporting] = useState(false);
   const [bayzatAllApplied, setBayzatAllApplied] = useState<string[] | null>(null);
@@ -679,21 +680,18 @@ export default function ManualShiftPage() {
     setTimeError("");
   }
 
-  function openEdit(staffName: string, dateStr: string, e: React.MouseEvent) {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setEditCellRect(rect);
-    const raw = gridData[staffName]?.[dateStr];
-    const existing = Array.isArray(raw) ? raw[0] : raw;
+  function loadShiftIntoForm(shift: ShiftCell | null, index: number | null) {
+    setEditShiftIndex(index);
     setTimeError("");
-    setEditNote(existing?.note ?? "");
-    if (existing && isSpecialRole(existing.role)) {
+    setEditNote(shift?.note ?? "");
+    if (shift && isSpecialRole(shift.role)) {
       setEditMode("special");
-      setEditSpecialType(existing.role as SpecialRole);
+      setEditSpecialType(shift.role as SpecialRole);
     } else {
       setEditMode("shift");
-      setEditStart(existing?.start_hour ?? 9);
-      setEditEnd(existing?.end_hour ?? 17);
-      const role = existing?.role ?? getRoleOptions(city)[0];
+      setEditStart(shift?.start_hour ?? 9);
+      setEditEnd(shift?.end_hour ?? 17);
+      const role = shift?.role ?? getRoleOptions(city)[0];
       if (getRoleOptions(city).includes(role)) {
         setEditRole(role);
         setEditCustomRole("");
@@ -702,6 +700,15 @@ export default function ManualShiftPage() {
         setEditCustomRole(role);
       }
     }
+  }
+
+  function openEdit(staffName: string, dateStr: string, e: React.MouseEvent) {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setEditCellRect(rect);
+    const raw = gridData[staffName]?.[dateStr];
+    const shifts = cellsOf(raw);
+    // Load first shift for editing if exists, otherwise open blank form
+    loadShiftIntoForm(shifts[0] ?? null, shifts.length > 0 ? 0 : null);
     setEditTarget({ staffName, dateStr });
   }
 
@@ -727,12 +734,36 @@ export default function ManualShiftPage() {
     }
     const role = editRole === "OTHER" ? editCustomRole.trim() : editRole;
     if (!role) return;
-    setGridData((prev) => ({
-      ...prev,
-      [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: { start_hour: editStart, end_hour: editEnd, role, note } },
-    }));
+    const newShift: ShiftCell = { start_hour: editStart, end_hour: editEnd, role, note };
+    setGridData((prev) => {
+      const raw = prev[staffName]?.[dateStr];
+      const existing = cellsOf(raw);
+      let updated: ShiftCell | ShiftCell[];
+      if (editShiftIndex === null) {
+        const next = [...existing, newShift];
+        updated = next.length === 1 ? next[0] : next;
+      } else {
+        const next = existing.map((s, i) => i === editShiftIndex ? newShift : s);
+        updated = next.length === 1 ? next[0] : next;
+      }
+      return { ...prev, [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: updated } };
+    });
     setHasDraft(true);
     closeEdit();
+  }
+
+  function removeShiftSegment(staffName: string, dateStr: string, index: number) {
+    setGridData((prev) => {
+      const raw = prev[staffName]?.[dateStr];
+      const existing = cellsOf(raw);
+      const next = existing.filter((_, i) => i !== index);
+      let updated: ShiftCell | ShiftCell[] | null;
+      if (next.length === 0) updated = null;
+      else if (next.length === 1) updated = next[0];
+      else updated = next;
+      return { ...prev, [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: updated } };
+    });
+    setHasDraft(true);
   }
 
   function clearCell(staffName: string, dateStr: string) {
@@ -1183,9 +1214,9 @@ export default function ManualShiftPage() {
   const W_INPUT = "w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100";
   const W_SELECT = "w-full appearance-none cursor-pointer rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100";
 
-  // Derive the cell currently being edited (for delete button in modal)
+  // Derive the shifts in the cell currently being edited (for delete button + segment list)
   const editingCellRaw = editTarget ? (gridData[editTarget.staffName]?.[editTarget.dateStr] ?? null) : null;
-  const editingCell = Array.isArray(editingCellRaw) ? editingCellRaw[0] : editingCellRaw;
+  const editingCellShifts = cellsOf(editingCellRaw);
 
   return (
     // White background — this page only
@@ -1635,6 +1666,51 @@ export default function ManualShiftPage() {
                 </button>
               </div>
 
+              {/* Existing shift segments list */}
+              {editingCellShifts.length > 0 && (
+                <div className="mb-3 space-y-1.5">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Shifts on this day</p>
+                  {editingCellShifts.map((s, i) => (
+                    <div
+                      key={i}
+                      className={`flex items-center justify-between rounded-lg border px-3 py-2 ${editShiftIndex === i ? "border-violet-500/50 bg-violet-900/30" : "border-white/10 bg-white/5"}`}
+                    >
+                      <div className="min-w-0">
+                        <span className="text-xs font-semibold text-white">{fmtHour(s.start_hour)}–{fmtHour(s.end_hour)}</span>
+                        <span className="ml-2 text-[10px] text-neutral-400">{s.role}</span>
+                      </div>
+                      <div className="flex shrink-0 gap-1">
+                        <button
+                          type="button"
+                          onClick={() => loadShiftIntoForm(s, i)}
+                          className="rounded-md px-2 py-1 text-[10px] text-violet-400 hover:bg-violet-900/30 transition"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            removeShiftSegment(editTarget.staffName, editTarget.dateStr, i);
+                            if (editShiftIndex === i) loadShiftIntoForm(null, null);
+                            else if (editShiftIndex !== null && editShiftIndex > i) setEditShiftIndex(editShiftIndex - 1);
+                          }}
+                          className="rounded-md px-2 py-1 text-[10px] text-rose-400 hover:bg-rose-900/30 transition"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => loadShiftIntoForm(null, null)}
+                    className="w-full rounded-lg border border-dashed border-white/20 py-1.5 text-[11px] text-neutral-500 hover:border-violet-500/40 hover:text-violet-400 transition"
+                  >
+                    + Add another shift segment
+                  </button>
+                </div>
+              )}
+
               {/* Mode tabs */}
               <div className="mb-4 flex rounded-xl border border-white/10 bg-white/5 p-0.5">
                 <button
@@ -1746,16 +1822,16 @@ export default function ManualShiftPage() {
                 >
                   Save
                 </button>
-                {editingCell && (
+                {editingCellShifts.length > 0 && (
                   <button
                     type="button"
                     onClick={() => {
-                      if (!window.confirm(`Delete shift for ${editTarget.staffName} on ${formatDate(editTarget.dateStr)}?`)) return;
+                      if (!window.confirm(`Delete all shifts for ${editTarget.staffName} on ${formatDate(editTarget.dateStr)}?`)) return;
                       void deletePublishedShift(editTarget.staffName, editTarget.dateStr);
                     }}
                     disabled={!!(deletingCell?.staffName === editTarget.staffName && deletingCell?.dateStr === editTarget.dateStr)}
                     className="rounded-xl border border-rose-500/30 bg-rose-950/20 px-3 py-2.5 text-xs text-rose-400 hover:bg-rose-900/30 disabled:opacity-40 transition"
-                    title="Delete this shift"
+                    title="Delete all shifts for this day"
                   >
                     {deletingCell?.staffName === editTarget.staffName && deletingCell?.dateStr === editTarget.dateStr ? "…" : "🗑"}
                   </button>
