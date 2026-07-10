@@ -226,6 +226,23 @@ export default function MyShiftPage() {
   const selectedAbsenceRows = selectedRows.filter((row) => isAbsenceRow(row));
   const monthlyRows = data?.monthly_rows || [];
   const monthlyShiftRows = monthlyRows.filter((row) => !isAbsenceRow(row));
+
+  // Group shift rows by date so spread shifts appear as one card per day
+  const monthlyShiftGroups = useMemo(() => {
+    const map = new Map<string, ShiftRow[]>();
+    for (const row of monthlyShiftRows) {
+      const existing = map.get(row.work_date) ?? [];
+      existing.push(row);
+      map.set(row.work_date, existing);
+    }
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, rows]) => ({
+        date,
+        rows,
+        totalHours: rows.reduce((sum, r) => sum + shiftHours(r.start_hour, r.end_hour), 0),
+      }));
+  }, [monthlyShiftRows]);
   const selectedDaySummary = useMemo(() => {
     if (!selectedWorkRows.length) return null;
     let minStart = Number.POSITIVE_INFINITY;
@@ -592,34 +609,51 @@ export default function MyShiftPage() {
           ) : (
             <>
               <div className="mt-4 grid gap-2 sm:hidden">
-                {monthlyShiftRows.map((row, idx) => (
+                {monthlyShiftGroups.map((group) => (
                   <div
-                    key={`${row.work_date}-${row.branch_code}-${idx}`}
-                    onClick={() => setSelectedDate(row.work_date)}
+                    key={group.date}
+                    onClick={() => setSelectedDate(group.date)}
                     className={`cursor-pointer rounded-2xl border p-3 transition ${
-                      row.work_date === selectedDate
+                      group.date === selectedDate
                         ? "border-violet-400/40 bg-violet-600/15 ring-1 ring-violet-400/20"
                         : "border-white/8 bg-white/5 hover:border-violet-400/30 hover:bg-violet-950/40"
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="text-sm font-semibold text-white">{dateLabel(row.work_date)}</div>
-                          <span className="rounded-full bg-black/20 px-2 py-0.5 text-[10px] font-medium text-neutral-300">
-                            {weekdayShort(row.work_date)}
-                          </span>
-                        </div>
-                        <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-white/8 bg-black/15 px-2 py-0.5 text-[11px] text-neutral-300">
-                          <MapPin className="h-3 w-3 text-violet-300" />
-                          {row.branch_code || "Store"}
-                        </div>
-                        <div className="mt-2 text-xs text-neutral-400">{row.role || "Shift"}</div>
+                    {/* Date header row */}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex flex-wrap items-center gap-2 min-w-0">
+                        <div className="text-sm font-semibold text-white">{dateLabel(group.date)}</div>
+                        <span className="rounded-full bg-black/20 px-2 py-0.5 text-[10px] font-medium text-neutral-300">
+                          {weekdayShort(group.date)}
+                        </span>
                       </div>
                       <div className="shrink-0 text-right">
-                        <div className="text-sm font-semibold text-white">{hoursLabel(row.start_hour, row.end_hour)}</div>
-                        <div className="mt-1 text-base font-bold text-emerald-300">{shiftHours(row.start_hour, row.end_hour)}h</div>
+                        <div className="text-base font-bold text-emerald-300">{group.totalHours}h</div>
                       </div>
+                    </div>
+
+                    {/* Shift segments */}
+                    <div className={`mt-2 space-y-1.5 ${group.rows.length > 1 ? "border-t border-white/8 pt-2" : ""}`}>
+                      {group.rows.map((row, idx) => (
+                        <div
+                          key={idx}
+                          className={`flex items-center justify-between gap-3 ${
+                            group.rows.length > 1 ? "rounded-xl bg-white/5 px-2.5 py-2" : ""
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <div className="inline-flex items-center gap-1.5 rounded-full border border-white/8 bg-black/15 px-2 py-0.5 text-[11px] text-neutral-300">
+                              <MapPin className="h-3 w-3 text-violet-300" />
+                              {row.branch_code || "Store"}
+                            </div>
+                            <div className="mt-1 text-xs text-neutral-400">{row.role || "Shift"}</div>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <div className="text-sm font-semibold text-white">{hoursLabel(row.start_hour, row.end_hour)}</div>
+                            <div className="mt-0.5 text-sm font-bold text-emerald-300">{shiftHours(row.start_hour, row.end_hour)}h</div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))}
@@ -631,27 +665,35 @@ export default function MyShiftPage() {
                     <tr>
                       <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Date</th>
                       <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Day</th>
+                      <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Branch</th>
                       <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Start</th>
                       <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">End</th>
                       <th className="pb-3 text-left text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Hours</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {monthlyShiftRows.map((row, idx) => (
-                      <tr
-                        key={`${row.work_date}-${row.branch_code}-${idx}`}
-                        onClick={() => setSelectedDate(row.work_date)}
-                        className={`cursor-pointer border-t border-white/5 transition-colors duration-150 ${
-                          row.work_date === selectedDate ? "bg-violet-500/10" : "hover:bg-violet-950/45"
-                        }`}
-                      >
-                        <td className="py-3 text-sm text-zinc-200">{row.work_date}</td>
-                        <td className="py-3 text-sm text-zinc-400">{weekdayShort(row.work_date)}</td>
-                        <td className="py-3 text-sm font-medium text-white">{formatHourLabel(row.start_hour)}</td>
-                        <td className="py-3 text-sm font-medium text-white">{formatHourLabel(Number(row.end_hour || 0) < Number(row.start_hour || 0) ? Number(row.end_hour || 0) + 24 : Number(row.end_hour || 0))}</td>
-                        <td className="py-3 text-sm font-medium text-emerald-400">{shiftHours(row.start_hour, row.end_hour)}h</td>
-                      </tr>
-                    ))}
+                    {monthlyShiftGroups.map((group) =>
+                      group.rows.map((row, segIdx) => (
+                        <tr
+                          key={`${group.date}-${segIdx}`}
+                          onClick={() => setSelectedDate(group.date)}
+                          className={`cursor-pointer border-t transition-colors duration-150 ${
+                            segIdx === 0 ? "border-white/8" : "border-white/3"
+                          } ${group.date === selectedDate ? "bg-violet-500/10" : "hover:bg-violet-950/45"}`}
+                        >
+                          <td className="py-2.5 text-sm text-zinc-200">
+                            {segIdx === 0 ? group.date : ""}
+                          </td>
+                          <td className="py-2.5 text-sm text-zinc-400">
+                            {segIdx === 0 ? weekdayShort(group.date) : ""}
+                          </td>
+                          <td className="py-2.5 text-sm text-zinc-400">{row.branch_code || "—"}</td>
+                          <td className="py-2.5 text-sm font-medium text-white">{formatHourLabel(row.start_hour)}</td>
+                          <td className="py-2.5 text-sm font-medium text-white">{formatHourLabel(Number(row.end_hour || 0) < Number(row.start_hour || 0) ? Number(row.end_hour || 0) + 24 : Number(row.end_hour || 0))}</td>
+                          <td className="py-2.5 text-sm font-medium text-emerald-400">{shiftHours(row.start_hour, row.end_hour)}h</td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
