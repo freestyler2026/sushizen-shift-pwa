@@ -743,10 +743,26 @@ function EditModal({
       } else {
         body.check_out_at = "";
       }
-      const r = await apiFetch(`${API}/sessions/${session.id}`, {
-        method: "PATCH",
-        body: JSON.stringify(body),
-      });
+      let r: Response;
+      if (session.is_no_show) {
+        // No Show: create a brand-new session via POST
+        r = await apiFetch(`${API}/sessions`, {
+          method: "POST",
+          body: JSON.stringify({
+            city: session.city,
+            staff_name: session.staff_name,
+            work_date: session.work_date,
+            branch_code: session.branch_code ?? "",
+            ...body,
+          }),
+        });
+      } else {
+        // Existing session: update via PATCH
+        r = await apiFetch(`${API}/sessions/${session.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        });
+      }
       if (!r.ok) { setErr(await extractApiError(r, "Failed to save changes")); return; }
       const d = await r.json() as { session?: Partial<AttendanceSession> };
       // Merge: d.session has updated times, keep visits from local state, carry note from form
@@ -983,7 +999,14 @@ function DailyReportTab({ city }: { city: string }) {
   }
 
   function handleSaved(updated: AttendanceSession) {
-    setSessions(prev => prev.map(s => s.id === updated.id ? updated : s));
+    setSessions(prev => prev.map(s => {
+      if (s.id === updated.id) return updated;
+      // No-show row replaced by a newly created real session
+      if (s.is_no_show && s.staff_name === updated.staff_name && s.work_date === updated.work_date) {
+        return { ...updated, is_no_show: false };
+      }
+      return s;
+    }));
     setEditingSession(null);
   }
 
@@ -1200,18 +1223,18 @@ function DailyReportTab({ city }: { city: string }) {
                         ) : <span className="text-white/20 text-xs">—</span>}
                       </td>
                       <td className={`${cellCls} pr-3`}>
-                        {!s.is_no_show && (
-                          <div className="flex gap-1">
-                            <button onClick={() => setEditingSession(s)}
-                              className="rounded-lg border border-white/10 p-1.5 text-white/40 hover:text-white hover:border-white/20 transition-colors">
-                              <Pencil size={12} />
-                            </button>
+                        <div className="flex gap-1">
+                          <button onClick={() => setEditingSession(s)}
+                            className="rounded-lg border border-white/10 p-1.5 text-white/40 hover:text-white hover:border-white/20 transition-colors">
+                            <Pencil size={12} />
+                          </button>
+                          {!s.is_no_show && (
                             <button onClick={() => { void handleDelete(s); }} disabled={deleting}
                               className="rounded-lg border border-red-500/30 p-1.5 text-red-400/60 hover:text-red-400 hover:border-red-500/60 transition-colors">
                               {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
                             </button>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </td>
                     </tr>
 
