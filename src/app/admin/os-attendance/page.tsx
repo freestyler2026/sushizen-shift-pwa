@@ -152,6 +152,13 @@ function localTimeToIso(date: string, hhmm: string, city = "manila"): string {
   } catch { return ""; }
 }
 
+// Add one calendar day to a YYYY-MM-DD string
+function nextDateStr(date: string): string {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 function sessionStatus(s: AttendanceSession): "clocked_out" | "on_shift" | "not_clocked_in" {
   if (s.check_out_at) return "clocked_out";
   if (s.check_in_at) return "on_shift";
@@ -714,10 +721,6 @@ function EditModal({
   }, [onClose]);
 
   async function handleSave() {
-    // Frontend validation: clock-out cannot be before clock-in (same work_date)
-    if (form.check_in_time && form.check_out_time && form.check_out_time < form.check_in_time) {
-      setErr("Clock-out time cannot be earlier than clock-in time"); return;
-    }
     setBusy(true); setErr("");
     try {
       const body: Record<string, string> = { note: form.note };
@@ -729,7 +732,12 @@ function EditModal({
         body.check_in_at = "";
       }
       if (form.check_out_time) {
-        const iso = localTimeToIso(session.work_date, form.check_out_time, session.city);
+        // Overnight shift: if clock-out HH:MM < clock-in HH:MM, clock-out is the next calendar day
+        const checkoutDate =
+          form.check_in_time && form.check_out_time < form.check_in_time
+            ? nextDateStr(session.work_date)
+            : session.work_date;
+        const iso = localTimeToIso(checkoutDate, form.check_out_time, session.city);
         if (!iso) { setErr("Invalid clock-out time — please re-enter"); setBusy(false); return; }
         body.check_out_at = iso;
       } else {
@@ -774,6 +782,9 @@ function EditModal({
             <input type="time" value={form.check_out_time}
               onChange={e => setForm(f => ({ ...f, check_out_time: e.target.value }))}
               className={inp} />
+            {form.check_in_time && form.check_out_time && form.check_out_time < form.check_in_time && (
+              <p className="mt-1 text-xs text-amber-400">Overnight shift — saved as next day ({nextDateStr(session.work_date)})</p>
+            )}
           </div>
         </div>
 
