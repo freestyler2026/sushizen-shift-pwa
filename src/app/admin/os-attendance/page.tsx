@@ -66,6 +66,10 @@ type AttendanceSession = {
   work_date: string;
   check_in_at: string | null;
   check_out_at: string | null;
+  check_in_lat: number | null;
+  check_in_lng: number | null;
+  check_out_lat: number | null;
+  check_out_lng: number | null;
   check_in_gps_ok: boolean | null;
   check_out_gps_ok: boolean | null;
   check_in_distance_m: number | null;
@@ -906,6 +910,10 @@ function DailyReportTab({ city }: { city: string }) {
               work_date: date,
               check_in_at: null,
               check_out_at: null,
+              check_in_lat: null,
+              check_in_lng: null,
+              check_out_lat: null,
+              check_out_lng: null,
               check_in_gps_ok: null,
               check_out_gps_ok: null,
               check_in_distance_m: null,
@@ -1153,7 +1161,19 @@ function DailyReportTab({ city }: { city: string }) {
                       </td>
                       <td className={`${cellCls}`}><GpsBadge ok={s.check_in_gps_ok} /></td>
                       <td className={`${cellCls} text-white/80`}>{fmtTime(s.check_out_at, cityTz(city))}</td>
-                      <td className={`${cellCls}`}><GpsBadge ok={s.check_out_gps_ok} /></td>
+                      <td className={`${cellCls}`}>
+                        <GpsBadge ok={s.check_out_gps_ok} />
+                        {s.check_out_lat != null && s.check_out_lng != null && s.check_out_gps_ok === false && (
+                          <a
+                            href={`https://www.google.com/maps?q=${s.check_out_lat},${s.check_out_lng}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ml-1 inline-flex items-center gap-0.5 text-[10px] text-sky-400 hover:text-sky-300 underline underline-offset-2"
+                          >
+                            <MapPin size={10} />map
+                          </a>
+                        )}
+                      </td>
                       <td className={`${cellCls} text-white/60`}>{fmtDuration(s.check_in_at, s.check_out_at)}</td>
                       <td className={`${cellCls}`}>
                         {visitCount > 0 ? (
