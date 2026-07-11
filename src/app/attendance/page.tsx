@@ -772,7 +772,12 @@ export default function AttendancePage() {
       {/* Header */}
       <div className="flex items-center gap-2">
         <Fingerprint size={22} className="text-violet-400" />
-        <h1 className="text-lg font-semibold text-white">Attendance</h1>
+        <div>
+          <h1 className="text-lg font-semibold text-white">Attendance</h1>
+          {auth?.staffName && (
+            <p className="text-xs text-zinc-400">{auth.staffName}</p>
+          )}
+        </div>
         <span className="ml-auto text-xs text-zinc-500">{today}</span>
       </div>
 
