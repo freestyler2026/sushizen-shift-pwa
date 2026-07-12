@@ -1033,23 +1033,41 @@ export default function AttendancePage() {
 
                   {/* Android steps */}
                   {gpsGuideTab === "android" && (
-                    <ol className="space-y-2.5">
-                      {[
-                        { n: 1, text: "Open the Settings app on your Android phone." },
-                        { n: 2, text: 'Tap "Apps" (or "Applications").' },
-                        { n: 3, text: "Find and tap your browser (Chrome, Samsung Internet, etc.)." },
-                        { n: 4, text: 'Tap "Permissions" → then tap "Location".' },
-                        { n: 5, text: 'Select "Allow only while using the app" or "Ask every time".' },
-                        { n: 6, text: 'Return here and tap "Get My Location" again.' },
-                      ].map(({ n, text }) => (
-                        <li key={n} className="flex items-start gap-2.5">
-                          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-700/60 text-[10px] font-bold text-violet-200">
-                            {n}
-                          </span>
-                          <span className="text-xs text-zinc-300 leading-relaxed">{text}</span>
-                        </li>
-                      ))}
-                    </ol>
+                    <div className="space-y-3">
+                      <p className="text-[11px] font-semibold text-violet-300">▸ If you use Chrome browser:</p>
+                      <ol className="space-y-2.5">
+                        {[
+                          { n: 1, text: 'Open the Chrome app and tap the three-dot menu (⋮) at the top right.' },
+                          { n: 2, text: 'Tap "Settings" → "Privacy and security" → "Site settings".' },
+                          { n: 3, text: 'Tap "Location" and find sushizen-shift-pwa.vercel.app in the blocked list.' },
+                          { n: 4, text: 'Tap on it and change to "Allow".' },
+                          { n: 5, text: 'Return here and tap "Get My Location" again.' },
+                        ].map(({ n, text }) => (
+                          <li key={n} className="flex items-start gap-2.5">
+                            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-700/60 text-[10px] font-bold text-violet-200">
+                              {n}
+                            </span>
+                            <span className="text-xs text-zinc-300 leading-relaxed">{text}</span>
+                          </li>
+                        ))}
+                      </ol>
+                      <p className="text-[11px] font-semibold text-violet-300 pt-1">▸ If you opened the app from a home screen icon:</p>
+                      <ol className="space-y-2.5">
+                        {[
+                          { n: 1, text: 'Go to Android Settings → Apps → Workforce OS → Permissions.' },
+                          { n: 2, text: 'If "Location" appears, tap it and select "Allow only while using the app".' },
+                          { n: 3, text: 'If Location is not listed, follow the Chrome steps above instead.' },
+                          { n: 4, text: 'Return here and tap "Get My Location" again.' },
+                        ].map(({ n, text }) => (
+                          <li key={n} className="flex items-start gap-2.5">
+                            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-violet-700/60 text-[10px] font-bold text-violet-200">
+                              {n}
+                            </span>
+                            <span className="text-xs text-zinc-300 leading-relaxed">{text}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
                   )}
 
                   <p className="text-[10px] text-zinc-500 leading-relaxed">
