@@ -549,8 +549,18 @@ export default function AttendancePage() {
         const isUserCancelled =
           eName === "NotAllowedError" || eName === "AbortError" ||
           msg.includes("AbortError") || msg.includes("User cancelled") || msg.includes("NotAllowedError");
+        // "Not implemented" / "NotImplementedError" means the passkey credential is not found on
+        // this device (e.g. registered on a different phone, or device was reset).
+        // Shown on some Android Chrome versions when allowCredentials has no local match.
+        const isPasskeyMissing =
+          eName === "NotImplementedError" || eName === "NotSupportedError" ||
+          msg.toLowerCase().includes("not implemented") || msg.toLowerCase().includes("not supported");
         if (!isUserCancelled) {
-          setError(msg);
+          setError(
+            isPasskeyMissing
+              ? "Passkey not found on this device. Please tap \"Register this device\" below to set up your passkey, then try again."
+              : msg
+          );
         }
       } finally {
         setBusy(false);
