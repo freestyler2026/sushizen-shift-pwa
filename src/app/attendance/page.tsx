@@ -578,7 +578,7 @@ export default function AttendancePage() {
       const optRes = await fetch(`${API_BASE}/api/auth/webauthn/register/options`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeaders(a) },
-        body: JSON.stringify({ friendly_name: "My Device" }),
+        body: JSON.stringify({ friendly_name: "My Device", replace: true }),
       });
       if (!optRes.ok) {
         const e = await optRes.json().catch(() => ({ detail: "Error" }));
@@ -604,7 +604,16 @@ export default function AttendancePage() {
       const isUserCancelled =
         eName === "NotAllowedError" || eName === "AbortError" ||
         msg.includes("AbortError") || msg.includes("NotAllowedError");
-      if (!isUserCancelled) setError(msg);
+      const isPasskeyMissing =
+        eName === "NotImplementedError" || eName === "NotSupportedError" ||
+        msg.toLowerCase().includes("not implemented") || msg.toLowerCase().includes("not supported");
+      if (!isUserCancelled) {
+        setError(
+          isPasskeyMissing
+            ? "This device or browser does not support passkeys. Please update Chrome to the latest version, ensure Google Play Services is up to date, and make sure a screen lock (PIN or fingerprint) is set up."
+            : msg
+        );
+      }
     } finally {
       setBusy(false);
     }
