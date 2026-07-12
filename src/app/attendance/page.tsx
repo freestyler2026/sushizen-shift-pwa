@@ -61,6 +61,7 @@ interface AttendanceBreak {
 interface TodayData {
   today: string;
   passkey_count: number;
+  gps_exempt?: boolean;
   session: AttendanceSession | null;
   visits: AttendanceVisit[];
   breaks: AttendanceBreak[];
@@ -290,6 +291,7 @@ export default function AttendancePage() {
   const [wfhToday, setWfhToday] = useState(false);
   const [wfhBusy, setWfhBusy] = useState(false);
   const wfhTodayRef = useRef(false);
+  const gpsExemptRef = useRef(false);
   const [breaks, setBreaks] = useState<AttendanceBreak[]>([]);
   const [breakElapsedSec, setBreakElapsedSec] = useState(0);
   const breakTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -430,6 +432,7 @@ export default function AttendancePage() {
   useEffect(() => { gpsPosRef.current = gpsPos; }, [gpsPos]);
   useEffect(() => { gpsAcquiredAtRef.current = gpsAcquiredAt; }, [gpsAcquiredAt]);
   useEffect(() => { wfhTodayRef.current = wfhToday; }, [wfhToday]);
+  useEffect(() => { gpsExemptRef.current = data?.gps_exempt === true; }, [data]);
 
   // ─── GPS TTL checker — re-renders every 30 s to clear stale gpsPos ──────
   useEffect(() => {
@@ -469,8 +472,8 @@ export default function AttendancePage() {
         const lat = pos?.coords.latitude ?? null;
         const lng = pos?.coords.longitude ?? null;
 
-        // GPS is required for clock-in and clock-out (unless WFH mode is active)
-        if ((action === "checkin" || action === "checkout") && !pos && !wfhTodayRef.current) {
+        // GPS is required for clock-in and clock-out (unless WFH mode or GPS-exempt)
+        if ((action === "checkin" || action === "checkout") && !pos && !wfhTodayRef.current && !gpsExemptRef.current) {
           throw new Error("GPS location is required. Please tap 'Get My Location' and ensure location access is allowed in your device settings.");
         }
 
@@ -599,6 +602,7 @@ export default function AttendancePage() {
   const session = data?.session ?? null;
   const visits = data?.visits ?? [];
   const passkeyCount = data?.passkey_count ?? 0;
+  const gpsExempt = data?.gps_exempt === true;
   // Fallback uses city-aware local date so Manila/Dubai midnight never shows yesterday
   const tz = cityTz(auth?.city);
   const today = data?.today ?? new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
@@ -950,7 +954,7 @@ export default function AttendancePage() {
           )}
 
           {/* GPS required — prominent call-to-action shown BEFORE the clock button */}
-          {!isCheckedOut && !gpsValid && !wfhToday && (
+          {!isCheckedOut && !gpsValid && !wfhToday && !gpsExempt && (
             <div className="rounded-2xl border-2 border-violet-500 bg-violet-950/60 p-4 space-y-3">
               <div className="flex items-center gap-2">
                 <Navigation size={18} className="text-violet-300 shrink-0" />
@@ -1034,13 +1038,28 @@ export default function AttendancePage() {
                   {/* Android steps */}
                   {gpsGuideTab === "android" && (
                     <div className="space-y-3">
-                      <p className="text-[11px] font-semibold text-violet-300">▸ If you use Chrome browser:</p>
+                      <p className="text-[11px] font-semibold text-amber-300">▸ First — check your phone&apos;s Location switch:</p>
+                      <ol className="space-y-2.5">
+                        {[
+                          { n: 1, text: 'Pull down from the top of your screen to open Quick Settings.' },
+                          { n: 2, text: 'Find the "Location" tile (looks like a map pin 📍) and make sure it is ON (highlighted/blue).' },
+                          { n: 3, text: 'If it was OFF, turn it ON, then return here and tap "Get My Location" again.' },
+                        ].map(({ n, text }) => (
+                          <li key={n} className="flex items-start gap-2.5">
+                            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-700/60 text-[10px] font-bold text-amber-200">
+                              {n}
+                            </span>
+                            <span className="text-xs text-zinc-300 leading-relaxed">{text}</span>
+                          </li>
+                        ))}
+                      </ol>
+                      <p className="text-[11px] font-semibold text-violet-300 pt-1">▸ If Location is ON but still blocked — Chrome browser:</p>
                       <ol className="space-y-2.5">
                         {[
                           { n: 1, text: 'Open the Chrome app and tap the three-dot menu (⋮) at the top right.' },
                           { n: 2, text: 'Tap "Settings" → "Privacy and security" → "Site settings".' },
                           { n: 3, text: 'Tap "Location" and find sushizen-shift-pwa.vercel.app in the blocked list.' },
-                          { n: 4, text: 'Tap on it and change to "Allow".' },
+                          { n: 4, text: 'Tap on it and change to "Allow". When Chrome asks, choose "While using Chrome" (not "Only this time").' },
                           { n: 5, text: 'Return here and tap "Get My Location" again.' },
                         ].map(({ n, text }) => (
                           <li key={n} className="flex items-start gap-2.5">
@@ -1107,7 +1126,7 @@ export default function AttendancePage() {
               )}
               <button
                 onClick={() => void doAction("checkin")}
-                disabled={busy || (!gpsValid && !wfhToday)}
+                disabled={busy || (!gpsValid && !wfhToday && !gpsExempt)}
                 className="w-full rounded-xl bg-violet-600 py-4 text-base font-bold text-white disabled:opacity-30 hover:bg-violet-500 transition-colors flex items-center justify-center gap-2"
               >
                 <LogIn size={18} />
@@ -1162,7 +1181,7 @@ export default function AttendancePage() {
               {!isOnBreak && (
                 <button
                   onClick={() => void doAction("checkout")}
-                  disabled={busy || (!gpsValid && !wfhToday)}
+                  disabled={busy || (!gpsValid && !wfhToday && !gpsExempt)}
                   className="w-full rounded-xl bg-rose-700 py-4 text-base font-bold text-white disabled:opacity-30 hover:bg-rose-600 transition-colors flex items-center justify-center gap-2"
                 >
                   <LogOut size={18} />
