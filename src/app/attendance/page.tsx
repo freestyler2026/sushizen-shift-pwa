@@ -62,6 +62,7 @@ interface TodayData {
   today: string;
   passkey_count: number;
   gps_exempt?: boolean;
+  multi_branch?: boolean;
   session: AttendanceSession | null;
   visits: AttendanceVisit[];
   breaks: AttendanceBreak[];
@@ -292,6 +293,7 @@ export default function AttendancePage() {
   const [wfhBusy, setWfhBusy] = useState(false);
   const wfhTodayRef = useRef(false);
   const gpsExemptRef = useRef(false);
+  const multiBranchRef = useRef(false);
   const [breaks, setBreaks] = useState<AttendanceBreak[]>([]);
   const [breakElapsedSec, setBreakElapsedSec] = useState(0);
   const breakTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -433,6 +435,7 @@ export default function AttendancePage() {
   useEffect(() => { gpsAcquiredAtRef.current = gpsAcquiredAt; }, [gpsAcquiredAt]);
   useEffect(() => { wfhTodayRef.current = wfhToday; }, [wfhToday]);
   useEffect(() => { gpsExemptRef.current = data?.gps_exempt === true; }, [data]);
+  useEffect(() => { multiBranchRef.current = data?.multi_branch === true; }, [data]);
 
   // ─── GPS TTL checker — re-renders every 30 s to clear stale gpsPos ──────
   useEffect(() => {
@@ -603,6 +606,7 @@ export default function AttendancePage() {
   const visits = data?.visits ?? [];
   const passkeyCount = data?.passkey_count ?? 0;
   const gpsExempt = data?.gps_exempt === true;
+  const multiBranch = data?.multi_branch === true;
   // Fallback uses city-aware local date so Manila/Dubai midnight never shows yesterday
   const tz = cityTz(auth?.city);
   const today = data?.today ?? new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
@@ -1115,7 +1119,7 @@ export default function AttendancePage() {
           {!isCheckedIn && !isCheckedOut && (
             <div className="space-y-2">
               {/* WFH declaration button — shown only when GPS not available and not yet WFH */}
-              {!wfhToday && (
+              {!wfhToday && !multiBranch && (
                 <button
                   onClick={() => void declareWfh()}
                   disabled={wfhBusy}
@@ -1124,14 +1128,52 @@ export default function AttendancePage() {
                   🏠 {wfhBusy ? "Activating..." : "Today is WFH (Work From Home)"}
                 </button>
               )}
-              <button
-                onClick={() => void doAction("checkin")}
-                disabled={busy || (!gpsValid && !wfhToday && !gpsExempt)}
-                className="w-full rounded-xl bg-violet-600 py-4 text-base font-bold text-white disabled:opacity-30 hover:bg-violet-500 transition-colors flex items-center justify-center gap-2"
-              >
-                <LogIn size={18} />
-                {busy ? "Authenticating..." : "Clock In"}
-              </button>
+              {/* Multi-branch: show branch picker instead of plain Clock In */}
+              {multiBranch ? (
+                <div className="rounded-2xl border border-violet-500/50 bg-violet-950/40 p-4 space-y-3">
+                  <p className="text-xs font-semibold text-violet-300">Select your first branch to start work:</p>
+                  {branchList.length === 0 ? (
+                    <p className="text-xs text-zinc-500">No branches configured. Ask admin to set up GPS branches.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {branchList.map((b) => (
+                        <button
+                          key={b}
+                          onClick={() => setVisitBranch(b)}
+                          className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                            visitBranch === b ? "bg-violet-600 text-white" : "bg-zinc-700/60 text-zinc-300 hover:bg-zinc-600/60"
+                          }`}
+                        >
+                          {b}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {visitBranch && (
+                    <button
+                      onClick={async () => {
+                        const branch = visitBranch;
+                        setVisitBranch("");
+                        await doAction("visit_start", { branch_code: branch });
+                      }}
+                      disabled={busy}
+                      className="w-full rounded-xl bg-violet-600 py-4 text-base font-bold text-white disabled:opacity-30 hover:bg-violet-500 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <LogIn size={18} />
+                      {busy ? "Authenticating..." : `Clock In at ${visitBranch}`}
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <button
+                  onClick={() => void doAction("checkin")}
+                  disabled={busy || (!gpsValid && !wfhToday && !gpsExempt)}
+                  className="w-full rounded-xl bg-violet-600 py-4 text-base font-bold text-white disabled:opacity-30 hover:bg-violet-500 transition-colors flex items-center justify-center gap-2"
+                >
+                  <LogIn size={18} />
+                  {busy ? "Authenticating..." : "Clock In"}
+                </button>
+              )}
             </div>
           )}
           {isCheckedIn && !isCheckedOut && (
@@ -1177,7 +1219,7 @@ export default function AttendancePage() {
                 </button>
               )}
 
-              {/* Clock Out — hidden while on break */}
+              {/* Clock Out — hidden while on break; multi-branch staff see "End Work Day" */}
               {!isOnBreak && (
                 <button
                   onClick={() => void doAction("checkout")}
@@ -1185,7 +1227,7 @@ export default function AttendancePage() {
                   className="w-full rounded-xl bg-rose-700 py-4 text-base font-bold text-white disabled:opacity-30 hover:bg-rose-600 transition-colors flex items-center justify-center gap-2"
                 >
                   <LogOut size={18} />
-                  {busy ? "Authenticating..." : "Clock Out"}
+                  {busy ? "Authenticating..." : multiBranch ? "End Work Day" : "Clock Out"}
                 </button>
               )}
             </div>
@@ -1290,8 +1332,105 @@ export default function AttendancePage() {
         </div>
       )}
 
-      {/* Visits — shown when checked in (read-only after checkout) */}
-      {wauSupported && passkeyCount > 0 && isCheckedIn && (
+      {/* Visits — multi-branch staff get a prominent Clock In/Out per-branch UI */}
+      {wauSupported && passkeyCount > 0 && isCheckedIn && multiBranch && (
+        <div className={`${GLASS_CARD} rounded-2xl p-5 space-y-3`}>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-white">Branch Clock In/Out</span>
+            {isCheckedOut && <span className="text-xs text-zinc-500">Work day ended</span>}
+          </div>
+
+          {/* Currently clocked in at a branch */}
+          {openVisits.map((v) => (
+            <div key={v.id} className="rounded-2xl bg-emerald-900/30 border-2 border-emerald-600/50 px-4 py-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] text-emerald-400 font-medium uppercase tracking-wide">Currently at</p>
+                  <p className="text-xl font-bold text-emerald-300">{v.branch_code}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[11px] text-zinc-500">Clocked in</p>
+                  <p className="text-sm text-zinc-300">{fmtTime(v.visit_start, tz)}</p>
+                </div>
+              </div>
+              {!isCheckedOut && (
+                <button
+                  onClick={() => { void doAction("visit_end", { visit_id: v.id }); }}
+                  disabled={busy}
+                  className="w-full rounded-xl bg-rose-700/80 py-3 text-sm font-bold text-white disabled:opacity-30 hover:bg-rose-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <LogOut size={16} />
+                  {busy ? "Authenticating..." : `Clock Out from ${v.branch_code}`}
+                </button>
+              )}
+            </div>
+          ))}
+
+          {/* In transit — no open visit; show Clock In at next branch */}
+          {!isCheckedOut && openVisits.length === 0 && (
+            <div className="rounded-xl bg-zinc-900/60 border border-zinc-700/40 p-3 space-y-2">
+              <p className="text-xs font-semibold text-violet-300">Clock In at next branch:</p>
+              {availableBranches.length === 0 ? (
+                <p className="text-xs text-zinc-500">
+                  {branchList.length === 0
+                    ? "No branches configured. Ask admin to set up GPS branches."
+                    : "Select a branch below."}
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {availableBranches.map((b) => (
+                    <button
+                      key={b}
+                      onClick={() => setVisitBranch(b)}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                        visitBranch === b ? "bg-violet-600 text-white" : "bg-zinc-700/60 text-zinc-300 hover:bg-zinc-600/60"
+                      }`}
+                    >
+                      {b}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {visitBranch && (
+                <button
+                  onClick={async () => {
+                    const branch = visitBranch;
+                    setVisitBranch("");
+                    setVisitPickerOpen(false);
+                    await doAction("visit_start", { branch_code: branch });
+                  }}
+                  disabled={busy}
+                  className="w-full rounded-xl bg-violet-600 py-3 text-sm font-bold text-white disabled:opacity-50 hover:bg-violet-500 flex items-center justify-center gap-2"
+                >
+                  <LogIn size={16} />
+                  {busy ? "Authenticating..." : `Clock In at ${visitBranch}`}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Completed branch stops */}
+          {closedVisits.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[11px] text-zinc-500 font-medium uppercase tracking-wide">Completed</p>
+              {closedVisits.map((v) => (
+                <div key={v.id} className="rounded-xl bg-zinc-800/40 px-3 py-2.5 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-zinc-300">{v.branch_code}</span>
+                    <span className="text-xs text-zinc-500">{fmtTime(v.visit_start, tz)} → {fmtTime(v.visit_end, tz)}</span>
+                  </div>
+                  {v.visit_start && v.visit_end && (
+                    <p className="text-xs text-zinc-500">{fmtDuration(minutesBetween(v.visit_start, v.visit_end))}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Visits — standard staff (non-multi-branch), shown when checked in */}
+      {wauSupported && passkeyCount > 0 && isCheckedIn && !multiBranch && (
         <div className={`${GLASS_CARD} rounded-2xl p-5 space-y-3`}>
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-white">Branch Visits</span>

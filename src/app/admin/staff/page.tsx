@@ -88,6 +88,8 @@ type StaffRow = {
   skill_rank?: string;
   workforce_push_user_key?: string;
   gps_exempt?: boolean;
+  checkout_roaming?: boolean;
+  multi_branch?: boolean;
 
   setup_required?: boolean;
   setup_completed?: boolean;
@@ -294,6 +296,7 @@ export default function AdminStaffPage() {
   const [pushKeySavingName, setPushKeySavingName] = useState("");
   const [pushKeySavedName, setPushKeySavedName] = useState("");
   const [gpsExemptSavingName, setGpsExemptSavingName] = useState("");
+  const [multiBranchSavingName, setMultiBranchSavingName] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const hasLoaded = useRef(false);
   const canOpenRoleManagement = canAccessRoleManagement(authed);
@@ -735,6 +738,32 @@ export default function AdminStaffPage() {
       setMsg({ kind: "err", text: String(e?.message || e || "") });
     } finally {
       setGpsExemptSavingName("");
+    }
+  };
+
+  const saveMultiBranch = async (displayName: string, newValue: boolean) => {
+    const nm = norm(approverName);
+    const p = pin;
+    if (!nm) { setMsg({ kind: "err", text: "Approver name is required." }); return; }
+    if (!p && !getAuth()?.accessToken) { setMsg({ kind: "err", text: "PIN is required." }); return; }
+    const dn = norm(displayName);
+    const row = rows.find((x) => norm(x.display_name) === dn);
+    if (!row) return;
+    setMultiBranchSavingName(dn);
+    try {
+      await apiPost<{ ok: boolean }>("/api/admin/staff_master/set_multi_branch", {
+        city: norm(row.city || city),
+        staff_name: dn,
+        multi_branch: newValue,
+        approver_name: nm,
+        pin: p,
+      });
+      setMsg({ kind: "ok", text: `Multi-branch ${newValue ? "enabled" : "disabled"} for ${dn}` });
+      await load();
+    } catch (e: any) {
+      setMsg({ kind: "err", text: String(e?.message || e || "") });
+    } finally {
+      setMultiBranchSavingName("");
     }
   };
 
@@ -1359,6 +1388,19 @@ export default function AdminStaffPage() {
                           disabled={loading || gpsExemptSavingName === dn}
                         >
                           📍 {gpsExemptSavingName === dn ? "..." : r.gps_exempt ? "GPS Exempt" : "GPS Req'd"}
+                        </button>
+                        <button
+                          type="button"
+                          title={r.multi_branch ? "Multi-Branch ON — click to disable" : "Multi-Branch OFF — click to enable (for area managers)"}
+                          onClick={() => void saveMultiBranch(dn, !r.multi_branch)}
+                          className={[
+                            SMALL_BUTTON,
+                            "flex items-center gap-1 text-xs",
+                            r.multi_branch ? "border-violet-500/60 text-violet-300" : "opacity-50",
+                          ].join(" ")}
+                          disabled={loading || multiBranchSavingName === dn}
+                        >
+                          🏢 {multiBranchSavingName === dn ? "..." : r.multi_branch ? "Multi-Branch" : "Single Branch"}
                         </button>
                         {st === "ACTIVE" ? (
                           <button type="button" onClick={() => setStatusOnly(dn, "INACTIVE")} className={DANGER_BUTTON + " px-3 py-1.5 text-xs"} disabled={loading}>
