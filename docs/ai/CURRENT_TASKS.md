@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-09 (session 116c — Overtime request system + security fixes deployed)
+Last updated: 2026-07-12 (session 116h — Bibek GPS fix + Rafael multi-branch Clock In/Out)
 
 
 > **New session start protocol:**
@@ -12,9 +12,153 @@ Last updated: 2026-07-09 (session 116c — Overtime request system + security fi
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Heroku v1352, Vercel 891f137)
+なし — 全変更デプロイ済み
 
-## Recently Completed (2026-07-09 session 116c) — live (Heroku v1352, Vercel 891f137)
+## ⚠️ Admin Action Required (manual)
+
+Dubai staff on July 10 may have open attendance sessions (check_in_at IS NOT NULL, check_out_at IS NULL) due to GPS/location failures or the 2AM cutoff bug. Admin should manually close these via Admin OS Attendance page. Affected names reported: Sushma Magar, Yogesh Bashyal, Nabaraj Sapkota, and others from the July 10-11 error report.
+
+## Recently Completed (2026-07-12 session 116h) — live (Vercel 8cec257, Heroku 3eff3e2)
+
+**Bibek GPS Fix + Rafael Multi-Branch Clock In/Out**
+
+### Bibek BK — GPS exempt (GPS access blocked permanently fixed)
+
+Bibek (CK flexible staff) was blocked by "Location access is blocked" on Android even after Chrome site settings fix. Root cause: the frontend was always showing the GPS requirement block regardless of backend gps_exempt flag.
+
+**Backend (Heroku 3eff3e2 — already deployed from session 116g):**
+- `gps_exempt=TRUE` set for Bibek BK in staff_master via psql
+
+**Frontend (Vercel 8f03efa):**
+- `attendance/page.tsx`: added `gps_exempt?: boolean` to `TodayData`, `gpsExempt` derived state
+- GPS requirement block: `!gpsExempt` guard added → hidden for gps_exempt staff
+- Clock In button: `disabled` guard includes `!gpsExempt` → always enabled for gps_exempt
+- Android guide: added "Check master Location toggle in Quick Settings" as step 1, "Choose While using Chrome (not Only this time)" instruction
+
+### Rafael Lagahit — Multi-Branch Area Manager
+
+Rafael moves between multiple Dubai branches per day. Needs: (1) GPS exempt, (2) Clock In/Out at each individual branch.
+
+**DB changes (psql direct):**
+- `gps_exempt=TRUE`, `multi_branch=TRUE` set for Rafael Lagahit in staff_master
+
+**Backend (Heroku 3eff3e2):**
+- `multi_branch BOOLEAN NOT NULL DEFAULT FALSE` column added to `staff_master` (migration in `ensure_staff_master_columns`)
+- `set_staff_multi_branch()` function added to `db.py`
+- `_is_staff_multi_branch()` helper added to `main.py`
+- `visit_start` action: if `multi_branch=True` and no session → auto-creates session via `record_os_checkin` (first Clock In of day creates the day session)
+- `/api/attendance/today` response: includes `multi_branch` field
+- `POST /api/admin/staff_master/set_multi_branch` endpoint added
+- `list_staff_master()` updated to include `multi_branch` in SELECT/response
+
+**Frontend (Vercel 8cec257):**
+- `attendance/page.tsx`:
+  - `multiBranch` derived from `data.multi_branch`
+  - Initial state (`!isCheckedIn`): shows branch picker instead of plain Clock In; calls `visit_start` directly (auto-creates session)
+  - WFH button hidden for multi_branch staff
+  - "End Work Day" label instead of "Clock Out" for multi_branch
+  - "Branch Clock In/Out" section: open visit shows "Currently at {branch}" + "Clock Out from {branch}" button; transit state shows "Clock In at next branch" picker; completed visits shown as history
+- `admin/staff/page.tsx`:
+  - `multi_branch?: boolean` added to `StaffRow` type
+  - `saveMultiBranch()` function (same pattern as `saveGpsExempt`)
+  - Toggle button per staff row: "🏢 Multi-Branch / Single Branch"
+
+**Production verification (2026-07-12):**
+- Rafael Lagahit: `gps_exempt=t, multi_branch=t` in staff_master ✓
+- Rafael has active session (check_in_at 10:59 UTC) with open CK visit (visit_start 12:05 UTC) ✓
+- Branch list API (`/api/admin/attendance/branch-gps`) accepts any valid bearer token ✓
+- TypeScript: zero errors ✓
+- ESLint: zero errors in source files ✓
+
+**Minor fix (admin/staff/page.tsx — not yet committed):**
+- `saveMultiBranch`: added `setMsg(null)` at start + `legacyPinOrEmpty(pin)` for consistency
+
+## Recently Completed (2026-07-11 session 116g) — live (Heroku v1365)
+
+**Checkout Roaming — Drivers can clock out from any GPS location (Heroku v1364→v1365)**
+
+Dubai ドライバー (Nabaraj Sapkota, Hayat Ullah Khan) はスタッフを送り届けてから業務終了するため、チェックアウト場所が登録拠点外になる。
+
+**機能設計:**
+- `checkout_roaming=TRUE`: GPS座標は必須 (不正防止のための位置記録)、拠点半径チェックはスキップ
+- `gps_exempt=FALSE`: 通常通り (これらのスタッフはGPS不要ではなく「どこでもOK」)
+- 既存の `gps_exempt` フラグとは別フラグとして新設 (意味が異なる)
+
+**Backend (app/db.py + app/main.py, Heroku v1364):**
+- `checkout_roaming BOOLEAN NOT NULL DEFAULT FALSE` カラム追加 + migration
+- 自動シード: Nabaraj/Hayat → `checkout_roaming=TRUE` (冪等)
+- `_is_staff_checkout_roaming()`, `set_staff_checkout_roaming()`, `POST /api/admin/staff_master/set_checkout_roaming` 追加
+- Checkout フロー: roaming driver + valid GPS + 拠点外 → 許可 (gps_ok=False として coords 記録)
+- `_fmt_session()` に `check_in/out_lat/lng` 追加
+- Bug fix (v1365): `list_staff_master()` SELECT に `checkout_roaming` 追加 (当初 missing)
+- Bug fix (v1365): `api_admin_staff_master_list` レスポンスに `checkout_roaming` フィールド追加
+
+**Frontend (Vercel 8e343fd):**
+- Admin OS Attendance: Checkout GPS カラムに Google Maps リンク (`check_out_gps_ok=false` + 座標あり)
+- Attendance page: ヘッダーにスタッフ名表示
+
+**Testing Results (10 logic tests, ALL PASS):**
+1. Driver + valid GPS + far branch → OK (gps_ok=False, coords recorded)
+2. Driver + NO GPS → 422 error (GPS mandatory for audit)
+3. Driver + no branches configured → OK (gps_ok=None, coords recorded)
+4. Regular + out of range → 403 rejected
+5. GPS-exempt + no GPS → allowed (existing behavior preserved)
+6. Both flags + no GPS → checkout_roaming wins, 422
+
+**Production verification:**
+- Nabaraj Sapkota: `checkout_roaming=True, gps_exempt=False` ✓
+- Hayat Ullah Khan: `checkout_roaming=True, gps_exempt=False` ✓
+- No other Dubai staff have checkout_roaming ✓
+- TypeScript: zero errors ✓
+
+## Recently Completed (2026-07-11 session 116f) — live (Vercel d0b76e1, Heroku ad28104)
+
+**Market Analysis NavBar — Dynamic Permission Check**
+
+NavBar の market-analysis リンクが hardcoded role check (`["ADMIN","HQ","MANILA_MANAGEMENT"].includes(role)`) を使用していた。Role Management でアクセスを付与しても NavBar に反映されなかった。
+
+- `src/lib/auth.ts`: `canAccessMarketAnalysisAdmin()` 追加 — HQ/ADMIN は常に可、それ以外は `hasChannelAccess("admin.market_analysis", ["view"])` で動的チェック
+- `src/components/NavBar.tsx`: market-analysis 判定を `canAccessMarketAnalysisAdmin(auth)` に変更
+
+**Attendance — Midnight Cutoff 2AM→6AM (Heroku ad28104)**
+
+Dubai 夜間シフト (5pm→2am, 7pm→4am) が 2:00 AM 以降にチェックアウトできなかった。`_city_today()` が `hour < 2` のカットオフを使用していたため前日セッションが見つからなかった。
+
+- `app/main.py` `_city_today()`: `if now.hour < 2` → `if now.hour < 6` に変更
+- 教訓: Dubai 最長シフトは 4AM 終了。カットオフは 6AM が適切
+
+## Recently Completed (2026-07-10 session 116e) — live (Vercel 3ad84bd)
+
+**Manual Shift — Spread Shift (Split Shift) サポート追加**
+
+**背景**: ドライバー (Hayat Ullah Khan, Nabaraj Sapkota) は勤務日に必ずスプレットシフト (例: 朝8-15時 + 夜18-22時) になるが、従来の編集モーダルでは1日に1シフトしか入力できなかった。
+
+**修正 (`src/app/admin/manual-shift/page.tsx`, commit 3ad84bd):**
+- `editShiftIndex: number | null` state 追加 (null=新規追加、number=既存セグメントを編集)
+- `loadShiftIntoForm(shift, index)` ヘルパー関数 — フォームフィールドへのロードを共通化
+- `openEdit()` 改修 — 最初のシフトを編集モードで開く
+- `saveEdit()` 改修 — null の場合は配列にappend、indexあり の場合は指定indexを置換
+- `removeShiftSegment(staffName, dateStr, index)` 関数追加 — 個別セグメント削除
+- モーダルに「Shifts on this day」セクション追加: 既存シフト一覧 + Editボタン + ✕削除
+- 「+ Add another shift segment」ボタン追加
+- フッターの 🗑 ボタンは引き続き全シフト+公開データ削除
+
+## Recently Completed (2026-07-09 session 116d) — live (Vercel 952ce2d)
+
+**Overtime Nav + Admin Page Fixes**
+
+**① NavBar: Overtime Request をプライマリナビの Request 上に移動** (952ce2d)
+- `/store/overtime-request` を `SECONDARY_BASE` から削除し `PRIMARY` 配列の `/request` の直上に移動
+- スタッフナビの表示順: Expense Reimbursement → **Overtime Request** → Request
+
+**② Admin Overtime page: Loading 点滅 + エラー修正** (069f65f)
+- 原因: `const auth = getAuth()` がレンダー毎に新規オブジェクトを生成 → `useCallback` deps が毎回変化 → 無限 useEffect ループ → "Failed to fetch" エラー
+- 修正: `const [auth] = useState(getAuth)` に変更 (安定した参照)
+
+**③ branch_code バリデーション強化** (Heroku 0c82652)
+- POST /store/overtime/request: 空・長すぎる・特殊文字のある branch_code を400エラーで拒否
+
+## Recently Completed (2026-07-09 session 116c) — live (Heroku v1352, Vercel 8cfa30b)
 
 **Overtime Request System + Security Fixes**
 

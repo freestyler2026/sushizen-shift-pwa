@@ -742,8 +742,9 @@ export default function AdminStaffPage() {
   };
 
   const saveMultiBranch = async (displayName: string, newValue: boolean) => {
+    setMsg(null);
     const nm = norm(approverName);
-    const p = pin;
+    const p = legacyPinOrEmpty(pin);
     if (!nm) { setMsg({ kind: "err", text: "Approver name is required." }); return; }
     if (!p && !getAuth()?.accessToken) { setMsg({ kind: "err", text: "PIN is required." }); return; }
     const dn = norm(displayName);
