@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-12 (session 116h — Bibek GPS fix + Rafael multi-branch Clock In/Out)
+Last updated: 2026-07-14 (session 118 — Store Receiving invoice photo upload)
 
 
 > **New session start protocol:**
@@ -13,6 +13,36 @@ Last updated: 2026-07-12 (session 116h — Bibek GPS fix + Rafael multi-branch C
 ## ⚠️ Deployments Pending
 
 なし — 全変更デプロイ済み
+
+## Recently Completed (2026-07-14 session 118) — live (Vercel 160d8a4, Heroku efd6fec)
+
+**Store Receiving — インボイス写真アップロード機能追加**
+
+`/store/procurement/receiving` 画面でサプライヤー納品時の手書きインボイスを写真撮影してOSに添付可能に。
+
+- **DB** (`db.py`): `proc_receivings` に `invoice_photo_url TEXT NOT NULL DEFAULT ''` カラム追加 (migration)
+- **DB** (`db.py`): `update_proc_receiving_invoice_photo()` 新関数、`get/list_proc_receivings` に `invoice_photo_url` 追加
+- **API** (`main.py`): `POST /api/admin/procurement/receiving/{id}/invoice-photo` 追加 — 写真を Google Drive ClaimPhotos フォルダにアップロード後 URL を DB に保存
+- **Frontend**: Camera ボタン (capture="environment" でモバイルカメラ直起動) → サムネイルプレビュー → Record Delivery 時に自動アップロード。既存レコードに写真があれば「View Invoice Photo」リンクを表示
+
+## Recently Completed (2026-07-12 session 117) — live (Heroku 1c19058)
+
+**Store Procurement: Catalog duplicates fix + PO pagination fix**
+
+### 問題1: Kitchen Ingredients 重複アイテム削除 (DB直接修正)
+- Three-S Food Services に `catalog_category='Kitchen Ingredients', store_scope='ALL'` の重複アイテムが16件存在
+- `proc_curated_catalog_items` から直接 DELETE → 永久削除
+- 原因: 過去のカタログインポートで重複が作成されたと推定。シードファイル(startup)には Kitchen Ingredients は含まれないため、再起動時は復活しない
+
+### 問題2: 拠点別アイテム表示統一 (DB直接修正)
+- Ingredients (Paranaque scope 15件) + Ingredients (Taft scope 6件) → 全て `store_scope='ALL'` に更新
+- 結果: Manila全拠点(Paranaque/Taft/Cubao)で同じ21アイテムが Three-S Food Services 配下に表示
+- 修正前: Paranaque=31件, Taft=22件 → 修正後: 全拠点=21件
+
+### 問題3: Purchase Order 1ページあたりアイテム数増加
+- `app/services/procurement_po_mail.py:227`: `rows_per_page = 12` → `rows_per_page = 20`
+- A4レイアウト検証: row_y最終行=248pt, フッター線=200pt で余裕あり
+- 20品目以内のPOは1ページに収まり、サプライヤーが2ページ目を見落とすリスク解消
 
 ## ⚠️ Admin Action Required (manual)
 
