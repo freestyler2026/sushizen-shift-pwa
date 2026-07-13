@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Circle, Clock, Package, ChevronRight, ChevronDown, CheckCheck, AlertTriangle, RefreshCw } from "lucide-react";
+import { Camera, CheckCircle2, Circle, Clock, ExternalLink, Package, ChevronRight, ChevronDown, CheckCheck, AlertTriangle, RefreshCw, X } from "lucide-react";
 import { ProcurementStepper } from "@/components/ProcurementStepper";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { defaultProcurementName, defaultProcurementPin, friendlyProcurementError, procurementJson } from "@/lib/procurementClient";
@@ -64,6 +64,7 @@ type ReceivingRow = {
   variance_reason: string;
   confirmed_by: string;
   confirmed_at: string;
+  invoice_photo_url?: string;
 };
 
 type ItemCheck = {
@@ -120,6 +121,12 @@ export default function StoreProcurementReceivingPage() {
   const [lastCreatedNo, setLastCreatedNo] = useState("");
   const [lastCreatedRequestId, setLastCreatedRequestId] = useState("");
   const [lastCreatedAt, setLastCreatedAt] = useState("");
+
+  // Invoice photo
+  const invoicePhotoInputRef = useRef<HTMLInputElement | null>(null);
+  const [invoicePhotoFile, setInvoicePhotoFile] = useState<File | null>(null);
+  const [invoicePhotoPreview, setInvoicePhotoPreview] = useState("");
+  const [invoicePhotoUploading, setInvoicePhotoUploading] = useState(false);
 
   // UI state
   const [busy, setBusy] = useState("");
@@ -226,6 +233,43 @@ export default function StoreProcurementReceivingPage() {
       for (const k of Object.keys(next)) next[k] = { ...next[k], checked: true };
       return next;
     });
+  }
+
+  function handleInvoicePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] || null;
+    setInvoicePhotoFile(f);
+    if (f) {
+      setInvoicePhotoPreview(URL.createObjectURL(f));
+    } else {
+      setInvoicePhotoPreview("");
+    }
+  }
+
+  function clearInvoicePhoto() {
+    setInvoicePhotoFile(null);
+    setInvoicePhotoPreview("");
+    if (invoicePhotoInputRef.current) invoicePhotoInputRef.current.value = "";
+  }
+
+  async function uploadInvoicePhoto(receivingId: string): Promise<void> {
+    if (!invoicePhotoFile) return;
+    setInvoicePhotoUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("approver_name", requestedBy.trim());
+      formData.append("pin", pin.trim());
+      formData.append("file", invoicePhotoFile);
+      const res = await fetch(`/api/admin/procurement/receiving/${encodeURIComponent(receivingId)}/invoice-photo`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(String((err as { detail?: string }).detail || "Photo upload failed"));
+      }
+    } finally {
+      setInvoicePhotoUploading(false);
+    }
   }
 
   // ── Computed totals from checklist ────────────────────────────────────────
@@ -380,6 +424,15 @@ export default function StoreProcurementReceivingPage() {
       setFormError("");
       setInfo(createdNo ? `Receiving created: ${createdNo}` : "Receiving created.");
       setNotes("");
+      if (createdId && invoicePhotoFile) {
+        try {
+          await uploadInvoicePhoto(createdId);
+          setInfo((prev) => prev + " · Invoice photo uploaded.");
+          clearInvoicePhoto();
+        } catch (photoErr: any) {
+          setInfo((prev) => prev + ` (Photo upload failed: ${String(photoErr?.message || photoErr)})`);
+        }
+      }
       await loadReceivings(requestId);
     } catch (e: any) {
       const msg = friendlyProcurementError(e);
@@ -1030,6 +1083,40 @@ export default function StoreProcurementReceivingPage() {
                   />
                 </div>
 
+                {/* Invoice photo */}
+                <div className="mb-4">
+                  <label className="mb-1 block text-[11px] font-medium text-zinc-400">Invoice Photo (optional)</label>
+                  {invoicePhotoPreview ? (
+                    <div className="relative overflow-hidden rounded-xl border border-violet-500/30 bg-black/20">
+                      <img src={invoicePhotoPreview} alt="Invoice preview" className="max-h-48 w-full object-contain" />
+                      <button
+                        type="button"
+                        onClick={clearInvoicePhoto}
+                        className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80 transition"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => invoicePhotoInputRef.current?.click()}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-violet-500/30 bg-violet-950/15 py-3 text-sm text-violet-300 transition hover:border-violet-500/50 hover:bg-violet-950/25"
+                    >
+                      <Camera className="h-4 w-4" />
+                      Take / Select Invoice Photo
+                    </button>
+                  )}
+                  <input
+                    ref={invoicePhotoInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={handleInvoicePhotoChange}
+                  />
+                </div>
+
                 {/* DRAFT → needs submit before receiving */}
                 {selectedRequest && selectedRequest.status === "DRAFT" ? (
                   <div className="rounded-xl border border-amber-500/30 bg-amber-500/8 p-4">
@@ -1100,10 +1187,14 @@ export default function StoreProcurementReceivingPage() {
                 <button
                   type="button"
                   onClick={() => void createReceiving()}
-                  disabled={busy === "create" || computedTotals.checkedCount === 0}
+                  disabled={busy === "create" || invoicePhotoUploading || computedTotals.checkedCount === 0}
                   className={`w-full ${BTN_PRIMARY}`}
                 >
-                  {busy === "create" ? (
+                  {invoicePhotoUploading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <RefreshCw className="h-4 w-4 animate-spin" /> Uploading photo…
+                    </span>
+                  ) : busy === "create" ? (
                     <span className="flex items-center justify-center gap-2">
                       <RefreshCw className="h-4 w-4 animate-spin" /> Creating…
                     </span>
@@ -1111,6 +1202,7 @@ export default function StoreProcurementReceivingPage() {
                     <span className="flex items-center justify-center gap-2">
                       <Package className="h-4 w-4" />
                       Record Delivery ({computedTotals.checkedCount} items, {computedTotals.qtyReceived.toFixed(1)} units)
+                      {invoicePhotoFile ? <Camera className="h-3.5 w-3.5 opacity-70" /> : null}
                     </span>
                   )}
                 </button>
@@ -1227,6 +1319,18 @@ export default function StoreProcurementReceivingPage() {
                           <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
                           {row.variance_reason}
                         </div>
+                      ) : null}
+                      {row.invoice_photo_url ? (
+                        <a
+                          href={row.invoice_photo_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-violet-500/25 bg-violet-500/10 px-2.5 py-1 text-xs font-medium text-violet-300 transition hover:bg-violet-500/20"
+                        >
+                          <Camera className="h-3 w-3" />
+                          View Invoice Photo
+                          <ExternalLink className="h-3 w-3 opacity-60" />
+                        </a>
                       ) : null}
 
                       {/* Expanded items table */}
