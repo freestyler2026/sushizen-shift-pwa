@@ -239,15 +239,24 @@ export default function StoreProcurementReceivingPage() {
     const f = e.target.files?.[0] || null;
     setInvoicePhotoFile(f);
     if (f) {
-      setInvoicePhotoPreview(URL.createObjectURL(f));
+      setInvoicePhotoPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(f);
+      });
     } else {
-      setInvoicePhotoPreview("");
+      setInvoicePhotoPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return "";
+      });
     }
   }
 
   function clearInvoicePhoto() {
     setInvoicePhotoFile(null);
-    setInvoicePhotoPreview("");
+    setInvoicePhotoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return "";
+    });
     if (invoicePhotoInputRef.current) invoicePhotoInputRef.current.value = "";
   }
 
