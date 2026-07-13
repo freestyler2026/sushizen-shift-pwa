@@ -374,6 +374,27 @@ export function ManilaOrderCountsTab({
     return m;
   }, [data?.store_totals]);
 
+  const channelTotals = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const row of data?.items || []) {
+      m.set(row.transaction_channel, (m.get(row.transaction_channel) ?? 0) + row.total_transactions);
+    }
+    return Array.from(m.entries()).sort(([, a], [, b]) => b - a);
+  }, [data?.items]);
+
+  const topChannel = useMemo(() => {
+    if (channelTotals.length === 0 || grandTotal === 0) return null;
+    const [name, orders] = channelTotals[0];
+    return { name, orders, pct: (orders / grandTotal) * 100 };
+  }, [channelTotals, grandTotal]);
+
+  const topBranch = useMemo(() => {
+    const entries = Array.from(storeTotalMap.entries()).sort(([, a], [, b]) => b - a);
+    if (entries.length === 0 || grandTotal === 0) return null;
+    const [name, orders] = entries[0];
+    return { name, orders, pct: (orders / grandTotal) * 100 };
+  }, [storeTotalMap, grandTotal]);
+
   const displayDays = useMemo(() => {
     if (!effectiveDateFrom || !effectiveDateTo) return null;
     const ms = new Date(effectiveDateTo).getTime() - new Date(effectiveDateFrom).getTime();
@@ -479,6 +500,44 @@ export function ManilaOrderCountsTab({
                     <div className="mt-0.5 text-xs text-neutral-500">net sales</div>
                   </div>
                 ) : null}
+              </div>
+            </div>
+
+            {/* KPI row — avg daily / top channel / top branch */}
+            <div className="grid gap-3 sm:grid-cols-3">
+              {/* AVG Daily Orders */}
+              <div className="rounded-2xl border border-neutral-700 bg-neutral-900/60 p-4 flex flex-col justify-between">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Avg Daily Orders</p>
+                <div className="mt-2">
+                  <div className="text-3xl font-bold text-white">
+                    {displayDays && grandTotal ? formatInt(Math.round(grandTotal / displayDays)) : "—"}
+                  </div>
+                  <div className="mt-0.5 text-xs text-neutral-500">per day{displayDays ? ` · ${displayDays} days` : ""}</div>
+                </div>
+              </div>
+              {/* Top Channel */}
+              <div className="rounded-2xl border border-amber-700/40 bg-amber-900/10 p-4 flex flex-col justify-between">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Top Channel</p>
+                <div className="mt-2">
+                  <div className="text-2xl font-bold text-white">{topChannel?.name ?? "—"}</div>
+                  {topChannel ? (
+                    <div className="mt-0.5 text-xs text-amber-400">
+                      {formatInt(topChannel.orders)} orders ({topChannel.pct.toFixed(1)}%)
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              {/* Top Branch */}
+              <div className="rounded-2xl border border-emerald-700/40 bg-emerald-900/10 p-4 flex flex-col justify-between">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Top Branch</p>
+                <div className="mt-2">
+                  <div className="text-2xl font-bold text-white">{topBranch?.name ?? "—"}</div>
+                  {topBranch ? (
+                    <div className="mt-0.5 text-xs text-emerald-400">
+                      {formatInt(topBranch.orders)} orders ({topBranch.pct.toFixed(1)}%)
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
 
