@@ -46,15 +46,19 @@ const SOURCE_TABS: { id: SourceType; label: string; color: string }[] = [
 ];
 
 const SOURCE_SECTION_LABELS: Record<string, string> = {
-  COLD_SUSHI:  "Cold Sushi",
-  HOT_GRILL:   "Hot Grill",
-  HOT_FRY:     "Hot Fry",
-  HOT_RAMEN:   "Hot Ramen",
-  OTHER_ITEMS: "Other Items",
-  DRINK:       "Drink",
-  SUPPLIER:    "Supplier",
-  WAREHOUSE:   "Warehouse",
-  KITCHEN:     "Kitchen",
+  COLD_SUSHI:   "Cold Sushi",
+  HOT_GRILL:    "Hot Grill",
+  HOT_FRY:      "Hot Fry",
+  HOT_RAMEN:    "Hot Ramen",
+  HOT_SECTION:  "Hot Section",
+  FROZEN_ITEMS: "Frozen Items",
+  DRY_ITEMS:    "Dry Items",
+  INGREDIENTS:  "Ingredients",
+  OTHER_ITEMS:  "Other Items",
+  DRINK:        "Drink",
+  SUPPLIER:     "Supplier",
+  WAREHOUSE:    "Warehouse",
+  KITCHEN:      "Kitchen",
 };
 
 const STAFF_OTHER = "Other";
@@ -462,6 +466,7 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
   // Excel import/export
   const [importing, setImporting] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [replaceMode, setReplaceMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function loadItems() {
@@ -595,9 +600,10 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      const url = `${API_BASE}/api/daily-inventory/items/import-excel${replaceMode ? "?deactivate_others=true" : ""}`;
       // Use fetch directly with getUploadHeaders — apiFetch injects Content-Type: application/json
       // which overrides the multipart/form-data boundary the browser must set for file uploads
-      const res = await fetch(`${API_BASE}/api/daily-inventory/items/import-excel`, {
+      const res = await fetch(url, {
         method: "POST",
         headers: new Headers(getUploadHeaders()),
         body: formData,
@@ -605,8 +611,9 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
       });
       const text = await res.text();
       if (!res.ok) throw new Error(text || "Import failed");
-      const data = JSON.parse(text) as { upserted?: number; total_processed?: number; skipped_blank?: number };
-      setMsg(`Import complete: ${data.upserted ?? data.total_processed ?? "?"} items upserted.`);
+      const data = JSON.parse(text) as { upserted?: number; total_processed?: number; skipped_blank?: number; deactivated?: number };
+      const deactivatedNote = (data.deactivated ?? 0) > 0 ? ` · ${data.deactivated} old items deactivated.` : "";
+      setMsg(`Import complete: ${data.upserted ?? data.total_processed ?? "?"} items upserted.${deactivatedNote}`);
       await loadItems();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import failed");
@@ -655,15 +662,33 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
               {downloading ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="text-xs">↓</span>}
               Template
             </button>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={importing}
-              className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500/20 disabled:opacity-50"
-              title="Upload edited Excel file to import items"
-            >
-              {importing ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="text-xs">↑</span>}
-              Import Excel
-            </button>
+            <div className="flex items-center gap-2">
+              <label
+                className={`flex items-center gap-1.5 cursor-pointer rounded-xl border px-3 py-2 text-xs font-semibold transition-colors ${
+                  replaceMode
+                    ? "border-orange-500/50 bg-orange-500/20 text-orange-300"
+                    : "border-zinc-600/40 bg-zinc-700/30 text-zinc-400 hover:border-zinc-500/50"
+                }`}
+                title="When checked, items NOT in the uploaded file will be deactivated (replace mode)"
+              >
+                <input
+                  type="checkbox"
+                  checked={replaceMode}
+                  onChange={(e) => setReplaceMode(e.target.checked)}
+                  className="h-3 w-3 accent-orange-400"
+                />
+                Replace
+              </label>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importing}
+                className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500/20 disabled:opacity-50"
+                title={replaceMode ? "Upload Excel — items NOT in file will be deactivated" : "Upload edited Excel file to import/update items"}
+              >
+                {importing ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="text-xs">↑</span>}
+                Import Excel
+              </button>
+            </div>
             <button
               onClick={() => void handleSeedExcel()}
               disabled={seeding}
