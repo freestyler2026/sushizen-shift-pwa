@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-14 (session 118 — Store Receiving invoice photo upload)
+Last updated: 2026-07-14 (session 119 — Invoice photo bug fixes + Daily Inventory import fix)
 
 
 > **New session start protocol:**
@@ -13,6 +13,35 @@ Last updated: 2026-07-14 (session 118 — Store Receiving invoice photo upload)
 ## ⚠️ Deployments Pending
 
 なし — 全変更デプロイ済み
+
+## ⚠️ Staff Action Required
+
+**Daily Inventory アイテムリスト修正** (スタッフへの返答が必要)
+
+スタッフが `inventory_template_Upload_Jul14 1.xlsx` (139品目) をインポートしたが正しく反映されなかった問題を修正済み。
+
+1. **修正済みExcelファイル**: `/Users/jaynishimura/Downloads/inventory_template_FIXED_Jul14.xlsx` (137品目) を用意。スタッフに提供して再インポートを依頼。
+2. **インポート手順**: Import Excel → **「Replace」チェックボックスをON** にしてからファイル選択 → 不要なアイテムが自動的に非アクティブ化される。
+
+元ファイルから修正した内容:
+- 「Mix Oil for Rmaen」→「Mix Oil for Ramen」(タイポ修正)、Item Code CK-HR-052、Section HOT_RAMEN、Unit L を追加
+- SUP-001・SUP-002 の重複行を削除
+- DRINKS → DRINK に統一 (9件)
+- SUP-* アイテム (19件) の source_type を正しく「supplier」に変更
+
+## Recently Completed (2026-07-14 session 119) — live (Vercel a209798, Heroku 49499a9)
+
+**Invoice Photo Upload バグ修正 + Daily Inventory インポート機能改善**
+
+### Invoice Photo Upload (session 118 の続き)
+- **Bug 1 fix** (`main.py`): `action="procurement.receiving.write"` (未定義) → `action="procurement.request.write"` に修正。未修正のままでは写真アップロード時に常に 403 エラーになっていた
+- **Bug 3 fix** (`receiving/page.tsx`): `URL.revokeObjectURL(prev)` を追加してメモリリーク防止
+
+### Daily Inventory — インポート機能改善
+- **Backend** (`db_daily_inventory.py`): `deactivate_items_not_in()` 新関数追加 — ファイルに含まれないアイテムを一括非アクティブ化
+- **Backend** (`daily_inventory_api.py`): インポートエンドポイントに `?deactivate_others=true` パラメータ追加
+- **Frontend** (`AdminDailyInventoryTab.tsx`): 「Replace」チェックボックスを Import Excel ボタン横に追加 — ONにするとファイル外のアイテムを自動非アクティブ化
+- **Frontend**: `FROZEN_ITEMS`, `DRY_ITEMS`, `HOT_SECTION`, `INGREDIENTS` を `SOURCE_SECTION_LABELS` に追加
 
 ## Recently Completed (2026-07-14 session 118) — live (Vercel 160d8a4, Heroku efd6fec)
 
