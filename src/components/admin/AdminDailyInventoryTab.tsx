@@ -623,6 +623,21 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
     }
   }
 
+  const [restoring, setRestoring] = useState(false);
+  async function handleRestoreCommissary() {
+    if (!confirm("Restore all CK commissary items that were deactivated?\nThis will reactivate items used by CK Inventory.")) return;
+    setRestoring(true); setError(""); setMsg("");
+    try {
+      const res = await apiFetch(`${API_BASE}/api/daily-inventory/items/restore-commissary`, { method: "POST" });
+      setMsg(`CK items restored: ${(res as { restored?: number }).restored ?? 0} items reactivated.`);
+      await loadItems();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Restore failed");
+    } finally {
+      setRestoring(false);
+    }
+  }
+
   const sections = [...new Set(items.map((i) => i.section))].sort();
   const retiredCount = items.filter((i) => !i.is_active && i.item_name.startsWith("[Retired]")).length;
 
@@ -689,6 +704,15 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
                 Import Excel
               </button>
             </div>
+            <button
+              onClick={() => void handleRestoreCommissary()}
+              disabled={restoring}
+              className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50"
+              title="Reactivate CK commissary items that were accidentally deactivated by Replace-mode import"
+            >
+              {restoring ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+              Restore CK Items
+            </button>
             <button
               onClick={() => void handleSeedExcel()}
               disabled={seeding}
