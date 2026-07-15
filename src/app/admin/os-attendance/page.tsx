@@ -83,6 +83,9 @@ type AttendanceSession = {
   is_no_show?: boolean;
   // Feature 6: source of the attendance record
   source?: "webauthn" | "bayzat";
+  // Break records — populated by Daily Report API
+  breaks?: { id: string; break_in_at: string | null; break_out_at: string | null; duration_min: number | null }[];
+  break_min?: number;
 };
 
 type SessionMeta = { staff_names: string[]; branch_codes: string[] };
@@ -1012,20 +1015,27 @@ function DailyReportTab({ city }: { city: string }) {
 
   // CSV export
   function downloadCsv() {
-    const cols = ["Staff Name", "Branch", "Date", "Status", "Clock In", "Clock Out", "Hours Worked", "GPS In", "GPS Out", "Branch Visits", "Note", ...(rangeMode ? [] : [])];
-    const rows = filtered.map(s => [
-      s.staff_name,
-      s.branch_code || "",
-      s.work_date,
-      sessionStatus(s).replaceAll("_", " "),
-      fmtTime(s.check_in_at, cityTz(city)),
-      fmtTime(s.check_out_at, cityTz(city)),
-      fmtDuration(s.check_in_at, s.check_out_at),
-      s.check_in_gps_ok === null ? "" : s.check_in_gps_ok ? "In Range" : "Out of Range",
-      s.check_out_gps_ok === null ? "" : s.check_out_gps_ok ? "In Range" : "Out of Range",
-      String(s.visits?.length ?? 0),
-      s.note || "",
-    ]);
+    const cols = ["Staff Name", "Branch", "Date", "Status", "Clock In", "Clock Out", "Hours Worked", "Break In", "Break Out", "Break (min)", "GPS In", "GPS Out", "Branch Visits", "Note"];
+    const rows = filtered.map(s => {
+      const firstBreak = s.breaks?.[0] ?? null;
+      const breakMin = s.break_min != null && s.break_min > 0 ? String(s.break_min) : "";
+      return [
+        s.staff_name,
+        s.branch_code || "",
+        s.work_date,
+        sessionStatus(s).replaceAll("_", " "),
+        fmtTime(s.check_in_at, cityTz(city)),
+        fmtTime(s.check_out_at, cityTz(city)),
+        fmtDuration(s.check_in_at, s.check_out_at),
+        firstBreak ? fmtTime(firstBreak.break_in_at, cityTz(city)) : "",
+        firstBreak?.break_out_at ? fmtTime(firstBreak.break_out_at, cityTz(city)) : (firstBreak ? "open" : ""),
+        breakMin,
+        s.check_in_gps_ok === null ? "" : s.check_in_gps_ok ? "In Range" : "Out of Range",
+        s.check_out_gps_ok === null ? "" : s.check_out_gps_ok ? "In Range" : "Out of Range",
+        String(s.visits?.length ?? 0),
+        s.note || "",
+      ];
+    });
     // Use \r\n (RFC 4180) so Windows Excel parses rows correctly.
     // Prepend UTF-8 BOM (﻿) so Excel opens Japanese staff names without garbling.
     const csv = [cols, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
@@ -1160,6 +1170,7 @@ function DailyReportTab({ city }: { city: string }) {
                 <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Clock Out</th>
                 <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">GPS</th>
                 <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Hours</th>
+                <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Break</th>
                 <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium">Visits</th>
                 <th className="pb-2.5 pt-2.5 pr-3 text-left font-medium"></th>
               </tr>
@@ -1169,8 +1180,9 @@ function DailyReportTab({ city }: { city: string }) {
                 const expanded = expandedIds.has(s.id);
                 const deleting = deletingId === s.id;
                 const visitCount = s.visits?.length ?? 0;
+                const breakCount = s.breaks?.length ?? 0;
                 const hasNote = !!s.note;
-                const expandable = visitCount > 0 || hasNote;
+                const expandable = visitCount > 0 || hasNote || breakCount > 0;
                 return (
                   <Fragment key={s.id}>
                     <tr className="hover:bg-white/3 transition-colors group">
@@ -1210,6 +1222,14 @@ function DailyReportTab({ city }: { city: string }) {
                       </td>
                       <td className={`${cellCls} text-white/60`}>{fmtDuration(s.check_in_at, s.check_out_at)}</td>
                       <td className={`${cellCls}`}>
+                        {breakCount > 0 ? (
+                          <button onClick={() => toggleExpand(s.id)}
+                            className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/25 px-2 py-0.5 text-xs text-amber-300 hover:bg-amber-500/25 transition-colors">
+                            {s.breaks!.some(b => !b.break_out_at) ? "⚠ open" : fmtTotalMins(Math.round(s.break_min ?? 0))}
+                          </button>
+                        ) : <span className="text-white/20 text-xs">—</span>}
+                      </td>
+                      <td className={`${cellCls}`}>
                         {visitCount > 0 ? (
                           <button onClick={() => toggleExpand(s.id)}
                             className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 border border-violet-500/25 px-2 py-0.5 text-xs text-violet-300 hover:bg-violet-500/25 transition-colors">
@@ -1238,10 +1258,38 @@ function DailyReportTab({ city }: { city: string }) {
                       </td>
                     </tr>
 
-                    {/* Expanded detail: visits table + note */}
+                    {/* Expanded detail: breaks table + visits table + note */}
                     {expanded && expandable && (
-                      <tr key={`${s.id}-visits`} className="bg-white/2">
-                        <td colSpan={rangeMode ? 12 : 11} className="pl-10 pr-3 pb-3 pt-1">
+                      <tr key={`${s.id}-detail`} className="bg-white/2">
+                        <td colSpan={rangeMode ? 13 : 12} className="pl-10 pr-3 pb-3 pt-1 space-y-2">
+                          {breakCount > 0 && (
+                            <div className="rounded-lg border border-amber-500/20 overflow-hidden">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="bg-amber-500/5 border-b border-amber-500/15 text-amber-300/60">
+                                    <th className="py-1.5 pl-3 text-left font-medium">#</th>
+                                    <th className="py-1.5 pr-3 text-left font-medium">Break In</th>
+                                    <th className="py-1.5 pr-3 text-left font-medium">Break Out</th>
+                                    <th className="py-1.5 pr-3 text-left font-medium">Duration</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5">
+                                  {s.breaks!.map((b, bi) => (
+                                    <tr key={b.id}>
+                                      <td className="py-1.5 pl-3 text-white/30 text-xs">{bi + 1}</td>
+                                      <td className="py-1.5 pr-3 text-white/70">{fmtTime(b.break_in_at, cityTz(city))}</td>
+                                      <td className={`py-1.5 pr-3 ${!b.break_out_at ? "text-amber-400" : "text-white/70"}`}>
+                                        {b.break_out_at ? fmtTime(b.break_out_at, cityTz(city)) : "⚠ open"}
+                                      </td>
+                                      <td className="py-1.5 pr-3 text-white/50">
+                                        {b.duration_min != null ? fmtTotalMins(Math.round(b.duration_min)) : "—"}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
                           {visitCount > 0 && (
                             <div className="rounded-lg border border-white/8 overflow-hidden">
                               <table className="w-full text-xs">
@@ -1269,7 +1317,7 @@ function DailyReportTab({ city }: { city: string }) {
                             </div>
                           )}
                           {s.note && (
-                            <p className={`${visitCount > 0 ? "mt-2" : ""} text-xs text-white/40 italic`}>Note: {s.note}</p>
+                            <p className="text-xs text-white/40 italic">Note: {s.note}</p>
                           )}
                         </td>
                       </tr>
