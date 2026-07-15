@@ -3,16 +3,16 @@
 import { useState } from "react";
 import { getAuthHeaders } from "@/lib/auth";
 
-const SHEETS = [
-  { sheet: "PL_Monthly",          desc: "Monthly P&L facts by city (all available months)" },
-  { sheet: "Staff_Master",        desc: "All staff: city, branch, role, skill rank" },
-  { sheet: "Attendance_Monthly",  desc: "Monthly attendance rollup by city/branch — 18 months" },
-  { sheet: "Procurement_History", desc: "Purchase orders — last 18 months" },
-  { sheet: "Vendor_Summary",      desc: "Vendor spend summary — last 18 months" },
-  { sheet: "Daily_Inventory_Items", desc: "Active daily inventory item master" },
-  { sheet: "Store_Evaluations",   desc: "Store inspection scores — last 12 months" },
-  { sheet: "Menu_Items",          desc: "Full menu with prices (AED & PHP)" },
-  { sheet: "Store_KPI_Monthly",   desc: "Monthly KPI rollup per branch — 18 months" },
+const FILES = [
+  { file: "01_PL_Monthly.csv",           desc: "Monthly P&L facts by city (all available months)" },
+  { file: "02_Staff_Master.csv",         desc: "All staff: city, branch, role, skill rank" },
+  { file: "03_Attendance_Monthly.csv",   desc: "Monthly attendance rollup by city/branch — 18 months" },
+  { file: "04_Procurement_History.csv",  desc: "Purchase orders — last 18 months" },
+  { file: "05_Vendor_Summary.csv",       desc: "Vendor spend summary — last 18 months" },
+  { file: "06_Daily_Inventory_Items.csv",desc: "Active daily inventory item master" },
+  { file: "07_Store_Evaluations.csv",    desc: "Store inspection scores — last 12 months" },
+  { file: "08_Menu_Items.csv",           desc: "Full menu with prices (AED & PHP)" },
+  { file: "09_Store_KPI_Monthly.csv",    desc: "Monthly KPI rollup per branch — 18 months" },
 ];
 
 export default function MallExpansionPage() {
@@ -49,27 +49,27 @@ export default function MallExpansionPage() {
       <div>
         <h1 className="text-2xl font-bold">Mall Expansion — Data Pack</h1>
         <p className="mt-1 text-sm text-gray-500">
-          Download a single Excel workbook with all operational data needed for
-          NotebookLM to generate a Manila shopping mall expansion business plan.
+          Download a ZIP of CSV files (live production data) to upload as sources
+          in NotebookLM for Manila shopping mall expansion analysis.
         </p>
       </div>
 
-      {/* Sheet list */}
+      {/* File list */}
       <div className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 dark:bg-gray-800">
             <tr>
-              <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-gray-300">Sheet</th>
+              <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-gray-300">File</th>
               <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-gray-300">Contents</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-            {SHEETS.map((s) => (
-              <tr key={s.sheet} className="bg-white dark:bg-gray-900">
+            {FILES.map((f) => (
+              <tr key={f.file} className="bg-white dark:bg-gray-900">
                 <td className="px-4 py-2 font-mono text-xs text-indigo-700 dark:text-indigo-400 whitespace-nowrap">
-                  {s.sheet}
+                  {f.file}
                 </td>
-                <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{s.desc}</td>
+                <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{f.desc}</td>
               </tr>
             ))}
           </tbody>
@@ -106,8 +106,8 @@ export default function MallExpansionPage() {
         </button>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <p className="text-xs text-gray-400">
-          Contents: one Excel file with 9 sheets of live production data.
-          Upload the .xlsx inside the ZIP to NotebookLM as a source document.
+          Contents: 9 CSV files of live production data inside a ZIP.
+          Upload each CSV individually to NotebookLM as a separate source.
         </p>
       </div>
 
@@ -115,9 +115,9 @@ export default function MallExpansionPage() {
       <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 p-4 text-sm space-y-2">
         <p className="font-semibold text-amber-800 dark:text-amber-300">How to use with NotebookLM</p>
         <ol className="list-decimal list-inside space-y-1 text-amber-900 dark:text-amber-200">
-          <li>Download the ZIP, extract the .xlsx file inside.</li>
+          <li>Download the ZIP and extract the 9 CSV files inside.</li>
           <li>Open <strong>NotebookLM</strong> → New notebook → Add source → Upload file.</li>
-          <li>Upload the .xlsx file. NotebookLM will index all sheets automatically.</li>
+          <li>Upload each CSV file as a separate source (up to 9 sources).</li>
           <li>Use the prompt kit to generate your business plan sections.</li>
         </ol>
       </div>
