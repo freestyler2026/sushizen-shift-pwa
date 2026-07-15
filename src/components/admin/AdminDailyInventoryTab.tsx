@@ -625,7 +625,7 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
 
   const [restoring, setRestoring] = useState(false);
   async function handleRestoreCommissary() {
-    if (!confirm("Restore all CK commissary items that were deactivated?\nThis will reactivate items used by CK Inventory.")) return;
+    if (!confirm("Restore CK commissary items deactivated within the last 7 days?\nThis will reactivate items used by CK Inventory.\n\nNote: [Retired] items and items deactivated more than 7 days ago will NOT be restored.")) return;
     setRestoring(true); setError(""); setMsg("");
     try {
       const res = await apiFetch(`/api/daily-inventory/items/restore-commissary`, { method: "POST" });
@@ -635,6 +635,29 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
       setError(e instanceof Error ? e.message : "Restore failed");
     } finally {
       setRestoring(false);
+    }
+  }
+
+  const [cleaning, setCleaning] = useState(false);
+  async function handleCleanupCommissary() {
+    if (!confirm(
+      "Fix CK item issues caused by over-broad restore?\n\n" +
+      "This will:\n" +
+      "  1. Re-deactivate [Retired] items that were accidentally restored\n" +
+      "  2. Remove cross-section duplicates (keeps the entry with prior usage history)\n\n" +
+      "Continue?"
+    )) return;
+    setCleaning(true); setError(""); setMsg("");
+    try {
+      const res = await apiFetch(`/api/daily-inventory/items/cleanup-commissary`, { method: "POST" }) as {
+        retired_deactivated?: number; duplicates_removed?: number;
+      };
+      setMsg(`Cleanup complete: ${res.retired_deactivated ?? 0} [Retired] items re-deactivated, ${res.duplicates_removed ?? 0} duplicate entries removed.`);
+      await loadItems();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Cleanup failed");
+    } finally {
+      setCleaning(false);
     }
   }
 
@@ -708,10 +731,19 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
               onClick={() => void handleRestoreCommissary()}
               disabled={restoring}
               className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50"
-              title="Reactivate CK commissary items that were accidentally deactivated by Replace-mode import"
+              title="Reactivate CK commissary items deactivated within the last 7 days (excludes [Retired] items)"
             >
               {restoring ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
               Restore CK Items
+            </button>
+            <button
+              onClick={() => void handleCleanupCommissary()}
+              disabled={cleaning}
+              className="flex items-center gap-2 rounded-xl border border-orange-500/30 bg-orange-500/10 px-3 py-2 text-xs font-semibold text-orange-300 hover:bg-orange-500/20 disabled:opacity-50"
+              title="Re-deactivate [Retired] items and remove cross-section duplicates caused by over-broad restore"
+            >
+              {cleaning ? <Loader2 className="h-3 w-3 animate-spin" /> : <AlertTriangle className="h-3 w-3" />}
+              Fix Restore Issues
             </button>
             <button
               onClick={() => void handleSeedExcel()}
