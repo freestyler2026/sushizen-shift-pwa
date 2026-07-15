@@ -628,7 +628,7 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
     if (!confirm("Restore all CK commissary items that were deactivated?\nThis will reactivate items used by CK Inventory.")) return;
     setRestoring(true); setError(""); setMsg("");
     try {
-      const res = await apiFetch(`${API_BASE}/api/daily-inventory/items/restore-commissary`, { method: "POST" });
+      const res = await apiFetch(`/api/daily-inventory/items/restore-commissary`, { method: "POST" });
       setMsg(`CK items restored: ${(res as { restored?: number }).restored ?? 0} items reactivated.`);
       await loadItems();
     } catch (e) {
