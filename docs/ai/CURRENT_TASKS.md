@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-14 (session 119 — Invoice photo bug fixes + Daily Inventory import fix)
+Last updated: 2026-07-15 (session 120 — Mall Expansion CSV export fixes + CK Inventory restore)
 
 
 > **New session start protocol:**
@@ -14,20 +14,36 @@ Last updated: 2026-07-14 (session 119 — Invoice photo bug fixes + Daily Invent
 
 なし — 全変更デプロイ済み
 
-## ⚠️ Staff Action Required
+## ⚠️ Admin Action Required — CRITICAL
 
-**Daily Inventory アイテムリスト修正** (スタッフへの返答が必要)
+**CK Inventory アイテム復元** (管理者が手動でボタンを押す必要あり)
 
-スタッフが `inventory_template_Upload_Jul14 1.xlsx` (139品目) をインポートしたが正しく反映されなかった問題を修正済み。
+Sugar, Chili Oil, Pork Loin, Chicken Thigh 等のCKコミサリーアイテムが `is_commissary = TRUE` にもかかわらず、Replace-modeインポートで非アクティブ化された。
 
-1. **修正済みExcelファイル**: `/Users/jaynishimura/Downloads/inventory_template_FIXED_Jul14.xlsx` (137品目) を用意。スタッフに提供して再インポートを依頼。
-2. **インポート手順**: Import Excel → **「Replace」チェックボックスをON** にしてからファイル選択 → 不要なアイテムが自動的に非アクティブ化される。
+**手順**:
+1. Admin OS → **Daily Inventory** タブを開く
+2. **「Restore CK Items」ボタン**（緑色）をクリック
+3. 確認ダイアログ → OK
+4. 成功メッセージ（例: "CK items restored: 25 items reactivated"）を確認
 
-元ファイルから修正した内容:
-- 「Mix Oil for Rmaen」→「Mix Oil for Ramen」(タイポ修正)、Item Code CK-HR-052、Section HOT_RAMEN、Unit L を追加
-- SUP-001・SUP-002 の重複行を削除
-- DRINKS → DRINK に統一 (9件)
-- SUP-* アイテム (19件) の source_type を正しく「supplier」に変更
+復元後: スタッフに修正済みExcel (`inventory_template_FIXED_Jul14.xlsx`, 137品目) を提供し、Replace-modeで再インポートを依頼。
+
+## Recently Completed (2026-07-15 session 120) — live (Vercel c520529, Heroku d04105b)
+
+**Mall Expansion CSV export fixes + CK Inventory restore fix**
+
+### Mall Expansion — CSVエラー修正 (5ファイル)
+- `03_Attendance_Monthly` / `09_Store_KPI_Monthly`: `status` カラム存在しない → `COUNT(DISTINCT (staff_name, work_date))` 等に修正
+- `06_Daily_Inventory_Items`: `unit`/`reorder_level` → `default_unit`/`min_level` に修正
+- `07_Store_Evaluations`: `max_score` カラム存在しない → 個別スコアカラムに変更
+- `08_Menu_Items`: `category_id` JOIN → `menu_item_master` 直読みに変更
+- NotebookLM対応: Excel→CSVフォーマットに全面変更済み
+
+### CK Inventory 消失バグ修正
+- **根本原因**: `deactivate_items_not_in()` に `AND is_commissary = FALSE` フィルタが欠落 → Replace-modeインポート時にCKコミサリーアイテムを誤って非アクティブ化
+- **修正** (`db_daily_inventory.py`): `deactivate_items_not_in()` に `AND is_commissary = FALSE` 追加。`restore_commissary_items()` 新関数追加
+- **API** (`daily_inventory_api.py`): `POST /api/daily-inventory/items/restore-commissary` 追加
+- **Frontend** (`AdminDailyInventoryTab.tsx`): 緑色の「Restore CK Items」ボタン追加
 
 ## Recently Completed (2026-07-14 session 119) — live (Vercel a209798, Heroku 49499a9)
 
