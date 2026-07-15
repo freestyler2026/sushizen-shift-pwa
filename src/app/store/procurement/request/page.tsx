@@ -1666,6 +1666,9 @@ export default function StoreProcurementRequestPage() {
                           {isEditPrefilled && (
                             <span className="ml-1.5 rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">from original</span>
                           )}
+                          {item.spec && (
+                            <div className="mt-0.5 text-[10px] text-zinc-500">{item.spec}</div>
+                          )}
                         </td>
                         <td className="px-3 py-2 text-neutral-300">{item.category || "-"}</td>
                         <td className="px-2 py-2">

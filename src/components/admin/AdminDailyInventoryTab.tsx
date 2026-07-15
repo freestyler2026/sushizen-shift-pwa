@@ -186,6 +186,7 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
     else if (item.par_level !== null && Number(entry.qty) < Number(item.par_level)) warnItems.push({ item, entry });
   });
 
+  const [detailSourceTab, setDetailSourceTab] = useState<SourceType>("ck");
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [orderQtys, setOrderQtys] = useState<Record<string, string>>({});
   const [orderSelected, setOrderSelected] = useState<Record<string, boolean>>({});
@@ -229,8 +230,11 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
     } finally { setOrderBusy(false); }
   }
 
-  const sections = [...new Set(items.map((i) => i.section))];
+  const filteredItems = items.filter((i) => i.source_type === detailSourceTab);
+  const sections = [...new Set(filteredItems.map((i) => i.section))];
   const filledCount = detail.entries.filter((e) => e.qty !== null).length;
+  const entryCountByType = (st: string) =>
+    items.filter((i) => i.source_type === st && entryMap[i.item_code] !== undefined).length;
 
   return (
     <div className="space-y-5">
@@ -378,8 +382,36 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
         </div>
       )}
 
+      {/* Source type tabs */}
+      <div className="flex gap-1.5">
+        {SOURCE_TABS.map((tab) => {
+          const count = entryCountByType(tab.id);
+          const active = detailSourceTab === tab.id;
+          const activeClass = tab.id === "ck"
+            ? "border-violet-500/40 bg-violet-500/20 text-violet-200"
+            : tab.id === "supplier"
+            ? "border-sky-500/40 bg-sky-500/20 text-sky-200"
+            : "border-amber-500/40 bg-amber-500/20 text-amber-200";
+          const badgeActive = tab.id === "ck"
+            ? "bg-violet-500/30"
+            : tab.id === "supplier"
+            ? "bg-sky-500/30"
+            : "bg-amber-500/30";
+          return (
+            <button key={tab.id} type="button"
+              onClick={() => setDetailSourceTab(tab.id as SourceType)}
+              className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all ${
+                active ? activeClass : "border-white/10 bg-white/3 text-zinc-400 hover:text-zinc-200"
+              }`}>
+              {tab.label}
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${active ? badgeActive : "bg-white/10"}`}>{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
       {sections.map((sec) => {
-        const sectionItems = items.filter((i) => i.section === sec);
+        const sectionItems = filteredItems.filter((i) => i.section === sec);
         const sectionEntries = sectionItems.filter((i) => entryMap[i.item_code]);
         if (sectionEntries.length === 0) return null;
         return (
