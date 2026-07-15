@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-16 (session 121 — OS Attendance break tracking + CK restore cleanup)
+Last updated: 2026-07-16 (session 121b — Daily Inventory UX improvements)
 
 
 > **New session start protocol:**
@@ -29,6 +29,23 @@ Restore CK Items ボタンが過去の`[Retired]`アイテムや旧セクショ�
 **このボタンが行うこと:**
 - `[Retired] CK048` 等の退役済みアイテムを再度非アクティブ化
 - 同じ品名が複数セクションに存在する重複を解消（使用履歴のある方を保持、古い方を無効化）
+
+## Recently Completed (2026-07-16 session 121b) — live (Vercel e19ef2e, Heroku 633347c)
+
+**Daily Inventory UX improvements**
+
+### 1. Procurement order: Show current stock (On hand quantity)
+When "Generate Purchase Request" creates a procurement order, the `spec` field now contains "On hand: X unit" from the daily inventory report. The procurement request page displays this as a gray sub-text below the item name, so reviewers can see the current stock alongside the order quantity.
+
+- **Backend** (`daily_inventory_api.py`): `api_generate_order_from_report()` — build `on_hand_map` from report entries, set `spec = "On hand: {qty} {unit}"`
+- **Frontend** (`procurement/request/page.tsx`): render `item.spec` as `text-[10px] text-zinc-500` below item name
+
+### 2. Daily Inventory History: Add CK / Supplier / Warehouse source type tabs
+`ReportDetailView` now has tab buttons (Central Kitchen | Supplier | Warehouse) at the top of the item list. Each tab shows how many entries exist for that type in the selected report. Switching tabs filters the sections table to that source type only. Low Stock / Needs Attention panels still show all source types.
+
+- **Frontend** (`AdminDailyInventoryTab.tsx`): `detailSourceTab` state, `filteredItems` computed from `items.filter(source_type)`, `entryCountByType()` helper for badge counts
+
+---
 
 ## Recently Completed (2026-07-16 session 121) — live (Vercel 5b53f91, Heroku bfc8c64)
 
