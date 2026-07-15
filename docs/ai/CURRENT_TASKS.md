@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-15 (session 120 — Mall Expansion CSV export fixes + CK Inventory restore)
+Last updated: 2026-07-16 (session 121 — OS Attendance break tracking + CK restore cleanup)
 
 
 > **New session start protocol:**
@@ -16,17 +16,51 @@ Last updated: 2026-07-15 (session 120 — Mall Expansion CSV export fixes + CK I
 
 ## ⚠️ Admin Action Required — CRITICAL
 
-**CK Inventory アイテム復元** (管理者が手動でボタンを押す必要あり)
+**CK Inventory [Retired]・重複アイテムのクリーンアップ** (管理者が手動でボタンを押す必要あり)
 
-Sugar, Chili Oil, Pork Loin, Chicken Thigh 等のCKコミサリーアイテムが `is_commissary = TRUE` にもかかわらず、Replace-modeインポートで非アクティブ化された。
+Restore CK Items ボタンが過去の`[Retired]`アイテムや旧セクション重複エントリまで復元してしまった。
 
 **手順**:
-1. Admin OS → **Daily Inventory** タブを開く
-2. **「Restore CK Items」ボタン**（緑色）をクリック
-3. 確認ダイアログ → OK
-4. 成功メッセージ（例: "CK items restored: 25 items reactivated"）を確認
+1. Admin OS → **Daily Inventory** タブを開く → **「Manage Items」**をクリック
+2. **「Fix Restore Issues」ボタン**（オレンジ色）をクリック
+3. 確認ダイアログで内容を確認 → OK
+4. 成功メッセージ（例: "15 [Retired] items re-deactivated, 12 duplicate entries removed"）を確認
 
-復元後: スタッフに修正済みExcel (`inventory_template_FIXED_Jul14.xlsx`, 137品目) を提供し、Replace-modeで再インポートを依頼。
+**このボタンが行うこと:**
+- `[Retired] CK048` 等の退役済みアイテムを再度非アクティブ化
+- 同じ品名が複数セクションに存在する重複を解消（使用履歴のある方を保持、古い方を無効化）
+
+## Recently Completed (2026-07-16 session 121) — live (Vercel 5b53f91, Heroku bfc8c64)
+
+**OS Attendance break tracking + CK Inventory restore cleanup**
+
+### OS Attendance — Daily Report に休憩時間表示追加
+
+ドバイスタッフがBreak In/Outを記録しているが、Daily Reportに表示されていなかった。
+
+- **Backend** (`db.py`): `list_os_sessions_with_visits()` を GROUP BY+JOIN から LATERAL サブクエリに変更し、visits と breaks 両方を重複なく集計
+- **Backend** (`main.py`): `_fmt_with_visits()` に breaks 解析 + `duration_min` 計算 + `break_min` 合計を追加
+- **Frontend** (`os-attendance/page.tsx`):
+  - `AttendanceSession` 型に `breaks[]` と `break_min` フィールド追加
+  - Daily Reportテーブルに **Break 列** 追加（合計休憩時間をアンバーバッジで表示、休憩中は "⚠ open"）
+  - 行展開時に Break In / Break Out / Duration の詳細テーブルを表示（アンバーテーマ）
+  - CSV Export に **Break In / Break Out / Break (min)** 3列追加
+
+### CK Inventory restore 過剰復元問題修正
+
+**根本原因連鎖**（教訓8・9 参照）:
+1. Session 119: `deactivate_items_not_in()` に `AND is_commissary = FALSE` を付け忘れ
+2. Replace-modeインポートで CK アイテムが誤って全件非アクティブ化
+3. Session 120: `restore_commissary_items()` を追加したが無条件復元 → `[Retired]` アイテムと旧セクション重複も全て復活
+4. 今セッション: 下記2点を修正してデプロイ済み
+
+**修正内容**:
+- `restore_commissary_items()` (`db_daily_inventory.py`): `[Retired]` 除外 + 7日以内に非アクティブ化されたもののみ対象に制限
+- `cleanup_commissary_restore()` 新関数: ① `[Retired]` 再無効化 ② 同名重複を `daily_inv_entries` 使用履歴で判定してデデュープ
+- `POST /items/cleanup-commissary` 新エンドポイント
+- **Frontend**: Manage Items に **「Fix Restore Issues」**（オレンジ）ボタン追加
+
+⚠️ **管理者が "Fix Restore Issues" を実行するまで現状の [Retired]・重複アイテムは未解消**
 
 ## Recently Completed (2026-07-15 session 120) — live (Vercel c520529, Heroku d04105b)
 

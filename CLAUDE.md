@@ -128,6 +128,9 @@ npx tsc --noEmit
 5. **AutoReload削除禁止** → `LayoutShell.tsx` の `<AutoReload />` は常に必要
 6. **RealDictCursor + `[0]` 禁止** → Python側で `cur.fetchone()[0]` はKeyError(0)を引き起こす。`.get("col", 0)` を使う
 7. **psycopg2トランザクションabort連鎖** → 1接続で複数クエリを実行する場合、1つ失敗すると後続が全滅。クエリごとに独立した接続を使う
+8. **CKアイテム一括操作は is_commissary フィルタが必須** → `deactivate_items_not_in()` は必ず `AND is_commissary = FALSE` を含める。これが欠落するとReplace-modeインポートがCKコミサリーアイテムも消す（2026-07 実際に発生）
+9. **restore_commissary_items() は過去アイテムを全部戻す危険がある** → 無条件で `is_commissary=TRUE AND is_active=FALSE` を全件復元すると、`[Retired]`アイテムや旧セクションの重複エントリまで復活する。現在の実装は「7日以内に非アクティブ化 + [Retired]除外」に制限済み。CK復元後に問題が起きたら **Manage Items → "Fix Restore Issues"（オレンジ）ボタン** を実行して重複・[Retired]を再クリーンアップする
+10. **apiFetch のパス引数に `${API_BASE}` を含めない** → `apiFetch` は内部で `${API_BASE}${path}` を組み立てるため、引数に `${API_BASE}/api/...` を渡すとURLが二重になり "Failed to fetch" が発生する（2026-07 Restore CK Items で発生）
 
 ---
 
