@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-16 (session 121b — Daily Inventory UX improvements)
+Last updated: 2026-07-16 (session 121e — Procurement qty-loss fix + daily inventory stock column)
 
 
 > **New session start protocol:**
@@ -13,6 +13,44 @@ Last updated: 2026-07-16 (session 121b — Daily Inventory UX improvements)
 ## ⚠️ Deployments Pending
 
 なし — 全変更デプロイ済み
+
+## Recently Completed (2026-07-16 session 121e) — live (Vercel aa7f29f, Heroku 6ea86e9)
+
+### 1. Procurement: qty-loss bug when adding catalog item (`request/page.tsx`)
+
+**Bug**: "+ Add Item" → "Add" triggers `loadItemCatalog()` which immediately calls
+`setCatalogSuppliers([])`. This fires the quantity-preservation useEffect with an
+empty catalog — `catalogMapped = []` — wiping all manually-entered qtys.
+Only Generated Orders items survived (restored from fixed `editRequestItems` list).
+
+**Fix**: Added `preserveSuppliers?: boolean` to `loadItemCatalog` opts. When true,
+skips `setCatalogSuppliers([])` so existing items remain during the reload.
+`addCatalogItemFn` now calls `loadItemCatalog({ preserveSuppliers: true })`.
+
+### 2. Procurement: Daily Inventory stock column (`request/page.tsx` + `main.py`)
+
+New "Stock (On Hand)" column in the procurement catalog grid for Manila stores.
+- Backend: `GET /api/admin/procurement/requests/daily-inventory-stock?store=PAR&date=2026-07-16`
+  joins the latest daily inventory report entries with item names.
+  Auth: `procurement.request.write` (STAFF has access).
+- Frontend: fetches on store/date change via `loadDailyInventoryStock` useCallback.
+  Color-coded qty: red=0, amber<3, sky=normal. Shows report date in header.
+  Column hidden for Dubai, "All Stores", and when no store is selected.
+
+## Recently Completed (2026-07-16 session 121d) — live (Heroku v1383)
+
+**Market Analysis: duplicate mall pin bug fix**
+
+スタッフ報告: Malabon #1エリアの「最寄りモール: SM City Caloocan (2.2km)」が実際より遠く見える。
+
+**根本原因**: `get_ncr_malls()` が Overpass API (OSM) から取得したモールを重複排除する際、座標の近さ (<200m) しかチェックしていなかった。OSM上の「SM City Caloocan」がハードコードと異なる座標 (>200m) に登録されていた場合、別エントリとして追加され、「Show Malls」マップ上に2つのピンが表示される。
+
+距離計算は `NCR_MAJOR_MALLS` (ハードコード、正しい座標) を使用し続けるが、マップ表示は `get_ncr_malls()` (Overpassデータ入り) を使うため、表示上の不一致が発生していた。
+
+**修正 (`app/market_analysis.py`)**:
+- `hardcoded_names_lower` セットを追加し、名前でも重複排除
+- Overpassからのモールがハードコード済みモールと名前一致 → スキップ (座標が違くても)
+- 近接重複排除の半径を 200m → 500m に拡大
 
 ## ⚠️ Admin Action Required — CRITICAL
 
@@ -29,6 +67,35 @@ Restore CK Items ボタンが過去の`[Retired]`アイテムや旧セクショ�
 **このボタンが行うこと:**
 - `[Retired] CK048` 等の退役済みアイテムを再度非アクティブ化
 - 同じ品名が複数セクションに存在する重複を解消（使用履歴のある方を保持、古い方を無効化）
+
+## Recently Completed (2026-07-16 session 121c) — live (Vercel f54c99c)
+
+**Incident Report 403 fix + Item Master UX**
+
+### 1. Incident Report 403 Forbidden fix (`incidents/page.tsx`)
+Staff receiving `{"detail":"Forbidden"}` on both page load and submit. Root cause: all four API call sites (`fetchList`, `handleExpand`, `handleSubmit`, self-eval `submit`) used synchronous `getAuth()` which returns the cached token without checking expiry. Staff with expired tokens (>16h) or legacy PIN-only sessions (no `accessToken`) got 403 on every call.
+
+Fix: replaced `getAuth()` with `await refreshAuthFromApi(getAuth())` at each call site. `refreshAuthFromApi` re-mints a fresh access token via PIN if the current one is missing or expired.
+
+### 2. Item Master Active/Off toggle (`AdminDailyInventoryTab.tsx`)
+Active/Off status was a static `<span>` — users reported it was not clickable. Fixed by:
+- Adding `handleToggleActive(itemCode, currentActive)` function calling `PATCH /api/daily-inventory/items/{code}` with `{ is_active: !current }`
+- Replacing static span with a `<button>` that calls `handleToggleActive` on click
+- Hover state shows the inverse action (Active shows red hover → Off indicator, Off shows green hover → Active indicator)
+
+### 3. Item Master Back button (`AdminDailyInventoryTab.tsx`)
+Added Back button to ItemMasterView header so users can return to the Daily Inventory form without scrolling to the bottom of the page.
+
+### 4. Procurement On-hand quantity (`procurement/request/page.tsx`)
+Staff reported "On hand" not showing in procurement edit mode. Fixed the full data chain:
+- Added `spec?: string` to inline API response type (was causing Vercel build error)  
+- Added `spec` to `editRequestItems` state type
+- Added `spec` to `rawItems` mapping, catalog item overlay, and fallback rows
+
+### 5. Market Analysis: address search + population rank (`market-analysis/page.tsx`, `market_analysis.py`, `main.py`)
+- Address search bar (Nominatim geocoding, Philippines-restricted)
+- `rank_location()` backend function: scans ~12,400 NCR grid points, returns rank/percentile
+- Fixed: map click and runEstimate now clear stale `rankResult` values
 
 ## Recently Completed (2026-07-16 session 121b) — live (Vercel e19ef2e, Heroku 633347c)
 
