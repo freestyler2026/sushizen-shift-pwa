@@ -575,6 +575,20 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
     } finally { setEditParBusy(false); }
   }
 
+  async function handleToggleActive(itemCode: string, currentActive: boolean) {
+    try {
+      const res = await apiFetch(`/api/daily-inventory/items/${encodeURIComponent(itemCode)}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: !currentActive }),
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(text || "Update failed");
+      setItems((prev) => prev.map((it) => it.item_code === itemCode ? { ...it, is_active: !currentActive } : it));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Toggle failed");
+    }
+  }
+
   async function handleDelete(itemCode: string, itemName: string) {
     if (!window.confirm(`Deactivate "${itemName}"? It will no longer appear in the inventory form.`)) return;
     try {
@@ -916,9 +930,17 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
                         )}
                       </td>
                       <td className={`${TABLE_CELL} px-3 text-center`}>
-                        {item.is_active
-                          ? <span className={BADGE_SUCCESS}>Active</span>
-                          : <span className={BADGE_ERROR}>Off</span>}
+                        <button
+                          onClick={() => void handleToggleActive(item.item_code, item.is_active)}
+                          className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                            item.is_active
+                              ? "border border-emerald-500/40 bg-emerald-500/20 text-emerald-300 hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/40"
+                              : "border border-red-500/40 bg-red-500/20 text-red-300 hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-500/40"
+                          }`}
+                          title={item.is_active ? "Click to deactivate" : "Click to activate"}
+                        >
+                          {item.is_active ? "Active" : "Off"}
+                        </button>
                       </td>
                       <td className={`${TABLE_CELL} px-4 text-center`}>
                         {item.is_active && (
