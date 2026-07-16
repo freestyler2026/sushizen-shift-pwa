@@ -700,9 +700,14 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
     <div className="space-y-5">
       <div className={`${GLASS_CARD} p-5`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Back Office</p>
-            <h2 className="mt-0.5 text-lg font-semibold text-white">Item Master</h2>
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={onBack} className="flex items-center gap-1.5 rounded-xl border border-zinc-600/40 bg-zinc-700/30 px-3 py-2 text-xs font-semibold text-zinc-300 hover:border-zinc-500/50 hover:bg-zinc-700/50 transition-colors">
+              <ArrowLeft className="h-3.5 w-3.5" />Back
+            </button>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Back Office</p>
+              <h2 className="mt-0.5 text-lg font-semibold text-white">Item Master</h2>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {retiredCount > 0 && (
