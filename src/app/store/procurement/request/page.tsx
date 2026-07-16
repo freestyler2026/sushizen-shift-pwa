@@ -1722,7 +1722,7 @@ export default function StoreProcurementRequestPage() {
                             <td className="px-2 py-2 text-right">
                               {onHand != null ? (
                                 <span className={`text-xs font-medium tabular-nums ${onHand <= 0 ? "text-red-400" : onHand < 3 ? "text-amber-300" : "text-sky-300"}`}>
-                                  {onHand % 1 === 0 ? onHand : onHand.toFixed(1)}
+                                  {onHand % 1 === 0 ? onHand : parseFloat(onHand.toFixed(3))}
                                 </span>
                               ) : (
                                 <span className="text-xs text-zinc-600">—</span>
