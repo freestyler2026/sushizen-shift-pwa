@@ -152,6 +152,9 @@ export default function StoreProcurementRequestPage() {
   const [catalogSuppliers, setCatalogSuppliers] = useState<SupplierCatalog[]>([]);
   const [catalogBusy, setCatalogBusy] = useState(false);
   const [supplierFilter, setSupplierFilter] = useState<string>("");
+  // Daily inventory on-hand quantities: item_name (lowercase) → qty
+  const [stockMap, setStockMap] = useState<Record<string, number>>({});
+  const [stockReportDate, setStockReportDate] = useState<string>("");
   const addCatalogItemFn = async () => {
     if (!addItemName.trim()) { setAddCatalogError("Item name is required."); return; }
     if (!addSupplier.trim()) { setAddCatalogError("Supplier is required."); return; }
@@ -187,8 +190,8 @@ export default function StoreProcurementRequestPage() {
       setAddCatalogSuccess(`"${addItemName.trim()}" added to ${addCategory} catalog.`);
       setAddItemName(""); setAddUnit(""); setAddUnitPrice("0");
       if (!addItemForSupplier) setAddSupplier("");
-      // Reload catalog
-      void loadItemCatalog();
+      // Reload catalog — preserve existing suppliers so manually-entered quantities are not lost
+      void loadItemCatalog({ preserveSuppliers: true });
     } catch (e: unknown) {
       setAddCatalogError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -615,7 +618,7 @@ export default function StoreProcurementRequestPage() {
   );
 
   const loadItemCatalog = useCallback(
-    async (opts?: { cityOverride?: string; storeOverride?: string }) => {
+    async (opts?: { cityOverride?: string; storeOverride?: string; preserveSuppliers?: boolean }) => {
       const activeCity = String(opts?.cityOverride || city || "manila").trim().toLowerCase() || "manila";
       // Browse the catalog with "ALL" when no specific store is chosen yet, so the
       // list is always visible. The submitted store_code is still required to be a
@@ -623,8 +626,12 @@ export default function StoreProcurementRequestPage() {
       const activeStore = String(opts?.storeOverride || storeCode || "").trim() || "ALL";
       // Clear immediately so stale catalog (e.g. WH/Cartimar items) is not shown
       // while the new category's API call is in-flight.
-      // Without this, slow mobile networks show the old supplier list for several seconds.
-      setCatalogSuppliers([]);
+      // Skip clearing when called after adding a single catalog item — the existing
+      // items list is still valid and clearing it fires the preservation useEffect
+      // with an empty catalog, wiping all manually-entered quantities.
+      if (!opts?.preserveSuppliers) {
+        setCatalogSuppliers([]);
+      }
       setCatalogBusy(true);
       try {
         let data: CatalogResponse;
@@ -682,6 +689,32 @@ export default function StoreProcurementRequestPage() {
       }
     },
     [city, pin, requestDate, requestedBy, selectedCatalogCategory, storeCode],
+  );
+
+  const loadDailyInventoryStock = useCallback(
+    async (storeCodeOverride?: string) => {
+      const activeStore = (storeCodeOverride ?? storeCode).trim().toUpperCase();
+      if (city !== "manila" || !activeStore || activeStore === "ALL") {
+        setStockMap({});
+        setStockReportDate("");
+        return;
+      }
+      try {
+        const qs = new URLSearchParams({ store: activeStore, city: "manila", date: requestDate });
+        const data = await procurementJson<{ stock?: Record<string, number>; report_date?: string }>(
+          `/api/admin/procurement/requests/daily-inventory-stock?${qs.toString()}`,
+          { method: "GET" },
+          requestedBy,
+          pin,
+        );
+        setStockMap(data?.stock ?? {});
+        setStockReportDate(data?.report_date ?? "");
+      } catch {
+        setStockMap({});
+        setStockReportDate("");
+      }
+    },
+    [city, storeCode, requestDate, requestedBy, pin],
   );
 
   const createRequest = async (submitNow: boolean) => {
@@ -1027,6 +1060,10 @@ export default function StoreProcurementRequestPage() {
       }
     } catch {}
   }, [LAST_CREATED_MAX_AGE_MS, LAST_CREATED_REQUEST_ITEMS_KEY, LAST_CREATED_REQUEST_KEY, relativeNowMs]);
+
+  useEffect(() => {
+    void loadDailyInventoryStock();
+  }, [loadDailyInventoryStock]);
 
   return (
     <div className={PAGE_BG}>
@@ -1644,6 +1681,12 @@ export default function StoreProcurementRequestPage() {
                     <tr>
                       <th className="px-3 py-2 text-left">Item</th>
                       <th className="px-3 py-2 text-left">Category</th>
+                      {city === "manila" && storeCode && storeCode !== "ALL" && (
+                        <th className="w-20 px-2 py-2 text-right">
+                          <span className="text-sky-300">Stock</span>
+                          {stockReportDate && <div className="text-[9px] font-normal text-zinc-500">{stockReportDate}</div>}
+                        </th>
+                      )}
                       <th className="w-20 px-2 py-2 text-right">Qty</th>
                       <th className="w-20 px-2 py-2 text-left">Unit</th>
                       <th className="w-28 px-2 py-2 text-right">Unit Price ({currencyCode})</th>
@@ -1673,6 +1716,20 @@ export default function StoreProcurementRequestPage() {
                           )}
                         </td>
                         <td className="px-3 py-2 text-neutral-300">{item.category || "-"}</td>
+                        {city === "manila" && storeCode && storeCode !== "ALL" && (() => {
+                          const onHand = stockMap[item.item_name.toLowerCase()];
+                          return (
+                            <td className="px-2 py-2 text-right">
+                              {onHand != null ? (
+                                <span className={`text-xs font-medium tabular-nums ${onHand <= 0 ? "text-red-400" : onHand < 3 ? "text-amber-300" : "text-sky-300"}`}>
+                                  {onHand % 1 === 0 ? onHand : onHand.toFixed(1)}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-zinc-600">—</span>
+                              )}
+                            </td>
+                          );
+                        })()}
                         <td className="px-2 py-2">
                           <input
                             type="number"
