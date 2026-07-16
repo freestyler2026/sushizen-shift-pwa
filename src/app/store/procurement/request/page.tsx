@@ -826,7 +826,7 @@ export default function StoreProcurementRequestPage() {
                 request_no?: string;
                 store_code?: string;
                 city?: string;
-                items?: Array<{ item_name?: string; vendor_name?: string; qty?: number; unit?: string; unit_price?: number }>;
+                items?: Array<{ item_name?: string; vendor_name?: string; qty?: number; unit?: string; unit_price?: number; spec?: string }>;
               };
             }>(
               `/api/admin/procurement/requests/${queryEdit}`,
