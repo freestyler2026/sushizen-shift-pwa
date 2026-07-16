@@ -152,6 +152,8 @@ export default function MarketAnalysisPage() {
       pinRef.current = L.marker([lat, lng]).addTo(map);
       setPinLatLng({ lat, lng });
       setEstimate(null);
+      setRankResult(null);
+      setAddressInput("");
     };
     map.on("click", onClick);
     return () => { map.off("click", onClick); };
@@ -233,6 +235,7 @@ export default function MarketAnalysisPage() {
   const runEstimate = useCallback(async () => {
     if (!pinLatLng) return;
     setEstimating(true);
+    setRankResult(null);
     try {
       const auth = getAuth();
       const res = await fetch("/api/admin/market-analysis/estimate", {
