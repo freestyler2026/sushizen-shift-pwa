@@ -15,7 +15,7 @@ import {
   Send,
   X,
 } from "lucide-react";
-import { getAuth, getAuthHeaders } from "@/lib/auth";
+import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { BRANCHES, type City } from "@/lib/branches";
 import { API_BASE } from "@/lib/api";
 import { dispatchBadgeRefresh } from "@/lib/badgeEvents";
@@ -114,7 +114,7 @@ function SelfEvalBox({ item, onSaved }: { item: IncidentReport; onSaved: () => v
   const [done, setDone]     = useState(false);
 
   const submit = async () => {
-    const a = getAuth();
+    const a = await refreshAuthFromApi(getAuth());
     if (!a || !status) return;
     setSaving(true); setError(""); setDone(false);
     try {
@@ -208,7 +208,7 @@ export default function IncidentsPage() {
   const branches = BRANCHES[formCity] ?? [];
 
   const fetchList = useCallback(async () => {
-    const a = getAuth();
+    const a = await refreshAuthFromApi(getAuth());
     if (!a) return;
     setLoading(true); setListError("");
     try {
@@ -228,7 +228,7 @@ export default function IncidentsPage() {
     setExpandedId(next);
     if (next) {
       try {
-        const a = getAuth();
+        const a = await refreshAuthFromApi(getAuth());
         if (!a) return;
         await fetch(`${API_BASE}/api/incidents/notifications/read`, {
           method: "POST", headers: getAuthHeaders(a),
@@ -247,7 +247,7 @@ export default function IncidentsPage() {
 
     setSubmitting(true);
     try {
-      const a = getAuth();
+      const a = await refreshAuthFromApi(getAuth());
       if (!a) throw new Error("Not authenticated");
       const res = await fetch(`${API_BASE}/api/incidents`, {
         method: "POST", headers: getAuthHeaders(a),
