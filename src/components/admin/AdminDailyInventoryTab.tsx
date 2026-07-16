@@ -577,9 +577,9 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
 
   async function handleToggleActive(itemCode: string, currentActive: boolean) {
     try {
-      const res = await apiFetch(`/api/daily-inventory/items/${encodeURIComponent(itemCode)}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ is_active: !currentActive }),
+      const res = await apiFetch(`/api/daily-inventory/items/set-active`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ item_code: itemCode, is_active: !currentActive }),
       });
       const text = await res.text();
       if (!res.ok) throw new Error(text || "Update failed");
