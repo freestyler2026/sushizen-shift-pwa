@@ -130,7 +130,7 @@ export default function StoreProcurementRequestPage() {
   const [rows, setRows] = useState<ReqRow[]>([]);
   const [editRequestId, setEditRequestId] = useState("");
   const [editRequestNo, setEditRequestNo] = useState("");
-  const [editRequestItems, setEditRequestItems] = useState<Array<{ item_name: string; vendor_name: string; qty: number; unit: string; unit_price: number }>>([]);
+  const [editRequestItems, setEditRequestItems] = useState<Array<{ item_name: string; vendor_name: string; qty: number; unit: string; unit_price: number; spec?: string }>>([]);
   const [lastCreatedRequestId, setLastCreatedRequestId] = useState("");
   const [lastCreatedRequestNo, setLastCreatedRequestNo] = useState("");
   const [lastCreatedRequestAt, setLastCreatedRequestAt] = useState("");
@@ -851,6 +851,7 @@ export default function StoreProcurementRequestPage() {
                 qty: Number(it.qty || 0),
                 unit: String(it.unit || "").trim(),
                 unit_price: Number(it.unit_price || 0),
+                spec: String(it.spec || "").trim(),
               })));
             }
             // Eagerly set the store code from the draft so the catalog loads
@@ -954,6 +955,7 @@ export default function StoreProcurementRequestPage() {
             qty: Number(editItem.qty || 0),
             unit: editItem.unit || item.unit,
             unit_price: Number(editItem.unit_price || 0) || item.unit_price,
+            spec: editItem.spec || item.spec,
           };
         }
         return item;
@@ -975,7 +977,7 @@ export default function StoreProcurementRequestPage() {
             row_key: fallbackKey,
             item_name: it.item_name,
             category: "Uncategorized",
-            spec: "",
+            spec: preserved?.spec || it.spec || "",
             qty: preserved ? Number(preserved.qty ?? it.qty) : Number(it.qty || 0),
             unit: preserved ? (preserved.unit || it.unit) : (it.unit || ""),
             unit_price: preserved
