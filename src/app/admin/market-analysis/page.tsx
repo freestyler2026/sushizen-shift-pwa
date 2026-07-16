@@ -25,6 +25,15 @@ type EstimateResult = {
   note: string;
 };
 
+type RankResult = {
+  population: number;
+  rank: number;
+  total_candidates: number;
+  percentile: number;
+  nearest_mall: string;
+  nearest_mall_km: number;
+};
+
 type Mall = { name: string; lat: number; lng: number; brand: string };
 
 const SPOT_COLORS = [
@@ -71,6 +80,10 @@ export default function MarketAnalysisPage() {
   const [showMalls, setShowMalls] = useState(false);
   const [malls, setMalls] = useState<Mall[]>([]);
   const [mallsLoading, setMallsLoading] = useState(false);
+  const [addressInput, setAddressInput] = useState("");
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodeError, setGeocodeError] = useState("");
+  const [rankResult, setRankResult] = useState<RankResult | null>(null);
 
   // Initialize Leaflet map
   useEffect(() => {
@@ -256,6 +269,54 @@ export default function MarketAnalysisPage() {
     if (mode === "manual") { clearSpotMarkers(); setSpots([]); }
   }, [mode, clearSpotMarkers]);
 
+  const geocodeAndAnalyze = useCallback(async () => {
+    if (!addressInput.trim()) return;
+    setGeocoding(true);
+    setGeocodeError("");
+    setEstimate(null);
+    setRankResult(null);
+    try {
+      // Nominatim geocoding — restrict to Philippines
+      const query = encodeURIComponent(addressInput.trim() + ", Metro Manila, Philippines");
+      const geoRes = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${query}&countrycodes=ph&format=json&limit=1`,
+        { headers: { "Accept-Language": "en", "User-Agent": "SushiZEN-MarketAnalysis/1.0" } }
+      );
+      const geoData = await geoRes.json() as Array<{ lat: string; lon: string; display_name: string }>;
+      if (!geoData.length) {
+        setGeocodeError("Address not found. Try a more specific Metro Manila address.");
+        return;
+      }
+      const lat = parseFloat(geoData[0].lat);
+      const lng = parseFloat(geoData[0].lon);
+
+      // Place pin on map
+      if (mapReady && leafletRef.current && mapInstanceRef.current) {
+        const L = leafletRef.current as typeof import("leaflet");
+        const map = mapInstanceRef.current as import("leaflet").Map;
+        if (pinRef.current) { (pinRef.current as import("leaflet").Marker).remove(); pinRef.current = null; }
+        pinRef.current = L.marker([lat, lng]).addTo(map);
+        map.setView([lat, lng], 14);
+      }
+      setPinLatLng({ lat, lng });
+
+      // Run estimate + rank in parallel
+      const auth = getAuth();
+      const headers = { "Content-Type": "application/json", ...(getAuthHeaders(auth) ?? {}) };
+      const body = JSON.stringify({ lat, lng, radius_m: radiusM });
+      const [estRes, rankRes] = await Promise.all([
+        fetch("/api/admin/market-analysis/estimate", { method: "POST", headers, body }),
+        fetch("/api/admin/market-analysis/rank", { method: "POST", headers, body }),
+      ]);
+      if (estRes.ok) setEstimate(await estRes.json() as EstimateResult);
+      if (rankRes.ok) setRankResult(await rankRes.json() as RankResult);
+    } catch (e) {
+      setGeocodeError("Search failed: " + String(e));
+    } finally {
+      setGeocoding(false);
+    }
+  }, [addressInput, radiusM, mapReady]);
+
   const radiusKm = (radiusM / 1000).toFixed(1);
 
   return (
@@ -269,50 +330,79 @@ export default function MarketAnalysisPage() {
 
       <div className="mx-auto max-w-6xl px-4 py-6">
         {/* Controls */}
-        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-neutral-900 p-4">
-          {/* Mode */}
-          <div className="flex rounded-lg bg-neutral-800 p-0.5">
-            {(["manual", "bestspots"] as const).map((m) => (
-              <button key={m} onClick={() => setMode(m)}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${mode === m ? "bg-violet-600 text-white" : "text-neutral-400 hover:text-white"}`}>
-                {m === "manual" ? "📍 Manual Pin" : "🔍 Find Best Spots"}
+        <div className="mb-4 space-y-3">
+          {/* Address search — always visible */}
+          <div className="flex gap-2 rounded-xl border border-violet-500/30 bg-neutral-900 p-3">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={addressInput}
+                onChange={(e) => { setAddressInput(e.target.value); setGeocodeError(""); }}
+                onKeyDown={(e) => { if (e.key === "Enter") void geocodeAndAnalyze(); }}
+                placeholder="Enter address (e.g. Ayala Ave, Makati)"
+                className="w-full rounded-lg border border-white/10 bg-neutral-800 px-3 py-2 text-sm text-white placeholder-neutral-500 focus:border-violet-500/50 focus:outline-none"
+              />
+              {geocodeError && (
+                <p className="absolute -bottom-5 left-0 text-[11px] text-red-400">{geocodeError}</p>
+              )}
+            </div>
+            <button
+              onClick={() => void geocodeAndAnalyze()}
+              disabled={geocoding || !addressInput.trim()}
+              className="flex items-center gap-1.5 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold disabled:opacity-40 hover:bg-violet-500 whitespace-nowrap"
+            >
+              {geocoding ? (
+                <><span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent inline-block" /> Searching…</>
+              ) : "🔎 Search"}
+            </button>
+          </div>
+
+          {/* Mode + radius + actions */}
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-neutral-900 p-3">
+            {/* Mode */}
+            <div className="flex rounded-lg bg-neutral-800 p-0.5">
+              {(["manual", "bestspots"] as const).map((m) => (
+                <button key={m} onClick={() => setMode(m)}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${mode === m ? "bg-violet-600 text-white" : "text-neutral-400 hover:text-white"}`}>
+                  {m === "manual" ? "📍 Manual Pin" : "🔍 Find Best Spots"}
+                </button>
+              ))}
+            </div>
+
+            {/* Radius */}
+            <div className="flex flex-1 min-w-[200px] items-center gap-3">
+              <span className="shrink-0 text-sm text-neutral-400">Radius</span>
+              <input type="range" min={500} max={10000} step={250} value={radiusM}
+                onChange={(e) => { setRadiusM(Number(e.target.value)); setEstimate(null); setRankResult(null); }}
+                className="flex-1 accent-violet-500" />
+              <span className="w-14 shrink-0 text-right text-sm font-semibold text-violet-400">{radiusKm} km</span>
+            </div>
+
+            {/* Mall toggle */}
+            <button
+              onClick={() => setShowMalls((v) => !v)}
+              disabled={mallsLoading}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+                showMalls
+                  ? "border-amber-500/50 bg-amber-500/15 text-amber-300"
+                  : "border-white/10 bg-neutral-800 text-neutral-400 hover:text-white"
+              }`}>
+              🏬 {mallsLoading ? "Loading…" : showMalls ? "Hide Malls" : "Show Malls"}
+            </button>
+
+            {/* Action */}
+            {mode === "manual" ? (
+              <button onClick={runEstimate} disabled={!pinLatLng || estimating}
+                className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold disabled:opacity-40 hover:bg-violet-500">
+                {estimating ? "Estimating…" : "Estimate Population"}
               </button>
-            ))}
+            ) : (
+              <button onClick={runBestSpots} disabled={scanning}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold disabled:opacity-40 hover:bg-emerald-500">
+                {scanning ? "Scanning NCR…" : "▶ Scan Metro Manila"}
+              </button>
+            )}
           </div>
-
-          {/* Radius */}
-          <div className="flex flex-1 min-w-[200px] items-center gap-3">
-            <span className="shrink-0 text-sm text-neutral-400">Radius</span>
-            <input type="range" min={500} max={10000} step={250} value={radiusM}
-              onChange={(e) => { setRadiusM(Number(e.target.value)); setEstimate(null); }}
-              className="flex-1 accent-violet-500" />
-            <span className="w-14 shrink-0 text-right text-sm font-semibold text-violet-400">{radiusKm} km</span>
-          </div>
-
-          {/* Mall toggle */}
-          <button
-            onClick={() => setShowMalls((v) => !v)}
-            disabled={mallsLoading}
-            className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
-              showMalls
-                ? "border-amber-500/50 bg-amber-500/15 text-amber-300"
-                : "border-white/10 bg-neutral-800 text-neutral-400 hover:text-white"
-            }`}>
-            🏬 {mallsLoading ? "Loading…" : showMalls ? "Hide Malls" : "Show Malls"}
-          </button>
-
-          {/* Action */}
-          {mode === "manual" ? (
-            <button onClick={runEstimate} disabled={!pinLatLng || estimating}
-              className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold disabled:opacity-40 hover:bg-violet-500">
-              {estimating ? "Estimating…" : "Estimate Population"}
-            </button>
-          ) : (
-            <button onClick={runBestSpots} disabled={scanning}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold disabled:opacity-40 hover:bg-emerald-500">
-              {scanning ? "Scanning NCR…" : "▶ Scan Metro Manila"}
-            </button>
-          )}
         </div>
 
         {/* Map + Results */}
@@ -335,7 +425,45 @@ export default function MarketAnalysisPage() {
             {/* Manual pin results */}
             {mode === "manual" && (
               <>
-                {pinLatLng && (
+                {/* Rank result card — shown when address search ran */}
+                {rankResult && (
+                  <div className="rounded-xl border border-emerald-500/30 bg-neutral-900 p-4">
+                    <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-neutral-500">Address Analysis</div>
+                    <div className="flex items-end gap-3 mb-3">
+                      <div>
+                        <div className="text-[10px] text-neutral-500 mb-0.5">Population in range</div>
+                        <div className="text-3xl font-bold text-violet-400">{fmt(rankResult.population)}</div>
+                        <div className="text-xs text-neutral-500 mt-0.5">{radiusKm} km radius</div>
+                      </div>
+                      <div className="ml-auto text-right">
+                        <div className="text-[10px] text-neutral-500 mb-0.5">NCR Rank</div>
+                        <div className="text-4xl font-black text-emerald-400">#{rankResult.rank}</div>
+                        <div className="text-[10px] text-neutral-500 mt-0.5">of {rankResult.total_candidates.toLocaleString()} points</div>
+                      </div>
+                    </div>
+                    {/* Percentile bar */}
+                    <div className="mb-3">
+                      <div className="flex justify-between text-[10px] text-neutral-500 mb-1">
+                        <span>Percentile</span>
+                        <span className="font-semibold text-emerald-400">Top {(100 - rankResult.percentile).toFixed(1)}%</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-neutral-800 overflow-hidden">
+                        <div className="h-full rounded-full bg-gradient-to-r from-violet-500 to-emerald-500 transition-all duration-500"
+                          style={{ width: `${Math.min(100, rankResult.percentile)}%` }} />
+                      </div>
+                      <div className="flex justify-between text-[10px] text-neutral-600 mt-0.5">
+                        <span>Worst</span><span>Best</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-1.5">
+                      <span className="text-sm">🏬</span>
+                      <span className="text-xs text-amber-300">{rankResult.nearest_mall}</span>
+                      <span className="ml-auto text-xs text-neutral-500">{rankResult.nearest_mall_km} km</span>
+                    </div>
+                  </div>
+                )}
+
+                {pinLatLng && !rankResult && (
                   <div className="rounded-xl border border-white/10 bg-neutral-900 p-4">
                     <div className="text-xs text-neutral-500 mb-1">Selected location</div>
                     <div className="font-mono text-sm text-neutral-300">{pinLatLng.lat.toFixed(5)}, {pinLatLng.lng.toFixed(5)}</div>
@@ -344,38 +472,43 @@ export default function MarketAnalysisPage() {
                 )}
                 {estimate && (
                   <div className="rounded-xl border border-violet-500/30 bg-neutral-900 p-4">
-                    <div className="mb-1 flex items-baseline gap-2">
-                      <span className="text-3xl font-bold text-violet-400">{fmt(estimate.population)}</span>
-                      <span className="text-sm text-neutral-400">people</span>
-                    </div>
-                    <div className="mb-3 flex items-center gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-1.5">
+                    {!rankResult && (
+                      <div className="mb-1 flex items-baseline gap-2">
+                        <span className="text-3xl font-bold text-violet-400">{fmt(estimate.population)}</span>
+                        <span className="text-sm text-neutral-400">people</span>
+                      </div>
+                    )}
+                    <div className={`${rankResult ? "" : "mb-3"} flex items-center gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-1.5 ${rankResult ? "hidden" : ""}`}>
                       <span className="text-sm">🏬</span>
                       <span className="text-xs text-amber-300">{estimate.nearest_mall}</span>
                       <span className="ml-auto text-xs text-neutral-500">{estimate.nearest_mall_km} km</span>
                     </div>
-                    <div className="space-y-1.5">
-                      {estimate.breakdown.map((b) => (
-                        <div key={b.city} className="flex items-center gap-2">
-                          <div className="flex-1">
-                            <div className="flex justify-between text-xs">
-                              <span className="text-neutral-300">{b.city}</span>
-                              <span className="text-neutral-400">{fmt(b.covered)}</span>
+                    <div className={rankResult ? "" : "mb-3 mt-3"}>
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-neutral-500">City Breakdown</div>
+                      <div className="space-y-1.5">
+                        {estimate.breakdown.map((b) => (
+                          <div key={b.city} className="flex items-center gap-2">
+                            <div className="flex-1">
+                              <div className="flex justify-between text-xs">
+                                <span className="text-neutral-300">{b.city}</span>
+                                <span className="text-neutral-400">{fmt(b.covered)}</span>
+                              </div>
+                              <div className="mt-0.5 h-1 rounded-full bg-neutral-800 overflow-hidden">
+                                <div className="h-full rounded-full bg-violet-500" style={{ width: `${Math.min(100, b.fraction_pct)}%` }} />
+                              </div>
                             </div>
-                            <div className="mt-0.5 h-1 rounded-full bg-neutral-800 overflow-hidden">
-                              <div className="h-full rounded-full bg-violet-500" style={{ width: `${Math.min(100, b.fraction_pct)}%` }} />
-                            </div>
+                            <span className="w-10 shrink-0 text-right text-[10px] text-neutral-500">{b.fraction_pct}%</span>
                           </div>
-                          <span className="w-10 shrink-0 text-right text-[10px] text-neutral-500">{b.fraction_pct}%</span>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
                     <div className="mt-3 text-[10px] text-neutral-600">{estimate.note}</div>
                   </div>
                 )}
-                {!estimate && !pinLatLng && (
+                {!estimate && !pinLatLng && !rankResult && (
                   <div className="rounded-xl border border-white/10 bg-neutral-900 p-6 text-center">
                     <div className="text-3xl mb-2">📍</div>
-                    <div className="text-sm text-neutral-400">Click the map to select a potential store location</div>
+                    <div className="text-sm text-neutral-400">Enter an address above or click the map to place a pin</div>
                   </div>
                 )}
               </>
