@@ -194,11 +194,13 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
   const [orderError, setOrderError] = useState("");
   const [generatedPRs, setGeneratedPRs] = useState<GeneratedPR[]>([]);
 
+  const orderItems = [...lowItems, ...warnItems];
+
   function openOrderModal() {
     const qtys: Record<string, string> = {};
     const sel: Record<string, boolean> = {};
-    lowItems.forEach(({ item, entry }) => {
-      const deficit = item.min_level !== null ? Math.max(0, Number(item.min_level) - Number(entry.qty)) : 0;
+    orderItems.forEach(({ item, entry }) => {
+      const deficit = item.par_level !== null ? Math.max(0, Number(item.par_level) - Number(entry.qty)) : 0;
       qtys[item.item_code] = deficit > 0 ? String(deficit) : "";
       sel[item.item_code] = deficit > 0;
     });
@@ -209,7 +211,7 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
     const auth = getAuth();
     const requestedBy = auth?.staffName || detail.staff_name || "";
     if (!requestedBy) { setOrderError("Could not identify current user."); return; }
-    const selectedItems = lowItems.filter(({ item }) => orderSelected[item.item_code])
+    const selectedItems = orderItems.filter(({ item }) => orderSelected[item.item_code])
       .map(({ item }) => ({ item_code: item.item_code, order_qty: parseFloat(orderQtys[item.item_code] || "0") }))
       .filter((x) => x.order_qty > 0);
     if (!selectedItems.length) { setOrderError("Select at least one item with a quantity > 0."); return; }
@@ -262,12 +264,14 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
         </div>
       </div>
 
-      {lowItems.length > 0 && (
+      {orderItems.length > 0 && (
         <div className="rounded-2xl border border-red-500/30 bg-red-500/8 p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-red-400" />
-              <p className="text-sm font-semibold text-red-300">Low Stock — {lowItems.length} item{lowItems.length > 1 ? "s" : ""} below minimum</p>
+              <p className="text-sm font-semibold text-red-300">
+                Below Par — {orderItems.length} item{orderItems.length > 1 ? "s" : ""} need restocking
+              </p>
             </div>
             {detail.status === "SUBMITTED" && (
               <button onClick={openOrderModal} className="rounded-lg border border-red-400/40 bg-red-500/15 px-3 py-1.5 text-xs font-semibold text-red-200 transition hover:bg-red-500/25">
@@ -280,7 +284,14 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
               <li key={item.item_code} className="text-xs text-red-200/80">
                 <span className="font-medium text-red-200">{item.item_name}</span>
                 {" "}— {entry.qty} {entry.unit ?? item.default_unit}
-                {item.min_level !== null && <span className="text-red-400/70"> (min {item.min_level})</span>}
+                {item.par_level !== null && <span className="text-red-400/70"> (par {item.par_level})</span>}
+              </li>
+            ))}
+            {warnItems.map(({ item, entry }) => (
+              <li key={item.item_code} className="text-xs text-amber-200/80">
+                <span className="font-medium text-amber-200">{item.item_name}</span>
+                {" "}— {entry.qty} {entry.unit ?? item.default_unit}
+                {item.par_level !== null && <span className="text-amber-400/70"> (par {item.par_level})</span>}
               </li>
             ))}
           </ul>
@@ -308,19 +319,19 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
               </div>
             ) : (
               <div className="px-6 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
-                {lowItems.filter(({ item }) => !item.is_commissary).length > 0 && (
+                {orderItems.filter(({ item }) => !item.is_commissary).length > 0 && (
                   <div>
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">Supplier Items</p>
-                    {lowItems.filter(({ item }) => !item.is_commissary).map(({ item, entry }) => (
+                    {orderItems.filter(({ item }) => !item.is_commissary).map(({ item, entry }) => (
                       <div key={item.item_code} className="mb-2 flex items-center gap-3">
                         <input type="checkbox" checked={!!orderSelected[item.item_code]}
                           onChange={(e) => setOrderSelected((p) => ({ ...p, [item.item_code]: e.target.checked }))}
                           className="h-4 w-4 rounded border-zinc-600 accent-violet-500" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm text-zinc-200">{item.item_name}</p>
-                          <p className="text-xs text-zinc-500">Stock: {entry.qty} / Min: {item.min_level} {entry.unit ?? item.default_unit}</p>
+                          <p className="text-xs text-zinc-500">Stock: {entry.qty} / Par: {item.par_level} {entry.unit ?? item.default_unit}</p>
                         </div>
-                        <input type="number" min="0" step="1" value={orderQtys[item.item_code] ?? ""} placeholder="qty"
+                        <input type="number" min="0" step="0.001" value={orderQtys[item.item_code] ?? ""} placeholder="qty"
                           onChange={(e) => setOrderQtys((p) => ({ ...p, [item.item_code]: e.target.value }))}
                           className="w-20 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-right text-sm text-white focus:outline-none focus:ring-1 focus:ring-violet-500" />
                         <span className="text-xs text-zinc-500 w-10">{entry.unit ?? item.default_unit}</span>
@@ -328,19 +339,19 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                     ))}
                   </div>
                 )}
-                {lowItems.filter(({ item }) => item.is_commissary).length > 0 && (
+                {orderItems.filter(({ item }) => item.is_commissary).length > 0 && (
                   <div>
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">Central Kitchen Items</p>
-                    {lowItems.filter(({ item }) => item.is_commissary).map(({ item, entry }) => (
+                    {orderItems.filter(({ item }) => item.is_commissary).map(({ item, entry }) => (
                       <div key={item.item_code} className="mb-2 flex items-center gap-3">
                         <input type="checkbox" checked={!!orderSelected[item.item_code]}
                           onChange={(e) => setOrderSelected((p) => ({ ...p, [item.item_code]: e.target.checked }))}
                           className="h-4 w-4 rounded border-zinc-600 accent-violet-500" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm text-zinc-200">{item.item_name}</p>
-                          <p className="text-xs text-zinc-500">Stock: {entry.qty} / Min: {item.min_level} {entry.unit ?? item.default_unit}</p>
+                          <p className="text-xs text-zinc-500">Stock: {entry.qty} / Par: {item.par_level} {entry.unit ?? item.default_unit}</p>
                         </div>
-                        <input type="number" min="0" step="1" value={orderQtys[item.item_code] ?? ""} placeholder="qty"
+                        <input type="number" min="0" step="0.001" value={orderQtys[item.item_code] ?? ""} placeholder="qty"
                           onChange={(e) => setOrderQtys((p) => ({ ...p, [item.item_code]: e.target.value }))}
                           className="w-20 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-right text-sm text-white focus:outline-none focus:ring-1 focus:ring-violet-500" />
                         <span className="text-xs text-zinc-500 w-10">{entry.unit ?? item.default_unit}</span>
@@ -364,23 +375,6 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
         document.body
       )}
 
-      {warnItems.length > 0 && (
-        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/8 p-4">
-          <div className="mb-2 flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-amber-400" />
-            <p className="text-sm font-semibold text-amber-300">Needs Attention — {warnItems.length} item{warnItems.length > 1 ? "s" : ""} below par</p>
-          </div>
-          <ul className="space-y-1">
-            {warnItems.map(({ item, entry }) => (
-              <li key={item.item_code} className="text-xs text-amber-200/80">
-                <span className="font-medium text-amber-200">{item.item_name}</span>
-                {" "}— {entry.qty} {entry.unit ?? item.default_unit}
-                {item.par_level !== null && <span className="text-amber-400/70"> (par {item.par_level})</span>}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       {/* Source type tabs */}
       <div className="flex gap-1.5">
