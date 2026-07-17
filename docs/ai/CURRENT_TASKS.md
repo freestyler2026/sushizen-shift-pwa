@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-16 (session 121e — Procurement qty-loss fix + daily inventory stock column)
+Last updated: 2026-07-17 (session 121f — Stock decimal fix + Cost Calculation LIMIT fix + Cold Chain 2-day window fix)
 
 
 > **New session start protocol:**
@@ -13,6 +13,24 @@ Last updated: 2026-07-16 (session 121e — Procurement qty-loss fix + daily inve
 ## ⚠️ Deployments Pending
 
 なし — 全変更デプロイ済み
+
+## Recently Completed (2026-07-17 session 121f) — live (Vercel 7ba28bf, Heroku d6f367a)
+
+### 1. Procurement: Stock column decimal precision fix (`request/page.tsx`)
+
+Stock column showed 0.3 instead of 0.255 (Daily Inventory showed 0.255). Root cause: `.toFixed(1)` rounded 0.255 to 0.3. Fix: changed to `parseFloat(onHand.toFixed(3))` — trailing zeros stripped, up to 3 decimal places shown.
+
+### 2. Cost Calculation: Ingredient selector LIMIT 500 fix (`db.py`)
+
+"Soy Sauce" not appearing in the new-ingredient dropdown even though it exists in the master. Root cause: `list_cost_component_options` had `LIMIT 500` — "Soy Sauce" (alphabetically past position 500) was silently cut off. Fix: changed `LIMIT 500` → `LIMIT 5000`. Already-registered ingredients were unaffected (they use stored ID references).
+
+### 3. Cold Chain: 2-day window to prevent midnight rollover error (`db_cold_chain.py`, `cold_chain_api.py`, `cold-chain/page.tsx`)
+
+Paranaque store intermittently saw "No box data found for this branch" after midnight. Root cause: `api_cc_store_dispatches` used strict `WHERE dispatch_date = today` (Asia/Manila). Dispatches created by CK before midnight become invisible once the date rolls over.
+
+- **Backend** (`db_cold_chain.py`): `list_dispatches` now accepts `date_from`/`date_to` range params (range query covers midnight boundary).
+- **Backend** (`cold_chain_api.py`): `api_cc_store_dispatches` — when no explicit date, queries `yesterday → today` using `timedelta(days=1)`.
+- **Frontend** (`cold-chain/page.tsx`): Dispatch selector now shows `[YYYY-MM-DD]` prefix so staff can distinguish yesterday's vs today's dispatch. "No dispatches today" → "No dispatches found" to match the broader search window.
 
 ## Recently Completed (2026-07-16 session 121e) — live (Vercel aa7f29f, Heroku 6ea86e9)
 
