@@ -1988,20 +1988,40 @@ export default function CostCalculationPage() {
     }
 
     if (component.component_type === "ingredient") {
-      const ingredientPool = allIngredientOptions.map((option) => ({
-        component_type: "ingredient" as const,
-        id: String(option.id || ""),
-        name: String(option.name || ""),
-        category: String(option.category || ""),
-        unit: String(option.unit || ""),
-        unit_cost: Number(option.unit_price || 0),
-      }));
+      // allIngredientOptions only contains is_active=TRUE items.
+      // componentOptions (from /api/cost/component-options) has no is_active filter,
+      // so merge it as a fallback to cover ingredients that were deactivated after being
+      // used in existing 加工マスター items (e.g. Soy Sauce).
+      const seen = new Set<string>();
+      const ingredientPool: ComponentOption[] = [];
+      for (const option of allIngredientOptions) {
+        const id = String(option.id || "");
+        if (!seen.has(id)) {
+          seen.add(id);
+          ingredientPool.push({
+            component_type: "ingredient",
+            id,
+            name: String(option.name || ""),
+            category: String(option.category || ""),
+            unit: String(option.unit || ""),
+            unit_cost: Number(option.unit_price || 0),
+          });
+        }
+      }
+      for (const option of componentOptions) {
+        if (option.component_type !== "ingredient") continue;
+        const id = String(option.id || "");
+        if (!seen.has(id)) {
+          seen.add(id);
+          ingredientPool.push({ ...option });
+        }
+      }
       const ingredientMatches = scoreAndFilter(ingredientPool, 12);
       const processedMatches = scoreAndFilter(processedComponentOptions, Math.max(0, 12 - ingredientMatches.length));
       return [...ingredientMatches, ...processedMatches];
     }
     return scoreAndFilter(processedComponentOptions, 12);
-  }, [allIngredientOptions, masterEditor?.item_type, processedComponentOptions]);
+  }, [allIngredientOptions, componentOptions, masterEditor?.item_type, processedComponentOptions]);
 
   const selectMasterComponentOption = useCallback((componentId: string, option: ComponentOption) => {
     updateMasterComponentRow(componentId, (current) => ({
