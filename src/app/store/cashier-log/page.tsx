@@ -188,7 +188,8 @@ export default function CashierLogPage() {
       <div>
         <h1 className={T_PAGE_TITLE}>Cashier Log</h1>
         <p className={`${T_CAPTION} mt-1`}>
-          Log each SC/PWD discount and QRPH payment during your shift. The day&apos;s totals feed the Closing Cash Count.
+          Log <strong className="text-white">immediately when each transaction happens</strong> — SC/PWD discounts and QRPH payments.
+          Every shift&apos;s cashier logs their own transactions in real time. The Closing cashier only reviews the totals.
         </p>
       </div>
 
@@ -224,8 +225,15 @@ export default function CashierLogPage() {
       <div className={`${GLASS_CARD} space-y-3 p-4`}>
         {tab === "SCPWD" && (
           <div className="rounded-lg border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-xs text-amber-300">
+            <div className="font-semibold mb-0.5">⚡ Log immediately when the transaction happens.</div>
             Enter the <strong>discount amount deducted</strong> (the 20% SC/PWD reduction) — <em>not</em> the full bill total.
             <br />Example: if the bill is ₱500, enter ₱100 (20% of ₱500).
+          </div>
+        )}
+        {tab === "QRPH" && (
+          <div className="rounded-lg border border-sky-500/25 bg-sky-500/8 px-3 py-2 text-xs text-sky-300">
+            <div className="font-semibold mb-0.5">⚡ Log immediately when the transaction happens — not at the end of your shift.</div>
+            Do not rely on Discord alone. Each cashier logs their own QRPH payments in real time so the Closing total covers all shifts.
           </div>
         )}
         <div className="grid grid-cols-2 gap-3">
@@ -274,7 +282,7 @@ export default function CashierLogPage() {
         <p className="mt-1 text-[11px] text-indigo-300/70">
           {tab === "SCPWD"
             ? "→ This total discount amount feeds into the Closing Cash Count automatically."
-            : "→ Enter this count & total in the Closing Cash Count."}
+            : "→ This total feeds into the Closing Cash Count automatically. Closing staff: confirm all shifts have logged their transactions before submitting."}
         </p>
       </div>
 
@@ -289,31 +297,59 @@ export default function CashierLogPage() {
         {shown.length === 0 ? (
           <p className={`${T_CAPTION} py-6 text-center`}>No entries yet for this branch/date.</p>
         ) : (
-          <div className="space-y-2">
-            {shown.map((e) => (
-              <div key={e.id} className="flex items-center justify-between rounded-lg border border-white/8 bg-white/[0.02] px-3 py-2.5">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-white tabular-nums">{fmtPHP(e.amount)}</span>
-                    <span className="text-[11px] text-zinc-500">{fmtTime(e.created_at)} · {e.cashier_name}</span>
+          <>
+            <div className="space-y-2">
+              {shown.map((e) => (
+                <div key={e.id} className="flex items-center justify-between rounded-lg border border-white/8 bg-white/[0.02] px-3 py-2.5">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-semibold tabular-nums text-sky-400">{fmtTime(e.created_at)}</span>
+                      <span className="text-sm font-semibold text-white tabular-nums">{fmtPHP(e.amount)}</span>
+                      <span className="text-[11px] text-zinc-400">{e.cashier_name}</span>
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-2 text-[11px] text-zinc-500">
+                      {e.reference_no && <span>#{e.reference_no}</span>}
+                      {[["Receipt", e.receipt_url], ["ID front", e.id_front_url], ["ID back", e.id_back_url]]
+                        .filter(([, u]) => u)
+                        .map(([lab, u]) => (
+                          <a key={lab as string} href={u as string} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-violet-400 hover:text-violet-300">
+                            <ExternalLink className="h-3 w-3" />{lab}
+                          </a>
+                        ))}
+                    </div>
                   </div>
-                  <div className="mt-0.5 flex items-center gap-2 text-[11px] text-zinc-500">
-                    {e.reference_no && <span>#{e.reference_no}</span>}
-                    {[["Receipt", e.receipt_url], ["ID front", e.id_front_url], ["ID back", e.id_back_url]]
-                      .filter(([, u]) => u)
-                      .map(([lab, u]) => (
-                        <a key={lab as string} href={u as string} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-violet-400 hover:text-violet-300">
-                          <ExternalLink className="h-3 w-3" />{lab}
-                        </a>
-                      ))}
+                  <button onClick={() => void deleteEntry(e.id)} className="rounded-lg p-1.5 text-red-400 hover:bg-red-500/10" aria-label="Delete entry">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            {/* Per-cashier summary for Closing staff */}
+            {(() => {
+              const byName: Record<string, { count: number; total: number }> = {};
+              for (const e of shown) {
+                const k = e.cashier_name || "Unknown";
+                if (!byName[k]) byName[k] = { count: 0, total: 0 };
+                byName[k].count++;
+                byName[k].total += e.amount;
+              }
+              const names = Object.keys(byName);
+              if (names.length < 2) return null;
+              return (
+                <div className="mt-3 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2">
+                  <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">By cashier today</p>
+                  <div className="space-y-1">
+                    {names.map((n) => (
+                      <div key={n} className="flex items-center justify-between text-xs">
+                        <span className="text-zinc-300">{n}</span>
+                        <span className="tabular-nums text-zinc-400">{byName[n].count} {byName[n].count === 1 ? "entry" : "entries"} · {fmtPHP(byName[n].total)}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <button onClick={() => void deleteEntry(e.id)} className="rounded-lg p-1.5 text-red-400 hover:bg-red-500/10" aria-label="Delete entry">
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
-          </div>
+              );
+            })()}
+          </>
         )}
       </div>
     </div>
