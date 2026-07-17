@@ -728,14 +728,14 @@ function ReceivingForm({ city }: { city: string }) {
           {loadingDispatches ? (
             <p className={`${T_CAPTION} text-slate-500 py-2`}>Loading...</p>
           ) : dispatches.length === 0 ? (
-            <p className={`${T_CAPTION} text-amber-400 py-2`}>No dispatches today — ask CK to create one first</p>
+            <p className={`${T_CAPTION} text-amber-400 py-2`}>No dispatches found — ask CK to create one first</p>
           ) : (
             <select className={SELECT_CLASS} value={dispatchId} onChange={(e) => setDispatchId(e.target.value)}>
               {dispatches.map((d) => {
                 const dests = (d.destination_branches ?? []).map((b) => BRANCH_LABELS[b] ?? b).join(", ");
                 return (
                   <option key={d.id} value={d.id}>
-                    {d.dispatched_by}{dests ? ` → ${dests}` : ""}
+                    [{d.dispatch_date}] {d.dispatched_by}{dests ? ` → ${dests}` : ""}
                     {d.has_dispatch_boxes ? " ✓" : ""}
                   </option>
                 );
