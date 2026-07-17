@@ -222,9 +222,17 @@ export default function CashierLogPage() {
 
       {/* Entry form */}
       <div className={`${GLASS_CARD} space-y-3 p-4`}>
+        {tab === "SCPWD" && (
+          <div className="rounded-lg border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-xs text-amber-300">
+            Enter the <strong>discount amount deducted</strong> (the 20% SC/PWD reduction) — <em>not</em> the full bill total.
+            <br />Example: if the bill is ₱500, enter ₱100 (20% of ₱500).
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={`${T_LABEL} mb-1 block`}>Amount (₱)</label>
+            <label className={`${T_LABEL} mb-1 block`}>
+              {tab === "SCPWD" ? "Discount Amount (₱)" : "Amount (₱)"}
+            </label>
             <input type="number" inputMode="decimal" step="0.01" className={`${INPUT_CLASS} w-full`} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" />
           </div>
           <div>
@@ -259,11 +267,15 @@ export default function CashierLogPage() {
       {/* Day total */}
       <div className="rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-4 py-3">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-indigo-300">Today · {tab === "SCPWD" ? "SC/PWD" : "QRPH"}</span>
+          <span className="text-sm font-medium text-indigo-300">Today · {tab === "SCPWD" ? "SC/PWD Total Discount" : "QRPH Total"}</span>
           <span className="text-sm text-indigo-300">{dayTotal.count} {dayTotal.count === 1 ? "entry" : "entries"}</span>
         </div>
         <p className="mt-0.5 text-3xl font-bold text-white tabular-nums">{fmtPHP(dayTotal.total)}</p>
-        <p className="mt-1 text-[11px] text-indigo-300/70">→ Enter this count &amp; total in the Closing Cash Count.</p>
+        <p className="mt-1 text-[11px] text-indigo-300/70">
+          {tab === "SCPWD"
+            ? "→ This total discount amount feeds into the Closing Cash Count automatically."
+            : "→ Enter this count & total in the Closing Cash Count."}
+        </p>
       </div>
 
       {/* Today's log */}
