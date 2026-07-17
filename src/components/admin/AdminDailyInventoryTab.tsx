@@ -194,24 +194,65 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
   const [orderError, setOrderError] = useState("");
   const [generatedPRs, setGeneratedPRs] = useState<GeneratedPR[]>([]);
 
+  // Par patterns
+  const [patterns, setPatterns] = useState<string[]>([]);
+  const [activePattern, setActivePattern] = useState("");
+  const [patternLookup, setPatternLookup] = useState<Record<string, number>>({});
+  const [modalOrderItems, setModalOrderItems] = useState<{ item: InvItem; entry: ReportEntry }[]>([]);
+
+  useEffect(() => {
+    apiFetch("/api/daily-inventory/par-patterns")
+      .then((r) => r.json())
+      .then((d: { patterns?: string[] }) => setPatterns(d.patterns || []))
+      .catch(() => {});
+  }, []);
+
+  async function handlePatternChange(name: string) {
+    setActivePattern(name);
+    if (!name) { setPatternLookup({}); return; }
+    try {
+      const r = await apiFetch(`/api/daily-inventory/par-patterns/${encodeURIComponent(name)}/items`);
+      const d = await r.json() as { items?: { item_code: string; par_level: number }[] };
+      const lookup: Record<string, number> = {};
+      (d.items || []).forEach((it) => { lookup[it.item_code] = it.par_level; });
+      setPatternLookup(lookup);
+    } catch {}
+  }
+
   const orderItems = [...lowItems, ...warnItems];
 
   function openOrderModal() {
     const qtys: Record<string, string> = {};
     const sel: Record<string, boolean> = {};
-    orderItems.forEach(({ item, entry }) => {
-      const deficit = item.par_level !== null ? Math.max(0, Number(item.par_level) - Number(entry.qty)) : 0;
-      qtys[item.item_code] = deficit > 0 ? String(deficit) : "";
-      sel[item.item_code] = deficit > 0;
+    const newModalItems: { item: InvItem; entry: ReportEntry }[] = [];
+    items.forEach((item) => {
+      const entry = entryMap[item.item_code];
+      if (!entry || entry.qty === null) return;
+      const par = (activePattern && patternLookup[item.item_code] !== undefined)
+        ? patternLookup[item.item_code]
+        : item.par_level;
+      if (par === null || par === undefined) return;
+      if (Number(entry.qty) < par) {
+        const deficit = Math.max(0, par - Number(entry.qty));
+        newModalItems.push({ item, entry });
+        qtys[item.item_code] = deficit > 0 ? String(deficit) : "";
+        sel[item.item_code] = deficit > 0;
+      }
     });
+    setModalOrderItems(newModalItems);
     setOrderQtys(qtys); setOrderSelected(sel); setOrderError(""); setGeneratedPRs([]); setOrderModalOpen(true);
+  }
+
+  function getEffectivePar(item: InvItem): number | null {
+    if (activePattern && patternLookup[item.item_code] !== undefined) return patternLookup[item.item_code];
+    return item.par_level;
   }
 
   async function submitGenerateOrder() {
     const auth = getAuth();
     const requestedBy = auth?.staffName || detail.staff_name || "";
     if (!requestedBy) { setOrderError("Could not identify current user."); return; }
-    const selectedItems = orderItems.filter(({ item }) => orderSelected[item.item_code])
+    const selectedItems = modalOrderItems.filter(({ item }) => orderSelected[item.item_code])
       .map(({ item }) => ({ item_code: item.item_code, order_qty: parseFloat(orderQtys[item.item_code] || "0") }))
       .filter((x) => x.order_qty > 0);
     if (!selectedItems.length) { setOrderError("Select at least one item with a quantity > 0."); return; }
@@ -274,9 +315,23 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
               </p>
             </div>
             {detail.status === "SUBMITTED" && (
-              <button onClick={openOrderModal} className="rounded-lg border border-red-400/40 bg-red-500/15 px-3 py-1.5 text-xs font-semibold text-red-200 transition hover:bg-red-500/25">
-                Generate Purchase Request
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                {patterns.length > 0 && (
+                  <select
+                    value={activePattern}
+                    onChange={(e) => void handlePatternChange(e.target.value)}
+                    className="rounded-lg border border-white/10 bg-slate-800 px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:ring-1 focus:ring-violet-500"
+                  >
+                    <option value="">Default Par</option>
+                    {patterns.map((p) => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                )}
+                <button onClick={openOrderModal} className="rounded-lg border border-red-400/40 bg-red-500/15 px-3 py-1.5 text-xs font-semibold text-red-200 transition hover:bg-red-500/25">
+                  Generate Purchase Request
+                </button>
+              </div>
             )}
           </div>
           <ul className="space-y-1">
@@ -303,7 +358,10 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
           <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-slate-900 shadow-2xl">
             <div className="border-b border-white/8 px-6 py-4">
               <h3 className="text-base font-semibold text-white">Generate Purchase Request</h3>
-              <p className="mt-0.5 text-xs text-zinc-400">{detail.branch} · {formatDate(detail.report_date)}</p>
+              <p className="mt-0.5 text-xs text-zinc-400">
+                {detail.branch} · {formatDate(detail.report_date)}
+                {activePattern && <span className="ml-2 rounded bg-violet-500/20 px-1.5 py-0.5 text-violet-300">{activePattern}</span>}
+              </p>
             </div>
             {generatedPRs.length > 0 ? (
               <div className="px-6 py-5 space-y-3">
@@ -319,17 +377,17 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
               </div>
             ) : (
               <div className="px-6 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
-                {orderItems.filter(({ item }) => !item.is_commissary).length > 0 && (
+                {modalOrderItems.filter(({ item }) => !item.is_commissary).length > 0 && (
                   <div>
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">Supplier Items</p>
-                    {orderItems.filter(({ item }) => !item.is_commissary).map(({ item, entry }) => (
+                    {modalOrderItems.filter(({ item }) => !item.is_commissary).map(({ item, entry }) => (
                       <div key={item.item_code} className="mb-2 flex items-center gap-3">
                         <input type="checkbox" checked={!!orderSelected[item.item_code]}
                           onChange={(e) => setOrderSelected((p) => ({ ...p, [item.item_code]: e.target.checked }))}
                           className="h-4 w-4 rounded border-zinc-600 accent-violet-500" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm text-zinc-200">{item.item_name}</p>
-                          <p className="text-xs text-zinc-500">Stock: {entry.qty} / Par: {item.par_level} {entry.unit ?? item.default_unit}</p>
+                          <p className="text-xs text-zinc-500">Stock: {entry.qty} / Par: {getEffectivePar(item)} {entry.unit ?? item.default_unit}</p>
                         </div>
                         <input type="number" min="0" step="0.001" value={orderQtys[item.item_code] ?? ""} placeholder="qty"
                           onChange={(e) => setOrderQtys((p) => ({ ...p, [item.item_code]: e.target.value }))}
@@ -339,17 +397,17 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                     ))}
                   </div>
                 )}
-                {orderItems.filter(({ item }) => item.is_commissary).length > 0 && (
+                {modalOrderItems.filter(({ item }) => item.is_commissary).length > 0 && (
                   <div>
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">Central Kitchen Items</p>
-                    {orderItems.filter(({ item }) => item.is_commissary).map(({ item, entry }) => (
+                    {modalOrderItems.filter(({ item }) => item.is_commissary).map(({ item, entry }) => (
                       <div key={item.item_code} className="mb-2 flex items-center gap-3">
                         <input type="checkbox" checked={!!orderSelected[item.item_code]}
                           onChange={(e) => setOrderSelected((p) => ({ ...p, [item.item_code]: e.target.checked }))}
                           className="h-4 w-4 rounded border-zinc-600 accent-violet-500" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm text-zinc-200">{item.item_name}</p>
-                          <p className="text-xs text-zinc-500">Stock: {entry.qty} / Par: {item.par_level} {entry.unit ?? item.default_unit}</p>
+                          <p className="text-xs text-zinc-500">Stock: {entry.qty} / Par: {getEffectivePar(item)} {entry.unit ?? item.default_unit}</p>
                         </div>
                         <input type="number" min="0" step="0.001" value={orderQtys[item.item_code] ?? ""} placeholder="qty"
                           onChange={(e) => setOrderQtys((p) => ({ ...p, [item.item_code]: e.target.value }))}
@@ -358,6 +416,9 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                       </div>
                     ))}
                   </div>
+                )}
+                {modalOrderItems.length === 0 && (
+                  <p className="text-xs text-zinc-500 py-2">No items are below par for this pattern.</p>
                 )}
                 {orderError && <p className="text-xs text-red-400">{orderError}</p>}
               </div>
@@ -495,6 +556,15 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
   const [replaceMode, setReplaceMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Par patterns management
+  const [patternNames, setPatternNames] = useState<string[]>([]);
+  const [patternsOpen, setPatternsOpen] = useState(false);
+  const [newPatternName, setNewPatternName] = useState("");
+  const [patternImportTarget, setPatternImportTarget] = useState<string | null>(null);
+  const [patternBusy, setPatternBusy] = useState<string | null>(null);
+  const [patternMsg, setPatternMsg] = useState("");
+  const patternImportRef = useRef<HTMLInputElement>(null);
+
   async function loadItems() {
     setLoading(true); setError("");
     try {
@@ -509,6 +579,67 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
   }
 
   useEffect(() => { void loadItems(); }, [sourceFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    apiFetch("/api/daily-inventory/par-patterns")
+      .then((r) => r.json())
+      .then((d: { patterns?: string[] }) => setPatternNames(d.patterns || []))
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handlePatternDelete(name: string) {
+    if (!window.confirm(`Delete pattern "${name}"? This cannot be undone.`)) return;
+    setPatternBusy(name); setPatternMsg("");
+    try {
+      await apiFetch(`/api/daily-inventory/par-patterns/${encodeURIComponent(name)}`, { method: "DELETE" });
+      setPatternNames((prev) => prev.filter((p) => p !== name));
+      setPatternMsg(`Pattern "${name}" deleted.`);
+    } catch { setPatternMsg("Delete failed."); }
+    finally { setPatternBusy(null); }
+  }
+
+  async function handlePatternImportFile(file: File) {
+    if (!patternImportTarget) return;
+    setPatternBusy(patternImportTarget); setPatternMsg("");
+    try {
+      const auth = getAuth();
+      const fd = new FormData(); fd.append("file", file);
+      const res = await fetch(`/api/daily-inventory/par-patterns/${encodeURIComponent(patternImportTarget)}/import-excel`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth?.accessToken || ""}` },
+        body: fd,
+      });
+      const d = await res.json() as { ok?: boolean; upserted?: number; errors?: string[] };
+      if (!res.ok) throw new Error("Import failed");
+      setPatternNames((prev) => prev.includes(patternImportTarget) ? prev : [...prev, patternImportTarget].sort());
+      setPatternMsg(`"${patternImportTarget}": ${d.upserted ?? 0} items imported.${(d.errors?.length ?? 0) > 0 ? ` Errors: ${d.errors?.join(", ")}` : ""}`);
+    } catch { setPatternMsg("Import failed."); }
+    finally { setPatternBusy(null); setPatternImportTarget(null); }
+  }
+
+  async function handlePatternDownload(name: string) {
+    setPatternBusy(name);
+    try {
+      const auth = getAuth();
+      const res = await fetch(`/api/daily-inventory/par-patterns/${encodeURIComponent(name)}/template`, {
+        headers: { Authorization: `Bearer ${auth?.accessToken || ""}` },
+      });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url;
+      a.download = `par_pattern_${name.replace(/[^\w\-]/g, "_")}.xlsx`;
+      a.click(); URL.revokeObjectURL(url);
+    } catch { setPatternMsg("Download failed."); }
+    finally { setPatternBusy(null); }
+  }
+
+  function handleCreatePattern() {
+    const name = newPatternName.trim();
+    if (!name) return;
+    setPatternImportTarget(name);
+    setNewPatternName("");
+    patternImportRef.current?.click();
+  }
 
   async function handleSeedExcel() {
     if (!window.confirm("This will import 103 CK items + 23 Supplier items from the Excel master list. Existing items with the same code will be updated. Continue?")) return;
@@ -952,6 +1083,87 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
           </div>
         );
       })}
+
+      {/* Par Level Patterns */}
+      <div className={GLASS_CARD}>
+        <button
+          type="button"
+          onClick={() => setPatternsOpen((v) => !v)}
+          className="flex w-full items-center justify-between px-5 py-4 text-left"
+        >
+          <span className="text-sm font-semibold text-white">Par Level Patterns</span>
+          <span className="text-xs text-zinc-400">{patternsOpen ? "▲ Hide" : "▼ Manage"}</span>
+        </button>
+        {patternsOpen && (
+          <div className="border-t border-white/5 px-5 pb-5 pt-4 space-y-4">
+            <p className="text-xs text-zinc-400">
+              Create order-day patterns (e.g. Tue Order, Thu Order) with custom par levels.
+              Download the template, fill in the Par Level column, then import.
+            </p>
+            {patternMsg && (
+              <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/8 px-3 py-2 text-xs text-emerald-300">{patternMsg}</div>
+            )}
+            {patternNames.length > 0 && (
+              <div className="space-y-2">
+                {patternNames.map((name) => (
+                  <div key={name} className="flex flex-wrap items-center gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
+                    <span className="flex-1 text-sm font-medium text-zinc-200">{name}</span>
+                    <button
+                      onClick={() => void handlePatternDownload(name)}
+                      disabled={patternBusy === name}
+                      className="flex items-center gap-1 rounded-lg border border-sky-500/30 bg-sky-500/10 px-2 py-1 text-xs font-semibold text-sky-300 hover:bg-sky-500/20 disabled:opacity-50"
+                    >
+                      {patternBusy === name ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                      Download Template
+                    </button>
+                    <button
+                      onClick={() => { setPatternImportTarget(name); patternImportRef.current?.click(); }}
+                      disabled={patternBusy === name}
+                      className="flex items-center gap-1 rounded-lg border border-violet-500/30 bg-violet-500/10 px-2 py-1 text-xs font-semibold text-violet-300 hover:bg-violet-500/20 disabled:opacity-50"
+                    >
+                      Import Excel
+                    </button>
+                    <button
+                      onClick={() => void handlePatternDelete(name)}
+                      disabled={patternBusy === name}
+                      className="flex items-center gap-1 rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1 text-xs font-semibold text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {patternNames.length === 0 && (
+              <p className="text-xs text-zinc-500">No patterns yet. Create one below.</p>
+            )}
+            <div className="flex gap-2 pt-1">
+              <input
+                type="text"
+                value={newPatternName}
+                onChange={(e) => setNewPatternName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") handleCreatePattern(); }}
+                placeholder="Pattern name (e.g. Tue Order)"
+                className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500"
+              />
+              <button
+                onClick={handleCreatePattern}
+                disabled={!newPatternName.trim()}
+                className="flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50"
+              >
+                <Plus className="h-3 w-3" />Create & Import
+              </button>
+            </div>
+            <input
+              ref={patternImportRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) void handlePatternImportFile(f); e.target.value = ""; }}
+            />
+          </div>
+        )}
+      </div>
 
       <button type="button" onClick={onBack} className={`${SECONDARY_BUTTON} flex items-center gap-2 text-sm`}>
         <ArrowLeft className="h-4 w-4" />Back
