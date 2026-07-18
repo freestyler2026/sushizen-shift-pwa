@@ -1023,7 +1023,7 @@ export default function CostCalculationPage() {
         let res: { items?: IngredientRow[]; ingredients?: IngredientRow[] };
         try {
           res = await costJson<{ items?: IngredientRow[]; ingredients?: IngredientRow[] }>(
-            `/api/cost/ingredients?city=${encodeURIComponent(city)}&limit=${INGREDIENT_LIST_PAGE_SIZE}&offset=${offset}`,
+            `/api/cost/ingredients?city=${encodeURIComponent(city)}&limit=${INGREDIENT_LIST_PAGE_SIZE}&offset=${offset}&show_inactive=true`,
           );
         } catch (pageErr: any) {
           // A single-page failure on page > 0 should not discard already-fetched rows.
