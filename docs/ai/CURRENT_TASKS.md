@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-19 (session 121k — Store Receiving open PR fix)
+Last updated: 2026-07-20 (session 121l — Manila Payroll period labels, probation dropdown, roster-sync)
 
 
 > **New session start protocol:**
@@ -13,6 +13,32 @@ Last updated: 2026-07-19 (session 121k — Store Receiving open PR fix)
 ## ⚠️ Deployments Pending
 
 なし — 全変更デプロイ済み
+
+## Recently Completed (2026-07-20 session 121l) — live (Vercel 9141eaf, Heroku v1395)
+
+### Manila Payroll / Probation — 3 staff feature requests
+
+**1. Manila Payroll / Create Payroll Period — Half labels updated**
+- `1st Half (1–15)` → `1st Half (26–10)` (26th of prior month → 10th of current month)
+- `2nd Half (16–EOM)` → `2nd Half (11–25)` (11th–25th of current month)
+- **Backend** (`main.py`): `manila_create_period` date logic updated to compute cross-month ranges correctly, including January boundary (prev_year = year-1, prev_month = 12)
+- **Frontend** (`payroll/manila/page.tsx`): option labels updated
+
+**2. New Employee Probation — Staff Name as dropdown (not free text)**
+- Staff Name input changed from free-text to `<select>` of active staff names
+- Fetches from `/api/admin/staff_master/names?city=manila&status=ACTIVE&limit=5000` using `API_BASE` and bearer token
+- Falls back to text input if names haven't loaded yet
+- **Frontend** (`admin/probation/page.tsx`): `staffNames` state + useEffect + conditional select/input render
+- **Bug fixed**: fetch guard now checks `allowed` before calling API (prevents 401 for non-admin roles)
+- **Bug fixed**: fetch uses `${API_BASE}/api/admin/...` not relative `/api/admin/...` (consistent with rest of page)
+
+**3. Manila Payroll / Staff Profiles Edit — Sync from Roster button**
+- Edit-mode-only "Sync from Roster" button fills Position/Role, Department (branch_code), and Hire Date from `staff_master`
+- Uses new lightweight backend endpoint `/api/admin/manila-payroll/roster-lookup?staff_name=...`
+- **Backend** (`main.py`): new `GET /api/admin/manila-payroll/roster-lookup` endpoint; queries `staff_master` for `role`, `branch_code`, `hired_at`; calls `ensure_probation_tables()` to guarantee `hired_at` column exists
+- **Frontend** (`payroll/manila/staff-profiles/page.tsx`): `syncing`/`syncMsg` state, `syncFromRoster()` async function, edit-mode button with Wand2 icon and status message
+
+**Testing**: All 3 changes verified in browser dev server. Date logic JS-tested for all 4 cases (Jul 1H/2H, Jan boundary, Dec 2H) — all correct. No console errors.
 
 ## Recently Completed (2026-07-19 session 121k) — live (Vercel a9e6d25, Heroku f9b0ab7)
 
