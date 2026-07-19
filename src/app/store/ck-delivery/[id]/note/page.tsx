@@ -11,6 +11,7 @@ type DeliveryItem = {
   category: string;
   qty: number;
   unit: string;
+  unit_price: number;
   notes: string;
   source: "auto" | "manual";
 };
@@ -35,12 +36,17 @@ function groupBy<T>(arr: T[], key: (item: T) => string): Record<string, T[]> {
   }, {});
 }
 
+function fmt(n: number) {
+  return n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export default function CKDeliveryNotePage() {
   const params = useParams();
   const id = params?.id as string;
   const [delivery, setDelivery] = useState<Delivery | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [showPrices, setShowPrices] = useState(true);
 
   useEffect(() => {
     const auth = getAuth();
@@ -75,6 +81,8 @@ export default function CKDeliveryNotePage() {
   const autoCount = items.filter(i => i.source === "auto").length;
   const manualCount = items.filter(i => i.source === "manual").length;
   const grouped = groupBy(items, i => i.category || "Other");
+  const grandTotal = items.reduce((sum, i) => sum + (i.qty || 0) * (i.unit_price || 0), 0);
+  const hasPrices = items.some(i => (i.unit_price || 0) > 0);
 
   return (
     <>
@@ -87,8 +95,16 @@ export default function CKDeliveryNotePage() {
         body { background: white; }
       `}</style>
 
-      {/* Print button — hidden when printing */}
-      <div className="no-print fixed top-4 right-4 z-50">
+      {/* Print button + price toggle — hidden when printing */}
+      <div className="no-print fixed top-4 right-4 z-50 flex items-center gap-2">
+        {hasPrices && (
+          <button
+            onClick={() => setShowPrices(v => !v)}
+            className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow hover:bg-gray-50"
+          >
+            {showPrices ? "Hide Prices" : "Show Prices"}
+          </button>
+        )}
         <button
           onClick={() => window.print()}
           className="flex items-center gap-2 rounded-lg bg-gray-800 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-gray-700"
@@ -100,7 +116,7 @@ export default function CKDeliveryNotePage() {
         </button>
       </div>
 
-      <div className="min-h-screen bg-white px-10 py-8 text-gray-900 max-w-2xl mx-auto font-sans">
+      <div className="min-h-screen bg-white px-10 py-8 text-gray-900 max-w-3xl mx-auto font-sans">
         {/* Header */}
         <div className="border-b-2 border-gray-900 pb-3 mb-5">
           <h1 className="text-xl font-bold tracking-tight">Sushi ZEN — CK Delivery Note</h1>
@@ -142,38 +158,67 @@ export default function CKDeliveryNotePage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs text-gray-400 font-semibold uppercase tracking-wide">
-                  <th className="text-left py-1 w-1/2">Item</th>
-                  <th className="text-right py-1 w-1/6">Qty</th>
-                  <th className="text-left py-1 pl-3 w-1/6">Source</th>
-                  <th className="text-left py-1 pl-3 w-1/6">✓ Check</th>
+                  <th className="text-left py-1" style={{ width: "38%" }}>Item</th>
+                  <th className="text-right py-1" style={{ width: "12%" }}>Qty</th>
+                  {showPrices && hasPrices && (
+                    <>
+                      <th className="text-right py-1 pl-3" style={{ width: "16%" }}>Unit Price</th>
+                      <th className="text-right py-1 pl-3" style={{ width: "16%" }}>Line Total</th>
+                    </>
+                  )}
+                  <th className="text-left py-1 pl-3" style={{ width: "9%" }}>Source</th>
+                  <th className="text-left py-1 pl-3" style={{ width: "9%" }}>✓</th>
                 </tr>
               </thead>
               <tbody>
-                {catItems.map(item => (
-                  <tr key={item.id} className="border-t border-gray-100">
-                    <td className="py-1.5">
-                      <p className="font-medium text-gray-900">{item.item_name}</p>
-                      {item.notes && <p className="text-xs text-gray-400">{item.notes}</p>}
-                    </td>
-                    <td className="py-1.5 text-right font-mono text-gray-800">
-                      {item.qty} {item.unit}
-                    </td>
-                    <td className="py-1.5 pl-3">
-                      {item.source === "auto" ? (
-                        <span className="rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">Order</span>
-                      ) : (
-                        <span className="rounded-full border border-gray-300 bg-gray-50 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500">Manual</span>
+                {catItems.map(item => {
+                  const lineTotal = (item.qty || 0) * (item.unit_price || 0);
+                  return (
+                    <tr key={item.id} className="border-t border-gray-100">
+                      <td className="py-1.5">
+                        <p className="font-medium text-gray-900">{item.item_name}</p>
+                        {item.notes && <p className="text-xs text-gray-400">{item.notes}</p>}
+                      </td>
+                      <td className="py-1.5 text-right font-mono text-gray-800 tabular-nums">
+                        {item.qty} {item.unit}
+                      </td>
+                      {showPrices && hasPrices && (
+                        <>
+                          <td className="py-1.5 pl-3 text-right font-mono text-gray-700 tabular-nums">
+                            {(item.unit_price || 0) > 0 ? fmt(item.unit_price) : "—"}
+                          </td>
+                          <td className="py-1.5 pl-3 text-right font-mono text-gray-800 tabular-nums">
+                            {lineTotal > 0 ? fmt(lineTotal) : "—"}
+                          </td>
+                        </>
                       )}
-                    </td>
-                    <td className="py-1.5 pl-3">
-                      <div className="h-4 w-4 rounded border border-gray-400" />
-                    </td>
-                  </tr>
-                ))}
+                      <td className="py-1.5 pl-3">
+                        {item.source === "auto" ? (
+                          <span className="rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">Order</span>
+                        ) : (
+                          <span className="rounded-full border border-gray-300 bg-gray-50 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500">Manual</span>
+                        )}
+                      </td>
+                      <td className="py-1.5 pl-3">
+                        <div className="h-4 w-4 rounded border border-gray-400" />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         ))}
+
+        {/* Grand total */}
+        {showPrices && hasPrices && grandTotal > 0 && (
+          <div className="mt-3 flex justify-end border-t-2 border-gray-900 pt-2">
+            <div className="text-right">
+              <span className="text-xs font-bold uppercase tracking-wider text-gray-500 mr-6">Delivery Total (PHP)</span>
+              <span className="text-base font-bold text-gray-900 tabular-nums">₱ {fmt(grandTotal)}</span>
+            </div>
+          </div>
+        )}
 
         {/* Summary line */}
         <div className="mt-2 text-xs text-gray-400 border-t border-gray-200 pt-2">

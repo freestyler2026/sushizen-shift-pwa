@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CheckCircle2, ChevronDown, ChevronRight, Loader2,
-  Package, Plus, Send, Truck, X, Camera, AlertTriangle, Clock, RefreshCw, Trash2,
+  Package, Plus, Send, Truck, X, Camera, AlertTriangle, Clock, RefreshCw, Trash2, TrendingUp,
 } from "lucide-react";
 import { getAuth, getAuthHeaders, getUploadHeaders, canAccessInventoryAdminNav } from "@/lib/auth";
 import {
@@ -197,7 +197,7 @@ export default function CKDeliveryPage() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
   // ── Page tab ──────────────────────────────────────────────────────────────
-  const [pageTab, setPageTab] = useState<"deliveries" | "pending">("deliveries");
+  const [pageTab, setPageTab] = useState<"deliveries" | "pending" | "cost-summary">("deliveries");
 
   // ── Pending for branch state ───────────────────────────────────────────────
   type PendingItem = { item_id: number; item_name: string; category: string; qty: number; unit: string; received_qty: number | null; notes: string };
@@ -205,6 +205,32 @@ export default function CKDeliveryPage() {
   const [pendingDeliveries, setPendingDeliveries] = useState<PendingDelivery[]>([]);
   const [pendingBranch, setPendingBranch] = useState("");
   const [pendingLoading, setPendingLoading] = useState(false);
+
+  // ── Cost Summary tab state ─────────────────────────────────────────────────
+  type CostRow = { id: number; delivery_date: string; to_branch: string; status: string; proc_request_no: string; created_by: string; total_cost: number; item_count: number };
+  const [costRows, setCostRows] = useState<CostRow[]>([]);
+  const [costLoading, setCostLoading] = useState(false);
+  const [costFromDate, setCostFromDate] = useState(() => { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10); });
+  const [costToDate, setCostToDate] = useState(todayIso());
+  const [costBranch, setCostBranch] = useState("");
+
+  const loadCostSummary = useCallback(async () => {
+    setCostLoading(true);
+    try {
+      const params = new URLSearchParams({ city, from_date: costFromDate, to_date: costToDate });
+      if (costBranch) params.set("branch", costBranch);
+      const data = await apiFetch(`/api/store/ck-delivery/cost-summary?${params}`);
+      setCostRows((data as { rows?: CostRow[] }).rows || []);
+    } catch { /* ignore */ }
+    finally { setCostLoading(false); }
+  }, [city, costFromDate, costToDate, costBranch]);
+
+  const costGrandTotal = useMemo(() => costRows.reduce((s, r) => s + r.total_cost, 0), [costRows]);
+  const costByBranch = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const r of costRows) map[r.to_branch] = (map[r.to_branch] || 0) + r.total_cost;
+    return Object.entries(map).sort((a, b) => b[1] - a[1]);
+  }, [costRows]);
 
   // ── Refs ──────────────────────────────────────────────────────────────────
   const detailRef = useRef<HTMLDivElement>(null);
@@ -647,6 +673,11 @@ export default function CKDeliveryPage() {
         <button className={pageTab === "pending" ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => setPageTab("pending")}>
           <Clock className="h-3.5 w-3.5 inline mr-1.5" />Pending for My Branch
         </button>
+        {canManage && (
+          <button className={pageTab === "cost-summary" ? TAB_ACTIVE : TAB_INACTIVE} onClick={() => { setPageTab("cost-summary"); void loadCostSummary(); }}>
+            <TrendingUp className="h-3.5 w-3.5 inline mr-1.5" />Cost Summary
+          </button>
+        )}
       </div>
 
       {/* ── Pending for Branch view ── */}
@@ -758,6 +789,102 @@ export default function CKDeliveryPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── Cost Summary tab ── */}
+      {pageTab === "cost-summary" && (
+        <div className="space-y-4">
+          {/* Filters */}
+          <div className={`${GLASS_CARD} flex flex-wrap items-center gap-3 p-3`}>
+            <span className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">Period:</span>
+            <input type="date" value={costFromDate} onChange={e => setCostFromDate(e.target.value)}
+              className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-zinc-300 outline-none focus:border-violet-500/50" />
+            <span className="text-xs text-zinc-500">—</span>
+            <input type="date" value={costToDate} onChange={e => setCostToDate(e.target.value)}
+              className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-zinc-300 outline-none focus:border-violet-500/50" />
+            <select value={costBranch} onChange={e => setCostBranch(e.target.value)}
+              className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-zinc-300 outline-none focus:border-violet-500/50">
+              <option value="">All Branches</option>
+              {branches.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+            <button className={PRIMARY_BUTTON} onClick={() => void loadCostSummary()} disabled={costLoading}>
+              {costLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Load
+            </button>
+          </div>
+
+          {/* KPI row */}
+          {costRows.length > 0 && (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className={KPI_CARD}>
+                <p className={KPI_LABEL}>Total Cost (PHP)</p>
+                <p className={KPI_VALUE}>₱ {costGrandTotal.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              </div>
+              <div className={KPI_CARD}>
+                <p className={KPI_LABEL}>Deliveries</p>
+                <p className={KPI_VALUE}>{costRows.length}</p>
+              </div>
+              {costByBranch.slice(0, 2).map(([branch, total]) => (
+                <div key={branch} className={KPI_CARD}>
+                  <p className={KPI_LABEL}>{branch}</p>
+                  <p className={KPI_VALUE}>₱ {total.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Table */}
+          <div className={GLASS_CARD}>
+            {costLoading && <div className="p-6 text-center text-sm text-zinc-400"><Loader2 className="inline h-4 w-4 animate-spin mr-2" />Loading…</div>}
+            {!costLoading && costRows.length === 0 && (
+              <div className="p-6 text-center text-sm text-zinc-500">No deliveries found. Select a period and press Load.</div>
+            )}
+            {!costLoading && costRows.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-white/8">
+                      <th className={`${TABLE_HEADER} text-left`}>Date</th>
+                      <th className={`${TABLE_HEADER} text-left`}>Branch</th>
+                      <th className={`${TABLE_HEADER} text-left`}>Order #</th>
+                      <th className={`${TABLE_HEADER} text-right`}>Items</th>
+                      <th className={`${TABLE_HEADER} text-right`}>Total Cost (PHP)</th>
+                      <th className={`${TABLE_HEADER} text-left`}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {costRows.map(row => (
+                      <tr key={row.id} className={TABLE_ROW}>
+                        <td className={TABLE_CELL}>{row.delivery_date}</td>
+                        <td className={TABLE_CELL}>{row.to_branch}</td>
+                        <td className={TABLE_CELL}>{row.proc_request_no || <span className="text-zinc-600">—</span>}</td>
+                        <td className={`${TABLE_CELL} text-right tabular-nums`}>{row.item_count}</td>
+                        <td className={`${TABLE_CELL} text-right tabular-nums font-medium ${row.total_cost > 0 ? "text-emerald-400" : "text-zinc-500"}`}>
+                          {row.total_cost > 0
+                            ? `₱ ${row.total_cost.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                            : "—"}
+                        </td>
+                        <td className={TABLE_CELL}>
+                          <span className={STATUS_BADGE[row.status as "PENDING" | "DISPATCHED" | "CONFIRMED"] || ""}>
+                            {STATUS_LABEL[row.status as "PENDING" | "DISPATCHED" | "CONFIRMED"] || row.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    {/* Grand total row */}
+                    <tr className="border-t-2 border-white/15">
+                      <td className={`${TABLE_CELL} font-bold text-zinc-200`} colSpan={4}>Grand Total</td>
+                      <td className={`${TABLE_CELL} text-right tabular-nums font-bold text-emerald-300`}>
+                        ₱ {costGrandTotal.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className={TABLE_CELL} />
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
