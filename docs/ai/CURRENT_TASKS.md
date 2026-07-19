@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-17 (session 121f — Stock decimal fix + Cost Calculation LIMIT fix + Cold Chain 2-day window fix)
+Last updated: 2026-07-19 (session 121j — CK Delivery cost-summary status filter)
 
 
 > **New session start protocol:**
@@ -13,6 +13,84 @@ Last updated: 2026-07-17 (session 121f — Stock decimal fix + Cost Calculation 
 ## ⚠️ Deployments Pending
 
 なし — 全変更デプロイ済み
+
+## Recently Completed (2026-07-19 session 121j) — live (Vercel 59b92b8, Heroku 658d6f0)
+
+### CK Delivery — Cost Summary: Status filter + Daily Inventory CENTRAL KITCHEN branch removed
+
+**Backend (Heroku 658d6f0)**:
+- `get_ck_delivery_cost_summary()`: `status: str = ""` パラメータ追加。`WHERE d.status = %s` で動的フィルター
+- `GET /api/store/ck-delivery/cost-summary`: `status: str = Query("")` パラメータ追加
+
+**Frontend (Vercel 59b92b8)**:
+- Cost Summary タブ: Status ドロップダウン追加 (All Statuses / Confirmed / Dispatched / Pending)
+- `costStatus` state + `useCallback` deps に追加
+- Daily Inventory: `BRANCHES` 定数から "CENTRAL KITCHEN" を削除 (Paranaque / Cubao / Taft のみ)
+
+## Recently Completed (2026-07-19 session 121i) — live (Vercel cfa0cdd, Heroku bd21425)
+
+### CK Delivery — Unit Price on Delivery Note + Cost Summary
+
+植嶋さんリクエスト: Delivery NoteにコストをOSに追加し、過去デリバリーの月次集計機能を追加。
+
+**Backend (Heroku bd21425, db.py + main.py)**:
+- `ck_delivery_items` に `unit_price NUMERIC(12,4) DEFAULT 0` カラム追加 (migration)
+- `add_ck_delivery_items` / `get_ck_delivery` に `unit_price` を含む
+- `create_ck_delivery_from_proc_request`: 調達アイテムの `unit_price` を自動引き継ぎ
+- `get_ck_delivery_cost_summary(city, branch, from_date, to_date)` 関数追加
+- `GET /api/store/ck-delivery/cost-summary` エンドポイント追加
+
+**Frontend (Vercel cfa0cdd)**:
+- Delivery Note (`note/page.tsx`): Unit Price (PHP)・Line Total (PHP) 列追加、Grand Total 行、画面上に「Hide/Show Prices」トグルボタン
+- CK Delivery ページ (`page.tsx`): マネージャー向け「Cost Summary」タブ追加
+  - 期間 (from/to) + 拠点フィルター → Load ボタン
+  - KPI: Grand Total・Delivery Count・拠点別合計
+  - テーブル: Date / Branch / Order# / Items / Total Cost / Status + Grand Total 行
+
+**注意**: `unit_price` は今後の新規デリバリーから自動付与。過去デリバリーのコストは `unit_price=0` のままのため集計に表れない。
+
+## Recently Completed (2026-07-18 session 121h) — live (Vercel ff78e09, Heroku 7b212db)
+
+### Par Level Patterns — order-day pattern selector + manage patterns UI
+
+植嶋さんのリクエスト: 火曜発注 (水・木分) と木曜発注 (金・土日分) でパーレベルが異なるため、発注時にパターンを選択できるようにしたい。
+
+**Backend** (`app/db_daily_inventory.py`, `app/daily_inventory_api.py`, Heroku 7b212db — 前セッションでデプロイ済み):
+- `daily_inv_par_patterns` テーブル新設 (pattern_name, item_code, par_level, UNIQUE(pattern_name, item_code))
+- DB関数: `ensure_par_patterns_table`, `list_par_pattern_names`, `get_par_pattern_items`, `upsert_par_pattern_items`, `delete_par_pattern`
+- API: GET /par-patterns, GET /par-patterns/{name}/items, GET /par-patterns/{name}/template (Excel DL), POST /par-patterns/{name}/import-excel, DELETE /par-patterns/{name}
+
+**Frontend** (`src/components/admin/AdminDailyInventoryTab.tsx`, Vercel ff78e09):
+
+*ReportDetailView (Generate Order UI):*
+- パターン選択ドロップダウン — "Use Default Par" or any pattern (Tue Order / Thu Order etc.)
+- パターン選択時: 全アイテムを対象に pattern par_level で deficit を再計算し `modalOrderItems` を更新
+- "Below Par" パネル: アクティブパターン名バッジ + Clear ボタン
+- `getEffectivePar(item)` ヘルパー — patternLookup があれば pattern par_level、なければ item.par_level
+- Generate Order モーダル: パターン名バッジ、modalOrderItems でフィルタ、effective par 表示
+
+*ItemMasterView (Manage Patterns UI):*
+- 折りたたみ式 "Par Level Patterns" セクション
+- 既存パターン一覧: Download Template / Import Excel / Delete ボタン (各行)
+- 新パターン作成: name 入力 + "Create & Import" → file picker → Excel インポート
+- Excel format: 4列 (Item Code, Item Name, Unit, Par Level) — col[0] + col[3] を使用
+
+## Recently Completed (2026-07-18 session 121g) — live (Vercel 9f4aa30)
+
+### 1. Cashier Log: SC/PWD label clarification + real-time logging enforcement (`cashier-log/page.tsx`)
+
+Staff were entering full bill totals instead of discount-only amounts for SC/PWD, and QRPH entries were only being logged by closing staff (missing other shifts). Two commits:
+
+- **f8a80eb (SC/PWD label fix)**: Amber info banner explaining "Enter the discount amount deducted (20% reduction), not the full bill". Label changed: "Amount (₱)" → "Discount Amount (₱)". Day total renamed "SC/PWD Total Discount".
+- **4c703d8 (real-time enforcement)**: Page description updated to emphasize per-shift immediate logging. SC/PWD banner updated with "⚡ Log immediately" heading. QRPH sky-blue banner added. Entry list shows timestamp in sky-blue + cashier name. "By cashier today" breakdown panel when 2+ cashiers logged.
+
+### 2. Cost Calculation: Ingredient selector fix for inactive ingredients (`cost-calculation/page.tsx`)
+
+"Soy Sauce" still not appearing in 加工マスター ingredient selector after LIMIT 500→5000 fix was deployed. Root cause: **the LIMIT fix was in the wrong code path.**
+
+- The selector uses `allIngredientOptions` (from paginated `/api/cost/ingredients?is_active=TRUE`) — not `componentOptions`
+- `componentOptions` (from `/api/cost/component-options`, no is_active filter, LIMIT 5000) contains ALL ingredients including inactive ones
+- Fix (`getMasterComponentSuggestions`): now merges both sources. Active ingredients from `allIngredientOptions` take priority (deduped by ID); inactive ingredients from `componentOptions` fill the gaps. Soy Sauce (if `is_active=FALSE`) now appears in the selector.
 
 ## Recently Completed (2026-07-17 session 121f) — live (Vercel 7ba28bf, Heroku d6f367a)
 
