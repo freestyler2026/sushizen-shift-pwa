@@ -193,8 +193,8 @@ export default function ManilaPayrollPage() {
                   onChange={e => setNewHalf(Number(e.target.value) as 1|2)}
                   className="rounded-lg border border-white/10 bg-slate-800 px-3 py-2 text-sm text-white"
                 >
-                  <option value={1}>1st Half (1–15)</option>
-                  <option value={2}>2nd Half (16–EOM)</option>
+                  <option value={1}>1st Half (26–10)</option>
+                  <option value={2}>2nd Half (11–25)</option>
                 </select>
               </div>
               <div className="flex items-end gap-2">

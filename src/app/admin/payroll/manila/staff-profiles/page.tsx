@@ -118,6 +118,8 @@ function ProfileModal({
   const [form, setForm] = useState<FormState>(existing ? profileToForm(existing) : emptyForm());
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState("");
 
   const isEdit = !!existing;
 
@@ -161,6 +163,25 @@ function ProfileModal({
     }
   }
 
+  async function syncFromRoster() {
+    if (!existing) return;
+    setSyncing(true); setSyncMsg("");
+    try {
+      const r = await apiFetch(`${API}/roster-lookup?staff_name=${encodeURIComponent(existing.staff_name)}`);
+      if (!r.ok) throw new Error(await r.text());
+      const d = await r.json() as { role: string | null; home_branch: string | null; hired_at: string | null };
+      const filled: string[] = [];
+      if (d.role) { setForm(f => ({ ...f, position: d.role! })); filled.push(`Role → ${d.role}`); }
+      if (d.home_branch) { setForm(f => ({ ...f, department: d.home_branch! })); filled.push(`Branch → ${d.home_branch}`); }
+      if (d.hired_at) { setForm(f => ({ ...f, hire_date: d.hired_at! })); filled.push(`Hire Date → ${d.hired_at}`); }
+      setSyncMsg(filled.length ? `Synced: ${filled.join(" · ")}` : "No roster data found for this staff.");
+    } catch (e) {
+      setSyncMsg(`Sync failed: ${String(e)}`);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   const L = "block text-xs font-semibold text-slate-400 mb-1 uppercase tracking-wide";
   const I = INPUT_CLASS + " bg-slate-800/80 border-white/10 text-white placeholder:text-slate-600";
   const S = SELECT_CLASS + " bg-slate-800/80 border-white/10 text-white";
@@ -176,6 +197,20 @@ function ProfileModal({
         </div>
 
         <div className="max-h-[75vh] overflow-y-auto p-6">
+          {isEdit && (
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <button type="button" onClick={() => void syncFromRoster()} disabled={syncing}
+                className="flex items-center gap-1.5 rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 text-xs text-violet-300 hover:bg-violet-500/20 disabled:opacity-50">
+                {syncing ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                Sync from Roster
+              </button>
+              {syncMsg && (
+                <span className={`text-xs ${syncMsg.startsWith("Sync failed") || syncMsg.startsWith("No roster") ? "text-amber-400" : "text-emerald-400"}`}>
+                  {syncMsg}
+                </span>
+              )}
+            </div>
+          )}
           {err && (
             <div className="mb-4 flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-900/20 px-4 py-3 text-sm text-red-300">
               <AlertCircle size={14} /> {err}

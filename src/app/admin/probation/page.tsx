@@ -52,6 +52,7 @@ export default function ProbationPage() {
   const [hiredAtName, setHiredAtName] = useState("");
   const [hiredAtDate, setHiredAtDate] = useState("");
   const [settingHiredAt, setSettingHiredAt] = useState(false);
+  const [staffNames, setStaffNames] = useState<string[]>([]);
 
   useEffect(() => {
     async function init() {
@@ -86,6 +87,16 @@ export default function ProbationPage() {
   useEffect(() => {
     if (allowed) void load();
   }, [allowed, load]);
+
+  useEffect(() => {
+    if (!auth?.accessToken) return;
+    fetch(`/api/admin/staff_master/names?city=${city}&status=ACTIVE&limit=5000`, {
+      headers: { Authorization: `Bearer ${auth.accessToken}` },
+    })
+      .then((r) => r.json())
+      .then((d) => setStaffNames(Array.isArray(d?.names) ? d.names : []))
+      .catch(() => {});
+  }, [auth, city]);
 
   const handleSetHiredAt = async () => {
     if (!auth?.accessToken || !hiredAtName.trim() || !hiredAtDate.trim()) return;
@@ -160,8 +171,18 @@ export default function ProbationPage() {
         <div className="flex flex-wrap gap-3">
           <div className="flex-1 min-w-[200px]">
             <label className={`${T_LABEL} mb-1 block`}>Staff Name</label>
-            <input value={hiredAtName} onChange={(e) => setHiredAtName(e.target.value)}
-              placeholder="Full name (exact match)" className={INPUT_CLASS} />
+            {staffNames.length > 0 ? (
+              <select value={hiredAtName} onChange={(e) => setHiredAtName(e.target.value)}
+                className={INPUT_CLASS + " cursor-pointer"}>
+                <option value="">— Select active staff —</option>
+                {staffNames.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            ) : (
+              <input value={hiredAtName} onChange={(e) => setHiredAtName(e.target.value)}
+                placeholder="Full name (exact match)" className={INPUT_CLASS} />
+            )}
           </div>
           <div>
             <label className={`${T_LABEL} mb-1 block`}>Hire Date</label>
