@@ -213,17 +213,19 @@ export default function CKDeliveryPage() {
   const [costFromDate, setCostFromDate] = useState(() => { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10); });
   const [costToDate, setCostToDate] = useState(todayIso());
   const [costBranch, setCostBranch] = useState("");
+  const [costStatus, setCostStatus] = useState("");
 
   const loadCostSummary = useCallback(async () => {
     setCostLoading(true);
     try {
       const params = new URLSearchParams({ city, from_date: costFromDate, to_date: costToDate });
       if (costBranch) params.set("branch", costBranch);
+      if (costStatus) params.set("status", costStatus);
       const data = await apiFetch(`/api/store/ck-delivery/cost-summary?${params}`);
       setCostRows((data as { rows?: CostRow[] }).rows || []);
     } catch { /* ignore */ }
     finally { setCostLoading(false); }
-  }, [city, costFromDate, costToDate, costBranch]);
+  }, [city, costFromDate, costToDate, costBranch, costStatus]);
 
   const costGrandTotal = useMemo(() => costRows.reduce((s, r) => s + r.total_cost, 0), [costRows]);
   const costByBranch = useMemo(() => {
@@ -807,6 +809,13 @@ export default function CKDeliveryPage() {
               className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-zinc-300 outline-none focus:border-violet-500/50">
               <option value="">All Branches</option>
               {branches.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+            <select value={costStatus} onChange={e => setCostStatus(e.target.value)}
+              className="rounded-lg border border-white/10 bg-white/6 px-3 py-1.5 text-xs text-zinc-300 outline-none focus:border-violet-500/50">
+              <option value="">All Statuses</option>
+              <option value="CONFIRMED">Confirmed</option>
+              <option value="DISPATCHED">Dispatched</option>
+              <option value="PENDING">Pending</option>
             </select>
             <button className={PRIMARY_BUTTON} onClick={() => void loadCostSummary()} disabled={costLoading}>
               {costLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
