@@ -149,7 +149,7 @@ export default function StoreProcurementReceivingPage() {
   const loadMyRequests = useCallback(async (cityOverride?: string) => {
     try {
       const activeCity = String(cityOverride || city || "manila").toLowerCase();
-      const qs = new URLSearchParams({ city: activeCity, status: "APPROVED", limit: "200" });
+      const qs = new URLSearchParams({ city: activeCity, status: "APPROVED", limit: "1000", open_first: "true" });
       const data = await procurementJson<{ rows: RequestRow[] }>(
         `/api/admin/procurement/requests?${qs}`,
         { method: "GET" },
