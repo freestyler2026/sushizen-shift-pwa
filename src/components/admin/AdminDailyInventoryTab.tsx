@@ -26,7 +26,7 @@ import {
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
 
-const BRANCHES = ["PARANAQUE", "CUBAO", "TAFT", "CENTRAL KITCHEN"] as const;
+const BRANCHES = ["PARANAQUE", "CUBAO", "TAFT"] as const;
 const SHIFTS = ["AM", "PM", "OVERNIGHT"] as const;
 const UNITS = [
   "kg", "g", "ml", "L",
