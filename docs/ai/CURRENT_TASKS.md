@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-19 (session 121j — CK Delivery cost-summary status filter)
+Last updated: 2026-07-19 (session 121k — Store Receiving open PR fix)
 
 
 > **New session start protocol:**
@@ -13,6 +13,26 @@ Last updated: 2026-07-19 (session 121j — CK Delivery cost-summary status filte
 ## ⚠️ Deployments Pending
 
 なし — 全変更デプロイ済み
+
+## Recently Completed (2026-07-19 session 121k) — live (Vercel a9e6d25, Heroku f9b0ab7)
+
+### Store Receiving — Show ALL unclosed PRs in Step 1 (not just recent 200)
+
+Staff reported PRs older than ~July 10 (Dubai) / June 29 (Manila) were invisible in
+Step 1 — Select Request, even though they were still APPROVED and unconfirmed.
+
+**Root cause**: `list_proc_requests` had `ORDER BY created_at DESC LIMIT 200`. Dubai
+alone has 500+ PRs/month across 5 stores, so old-but-open PRs fell off the list.
+
+**Backend (Heroku f9b0ab7, db.py + main.py)**:
+- `list_proc_requests`: added `open_first: bool = False` parameter
+- When `open_first=True`: ORDER BY sorts unconfirmed/open PRs first (oldest first within
+  group), confirmed/closed PRs last — so old open PRs always appear before new closed ones
+- Max limit raised from 1000 → 2000 (API cap `le` also raised from 1000 → 2000)
+
+**Frontend (Vercel a9e6d25, receiving/page.tsx)**:
+- `loadMyRequests`: changed from `limit=200` → `limit=1000, open_first=true`
+- Old open PRs from June/July now visible in Step 1 — Select Request
 
 ## Recently Completed (2026-07-19 session 121j) — live (Vercel 59b92b8, Heroku 658d6f0)
 
