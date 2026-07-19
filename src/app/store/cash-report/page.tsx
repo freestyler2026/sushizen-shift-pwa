@@ -34,6 +34,18 @@ const DENOM_VALUES: Record<DenomKey, number> = {
 
 type Denoms = Record<DenomKey, number>;
 
+type LogEntry = {
+  id: string;
+  entry_type: "SCPWD" | "QRPH";
+  cashier_name: string;
+  amount: number;
+  reference_no: string;
+  receipt_url: string;
+  id_front_url: string;
+  id_back_url: string;
+  created_at: string;
+};
+
 const emptyDenoms = (): Denoms => Object.fromEntries(
   Object.keys(DENOM_VALUES).map((k) => [k, 0])
 ) as Denoms;
@@ -47,6 +59,12 @@ function calcTotal(d: Denoms): number {
 function fmtPHP(v: number | null | undefined): string {
   if (v == null || isNaN(v)) return "—";
   return `₱${v.toLocaleString("en-PH", { minimumFractionDigits: 2 })}`;
+}
+
+function fmtTime(iso: string) {
+  if (!iso) return "";
+  const t = iso.includes("T") ? iso.split("T")[1] : iso.split(" ")[1] || "";
+  return t.slice(0, 5);
 }
 
 // ─── Small components ─────────────────────────────────────────────────────────
@@ -572,6 +590,7 @@ function ClosingForm({ branch, onBranchChange, today }: { branch: string; onBran
 
   // Cashier Log day totals (SC/PWD & QRPH) — auto-fills the fields below.
   const [logTotals, setLogTotals] = useState<{ SCPWD: { count: number; total: number }; QRPH: { count: number; total: number } } | null>(null);
+  const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const logPrefilled = useRef(false);
 
   useEffect(() => {
@@ -586,9 +605,13 @@ function ClosingForm({ branch, onBranchChange, today }: { branch: string; onBran
 
   useEffect(() => {
     logPrefilled.current = false;
-    fetch(`/api/store/cashier-log/totals?branch=${branch}&entry_date=${reportDate}`, {
-      headers: getAuthHeaders(), cache: "no-store",
-    }).then((r) => r.json()).then((d) => setLogTotals(d.totals || null)).catch(() => {});
+    Promise.all([
+      fetch(`/api/store/cashier-log/totals?branch=${branch}&entry_date=${reportDate}`, { headers: getAuthHeaders(), cache: "no-store" }).then((r) => r.json()),
+      fetch(`/api/store/cashier-log/entries?branch=${branch}&entry_date=${reportDate}`, { headers: getAuthHeaders(), cache: "no-store" }).then((r) => r.json()),
+    ]).then(([td, ed]) => {
+      setLogTotals(td.totals || null);
+      setLogEntries(Array.isArray(ed.entries) ? ed.entries : []);
+    }).catch(() => {});
   }, [branch, reportDate]);
 
   // Auto-fill once into empty fields (manual override always wins).
@@ -776,6 +799,23 @@ function ClosingForm({ branch, onBranchChange, today }: { branch: string; onBran
             <button type="button" onClick={applyQrphFromLog} className="rounded border border-cyan-500/40 px-2 py-0.5 font-medium hover:bg-cyan-500/10">Use</button>
           </div>
         )}
+        {logEntries.filter(e => e.entry_type === "QRPH" && e.receipt_url).length > 0 && (
+          <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-3 space-y-2">
+            <p className="text-[11px] font-semibold text-cyan-300">📎 Payment confirmations uploaded via Cashier Log</p>
+            <div className="space-y-1.5">
+              {logEntries.filter(e => e.entry_type === "QRPH" && e.receipt_url).map((e) => (
+                <div key={e.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-white/5 px-2 py-1.5">
+                  <span className="text-[11px] text-zinc-400 tabular-nums">{fmtTime(e.created_at)}</span>
+                  <span className="text-[11px] text-zinc-300 tabular-nums">{fmtPHP(e.amount)}</span>
+                  <span className="text-[11px] text-zinc-500">{e.cashier_name}</span>
+                  <a href={e.receipt_url} target="_blank" rel="noopener noreferrer" className="ml-auto inline-flex items-center gap-0.5 text-[11px] text-violet-400 hover:text-violet-300">
+                    <ExternalLink size={10} /> Confirmation
+                  </a>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <NumInput label="Total Amount (POS)" value={qrphAmt} onChange={setQrphAmt} />
         {qrphDiff != null && <DiscrepancyBadge diff={qrphDiff} />}
         <MultiPhotoGrid
@@ -798,6 +838,41 @@ function ClosingForm({ branch, onBranchChange, today }: { branch: string; onBran
           <div className="flex items-center justify-between rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
             <span>Cashier Log today: {logTotals.SCPWD.count} entries · {fmtPHP(logTotals.SCPWD.total)}</span>
             <button type="button" onClick={applyScpwdFromLog} className="rounded border border-amber-500/40 px-2 py-0.5 font-medium hover:bg-amber-500/10">Use</button>
+          </div>
+        )}
+        {/* Photos already uploaded via Cashier Log */}
+        {logEntries.filter(e => e.entry_type === "SCPWD" && (e.receipt_url || e.id_front_url || e.id_back_url)).length > 0 && (
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 space-y-2">
+            <p className="text-[11px] font-semibold text-amber-300">📎 Photos uploaded via Cashier Log (already saved to Drive)</p>
+            <div className="space-y-1.5">
+              {logEntries.filter(e => e.entry_type === "SCPWD").map((e) => {
+                if (!e.receipt_url && !e.id_front_url && !e.id_back_url) return null;
+                return (
+                  <div key={e.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-white/5 px-2 py-1.5">
+                    <span className="text-[11px] text-zinc-400 tabular-nums">{fmtTime(e.created_at)}</span>
+                    <span className="text-[11px] text-zinc-300 tabular-nums">{fmtPHP(e.amount)}</span>
+                    <span className="text-[11px] text-zinc-500">{e.cashier_name}</span>
+                    <div className="flex gap-2 ml-auto">
+                      {e.receipt_url && (
+                        <a href={e.receipt_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-[11px] text-violet-400 hover:text-violet-300">
+                          <ExternalLink size={10} /> Receipt
+                        </a>
+                      )}
+                      {e.id_front_url && (
+                        <a href={e.id_front_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-[11px] text-violet-400 hover:text-violet-300">
+                          <ExternalLink size={10} /> ID front
+                        </a>
+                      )}
+                      {e.id_back_url && (
+                        <a href={e.id_back_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-[11px] text-violet-400 hover:text-violet-300">
+                          <ExternalLink size={10} /> ID back
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
         <div className="grid grid-cols-2 gap-3">
