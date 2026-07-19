@@ -89,14 +89,14 @@ export default function ProbationPage() {
   }, [allowed, load]);
 
   useEffect(() => {
-    if (!auth?.accessToken) return;
-    fetch(`/api/admin/staff_master/names?city=${city}&status=ACTIVE&limit=5000`, {
+    if (!allowed || !auth?.accessToken) return;
+    fetch(`${API_BASE}/api/admin/staff_master/names?city=${city}&status=ACTIVE&limit=5000`, {
       headers: { Authorization: `Bearer ${auth.accessToken}` },
     })
       .then((r) => r.json())
       .then((d) => setStaffNames(Array.isArray(d?.names) ? d.names : []))
       .catch(() => {});
-  }, [auth, city]);
+  }, [allowed, auth, city]);
 
   const handleSetHiredAt = async () => {
     if (!auth?.accessToken || !hiredAtName.trim() || !hiredAtDate.trim()) return;
