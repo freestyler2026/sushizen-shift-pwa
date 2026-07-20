@@ -309,7 +309,13 @@ const EMPTY_VENDOR_DATA: VendorAlertData = {
 };
 
 const DUBAI_BRANCH_OPTIONS = ["Al Barsha", "Al Mina", "B Bay", "JLT", "M City"];
+const MANILA_EXTRA_BRANCH_OPTIONS = ["Central Kitchen", "Warehouse"];
 const UNKNOWN_BRANCH_OPTION = "branch name unknown";
+
+const DRIVE_FOLDER_URLS: Record<"dubai" | "manila", string> = {
+  dubai:  "https://drive.google.com/drive/folders/0AOmrrcv_o5d4Uk9PVA",
+  manila: "https://drive.google.com/drive/folders/0AJz4tWZwU5jVUk9PVA",
+};
 
 const SUMMARY_EDIT_FIELDS: FieldConfig[] = [
   { key: "invoice_date", label: "Invoice Date", type: "date" },
@@ -447,6 +453,8 @@ export default function ProcurementInvoicesPage() {
   const [paymentTrackerOpen, setPaymentTrackerOpen] = useState(false);
   const [paymentBucketOpen, setPaymentBucketOpen] = useState<Record<string, boolean>>({});
   const [vendorAlertData, setVendorAlertData] = useState<VendorAlertData>(EMPTY_VENDOR_DATA);
+  const [vendorOptions, setVendorOptions] = useState<string[]>([]);
+  const [noticeLink, setNoticeLink] = useState("");
   const [alertBannerOpen, setAlertBannerOpen] = useState(false);
   const [alertSectionOpen, setAlertSectionOpen] = useState<Record<string, boolean>>({});
   const [expandedAlertKeys, setExpandedAlertKeys] = useState<Record<string, boolean>>({});
@@ -665,7 +673,7 @@ export default function ProcurementInvoicesPage() {
             .map((value) => String(value || "").trim())
             .filter((value) => value && value.toUpperCase() !== "ALL")
         : [];
-      const nextOptions = Array.from(new Set([...stores, UNKNOWN_BRANCH_OPTION]));
+      const nextOptions = Array.from(new Set([...stores, ...MANILA_EXTRA_BRANCH_OPTIONS, UNKNOWN_BRANCH_OPTION]));
       setBranchOptions(nextOptions.length ? nextOptions : [UNKNOWN_BRANCH_OPTION]);
       setUploadBranchName((current) => (current && nextOptions.includes(current) ? current : ""));
     } catch (e: any) {
@@ -704,6 +712,7 @@ export default function ProcurementInvoicesPage() {
     setUploadBusy(true);
     setError("");
     setNotice("");
+    setNoticeLink("");
     try {
       const headers = await procurementTokenHeaders(requestedBy, pin);
       const formData = new FormData();
@@ -731,6 +740,8 @@ export default function ProcurementInvoicesPage() {
           ? `Invoice uploaded to Exception folder: ${path || String(data?.upload?.file_name || uploadFile.name)}`
           : `Invoice uploaded to Drive: ${path || String(data?.upload?.file_name || uploadFile.name)}`,
       );
+      const fileLink = String(data?.upload?.web_view_link || "").trim();
+      if (fileLink) setNoticeLink(fileLink);
       resetUploadDraft();
     } catch (e: any) {
       setError(e?.message || String(e));
@@ -1032,6 +1043,23 @@ export default function ProcurementInvoicesPage() {
     void loadBranchOptions();
   }, [allowed, loadBranchOptions]);
 
+  useEffect(() => {
+    if (!allowed || !requestedBy || !pin) return;
+    procurementJson<{ rows?: { registered_name?: string; trade_name?: string }[] }>(
+      `/api/admin/procurement/vendors?city=${encodeURIComponent(city)}&status=ACTIVE&limit=500`,
+      { method: "GET" },
+      requestedBy,
+      pin,
+    )
+      .then((data) => {
+        const names = (data?.rows || [])
+          .map((r) => (r.trade_name || r.registered_name || "").trim())
+          .filter(Boolean);
+        setVendorOptions(Array.from(new Set(names)).sort());
+      })
+      .catch(() => {});
+  }, [allowed, city, pin, requestedBy]);
+
   const validRows = useMemo(() => {
     const flagged = new Set(qualityRows.map((row) => `${row.market}:${row.invoice_no}`));
     return rows.filter((row) => !flagged.has(`${row.market}:${row.invoice_no}`));
@@ -1084,7 +1112,16 @@ export default function ProcurementInvoicesPage() {
   return (
     <div className="space-y-4">
       {error ? <div className="rounded-2xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-200">{error}</div> : null}
-      {notice ? <div className="rounded-2xl border border-emerald-900/50 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-200">{notice}</div> : null}
+      {notice ? (
+        <div className="rounded-2xl border border-emerald-900/50 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-200 flex items-center gap-3 flex-wrap">
+          <span>{notice}</span>
+          {noticeLink && (
+            <a href={noticeLink} target="_blank" rel="noreferrer" className="underline text-sky-300 hover:text-sky-200 whitespace-nowrap">
+              Open in Drive ↗
+            </a>
+          )}
+        </div>
+      ) : null}
 
       <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
         <div className="space-y-4">
@@ -1133,10 +1170,19 @@ export default function ProcurementInvoicesPage() {
                 </select>
               </div>
               <div className="flex flex-wrap gap-2 xl:ml-2 xl:justify-end">
-                <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex min-w-[110px] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm hover:bg-white/5 disabled:opacity-60">
+                <button type="button" onClick={() => void load()} disabled={loading} className="inline-flex min-w-[110px] items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white hover:bg-white/5 disabled:opacity-60">
                   <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                   Refresh
                 </button>
+                <a
+                  href={DRIVE_FOLDER_URLS[city]}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-w-[124px] items-center justify-center gap-2 rounded-xl border border-emerald-700/60 bg-emerald-900/20 px-3 py-2 text-sm text-emerald-200 hover:bg-emerald-800/30"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Invoice Drive
+                </a>
                 <a
                   href={SUPPLIER_SPREADSHEET_URLS[city]}
                   target="_blank"
@@ -1224,10 +1270,29 @@ export default function ProcurementInvoicesPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 md:grid-cols-4">
-        <input value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} placeholder="Invoice no" className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm" />
-        <input value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="Vendor name" className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm" />
-        <DatePicker value={dateFrom} onChange={setDateFrom} />
-        <DatePicker value={dateTo} onChange={setDateTo} />
+        <div>
+          <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Invoice No</div>
+          <input value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} placeholder="All invoices" className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white placeholder:text-zinc-500" />
+        </div>
+        <div>
+          <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Vendor</div>
+          {vendorOptions.length > 0 ? (
+            <select value={vendorName} onChange={(e) => setVendorName(e.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white cursor-pointer">
+              <option value="">All Vendors</option>
+              {vendorOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          ) : (
+            <input value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="Vendor name" className="w-full rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white placeholder:text-zinc-500" />
+          )}
+        </div>
+        <div>
+          <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Date From</div>
+          <DatePicker value={dateFrom} onChange={setDateFrom} />
+        </div>
+        <div>
+          <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Date To</div>
+          <DatePicker value={dateTo} onChange={setDateTo} />
+        </div>
       </div>
 
       {/* ── Payment Tracker ──────────────────────────────────────────────── */}
