@@ -7,7 +7,7 @@ import {
   GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, INPUT_CLASS,
   T_PAGE_TITLE, T_LABEL, BADGE_ERROR, BADGE_WARNING, BADGE_SUCCESS, BADGE_INFO,
 } from "@/lib/ui-tokens";
-import { RefreshCw, AlertCircle, UserCheck, Calendar } from "lucide-react";
+import { RefreshCw, AlertCircle, UserCheck, Calendar, Pencil, X, Check, Trash2 } from "lucide-react";
 
 type ProbationEmployee = {
   staff_name: string;
@@ -28,6 +28,17 @@ type ProbationEmployee = {
   termination_reason: string | null;
 };
 
+type EditDraft = {
+  hired_at: string;
+  cycle_start_date: string;
+  cycle_end_date: string;
+  cycle_status: string;
+  graduated: boolean;
+  bonus_awarded: boolean;
+  termination_flagged: boolean;
+  termination_reason: string;
+};
+
 const ADMIN_ROLES = new Set(["ADMIN", "HQ", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"]);
 
 function statusBadge(emp: ProbationEmployee) {
@@ -37,6 +48,19 @@ function statusBadge(emp: ProbationEmployee) {
   if (emp.cycle_status === "FAILED") return <span className={BADGE_WARNING}>↩ Failed — retry</span>;
   if (emp.cycle_status === "IN_PROGRESS") return <span className={BADGE_INFO}>In Progress</span>;
   return <span className={BADGE_INFO}>No cycle yet</span>;
+}
+
+function empToEditDraft(emp: ProbationEmployee): EditDraft {
+  return {
+    hired_at: emp.hired_at ? String(emp.hired_at).slice(0, 10) : "",
+    cycle_start_date: emp.cycle_start_date ? String(emp.cycle_start_date).slice(0, 10) : "",
+    cycle_end_date: emp.cycle_end_date ? String(emp.cycle_end_date).slice(0, 10) : "",
+    cycle_status: emp.cycle_status || "",
+    graduated: emp.graduated,
+    bonus_awarded: emp.bonus_awarded,
+    termination_flagged: emp.termination_flagged,
+    termination_reason: emp.termination_reason || "",
+  };
 }
 
 export default function ProbationPage() {
@@ -53,6 +77,12 @@ export default function ProbationPage() {
   const [hiredAtDate, setHiredAtDate] = useState("");
   const [settingHiredAt, setSettingHiredAt] = useState(false);
   const [staffNames, setStaffNames] = useState<string[]>([]);
+
+  // Inline edit state: key = staff_name
+  const [editingName, setEditingName] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   useEffect(() => {
     async function init() {
@@ -113,7 +143,7 @@ export default function ProbationPage() {
         const e = await res.json().catch(() => ({}));
         throw new Error(e.detail || `HTTP ${res.status}`);
       }
-      setSuccessMsg(`✓ Hire date set for ${hiredAtName.trim()}`);
+      setSuccessMsg(`Hire date set for ${hiredAtName.trim()}`);
       setHiredAtName("");
       setHiredAtDate("");
       await load();
@@ -121,6 +151,82 @@ export default function ProbationPage() {
       setError(e?.message || String(e));
     } finally {
       setSettingHiredAt(false);
+    }
+  };
+
+  const startEdit = (emp: ProbationEmployee) => {
+    setEditingName(emp.staff_name);
+    setEditDraft(empToEditDraft(emp));
+    setDeleteConfirm(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingName(null);
+    setEditDraft(null);
+    setDeleteConfirm(null);
+  };
+
+  const handleSave = async (emp: ProbationEmployee) => {
+    if (!auth?.accessToken || !editDraft) return;
+    setSaving(true);
+    setError("");
+    setSuccessMsg("");
+    try {
+      const body: Record<string, unknown> = {
+        staff_name: emp.staff_name,
+        city: emp.city,
+        hired_at: editDraft.hired_at || null,
+      };
+      if (emp.cycle_number !== null) {
+        body.cycle_number = emp.cycle_number;
+        if (editDraft.cycle_start_date) body.cycle_start_date = editDraft.cycle_start_date;
+        if (editDraft.cycle_end_date) body.cycle_end_date = editDraft.cycle_end_date;
+        if (editDraft.cycle_status) body.cycle_status = editDraft.cycle_status;
+        body.graduated = editDraft.graduated;
+        body.bonus_awarded = editDraft.bonus_awarded;
+        body.termination_flagged = editDraft.termination_flagged;
+        body.termination_reason = editDraft.termination_reason || null;
+      }
+      const res = await fetch(`${API_BASE}/api/admin/probation/update`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${auth.accessToken}` },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.detail || `HTTP ${res.status}`);
+      }
+      setSuccessMsg(`Saved changes for ${emp.staff_name}`);
+      cancelEdit();
+      await load();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (emp: ProbationEmployee) => {
+    if (!auth?.accessToken) return;
+    setSaving(true);
+    setError("");
+    setSuccessMsg("");
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/probation/delete?staff_name=${encodeURIComponent(emp.staff_name)}&city=${encodeURIComponent(emp.city)}`,
+        { method: "DELETE", headers: { Authorization: `Bearer ${auth.accessToken}` } },
+      );
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.detail || `HTTP ${res.status}`);
+      }
+      setSuccessMsg(`Removed ${emp.staff_name} from probation tracking`);
+      cancelEdit();
+      await load();
+    } catch (e: any) {
+      setError(e?.message || String(e));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -238,55 +344,174 @@ export default function ProbationPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {employees.map((emp) => (
-            <div key={emp.staff_name} className={[
-              "rounded-2xl border p-4",
-              emp.termination_flagged ? "border-red-500/40 bg-red-950/15" :
-              emp.graduated ? "border-emerald-500/30 bg-emerald-950/10" :
-              "border-white/8 bg-white/4",
-            ].join(" ")}>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 mb-1">
-                    <span className="font-semibold text-white">{emp.staff_name}</span>
-                    {statusBadge(emp)}
-                  </div>
-                  <div className="text-xs text-zinc-500 mb-2">
-                    Hired: {emp.hired_at ? String(emp.hired_at).slice(0, 10) : "—"}
-                    {emp.cycle_number ? ` · Cycle #${emp.cycle_number}` : ""}
-                    {emp.cycle_start_date ? ` · ${String(emp.cycle_start_date).slice(0, 10)} → ${String(emp.cycle_end_date || "").slice(0, 10)}` : ""}
-                  </div>
-                  {/* Violation counts */}
-                  <div className="flex gap-4">
-                    <div className="text-center">
-                      <div className={`text-xl font-bold ${emp.absent_count >= 2 ? "text-red-400" : "text-white"}`}>
-                        {emp.absent_count}
+          {employees.map((emp) => {
+            const isEditing = editingName === emp.staff_name;
+            return (
+              <div key={emp.staff_name} className={[
+                "rounded-2xl border p-4",
+                emp.termination_flagged ? "border-red-500/40 bg-red-950/15" :
+                emp.graduated ? "border-emerald-500/30 bg-emerald-950/10" :
+                "border-white/8 bg-white/4",
+              ].join(" ")}>
+                {isEditing && editDraft ? (
+                  /* ── Edit mode ── */
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-white">{emp.staff_name}</span>
+                      <button type="button" onClick={cancelEdit} className="text-zinc-500 hover:text-zinc-300">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                      <div>
+                        <label className={`${T_LABEL} mb-1 block`}>Hire Date</label>
+                        <input type="date" value={editDraft.hired_at}
+                          onChange={(e) => setEditDraft({ ...editDraft, hired_at: e.target.value })}
+                          className={INPUT_CLASS} />
                       </div>
-                      <div className="text-[10px] text-zinc-500">Absences</div>
+                      {emp.cycle_number !== null && (
+                        <>
+                          <div>
+                            <label className={`${T_LABEL} mb-1 block`}>Cycle Start</label>
+                            <input type="date" value={editDraft.cycle_start_date}
+                              onChange={(e) => setEditDraft({ ...editDraft, cycle_start_date: e.target.value })}
+                              className={INPUT_CLASS} />
+                          </div>
+                          <div>
+                            <label className={`${T_LABEL} mb-1 block`}>Cycle End</label>
+                            <input type="date" value={editDraft.cycle_end_date}
+                              onChange={(e) => setEditDraft({ ...editDraft, cycle_end_date: e.target.value })}
+                              className={INPUT_CLASS} />
+                          </div>
+                          <div>
+                            <label className={`${T_LABEL} mb-1 block`}>Cycle Status</label>
+                            <select value={editDraft.cycle_status}
+                              onChange={(e) => setEditDraft({ ...editDraft, cycle_status: e.target.value })}
+                              className={INPUT_CLASS + " cursor-pointer"}>
+                              <option value="IN_PROGRESS">IN_PROGRESS</option>
+                              <option value="PASSED">PASSED</option>
+                              <option value="FAILED">FAILED</option>
+                            </select>
+                          </div>
+                        </>
+                      )}
                     </div>
-                    <div className="text-center">
-                      <div className="text-xl font-bold text-white">{emp.late_count}</div>
-                      <div className="text-[10px] text-zinc-500">Late/Early</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xl font-bold text-white">
-                        {Math.round(emp.total_late_minutes / 60 * 10) / 10}h
+
+                    {emp.cycle_number !== null && (
+                      <div className="flex flex-wrap gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input type="checkbox" checked={editDraft.graduated}
+                            onChange={(e) => setEditDraft({ ...editDraft, graduated: e.target.checked })}
+                            className="h-4 w-4 rounded border-white/20 bg-white/10 accent-emerald-500" />
+                          <span className="text-sm text-zinc-300">Graduated</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input type="checkbox" checked={editDraft.bonus_awarded}
+                            onChange={(e) => setEditDraft({ ...editDraft, bonus_awarded: e.target.checked })}
+                            className="h-4 w-4 rounded border-white/20 bg-white/10 accent-emerald-500" />
+                          <span className="text-sm text-zinc-300">Bonus Awarded (PHP 2,000)</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input type="checkbox" checked={editDraft.termination_flagged}
+                            onChange={(e) => setEditDraft({ ...editDraft, termination_flagged: e.target.checked })}
+                            className="h-4 w-4 rounded border-white/20 bg-white/10 accent-red-500" />
+                          <span className="text-sm text-zinc-300">Termination Risk Flag</span>
+                        </label>
                       </div>
-                      <div className="text-[10px] text-zinc-500">Late Total</div>
+                    )}
+
+                    {emp.cycle_number !== null && editDraft.termination_flagged && (
+                      <div>
+                        <label className={`${T_LABEL} mb-1 block`}>Termination Reason</label>
+                        <input value={editDraft.termination_reason}
+                          onChange={(e) => setEditDraft({ ...editDraft, termination_reason: e.target.value })}
+                          placeholder="Reason for termination flag…"
+                          className={INPUT_CLASS} />
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <button type="button" onClick={() => void handleSave(emp)} disabled={saving}
+                        className={`${PRIMARY_BUTTON} flex items-center gap-1.5`}>
+                        <Check className="h-3.5 w-3.5" />
+                        {saving ? "Saving…" : "Save Changes"}
+                      </button>
+                      <button type="button" onClick={cancelEdit}
+                        className={`${SECONDARY_BUTTON} flex items-center gap-1.5`}>
+                        <X className="h-3.5 w-3.5" /> Cancel
+                      </button>
+                      <div className="ml-auto">
+                        {deleteConfirm === emp.staff_name ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-red-400">Remove from probation tracking?</span>
+                            <button type="button" onClick={() => void handleDelete(emp)} disabled={saving}
+                              className="rounded-lg border border-red-600/50 bg-red-900/30 px-2 py-1 text-xs text-red-300 hover:bg-red-900/50">
+                              Confirm Remove
+                            </button>
+                            <button type="button" onClick={() => setDeleteConfirm(null)}
+                              className="text-xs text-zinc-500 hover:text-zinc-300">Cancel</button>
+                          </div>
+                        ) : (
+                          <button type="button" onClick={() => setDeleteConfirm(emp.staff_name)}
+                            className="flex items-center gap-1 rounded-lg border border-red-700/30 bg-red-950/20 px-2 py-1 text-xs text-red-400 hover:bg-red-950/40">
+                            <Trash2 className="h-3 w-3" /> Remove
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  {emp.termination_reason && (
-                    <p className="mt-2 text-xs text-red-400">⛔ {emp.termination_reason}</p>
-                  )}
-                </div>
-                {emp.bonus_awarded && (
-                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 px-3 py-1.5 text-xs text-emerald-300">
-                    PHP 2,000 ✓ awarded
+                ) : (
+                  /* ── View mode ── */
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className="font-semibold text-white">{emp.staff_name}</span>
+                        {statusBadge(emp)}
+                      </div>
+                      <div className="text-xs text-zinc-500 mb-2">
+                        Hired: {emp.hired_at ? String(emp.hired_at).slice(0, 10) : "—"}
+                        {emp.cycle_number ? ` · Cycle #${emp.cycle_number}` : ""}
+                        {emp.cycle_start_date ? ` · ${String(emp.cycle_start_date).slice(0, 10)} → ${String(emp.cycle_end_date || "").slice(0, 10)}` : ""}
+                      </div>
+                      <div className="flex gap-4">
+                        <div className="text-center">
+                          <div className={`text-xl font-bold ${emp.absent_count >= 2 ? "text-red-400" : "text-white"}`}>
+                            {emp.absent_count}
+                          </div>
+                          <div className="text-[10px] text-zinc-500">Absences</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xl font-bold text-white">{emp.late_count}</div>
+                          <div className="text-[10px] text-zinc-500">Late/Early</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xl font-bold text-white">
+                            {Math.round(emp.total_late_minutes / 60 * 10) / 10}h
+                          </div>
+                          <div className="text-[10px] text-zinc-500">Late Total</div>
+                        </div>
+                      </div>
+                      {emp.termination_reason && (
+                        <p className="mt-2 text-xs text-red-400">⛔ {emp.termination_reason}</p>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      {emp.bonus_awarded && (
+                        <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 px-3 py-1.5 text-xs text-emerald-300">
+                          PHP 2,000 ✓ awarded
+                        </div>
+                      )}
+                      <button type="button" onClick={() => startEdit(emp)}
+                        className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-zinc-400 hover:bg-white/10 hover:text-zinc-200 transition-colors">
+                        <Pencil className="h-3 w-3" /> Edit
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
