@@ -129,7 +129,7 @@ export default function ShiftAuditPage() {
                 Shift Publish Audit
               </h1>
               <p className="mt-1 text-sm text-white/40">
-                Who published each branch's schedule and when — for investigating shift reversions
+                Who published each branch&apos;s schedule and when — for investigating shift reversions
               </p>
             </div>
           </div>
