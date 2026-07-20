@@ -189,6 +189,12 @@ type ApplyPrepareResult = {
     rows_count: number;
     staff_count: number;
   };
+  conflict?: {
+    published_by: string;
+    published_at_pht: string;
+    draft_created_at_pht: string;
+    delta_minutes: number;
+  } | null;
 };
 
 type ApplyConfirmResult = {
@@ -237,6 +243,7 @@ type BatchApplyPrepareResult = {
     week_start: string;
     confirm_token: string;
     preview: ApplyPrepareResult["preview"];
+    conflict?: ApplyPrepareResult["conflict"];
   }>;
   total_rows_count: number;
   total_staff_count: number;
@@ -1839,6 +1846,7 @@ export default function AdminDraftPage() {
           week_start: weekStart,
           confirm_token: res.confirm_token,
           preview: res.preview,
+          conflict: res.conflict,
         });
         totalRowsCount += Number(res.preview?.rows_count || 0);
         totalStaffCount += Number(res.preview?.staff_count || 0);
@@ -3334,6 +3342,31 @@ export default function AdminDraftPage() {
                 <div>jobs_ready: <span className="text-neutral-200">{fmtNum(applyPrepared.items.length)}</span></div>
                 <div>preview: {fmtNum(applyPrepared.total_rows_count)} rows / {fmtNum(applyPrepared.total_staff_count)} staff</div>
               </div>
+              {applyPrepared.items.some(i => i.conflict) && (
+                <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3">
+                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-amber-300">
+                    ⚠️ Overwrite Warning — Manual corrections detected
+                  </div>
+                  <p className="mb-3 text-xs text-amber-200/70">
+                    The following branches have published shifts that were updated <strong>after</strong> this draft was generated.
+                    Proceeding will overwrite those manual OS corrections.
+                  </p>
+                  <div className="space-y-2">
+                    {applyPrepared.items.filter(i => i.conflict).map(i => (
+                      <div key={`${i.branch_code}-${i.week_start}`} className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs">
+                        <span className="font-semibold text-amber-200">{i.branch_name}</span>
+                        <span className="ml-2 text-amber-400/60">{i.week_start}</span>
+                        <div className="mt-1 text-amber-200/50">
+                          Published by <span className="text-amber-200/80">{i.conflict!.published_by}</span> at{" "}
+                          <span className="text-amber-200/80">{i.conflict!.published_at_pht?.slice(0, 16)} PHT</span>
+                          {" "}(draft was generated at {i.conflict!.draft_created_at_pht?.slice(0, 16)} PHT,{" "}
+                          {i.conflict!.delta_minutes} min earlier)
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : null}
 
