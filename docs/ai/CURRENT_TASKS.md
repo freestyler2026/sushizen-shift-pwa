@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-21 (session 121m — Cancellation Report Manila city switcher)
+Last updated: 2026-07-21 (session 121o — Probation page edit + HR_MANAGER permissions fix)
 
 
 > **New session start protocol:**
@@ -13,6 +13,76 @@ Last updated: 2026-07-21 (session 121m — Cancellation Report Manila city switc
 ## ⚠️ Deployments Pending
 
 なし — 全変更デプロイ済み
+
+## Recently Completed (2026-07-21 session 121o) — live (Vercel 87a3de4, Heroku 009a46a)
+
+### Probation Page — Inline Edit for Employee Cards
+
+User request: "一度登録した情報が編集できないようになっていますが、編集可能にしていただくことは可能でしょうか"
+
+**Backend (`app/db_probation.py` + `app/probation_api.py`):**
+- `update_probation_cycle(city, staff_name, cycle_number, fields)` — UPDATE query for cycle fields: cycle_start_date, cycle_end_date, status, graduated, bonus_awarded, termination_flagged, termination_reason
+- `delete_probation_entry(city, staff_name)` — clears hired_at from staff_master and deletes all cycles
+- `PUT /api/admin/probation/update` — accepts hire date + any subset of cycle fields; calls set_hired_at() and/or update_probation_cycle() as needed
+- `DELETE /api/admin/probation/delete?staff_name=...&city=...` — remove from tracking entirely
+
+**Frontend (`src/app/admin/probation/page.tsx`):**
+- Each employee card now has an "Edit" pencil button (top-right)
+- Inline edit mode (replaces card contents in-place):
+  - Hire Date (date input)
+  - Cycle Start / Cycle End (date inputs, shown only if cycle exists)
+  - Cycle Status dropdown: IN_PROGRESS / PASSED / FAILED
+  - Graduated, Bonus Awarded (PHP 2,000), Termination Risk Flag (checkboxes)
+  - Termination Reason text input (shown only when termination_flagged is checked)
+- Save → PUT /api/admin/probation/update; success reloads the list
+- Cancel → reverts to view mode
+- Remove button (with confirm step) → DELETE /api/admin/probation/delete
+
+### HR_MANAGER Permissions Fix (session 121n)
+
+**Root cause:** `canAccessAdminNav()` in auth.ts was missing `channel.admin.os_attendance.view`, `channel.admin.manual_shift.view`, `channel.admin.manual_shift.publish` keys. Even if granted via Role Management, these permissions had no effect on NavBar visibility.
+
+**Fix (Vercel 22e1329):**
+- `auth.ts`: added the 3 missing keys to `canAccessAdminNav()`
+- `NavBar.tsx`: Manual Shift check now `canAccessAdminNav(auth) || hasChannelAccess("admin.manual_shift", ["view"], auth)` so users with ONLY that permission still see the link
+
+**Admin action required:** Role Management → HR Manager → grant: Staff (View), Payroll (View), OS Attendance (View), Manual Shift (View). Camilla must re-login after.
+
+## Recently Completed (2026-07-21 session 121n) — live (Vercel c87c675, Heroku v1397)
+
+### Draft Apply — Overwrite Warning for manual OS corrections
+
+Manila side reports: shifts corrected in the evening sometimes revert by next morning.
+Root cause: operator applies a Draft generated BEFORE manual corrections were published → overwrites the corrections.
+
+**Full implementation:**
+
+**DB (`app/db.py`):**
+- `shift_publish_log` table added inside `ensure_published_tables()` — permanent audit trail of every publish event (never deleted, unlike `shift_published_versions` which has UNIQUE per branch+week)
+- `_log_publish_event()` helper — inserts into `shift_publish_log` inside the existing transaction; `try/except` so it never breaks the main publish
+- `replace_published_week_from_draft_subset()` — fetches `draft_created_at` from `shift_draft_versions` and calls `_log_publish_event(..., "draft_apply")`
+- `publish_week_from_base_shift()` — calls `_log_publish_event(..., "bayzat_import" | "load_from_db")`
+
+**Backend (`app/main.py`):**
+- `api_draft_apply_prepare()` now runs a conflict check before issuing the confirm token
+- Cross-joins `shift_published_versions` with `shift_draft_versions` to compare `published_at > draft.created_at`
+- Returns `conflict: { published_by, published_at_pht, draft_created_at_pht, delta_minutes }` when a conflict is detected; `null` otherwise
+- All errors are caught silently — conflict check never breaks the prepare flow
+
+**Frontend (`src/app/admin/draft/page.tsx`):**
+- `ApplyPrepareResult` type: added optional `conflict` field
+- `BatchApplyPrepareResult.items`: each item now carries `conflict`
+- `buildApplyPrepared()`: stores `res.conflict` per item
+- Conflict warning UI in the `applyPrepared?.ok` section: amber card listing each affected branch with who published, when (PHT), and how many minutes after draft generation
+- Only shown when `items.some(i => i.conflict)` — normal applies are unaffected
+
+**Diagnostic page:** `/admin/shift-audit` (Vercel 13e5bd3, deployed previous session) — shows publish history and is used for investigating future reversion incidents.
+
+**Full Audit Log UI (Vercel 34d2646, Heroku 3635fa3):**
+- New backend endpoint `GET /api/admin/shifts/publish_log` reads from `shift_publish_log` (permanent, never overwritten) — supports `city`, `weeks`, `branch_code` params
+- Shift Audit page now has two tabs: "Latest State" (existing, 1 row per branch×week) and "Full Audit Log" (all events chronologically, newest first)
+- Full Audit Log columns: Published At (PHT), Branch, Week, Source badge, Published By, Draft Generated At, Rows
+- Footer note clarifies: log captures events from 2026-07-21 onward; earlier history only in Latest State tab
 
 ## Recently Completed (2026-07-21 session 121m) — live (Vercel f3782f7)
 
