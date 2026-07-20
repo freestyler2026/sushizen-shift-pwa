@@ -104,6 +104,7 @@ import {
   canAccessCalendarPage,
   canAccessMyPay,
   canAccessPayrollAdmin,
+  hasChannelAccess,
   clearAuth,
   getAuth,
   getAuthHeaders,
@@ -351,7 +352,7 @@ export default function NavBar() {
     if (href === "/admin/emergency-requests") return ["HQ", "ADMIN", "MANILA_MANAGEMENT", "MANILA_MANAGER"].includes(role);
     if (href === "/admin/supplier-confirmations") return canAccessProcurementAdmin(auth, "manila");
     if (href === "/admin/incidents") return canAccessIncidentReportAdmin(auth);
-    if (href === "/admin/manual-shift") return canAccessAdminNav(auth);
+    if (href === "/admin/manual-shift") return canAccessAdminNav(auth) || hasChannelAccess("admin.manual_shift", ["view"], auth);
     if (href === "/admin/bayzat-import") return ["HQ", "ADMIN"].includes(role);
     if (href === "/admin/price-check") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
     if (href === "/admin/baseroll-prep") return ["HQ", "ADMIN", "MANILA_MANAGEMENT"].includes(role);
