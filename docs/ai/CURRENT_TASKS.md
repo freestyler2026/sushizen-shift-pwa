@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-20 (session 121l — Manila Payroll period labels, probation dropdown, roster-sync)
+Last updated: 2026-07-21 (session 121m — Cancellation Report Manila city switcher)
 
 
 > **New session start protocol:**
@@ -13,6 +13,32 @@ Last updated: 2026-07-20 (session 121l — Manila Payroll period labels, probati
 ## ⚠️ Deployments Pending
 
 なし — 全変更デプロイ済み
+
+## Recently Completed (2026-07-21 session 121m) — live (Vercel f3782f7)
+
+### Cancellation Report — Manila city switcher (GrabFood / FoodPanda)
+
+Staff requested that the Cancellation Report (previously Dubai-only) support Manila as well.
+
+**Frontend only** (`src/app/admin/cancellations/page.tsx`):
+- Added Dubai / Manila tab switcher in the page header
+- `city` state drives all city-dependent config: branches, platforms, categories, color maps, amount formatter, column labels
+- `ManilaApiRow` type + `normalizeManilaRow()` normalizes Manila API field names to the shared `CancelRow` type:
+  - `order_no` → `order_id`, `paid_price` → `refund_amount`, `ticket_status` → `email_status`, `recorded_by` → `encoded_by`
+  - `kitchen_photo_provided` (bool) → `photo_status` ("Provided" / "Not Provided")
+- `fmtPhp()` helper for PHP currency display
+- `MANILA_PLATFORM_COLORS` (GrabFood #00b14f, FoodPanda #d70f64) + `MANILA_BRANCH_COLORS` (Paranaque/Taft/Cubao)
+- Manila fetches from existing `/api/admin/analytics/manila/cancellations` endpoint (same auth pattern, same `{ ok, items }` envelope)
+- `useEffect` resets filters/records/loaded when city changes
+- `fetchRecords` `useCallback` has `city` in deps — switches endpoint automatically
+- KPI label: "Total Refund" → "Total Amount" for Manila; column header: "Refund (AED)" → "Amount (PHP)"
+- Subtitle updates to "Manila · GrabFood / FoodPanda — follow-up dashboard"
+- DetailModal accepts `city`, `platformColors`, `branchColors` props — shows PHP amount, hides Dubai-only fields (basket, total, compensation, customer note, double-checked-by, kitchen/platform notes)
+- Manila categories: "Cancellation" / "Incident/Refund"; Dubai categories: "Cancellation" / "Refund/Complaint"
+- CSV filename: `cancellations-manila-YYYY-MM-DD-YYYY-MM-DD.csv` vs `cancellations-dubai-...`
+
+**Backend**: No changes needed — Manila API endpoint already existed.
+**Verified**: Dubai→Manila switch tested in browser (subtitle, KPI label, table column all update correctly).
 
 ## Recently Completed (2026-07-20 session 121l) — live (Vercel 9141eaf, Heroku v1395)
 
