@@ -54,6 +54,7 @@ async function apiGet<T = unknown>(path: string): Promise<T> {
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
+// Unified row type used throughout the UI
 type CancelRow = {
   id: number;
   platform: string;
@@ -79,7 +80,56 @@ type CancelRow = {
   refund_status: string | null;
 };
 
+// Shape returned by Manila API (different field names)
+type ManilaApiRow = {
+  id: number;
+  platform: string;
+  incident_date: string;
+  branch: string;
+  brand?: string | null;
+  category?: string | null;
+  order_no?: string | null;
+  time_reported?: string | null;
+  ordered_items?: string | null;
+  paid_price?: number | null;
+  cancellation_reason?: string | null;
+  kitchen_photo_provided?: boolean | null;
+  ticket_status?: string | null;
+  recorded_by?: string | null;
+  refund_status?: string | null;
+};
+
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+function normalizeManilaRow(r: ManilaApiRow): CancelRow {
+  return {
+    id: r.id,
+    platform: r.platform,
+    incident_date: r.incident_date,
+    branch: r.branch,
+    brand: r.brand ?? null,
+    category: r.category ?? null,
+    order_id: r.order_no ?? null,
+    time_reported: r.time_reported ?? null,
+    ordered_items: r.ordered_items ?? null,
+    basket_amount: null,
+    total_amount: null,
+    refund_amount: r.paid_price ?? null,
+    compensation_amount: null,
+    cancellation_reason: r.cancellation_reason ?? null,
+    encoded_by: r.recorded_by ?? null,
+    customer_note: null,
+    photo_status:
+      r.kitchen_photo_provided != null
+        ? r.kitchen_photo_provided ? "Provided" : "Not Provided"
+        : null,
+    double_checked_by: null,
+    email_status: r.ticket_status ?? null,
+    kitchen_notes: null,
+    platform_notes: null,
+    refund_status: r.refund_status ?? null,
+  };
+}
 
 function todayIso() {
   const d = new Date();
@@ -99,13 +149,23 @@ function fmtAed(n: number | null | undefined) {
   if (n == null || n === 0) return "—";
   return `AED ${Number(n).toLocaleString("en-AE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
+function fmtPhp(n: number | null | undefined) {
+  if (n == null || n === 0) return "—";
+  return `PHP ${Number(n).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
 
-const PLATFORM_COLORS: Record<string, string> = {
+const DUBAI_PLATFORM_COLORS: Record<string, string> = {
   Careem: "#00c896", Keeta: "#ff6b35", Talabat: "#ff2d55",
 };
-const BRANCH_COLORS: Record<string, string> = {
+const DUBAI_BRANCH_COLORS: Record<string, string> = {
   "Business Bay": "#6366f1", Arjan: "#10b981", "Al Barsha": "#f59e0b",
   "Al Hudaiba": "#ec4899", JLT: "#8b5cf6",
+};
+const MANILA_PLATFORM_COLORS: Record<string, string> = {
+  GrabFood: "#00b14f", FoodPanda: "#d70f64",
+};
+const MANILA_BRANCH_COLORS: Record<string, string> = {
+  Paranaque: "#6366f1", Taft: "#10b981", Cubao: "#f59e0b",
 };
 
 function isTicketSent(email_status: string | null): boolean {
@@ -113,28 +173,30 @@ function isTicketSent(email_status: string | null): boolean {
   return s.includes("sent") || s.includes("email");
 }
 function isResolved(refund_status: string | null): boolean {
-  const s = (refund_status ?? "").trim();
-  return s.length > 0;
+  return (refund_status ?? "").trim().length > 0;
 }
 function isPending(row: CancelRow): boolean {
-  // Plan A: email_status contains "sent" AND refund_status is empty
   return isTicketSent(row.email_status) && !isResolved(row.refund_status);
 }
 
 // ── Detail modal ──────────────────────────────────────────────────────────
 
-const DETAIL_PLATFORM_COLORS: Record<string, string> = {
-  Careem: "#00c896", Keeta: "#ff6b35", Talabat: "#ff2d55",
-};
-const DETAIL_BRANCH_COLORS: Record<string, string> = {
-  "Business Bay": "#6366f1", Arjan: "#10b981", "Al Barsha": "#f59e0b",
-  "Al Hudaiba": "#ec4899", JLT: "#8b5cf6",
-};
-
-function DetailModal({ row, onClose }: { row: CancelRow; onClose: () => void }) {
+function DetailModal({
+  row,
+  onClose,
+  platformColors,
+  branchColors,
+  city,
+}: {
+  row: CancelRow;
+  onClose: () => void;
+  platformColors: Record<string, string>;
+  branchColors: Record<string, string>;
+  city: "dubai" | "manila";
+}) {
   const isCancel = row.category === "Cancellation";
-  const pc = DETAIL_PLATFORM_COLORS[row.platform] ?? "#888";
-  const bc = DETAIL_BRANCH_COLORS[row.branch] ?? "#ccc";
+  const pc = platformColors[row.platform] ?? "#888";
+  const bc = branchColors[row.branch] ?? "#ccc";
 
   function Field({ label, value, mono }: { label: string; value: string | null | undefined; mono?: boolean }) {
     const v = (value ?? "").trim();
@@ -192,13 +254,20 @@ function DetailModal({ row, onClose }: { row: CancelRow; onClose: () => void }) 
             <Field label="Brand" value={row.brand} />
           </div>
 
-          {/* Row 2: Time / Basket / Total / Refund */}
-          <div className="grid grid-cols-4 gap-4">
-            <Field label="Time" value={row.time_reported} />
-            <Field label="Basket (AED)" value={row.basket_amount != null ? String(row.basket_amount) : null} mono />
-            <Field label="Total (AED)" value={row.total_amount != null ? String(row.total_amount) : null} mono />
-            <Field label="Refund (AED)" value={row.refund_amount != null ? String(row.refund_amount) : null} mono />
-          </div>
+          {/* Row 2: Amount fields — city-aware */}
+          {city === "dubai" ? (
+            <div className="grid grid-cols-4 gap-4">
+              <Field label="Time" value={row.time_reported} />
+              <Field label="Basket (AED)" value={row.basket_amount != null ? String(row.basket_amount) : null} mono />
+              <Field label="Total (AED)" value={row.total_amount != null ? String(row.total_amount) : null} mono />
+              <Field label="Refund (AED)" value={row.refund_amount != null ? String(row.refund_amount) : null} mono />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Time" value={row.time_reported} />
+              <Field label="Paid Price (PHP)" value={row.refund_amount != null ? String(row.refund_amount) : null} mono />
+            </div>
+          )}
 
           {/* Ordered Items */}
           {row.ordered_items && (
@@ -210,14 +279,14 @@ function DetailModal({ row, onClose }: { row: CancelRow; onClose: () => void }) 
             </div>
           )}
 
-          {/* Cancellation Reason + Encoded By */}
+          {/* Cancellation Reason + Encoded/Recorded By */}
           <div className="grid grid-cols-2 gap-4">
             <Field label="Cancellation Reason" value={row.cancellation_reason} />
-            <Field label="Encoded By" value={row.encoded_by} />
+            <Field label={city === "dubai" ? "Encoded By" : "Recorded By"} value={row.encoded_by} />
           </div>
 
-          {/* Customer Note */}
-          {row.customer_note && (
+          {/* Customer Note (Dubai only) */}
+          {city === "dubai" && row.customer_note && (
             <div>
               <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/30">Customer Note</p>
               <p className="rounded-lg border border-white/8 bg-white/4 px-3 py-2.5 text-sm text-white/70 whitespace-pre-wrap">
@@ -226,12 +295,14 @@ function DetailModal({ row, onClose }: { row: CancelRow; onClose: () => void }) 
             </div>
           )}
 
-          {/* Photo / Double Checked / Kitchen / Platform Notes */}
+          {/* Photo / Double Checked */}
           <div className="grid grid-cols-2 gap-4">
             <Field label="Photo Status" value={row.photo_status} />
-            <Field label="Double Checked By" value={row.double_checked_by} />
+            {city === "dubai" && <Field label="Double Checked By" value={row.double_checked_by} />}
           </div>
-          {(row.kitchen_notes || row.platform_notes) && (
+
+          {/* Kitchen / Platform Notes (Dubai only) */}
+          {city === "dubai" && (row.kitchen_notes || row.platform_notes) && (
             <div className="grid grid-cols-2 gap-4">
               <Field label="Kitchen Notes" value={row.kitchen_notes} />
               <Field label="Platform Response Notes" value={row.platform_notes} />
@@ -240,7 +311,7 @@ function DetailModal({ row, onClose }: { row: CancelRow; onClose: () => void }) 
 
           {/* Ticket / Refund Status */}
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Email / Ticket Status" value={row.email_status} />
+            <Field label="Ticket Status" value={row.email_status} />
             <Field label="Refund Status" value={row.refund_status} />
           </div>
         </div>
@@ -313,15 +384,12 @@ function KpiCard({
 
 // ── Main page ──────────────────────────────────────────────────────────────
 
-const BRANCHES = ["All", "Business Bay", "Arjan", "Al Barsha", "Al Hudaiba", "JLT"];
-const PLATFORMS = ["All", "Careem", "Keeta", "Talabat"];
-const CATEGORIES = ["All", "Cancellation", "Refund/Complaint"];
 const TICKET_STATUSES = [
-  { value: "all",      label: "All Ticket Status" },
-  { value: "sent",     label: "Ticket Sent" },
-  { value: "no_need",  label: "No Need to Send" },
-  { value: "pending",  label: "Pending (Sent, Unresolved)" },
-  { value: "none",     label: "Not Sent" },
+  { value: "all",     label: "All Ticket Status" },
+  { value: "sent",    label: "Ticket Sent" },
+  { value: "no_need", label: "No Need to Send" },
+  { value: "pending", label: "Pending (Sent, Unresolved)" },
+  { value: "none",    label: "Not Sent" },
 ];
 
 type SortKey = keyof CancelRow;
@@ -331,6 +399,7 @@ export default function CancellationReportPage() {
   const approverName = auth?.staffName || "";
   const pin = auth?.pin || "";
 
+  const [city, setCity] = useState<"dubai" | "manila">("dubai");
   const [dateFrom, setDateFrom] = useState(daysAgoIso(30));
   const [dateTo, setDateTo] = useState(todayIso());
   const [records, setRecords] = useState<CancelRow[]>([]);
@@ -352,7 +421,32 @@ export default function CancellationReportPage() {
   // Detail modal
   const [selectedRow, setSelectedRow] = useState<CancelRow | null>(null);
 
+  // City-derived config
+  const BRANCHES = city === "dubai"
+    ? ["All", "Business Bay", "Arjan", "Al Barsha", "Al Hudaiba", "JLT"]
+    : ["All", "Paranaque", "Taft", "Cubao"];
+  const PLATFORMS = city === "dubai"
+    ? ["All", "Careem", "Keeta", "Talabat"]
+    : ["All", "GrabFood", "FoodPanda"];
+  const CATEGORIES = city === "dubai"
+    ? ["All", "Cancellation", "Refund/Complaint"]
+    : ["All", "Cancellation", "Incident/Refund"];
+  const activePlatformColors = city === "dubai" ? DUBAI_PLATFORM_COLORS : MANILA_PLATFORM_COLORS;
+  const activeBranchColors = city === "dubai" ? DUBAI_BRANCH_COLORS : MANILA_BRANCH_COLORS;
+  const fmtAmount = city === "dubai" ? fmtAed : fmtPhp;
+  const amountLabel = city === "dubai" ? "Refund (AED)" : "Amount (PHP)";
+
   const canLoad = Boolean(approverName.trim() && pin.trim());
+
+  // Reset city-dependent state when switching
+  useEffect(() => {
+    setFilterBranch("All");
+    setFilterPlatform("All");
+    setFilterCategory("All");
+    setRecords([]);
+    setLoaded(false);
+    setError(null);
+  }, [city]);
 
   const fetchRecords = useCallback(async () => {
     if (!canLoad) {
@@ -371,18 +465,24 @@ export default function CancellationReportPage() {
       date_from: dateFrom,
       date_to: dateTo,
     }).toString();
+    const endpoint = city === "dubai"
+      ? `/api/admin/analytics/dubai/cancellations?${qs}`
+      : `/api/admin/analytics/manila/cancellations?${qs}`;
     try {
-      const res = await apiGet<{ ok?: boolean; items?: CancelRow[] }>(
-        `/api/admin/analytics/dubai/cancellations?${qs}`
-      );
-      setRecords(Array.isArray(res?.items) ? res.items : []);
+      const res = await apiGet<{ ok?: boolean; items?: unknown[] }>(endpoint);
+      const items = Array.isArray(res?.items) ? res.items : [];
+      if (city === "manila") {
+        setRecords((items as ManilaApiRow[]).map(normalizeManilaRow));
+      } else {
+        setRecords(items as CancelRow[]);
+      }
       setLoaded(true);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to fetch");
     } finally {
       setLoading(false);
     }
-  }, [approverName, pin, dateFrom, dateTo, canLoad]);
+  }, [approverName, pin, dateFrom, dateTo, canLoad, city]);
 
   useEffect(() => { void fetchRecords(); }, [fetchRecords]);
 
@@ -434,7 +534,7 @@ export default function CancellationReportPage() {
     if (col === sortCol) { setSortAsc((v) => !v); } else { setSortCol(col); setSortAsc(false); }
   }
 
-  // ── KPI computation (based on filtered — reflects active frontend filters) ──
+  // ── KPI computation ──────────────────────────────────────────────────────
 
   const kpi = useMemo(() => {
     const totalRefund = filtered.reduce((s, r) => s + (Number(r.refund_amount) || 0), 0);
@@ -448,7 +548,8 @@ export default function CancellationReportPage() {
   // ── CSV download ─────────────────────────────────────────────────────────
 
   function downloadCsv() {
-    const headers = ["date", "branch", "platform", "category", "order_id", "refund_aed", "reason", "ticket_status", "refund_status"];
+    const amtCol = city === "dubai" ? "refund_aed" : "amount_php";
+    const headers = ["date", "branch", "platform", "category", "order_id", amtCol, "reason", "ticket_status", "refund_status"];
     const esc = (v: unknown) => {
       const s = String(v ?? "");
       return s.includes(",") || s.includes('"') || s.includes("\n") ? `"${s.replace(/"/g, '""')}"` : s;
@@ -463,8 +564,11 @@ export default function CancellationReportPage() {
     ];
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `cancellations-${dateFrom}-${dateTo}.csv`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `cancellations-${city}-${dateFrom}-${dateTo}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   // ── Ticket status badge ───────────────────────────────────────────────────
@@ -480,18 +584,18 @@ export default function CancellationReportPage() {
     return <span className="text-white/20">—</span>;
   }
 
-  // ── Columns definition ───────────────────────────────────────────────────
+  // ── Columns ───────────────────────────────────────────────────────────────
 
   const COLS: { key: SortKey; label: string }[] = [
-    { key: "incident_date",      label: "Date" },
-    { key: "order_id",           label: "Order No." },
-    { key: "branch",             label: "Branch" },
-    { key: "platform",           label: "Platform" },
-    { key: "category",           label: "Category" },
-    { key: "refund_amount",      label: "Refund (AED)" },
+    { key: "incident_date",       label: "Date" },
+    { key: "order_id",            label: "Order No." },
+    { key: "branch",              label: "Branch" },
+    { key: "platform",            label: "Platform" },
+    { key: "category",            label: "Category" },
+    { key: "refund_amount",       label: amountLabel },
     { key: "cancellation_reason", label: "Reason" },
-    { key: "email_status",       label: "Ticket Status" },
-    { key: "refund_status",      label: "Refund Status" },
+    { key: "email_status",        label: "Ticket Status" },
+    { key: "refund_status",       label: "Refund Status" },
   ];
 
   return (
@@ -510,13 +614,32 @@ export default function CancellationReportPage() {
                 Cancellation Report
               </h1>
               <p className="mt-1 text-sm text-white/40">
-                Dubai · Careem / Keeta / Talabat — follow-up dashboard
+                {city === "dubai"
+                  ? "Dubai · Careem / Keeta / Talabat — follow-up dashboard"
+                  : "Manila · GrabFood / FoodPanda — follow-up dashboard"}
               </p>
             </div>
           </div>
 
-          {/* Date range + Load */}
+          {/* City tabs + Date range + Load */}
           <div className="flex flex-wrap items-center gap-2">
+            <div className="flex overflow-hidden rounded-xl border border-white/10">
+              {(["dubai", "manila"] as const).map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCity(c)}
+                  className={[
+                    "px-4 py-2 text-sm font-medium capitalize transition-colors",
+                    city === c
+                      ? "bg-violet-600/70 text-white"
+                      : "bg-white/5 text-white/40 hover:text-white/70",
+                  ].join(" ")}
+                >
+                  {c === "dubai" ? "Dubai" : "Manila"}
+                </button>
+              ))}
+            </div>
             <input
               type="date"
               value={dateFrom}
@@ -531,7 +654,7 @@ export default function CancellationReportPage() {
               className="rounded-xl border border-white/10 bg-white/6 px-3 py-2 text-sm text-white outline-none focus:border-violet-500/50"
             />
             <button
-              onClick={fetchRecords}
+              onClick={() => void fetchRecords()}
               disabled={loading}
               className={`${PRIMARY_BUTTON} flex items-center gap-2 disabled:opacity-50`}
             >
@@ -553,8 +676,8 @@ export default function CancellationReportPage() {
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <KpiCard
             icon={<span className="text-lg">💰</span>}
-            label="Total Refund"
-            value={kpi.totalRefund > 0 ? `AED ${kpi.totalRefund.toLocaleString("en-AE", { maximumFractionDigits: 0 })}` : "—"}
+            label={city === "dubai" ? "Total Refund" : "Total Amount"}
+            value={kpi.totalRefund > 0 ? fmtAmount(kpi.totalRefund) : "—"}
             sub={`${kpi.total} incidents total`}
             accent="text-amber-400"
           />
@@ -591,35 +714,30 @@ export default function CancellationReportPage() {
         {/* ── Filters ────────────────────────────────────────────────────── */}
         <div className={`${GLASS_CARD} mb-4 p-4`}>
           <div className="flex flex-wrap gap-3">
-            {/* Branch */}
             <div className="min-w-[140px] flex-1">
               <p className={`${T_LABEL} mb-1`}>Branch</p>
               <select value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} className={SELECT_CLASS}>
                 {BRANCHES.map((b) => <option key={b} value={b}>{b}</option>)}
               </select>
             </div>
-            {/* Platform */}
             <div className="min-w-[120px] flex-1">
               <p className={`${T_LABEL} mb-1`}>Platform</p>
               <select value={filterPlatform} onChange={(e) => setFilterPlatform(e.target.value)} className={SELECT_CLASS}>
                 {PLATFORMS.map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
-            {/* Category */}
             <div className="min-w-[150px] flex-1">
               <p className={`${T_LABEL} mb-1`}>Category</p>
               <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className={SELECT_CLASS}>
                 {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
-            {/* Ticket Status */}
             <div className="min-w-[180px] flex-1">
               <p className={`${T_LABEL} mb-1`}>Ticket Status</p>
               <select value={filterTicket} onChange={(e) => setFilterTicket(e.target.value)} className={SELECT_CLASS}>
                 {TICKET_STATUSES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </div>
-            {/* Search */}
             <div className="min-w-[180px] flex-1">
               <p className={`${T_LABEL} mb-1`}>Search</p>
               <div className="relative">
@@ -694,52 +812,43 @@ export default function CancellationReportPage() {
                       className={`${TABLE_ROW} cursor-pointer ${rowPending ? "bg-rose-500/5" : ""}`}
                       onClick={() => setSelectedRow(r)}
                     >
-                      {/* Date */}
                       <td className={`${TABLE_CELL} whitespace-nowrap px-4 text-white/50`}>
                         {fmtDate(r.incident_date)}
                       </td>
-                      {/* Order No. */}
                       <td className={`${TABLE_CELL} whitespace-nowrap px-4 font-mono text-white/60`}>
                         {r.order_id || <span className="text-white/20">—</span>}
                       </td>
-                      {/* Branch */}
                       <td className={`${TABLE_CELL} whitespace-nowrap px-4`}>
                         <span className="flex items-center gap-1.5">
-                          <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: BRANCH_COLORS[r.branch] ?? "#888" }} />
-                          <span style={{ color: BRANCH_COLORS[r.branch] ?? "#ccc" }}>{r.branch}</span>
+                          <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: activeBranchColors[r.branch] ?? "#888" }} />
+                          <span style={{ color: activeBranchColors[r.branch] ?? "#ccc" }}>{r.branch}</span>
                         </span>
                       </td>
-                      {/* Platform */}
                       <td className={`${TABLE_CELL} whitespace-nowrap px-4`}>
                         <span
                           className="rounded-full px-2 py-0.5 font-medium"
                           style={{
-                            backgroundColor: `${PLATFORM_COLORS[r.platform] ?? "#888"}20`,
-                            color: PLATFORM_COLORS[r.platform] ?? "#aaa",
+                            backgroundColor: `${activePlatformColors[r.platform] ?? "#888"}20`,
+                            color: activePlatformColors[r.platform] ?? "#aaa",
                           }}
                         >
                           {r.platform}
                         </span>
                       </td>
-                      {/* Category */}
                       <td className={`${TABLE_CELL} px-4`}>
                         <span className={`rounded-full px-2 py-0.5 font-medium ${isCancel ? "bg-red-500/15 text-red-400" : "bg-amber-500/15 text-amber-400"}`}>
                           {r.category ?? "—"}
                         </span>
                       </td>
-                      {/* Refund */}
                       <td className={`${TABLE_CELL} whitespace-nowrap px-4 text-right font-semibold text-amber-400`}>
-                        {fmtAed(r.refund_amount)}
+                        {fmtAmount(r.refund_amount)}
                       </td>
-                      {/* Reason */}
                       <td className={`${TABLE_CELL} px-4 text-white/50`}>
                         <TextCell text={r.cancellation_reason} />
                       </td>
-                      {/* Ticket Status */}
                       <td className={`${TABLE_CELL} px-4`}>
                         <TicketBadge emailStatus={r.email_status} />
                       </td>
-                      {/* Refund Status */}
                       <td className={`${TABLE_CELL} px-4 text-white/50`}>
                         {rowPending
                           ? <span className="inline-flex items-center gap-1 text-rose-400"><Clock className="h-3 w-3" /> Pending</span>
@@ -757,7 +866,13 @@ export default function CancellationReportPage() {
 
       {/* Detail modal */}
       {selectedRow && (
-        <DetailModal row={selectedRow} onClose={() => setSelectedRow(null)} />
+        <DetailModal
+          row={selectedRow}
+          onClose={() => setSelectedRow(null)}
+          platformColors={activePlatformColors}
+          branchColors={activeBranchColors}
+          city={city}
+        />
       )}
     </main>
   );
