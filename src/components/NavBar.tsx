@@ -64,6 +64,7 @@ import {
   X,
   BookOpen,
   Clock,
+  History,
 } from "lucide-react";
 import {
   canAccessAbsencesAdmin,
@@ -193,6 +194,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/staff/roles", label: "Role Management", icon: Shield, adminOnly: true, match: "prefix" },
   { href: "/admin/draft", label: "Draft", icon: PenLine, adminOnly: true, match: "prefix" },
   { href: "/admin/manual-shift", label: "Manual Shift", icon: CalendarPlus, adminOnly: true, match: "prefix" },
+  { href: "/admin/shift-audit", label: "Shift Audit Log", icon: History, adminOnly: true, match: "prefix" },
   { href: "/admin/bayzat-import", label: "Bayzat Import", icon: FileText, adminOnly: true, match: "prefix" },
   { href: "/admin/backoffice-evaluation", label: "Backoffice Eval", icon: ClipboardCheck, adminOnly: true, match: "exact" },
   { href: "/admin/store-evaluations", label: "Store Evaluations", icon: BarChart3, adminOnly: true, match: "prefix" },
@@ -328,6 +330,7 @@ export default function NavBar() {
     if (href === "/admin/staff") return canAccessStaffAdmin(auth);
     if (href === "/admin/staff/roles") return canAccessRoleManagement(auth);
     if (href === "/admin/draft") return canAccessDraftAdmin(auth);
+    if (href === "/admin/shift-audit") return ["ADMIN", "HQ"].includes(role);
     if (href === "/admin/backoffice-evaluation") return canAccessBackofficeEvaluationAdmin(auth);
     if (href === "/admin/store-evaluations") return canAccessStoreEvaluationsAdmin(auth);
     if (href === "/admin/cold-chain") return canAccessColdChainAdmin(auth);
