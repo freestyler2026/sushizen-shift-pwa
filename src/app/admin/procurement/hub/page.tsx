@@ -44,6 +44,7 @@ type HubRow = {
   created_at: string;
   updated_at: string;
   vendor_summary?: string;
+  source_ref?: string;
   // Case fields (may be null if no case yet)
   case_id?: string;
   parent_case_no?: string;
@@ -73,6 +74,15 @@ function lookupWhStock(itemName: string, map: Map<string, WhStockItem>): WhStock
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+// Parse source_ref "daily_inventory:{id}:{branch}:{date}" → { branch, date } or null
+function parseDailyInvRef(sourceRef?: string): { branch: string; date: string } | null {
+  if (!sourceRef?.startsWith("daily_inventory:")) return null;
+  const parts = sourceRef.split(":");
+  // parts: ["daily_inventory", id, branch, date]
+  if (parts.length < 4) return null;
+  return { branch: parts[2] || "", date: parts[3] || "" };
+}
 
 const PURCHASE_TYPE_LABELS: Record<string, string> = {
   standard:        "Standard",
@@ -243,6 +253,7 @@ export default function ProcurementHubPage() {
   const [filterBranch, setFilterBranch] = useState("");
   const [filterSupplier, setFilterSupplier] = useState("");
   const [filterGroup, setFilterGroup] = useState<StatusGroup>("all");
+  const [filterDailyInvOnly, setFilterDailyInvOnly] = useState(false);
 
   const [rows, setRows] = useState<HubRow[]>([]);
 
@@ -372,10 +383,11 @@ export default function ProcurementHubPage() {
   }, [rows]);
 
   // Active display rows
-  const displayRows = useMemo(
-    () => filterGroup === "all" ? rows : rows.filter((r) => classifyRow(r) === filterGroup),
-    [rows, filterGroup],
-  );
+  const displayRows = useMemo(() => {
+    let r = filterGroup === "all" ? rows : rows.filter((row) => classifyRow(row) === filterGroup);
+    if (filterDailyInvOnly) r = r.filter((row) => !!parseDailyInvRef(row.source_ref));
+    return r;
+  }, [rows, filterGroup, filterDailyInvOnly]);
 
   const clearFilters = () => {
     setFilterStatus("");
@@ -539,7 +551,7 @@ export default function ProcurementHubPage() {
       )}
 
       {/* Status group tabs */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {(
           [
             { key: "all",           label: "All",             color: "border-zinc-700/50 bg-zinc-800/20 text-zinc-300",           active: "border-zinc-500 bg-zinc-700/30 text-zinc-100" },
@@ -563,6 +575,18 @@ export default function ProcurementHubPage() {
             </span>
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => setFilterDailyInvOnly((v) => !v)}
+          className={[
+            "rounded-xl border px-3 py-1.5 text-sm font-medium transition-all",
+            filterDailyInvOnly
+              ? "border-teal-500/60 bg-teal-500/15 text-teal-200"
+              : "border-teal-600/25 bg-teal-950/10 text-teal-500",
+          ].join(" ")}
+        >
+          📦 Daily Inv Only
+        </button>
       </div>
 
       {/* Loading */}
@@ -643,6 +667,11 @@ export default function ProcurementHubPage() {
                     {row.urgent_flag && (
                       <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${BADGE_ERROR}`}>⚡ Urgent</span>
                     )}
+                    {parseDailyInvRef(row.source_ref) && (
+                      <span className="rounded-full border border-teal-500/40 bg-teal-500/10 px-2 py-0.5 text-[11px] font-medium text-teal-300">
+                        📦 Daily Inv
+                      </span>
+                    )}
                   </div>
 
                   {/* Meta row */}
@@ -665,7 +694,26 @@ export default function ProcurementHubPage() {
                     {row.claimed_by && (
                       <span>Claimed by <span className="text-zinc-300">{row.claimed_by}</span></span>
                     )}
+                    {(() => {
+                      const inv = parseDailyInvRef(row.source_ref);
+                      if (!inv) return null;
+                      return (
+                        <span className="text-teal-400/80">
+                          Auto-generated from Daily Inventory · {inv.branch} · {inv.date}
+                        </span>
+                      );
+                    })()}
                   </div>
+
+                  {/* Assign Supplier warning for Daily Inv DRAFTs with no vendor yet */}
+                  {parseDailyInvRef(row.source_ref) &&
+                    (row.request_status || "").toUpperCase() === "DRAFT" &&
+                    !row.vendor_summary && (
+                    <p className="text-xs text-amber-300 flex items-center gap-1.5">
+                      <span>⚠</span>
+                      Supplier not yet assigned — please edit this order and select a supplier before submitting.
+                    </p>
+                  )}
 
                   {/* Blocked / hold reason */}
                   {(row.blocked_reason || row.payment_hold_reason) && (
