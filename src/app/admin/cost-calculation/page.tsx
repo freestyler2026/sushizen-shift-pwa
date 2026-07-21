@@ -1329,7 +1329,7 @@ export default function CostCalculationPage() {
       );
       const items = Array.isArray(res?.items)
         ? res.items.map((item) => ({
-            component_type: (String(item.component_type || "ingredient") === "processed_item" ? "processed_item" : "ingredient") as MasterComponentType,
+            component_type: (["processed_item", "menu_item"].includes(String(item.component_type || "")) ? "processed_item" : "ingredient") as MasterComponentType,
             id: String(item.id || ""),
             name: String(item.name || ""),
             category: String(item.category || ""),
