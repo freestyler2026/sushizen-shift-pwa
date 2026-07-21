@@ -14,8 +14,8 @@ Last updated: 2026-07-21 (session 121w — PO-Invoice Match P3: photo upload + t
 
 ## ⚠️ Deployments Pending
 
-- Vercel: (session 121w — PO Match P3 photo + settings) — pending commit
-- Heroku: P3 backend (photo_data column + settings table + new endpoints) — deployed ✅
+- Vercel: 29276fd (PO Match bug fixes from testing) — auto-deploying
+- Heroku: 3ef7542 (PO Match 3 data bugs fixed) — deployed ✅ v1412
 
 ### Previous sessions
 - Vercel: 72db83c (PO-Invoice Match page + ProcurementTabs) — deployed ✅
