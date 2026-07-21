@@ -42,6 +42,11 @@ type StaffProfile = {
   bank_name: string | null;
   bank_account_no: string | null;
   gcash_number: string | null;
+  civil_status: string | null;
+  num_qualified_dependents: number;
+  mdr_submitted: boolean;
+  mdr_submitted_date: string | null;
+  mdr_notes: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -65,6 +70,11 @@ type FormState = {
   bank_name: string;
   bank_account_no: string;
   gcash_number: string;
+  civil_status: string;
+  num_qualified_dependents: number;
+  mdr_submitted: boolean;
+  mdr_submitted_date: string;
+  mdr_notes: string;
   is_active: boolean;
 };
 
@@ -77,6 +87,7 @@ function emptyForm(): FormState {
     department: "", position: "",
     monthly_rate: "", daily_rate: "",
     bank_name: "", bank_account_no: "", gcash_number: "",
+    civil_status: "", num_qualified_dependents: 0, mdr_submitted: false, mdr_submitted_date: "", mdr_notes: "",
     is_active: true,
   };
 }
@@ -100,6 +111,11 @@ function profileToForm(p: StaffProfile): FormState {
     bank_name: p.bank_name ?? "",
     bank_account_no: p.bank_account_no ?? "",
     gcash_number: p.gcash_number ?? "",
+    civil_status: p.civil_status ?? "",
+    num_qualified_dependents: p.num_qualified_dependents,
+    mdr_submitted: p.mdr_submitted,
+    mdr_submitted_date: p.mdr_submitted_date ?? "",
+    mdr_notes: p.mdr_notes,
     is_active: p.is_active,
   };
 }
@@ -149,6 +165,11 @@ function ProfileModal({
         bank_name: form.bank_name.trim() || null,
         bank_account_no: form.bank_account_no.trim() || null,
         gcash_number: form.gcash_number.trim() || null,
+        civil_status: form.civil_status || null,
+        num_qualified_dependents: form.num_qualified_dependents,
+        mdr_submitted: form.mdr_submitted,
+        mdr_submitted_date: form.mdr_submitted_date || null,
+        mdr_notes: form.mdr_notes,
       };
       const r = await apiFetch(`${API}/staff-profiles/${encodeURIComponent(form.staff_name.trim())}`, {
         method: "PUT",
@@ -317,6 +338,54 @@ function ProfileModal({
               <label className={L}>Pag-IBIG MID</label>
               <input className={I} value={form.pagibig_mid} onChange={e => set("pagibig_mid", e.target.value)}
                 placeholder="XXXX-XXXX-XXXX" />
+            </div>
+
+            {/* Personal & Tax Info */}
+            <div className="col-span-2 mt-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Personal & Tax Info</p>
+            </div>
+            <div>
+              <label className={L}>Civil Status</label>
+              <select className={S} value={form.civil_status} onChange={e => set("civil_status", e.target.value)}>
+                <option value="">— Not set —</option>
+                <option value="single">Single</option>
+                <option value="married">Married</option>
+                <option value="widowed">Widowed</option>
+                <option value="legally_separated">Legally Separated</option>
+              </select>
+              <p className="mt-1 text-xs text-slate-500">Affects BIR withholding tax bracket</p>
+            </div>
+            <div>
+              <label className={L}>Qualified Dependents</label>
+              <input className={I} type="number" min="0" max="4" step="1"
+                value={form.num_qualified_dependents}
+                onChange={e => set("num_qualified_dependents", parseInt(e.target.value) || 0)} />
+              <p className="mt-1 text-xs text-slate-500">BIR allows up to 4 (₱25,000 exemption each)</p>
+            </div>
+            <div className="col-span-2">
+              <label className={L}>MDR (Member Data Record) Submitted</label>
+              <div className="flex items-center gap-3 mt-1">
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input type="checkbox" className="peer sr-only" checked={form.mdr_submitted}
+                    onChange={e => set("mdr_submitted", e.target.checked)} />
+                  <div className="h-6 w-11 rounded-full bg-slate-700 peer-checked:bg-emerald-600 transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:after:translate-x-full" />
+                </label>
+                <span className="text-sm text-slate-300">{form.mdr_submitted ? "Submitted" : "Not yet submitted"}</span>
+              </div>
+              <p className="mt-1 text-xs text-slate-500">PhilHealth document confirming civil status & dependents</p>
+            </div>
+            {form.mdr_submitted && (
+              <div>
+                <label className={L}>MDR Submission Date</label>
+                <input className={I} type="date" value={form.mdr_submitted_date}
+                  onChange={e => set("mdr_submitted_date", e.target.value)} />
+              </div>
+            )}
+            <div className={form.mdr_submitted ? "" : "col-span-2"}>
+              <label className={L}>MDR Notes</label>
+              <input className={I} value={form.mdr_notes}
+                onChange={e => set("mdr_notes", e.target.value)}
+                placeholder="e.g. Sent via email 2026-07-20" />
             </div>
 
             {/* Payment */}
@@ -573,7 +642,7 @@ export default function StaffProfilesPage() {
         ) : (
           <div className={GLASS_CARD + " overflow-hidden"}>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm" style={{ minWidth: "1000px" }}>
+              <table className="w-full text-sm" style={{ minWidth: "1100px" }}>
                 <thead>
                   <tr className="border-b border-white/10">
                     <th className={TABLE_HEADER + " px-4 py-3 text-left"}>Name</th>
@@ -582,6 +651,7 @@ export default function StaffProfilesPage() {
                     <th className={TABLE_HEADER + " px-3 py-3 text-center"}>Type</th>
                     <th className={TABLE_HEADER + " px-3 py-3 text-right"}>Monthly Rate</th>
                     <th className={TABLE_HEADER + " px-3 py-3 text-center"}>Gov IDs</th>
+                    <th className={TABLE_HEADER + " px-3 py-3 text-center"}>MDR</th>
                     <th className={TABLE_HEADER + " px-3 py-3 text-center"}>Status</th>
                     <th className={TABLE_HEADER + " w-12"} />
                   </tr>
@@ -629,6 +699,15 @@ export default function StaffProfilesPage() {
                           }`}>
                             {govIdCount}/4
                           </span>
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          {p.mdr_submitted ? (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-900/30 px-2 py-0.5 text-xs text-emerald-300">
+                              <CheckCircle2 size={10} /> Done
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-600">—</span>
+                          )}
                         </td>
                         <td className="px-3 py-3 text-center">
                           {p.is_active ? (
