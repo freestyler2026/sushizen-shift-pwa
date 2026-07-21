@@ -2161,12 +2161,14 @@ export default function CostCalculationPage() {
   const visibleUnmatchedInvoiceItems = useMemo(() => {
     const q = unmatchedItemSearch.trim().toLowerCase();
     const sup = unmatchedSupplierFilter.trim().toLowerCase();
-    return unmatchedInvoiceItems.filter((item) => {
-      if (skippedUnmatchedSet.has(unmatchedInvoiceItemKey(item))) return false;
-      if (sup && (item.supplier_name || "").toLowerCase() !== sup) return false;
-      if (q && !(item.item_description || "").toLowerCase().includes(q) && !(item.supplier_name || "").toLowerCase().includes(q)) return false;
-      return true;
-    });
+    return unmatchedInvoiceItems
+      .filter((item) => {
+        if (skippedUnmatchedSet.has(unmatchedInvoiceItemKey(item))) return false;
+        if (sup && (item.supplier_name || "").toLowerCase() !== sup) return false;
+        if (q && !(item.item_description || "").toLowerCase().includes(q) && !(item.supplier_name || "").toLowerCase().includes(q)) return false;
+        return true;
+      })
+      .sort((a, b) => (a.item_description || "").localeCompare(b.item_description || ""));
   }, [unmatchedInvoiceItems, skippedUnmatchedSet, unmatchedItemSearch, unmatchedSupplierFilter]);
   const selectedUnmatchedItem = useMemo(() => {
     if (!selectedUnmatchedItemKey || skippedUnmatchedSet.has(selectedUnmatchedItemKey)) return null;
@@ -5016,16 +5018,27 @@ export default function CostCalculationPage() {
                         <div className="text-sm font-semibold text-white">Unmapped Items</div>
                         <div className="mt-1 text-xs text-zinc-500">Not included in sync. Mapping registration required.</div>
                       </div>
-                      <div className="text-xs font-mono text-zinc-500">{unmatchedInvoiceItems.length} items</div>
+                      <div className="text-xs font-mono text-zinc-500">
+                        {unmatchedItemSearch.trim() ? `${visibleUnmatchedInvoiceItems.length} / ${unmatchedInvoiceItems.length}` : unmatchedInvoiceItems.length} items
+                      </div>
+                    </div>
+                    <div className="mb-2">
+                      <input
+                        type="text"
+                        placeholder="Search items or supplier…"
+                        value={unmatchedItemSearch}
+                        onChange={(e) => setUnmatchedItemSearch(e.target.value)}
+                        className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white placeholder:text-zinc-500 focus:border-sky-500/50 focus:outline-none"
+                      />
                     </div>
                     <div className="max-h-[28rem] overflow-y-auto rounded-xl border border-white/10">
                       {invoiceMappingLoading ? (
                         <div className="flex items-center justify-center py-8">
                           <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />
                         </div>
-                      ) : unmatchedInvoiceItems.length === 0 ? (
-                        <div className="px-4 py-6 text-sm text-zinc-500">No unmatched items.</div>
-                      ) : unmatchedInvoiceItems.map((item, i) => {
+                      ) : visibleUnmatchedInvoiceItems.length === 0 ? (
+                        <div className="px-4 py-6 text-sm text-zinc-500">{unmatchedItemSearch.trim() ? "No items match your search." : "No unmatched items."}</div>
+                      ) : visibleUnmatchedInvoiceItems.map((item, i) => {
                         const itemKey = unmatchedInvoiceItemKey(item);
                         const isSelected = selectedUnmatchedItemKey === itemKey;
                         const isRenaming = renamingUnmatchedKey === itemKey;
