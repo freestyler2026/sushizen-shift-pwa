@@ -136,6 +136,10 @@ export default function ProcurementCaseDetailPage() {
   const [editedItems, setEditedItems] = useState<any[]>([]);
   const [itemSaving, setItemSaving] = useState(false);
 
+  // Ingredient catalog for "Add Item" search
+  const [ingredientCatalog, setIngredientCatalog] = useState<{ name: string; unit: string; unit_price: number; category: string }[]>([]);
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
+
   const requestCity = (bundle.request?.city || city || "manila").toLowerCase();
   const currency = requestCity === "dubai" ? "AED" : "PHP";
   const APPROVAL_THRESHOLD = requestCity === "dubai" ? 500 : 15000;
@@ -306,11 +310,38 @@ export default function ProcurementCaseDetailPage() {
     }
   };
 
+  const loadIngredientCatalog = async (cityForCatalog: string) => {
+    if (catalogLoaded) return;
+    try {
+      const res = await fetch(
+        `/api/cost/ingredients?city=${encodeURIComponent(cityForCatalog)}&limit=2000&offset=0`,
+        { headers: getAuthHeaders() as Record<string, string> },
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const items: any[] = Array.isArray(data?.items) ? data.items : Array.isArray(data?.ingredients) ? data.ingredients : [];
+        setIngredientCatalog(
+          items
+            .filter((i: any) => i.name)
+            .map((i: any) => ({
+              name: String(i.name || ""),
+              unit: String(i.unit || ""),
+              unit_price: Number(i.unit_price || 0),
+              category: String(i.category || ""),
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        );
+        setCatalogLoaded(true);
+      }
+    } catch { /* silently fail */ }
+  };
+
   const startEditing = () => {
     setEditedItems(
       (bundle.request?.items || []).map((item: any) => ({ ...item }))
     );
     setEditingItems(true);
+    void loadIngredientCatalog(requestCity);
   };
 
   const cancelEditing = () => {
@@ -335,6 +366,25 @@ export default function ProcurementCaseDetailPage() {
 
   const deleteEditedItem = (idx: number) => {
     setEditedItems((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const applyIngredientToRow = (idx: number, ingredientName: string) => {
+    const found = ingredientCatalog.find((i) => i.name === ingredientName);
+    if (!found) return;
+    setEditedItems((prev) =>
+      prev.map((item, i) => {
+        if (i !== idx) return item;
+        const qty = parseFloat(item.qty) || 0;
+        return {
+          ...item,
+          item_name: found.name,
+          category: found.category,
+          unit: found.unit,
+          unit_price: found.unit_price,
+          line_total: qty * found.unit_price,
+        };
+      }),
+    );
   };
 
   const addEditedItem = () => {
@@ -723,16 +773,27 @@ export default function ProcurementCaseDetailPage() {
                         const isNew = !item.id;
                         return (
                           <tr key={item.id || `new-${idx}`} className="border-b border-violet-500/15 last:border-0 bg-violet-500/4">
-                            {/* Item Name — editable for new rows */}
+                            {/* Item Name — editable for new rows with ingredient search */}
                             <td className="py-2 pr-2">
                               {isNew ? (
-                                <input
-                                  type="text"
-                                  placeholder="Item name"
-                                  value={item.item_name || ""}
-                                  onChange={(e) => updateEditedItem(idx, "item_name", e.target.value)}
-                                  className="w-32 rounded-lg border border-violet-500/30 bg-violet-950/30 px-2 py-1 text-xs text-white placeholder:text-zinc-600 outline-none focus:border-violet-400/60"
-                                />
+                                <>
+                                  <input
+                                    type="text"
+                                    list={`ing-list-${idx}`}
+                                    placeholder="Search ingredient…"
+                                    value={item.item_name || ""}
+                                    onChange={(e) => {
+                                      updateEditedItem(idx, "item_name", e.target.value);
+                                      applyIngredientToRow(idx, e.target.value);
+                                    }}
+                                    className="w-36 rounded-lg border border-violet-500/30 bg-violet-950/30 px-2 py-1 text-xs text-white placeholder:text-zinc-600 outline-none focus:border-violet-400/60"
+                                  />
+                                  <datalist id={`ing-list-${idx}`}>
+                                    {ingredientCatalog.map((ing) => (
+                                      <option key={ing.name} value={ing.name} />
+                                    ))}
+                                  </datalist>
+                                </>
                               ) : (
                                 <span className="font-medium text-white">{item.item_name || "-"}</span>
                               )}
