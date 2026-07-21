@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-21 (session 121w — PO-Invoice Match P3: photo upload + tolerance settings)
+Last updated: 2026-07-21 (session 121x — Cost Calc fallback + Dubai Break Limit fix)
 
 
 
@@ -14,7 +14,11 @@ Last updated: 2026-07-21 (session 121w — PO-Invoice Match P3: photo upload + t
 
 ## ⚠️ Deployments Pending
 
-- Vercel: 29276fd (PO Match bug fixes from testing) — auto-deploying
+- Vercel: 804d650 (Dubai break limit 120min fix) — deployed ✅
+- Heroku: f2563c7 (cost_component_options fallback fix) — deployed ✅ v1417
+
+### Previous sessions
+- Vercel: 29276fd (PO Match bug fixes from testing) — deployed ✅
 - Heroku: 3ef7542 (PO Match 3 data bugs fixed) — deployed ✅ v1412
 
 ### Previous sessions
@@ -22,6 +26,23 @@ Last updated: 2026-07-21 (session 121w — PO-Invoice Match P3: photo upload + t
 - Heroku: 4eb2305 (PO-Invoice Match DB + API) — deployed ✅
 - Vercel: 4313c0e (cost calc misplaced items panel) — deployed ✅
 - Heroku: 68a2689 (misplaced ingredient endpoints) — deployed ✅
+
+## Recently Completed (2026-07-21 session 121x)
+
+### Cost Calculation — Processed Item component search fallback
+- **Problem**: "Aburi Salmon Nigiri / Mayo" (PHP 14.60, active) missing from component-options dropdown
+- **Root cause**: `list_cost_component_options` silently skips items when `_compute_cost_master_item_totals` throws; psycopg2 transaction cascade causes subsequent items to also fail
+- **Fix** (`app/db.py` ~line 24942): added `conn.rollback()` + fallback to stored `cost_unit_price` via `_get_cost_menu_item_record` when live compute fails
+- **Lesson**: always rollback + fallback on DB compute errors in loop contexts (see CLAUDE.md lesson 7)
+- **Deployed**: Heroku v1417 (commit f2563c7); user confirmed working
+
+### Attendance — Dubai Split Schedule Break Overrun (false alert fix)
+- **Problem**: Dubai staff (Yogesh Bashyal, Raj Deeban Jegan) reported false "Break overrun" for 2-hour split schedule breaks
+- **Root cause**: `attendance/page.tsx` hard-coded 60-minute break limit for all cities
+- **Fix**: Dynamic `breakLimitSec = auth?.city === "dubai" ? 7200 : 3600` (Dubai: 120min, Manila: 60min); `breakWarnSec = breakLimitSec - 600`; all JSX thresholds use these variables
+- **Affected lines**: 633-634 (constants), 712 (scheduleBreakReminder), 1209/1214/1217 (JSX)
+- **Deployed**: Vercel commit 804d650; TypeScript clean, no runtime errors
+- **Note**: `auth?.city` always lowercase via `normalizeCity()` in auth.ts — "DUBAI" edge case impossible
 
 ## Recently Completed (2026-07-21 session 121w)
 

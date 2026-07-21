@@ -112,7 +112,9 @@ type MatchSettings = {
 };
 
 const TODAY = new Date().toISOString().slice(0, 10);
-const CITY = "dubai";
+
+function getCity() { return (getAuth()?.city || "dubai").toLowerCase(); }
+function getCurrency() { return getCity() === "manila" ? "PHP" : "AED"; }
 
 const DISCREPANCY_TYPES = [
   { value: "PRICE", label: "Price Error — unit price differs from PO" },
@@ -122,12 +124,9 @@ const DISCREPANCY_TYPES = [
   { value: "OTHER", label: "Other" },
 ];
 
-function fmtAED(n: number | null | undefined) {
+function fmtAmount(n: number | null | undefined) {
   if (n == null) return "—";
-  return (
-    "AED " +
-    Math.abs(n).toLocaleString("en-AE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  );
+  return getCurrency() + " " + Math.abs(n).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function MatchBadge({ status, variance }: { status: string; variance: number }) {
@@ -262,7 +261,7 @@ function QuickEntryTab({
     if (!vendorQ.trim()) { setPoRows([]); return; }
     setPoLoading(true);
     try {
-      const d = await apiFetch(`/procurement/po-match/pos?city=${CITY}&vendor_name=${encodeURIComponent(vendorQ)}&limit=20`);
+      const d = await apiFetch(`/procurement/po-match/pos?city=${getCity()}&vendor_name=${encodeURIComponent(vendorQ)}&limit=20`);
       setPoRows(d.rows || []);
       setShowPoList(true);
     } catch { setPoRows([]); }
@@ -297,7 +296,7 @@ function QuickEntryTab({
       await apiFetch("/procurement/po-match", {
         method: "POST",
         body: JSON.stringify({
-          city: CITY,
+          city: getCity(),
           vendor_name: vendorQ.trim(),
           po_no: manualPoNo.trim(),
           po_date: poDate,
@@ -305,14 +304,14 @@ function QuickEntryTab({
           invoice_no: invoiceNo.trim(),
           invoice_date: invoiceDate,
           invoice_amount: invAmount,
-          currency: "AED",
+          currency: getCurrency(),
           notes: notes.trim(),
           photo_data: photoData,
         }),
       });
       const matchMsg = isMatch
         ? "✅ Matched — no further action needed."
-        : `⚠️ Discrepancy detected (${variance > 0 ? "+" : ""}${variance.toFixed(2)} AED). Added to review queue.`;
+        : `⚠️ Discrepancy detected (${variance > 0 ? "+" : ""}${variance.toFixed(2)} ${getCurrency()}). Added to review queue.`;
       setMsg({ text: matchMsg, ok: isMatch });
       setVendorQ(""); setSelectedPo(null); setManualPoNo(""); setManualPoAmount("");
       setInvoiceNo(""); setInvoiceAmount(""); setNotes(""); setPhotoData("");
@@ -332,7 +331,7 @@ function QuickEntryTab({
           within the tolerance, the record closes automatically.
           {settings && (
             <span className="ml-1 text-violet-400">
-              (Tolerance: AED {tolAed.toFixed(2)} or {(tolPct * 100).toFixed(1)}%)
+              (Tolerance: {getCurrency()} {tolAed.toFixed(2)} or {(tolPct * 100).toFixed(1)}%)
             </span>
           )}
         </p>
@@ -365,7 +364,7 @@ function QuickEntryTab({
                     >
                       <span className="text-zinc-200">{po.vendor_name}</span>
                       <span className="ml-2 text-right text-zinc-400">
-                        {po.po_no} · {fmtAED(po.po_amount)} · {po.po_date?.slice(0, 10)}
+                        {po.po_no} · {fmtAmount(po.po_amount)} · {po.po_date?.slice(0, 10)}
                       </span>
                     </button>
                   ))}
@@ -401,7 +400,7 @@ function QuickEntryTab({
 
           {/* PO Amount */}
           <div>
-            <label className={T_LABEL}>PO Amount (AED) *</label>
+            <label className={T_LABEL}>PO Amount ({getCurrency()}) *</label>
             <input
               type="number" min="0" step="0.01"
               className={`mt-1.5 ${INPUT_CLASS}`}
@@ -440,7 +439,7 @@ function QuickEntryTab({
 
           {/* Invoice Amount */}
           <div className="sm:col-span-2">
-            <label className={T_LABEL}>Invoice Amount (AED) *</label>
+            <label className={T_LABEL}>Invoice Amount ({getCurrency()}) *</label>
             <input
               type="number" min="0" step="0.01"
               className={`mt-1.5 ${INPUT_CLASS}`}
@@ -463,8 +462,8 @@ function QuickEntryTab({
                   {isMatch ? "Amounts match — will auto-close" : "Discrepancy detected — will go to review queue"}
                 </p>
                 <p className="text-sm text-zinc-400">
-                  PO: {fmtAED(poAmount)} · Invoice: {fmtAED(invAmount)} · Variance: {variance > 0 ? "+" : ""}{variance.toFixed(2)} AED
-                  {!isMatch && <span className="ml-2 text-zinc-500">(tolerance: ±{effectiveTol.toFixed(2)} AED)</span>}
+                  PO: {fmtAmount(poAmount)} · Invoice: {fmtAmount(invAmount)} · Variance: {variance > 0 ? "+" : ""}{variance.toFixed(2)} {getCurrency()}
+                  {!isMatch && <span className="ml-2 text-zinc-500">(tolerance: ±{effectiveTol.toFixed(2)} {getCurrency()})</span>}
                 </p>
               </div>
             </div>
@@ -516,7 +515,7 @@ function DiscrepancyQueueTab() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const d = await apiFetch(`/procurement/po-match?city=${CITY}&match_status=DISCREPANCY&limit=200`);
+      const d = await apiFetch(`/procurement/po-match?city=${getCity()}&match_status=DISCREPANCY&limit=200`);
       setRows(d.rows || []);
     } catch { setRows([]); }
     finally { setLoading(false); }
@@ -574,12 +573,12 @@ function DiscrepancyQueueTab() {
           {expandedId === row.id && (
             <div className="border-t border-white/5 px-4 pb-4 pt-3">
               <div className="grid gap-3 text-sm sm:grid-cols-3">
-                <div><p className={T_LABEL}>PO Amount</p><p className="mt-0.5 text-zinc-200">{fmtAED(row.po_amount)}</p></div>
-                <div><p className={T_LABEL}>Invoice Amount</p><p className="mt-0.5 text-zinc-200">{fmtAED(row.invoice_amount)}</p></div>
+                <div><p className={T_LABEL}>PO Amount</p><p className="mt-0.5 text-zinc-200">{fmtAmount(row.po_amount)}</p></div>
+                <div><p className={T_LABEL}>Invoice Amount</p><p className="mt-0.5 text-zinc-200">{fmtAmount(row.invoice_amount)}</p></div>
                 <div>
                   <p className={T_LABEL}>Variance</p>
                   <p className={`mt-0.5 font-semibold ${row.variance_amount > 0 ? "text-red-400" : "text-amber-400"}`}>
-                    {row.variance_amount > 0 ? "+" : ""}{row.variance_amount.toFixed(2)} AED
+                    {row.variance_amount > 0 ? "+" : ""}{row.variance_amount.toFixed(2)} {row.currency || getCurrency()}
                   </p>
                 </div>
                 <div><p className={T_LABEL}>PO No.</p><p className="mt-0.5 text-zinc-300">{row.po_no || "—"}</p></div>
@@ -706,7 +705,7 @@ function AllRecordsTab() {
     setLoading(true);
     try {
       const params = new URLSearchParams({
-        city: CITY, date_from: dateFrom, date_to: dateTo,
+        city: getCity(), date_from: dateFrom, date_to: dateTo,
         ...(vendorFilter ? { vendor_name: vendorFilter } : {}), limit: "500",
       });
       const d = await apiFetch(`/procurement/po-match?${params}`);
@@ -772,8 +771,8 @@ function AllRecordsTab() {
                   {row.photo_data && <Camera size={11} className="ml-1 inline text-violet-400" />}
                 </td>
                 <td className={`${TABLE_CELL} text-zinc-400`}>{row.invoice_no}</td>
-                <td className={`${TABLE_CELL} text-right font-mono text-zinc-300`}>{fmtAED(row.po_amount)}</td>
-                <td className={`${TABLE_CELL} text-right font-mono text-zinc-300`}>{fmtAED(row.invoice_amount)}</td>
+                <td className={`${TABLE_CELL} text-right font-mono text-zinc-300`}>{fmtAmount(row.po_amount)}</td>
+                <td className={`${TABLE_CELL} text-right font-mono text-zinc-300`}>{fmtAmount(row.invoice_amount)}</td>
                 <td className={`${TABLE_CELL} text-right font-mono ${row.variance_amount !== 0 ? "text-amber-400" : "text-zinc-500"}`}>
                   {row.variance_amount === 0 ? "—" : (row.variance_amount > 0 ? "+" : "") + row.variance_amount.toFixed(2)}
                 </td>
@@ -800,7 +799,7 @@ function SupplierScorecardTab() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const d = await apiFetch(`/procurement/po-match/supplier-stats?city=${CITY}&days=${days}`);
+      const d = await apiFetch(`/procurement/po-match/supplier-stats?city=${getCity()}&days=${days}`);
       setRows(d.rows || []);
     } catch { setRows([]); }
     finally { setLoading(false); }
@@ -855,7 +854,7 @@ function SupplierScorecardTab() {
                 <div className={KPI_CARD + " !p-3"}><p className={KPI_LABEL}>Matched</p><p className="mt-0.5 text-xl font-bold text-emerald-400">{stat.matched_count}</p></div>
                 <div className={KPI_CARD + " !p-3"}><p className={KPI_LABEL}>Discrepancies</p><p className={`mt-0.5 text-xl font-bold ${stat.discrepancy_count > 0 ? "text-red-400" : "text-zinc-400"}`}>{stat.discrepancy_count}</p></div>
                 <div className={KPI_CARD + " !p-3"}><p className={KPI_LABEL}>Unresolved</p><p className={`mt-0.5 text-xl font-bold ${stat.unresolved_count > 0 ? "text-amber-400" : "text-zinc-400"}`}>{stat.unresolved_count}</p></div>
-                <div className={KPI_CARD + " !p-3"}><p className={KPI_LABEL}>Total Variance</p><p className={`mt-0.5 text-base font-bold ${Number(stat.total_variance_abs) > 0 ? "text-red-400" : "text-zinc-400"}`}>{fmtAED(stat.total_variance_abs)}</p></div>
+                <div className={KPI_CARD + " !p-3"}><p className={KPI_LABEL}>Total Variance</p><p className={`mt-0.5 text-base font-bold ${Number(stat.total_variance_abs) > 0 ? "text-red-400" : "text-zinc-400"}`}>{fmtAmount(stat.total_variance_abs)}</p></div>
               </div>
 
               <div className="mt-3 h-1.5 rounded-full bg-white/5">
@@ -883,7 +882,7 @@ function SettingsTab({ onSettingsChange }: { onSettingsChange: (s: MatchSettings
 
   const load = useCallback(async () => {
     try {
-      const d = await apiFetch(`/procurement/po-match/settings?city=${CITY}`);
+      const d = await apiFetch(`/procurement/po-match/settings?city=${getCity()}`);
       const s = d.settings as MatchSettings;
       setSettings(s);
       setTolAed(String(s.tolerance_aed ?? 1.0));
@@ -896,14 +895,14 @@ function SettingsTab({ onSettingsChange }: { onSettingsChange: (s: MatchSettings
   const handleSave = async () => {
     const aed = parseFloat(tolAed || "1");
     const pct = parseFloat(tolPct || "0.5") / 100;
-    if (isNaN(aed) || aed < 0) { setMsg({ text: "AED tolerance must be ≥ 0.", ok: false }); return; }
+    if (isNaN(aed) || aed < 0) { setMsg({ text: `${getCurrency()} tolerance must be ≥ 0.`, ok: false }); return; }
     if (isNaN(pct) || pct < 0 || pct > 1) { setMsg({ text: "Percentage must be between 0% and 100%.", ok: false }); return; }
     setSaving(true);
     setMsg(null);
     try {
       const d = await apiFetch("/procurement/po-match/settings", {
         method: "POST",
-        body: JSON.stringify({ city: CITY, tolerance_aed: aed, tolerance_pct: pct }),
+        body: JSON.stringify({ city: getCity(), tolerance_aed: aed, tolerance_pct: pct }),
       });
       setSettings(d.settings);
       onSettingsChange(d.settings);
@@ -923,13 +922,13 @@ function SettingsTab({ onSettingsChange }: { onSettingsChange: (s: MatchSettings
       <div className={`${GLASS_CARD} p-6`}>
         <h2 className={T_SECTION}>Match Tolerance Settings</h2>
         <p className="mt-1 text-sm text-zinc-500">
-          An invoice is considered <span className="text-emerald-400 font-medium">Matched</span> when the variance is within both the fixed AED tolerance <strong>and</strong> the percentage tolerance.
+          An invoice is considered <span className="text-emerald-400 font-medium">Matched</span> when the variance is within both the fixed {getCurrency()} tolerance <strong>and</strong> the percentage tolerance.
           The larger of the two is used as the effective tolerance.
         </p>
 
         <div className="mt-6 grid gap-5 sm:grid-cols-2">
           <div>
-            <label className={T_LABEL}>Fixed Tolerance (AED)</label>
+            <label className={T_LABEL}>Fixed Tolerance ({getCurrency()})</label>
             <p className={`${T_CAPTION} mt-0.5`}>Minimum absolute tolerance regardless of PO size</p>
             <div className="relative mt-2">
               <input
@@ -938,13 +937,13 @@ function SettingsTab({ onSettingsChange }: { onSettingsChange: (s: MatchSettings
                 value={tolAed}
                 onChange={e => setTolAed(e.target.value)}
               />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-zinc-500">AED</span>
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-zinc-500">{getCurrency()}</span>
             </div>
           </div>
 
           <div>
             <label className={T_LABEL}>Percentage Tolerance (%)</label>
-            <p className={`${T_CAPTION} mt-0.5`}>Scales with the PO amount (e.g. 0.5% of AED 1,000 = AED 5)</p>
+            <p className={`${T_CAPTION} mt-0.5`}>Scales with the PO amount (e.g. 0.5% of {getCurrency()} 1,000 = {getCurrency()} 5)</p>
             <div className="relative mt-2">
               <input
                 type="number" min="0" max="100" step="0.01"
@@ -975,10 +974,10 @@ function SettingsTab({ onSettingsChange }: { onSettingsChange: (s: MatchSettings
                   const tol = parseFloat(previewTol(amt));
                   return (
                     <tr key={amt} className={TABLE_ROW}>
-                      <td className={`${TABLE_CELL} text-zinc-300`}>AED {amt.toLocaleString()}</td>
-                      <td className={`${TABLE_CELL} text-right text-violet-300`}>±AED {tol.toFixed(2)}</td>
-                      <td className={`${TABLE_CELL} text-right text-zinc-400`}>AED {(amt + tol).toFixed(2)}</td>
-                      <td className={`${TABLE_CELL} text-right text-zinc-400`}>AED {(amt - tol).toFixed(2)}</td>
+                      <td className={`${TABLE_CELL} text-zinc-300`}>{getCurrency()} {amt.toLocaleString()}</td>
+                      <td className={`${TABLE_CELL} text-right text-violet-300`}>±{getCurrency()} {tol.toFixed(2)}</td>
+                      <td className={`${TABLE_CELL} text-right text-zinc-400`}>{getCurrency()} {(amt + tol).toFixed(2)}</td>
+                      <td className={`${TABLE_CELL} text-right text-zinc-400`}>{getCurrency()} {(amt - tol).toFixed(2)}</td>
                     </tr>
                   );
                 })}
@@ -1016,7 +1015,7 @@ export default function PoMatchPage() {
 
   const refreshBadge = useCallback(async () => {
     try {
-      const d = await apiFetch(`/procurement/po-match?city=${CITY}&match_status=DISCREPANCY&limit=500`);
+      const d = await apiFetch(`/procurement/po-match?city=${getCity()}&match_status=DISCREPANCY&limit=500`);
       const unresolved = (d.rows || []).filter((r: CheckRow) => !r.resolved_by).length;
       setDiscrepancyCount(unresolved);
     } catch { /* ignore */ }
@@ -1024,7 +1023,7 @@ export default function PoMatchPage() {
 
   const loadSettings = useCallback(async () => {
     try {
-      const d = await apiFetch(`/procurement/po-match/settings?city=${CITY}`);
+      const d = await apiFetch(`/procurement/po-match/settings?city=${getCity()}`);
       setSettings(d.settings);
     } catch { /* use defaults */ }
   }, []);
