@@ -654,6 +654,21 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
     patternImportRef.current?.click();
   }
 
+  async function handleWeekdayTemplateDownload() {
+    try {
+      const auth = getAuth();
+      const res = await fetch("/api/daily-inventory/par-patterns/weekday-template", {
+        headers: { Authorization: `Bearer ${auth?.accessToken || ""}` },
+      });
+      if (!res.ok) { setPatternMsg("Template download failed."); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url;
+      a.download = "weekday_par_template.xlsx";
+      a.click(); URL.revokeObjectURL(url);
+    } catch { setPatternMsg("Template download failed."); }
+  }
+
   async function handleWeekdayImportFile(file: File) {
     setWeekdayImportBusy(true); setPatternMsg("");
     try {
@@ -674,11 +689,12 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
       const d = JSON.parse(text) as { ok?: boolean; patterns_updated?: string[]; counts?: Record<string, number>; unmatched_names?: string[] };
       const total = Object.values(d.counts || {}).reduce((s, v) => s + v, 0);
       const updated = (d.patterns_updated || []).length;
-      const unmatched = d.unmatched_names?.length ?? 0;
-      setPatternMsg(
-        `Weekly par imported: ${updated} pattern${updated !== 1 ? "s" : ""} updated, ${total} item entries total.` +
-        (unmatched > 0 ? ` ${unmatched} item name${unmatched !== 1 ? "s" : ""} not matched.` : "")
-      );
+      const unmatchedNames = d.unmatched_names || [];
+      let msg = `Weekly par imported: ${updated} pattern${updated !== 1 ? "s" : ""} updated, ${total} item entries total.`;
+      if (unmatchedNames.length > 0) {
+        msg += ` ${unmatchedNames.length} item name${unmatchedNames.length !== 1 ? "s" : ""} not matched — names must exactly match the DB. Unmatched: ${unmatchedNames.join(", ")}`;
+      }
+      setPatternMsg(msg);
       // Refresh pattern list
       apiFetch("/api/daily-inventory/par-patterns")
         .then((r) => r.json())
@@ -1152,15 +1168,24 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
               <p className="text-xs text-zinc-400">
                 Upload the multi-branch/day Excel (TAFT, CUBAO, PARANAQUE × Sunday, Tuesday, Thursday).
                 Creates 9 patterns automatically: TAFT_Sunday, TAFT_Tuesday, etc.
+                Item names must match exactly — download the template to get the correct names.
               </p>
-              <button
-                onClick={() => weekdayImportRef.current?.click()}
-                disabled={weekdayImportBusy}
-                className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/20 disabled:opacity-50"
-              >
-                {weekdayImportBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
-                {weekdayImportBusy ? "Importing…" : "Import Weekly Par Excel"}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => void handleWeekdayTemplateDownload()}
+                  className="flex items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-300 hover:bg-sky-500/20"
+                >
+                  Download Template
+                </button>
+                <button
+                  onClick={() => weekdayImportRef.current?.click()}
+                  disabled={weekdayImportBusy}
+                  className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/20 disabled:opacity-50"
+                >
+                  {weekdayImportBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                  {weekdayImportBusy ? "Importing…" : "Import Weekly Par Excel"}
+                </button>
+              </div>
               <input
                 ref={weekdayImportRef}
                 type="file"
