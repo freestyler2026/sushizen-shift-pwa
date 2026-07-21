@@ -1367,7 +1367,11 @@ export default function AdminDailyInventoryTab() {
         if (!res.ok) throw new Error(text || `HTTP ${res.status}`);
         const data = JSON.parse(text || "[]") as InvItem[];
         if (cancelled) return;
-        const rows = Array.isArray(data) ? data : [];
+        const all = Array.isArray(data) ? data : [];
+        // CK tab → CK-commissary items only; other tabs → exclude CK-commissary items
+        const rows = sourceTab === "ck"
+          ? all.filter((i) => i.is_commissary)
+          : all.filter((i) => !i.is_commissary);
         setItems(rows);
         // Init entries for any new items (don't overwrite existing)
         setEntries((prev) => {
