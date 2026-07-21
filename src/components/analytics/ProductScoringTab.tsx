@@ -136,6 +136,29 @@ function sevenDaysAgoIso() {
   return d.toISOString().slice(0, 10);
 }
 
+// Return ISO date of the Sunday that starts the week containing dateStr
+function weekKey(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  const sun = new Date(d);
+  sun.setDate(d.getDate() - d.getDay());
+  return sun.toISOString().slice(0, 10);
+}
+
+// "MM/DD – MM/DD" label for a Sunday-start week
+function weekLabel(sunIso: string): string {
+  const end = new Date(sunIso + "T00:00:00");
+  end.setDate(end.getDate() + 6);
+  return `${sunIso.slice(5).replace("-", "/")} – ${end.toISOString().slice(5, 10).replace("-", "/")}`;
+}
+
+const GRADE_ORDER = ["S", "A", "B", "C", "D", "F"];
+
+function gradeRateBg(rate: number) {
+  if (rate <= 10) return "text-emerald-400";
+  if (rate <= 25) return "text-yellow-400";
+  return "text-red-400";
+}
+
 // ─── Store chart bar ─────────────────────────────────────────────────────────
 
 function uploadRateColor(rate: number) {
@@ -520,6 +543,39 @@ export default function ProductScoringTab({
     return Math.min((totalPhotos / totalOrders) * 100, 999);
   }, [storeAggregatedWithRates]);
 
+  // ── Grade distribution per store ──
+  const gradeDistByStore = useMemo(() => {
+    const scores = cityFilter ? recentScores.filter((r) => r.city === cityFilter) : recentScores;
+    const result: Record<string, Record<string, number>> = {};
+    for (const r of scores) {
+      const key = r.branch_code || r.store_code;
+      if (!result[key]) result[key] = {};
+      result[key][r.grade] = (result[key][r.grade] || 0) + 1;
+    }
+    return result;
+  }, [recentScores, cityFilter]);
+
+  // ── Weekly C/D breakdown by store (Sunday-start) ──
+  const weeklyGradeData = useMemo(() => {
+    const scores = cityFilter ? recentScores.filter((r) => r.city === cityFilter) : recentScores;
+    const storeSet = new Set<string>();
+    const weekMap: Record<string, Record<string, { total: number; cdCount: number }>> = {};
+    for (const r of scores) {
+      const store = r.branch_code || r.store_code;
+      const wk = weekKey(r.score_date);
+      storeSet.add(store);
+      if (!weekMap[wk]) weekMap[wk] = {};
+      if (!weekMap[wk][store]) weekMap[wk][store] = { total: 0, cdCount: 0 };
+      weekMap[wk][store].total++;
+      if (r.grade === "C" || r.grade === "D" || r.grade === "F") {
+        weekMap[wk][store].cdCount++;
+      }
+    }
+    const stores = Array.from(storeSet).sort();
+    const weeks = Object.keys(weekMap).sort().reverse();
+    return { stores, weeks, weekMap };
+  }, [recentScores, cityFilter]);
+
   // ── Chart data split by city ──
   const dubaiChartData = (kpis?.storeAvgs ?? [])
     .filter((s) => s.city === "dubai")
@@ -697,6 +753,117 @@ export default function ProductScoringTab({
               </ResponsiveContainer>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Grade Distribution by Store ── */}
+      {Object.keys(gradeDistByStore).length > 0 && (
+        <div className={GLASS_CARD + " p-4"}>
+          <h3 className={`${SECTION_TITLE} mb-3`}>Grade Distribution by Store</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr>
+                  {["Store", "Avg Score", "Photos", ...GRADE_ORDER.filter((g) =>
+                    Object.values(gradeDistByStore).some((d) => d[g])
+                  ), "C/D Rate"].map((h) => (
+                    <th key={h} className={TABLE_HEADER}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {storeAggregatedWithRates
+                  .filter((s) => gradeDistByStore[s.branch_code || s.store_code])
+                  .map((s) => {
+                    const key = s.branch_code || s.store_code;
+                    const dist = gradeDistByStore[key] ?? {};
+                    const total = Object.values(dist).reduce((a, v) => a + v, 0);
+                    const cdCount = (dist["C"] ?? 0) + (dist["D"] ?? 0) + (dist["F"] ?? 0);
+                    const cdRate = total > 0 ? (cdCount / total) * 100 : 0;
+                    const activeGrades = GRADE_ORDER.filter((g) =>
+                      Object.values(gradeDistByStore).some((d) => d[g])
+                    );
+                    return (
+                      <tr key={key} className={TABLE_ROW}>
+                        <td className="py-2 px-2 font-semibold text-slate-200">{key}</td>
+                        <td className={`py-2 px-2 font-bold ${scoreBg(s.avg_total)}`}>{s.avg_total}</td>
+                        <td className="py-2 px-2 text-slate-400">{total}</td>
+                        {activeGrades.map((g) => {
+                          const cnt = dist[g] ?? 0;
+                          const pct = total > 0 ? (cnt / total) * 100 : 0;
+                          return (
+                            <td key={g} className="py-2 px-2 text-center">
+                              {cnt > 0 ? (
+                                <span>
+                                  <span
+                                    className="inline-block rounded px-1 py-0.5 text-[10px] font-bold text-black"
+                                    style={{ background: gradeColor(g) }}
+                                  >
+                                    {g}
+                                  </span>
+                                  <span className="ml-1 text-slate-300">{pct.toFixed(0)}%</span>
+                                  <span className="ml-0.5 text-slate-500">({cnt})</span>
+                                </span>
+                              ) : (
+                                <span className="text-slate-600">—</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                        <td className={`py-2 px-2 font-bold ${gradeRateBg(cdRate)}`}>
+                          {cdRate.toFixed(0)}%
+                          <span className="ml-1 font-normal text-slate-500">({cdCount})</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Weekly C/D Rate by Store ── */}
+      {weeklyGradeData.weeks.length > 0 && (
+        <div className={GLASS_CARD + " p-4"}>
+          <h3 className={`${SECTION_TITLE} mb-1`}>Weekly C/D Rate by Store</h3>
+          <p className={`${SUBTEXT} mb-3`}>Sunday–Saturday weeks · C/D includes grades C, D, F</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr>
+                  <th className={TABLE_HEADER}>Week (Sun–Sat)</th>
+                  {weeklyGradeData.stores.map((s) => (
+                    <th key={s} className={TABLE_HEADER}>{s}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {weeklyGradeData.weeks.map((wk) => (
+                  <tr key={wk} className={TABLE_ROW}>
+                    <td className="py-2 px-2 font-mono text-slate-400 whitespace-nowrap">
+                      {weekLabel(wk)}
+                    </td>
+                    {weeklyGradeData.stores.map((store) => {
+                      const cell = weeklyGradeData.weekMap[wk]?.[store];
+                      if (!cell || cell.total === 0) {
+                        return <td key={store} className="py-2 px-2 text-center text-slate-600">—</td>;
+                      }
+                      const rate = (cell.cdCount / cell.total) * 100;
+                      return (
+                        <td key={store} className="py-2 px-2 text-center">
+                          <span className={`font-bold ${gradeRateBg(rate)}`}>
+                            {rate.toFixed(0)}%
+                          </span>
+                          <span className="ml-1 text-slate-500">({cell.cdCount}/{cell.total})</span>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
