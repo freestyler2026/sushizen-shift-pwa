@@ -1957,8 +1957,10 @@ export default function CostCalculationPage() {
       if (option.component_type !== "processed_item") return false;
       // Exclude the item currently being edited (circular-reference guard).
       if (masterEditor?.id && String(option.id) === String(masterEditor.id)) return false;
-      // Option B: 加工品マスター context only shows processed items, not product/draft.
-      if (masterEditor?.item_type === "processed" && option.item_type !== "processed") return false;
+      // Allow both "processed" and "product" items as components — "product"-type
+      // items (e.g. Aburi Salmon Nigiri / Mayo) can legitimately be sub-components.
+      // Only exclude "draft" items unless the editor itself is a draft.
+      if (option.item_type === "draft" && masterEditor?.item_type !== "draft") return false;
       return true;
     }),
     [componentOptions, masterEditor?.id, masterEditor?.item_type],
