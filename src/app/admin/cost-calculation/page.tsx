@@ -1910,13 +1910,15 @@ export default function CostCalculationPage() {
   }, [activeMasterType, masterItemsByType, searchText]);
 
   const processedComponentOptions = useMemo(
-    () => componentOptions.filter((option) =>
-      option.component_type === "processed_item"
-      // Exclude the item currently being edited so a draft/product can't reference itself
-      // (a self-reference would trigger the backend's circular-reference guard).
-      && !(masterEditor?.id && String(option.id) === String(masterEditor.id)),
-    ),
-    [componentOptions, masterEditor?.id],
+    () => componentOptions.filter((option) => {
+      if (option.component_type !== "processed_item") return false;
+      // Exclude the item currently being edited (circular-reference guard).
+      if (masterEditor?.id && String(option.id) === String(masterEditor.id)) return false;
+      // Option B: 加工品マスター context only shows processed items, not product/draft.
+      if (masterEditor?.item_type === "processed" && option.item_type !== "processed") return false;
+      return true;
+    }),
+    [componentOptions, masterEditor?.id, masterEditor?.item_type],
   );
 
   const masterComponentSummary = useMemo(() => {
@@ -2016,9 +2018,7 @@ export default function CostCalculationPage() {
           ingredientPool.push({ ...option });
         }
       }
-      const ingredientMatches = scoreAndFilter(ingredientPool, 12);
-      const processedMatches = scoreAndFilter(processedComponentOptions, Math.max(0, 12 - ingredientMatches.length));
-      return [...ingredientMatches, ...processedMatches];
+      return scoreAndFilter(ingredientPool, 12);
     }
     return scoreAndFilter(processedComponentOptions, 12);
   }, [allIngredientOptions, componentOptions, masterEditor?.item_type, processedComponentOptions]);
