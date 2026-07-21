@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-21 (session 121r — Staff Profile civil status / MDR fields)
+Last updated: 2026-07-21 (session 121s — NTE full feature implementation)
 
 
 > **New session start protocol:**
@@ -12,7 +12,40 @@ Last updated: 2026-07-21 (session 121r — Staff Profile civil status / MDR fiel
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Vercel b87673c, Heroku v1404)
+なし — 全変更デプロイ済み (Vercel ce0817b, Heroku 6bad966)
+
+## ⚠️ Admin Action Required — NTE NavBar channel registration
+
+新しい `/store/my-nte` ページを NavBar に追加した。CLAUDE.md 教訓 #11 に従い、Role Management の Resync が必要:
+
+1. `/admin/staff/roles` → **"Resync System Channels"** ボタンをクリック
+2. 新チャンネルが表示されたら、HR Staff など必要なロールにパーミッションを付与
+
+## Recently Completed (2026-07-21 session 121s) — live (Vercel ce0817b, Heroku 6bad966)
+
+### NTE Full Feature Implementation (4 phases)
+
+**Backend (`app/db_nte.py`)**:
+- `ensure_nte_tables()`: 5 new migrations: `case_type` on both `staff_nte_records` + `nte_requests`, `explanation_text` + `explanation_submitted_at` on records, new `staff_notifications` table
+- `issue_nte()`: accept `case_type` param; auto-create `staff_notification` on issue
+- `create_nte_request()`: accept `case_type` param
+- `issue_from_request()`: propagate `case_type` from request to issued NTE
+- New functions: `delete_nte_record`, `submit_nte_explanation`, `list_staff_notices`, `create_staff_notification`, `list_staff_notifications`, `mark_notifications_read`, `count_unread_notifications`
+
+**Backend (`app/nte_api.py`)**:
+- `IssueNteBody` + `SubmitRequestBody`: added `case_type` field (NTE / WARNING_LETTER / FINAL_WARNING)
+- `DELETE /api/admin/cases/{case_id}`: hard-delete, ADMIN/HQ only
+- `GET /api/store/conduct/my-notices`: staff views own NTE records + unread notifications
+- `POST /api/store/conduct/my-notices/{id}/explain`: staff submits written explanation (once)
+- `POST /api/store/conduct/notifications/read`: mark all read
+- `GET /api/store/conduct/notifications/badge`: unread count for NavBar badge
+
+**Frontend**:
+- `admin/employee-cases/page.tsx`: Document Type dropdown in Issue + Request forms; `CaseTypeBadge` component; Explanation column in Case History; Delete button (ADMIN/HQ); explanation shown in Staff History panel
+- `NavBar.tsx`: `/store/my-nte` added to PRIMARY nav with `nteBadge` unread polling
+- New `store/my-nte/page.tsx`: staff-facing My Notices page with KPIs, notification banner, explanation submission form
+
+---
 
 ## ⚠️ Admin Action Required — Probation channel for HR Staff
 
