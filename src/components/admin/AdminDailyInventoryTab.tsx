@@ -40,10 +40,17 @@ const UNITS = [
 type SourceType = "ck" | "supplier" | "warehouse";
 
 const SOURCE_TABS: { id: SourceType; label: string; color: string }[] = [
-  { id: "ck",        label: "Central Kitchen",  color: "violet" },
   { id: "supplier",  label: "Supplier",          color: "sky"    },
+  { id: "ck",        label: "Central Kitchen",  color: "violet" },
   { id: "warehouse", label: "Warehouse",         color: "amber"  },
 ];
+
+// Sections used internally by CK only — not delivered to store kitchens.
+// Kitchen staff entering inventory via the CK tab should not see these.
+const CK_INTERNAL_SECTIONS = new Set([
+  "HOT BASE", "INGREDIENTS", "KITCHEN", "MEAT ITEMS",
+  "RAMEN ITEMS", "SUSHI SAUCE BASE", "VEGETABLE",
+]);
 
 const SOURCE_SECTION_LABELS: Record<string, string> = {
   COLD_SUSHI:   "Cold Sushi",
@@ -1280,7 +1287,7 @@ export default function AdminDailyInventoryTab() {
   const [shift, setShift] = useState("AM");
   const [staffChoice, setStaffChoice] = useState<string>("");
   const [customStaff, setCustomStaff] = useState("");
-  const [sourceTab, setSourceTab] = useState<SourceType>("ck");
+  const [sourceTab, setSourceTab] = useState<SourceType>("supplier");
 
   const [items, setItems] = useState<InvItem[]>([]);
   // entries persists across source tab switches (keyed by item_code)
@@ -1371,10 +1378,11 @@ export default function AdminDailyInventoryTab() {
         const data = JSON.parse(text || "[]") as InvItem[];
         if (cancelled) return;
         const all = Array.isArray(data) ? data : [];
-        // CK tab → CK-commissary items only; other tabs → exclude CK-commissary items
+        // CK tab → commissary items only, excluding CK-internal sections (not delivered to stores)
+        // Supplier/Warehouse tabs → exclude commissary items AND CK-internal sections (data may be mis-categorized)
         const rows = sourceTab === "ck"
-          ? all.filter((i) => i.is_commissary)
-          : all.filter((i) => !i.is_commissary);
+          ? all.filter((i) => i.is_commissary && !CK_INTERNAL_SECTIONS.has((i.section || "").toUpperCase()))
+          : all.filter((i) => !i.is_commissary && !CK_INTERNAL_SECTIONS.has((i.section || "").toUpperCase()));
         setItems(rows);
         // Init entries for any new items (don't overwrite existing)
         setEntries((prev) => {
