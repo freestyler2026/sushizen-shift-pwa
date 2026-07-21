@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Database, ExternalLink, History, LayoutGrid, Loader2, Percent, Pencil, Plus, RefreshCcw, RotateCcw, Save, Search, ShieldCheck, SkipForward, Trash2, User, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, Calculator, Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Database, ExternalLink, History, LayoutGrid, Loader2, Percent, Pencil, Plus, RefreshCcw, RotateCcw, Save, Search, ShieldCheck, SkipForward, Trash2, User, X } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
@@ -894,6 +894,13 @@ export default function CostCalculationPage() {
   const [unmatchedInvoiceItems, setUnmatchedInvoiceItems] = useState<UnmatchedInvoiceItemRow[]>([]);
   const [unmatchedItemSearch, setUnmatchedItemSearch] = useState("");
   const [unmatchedSupplierFilter, setUnmatchedSupplierFilter] = useState("");
+  // Misplaced ingredient cleanup panel
+  const [showMisplacedPanel, setShowMisplacedPanel] = useState(false);
+  const [misplacedSuspects, setMisplacedSuspects] = useState<Array<{ id: string; name: string; category: string; unit: string; is_active: boolean; matched_master_name?: string; matched_item_type?: string }>>([]);
+  const [misplacedLoading, setMisplacedLoading] = useState(false);
+  const [misplacedSelected, setMisplacedSelected] = useState<Set<string>>(new Set());
+  const [misplacedDeactivating, setMisplacedDeactivating] = useState(false);
+  const [misplacedMsg, setMisplacedMsg] = useState("");
   const [renamingUnmatchedKey, setRenamingUnmatchedKey] = useState("");
   const [renameText, setRenameText] = useState("");
   const [renameSaving, setRenameSaving] = useState(false);
@@ -1067,6 +1074,42 @@ export default function CostCalculationPage() {
       setLoading(false);
     }
   }, [city]);
+
+  const loadMisplacedSuspects = useCallback(async () => {
+    setMisplacedLoading(true);
+    setMisplacedMsg("");
+    setMisplacedSelected(new Set());
+    try {
+      const res = await costJson<{ suspects?: Array<{ id: string; name: string; category: string; unit: string; is_active: boolean; matched_master_name?: string; matched_item_type?: string }> }>(
+        `/api/cost/ingredients/misplaced-suspects?city=${encodeURIComponent(city)}`
+      );
+      setMisplacedSuspects(res.suspects || []);
+    } catch (e: any) {
+      setMisplacedMsg(`Failed to load: ${e?.message || String(e)}`);
+    } finally {
+      setMisplacedLoading(false);
+    }
+  }, [city, costJson]);
+
+  const deactivateMisplaced = useCallback(async () => {
+    if (misplacedSelected.size === 0) return;
+    setMisplacedDeactivating(true);
+    setMisplacedMsg("");
+    try {
+      const res = await costJson<{ deactivated?: number }>(
+        "/api/cost/ingredients/bulk-deactivate",
+        { method: "POST", body: JSON.stringify({ city, ingredient_ids: [...misplacedSelected].map(Number) }) }
+      );
+      setMisplacedMsg(`${res.deactivated ?? 0} item(s) deactivated.`);
+      setMisplacedSelected(new Set());
+      await loadMisplacedSuspects();
+      await loadIngredients();
+    } catch (e: any) {
+      setMisplacedMsg(`Error: ${e?.message || String(e)}`);
+    } finally {
+      setMisplacedDeactivating(false);
+    }
+  }, [city, costJson, misplacedSelected, loadMisplacedSuspects, loadIngredients]);
 
   const loadMenuCategories = useCallback(async () => {
     try {
@@ -3901,6 +3944,25 @@ export default function CostCalculationPage() {
                 <ExternalLink className="h-4 w-4" />
                 Spreadsheet
               </button>
+              {activeSection === "ingredient" ? (
+                <button
+                  type="button"
+                  title="Find and deactivate processed items mistakenly registered as ingredients"
+                  onClick={() => {
+                    setShowMisplacedPanel((prev) => !prev);
+                    if (!showMisplacedPanel) void loadMisplacedSuspects();
+                  }}
+                  className={cx(
+                    "inline-flex items-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-medium transition",
+                    showMisplacedPanel
+                      ? "border-amber-500/50 bg-amber-500/15 text-amber-300"
+                      : "border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
+                  )}
+                >
+                  <AlertCircle className="h-4 w-4" />
+                  Misplaced Items
+                </button>
+              ) : null}
               {isMasterSection ? (
                 <button
                   type="button"
@@ -3948,6 +4010,85 @@ export default function CostCalculationPage() {
             </div>
           </div>
         </div>
+
+        {showMisplacedPanel && activeSection === "ingredient" && (
+          <div className="border-b border-amber-500/20 bg-amber-500/5 px-6 py-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-amber-300">Misplaced Items in Ingredient Master</p>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  These items share a name with a Processed Item, or have a processed-type category.
+                  They likely belong in Processed Items Master, not Ingredient Master.
+                  Deactivating removes them from the Ingredient Master list without deleting DB records.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void loadMisplacedSuspects()}
+                disabled={misplacedLoading}
+                className="shrink-0 rounded-md border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-zinc-300 hover:bg-white/10 disabled:opacity-50"
+              >
+                {misplacedLoading ? "Loading…" : "Refresh"}
+              </button>
+            </div>
+            {misplacedMsg && (
+              <p className={`text-xs ${misplacedMsg.startsWith("Error") ? "text-red-400" : "text-emerald-400"}`}>{misplacedMsg}</p>
+            )}
+            {misplacedLoading ? (
+              <p className="text-xs text-zinc-500">Scanning for misplaced items…</p>
+            ) : misplacedSuspects.length === 0 ? (
+              <p className="text-xs text-emerald-400">No misplaced items found. Ingredient Master looks clean.</p>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={misplacedSelected.size === misplacedSuspects.length}
+                      onChange={(e) => setMisplacedSelected(e.target.checked ? new Set(misplacedSuspects.map((s) => s.id)) : new Set())}
+                    />
+                    Select all ({misplacedSuspects.length})
+                  </label>
+                  {misplacedSelected.size > 0 && (
+                    <button
+                      type="button"
+                      disabled={misplacedDeactivating}
+                      onClick={() => void deactivateMisplaced()}
+                      className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-300 hover:bg-red-500/20 disabled:opacity-50"
+                    >
+                      {misplacedDeactivating ? "Deactivating…" : `Deactivate ${misplacedSelected.size} selected`}
+                    </button>
+                  )}
+                </div>
+                <div className="max-h-64 overflow-y-auto space-y-1 rounded-lg border border-white/8 bg-black/20 p-2">
+                  {misplacedSuspects.map((s) => (
+                    <label key={s.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs cursor-pointer hover:bg-white/5">
+                      <input
+                        type="checkbox"
+                        checked={misplacedSelected.has(s.id)}
+                        onChange={(e) => {
+                          setMisplacedSelected((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(s.id); else next.delete(s.id);
+                            return next;
+                          });
+                        }}
+                      />
+                      <span className={`flex-1 font-medium ${s.is_active ? "text-white" : "text-zinc-500 line-through"}`}>{s.name}</span>
+                      <span className="text-zinc-500">{s.category}</span>
+                      {s.matched_master_name && (
+                        <span className="rounded bg-violet-500/20 px-1.5 py-0.5 text-violet-300">
+                          also in {s.matched_item_type === "processed" ? "Processed Items" : "Products"}
+                        </span>
+                      )}
+                      {!s.is_active && <span className="rounded bg-zinc-700 px-1.5 py-0.5 text-zinc-400">inactive</span>}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {showLegacyRecipeSection ? (
           <div className="border-b border-white/10 bg-black/10 px-6 pt-2">
