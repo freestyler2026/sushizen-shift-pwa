@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-21 (session 121v — PO-Invoice Match feature for Dubai daily reconciliation)
+Last updated: 2026-07-21 (session 121w — PO-Invoice Match P3: photo upload + tolerance settings)
 
 
 
@@ -14,12 +14,40 @@ Last updated: 2026-07-21 (session 121v — PO-Invoice Match feature for Dubai da
 
 ## ⚠️ Deployments Pending
 
-- Vercel: 72db83c (PO-Invoice Match page + ProcurementTabs) — auto-deploying
-- Heroku: 4eb2305 (PO-Invoice Match DB + API) — deployed ✅
+- Vercel: (session 121w — PO Match P3 photo + settings) — pending commit
+- Heroku: P3 backend (photo_data column + settings table + new endpoints) — deployed ✅
 
-### Previous session
+### Previous sessions
+- Vercel: 72db83c (PO-Invoice Match page + ProcurementTabs) — deployed ✅
+- Heroku: 4eb2305 (PO-Invoice Match DB + API) — deployed ✅
 - Vercel: 4313c0e (cost calc misplaced items panel) — deployed ✅
 - Heroku: 68a2689 (misplaced ingredient endpoints) — deployed ✅
+
+## Recently Completed (2026-07-21 session 121w)
+
+### PO-Invoice Match P3 — Invoice Photo Upload + Tolerance Settings Screen
+
+**Frontend only (`src/app/admin/procurement/po-match/page.tsx` fully rewritten)**:
+
+- **Invoice Photo Upload** (QuickEntryTab + DiscrepancyQueueTab):
+  - File input `<input type="file" accept="image/*" capture="environment">` — triggers camera on mobile
+  - Client-side `FileReader.readAsDataURL()` → base64 data URL
+  - New `PhotoUpload` component: shows thumbnail preview with remove button; reusable in both tabs
+  - In QuickEntryTab: photo attached at create time, sent as `photo_data` in POST body
+  - In DiscrepancyQueueTab expanded view: shows photo thumbnail if exists; "Add Photo" button for existing records (calls `POST /api/admin/procurement/po-match/{id}/photo`)
+  - In AllRecordsTab table: camera icon next to vendor name if photo is attached
+  - 8 MB file size limit enforced client-side
+
+- **Tolerance Settings Screen** (new 5th tab "Settings"):
+  - Loads current settings from `GET /api/admin/procurement/po-match/settings?city=dubai`
+  - Two inputs: Fixed Tolerance (AED) and Percentage Tolerance (%)
+  - Live preview table: shows effective tolerance for AED 100 / 500 / 1,000 / 5,000 / 10,000 POs
+  - Save: `POST /api/admin/procurement/po-match/settings` — updates `proc_po_match_settings` table
+  - Settings propagate to QuickEntryTab tolerance display and future `create_po_invoice_check` calls
+  - Shows "last updated by" + timestamp after save
+
+- Tab type extended: `"entry" | "queue" | "records" | "scorecard" | "settings"`
+- TypeScript clean (0 errors excluding pre-existing .next/types)
 
 ## Recently Completed (2026-07-21 session 121v)
 
