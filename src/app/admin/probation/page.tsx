@@ -41,6 +41,12 @@ type EditDraft = {
 
 const ADMIN_ROLES = new Set(["ADMIN", "HQ", "HR_MANAGER", "MANILA_MANAGEMENT", "MANILA_MANAGER"]);
 
+function canAccessProbation(role: string, permissions: string[]): boolean {
+  if (ADMIN_ROLES.has(role.toUpperCase())) return true;
+  if (permissions.includes("*")) return true;
+  return permissions.some((p) => p.includes("probation"));
+}
+
 function statusBadge(emp: ProbationEmployee) {
   if (emp.termination_flagged) return <span className={BADGE_ERROR}>⛔ Termination Risk</span>;
   if (emp.graduated) return <span className={BADGE_SUCCESS}>✓ Graduated</span>;
@@ -88,7 +94,7 @@ export default function ProbationPage() {
     async function init() {
       const refreshed = await refreshAuthFromApi(auth);
       const resolved = refreshed || auth;
-      setAllowed(ADMIN_ROLES.has(String(resolved?.role || "").toUpperCase()));
+      setAllowed(canAccessProbation(String(resolved?.role || ""), Array.isArray(resolved?.permissions) ? (resolved.permissions as string[]) : []));
       setCity(String(resolved?.city || "manila").toLowerCase() === "dubai" ? "dubai" : "manila");
     }
     void init();
