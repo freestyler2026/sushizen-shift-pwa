@@ -313,26 +313,49 @@ export default function ProcurementCaseDetailPage() {
   const loadIngredientCatalog = async (cityForCatalog: string) => {
     if (catalogLoaded) return;
     try {
-      const res = await fetch(
-        `/api/cost/ingredients?city=${encodeURIComponent(cityForCatalog)}&limit=2000&offset=0`,
-        { headers: getAuthHeaders() as Record<string, string> },
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const items: any[] = Array.isArray(data?.items) ? data.items : Array.isArray(data?.ingredients) ? data.ingredients : [];
-        setIngredientCatalog(
-          items
-            .filter((i: any) => i.name)
-            .map((i: any) => ({
-              name: String(i.name || ""),
-              unit: String(i.unit || ""),
-              unit_price: Number(i.unit_price || 0),
-              category: String(i.category || ""),
-            }))
-            .sort((a, b) => a.name.localeCompare(b.name)),
-        );
-        setCatalogLoaded(true);
+      // Fetch both ingredient master AND processed/product master via component-options.
+      // This ensures items like "Truffle Sauce" (registered as a processed item) also appear.
+      const [ingRes, compRes] = await Promise.all([
+        fetch(
+          `/api/cost/ingredients?city=${encodeURIComponent(cityForCatalog)}&limit=2000&offset=0`,
+          { headers: getAuthHeaders() as Record<string, string> },
+        ),
+        fetch(
+          `/api/cost/component-options?city=${encodeURIComponent(cityForCatalog)}`,
+          { headers: getAuthHeaders() as Record<string, string> },
+        ),
+      ]);
+
+      const seen = new Set<string>();
+      const merged: { name: string; unit: string; unit_price: number; category: string }[] = [];
+
+      // Ingredient master first (unit_price = purchase cost)
+      if (ingRes.ok) {
+        const ingData = await ingRes.json();
+        const ingItems: any[] = Array.isArray(ingData?.items) ? ingData.items : Array.isArray(ingData?.ingredients) ? ingData.ingredients : [];
+        for (const i of ingItems) {
+          const name = String(i.name || "").trim();
+          if (!name || seen.has(name.toUpperCase())) continue;
+          seen.add(name.toUpperCase());
+          merged.push({ name, unit: String(i.unit || ""), unit_price: Number(i.unit_price || 0), category: String(i.category || "") });
+        }
       }
+
+      // Processed/product master (unit_cost = computed cost; useful when item is only in master)
+      if (compRes.ok) {
+        const compData = await compRes.json();
+        const compItems: any[] = Array.isArray(compData?.items) ? compData.items : [];
+        for (const i of compItems) {
+          if (String(i.component_type || "") === "ingredient") continue; // already captured above
+          const name = String(i.name || "").trim();
+          if (!name || seen.has(name.toUpperCase())) continue;
+          seen.add(name.toUpperCase());
+          merged.push({ name, unit: String(i.unit || ""), unit_price: Number(i.unit_cost || 0), category: String(i.category || "") });
+        }
+      }
+
+      setIngredientCatalog(merged.sort((a, b) => a.name.localeCompare(b.name)));
+      setCatalogLoaded(true);
     } catch { /* silently fail */ }
   };
 
