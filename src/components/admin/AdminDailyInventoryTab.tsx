@@ -664,8 +664,14 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
         headers: { Authorization: `Bearer ${auth?.accessToken || ""}` },
         body: fd,
       });
-      const d = await res.json() as { ok?: boolean; patterns_updated?: string[]; counts?: Record<string, number>; unmatched_names?: string[] };
-      if (!res.ok) throw new Error("Import failed");
+      const text = await res.text();
+      if (!res.ok) {
+        let detail = text;
+        try { detail = (JSON.parse(text) as { detail?: string }).detail || text; } catch { /* use raw text */ }
+        setPatternMsg(`Weekly par import failed: ${detail}`);
+        return;
+      }
+      const d = JSON.parse(text) as { ok?: boolean; patterns_updated?: string[]; counts?: Record<string, number>; unmatched_names?: string[] };
       const total = Object.values(d.counts || {}).reduce((s, v) => s + v, 0);
       const updated = (d.patterns_updated || []).length;
       const unmatched = d.unmatched_names?.length ?? 0;
@@ -678,7 +684,7 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
         .then((r) => r.json())
         .then((data: { patterns?: string[] }) => setPatternNames(data.patterns || []))
         .catch(() => {});
-    } catch { setPatternMsg("Weekly par import failed."); }
+    } catch (e) { setPatternMsg(`Weekly par import failed: ${String(e)}`); }
     finally { setWeekdayImportBusy(false); }
   }
 
