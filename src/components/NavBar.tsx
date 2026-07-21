@@ -137,6 +137,7 @@ const PRIMARY: NavItem[] = [
   { href: "/calendar",              label: "Calendar",              icon: Calendar,      match: "exact" },
   { href: "/store/expense-request",  label: "Expense Reimbursement", icon: Receipt,       match: "prefix" },
   { href: "/store/overtime-request", label: "Overtime Request",     icon: Clock,         match: "prefix" },
+  { href: "/store/my-nte",           label: "My Notices",           icon: FileText,      match: "prefix" },
   { href: "/request",                label: "Request",               icon: ClipboardList, match: "exact" },
   { href: "/private-report",        label: "Private Report",        icon: FileText,      match: "exact" },
   { href: "/inbox",                 label: "Inbox",                 icon: InboxIcon,     match: "exact" },
@@ -303,6 +304,7 @@ export default function NavBar() {
   const [privateReportBadge, setPrivateReportBadge] = useState(0);
   const [inboxBadge, setInboxBadge] = useState(0);
   const [otBadge, setOtBadge] = useState(0);
+  const [nteBadge, setNteBadge] = useState(0);
   const [moreOpen, setMoreOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -555,6 +557,27 @@ export default function NavBar() {
     };
   }, []);
 
+  // NTE notification badge: unread notices for staff
+  useEffect(() => {
+    let cancelled = false;
+    const fetchNteBadge = async () => {
+      try {
+        const auth = getAuth();
+        if (!auth?.accessToken) return;
+        const res = await fetch(`/api/store/conduct/notifications/badge`, {
+          headers: { Authorization: `Bearer ${auth.accessToken}` },
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setNteBadge(Number(data?.count ?? 0));
+      } catch {}
+    };
+    void fetchNteBadge();
+    const id = window.setInterval(() => { if (document.visibilityState === "visible") void fetchNteBadge(); }, 60_000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, []);
+
   // Price-check badge: fetch on event (confirm/run) AND poll every 30 min so badge stays fresh
   useEffect(() => {
     let cancelled = false;
@@ -737,9 +760,11 @@ export default function NavBar() {
           ? { ...item, badgeCount: incidentBadge, badgeWarning: incidentBadge > 0 }
           : item.href === "/inbox"
           ? { ...item, badgeCount: inboxBadge, badgeWarning: inboxBadge > 0 }
+          : item.href === "/store/my-nte"
+          ? { ...item, badgeCount: nteBadge, badgeWarning: nteBadge > 0 }
           : item,
       );
-  }, [resolvedAuth, incidentBadge, inboxBadge]);
+  }, [resolvedAuth, incidentBadge, inboxBadge, nteBadge]);
 
   const adminItems = useMemo(() => {
     return ADMIN_ITEMS

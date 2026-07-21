@@ -50,6 +50,8 @@ import {
 
 type NteStatus = "ACTIVE" | "RESOLVED";
 
+type CaseType = "NTE" | "WARNING_LETTER" | "FINAL_WARNING";
+
 type NteRecord = {
   id: string;
   city: string;
@@ -62,6 +64,9 @@ type NteRecord = {
   resolved_by: string;
   resolution_note: string;
   suspension_triggered: boolean;
+  case_type: CaseType;
+  explanation_text: string | null;
+  explanation_submitted_at: string | null;
   created_at: string;
 };
 
@@ -94,6 +99,7 @@ type NteRequest = {
   requested_by: string;
   request_date: string;
   status: NteRequestStatus;
+  case_type: CaseType;
   image_url?: string | null;
   image_filename?: string | null;
   reviewed_by?: string | null;
@@ -153,6 +159,23 @@ function NteStatusBadge({ status }: { status: NteStatus }) {
   if (status === "ACTIVE")
     return <span className={BADGE_ERROR}>ACTIVE</span>;
   return <span className={BADGE_SUCCESS}>Resolved</span>;
+}
+
+const CASE_TYPE_LABELS: Record<string, string> = {
+  NTE: "NTE",
+  WARNING_LETTER: "Warning",
+  FINAL_WARNING: "Final Warning",
+};
+
+function CaseTypeBadge({ type }: { type: string }) {
+  const label = CASE_TYPE_LABELS[type] ?? type ?? "NTE";
+  const cls =
+    type === "FINAL_WARNING"
+      ? "inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold bg-red-500/20 text-red-300 border border-red-500/30"
+      : type === "WARNING_LETTER"
+      ? "inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30"
+      : "inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold bg-violet-500/20 text-violet-300 border border-violet-500/30";
+  return <span className={cls}>{label}</span>;
 }
 
 // ─── Staff Side Panel ─────────────────────────────────────────────────────────
@@ -220,11 +243,20 @@ function StaffHistoryPanel({
           {staffNtes.map((nte) => (
             <div key={nte.id} className={`${STATUS_CARD} p-4 space-y-2`}>
               <div className="flex items-center justify-between gap-2">
-                <span className={T_CAPTION}>{fmtDate(nte.issued_date)}</span>
+                <div className="flex items-center gap-2">
+                  <span className={T_CAPTION}>{fmtDate(nte.issued_date)}</span>
+                  <CaseTypeBadge type={nte.case_type ?? "NTE"} />
+                </div>
                 <NteStatusBadge status={nte.status} />
               </div>
               <p className="text-sm text-white leading-relaxed">{nte.reason}</p>
               <p className={T_CAPTION}>Issued by: {nte.issued_by || "—"}</p>
+              {nte.explanation_text && (
+                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
+                  <span className="font-semibold">Staff explanation: </span>
+                  {nte.explanation_text}
+                </div>
+              )}
               {nte.status === "RESOLVED" && nte.resolved_at && (
                 <p className={T_CAPTION}>
                   Resolved {fmtDate(nte.resolved_at)}
@@ -385,6 +417,7 @@ export default function EmployeeCasesPage() {
   const [reqStaffName, setReqStaffName] = useState("");
   const [reqReason, setReqReason] = useState("");
   const [reqDate, setReqDate] = useState(todayStr());
+  const [reqCaseType, setReqCaseType] = useState<CaseType>("NTE");
   const [reqImage, setReqImage] = useState<File | null>(null);
   const [reqImagePreview, setReqImagePreview] = useState<string>("");
   const [submittingReq, setSubmittingReq] = useState(false);
@@ -398,6 +431,7 @@ export default function EmployeeCasesPage() {
   const [issueStaffName, setIssueStaffName] = useState("");
   const [issueDate, setIssueDate] = useState(todayStr());
   const [issueIssuedBy, setIssueIssuedBy] = useState("");
+  const [issueCaseType, setIssueCaseType] = useState<CaseType>("NTE");
   const [issueUseTemplate, setIssueUseTemplate] = useState(false);
   const [issueTemplateId, setIssueTemplateId] = useState("");
   const [issueReason, setIssueReason] = useState("");
@@ -544,6 +578,7 @@ export default function EmployeeCasesPage() {
           reason: reqReason.trim(),
           requested_by: currentUser,
           request_date: reqDate || todayStr(),
+          case_type: reqCaseType,
         }),
       });
       const data = await res.json();
@@ -565,6 +600,7 @@ export default function EmployeeCasesPage() {
       setReqStaffName("");
       setReqReason("");
       setReqDate(todayStr());
+      setReqCaseType("NTE");
       setReqImage(null);
       setReqImagePreview("");
       if (reqImageRef.current) reqImageRef.current.value = "";
@@ -672,6 +708,7 @@ export default function EmployeeCasesPage() {
           reason: issueReason.trim(),
           issued_by: issueIssuedBy || currentUser,
           issued_date: issueDate || todayStr(),
+          case_type: issueCaseType,
         }),
       });
       const resData = await res.json();
@@ -684,6 +721,7 @@ export default function EmployeeCasesPage() {
       setIssueStaffName("");
       setIssueDate(todayStr());
       setIssueReason("");
+      setIssueCaseType("NTE");
       setIssueUseTemplate(false);
       setIssueTemplateId("");
       setTab("board");
@@ -713,6 +751,26 @@ export default function EmployeeCasesPage() {
       await loadData();
     } catch (e: any) {
       setError(e?.message || "Failed to close case");
+    }
+  };
+
+  // ── Delete NTE record ──────────────────────────────────────────────────────
+  const handleDeleteNte = async (nteId: string, staffName: string) => {
+    if (!window.confirm(`Permanently delete this NTE record for ${staffName}? This cannot be undone.`)) return;
+    setError("");
+    try {
+      const res = await fetch(`/api/admin/cases/${nteId}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as any).detail || `HTTP ${res.status}`);
+      }
+      setSuccessMsg("NTE record deleted.");
+      await loadData();
+    } catch (e: any) {
+      setError(e?.message || "Failed to delete NTE record");
     }
   };
 
@@ -1069,6 +1127,19 @@ export default function EmployeeCasesPage() {
             </div>
 
             <div>
+              <label className={T_LABEL}>Document Type</label>
+              <select
+                className={`${SELECT_CLASS} mt-1`}
+                value={reqCaseType}
+                onChange={(e) => setReqCaseType(e.target.value as CaseType)}
+              >
+                <option value="NTE">NTE — Notice to Explain</option>
+                <option value="WARNING_LETTER">Warning Letter</option>
+                <option value="FINAL_WARNING">Final Warning</option>
+              </select>
+            </div>
+
+            <div>
               <label className={T_LABEL}>Reason / Incident Description *</label>
               <textarea
                 className={`${TEXTAREA_CLASS} mt-1`}
@@ -1338,6 +1409,20 @@ export default function EmployeeCasesPage() {
             </div>
           </div>
 
+          {/* Document Type */}
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Document Type</label>
+            <select
+              value={issueCaseType}
+              onChange={(e) => setIssueCaseType(e.target.value as CaseType)}
+              className={SELECT_CLASS}
+            >
+              <option value="NTE">NTE — Notice to Explain</option>
+              <option value="WARNING_LETTER">Warning Letter</option>
+              <option value="FINAL_WARNING">Final Warning</option>
+            </select>
+          </div>
+
           {/* Template toggle */}
           <div>
             <p className={`${T_LABEL} mb-2`}>Use Template?</p>
@@ -1479,13 +1564,15 @@ export default function EmployeeCasesPage() {
             ) : filteredHistory.length === 0 ? (
               <p className={`${T_BODY} p-5 text-center`}>No NTE records.</p>
             ) : (
-              <table className="w-full min-w-[640px]">
+              <table className="w-full min-w-[700px]">
                 <thead>
                   <tr>
                     <th className={`${TABLE_HEADER} px-4 pt-4 pb-2 text-left`}>Date</th>
+                    <th className={`${TABLE_HEADER} px-4 pt-4 pb-2 text-left`}>Type</th>
                     <th className={`${TABLE_HEADER} px-4 pt-4 pb-2 text-left`}>Staff Name</th>
                     <th className={`${TABLE_HEADER} px-4 pt-4 pb-2 text-left`}>Reason</th>
                     <th className={`${TABLE_HEADER} px-4 pt-4 pb-2 text-left`}>Issued By</th>
+                    <th className={`${TABLE_HEADER} px-4 pt-4 pb-2 text-left`}>Explanation</th>
                     <th className={`${TABLE_HEADER} px-4 pt-4 pb-2 text-left`}>Status</th>
                     <th className={`${TABLE_HEADER} px-4 pt-4 pb-2 text-left`}>Actions</th>
                   </tr>
@@ -1495,6 +1582,9 @@ export default function EmployeeCasesPage() {
                     <tr key={nte.id} className={TABLE_ROW}>
                       <td className={`${TABLE_CELL} px-4 font-mono text-xs text-zinc-300`}>
                         {fmtDate(nte.issued_date)}
+                      </td>
+                      <td className={`${TABLE_CELL} px-4`}>
+                        <CaseTypeBadge type={nte.case_type} />
                       </td>
                       <td className={`${TABLE_CELL} px-4 font-medium text-white`}>
                         {nte.staff_name}
@@ -1511,6 +1601,18 @@ export default function EmployeeCasesPage() {
                         {nte.issued_by || "—"}
                       </td>
                       <td className={`${TABLE_CELL} px-4`}>
+                        {nte.explanation_text ? (
+                          <span
+                            className="block max-w-[180px] truncate text-xs text-emerald-400"
+                            title={nte.explanation_text}
+                          >
+                            ✓ {nte.explanation_text}
+                          </span>
+                        ) : (
+                          <span className={T_CAPTION}>—</span>
+                        )}
+                      </td>
+                      <td className={`${TABLE_CELL} px-4`}>
                         <NteStatusBadge status={nte.status} />
                         {nte.suspension_triggered && (
                           <span className={`${BADGE_ERROR} ml-1.5`}>
@@ -1519,23 +1621,35 @@ export default function EmployeeCasesPage() {
                         )}
                       </td>
                       <td className={`${TABLE_CELL} px-4`}>
-                        {nte.status === "ACTIVE" && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              void handleResolveNte(nte.id, nte.staff_name)
-                            }
-                            className={`${SMALL_BUTTON} flex items-center gap-1`}
-                          >
-                            <CheckCircle className="h-3.5 w-3.5" />
-                            Close
-                          </button>
-                        )}
-                        {nte.status === "RESOLVED" && (
-                          <span className={T_CAPTION}>
-                            {nte.resolved_at ? fmtDate(nte.resolved_at) : "—"}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                          {nte.status === "ACTIVE" && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void handleResolveNte(nte.id, nte.staff_name)
+                              }
+                              className={`${SMALL_BUTTON} flex items-center gap-1`}
+                            >
+                              <CheckCircle className="h-3.5 w-3.5" />
+                              Close
+                            </button>
+                          )}
+                          {nte.status === "RESOLVED" && (
+                            <span className={T_CAPTION}>
+                              {nte.resolved_at ? fmtDate(nte.resolved_at) : "—"}
+                            </span>
+                          )}
+                          {["ADMIN", "HQ"].includes(currentUserRole) && (
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteNte(nte.id, nte.staff_name)}
+                              className="flex items-center gap-0.5 rounded-lg px-2 py-1 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+                              title="Delete record"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
