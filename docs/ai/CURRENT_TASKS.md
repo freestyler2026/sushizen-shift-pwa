@@ -1,6 +1,8 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-21 (session 121u — Par Level weekday template + cost calc misplaced items cleanup)
+Last updated: 2026-07-21 (session 121v — PO-Invoice Match feature for Dubai daily reconciliation)
+
+
 
 
 > **New session start protocol:**
@@ -12,10 +14,39 @@ Last updated: 2026-07-21 (session 121u — Par Level weekday template + cost cal
 
 ## ⚠️ Deployments Pending
 
-- Vercel: 4313c0e (cost calc misplaced items panel) — auto-deploying
+- Vercel: 72db83c (PO-Invoice Match page + ProcurementTabs) — auto-deploying
+- Heroku: 4eb2305 (PO-Invoice Match DB + API) — deployed ✅
+
+### Previous session
+- Vercel: 4313c0e (cost calc misplaced items panel) — deployed ✅
 - Heroku: 68a2689 (misplaced ingredient endpoints) — deployed ✅
 
-## Recently Completed (2026-07-21 session 121u) — deploying
+## Recently Completed (2026-07-21 session 121v)
+
+### PO — Invoice Match (Dubai daily invoice reconciliation)
+
+**Problem**: Dubai back-office manually compares every supplier PO vs received invoice daily — major workload. Wanted: if PO = Invoice → auto-close with no detail entry; track discrepancies per supplier.
+
+**Backend (`app/db.py` + `app/main.py`, Heroku 4eb2305)**:
+- New table `proc_po_invoice_checks`: stores daily checks (vendor, po_no, po_amount, invoice_no, invoice_amount, match_status, variance_amount, discrepancy_type, resolution_note, resolved_by)
+- Auto-match tolerance: ±AED 1.00 or 0.5% of PO amount (whichever is greater) → `MATCHED`; else `DISCREPANCY`
+- `ensure_po_invoice_check_tables()`, `create_po_invoice_check()`, `list_po_invoice_checks()`, `resolve_po_invoice_check()`, `get_po_invoice_supplier_stats()`, `list_recent_pos_for_match()`
+- New endpoints:
+  - `GET /api/admin/procurement/po-match/pos` — recent POs by vendor+city (for auto-fill)
+  - `GET /api/admin/procurement/po-match` — list checks with filters
+  - `POST /api/admin/procurement/po-match` — create check (auto-matches instantly)
+  - `POST /api/admin/procurement/po-match/{id}/resolve` — resolve discrepancy
+  - `GET /api/admin/procurement/po-match/supplier-stats` — supplier scorecard
+
+**Frontend (`src/app/admin/procurement/po-match/page.tsx`, Vercel 72db83c)**:
+- New page at `/admin/procurement/po-match`
+- Tab 1 "Quick Entry": supplier search with PO auto-fill, live match preview (green/amber), submit closes matched records instantly
+- Tab 2 "Discrepancy Queue": unresolved first, resolve panel with discrepancy type + note
+- Tab 3 "All Records": date-range search, 3 KPI cards (total/match rate/discrepancies), full table
+- Tab 4 "Supplier Scorecard": per-vendor stats (total checks, match rate, total variance, unresolved count, error rate bar)
+- Added "PO Match" tab to ProcurementTabs.tsx in Financials group
+
+## Recently Completed (2026-07-21 session 121u)
 
 ### Par Level Import — Weekday Template Download + Unmatched Name Display
 
