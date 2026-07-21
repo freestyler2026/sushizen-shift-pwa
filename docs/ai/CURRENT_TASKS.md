@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-21 (session 121p — Invoice Hub improvements + Par Level weekly import)
+Last updated: 2026-07-21 (session 121q — Probation channel resync fix)
 
 
 > **New session start protocol:**
@@ -13,6 +13,36 @@ Last updated: 2026-07-21 (session 121p — Invoice Hub improvements + Par Level 
 ## ⚠️ Deployments Pending
 
 なし — 全変更デプロイ済み
+
+## ⚠️ Admin Action Required — Probation channel for HR Staff
+
+**Background:** Camilla (HR Staff role) cannot access the Probation page. The `admin.probation` channel was in the code but may not have been synced to the DB properly.
+
+**Steps:**
+1. Open Role Management → /admin/staff/roles
+2. Click **"Resync System Channels"** button (amber, top right of tab bar) and wait for success message
+3. Go to **Roles** tab → select **HR Staff** role
+4. Find **Probation** channel → check **"View Probation Admin"**
+5. Click **Save Permissions**
+6. Camilla must **log out and log back in** to receive the updated token
+
+## Recently Completed (2026-07-21 session 121q) — live (Vercel 6ef0f51, Heroku c9ef3f0)
+
+### Role Management — Resync System Channels fix
+
+**Problem:** `admin.probation` channel not appearing in Role Management Roles tab for HR Staff. Recurring pattern: every new NavBar page needs to be registered in both ACCESS_CHANNELS and ACCESS_PERMISSIONS in access_control.py.
+
+**Backend (`app/db.py`):**
+- `seed_access_control_defaults()`: ON CONFLICT for `access_channels` now also sets `is_active = TRUE` and `is_system = TRUE`, ensuring any deactivated system channel is re-enabled on the next seed run
+
+**Backend (`app/main.py`):**
+- New `POST /api/admin/access/force-reseed` endpoint: ADMIN/HQ only; re-runs `seed_access_control_defaults()` and returns updated channel list
+
+**Frontend (`src/app/admin/staff/roles/page.tsx`):**
+- New amber **"Resync System Channels"** button in tab bar: calls force-reseed, then reloads bootstrap data so all system channels appear immediately
+
+**CLAUDE.md (`CLAUDE.md`):**
+- Added rule #11: when adding NavBar menu item, always add to ACCESS_CHANNELS + ACCESS_PERMISSIONS in access_control.py, then resync via the button. Custom roles (HR Staff etc.) require manual permission assignment in Roles tab.
 
 ## Recently Completed (2026-07-21 session 121p) — live (Vercel 68cbe3b, Heroku 38281d8)
 
