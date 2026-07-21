@@ -202,8 +202,25 @@ function StaffRolesPageInner() {
   const [staffMasterRows, setStaffMasterRows] = useState<StaffMasterRow[]>([]);
   // Cache of effective roles loaded from the access system (keyed by display_name)
   const [effectiveRoleCache, setEffectiveRoleCache] = useState<Record<string, string>>({});
+  const [resyncBusy, setResyncBusy] = useState(false);
 
   const canManage = canAccessRoleManagement(auth);
+
+  async function handleForceReseed() {
+    if (!auth) return;
+    setResyncBusy(true);
+    setError("");
+    setSuccessMsg("");
+    try {
+      await apiRequest("/api/admin/access/force-reseed", { method: "POST" }, auth);
+      await loadBootstrap(auth, selectedChannelKey, selectedRoleKey);
+      setSuccessMsg("System channels resynced. All channels and permissions are now up to date.");
+    } catch (err: any) {
+      setError(String(err?.message || err || "Resync failed"));
+    } finally {
+      setResyncBusy(false);
+    }
+  }
 
   function applyChannelRoleDrafts(data: ChannelRoleMatrixResp | null) {
     const nextDrafts: Record<string, string> = {};
@@ -766,7 +783,7 @@ function StaffRolesPageInner() {
         </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {([
           ["channels", "Channels"],
           ["roles", "Roles"],
@@ -781,6 +798,14 @@ function StaffRolesPageInner() {
             {label}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={handleForceReseed}
+          disabled={resyncBusy}
+          className="ml-auto rounded-xl border border-amber-600/50 bg-amber-900/20 px-3 py-2 text-xs text-amber-300 hover:bg-amber-900/40 disabled:opacity-50 transition"
+        >
+          {resyncBusy ? "Resyncing..." : "Resync System Channels"}
+        </button>
       </div>
 
       {tab === "channels" ? (

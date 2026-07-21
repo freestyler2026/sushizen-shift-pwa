@@ -131,6 +131,7 @@ npx tsc --noEmit
 8. **CKアイテム一括操作は is_commissary フィルタが必須** → `deactivate_items_not_in()` は必ず `AND is_commissary = FALSE` を含める。これが欠落するとReplace-modeインポートがCKコミサリーアイテムも消す（2026-07 実際に発生）
 9. **restore_commissary_items() は過去アイテムを全部戻す危険がある** → 無条件で `is_commissary=TRUE AND is_active=FALSE` を全件復元すると、`[Retired]`アイテムや旧セクションの重複エントリまで復活する。現在の実装は「7日以内に非アクティブ化 + [Retired]除外」に制限済み。CK復元後に問題が起きたら **Manage Items → "Fix Restore Issues"（オレンジ）ボタン** を実行して重複・[Retired]を再クリーンアップする
 10. **apiFetch のパス引数に `${API_BASE}` を含めない** → `apiFetch` は内部で `${API_BASE}${path}` を組み立てるため、引数に `${API_BASE}/api/...` を渡すとURLが二重になり "Failed to fetch" が発生する（2026-07 Restore CK Items で発生）
+11. **NavBarにメニューを追加したら必ずRole Managementも更新する** → 新規ページを NavBar に追加したとき、`access_control.py` の `ACCESS_CHANNELS`（チャンネル登録）と `ACCESS_PERMISSIONS`（`channel.xxx.view` パーミッション）に同時追加しないとRole ManagementのChannels/Rolesタブに表示されない。追加後は Heroku デプロイを行い、Role Management → "Resync System Channels" ボタンを押してDBを同期する。カスタムロール（HR Staff等）はデフォルトでは権限が付かないため、管理者がRoles タブで手動チェックして Save する必要がある。（2026-07 Probation/Camilla 件で発生）
 
 ---
 
