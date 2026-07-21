@@ -177,15 +177,6 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
   const entryMap: Record<string, ReportEntry> = {};
   detail.entries.forEach((e) => { entryMap[e.item_code] = e; });
 
-  const lowItems: { item: InvItem; entry: ReportEntry }[] = [];
-  const warnItems: { item: InvItem; entry: ReportEntry }[] = [];
-  items.forEach((item) => {
-    const entry = entryMap[item.item_code];
-    if (!entry || entry.qty === null) return;
-    if (item.min_level !== null && Number(entry.qty) < Number(item.min_level)) lowItems.push({ item, entry });
-    else if (item.par_level !== null && Number(entry.qty) < Number(item.par_level)) warnItems.push({ item, entry });
-  });
-
   const [detailSourceTab, setDetailSourceTab] = useState<SourceType>("ck");
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [orderQtys, setOrderQtys] = useState<Record<string, string>>({});
@@ -258,6 +249,17 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
     if (activePattern && patternLookup[item.item_code] !== undefined) return patternLookup[item.item_code];
     return item.par_level;
   }
+
+  // Computed after patternLookup is available so effective par (pattern override) is used
+  const lowItems: { item: InvItem; entry: ReportEntry }[] = [];
+  const warnItems: { item: InvItem; entry: ReportEntry }[] = [];
+  items.forEach((item) => {
+    const entry = entryMap[item.item_code];
+    if (!entry || entry.qty === null) return;
+    const effectivePar = getEffectivePar(item);
+    if (item.min_level !== null && Number(entry.qty) < Number(item.min_level)) lowItems.push({ item, entry });
+    else if (effectivePar !== null && Number(entry.qty) < effectivePar) warnItems.push({ item, entry });
+  });
 
   async function submitGenerateOrder() {
     const auth = getAuth();
@@ -350,14 +352,14 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
               <li key={item.item_code} className="text-xs text-red-200/80">
                 <span className="font-medium text-red-200">{item.item_name}</span>
                 {" "}— {entry.qty} {entry.unit ?? item.default_unit}
-                {item.par_level !== null && <span className="text-red-400/70"> (par {item.par_level})</span>}
+                {getEffectivePar(item) !== null && <span className="text-red-400/70"> (par {getEffectivePar(item)})</span>}
               </li>
             ))}
             {warnItems.map(({ item, entry }) => (
               <li key={item.item_code} className="text-xs text-amber-200/80">
                 <span className="font-medium text-amber-200">{item.item_name}</span>
                 {" "}— {entry.qty} {entry.unit ?? item.default_unit}
-                {item.par_level !== null && <span className="text-amber-400/70"> (par {item.par_level})</span>}
+                {getEffectivePar(item) !== null && <span className="text-amber-400/70"> (par {getEffectivePar(item)})</span>}
               </li>
             ))}
           </ul>
@@ -501,17 +503,18 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
                   {sectionItems.map((item) => {
                     const entry = entryMap[item.item_code];
                     if (!entry) return null;
+                    const effectivePar = getEffectivePar(item);
                     const isLow = item.min_level !== null && entry.qty !== null && Number(entry.qty) < Number(item.min_level);
-                    const isWarn = !isLow && item.par_level !== null && entry.qty !== null && Number(entry.qty) < Number(item.par_level);
+                    const isWarn = !isLow && effectivePar !== null && entry.qty !== null && Number(entry.qty) < effectivePar;
                     return (
                       <tr key={item.item_code} className={[TABLE_ROW, isLow ? "bg-red-500/5" : isWarn ? "bg-amber-500/5" : ""].join(" ")}>
                         <td className={`${TABLE_CELL} px-5`}>
                           <span className={isLow ? "text-red-300" : isWarn ? "text-amber-300" : "text-zinc-200"}>{item.item_name}</span>
-                          {item.par_level !== null && <span className="ml-2 text-xs text-zinc-600">par {item.par_level}</span>}
+                          {effectivePar !== null && <span className="ml-2 text-xs text-zinc-600">par {effectivePar}</span>}
                         </td>
                         <td className={`${TABLE_CELL} px-3 text-right font-mono`}>{entry.qty ?? "—"}</td>
                         <td className={`${TABLE_CELL} px-3 text-zinc-400`}>{entry.unit ?? item.default_unit}</td>
-                        <td className={`${TABLE_CELL} px-3 text-center`}><DetailStatusBadge qty={entry.qty} minLevel={item.min_level} parLevel={item.par_level} /></td>
+                        <td className={`${TABLE_CELL} px-3 text-center`}><DetailStatusBadge qty={entry.qty} minLevel={item.min_level} parLevel={effectivePar} /></td>
                         <td className={`${TABLE_CELL} px-5 text-zinc-500`}>{entry.note || "—"}</td>
                       </tr>
                     );
