@@ -552,7 +552,11 @@ function DiscrepancyQueueTab() {
         <div key={row.id} className={`${GLASS_CARD} overflow-hidden`}>
           <button
             className="flex w-full items-center justify-between p-4 text-left"
-            onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}
+            onClick={() => {
+              const next = expandedId === row.id ? null : row.id;
+              if (next !== expandedId) { setResolveNote(""); setResolveType("OTHER"); setMsg(""); }
+              setExpandedId(next);
+            }}
           >
             <div className="flex flex-wrap items-center gap-3">
               <span className="font-semibold text-white">{row.vendor_name}</span>
