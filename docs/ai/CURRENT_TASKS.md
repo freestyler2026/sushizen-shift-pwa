@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-21 (session 121q — Probation channel resync fix)
+Last updated: 2026-07-21 (session 121r — Staff Profile civil status / MDR fields)
 
 
 > **New session start protocol:**
@@ -12,7 +12,7 @@ Last updated: 2026-07-21 (session 121q — Probation channel resync fix)
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み
+なし — 全変更デプロイ済み (Vercel b87673c, Heroku v1404)
 
 ## ⚠️ Admin Action Required — Probation channel for HR Staff
 
@@ -25,6 +25,25 @@ Last updated: 2026-07-21 (session 121q — Probation channel resync fix)
 4. Find **Probation** channel → check **"View Probation Admin"**
 5. Click **Save Permissions**
 6. Camilla must **log out and log back in** to receive the updated token
+
+## Recently Completed (2026-07-21 session 121r) — live (Vercel b87673c, Heroku v1404)
+
+### Staff Profiles — Civil Status / Dependents / MDR fields
+
+**Backend (`app/db.py`)**:
+- `ensure_manila_payroll_tables()`: 5 new `ALTER TABLE IF NOT EXISTS` migrations for `manila_staff_profiles`: `civil_status VARCHAR(20)`, `num_qualified_dependents SMALLINT DEFAULT 0`, `mdr_submitted BOOLEAN DEFAULT FALSE`, `mdr_submitted_date DATE`, `mdr_notes TEXT DEFAULT ''`
+
+**Backend (`app/main.py`)**:
+- `manila_upsert_staff_profile` PUT endpoint: updated INSERT column list + VALUES (18→23 fields) and ON CONFLICT DO UPDATE SET to include the 5 new columns
+
+**Frontend (`src/app/admin/payroll/manila/staff-profiles/page.tsx`)**:
+- `StaffProfile` type + `FormState` + `emptyForm()` + `profileToForm()` + `save()` body: all updated with new fields
+- Modal form: new "Personal & Tax Info" section with:
+  - Civil Status dropdown (Single / Married / Widowed / Legally Separated)
+  - Qualified Dependents number input 0–4 (with BIR exemption note ₱25,000 each)
+  - MDR Submitted toggle (green theme) with date field shown when toggled on
+  - MDR Notes text input
+- Table: new **MDR** column showing green "Done" badge or "—" dash
 
 ## Recently Completed (2026-07-21 session 121q) — live (Vercel 6ef0f51, Heroku c9ef3f0)
 
