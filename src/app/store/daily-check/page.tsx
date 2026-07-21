@@ -63,7 +63,7 @@ const TZ_BY_CITY: Record<CityKey, string> = { manila: "Asia/Manila", dubai: "Asi
 
 const CHECK_TYPES: { key: string; label: string; icon: string; desc: string; cities: CityKey[] }[] = [
   { key: "OPENING",        label: "Opening Check",  icon: "🌅", desc: "Morning — all aggregators ON",   cities: ["manila", "dubai"] },
-  { key: "LUNCH_OPEN",     label: "Lunch Open",     icon: "🍽️", desc: "Lunch service — aggregators ON", cities: ["dubai"] },
+  { key: "LUNCH_OPEN",     label: "Lunch Open",     icon: "🍽️", desc: "Lunch service starts — all aggregators ON (11:00)", cities: ["manila", "dubai"] },
   { key: "LUNCH_CLOSE",    label: "Lunch Close",    icon: "🌤", desc: "Pause lunch service",             cities: ["manila", "dubai"] },
   { key: "BUSINESS_CLOSE", label: "Business Close", icon: "🌙", desc: "End of day close",                cities: ["manila", "dubai"] },
 ];
