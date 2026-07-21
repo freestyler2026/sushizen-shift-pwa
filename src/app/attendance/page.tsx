@@ -629,6 +629,9 @@ export default function AttendancePage() {
   // Fallback uses city-aware local date so Manila/Dubai midnight never shows yesterday
   const tz = cityTz(auth?.city);
   const today = data?.today ?? new Intl.DateTimeFormat("en-CA", { timeZone: tz }).format(new Date());
+  // Dubai split schedules allow 2-hour breaks; Manila standard is 1 hour
+  const breakLimitSec = auth?.city === "dubai" ? 120 * 60 : 60 * 60;
+  const breakWarnSec = breakLimitSec - 10 * 60; // warn 10 min before limit
   const isCheckedIn = !!session?.check_in_at;
   const isCheckedOut = !!session?.check_out_at;
   const activeBreak = breaks.find((b) => b.break_in_at && !b.break_out_at) ?? null;
@@ -706,7 +709,7 @@ export default function AttendancePage() {
   function scheduleBreakReminder(breakInAt: string) {
     if (breakReminderRef.current) { clearTimeout(breakReminderRef.current); breakReminderRef.current = null; }
     const elapsed = Date.now() - new Date(breakInAt).getTime();
-    const remaining = 50 * 60 * 1000 - elapsed;
+    const remaining = breakWarnSec * 1000 - elapsed;
     if (remaining <= 0) return;
     breakReminderRef.current = setTimeout(async () => {
       try {
@@ -1203,15 +1206,15 @@ export default function AttendancePage() {
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-amber-300">On Break</span>
                     {breakElapsedSec > 0 && (
-                      <span className={`text-sm font-bold tabular-nums ${breakElapsedSec >= 60 * 65 ? "text-red-400" : breakElapsedSec >= 60 * 50 ? "text-amber-300" : "text-white"}`}>
+                      <span className={`text-sm font-bold tabular-nums ${breakElapsedSec >= breakLimitSec + 5 * 60 ? "text-red-400" : breakElapsedSec >= breakWarnSec ? "text-amber-300" : "text-white"}`}>
                         {Math.floor(breakElapsedSec / 60)}:{String(breakElapsedSec % 60).padStart(2, "0")}
                       </span>
                     )}
                   </div>
-                  {breakElapsedSec >= 60 * 50 && breakElapsedSec < 60 * 60 && (
+                  {breakElapsedSec >= breakWarnSec && breakElapsedSec < breakLimitSec && (
                     <p className="text-[11px] text-amber-300">⚠ 10 minutes left on your break</p>
                   )}
-                  {breakElapsedSec >= 60 * 60 && (
+                  {breakElapsedSec >= breakLimitSec && (
                     <p className="text-[11px] text-red-400">⛔ Break overrun — please return to work</p>
                   )}
                 </div>
