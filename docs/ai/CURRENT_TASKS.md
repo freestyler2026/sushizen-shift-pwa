@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-21 (session 121u — Par Level weekday template + NTE announcement)
+Last updated: 2026-07-21 (session 121u — Par Level weekday template + cost calc misplaced items cleanup)
 
 
 > **New session start protocol:**
@@ -12,8 +12,8 @@ Last updated: 2026-07-21 (session 121u — Par Level weekday template + NTE anno
 
 ## ⚠️ Deployments Pending
 
-- Vercel: 4ed1720 (frontend weekday template button) — auto-deploying
-- Heroku: 7def29c (weekday template endpoint) — deploying in background
+- Vercel: 4313c0e (cost calc misplaced items panel) — auto-deploying
+- Heroku: 68a2689 (misplaced ingredient endpoints) — deployed ✅
 
 ## Recently Completed (2026-07-21 session 121u) — deploying
 
@@ -38,6 +38,45 @@ Last updated: 2026-07-21 (session 121u — Par Level weekday template + NTE anno
 2. Fill in par values for each branch × day combination
 3. Click "Import Weekly Par Excel" → upload the filled Excel
 4. No more unmatched names since names come directly from DB
+
+---
+
+### Cost Calculation — Misplaced Items Cleanup (Heroku 68a2689, Vercel 4313c0e)
+
+**Root cause investigation:**
+
+The issue was NOT a code bug but a combination of:
+1. **Data corruption since April 4**: processed items (sauces, shrimp tempura, etc.) were manually added to `ingredient_master` as a workaround when the 加工品マスター component selector didn't find them. These were later deactivated (`is_active=FALSE`) when proper 加工品マスター entries were created.
+2. **7/18 commit `e97da17`** (`show_inactive=true` on Ingredient Master list): this revealed all previously-hidden `is_active=FALSE` items in `ingredient_master`, including the misplaced processed items.
+
+So items were always in the DB — the recent update just made them visible.
+
+**Manila situation**: Staff had already selected the `ingredient_master` version of sauces in some recipes (instead of the `menu_item_master` version). They are manually re-linking those recipes to the correct 加工品マスター items.
+
+**Dubai situation**: Same duplicate entries exist in `ingredient_master`, but recipes correctly use the `menu_item_master` (加工品マスター) versions. Only cleanup (deactivation) needed.
+
+**Backend (`app/db.py` + `app/cost_api.py`, Heroku 68a2689)**:
+- `find_misplaced_ingredients(city)`: queries `ingredient_master` for items where name matches a `menu_item_master` processed/product item (case-insensitive), OR category is "CK Processed" / "Kitchen Processed" / "Processed Meat / Eggs"
+- `bulk_deactivate_misplaced_ingredients(city, ingredient_ids)`: bulk `is_active=FALSE` update
+- `GET /api/cost/ingredients/misplaced-suspects?city=...`: returns suspect list
+- `POST /api/cost/ingredients/bulk-deactivate`: bulk deactivate
+
+**Frontend (`cost-calculation/page.tsx`, Vercel 4313c0e)**:
+- **"Misplaced Items"** amber button added to Ingredient Master toolbar
+- Click opens a panel showing all suspect items with:
+  - Item name, category, active/inactive status
+  - Badge if name matches a Processed Items / Products entry
+  - Checkboxes to select for deactivation
+  - "Deactivate X selected" button with confirmation
+
+**How to use (Dubai cleanup)**:
+1. Admin → Cost Calculation → Ingredient Master tab → "Misplaced Items" button
+2. Switch city to Dubai
+3. Review the list of suspects
+4. Select all that are duplicates (use "also in Processed Items" badge as a guide)
+5. Click "Deactivate X selected" → they disappear from 食材マスター
+
+**Manila**: Continue manually re-linking recipes from `ingredient_master` items → `menu_item_master` items, then deactivate the misplaced ones using the same tool.
 
 ## ⚠️ Admin Action Required — NTE NavBar channel registration
 
