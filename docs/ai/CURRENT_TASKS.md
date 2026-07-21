@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-21 (session 121o — Probation page edit + HR_MANAGER permissions fix)
+Last updated: 2026-07-21 (session 121p — Invoice Hub improvements + Par Level weekly import)
 
 
 > **New session start protocol:**
@@ -13,6 +13,32 @@ Last updated: 2026-07-21 (session 121o — Probation page edit + HR_MANAGER perm
 ## ⚠️ Deployments Pending
 
 なし — 全変更デプロイ済み
+
+## Recently Completed (2026-07-21 session 121p) — live (Vercel 68cbe3b, Heroku 38281d8)
+
+### Invoice Hub — Vendor Dropdown, UI Polish, Drive Link
+
+1. Vendor field → dropdown from `GET /api/admin/procurement/vendors?city=...&status=ACTIVE`
+2. White text on Invoice No, Vendor Name filter inputs + Refresh icon
+3. Date fields labeled "Date From" / "Date To"
+4. CK (Central Kitchen) + WH (Warehouse) added to Manila branch selector
+5. "Invoice Drive" button → Google Drive folder for the city (Manila/Dubai)
+6. After upload: green notice banner with "Open in Drive ↗" link (uses `web_view_link` from UploadResponse)
+
+### Par Level — Weekly Import (Branch × Day-of-Week)
+
+**Backend:**
+- `lookup_item_codes_by_name()` in `db_daily_inventory.py` — returns `{item_name_lower: item_code}` for active items
+- `POST /api/daily-inventory/par-patterns/import-weekday-excel` — reads multi-column Excel (TAFT/CUBAO/PARANAQUE × Sun/Tue/Thu), creates 9 patterns: `TAFT_Sunday`, `TAFT_Tuesday`, `TAFT_Thursday`, `CUBAO_Sunday`, … `PARANAQUE_Thursday`
+- Item matching is name-based (case-insensitive). Returns `unmatched_names[]` for any items not found
+
+**Frontend (`AdminDailyInventoryTab.tsx`):**
+- Admin → Manage Items → Par Level Patterns: new amber "Import Weekly Par Excel" box with file button
+- ReportDetailView: on load, auto-selects the matching pattern (`{branch}_{weekday}`) if it exists — e.g. for a TAFT report on Tuesday, auto-loads "TAFT_Tuesday" par levels
+
+**Next steps for Par Level:**
+- Pending A: Pack size (1 PKT) rounding — `pkt_size` column per item + `ceil(deficit/pkt_size)*pkt_size` order calc
+- Pending B: After deploying, user needs to upload the Par Level.xlsx via the "Import Weekly Par Excel" button
 
 ## Recently Completed (2026-07-21 session 121o) — live (Vercel 87a3de4, Heroku 009a46a)
 
