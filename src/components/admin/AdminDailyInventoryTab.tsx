@@ -228,8 +228,6 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
     } catch {}
   }
 
-  const orderItems = [...lowItems, ...warnItems];
-
   function openOrderModal() {
     const qtys: Record<string, string> = {};
     const sel: Record<string, boolean> = {};
@@ -267,6 +265,8 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
     if (item.min_level !== null && Number(entry.qty) < Number(item.min_level)) lowItems.push({ item, entry });
     else if (effectivePar !== null && Number(entry.qty) < effectivePar) warnItems.push({ item, entry });
   });
+
+  const orderItems = [...lowItems, ...warnItems];
 
   async function submitGenerateOrder() {
     const auth = getAuth();
