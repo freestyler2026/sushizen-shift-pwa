@@ -203,9 +203,20 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
   useEffect(() => {
     apiFetch("/api/daily-inventory/par-patterns")
       .then((r) => r.json())
-      .then((d: { patterns?: string[] }) => setPatterns(d.patterns || []))
+      .then((d: { patterns?: string[] }) => {
+        const pats = d.patterns || [];
+        setPatterns(pats);
+        if (pats.length > 0 && detail.report_date) {
+          const dt = new Date(detail.report_date + "T00:00:00");
+          const dayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][dt.getDay()];
+          const autoPattern = `${detail.branch}_${dayName}`;
+          if (pats.includes(autoPattern)) {
+            void handlePatternChange(autoPattern);
+          }
+        }
+      })
       .catch(() => {});
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handlePatternChange(name: string) {
     setActivePattern(name);
@@ -564,6 +575,8 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
   const [patternBusy, setPatternBusy] = useState<string | null>(null);
   const [patternMsg, setPatternMsg] = useState("");
   const patternImportRef = useRef<HTMLInputElement>(null);
+  const weekdayImportRef = useRef<HTMLInputElement>(null);
+  const [weekdayImportBusy, setWeekdayImportBusy] = useState(false);
 
   async function loadItems() {
     setLoading(true); setError("");
@@ -639,6 +652,34 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
     setPatternImportTarget(name);
     setNewPatternName("");
     patternImportRef.current?.click();
+  }
+
+  async function handleWeekdayImportFile(file: File) {
+    setWeekdayImportBusy(true); setPatternMsg("");
+    try {
+      const auth = getAuth();
+      const fd = new FormData(); fd.append("file", file);
+      const res = await fetch("/api/daily-inventory/par-patterns/import-weekday-excel", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth?.accessToken || ""}` },
+        body: fd,
+      });
+      const d = await res.json() as { ok?: boolean; patterns_updated?: string[]; counts?: Record<string, number>; unmatched_names?: string[] };
+      if (!res.ok) throw new Error("Import failed");
+      const total = Object.values(d.counts || {}).reduce((s, v) => s + v, 0);
+      const updated = (d.patterns_updated || []).length;
+      const unmatched = d.unmatched_names?.length ?? 0;
+      setPatternMsg(
+        `Weekly par imported: ${updated} pattern${updated !== 1 ? "s" : ""} updated, ${total} item entries total.` +
+        (unmatched > 0 ? ` ${unmatched} item name${unmatched !== 1 ? "s" : ""} not matched.` : "")
+      );
+      // Refresh pattern list
+      apiFetch("/api/daily-inventory/par-patterns")
+        .then((r) => r.json())
+        .then((data: { patterns?: string[] }) => setPatternNames(data.patterns || []))
+        .catch(() => {});
+    } catch { setPatternMsg("Weekly par import failed."); }
+    finally { setWeekdayImportBusy(false); }
   }
 
   async function handleSeedExcel() {
@@ -1100,6 +1141,28 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
               Create order-day patterns (e.g. Tue Order, Thu Order) with custom par levels.
               Download the template, fill in the Par Level column, then import.
             </p>
+            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-3 space-y-2">
+              <p className="text-xs font-semibold text-amber-300">Import Weekly Par (Branch × Day)</p>
+              <p className="text-xs text-zinc-400">
+                Upload the multi-branch/day Excel (TAFT, CUBAO, PARANAQUE × Sunday, Tuesday, Thursday).
+                Creates 9 patterns automatically: TAFT_Sunday, TAFT_Tuesday, etc.
+              </p>
+              <button
+                onClick={() => weekdayImportRef.current?.click()}
+                disabled={weekdayImportBusy}
+                className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/20 disabled:opacity-50"
+              >
+                {weekdayImportBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+                {weekdayImportBusy ? "Importing…" : "Import Weekly Par Excel"}
+              </button>
+              <input
+                ref={weekdayImportRef}
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleWeekdayImportFile(f); e.target.value = ""; }}
+              />
+            </div>
             {patternMsg && (
               <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/8 px-3 py-2 text-xs text-emerald-300">{patternMsg}</div>
             )}
