@@ -47,9 +47,9 @@ const SOURCE_TABS: { id: SourceType; label: string; color: string }[] = [
 
 // Sections used internally by CK only — not delivered to store kitchens.
 // Kitchen staff entering inventory via the CK tab should not see these.
-// Normalize underscores to spaces before comparing (DB stores both "HOT_BASE" and "HOT BASE").
+// Normalize underscores to spaces before comparing (DB stores both "HOT_SAUCE_BASE" and "HOT SAUCE BASE").
 const CK_INTERNAL_SECTIONS = new Set([
-  "HOT BASE", "INGREDIENTS", "KITCHEN", "MEAT ITEMS",
+  "HOT SAUCE BASE", "INGREDIENTS", "KITCHEN", "MEAT ITEMS",
   "RAMEN ITEMS", "SUSHI SAUCE BASE", "VEGETABLE",
 ]);
 const isCkInternalSection = (section: string) =>
