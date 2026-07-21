@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-21 (session 121s — NTE full feature implementation)
+Last updated: 2026-07-21 (session 121u — Par Level weekday template + NTE announcement)
 
 
 > **New session start protocol:**
@@ -12,7 +12,32 @@ Last updated: 2026-07-21 (session 121s — NTE full feature implementation)
 
 ## ⚠️ Deployments Pending
 
-なし — 全変更デプロイ済み (Vercel ce0817b, Heroku 6bad966)
+- Vercel: 4ed1720 (frontend weekday template button) — auto-deploying
+- Heroku: 7def29c (weekday template endpoint) — deploying in background
+
+## Recently Completed (2026-07-21 session 121u) — deploying
+
+### Par Level Import — Weekday Template Download + Unmatched Name Display
+
+**Root cause of par-level-not-changing bug**: the weekly par Excel import matches items by exact lowercase name. Staff Excel used simplified names (e.g. "Water Summit") but DB has full names (e.g. "Water Summit (500ml) 24pcs/case"). All items went to `unmatched_names[]` → pattern saved with 0 items → frontend auto-selection found no pattern → par values unchanged in Generate Purchase Request modal.
+
+**Backend (`app/daily_inventory_api.py`, Heroku 7def29c)**:
+- New `GET /api/daily-inventory/par-patterns/weekday-template` endpoint
+- Generates an Excel pre-filled with all active DB item names in the correct multi-column format (TAFT/CUBAO/PARANAQUE × Sunday/Tuesday/Thursday)
+- Row 2: branch headers (TAFT col C, CUBAO col F, PARANAQUE col I)
+- Row 3: day headers (Sunday/Tuesday/Thursday × 3)
+- Rows 4+: all active item names in column B (empty par cells to be filled by staff)
+
+**Frontend (`src/components/admin/AdminDailyInventoryTab.tsx`, Vercel 4ed1720)**:
+- "Download Template" (sky-blue) button added alongside "Import Weekly Par Excel" in the weekday import box
+- Import result message now shows unmatched item NAMES (not just count): `"3 item names not matched — names must exactly match the DB. Unmatched: Water Summit, Coke Mismo, ..."`
+- Updated description text in the UI to explain name matching requirement
+
+**How staff should use it going forward:**
+1. Click "Download Template" → Excel with correct item names pre-filled
+2. Fill in par values for each branch × day combination
+3. Click "Import Weekly Par Excel" → upload the filled Excel
+4. No more unmatched names since names come directly from DB
 
 ## ⚠️ Admin Action Required — NTE NavBar channel registration
 
@@ -20,6 +45,22 @@ Last updated: 2026-07-21 (session 121s — NTE full feature implementation)
 
 1. `/admin/staff/roles` → **"Resync System Channels"** ボタンをクリック
 2. 新チャンネルが表示されたら、HR Staff など必要なロールにパーミッションを付与
+
+## Recently Completed (2026-07-21 session 121t) — live (Heroku fcd105f)
+
+### NTE Implementation — Testing & Bug Fixes
+
+**Testing results (dev server verification):**
+- ✅ Issue Notice tab: Document Type dropdown shows all 3 options (NTE / Warning Letter / Final Warning)
+- ✅ NTE Request tab: Document Type dropdown present, correct options
+- ✅ Case History tab: renders correctly, "No NTE records." empty state
+- ✅ `/store/my-nte` page: KPI cards, empty state, Refresh button, "My Notices" NavBar highlight
+- ✅ NavBar "My Notices" link visible with badge polling wired up
+- ✅ All new Heroku endpoints return 401 (auth-protected, as expected): my-notices, notifications/badge, notifications/read, DELETE /cases/{id}, explain
+
+**Bugs fixed:**
+1. **`issue_nte()` notification failure masking issued NTE** (`db_nte.py`): `create_staff_notification()` is called after the NTE INSERT has already committed. If the notification INSERT failed (transient DB error), the caller received a 500 with no way to know the NTE was actually created. Fixed: wrapped `create_staff_notification()` in `try/except` with `pass` on failure — NTE issuance always succeeds independently of notification delivery.
+2. **`api_cases_delete()` returned 500 on malformed UUID** (`nte_api.py`): `DELETE /api/admin/cases/{case_id}` passed the raw `case_id` string directly to PostgreSQL's `::uuid` cast. If the path param is not a valid UUID, psycopg2 raises an unhandled exception → 500. Fixed: wrapped `delete_nte_record()` call in `try/except`, returns 422 with "Invalid NTE record ID." on DB exception.
 
 ## Recently Completed (2026-07-21 session 121s) — live (Vercel ce0817b, Heroku 6bad966)
 
