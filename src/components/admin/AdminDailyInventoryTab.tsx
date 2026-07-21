@@ -235,7 +235,7 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
     const qtys: Record<string, string> = {};
     const sel: Record<string, boolean> = {};
     const newModalItems: { item: InvItem; entry: ReportEntry }[] = [];
-    items.forEach((item) => {
+    items.filter((item) => item.source_type === detailSourceTab).forEach((item) => {
       const entry = entryMap[item.item_code];
       if (!entry || entry.qty === null) return;
       const par = (activePattern && patternLookup[item.item_code] !== undefined)
