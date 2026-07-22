@@ -385,6 +385,20 @@ function MenuProductsPageInner() {
     finally { setWorking(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
   }
 
+  async function importFromCost() {
+    if (!confirm(`Import all Cost Calculation products into Menu Builder for ${city.toUpperCase()}?\n\nExisting products with the same name will be overwritten (price, description, category updated). New products will be created with auto-assigned SKU.`)) return;
+    setWorking(true); setError(""); setSuccess(""); setImportFailures([]);
+    try {
+      const res = await menuPost<{ ok: boolean; created: number; updated: number; skipped: number; categories_created: number; errors: string[] }>(
+        "/api/admin/menu/products/import-from-cost",
+        { city, overwrite: true }
+      );
+      setSuccess(`Import from Cost Calculation complete — Created: ${res.created}, Updated: ${res.updated}, Skipped: ${res.skipped}, Categories auto-created: ${res.categories_created}.${res.errors?.length ? ` Errors: ${res.errors.join("; ")}` : ""}`);
+      await loadAll(city, tab, q, categoryFilter, 1, pageSize);
+    } catch (e: any) { setError(e?.message || String(e)); }
+    finally { setWorking(false); }
+  }
+
   async function applyBulkAction() {
     if (!selectedIds.length) return;
     setWorking(true); setError(""); setSuccess(""); setImportFailures([]);
@@ -503,6 +517,14 @@ function MenuProductsPageInner() {
                 ↓ Import
               </button>
               <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void importRows(f); }} />
+              <button
+                type="button"
+                onClick={() => void importFromCost()}
+                disabled={working}
+                className="flex items-center gap-1.5 rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-xs font-medium text-violet-300 transition hover:bg-violet-500/20 hover:text-violet-200 disabled:opacity-50"
+              >
+                ⟳ Import from Cost Calc
+              </button>
             </div>
           </div>
         </div>
