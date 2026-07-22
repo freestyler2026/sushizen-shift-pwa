@@ -120,6 +120,7 @@ type NavItem = {
   icon: LucideIcon;
   adminOnly?: boolean;
   match?: "exact" | "prefix";
+  excludePrefix?: string;
   external?: boolean;
   badgeCount?: number;
   badgeCritical?: boolean;
@@ -192,7 +193,7 @@ const ADMIN_ITEMS: NavItem[] = [
   { href: "/admin/os-attendance", label: "OS Attendance", icon: Fingerprint, adminOnly: true, match: "prefix" },
   { href: "/admin/absences", label: "Absences", icon: UserX, adminOnly: true, match: "exact" },
   { href: "/admin/renewals", label: "Renewals", icon: ScrollText, adminOnly: true, match: "prefix" },
-  { href: "/admin/staff", label: "Staff", icon: Users, adminOnly: true, match: "prefix" },
+  { href: "/admin/staff", label: "Staff", icon: Users, adminOnly: true, match: "prefix", excludePrefix: "/admin/staff/roles" },
   { href: "/admin/staff/roles", label: "Role Management", icon: Shield, adminOnly: true, match: "prefix" },
   { href: "/admin/draft", label: "Draft", icon: PenLine, adminOnly: true, match: "prefix" },
   { href: "/admin/manual-shift", label: "Manual Shift", icon: CalendarPlus, adminOnly: true, match: "prefix" },
@@ -231,7 +232,10 @@ const MOBILE_PRIMARY_HREFS = ["/attendance", "/my-shift", "/request", "/inbox"];
 
 function isActive(pathname: string, item: NavItem) {
   const mode = item.match || "exact";
-  if (mode === "prefix") return pathname === item.href || pathname.startsWith(item.href + "/");
+  if (mode === "prefix") {
+    if (item.excludePrefix && (pathname === item.excludePrefix || pathname.startsWith(item.excludePrefix + "/"))) return false;
+    return pathname === item.href || pathname.startsWith(item.href + "/");
+  }
   return pathname === item.href;
 }
 
