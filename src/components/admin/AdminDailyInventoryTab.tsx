@@ -850,7 +850,8 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const url = `${API_BASE}/api/daily-inventory/items/import-excel${replaceMode ? "?deactivate_others=true" : ""}`;
+      const srcParam = sourceFilter ? `&source_type=${encodeURIComponent(sourceFilter)}` : "";
+      const url = `${API_BASE}/api/daily-inventory/items/import-excel${replaceMode ? `?deactivate_others=true${srcParam}` : sourceFilter ? `?source_type=${encodeURIComponent(sourceFilter)}` : ""}`;
       // Use fetch directly with getUploadHeaders — apiFetch injects Content-Type: application/json
       // which overrides the multipart/form-data boundary the browser must set for file uploads
       const res = await fetch(url, {
