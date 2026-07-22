@@ -219,6 +219,11 @@ export default function ProcurementPoPage() {
   const [confNotes, setConfNotes] = useState("");
   const [confBusy, setConfBusy] = useState(false);
   const [confSuccess, setConfSuccess] = useState("");
+  // PO list filters
+  const [supplierFilter, setSupplierFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const supplierDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currency = city === "dubai" ? "AED" : "PHP";
 
@@ -227,9 +232,13 @@ export default function ProcurementPoPage() {
     setLoading(true);
     try {
       const trimmedRequestId = requestId.trim();
+      const trimmedSupplier = supplierFilter.trim();
+      const poQs = new URLSearchParams();
+      if (trimmedRequestId) poQs.set("request_id", trimmedRequestId);
+      if (trimmedSupplier) poQs.set("vendor_name", trimmedSupplier);
       const [poData, catalogData] = await Promise.all([
         procurementJson<{ rows: PoRow[] }>(
-          `/api/admin/procurement/pos?request_id=${encodeURIComponent(trimmedRequestId)}`,
+          `/api/admin/procurement/pos?${poQs.toString()}`,
           { method: "GET" },
           requestedBy,
           pin,
@@ -309,7 +318,26 @@ export default function ProcurementPoPage() {
     } finally {
       setLoading(false);
     }
-  }, [city, deliveryAddress, paymentTerms, pin, requestId, requestedBy]);
+  }, [city, deliveryAddress, paymentTerms, pin, requestId, requestedBy, supplierFilter]);
+
+  // Debounce supplier filter changes → auto-reload
+  useEffect(() => {
+    if (supplierDebounceRef.current) clearTimeout(supplierDebounceRef.current);
+    supplierDebounceRef.current = setTimeout(() => { void load(); }, 500);
+    return () => { if (supplierDebounceRef.current) clearTimeout(supplierDebounceRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supplierFilter]);
+
+  // Client-side date filter on top of server-filtered rows
+  const filteredRows = useMemo(() => {
+    if (!dateFrom && !dateTo) return rows;
+    return rows.filter((row) => {
+      const d = row.created_at ? row.created_at.slice(0, 10) : "";
+      if (dateFrom && d < dateFrom) return false;
+      if (dateTo && d > dateTo) return false;
+      return true;
+    });
+  }, [rows, dateFrom, dateTo]);
 
   const openConfirmModal = async (poId: string, poNo: string, vendorName: string) => {
     setConfirmModal({ poId, poNo, vendorName });
@@ -904,11 +932,59 @@ export default function ProcurementPoPage() {
         )}
       </div>
 
+      {/* PO search filters */}
+      <div className={`${GLASS_CARD} p-4`}>
+        <p className={`${T_SECTION} mb-3`}>Search / Filter POs</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Supplier Name</label>
+            <input
+              value={supplierFilter}
+              onChange={(e) => setSupplierFilter(e.target.value)}
+              placeholder="Type to search…"
+              className={INPUT_CLASS}
+            />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Created From</label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className={INPUT_CLASS}
+            />
+          </div>
+          <div>
+            <label className={`${T_LABEL} mb-1.5 block`}>Created To</label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className={INPUT_CLASS}
+            />
+          </div>
+        </div>
+        {(supplierFilter || dateFrom || dateTo) && (
+          <div className="mt-2 flex items-center justify-between">
+            <p className={T_CAPTION}>
+              {filteredRows.length} of {rows.length} PO{rows.length !== 1 ? "s" : ""} shown
+            </p>
+            <button
+              type="button"
+              onClick={() => { setSupplierFilter(""); setDateFrom(""); setDateTo(""); }}
+              className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              <X className="h-3 w-3" /> Clear filters
+            </button>
+          </div>
+        )}
+      </div>
+
       {/* PO list */}
       {rows.length > 0 && (
         <div className="space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600">Purchase Orders</p>
-          {rows.map((row) => (
+          {filteredRows.map((row) => (
             <div key={row.id} className={`${GLASS_CARD} p-4`}>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
