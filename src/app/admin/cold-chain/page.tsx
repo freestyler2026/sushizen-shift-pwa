@@ -200,7 +200,7 @@ function DispatchLog({ city, date }: { city: string; date: string }) {
   const toggleExpand = async (dispatchId: string) => {
     if (expanded === dispatchId) { setExpanded(null); return; }
     setExpanded(dispatchId);
-    if (boxesByDispatch[dispatchId]) return;
+    // Always refetch — branch staff may have submitted receiving data since last expand
     const res = await fetch(`/api/admin/cold-chain/dispatches/${dispatchId}`, {
       headers: getAuthHeaders(), cache: "no-store",
     });
