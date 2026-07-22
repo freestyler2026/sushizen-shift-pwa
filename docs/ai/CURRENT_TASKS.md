@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-22 (session 128 — Phase 1-4 testing + bug fixes)
+Last updated: 2026-07-22 (session 129 — Manila Payroll UX enhancements)
 
 
 
@@ -14,6 +14,8 @@ Last updated: 2026-07-22 (session 128 — Phase 1-4 testing + bug fixes)
 
 ## ⚠️ Deployments Pending
 
+- Heroku: 6815030 (Manila Payroll UX — attendance-summary endpoint) — deployed ✅
+- Vercel: 87e3acd (Manila Payroll UX enhancements) — auto-deploying
 - Heroku: eba2a28 (fix payroll: 4 bugs from Phase 1-4 testing) — deployed ✅ v1438
 - Heroku: 95bedac (Manila Payroll Phase 4 — Government report Excel endpoints) — deployed ✅ v1437
 - Vercel: e5f95b3 (fix payroll: report download handler Firefox + auth) — auto-deploying
@@ -54,6 +56,37 @@ After Heroku deploys 537a152:
 - Heroku: 4eb2305 (PO-Invoice Match DB + API) — deployed ✅
 - Vercel: 4313c0e (cost calc misplaced items panel) — deployed ✅
 - Heroku: 68a2689 (misplaced ingredient endpoints) — deployed ✅
+
+## Recently Completed (2026-07-22 session 129 — Manila Payroll UX)
+
+### Manila Payroll — UX Enhancements (DEPLOYED)
+
+**Staff Profiles (`staff-profiles/page.tsx`):**
+- Payroll readiness badge per staff: score/6 with color coding (green=6/6, amber=4-5, red=<4) and tooltip listing missing fields
+- Payroll Ready stat card added to stats grid (5th column)
+- Existing "← Back to Manila Payroll" link retained
+
+**Period Page (`[periodId]/page.tsx`):**
+- "Staff Profiles" cross-link button in header next to Compute All
+- `computeAllWithCheck`: checks profiles before running — if any staff missing required fields, shows warning modal
+- Missing data modal: lists each staff with missing fields, offers "Go to Staff Profiles" / "Compute Anyway" / "Cancel"
+- `itemFormula()` in PayslipDetail: shows formula hints per deduction code (PhilHealth clamp formula, SSS table description, Pag-IBIG formula, BIR half logic)
+- Attendance Overview collapsible section: worked/absent/late days + DTR status per staff with color coding
+- Background-loads staff profiles and attendance summary after runs load (non-blocking, seq-guarded)
+
+**Backend (`main.py`):**
+- New endpoint: `GET /api/admin/manila-payroll/periods/{period_id}/attendance-summary` — aggregates attendance stats for all staff in a period run
+
+**Commits:**
+- Heroku: 6815030 — attendance-summary endpoint
+- Vercel: 87e3acd — all frontend UX enhancements (incl. Vercel build fixes from session 128)
+
+## Recently Completed (2026-07-22 session 128 — Vercel build fix + Manila Payroll Phase 1-4)
+
+### Vercel Build Fix (DEPLOYED)
+- `eslint.config.mjs`: added `.vercel/**` to ignores (ESLint was scanning generated output files)
+- `remittances/page.tsx` line 386: raw `"` in JSX → `&ldquo;` / `&rdquo;` (react/no-unescaped-entities)
+- Commit: b3468b2
 
 ## Recently Completed (2026-07-22 session 123 — Manila Payroll Phase 0)
 
