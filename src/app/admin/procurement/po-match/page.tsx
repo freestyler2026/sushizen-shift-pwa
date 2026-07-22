@@ -401,7 +401,7 @@ function QuickEntryTab({
                 className={INPUT_CLASS}
                 placeholder="Type supplier name to search POs…"
                 value={vendorQ}
-                onChange={e => { setVendorQ(e.target.value); setSelectedPo(null); }}
+                onChange={e => { setVendorQ(e.target.value); setSelectedPo(null); setManualPoNo(""); }}
                 onKeyDown={e => e.key === "Enter" && searchPos(vendorQ)}
               />
               <button

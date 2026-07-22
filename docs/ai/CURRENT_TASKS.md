@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-22 (session 122a — HR Clearance Channel: full implementation)
+Last updated: 2026-07-22 (session 122d — Cash Management resubmission bug)
 
 
 
@@ -14,8 +14,11 @@ Last updated: 2026-07-22 (session 122a — HR Clearance Channel: full implementa
 
 ## ⚠️ Deployments Pending
 
-- Vercel: 5959ea3 (HR Clearance page + NavBar + auth) — deploying 🚀
-- Heroku: 5d30384 (HR Clearance DB + API + access_control) — deploying 🚀
+- Heroku: f6c9636 (Cash report resubmission fix) — deployed ✅ v1428
+- Vercel: 5037d0d (Daily Inv Warehouse sync button) — deploying 🚀
+- Heroku: 9aa43e2 (Daily Inv seed-warehouse endpoint) — deployed ✅ v1424
+- Vercel: 6616a7f (HR Clearance 9 bug fixes) — deployed ✅
+- Heroku: 537a152 (HR Clearance 9 bug fixes) — deployed ✅
 - Vercel: d73708d (PO Match city badge in dropdown) — deployed ✅
 - Heroku: 27c2dc8 (PO Match search: remove city filter + union proc_requests) — deployed ✅
 - Vercel: 5bf1760 (PO Match city/currency fix — Manila) — deployed ✅
@@ -24,10 +27,11 @@ Last updated: 2026-07-22 (session 122a — HR Clearance Channel: full implementa
 
 ## ⚠️ Post-deploy Steps Required
 
-After Heroku deploys 5d30384:
+After Heroku deploys 537a152:
 1. Go to Role Management → "Resync System Channels" — adds `admin.hr_clearance` to DB
 2. Custom roles (e.g. HR Staff) need manual permission grant in Roles tab
 3. The `hr_clearance_cases` table auto-creates on first API call (via `ensure_hr_clearance_tables()`)
+4. `stage5_notes` column is added via `ALTER TABLE IF NOT EXISTS` — safe to run on existing DB
 
 ### Previous sessions
 - Vercel: 29276fd (PO Match bug fixes from testing) — deployed ✅
@@ -36,6 +40,39 @@ After Heroku deploys 5d30384:
 - Heroku: 4eb2305 (PO-Invoice Match DB + API) — deployed ✅
 - Vercel: 4313c0e (cost calc misplaced items panel) — deployed ✅
 - Heroku: 68a2689 (misplaced ingredient endpoints) — deployed ✅
+
+## Recently Completed (2026-07-22 session 122d)
+
+### Cash Management — Closing Report Resubmission Zeroes Opening Balance (FIXED)
+- **Root cause**: When a cashier resubmits a closing report (e.g. to add QRPH transactions), the reference endpoint (`api_cr_get_reference`) called `get_latest_cash_report(b, "OPENING")` and checked if its date matched `rdate`. Days later, the latest OPENING is for today, not the original date → `prev = None` → frontend received null reference → sent `opening_balance: null` → `ON CONFLICT DO UPDATE` overwrote stored `opening_balance` with null → false cash discrepancy = original opening balance
+- **Fix 1 (cash_report_api.py)**: Added fallback `get_cash_report_by_date_type(b, rdate, "OPENING")` when latest-OPENING date doesn't match `rdate`; resubmissions days later now correctly receive the matching opening report
+- **Fix 2 (db_cash_report.py)**: Added `get_cash_report_by_date_type()` helper; in `submit_cash_report()`, if `opening_balance is None` on CLOSING resubmit, auto-recover from the previously stored CLOSING report
+- **Fix 3 (db_cash_report.py)**: Changed `opening_balance = EXCLUDED.opening_balance` to `COALESCE(EXCLUDED.opening_balance, cash_reports.opening_balance)` in ON CONFLICT DO UPDATE as final safety net
+- **Commit**: Heroku f6c9636 v1428
+
+## Recently Completed (2026-07-22 session 122c)
+
+### Daily Inventory — Warehouse Items Missing (FIXED)
+- **Root cause**: `daily_inv_report_items` (Daily Inventory master) and `proc_curated_catalog_items` (Order Catalog) are separate tables. Only K028-K040 (boxes) had been manually added with `source_type='warehouse'`; the other ~48 WH items existed only in the catalog
+- **Fix (backend, db_daily_inventory.py)**: Added `seed_warehouse_items_from_catalog(city)` — queries `proc_curated_catalog_items WHERE order_type='WH' AND active=TRUE` and upserts into `daily_inv_report_items` with `source_type='warehouse', is_commissary=FALSE`; item_code generated from SKU (WH-prefixed) or WH001/002/...
+- **Fix (backend, daily_inventory_api.py)**: Added `POST /api/daily-inventory/items/seed-warehouse` endpoint; imports new function
+- **Fix (frontend, AdminDailyInventoryTab.tsx)**: Added "Sync WH Items" button (amber, visible only on Warehouse tab); calls endpoint and reloads item list
+- **Result**: After clicking "Sync WH Items", all active WH catalog items appear in Daily Inventory and in the Excel template download
+- **Commits**: Vercel 5037d0d, Heroku 9aa43e2
+
+## Recently Completed (2026-07-22 session 122b)
+
+### HR Clearance — 9 Bug Fixes from Testing
+- **Bug 2 (HIGH)**: `row["status"]` → `row.get("status")` in `advance_hr_clearance_stage` — bracket notation crashes with RealDictCursor
+- **Bug 3**: Stage gate on `PATCH /final-pay` — now blocks edits when `current_stage > 0`
+- **Bug 4**: Added `channel.admin.hr` to `canAccessHrClearanceAdmin()` in auth.ts (backend accepted it but frontend blocked it)
+- **Bug 5**: `employee_name` non-empty validation on `POST /clearance` (400 if blank)
+- **Bug 6**: Added `stage5_notes` column (`ALTER TABLE IF NOT EXISTS`); stage 4→5 advance now stores notes
+- **Bug 7**: Added `with conn:` wrapper to `list_hr_clearance_cases` + `get_hr_clearance_case` (psycopg2 transaction safety)
+- **Bug 8**: KPI label "Total" → "Shown" (count reflects current filter, not all cases)
+- **Bug 9**: `useEffect` to reopen FinalPaySection when stage returns to 0 after Return-to-Draft
+- **Bug 10**: UUID format regex validation → 400 instead of 500 for malformed case IDs
+- **Commits**: Vercel 6616a7f, Heroku 537a152
 
 ## Recently Completed (2026-07-22 session 122a)
 

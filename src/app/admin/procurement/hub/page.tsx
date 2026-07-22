@@ -254,6 +254,7 @@ export default function ProcurementHubPage() {
   const [filterSupplier, setFilterSupplier] = useState("");
   const [filterGroup, setFilterGroup] = useState<StatusGroup>("all");
   const [filterDailyInvOnly, setFilterDailyInvOnly] = useState(false);
+  const supplierDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [rows, setRows] = useState<HubRow[]>([]);
 
@@ -374,6 +375,19 @@ export default function ProcurementHubPage() {
     if (allowed) void load();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city]);
+
+  // Auto-search when supplier filter changes (debounced 500ms)
+  useEffect(() => {
+    if (!allowed) return;
+    if (supplierDebounce.current) clearTimeout(supplierDebounce.current);
+    supplierDebounce.current = setTimeout(() => {
+      void load();
+    }, 500);
+    return () => {
+      if (supplierDebounce.current) clearTimeout(supplierDebounce.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterSupplier]);
 
   // Counts per group
   const counts = useMemo(() => {
@@ -679,6 +693,9 @@ export default function ProcurementHubPage() {
                     <span>By <span className="text-zinc-200">{row.requested_by || "—"}</span></span>
                     <span>Store <span className="text-zinc-200">{row.store_code || "—"}</span></span>
                     <span>Date <span className="text-zinc-200">{fmt(row.request_date)}</span></span>
+                    {row.created_at && (
+                      <span>Created <span className="text-zinc-200">{fmt(row.created_at)}</span></span>
+                    )}
                     <span>
                       Amount{" "}
                       <span className="font-semibold text-zinc-200">
