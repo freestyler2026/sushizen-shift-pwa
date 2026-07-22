@@ -50,6 +50,10 @@ type StaffProfile = {
   is_active: boolean;
   cola: string | null;
   is_minimum_wage_earner: boolean;
+  rice_allowance: string | null;
+  clothing_allowance: string | null;
+  laundry_allowance: string | null;
+  medical_allowance: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -80,6 +84,10 @@ type FormState = {
   is_active: boolean;
   cola: string;
   is_minimum_wage_earner: boolean;
+  rice_allowance: string;
+  clothing_allowance: string;
+  laundry_allowance: string;
+  medical_allowance: string;
 };
 
 function emptyForm(): FormState {
@@ -94,6 +102,7 @@ function emptyForm(): FormState {
     civil_status: "", num_qualified_dependents: 0, mdr_submitted: false, mdr_submitted_date: "", mdr_notes: "",
     is_active: true,
     cola: "", is_minimum_wage_earner: false,
+    rice_allowance: "", clothing_allowance: "", laundry_allowance: "", medical_allowance: "",
   };
 }
 
@@ -124,6 +133,10 @@ function profileToForm(p: StaffProfile): FormState {
     is_active: p.is_active,
     cola: p.cola ?? "",
     is_minimum_wage_earner: p.is_minimum_wage_earner ?? false,
+    rice_allowance:     p.rice_allowance ?? "",
+    clothing_allowance: p.clothing_allowance ?? "",
+    laundry_allowance:  p.laundry_allowance ?? "",
+    medical_allowance:  p.medical_allowance ?? "",
   };
 }
 
@@ -179,6 +192,10 @@ function ProfileModal({
         mdr_notes: form.mdr_notes,
         cola: form.cola ? parseFloat(form.cola) : 0,
         is_minimum_wage_earner: form.is_minimum_wage_earner,
+        rice_allowance:     form.rice_allowance     ? parseFloat(form.rice_allowance)     : 0,
+        clothing_allowance: form.clothing_allowance ? parseFloat(form.clothing_allowance) : 0,
+        laundry_allowance:  form.laundry_allowance  ? parseFloat(form.laundry_allowance)  : 0,
+        medical_allowance:  form.medical_allowance  ? parseFloat(form.medical_allowance)  : 0,
       };
       const r = await apiFetch(`${API}/staff-profiles/${encodeURIComponent(form.staff_name.trim())}`, {
         method: "PUT",
@@ -414,6 +431,36 @@ function ProfileModal({
               <input className={I} value={form.mdr_notes}
                 onChange={e => set("mdr_notes", e.target.value)}
                 placeholder="e.g. Sent via email 2026-07-20" />
+            </div>
+
+            {/* De Minimis */}
+            <div className="col-span-2 mt-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">De Minimis Benefits (BIR RR 8-2012)</p>
+              <p className="text-xs text-slate-600 mb-3">Amounts actually paid per month — exempt from BIR WHT up to the statutory cap shown below.</p>
+            </div>
+            <div>
+              <label className={L}>Rice Subsidy (PHP/month)</label>
+              <input className={I} type="number" min="0" step="0.01" value={form.rice_allowance}
+                onChange={e => set("rice_allowance", e.target.value)} placeholder="0.00" />
+              <p className="mt-1 text-xs text-slate-500">BIR cap: ₱2,000/month</p>
+            </div>
+            <div>
+              <label className={L}>Clothing / Uniform Allowance (PHP/month)</label>
+              <input className={I} type="number" min="0" step="0.01" value={form.clothing_allowance}
+                onChange={e => set("clothing_allowance", e.target.value)} placeholder="0.00" />
+              <p className="mt-1 text-xs text-slate-500">BIR cap: ₱500/month (₱6,000/year)</p>
+            </div>
+            <div>
+              <label className={L}>Laundry Allowance (PHP/month)</label>
+              <input className={I} type="number" min="0" step="0.01" value={form.laundry_allowance}
+                onChange={e => set("laundry_allowance", e.target.value)} placeholder="0.00" />
+              <p className="mt-1 text-xs text-slate-500">BIR cap: ₱300/month</p>
+            </div>
+            <div>
+              <label className={L}>Medical Cash Allowance (PHP/month)</label>
+              <input className={I} type="number" min="0" step="0.01" value={form.medical_allowance}
+                onChange={e => set("medical_allowance", e.target.value)} placeholder="0.00" />
+              <p className="mt-1 text-xs text-slate-500">BIR cap: ₱250/month (to dependents)</p>
             </div>
 
             {/* Payment */}
