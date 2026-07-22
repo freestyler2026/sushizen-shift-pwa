@@ -66,6 +66,7 @@ type PoRow = {
   currency: string;
   po_date: string;
   status: string;
+  city?: string;
 };
 
 type CheckRow = {
@@ -417,9 +418,16 @@ function QuickEntryTab({
                       className="flex w-full items-center justify-between px-4 py-2.5 text-left text-sm hover:bg-violet-500/10"
                       onClick={() => selectPo(po)}
                     >
-                      <span className="text-zinc-200">{po.vendor_name}</span>
+                      <span className="flex items-center gap-2 text-zinc-200">
+                        {po.vendor_name}
+                        {po.city && (
+                          <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${po.city === "dubai" ? "bg-amber-500/20 text-amber-300" : "bg-blue-500/20 text-blue-300"}`}>
+                            {po.city === "dubai" ? "DXB" : "MNL"}
+                          </span>
+                        )}
+                      </span>
                       <span className="ml-2 text-right text-zinc-400">
-                        {po.po_no} · {fmtAmount(po.po_amount, currency)} · {po.po_date?.slice(0, 10)}
+                        {po.po_no} · {fmtAmount(po.po_amount, po.currency || currency)} · {po.po_date?.slice(0, 10)}
                       </span>
                     </button>
                   ))}
