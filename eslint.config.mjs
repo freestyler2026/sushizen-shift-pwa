@@ -20,6 +20,7 @@ const config = [
     ignores: [
       ".next/**",
       ".next-dev/**",
+      ".vercel/**",
       "out/**",
       "build/**",
       "next-env.d.ts",

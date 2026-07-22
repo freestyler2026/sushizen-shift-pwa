@@ -383,7 +383,7 @@ export default function RemittancesPage() {
         <div className={GLASS_CARD + " py-16 text-center"}>
           <ReceiptText className="mx-auto mb-3 text-slate-600" size={40}/>
           <p className="text-slate-400">No remittance records for {filterYear}.</p>
-          <p className="mt-1 text-xs text-slate-500">Use "Add Record" to create one, or generate from an approved payroll period.</p>
+          <p className="mt-1 text-xs text-slate-500">Use &ldquo;Add Record&rdquo; to create one, or generate from an approved payroll period.</p>
         </div>
       ) : (
         <div className={GLASS_CARD + " overflow-x-auto"}>
