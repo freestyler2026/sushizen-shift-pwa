@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-21 (session 121x — Cost Calc fallback + Dubai Break Limit fix)
+Last updated: 2026-07-22 (session 121z — PO Match vendor/PO search fix: remove city filter + union proc_requests)
 
 
 
@@ -14,27 +14,57 @@ Last updated: 2026-07-21 (session 121x — Cost Calc fallback + Dubai Break Limi
 
 ## ⚠️ Deployments Pending
 
+- Vercel: d73708d (PO Match city badge in dropdown) — deployed ✅
+- Heroku: 27c2dc8 (PO Match search: remove city filter + union proc_requests) — deployed ✅
+- Vercel: 5bf1760 (PO Match city/currency fix — Manila) — deployed ✅
 - Vercel: 804d650 (Dubai break limit 120min fix) — deployed ✅
-- Heroku: f2563c7 (cost_component_options fallback fix) — deployed ✅ v1417
+- Heroku: 4c9ca57 (cost_component_options direct SQL fix) — deployed ✅ v1418
 
 ### Previous sessions
 - Vercel: 29276fd (PO Match bug fixes from testing) — deployed ✅
 - Heroku: 3ef7542 (PO Match 3 data bugs fixed) — deployed ✅ v1412
-
-### Previous sessions
 - Vercel: 72db83c (PO-Invoice Match page + ProcurementTabs) — deployed ✅
 - Heroku: 4eb2305 (PO-Invoice Match DB + API) — deployed ✅
 - Vercel: 4313c0e (cost calc misplaced items panel) — deployed ✅
 - Heroku: 68a2689 (misplaced ingredient endpoints) — deployed ✅
 
-## Recently Completed (2026-07-21 session 121x)
+## Recently Completed (2026-07-22 session 121z)
 
-### Cost Calculation — Processed Item component search fallback
-- **Problem**: "Aburi Salmon Nigiri / Mayo" (PHP 14.60, active) missing from component-options dropdown
-- **Root cause**: `list_cost_component_options` silently skips items when `_compute_cost_master_item_totals` throws; psycopg2 transaction cascade causes subsequent items to also fail
-- **Fix** (`app/db.py` ~line 24942): added `conn.rollback()` + fallback to stored `cost_unit_price` via `_get_cost_menu_item_record` when live compute fails
-- **Lesson**: always rollback + fallback on DB compute errors in loop contexts (see CLAUDE.md lesson 7)
-- **Deployed**: Heroku v1417 (commit f2563c7); user confirmed working
+### PO Invoice Match — Vendor/PO Search Returns No Results (FIXED)
+- **Problem**: Searching "Three", "JB", or "PO-CASE-2026-001969-01" returned zero results
+- **Root causes**:
+  1. City filter `LOWER(COALESCE(r.city, 'dubai')) = %s` was too strict — blocked Dubai suppliers when Manila mode active (and vice versa), and could fail if city metadata inconsistent
+  2. `proc_purchase_orders` only has formal POs created via "Generate PO" button. Many approved requests with vendor items are never saved to `proc_purchase_orders` at all (only CK orders are auto-created). Staff can issue a PO to a supplier without it landing in this table.
+- **Fix — `app/db.py` `list_recent_pos_for_match`**:
+  - Removed city from WHERE clause entirely → search is now city-agnostic
+  - Added UNION with `proc_requests JOIN proc_request_items` as a second source (approved/in-review requests without a formal PO record). Uses `parent_case_no` (e.g. "CASE-2026-001969") as the displayed PO number. Excludes requests that already have a `proc_purchase_orders` row.
+  - Added `city` to SELECT so UI can label each result DXB or MNL
+  - Sort: formal POs first, then request-based results
+- **Fix — `src/app/admin/procurement/po-match/page.tsx`**:
+  - Added `city?: string` to `PoRow` type
+  - Show amber `DXB` / blue `MNL` badge next to vendor name in dropdown
+  - Use `po.currency` from API response for amount formatting in dropdown
+- **Deployed**: Heroku 27c2dc8, Vercel d73708d
+
+## Recently Completed (2026-07-21 session 121y)
+
+### Cost Calculation — Processed Item component search (PERMANENT FIX, 4th attempt)
+- **Problem**: "Aburi Salmon Nigiri / Mayo" (and all processed items) missing from component-options dropdown. Same issue recurred 4 times due to unstable rollback+fallback loop.
+- **Root cause (fundamental)**: `list_cost_component_options` called `_compute_cost_master_item_totals` per item in a loop. Any single compute failure triggered `conn.rollback()`, but psycopg2 cascade still corrupted the shared cursor state for subsequent items. Even with fallback, the loop was inherently fragile.
+- **Permanent fix** (`app/db.py` `list_cost_component_options`): Replaced the entire compute-loop with a single direct SQL SELECT from `menu_item_master` using stored `cost_unit_price`. No computation, no cascade risk, no per-item error handling needed.
+- **Why this won't recur**: No calls to `_compute_cost_master_item_totals` in the listing path — just two simple SELECTs (ingredients + processed items). Stored `cost_unit_price` is always available and reliable.
+- **Deployed**: Heroku v1418 (commit 4c9ca57)
+
+### PO Invoice Match — City/Currency fix (Manila users couldn't see their POs)
+- **Problem**: `const CITY = "dubai"` hard-coded; `list_recent_pos_for_match` only returned Dubai POs; all currency labels showed "AED"
+- **Fix** (`src/app/admin/procurement/po-match/page.tsx`): Added `getCity()` + `getCurrency()` helpers reading from `getAuth()?.city` at render time; replaced all 5 CITY references and 15 AED occurrences; `currency` in POST body now uses `getCurrency()`
+- **Deployed**: Vercel commit 5bf1760
+
+### Attendance — Dubai Split Schedule Break Overrun (false alert fix)
+- **Problem**: Dubai staff (Yogesh Bashyal, Raj Deeban Jegan) reported false "Break overrun" for 2-hour split schedule breaks
+- **Root cause**: `attendance/page.tsx` hard-coded 60-minute break limit for all cities
+- **Fix**: Dynamic `breakLimitSec = auth?.city === "dubai" ? 7200 : 3600` (Dubai: 120min, Manila: 60min)
+- **Deployed**: Vercel commit 804d650
 
 ### Attendance — Dubai Split Schedule Break Overrun (false alert fix)
 - **Problem**: Dubai staff (Yogesh Bashyal, Raj Deeban Jegan) reported false "Break overrun" for 2-hour split schedule breaks
