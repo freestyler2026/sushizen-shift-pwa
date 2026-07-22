@@ -2,7 +2,7 @@
 
 import {
   AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, ChevronDown,
-  ChevronUp, Clock, Eye, EyeOff, Loader2, MinusCircle, PlusCircle,
+  ChevronUp, Clock, Download, Eye, EyeOff, Loader2, MinusCircle, PlusCircle,
   Play, Printer, Send, Trash2, X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -1178,6 +1178,50 @@ export default function ManilaPayrollPeriodPage() {
                 <div className="mt-2 flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-900/20 px-3 py-2 text-xs text-amber-300">
                   <AlertTriangle size={14} />
                   Below minimum wage (₱695/day): {nonCompliant.map(r => r.staff_name).join(", ")}
+                </div>
+              )}
+
+              {/* Government Reports — only available for 2nd-half periods */}
+              {period && period.period_half === 2 && runs.length > 0 && (
+                <div className="mt-3 rounded-xl border border-white/5 bg-white/3 p-3">
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                    Government Reports
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: "SSS R-3",         path: "sss-r3",         color: "border-blue-500/30 text-blue-300 hover:bg-blue-900/20" },
+                      { label: "PhilHealth RF-1",  path: "philhealth-rf1", color: "border-emerald-500/30 text-emerald-300 hover:bg-emerald-900/20" },
+                      { label: "Pag-IBIG MCRF",   path: "pagibig-mcrf",   color: "border-red-500/30 text-red-300 hover:bg-red-900/20" },
+                      { label: "BIR 1601-C",      path: "bir-1601c",      color: "border-amber-500/30 text-amber-300 hover:bg-amber-900/20" },
+                    ].map(({ label, path, color }) => (
+                      <button
+                        key={path}
+                        onClick={() => {
+                          const auth = (typeof window !== "undefined" ? JSON.parse(localStorage.getItem("sushizen_shift_auth") || "{}") : {}) as { accessToken?: string };
+                          const url = `/api/admin/manila-payroll/reports/${path}/${periodId}`;
+                          fetch(url, {
+                            headers: auth.accessToken ? { Authorization: `Bearer ${auth.accessToken}` } : {},
+                          })
+                            .then(async r => {
+                              if (!r.ok) throw new Error(await r.text());
+                              return r.blob();
+                            })
+                            .then(blob => {
+                              const a = document.createElement("a");
+                              a.href = URL.createObjectURL(blob);
+                              a.download = `${label.replace(/\s+/g, "_")}_${period.period_label.replace(/\s+/g, "_")}.xlsx`;
+                              a.click();
+                              URL.revokeObjectURL(a.href);
+                            })
+                            .catch(e => setError(String(e)));
+                        }}
+                        className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors ${color}`}
+                      >
+                        <Download size={12} />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
