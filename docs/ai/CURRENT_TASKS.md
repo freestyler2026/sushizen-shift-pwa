@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-22 (session 127 — Manila Payroll Phase 4 Government Reports)
+Last updated: 2026-07-22 (session 128 — Phase 1-4 testing + bug fixes)
 
 
 
@@ -14,8 +14,10 @@ Last updated: 2026-07-22 (session 127 — Manila Payroll Phase 4 Government Repo
 
 ## ⚠️ Deployments Pending
 
-- Heroku: 95bedac (Manila Payroll Phase 4 — Government report Excel endpoints) — deploying
-- Vercel: b301a9e (Manila Payroll Phase 4 — Government Reports section in period page) — auto-deploying
+- Heroku: eba2a28 (fix payroll: 4 bugs from Phase 1-4 testing) — deployed ✅ v1438
+- Heroku: 95bedac (Manila Payroll Phase 4 — Government report Excel endpoints) — deployed ✅ v1437
+- Vercel: e5f95b3 (fix payroll: report download handler Firefox + auth) — auto-deploying
+- Vercel: b301a9e (Manila Payroll Phase 4 — Government Reports section in period page) — deployed ✅
 - Heroku: 607ea77 (Manila Payroll Phase 3 — SSS WISP split + Pag-IBIG voluntary) — deployed ✅ v1436
 - Vercel: 91303b6 (Manila Payroll Phase 3 — Pag-IBIG voluntary UI) — deployed ✅
 - Heroku: b3b7555 (Manila Payroll Phase 2 — De Minimis BIR exemption engine) — deployed ✅ v1435
@@ -90,9 +92,28 @@ After Heroku deploys 537a152:
 - ~~Phase 3: SSS WISP separation + Pag-IBIG voluntary~~ → DONE (see below)
 - ~~Phase 4: Government report generation (R-3, RF-1, MCRF, 1601-C)~~ → DONE (see below)
 
+## Recently Completed (2026-07-22 session 128 — Phase 1-4 Testing + Bug Fixes)
+
+### Manila Payroll — Phase 1-4 Test Suite + Production Bug Fixes (DEPLOYED ✅ eba2a28 v1438)
+
+**Test suite (`tests/test_phase2_to_4_standalone.py`):**
+- 54 standalone unit tests (no DB, no conftest.py) — all PASS
+- Tests cover: PhilHealth/Pag-IBIG/SSS math, De Minimis BIR deduction, WISP split, voluntary Pag-IBIG, BIR WHT computation, employer costs, 2nd-half-only statutory enforcement
+- Run with: `python3 tests/test_phase2_to_4_standalone.py` (not `pytest`)
+
+**4 production bugs found and fixed:**
+
+1. **Missing ITEM_LABELS** (`manila_payroll_engine.py`): `SSS_WISP_EE`, `SSS_WISP_ER`, `PAGIBIG_VOLUNTARY_EE` had no labels → payslips showed raw code strings. Fixed: added 3 entries + clarified `PAGIBIG_EE` to "(Mandatory)".
+
+2. **Phase 1 generate-from-period omits WISP + voluntary** (`main.py`): The SQL IN clause and `_sum()` calls in the remittance auto-generation endpoint were missing `SSS_WISP_EE`, `SSS_WISP_ER`, `PAGIBIG_VOLUNTARY_EE` → understated SSS and Pag-IBIG totals for high earners / voluntary contributors. Fixed.
+
+3. **Dead helper functions removed** (`main.py`): `_hdr()` and `_money()` were defined but never called by any report endpoint. Removed.
+
+4. **Frontend download handler** (`[periodId]/page.tsx`): (a) `<a>` element not appended to DOM before `.click()` — Firefox requires this. (b) auth header duplication — was reading from `localStorage` directly instead of using `apiFetch()`. Both fixed (commit e5f95b3).
+
 ## Recently Completed (2026-07-22 session 127 — Manila Payroll Phase 4)
 
-### Manila Payroll — Phase 4 Government Report Downloads (deploying)
+### Manila Payroll — Phase 4 Government Report Downloads (DEPLOYED ✅ v1437)
 
 **Backend (`main.py`)** — 4 new GET endpoints after remittances section:
 - `GET /api/admin/manila-payroll/reports/sss-r3/{period_id}` → SSS R-3 Excel (EE/ER/EC + WISP split, SS number per staff)
