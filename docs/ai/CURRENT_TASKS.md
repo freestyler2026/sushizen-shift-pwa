@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-22 (session 121z — PO Match vendor/PO search fix: remove city filter + union proc_requests)
+Last updated: 2026-07-22 (session 122a — HR Clearance Channel: full implementation)
 
 
 
@@ -14,11 +14,20 @@ Last updated: 2026-07-22 (session 121z — PO Match vendor/PO search fix: remove
 
 ## ⚠️ Deployments Pending
 
+- Vercel: 5959ea3 (HR Clearance page + NavBar + auth) — deploying 🚀
+- Heroku: 5d30384 (HR Clearance DB + API + access_control) — deploying 🚀
 - Vercel: d73708d (PO Match city badge in dropdown) — deployed ✅
 - Heroku: 27c2dc8 (PO Match search: remove city filter + union proc_requests) — deployed ✅
 - Vercel: 5bf1760 (PO Match city/currency fix — Manila) — deployed ✅
 - Vercel: 804d650 (Dubai break limit 120min fix) — deployed ✅
 - Heroku: 4c9ca57 (cost_component_options direct SQL fix) — deployed ✅ v1418
+
+## ⚠️ Post-deploy Steps Required
+
+After Heroku deploys 5d30384:
+1. Go to Role Management → "Resync System Channels" — adds `admin.hr_clearance` to DB
+2. Custom roles (e.g. HR Staff) need manual permission grant in Roles tab
+3. The `hr_clearance_cases` table auto-creates on first API call (via `ensure_hr_clearance_tables()`)
 
 ### Previous sessions
 - Vercel: 29276fd (PO Match bug fixes from testing) — deployed ✅
@@ -27,6 +36,29 @@ Last updated: 2026-07-22 (session 121z — PO Match vendor/PO search fix: remove
 - Heroku: 4eb2305 (PO-Invoice Match DB + API) — deployed ✅
 - Vercel: 4313c0e (cost calc misplaced items panel) — deployed ✅
 - Heroku: 68a2689 (misplaced ingredient endpoints) — deployed ✅
+
+## Recently Completed (2026-07-22 session 122a)
+
+### HR Clearance Channel — Full Implementation (NEW)
+- **What**: Exit clearance workflow for resigning/terminated staff — final pay calculation + 6-stage approval pipeline
+- **Route**: `/admin/hr/clearance` — Manila + Dubai, HR/Admin access
+- **Backend** (`app/db_hr.py`): `hr_clearance_cases` table auto-created; CRUD functions; `advance_hr_clearance_stage` enforces sequential order (can't skip from 1 → 3); `update_hr_clearance_final_pay` auto-calculates net pay from earnings/deductions breakdown
+- **API** (`app/main.py`): `GET/POST /api/admin/hr/clearance`, `GET /api/admin/hr/clearance/{id}`, `PATCH .../final-pay`, `POST .../stage`, `POST .../cancel`; `_clearance_auth_check` requires HQ/ADMIN or `channel.admin.hr_clearance.*`
+- **Access control** (`app/access_control.py`): channel `admin.hr_clearance` (sort 266, after hr_separation); permissions `hr_clearance.view/manage` added to HR_MANAGER and ADMIN roles
+- **Frontend** (`src/app/admin/hr/clearance/page.tsx`): KPI strip, city/status filters, case cards with expandable Final Pay section (earnings + deductions → live net pay), stage timeline with advance/return buttons; Create modal
+- **NavBar**: HR Clearance entry with `ScrollText` icon; permission guard via `canAccessHrClearanceAdmin()`
+- **6 stages**: 0=Draft (input final pay) → 1=1st Review → 2=2nd Review → 3=3rd Review → 4=Finalized → 5=Email Sent → 6=Payment Done; return resets all stages to 0
+- **Post-deploy**: Run "Resync System Channels" in Role Management; custom roles need manual permission grant
+- **Commits**: Vercel 5959ea3, Heroku 5d30384
+
+### NavBar Dual Highlight Bug (FIXED — this session)
+- **Problem**: Staff + Role Management both highlighted when on `/admin/staff/roles`
+- **Fix** (`src/components/NavBar.tsx`): Added `excludePrefix?: string` to `NavItem`; `isActive` skips prefix match when URL starts with `excludePrefix`; Staff item gets `excludePrefix: "/admin/staff/roles"`
+
+### Camilla Access Issues (DIAGNOSED — this session)
+- **Problem**: Staff Pending Staff Setup, Payroll, Notice to Explain not visible
+- **Root cause**: Stale localStorage auth token from before role was updated in DB
+- **Solution**: Camilla must log out and log back in to remint token
 
 ## Recently Completed (2026-07-22 session 121z)
 
