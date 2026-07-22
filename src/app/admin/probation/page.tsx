@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getAuth, refreshAuthFromApi } from "@/lib/auth";
 import { API_BASE } from "@/lib/api";
+import SelectDark from "@/components/SelectDark";
 import {
   GLASS_CARD, PRIMARY_BUTTON, SECONDARY_BUTTON, INPUT_CLASS,
   T_PAGE_TITLE, T_LABEL, BADGE_ERROR, BADGE_WARNING, BADGE_SUCCESS, BADGE_INFO,
@@ -284,13 +285,12 @@ export default function ProbationPage() {
           <div className="flex-1 min-w-[200px]">
             <label className={`${T_LABEL} mb-1 block`}>Staff Name</label>
             {staffNames.length > 0 ? (
-              <select value={hiredAtName} onChange={(e) => setHiredAtName(e.target.value)}
-                className={INPUT_CLASS + " cursor-pointer"}>
-                <option value="">— Select active staff —</option>
-                {staffNames.map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
+              <SelectDark
+                value={hiredAtName}
+                onChange={setHiredAtName}
+                options={staffNames}
+                placeholder="— Select active staff —"
+              />
             ) : (
               <input value={hiredAtName} onChange={(e) => setHiredAtName(e.target.value)}
                 placeholder="Full name (exact match)" className={INPUT_CLASS} />
