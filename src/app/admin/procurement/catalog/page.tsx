@@ -13,7 +13,6 @@ import {
   T_CARD_TITLE,
   T_LABEL,
   T_CAPTION,
-  BADGE_SUCCESS,
   BADGE_WARNING,
   BADGE_INFO,
 } from "@/lib/ui-tokens";
@@ -356,6 +355,35 @@ export default function ProcurementCatalogPage() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setDeleteBusy(false);
+    }
+  }
+
+  async function handleQuickToggleActive(row: CatalogRow) {
+    if (!requestedBy || !pin) {
+      setError("Enter Approver Name and PIN first, then load the catalog.");
+      return;
+    }
+    const label = row.active ? "deactivate" : "activate";
+    if (!window.confirm(`${row.active ? "Deactivate" : "Activate"} "${row.item_name}"?`)) return;
+    setError("");
+    try {
+      await procurementJson(
+        "/api/admin/procurement/catalog/curated/upsert",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            approver_name: requestedBy,
+            pin,
+            rows: [{ ...row, active: !row.active, city }],
+          }),
+        },
+        requestedBy,
+        pin,
+      );
+      setSuccessMsg(`"${row.item_name}" ${label}d.`);
+      setRows((prev) => prev.map((r) => r.id === row.id ? { ...r, active: !row.active } : r));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : `Failed to ${label} item.`);
     }
   }
 
@@ -727,11 +755,17 @@ export default function ProcurementCatalogPage() {
                         ) : null}
                       </td>
                       <td className="px-3 py-2">
-                        {r.active ? (
-                          <span className={BADGE_SUCCESS}>Active</span>
-                        ) : (
-                          <span className="rounded-full bg-zinc-700/60 px-2 py-0.5 text-xs text-zinc-400">Inactive</span>
-                        )}
+                        <button
+                          onClick={() => void handleQuickToggleActive(r)}
+                          title={r.active ? "Click to deactivate" : "Click to activate"}
+                          className={`rounded-full px-2 py-0.5 text-xs font-semibold transition-colors ${
+                            r.active
+                              ? "border border-emerald-500/40 bg-emerald-500/20 text-emerald-300 hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/40"
+                              : "border border-zinc-600/40 bg-zinc-700/60 text-zinc-400 hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-500/40"
+                          }`}
+                        >
+                          {r.active ? "Active" : "Inactive"}
+                        </button>
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex gap-1">
