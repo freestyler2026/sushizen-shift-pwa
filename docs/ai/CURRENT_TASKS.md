@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-22 (session 126 — Manila Payroll Phase 3 SSS WISP + Pag-IBIG voluntary)
+Last updated: 2026-07-22 (session 127 — Manila Payroll Phase 4 Government Reports)
 
 
 
@@ -14,8 +14,10 @@ Last updated: 2026-07-22 (session 126 — Manila Payroll Phase 3 SSS WISP + Pag-
 
 ## ⚠️ Deployments Pending
 
+- Heroku: 95bedac (Manila Payroll Phase 4 — Government report Excel endpoints) — deploying
+- Vercel: b301a9e (Manila Payroll Phase 4 — Government Reports section in period page) — auto-deploying
 - Heroku: 607ea77 (Manila Payroll Phase 3 — SSS WISP split + Pag-IBIG voluntary) — deployed ✅ v1436
-- Vercel: 91303b6 (Manila Payroll Phase 3 — Pag-IBIG voluntary UI) — auto-deploying
+- Vercel: 91303b6 (Manila Payroll Phase 3 — Pag-IBIG voluntary UI) — deployed ✅
 - Heroku: b3b7555 (Manila Payroll Phase 2 — De Minimis BIR exemption engine) — deployed ✅ v1435
 - Vercel: e474896 (Manila Payroll Phase 2 — De Minimis fields in Staff Profiles) — deployed ✅
 - Heroku: 0725904 (Manila Payroll Phase 1 — Remittance Tracking endpoints + Phase 0 fixes) — deployed ✅
@@ -86,7 +88,26 @@ After Heroku deploys 537a152:
 - ~~Phase 1: Remittance Tracking~~ → DONE
 - ~~Phase 2: De Minimis benefits~~ → DONE
 - ~~Phase 3: SSS WISP separation + Pag-IBIG voluntary~~ → DONE (see below)
-- Phase 4: Government report generation (R-3, EPRS, MCRF, 1601-C)
+- ~~Phase 4: Government report generation (R-3, RF-1, MCRF, 1601-C)~~ → DONE (see below)
+
+## Recently Completed (2026-07-22 session 127 — Manila Payroll Phase 4)
+
+### Manila Payroll — Phase 4 Government Report Downloads (deploying)
+
+**Backend (`main.py`)** — 4 new GET endpoints after remittances section:
+- `GET /api/admin/manila-payroll/reports/sss-r3/{period_id}` → SSS R-3 Excel (EE/ER/EC + WISP split, SS number per staff)
+- `GET /api/admin/manila-payroll/reports/philhealth-rf1/{period_id}` → PhilHealth RF-1 Excel (EE+ER per staff, philhealth_id)
+- `GET /api/admin/manila-payroll/reports/pagibig-mcrf/{period_id}` → Pag-IBIG MCRF Excel (mandatory + voluntary, pagibig_mid)
+- `GET /api/admin/manila-payroll/reports/bir-1601c/{period_id}` → BIR 1601-C Excel (WHT summary + per-employee TIN breakdown)
+
+Data from `manila_payroll_run_items` LEFT JOINed with `manila_staff_profiles` for ID numbers.
+Each report: openpyxl workbook → StreamingResponse (`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`)
+
+**Frontend (`[periodId]/page.tsx`)** — "Government Reports" section added to left panel:
+- Appears only for 2nd-half periods (`period.period_half === 2`) with computed runs
+- 4 color-coded buttons (blue/green/red/amber): SSS R-3, PhilHealth RF-1, Pag-IBIG MCRF, BIR 1601-C
+- Fetch → blob → programmatic `<a>` download with auto-generated filename
+- `Download` icon from lucide-react
 
 ## Recently Completed (2026-07-22 session 126 — Manila Payroll Phase 3)
 
