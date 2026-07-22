@@ -247,6 +247,7 @@ function CreateModal({
 
 function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updated: ClearanceCase) => void }) {
   const [open, setOpen] = useState(c.current_stage === 0);
+  useEffect(() => { if (c.current_stage === 0) setOpen(true); }, [c.current_stage]);
   const [fp, setFp] = useState({
     fp_basic_pay: c.fp_basic_pay,
     fp_prorated_13th: c.fp_prorated_13th,
@@ -672,7 +673,7 @@ export default function HrClearancePage() {
           {[
             { label: "Active", value: active, color: "text-indigo-300" },
             { label: "Completed", value: completed, color: "text-emerald-400" },
-            { label: "Total", value: cases.length, color: "text-white" },
+            { label: "Shown", value: cases.length, color: "text-white" },
           ].map(k => (
             <div key={k.label} className={`${GLASS_CARD} text-center py-3`}>
               <p className={`text-2xl font-bold ${k.color}`}>{k.value}</p>

@@ -573,7 +573,7 @@ export function canAccessHrClearanceAdmin(a?: Auth | null): boolean {
   if (!x) return false;
   const role = String(x.role || "").toUpperCase();
   if (role === "HQ" || role === "ADMIN") return true;
-  return hasAnyPermission(["channel.admin.hr_clearance.view", "channel.admin.hr_clearance.manage"], x);
+  return hasAnyPermission(["channel.admin.hr_clearance.view", "channel.admin.hr_clearance.manage", "channel.admin.hr"], x);
 }
 
 /** Incident Report staff channel — matches `incident_report` channel in `app/access_control.py`. */
