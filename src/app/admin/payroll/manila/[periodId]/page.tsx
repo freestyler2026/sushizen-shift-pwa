@@ -1197,11 +1197,7 @@ export default function ManilaPayrollPeriodPage() {
                       <button
                         key={path}
                         onClick={() => {
-                          const auth = (typeof window !== "undefined" ? JSON.parse(localStorage.getItem("sushizen_shift_auth") || "{}") : {}) as { accessToken?: string };
-                          const url = `/api/admin/manila-payroll/reports/${path}/${periodId}`;
-                          fetch(url, {
-                            headers: auth.accessToken ? { Authorization: `Bearer ${auth.accessToken}` } : {},
-                          })
+                          apiFetch(`${API}/reports/${path}/${periodId}`)
                             .then(async r => {
                               if (!r.ok) throw new Error(await r.text());
                               return r.blob();
@@ -1209,8 +1205,10 @@ export default function ManilaPayrollPeriodPage() {
                             .then(blob => {
                               const a = document.createElement("a");
                               a.href = URL.createObjectURL(blob);
-                              a.download = `${label.replace(/\s+/g, "_")}_${period.period_label.replace(/\s+/g, "_")}.xlsx`;
+                              a.download = `${label.replace(/\s+/g, "_")}_${period!.period_label.replace(/\s+/g, "_")}.xlsx`;
+                              document.body.appendChild(a);
                               a.click();
+                              document.body.removeChild(a);
                               URL.revokeObjectURL(a.href);
                             })
                             .catch(e => setError(String(e)));
