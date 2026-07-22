@@ -151,6 +151,12 @@ export default function ManilaPayrollPage() {
             >
               Staff Profiles
             </Link>
+            <Link
+              href="/admin/payroll/manila/remittances"
+              className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300 hover:bg-white/10"
+            >
+              Remittances
+            </Link>
             <button
               onClick={() => setShowCreate(v => !v)}
               className={PRIMARY_BUTTON + " flex items-center gap-2 text-sm"}
