@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { createPortal } from "react-dom";
 import {
   ChevronRight, AlertTriangle, CheckCircle2, Clock, ArrowLeft,
-  Plus, Trash2, Settings2, Loader2, RefreshCw,
+  Plus, Trash2, Settings2, Loader2, RefreshCw, Package,
 } from "lucide-react";
 
 import { getAuth, getAuthHeaders, getUploadHeaders, refreshAuthFromApi } from "@/lib/auth";
@@ -241,7 +241,15 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
       const par = (activePattern && patternLookup[item.item_code] !== undefined)
         ? patternLookup[item.item_code]
         : item.par_level;
-      if (par === null || par === undefined) return;
+      if (par === null || par === undefined) {
+        // Warehouse items without par level: include in modal unselected so user can manually request
+        if (item.source_type === "warehouse") {
+          newModalItems.push({ item, entry });
+          qtys[item.item_code] = "";
+          sel[item.item_code] = false;
+        }
+        return;
+      }
       if (Number(entry.qty) < par) {
         const deficit = Math.max(0, par - Number(entry.qty));
         newModalItems.push({ item, entry });
@@ -301,6 +309,9 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
   const filledCount = detail.entries.filter((e) => e.qty !== null).length;
   const entryCountByType = (st: string) =>
     items.filter((i) => i.source_type === st && entryMap[i.item_code] !== undefined).length;
+  const warehouseEntryCount = items.filter(
+    (i) => i.source_type === "warehouse" && entryMap[i.item_code] && entryMap[i.item_code].qty !== null
+  ).length;
 
   return (
     <div className="space-y-5">
@@ -373,6 +384,23 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* Warehouse restock request — shown when Warehouse tab is active and items were recorded */}
+      {detailSourceTab === "warehouse" && warehouseEntryCount > 0 && detail.status === "SUBMITTED" && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/8 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Package className="h-4 w-4 text-amber-400" />
+              <p className="text-sm font-semibold text-amber-300">
+                {warehouseEntryCount} warehouse item{warehouseEntryCount > 1 ? "s" : ""} recorded — request restock?
+              </p>
+            </div>
+            <button onClick={openOrderModal} className="rounded-lg border border-amber-400/40 bg-amber-500/15 px-3 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-500/25">
+              Generate Purchase Request
+            </button>
+          </div>
         </div>
       )}
 
