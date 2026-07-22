@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-22 (session 124 — Manila Payroll Phase 1 Remittance Tracking)
+Last updated: 2026-07-22 (session 125 — Manila Payroll Phase 2 De Minimis BIR exemption)
 
 
 
@@ -14,8 +14,10 @@ Last updated: 2026-07-22 (session 124 — Manila Payroll Phase 1 Remittance Trac
 
 ## ⚠️ Deployments Pending
 
+- Heroku: b3b7555 (Manila Payroll Phase 2 — De Minimis BIR exemption engine) — deployed ✅ v1435
+- Vercel: e474896 (Manila Payroll Phase 2 — De Minimis fields in Staff Profiles) — auto-deploying
 - Heroku: 0725904 (Manila Payroll Phase 1 — Remittance Tracking endpoints + Phase 0 fixes) — deployed ✅
-- Vercel: 1057dbd (Manila Payroll Phase 1 — Remittances page + nav link) — deploying via auto-deploy
+- Vercel: 1057dbd (Manila Payroll Phase 1 — Remittances page + nav link) — deployed ✅
 - Heroku: 0126c9f (Manila Payroll Phase 0 — PhilHealth/Pag-IBIG/MWE fixes + DB migration) — deployed ✅
 - Vercel: c6dceae (Manila Staff Profiles — COLA field + MWE toggle) — deployed ✅
 - Heroku: 73a9de2 (Daily Inv source_type migration + legacy alias fix) — deployed ✅ v1430
@@ -79,10 +81,37 @@ After Heroku deploys 537a152:
 - UI verified: both new fields render correctly in Add Staff Profile modal
 
 **Next payroll phases (not yet implemented):**
-- ~~Phase 1: Remittance Tracking~~ → DONE (see below)
-- Phase 2: De Minimis benefits (meal/rice/clothing allowance BIR exemption)
+- ~~Phase 1: Remittance Tracking~~ → DONE
+- ~~Phase 2: De Minimis benefits~~ → DONE (see below)
 - Phase 3: SSS WISP/MPF separation (MSC > ₱20,000), Pag-IBIG voluntary upgrade
 - Phase 4: Government report generation (R-3, EPRS, MCRF, 1601-C)
+
+## Recently Completed (2026-07-22 session 125 — Manila Payroll Phase 2)
+
+### Manila Payroll — Phase 2 De Minimis BIR Exemption (DEPLOYED v1435)
+
+**Engine (`manila_payroll_engine.py`):**
+- `StaffProfile`: 4 new fields — rice_allowance, clothing_allowance, laundry_allowance, medical_allowance
+- `_compute_de_minimis_exempt(staff)`: clamps each benefit to BIR RR 8-2012 monthly cap:
+  - Rice: min(actual, ₱2,000)
+  - Clothing/uniform: min(actual, ₱500) — ₱6,000/year ÷ 12
+  - Laundry: min(actual, ₱300)
+  - Medical cash to dependents: min(actual, ₱250)
+- `_compute_bir()`: new `de_minimis_exempt` param; taxable = gross − statutory − de_minimis (floored at 0)
+- `compute_statutory_deductions()`: calls `_compute_de_minimis_exempt()` and passes result to BIR
+
+**DB (`db.py`):**
+- Migration 2026-07: 4 columns added with loop — `rice_allowance`, `clothing_allowance`, `laundry_allowance`, `medical_allowance` (NUMERIC(10,2) NOT NULL DEFAULT 0)
+
+**API (`main.py`):**
+- StaffProfile construction: reads 4 new columns from DB row
+- Upsert SQL: 25 → 29 VALUES params; DO UPDATE includes all 4 new columns
+
+**Frontend (`staff-profiles/page.tsx`):**
+- New "De Minimis Benefits (BIR RR 8-2012)" section in Add/Edit modal
+- 4 numeric inputs with BIR cap labels shown as helper text
+- TypeScript type, FormState, emptyForm, profileToForm, save body all updated
+- Verified in browser: section renders between MDR notes and Payment Details ✅
 
 ## Recently Completed (2026-07-22 session 124 — Manila Payroll Phase 1)
 
