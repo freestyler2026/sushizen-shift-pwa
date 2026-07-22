@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-22 (session 123 — Manila Payroll Phase 0 statutory deduction compliance)
+Last updated: 2026-07-22 (session 124 — Manila Payroll Phase 1 Remittance Tracking)
 
 
 
@@ -14,6 +14,8 @@ Last updated: 2026-07-22 (session 123 — Manila Payroll Phase 0 statutory deduc
 
 ## ⚠️ Deployments Pending
 
+- Heroku: 0725904 (Manila Payroll Phase 1 — Remittance Tracking endpoints + Phase 0 fixes) — deployed ✅
+- Vercel: 1057dbd (Manila Payroll Phase 1 — Remittances page + nav link) — deploying via auto-deploy
 - Heroku: 0126c9f (Manila Payroll Phase 0 — PhilHealth/Pag-IBIG/MWE fixes + DB migration) — deployed ✅
 - Vercel: c6dceae (Manila Staff Profiles — COLA field + MWE toggle) — deployed ✅
 - Heroku: 73a9de2 (Daily Inv source_type migration + legacy alias fix) — deployed ✅ v1430
@@ -77,10 +79,37 @@ After Heroku deploys 537a152:
 - UI verified: both new fields render correctly in Add Staff Profile modal
 
 **Next payroll phases (not yet implemented):**
-- Phase 1: Remittance Tracking (SSS/PhilHealth/Pag-IBIG/BIR payment records + deadline alerts)
+- ~~Phase 1: Remittance Tracking~~ → DONE (see below)
 - Phase 2: De Minimis benefits (meal/rice/clothing allowance BIR exemption)
 - Phase 3: SSS WISP/MPF separation (MSC > ₱20,000), Pag-IBIG voluntary upgrade
 - Phase 4: Government report generation (R-3, EPRS, MCRF, 1601-C)
+
+## Recently Completed (2026-07-22 session 124 — Manila Payroll Phase 1)
+
+### Manila Payroll — Phase 1 Remittance Tracking (DEPLOYED)
+
+**Backend (`db.py`, `main.py`):**
+- New `manila_remittances` table: id, agency (SSS/PHILHEALTH/PAGIBIG/BIR), period_month, period_year, period_label, amount, employee_count, due_date, paid_date, paid_amount, reference_no, notes, status, created/updated_at; UNIQUE(agency, month, year)
+- `ensure_manila_remittance_tables()` with `_MANILA_REMITTANCE_SCHEMA_READY` guard
+- 5 API endpoints:
+  - `GET /remittances?year=&status=&agency=` — list with computed `is_overdue`
+  - `POST /remittances` — create/upsert by agency+period
+  - `PUT /remittances/{id}` — partial update (COALESCE)
+  - `DELETE /remittances/{id}` — delete by id
+  - `POST /remittances/generate-from-period/{period_id}` — auto-sums from payroll run items, sets due dates (SSS=31st, PH=15th, HDMF=10th, BIR=10th of following month)
+- Heroku: 0725904 — deployed ✅ (endpoint confirmed live: `GET /remittances` returns 401 Auth required)
+
+**Frontend (`remittances/page.tsx`, `manila/page.tsx`):**
+- KPI summary cards: Total Pending + per-agency (SSS/PhilHealth/Pag-IBIG/BIR) with pending amounts
+- Filter bar: year selector, agency filter, status filter
+- Table: Agency badge | Period | Amount | Due Date | Status badge | Paid Date + amount | Reference | Actions
+- Status badges: Paid (green), Overdue (red), Due in Xd (amber), Pending (grey)
+- Mark as Paid modal with paid_date, paid_amount, reference_no, notes
+- Add Record modal with full form
+- Row delete with confirmation
+- "Generate from Period" hint linking to `manila/page.tsx`
+- Added "Remittances" nav link to manila payroll header
+- Vercel: 1057dbd — deploying via auto-deploy
 
 ## Recently Completed (2026-07-22 session 122e)
 
