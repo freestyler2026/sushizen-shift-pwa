@@ -1691,6 +1691,7 @@ export default function StoreProcurementRequestPage() {
                       <th className="w-20 px-2 py-2 text-left">Unit</th>
                       <th className="w-28 px-2 py-2 text-right">Unit Price ({currencyCode})</th>
                       <th className="w-24 px-2 py-2 text-right">Total ({currencyCode})</th>
+                      <th className="w-8 px-1 py-2"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1776,6 +1777,16 @@ export default function StoreProcurementRequestPage() {
                         </td>
                         <td className="px-2 py-2 text-right text-neutral-300">
                           {(Number(item.qty || 0) * Number(item.unit_price || 0)).toFixed(2)}
+                        </td>
+                        <td className="px-1 py-2">
+                          <button
+                            type="button"
+                            title="Remove this item"
+                            onClick={() => setItems((prev) => prev.filter((it) => it.row_key !== item.row_key))}
+                            className="flex h-6 w-6 items-center justify-center rounded-md text-zinc-600 hover:bg-red-950/50 hover:text-red-400 transition-colors"
+                          >
+                            ×
+                          </button>
                         </td>
                       </tr>
                       );
