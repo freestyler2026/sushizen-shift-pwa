@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-22 (session 125 — Manila Payroll Phase 2 De Minimis BIR exemption)
+Last updated: 2026-07-22 (session 126 — Manila Payroll Phase 3 SSS WISP + Pag-IBIG voluntary)
 
 
 
@@ -14,8 +14,10 @@ Last updated: 2026-07-22 (session 125 — Manila Payroll Phase 2 De Minimis BIR 
 
 ## ⚠️ Deployments Pending
 
+- Heroku: 607ea77 (Manila Payroll Phase 3 — SSS WISP split + Pag-IBIG voluntary) — deployed ✅ v1436
+- Vercel: 91303b6 (Manila Payroll Phase 3 — Pag-IBIG voluntary UI) — auto-deploying
 - Heroku: b3b7555 (Manila Payroll Phase 2 — De Minimis BIR exemption engine) — deployed ✅ v1435
-- Vercel: e474896 (Manila Payroll Phase 2 — De Minimis fields in Staff Profiles) — auto-deploying
+- Vercel: e474896 (Manila Payroll Phase 2 — De Minimis fields in Staff Profiles) — deployed ✅
 - Heroku: 0725904 (Manila Payroll Phase 1 — Remittance Tracking endpoints + Phase 0 fixes) — deployed ✅
 - Vercel: 1057dbd (Manila Payroll Phase 1 — Remittances page + nav link) — deployed ✅
 - Heroku: 0126c9f (Manila Payroll Phase 0 — PhilHealth/Pag-IBIG/MWE fixes + DB migration) — deployed ✅
@@ -82,9 +84,34 @@ After Heroku deploys 537a152:
 
 **Next payroll phases (not yet implemented):**
 - ~~Phase 1: Remittance Tracking~~ → DONE
-- ~~Phase 2: De Minimis benefits~~ → DONE (see below)
-- Phase 3: SSS WISP/MPF separation (MSC > ₱20,000), Pag-IBIG voluntary upgrade
+- ~~Phase 2: De Minimis benefits~~ → DONE
+- ~~Phase 3: SSS WISP separation + Pag-IBIG voluntary~~ → DONE (see below)
 - Phase 4: Government report generation (R-3, EPRS, MCRF, 1601-C)
+
+## Recently Completed (2026-07-22 session 126 — Manila Payroll Phase 3)
+
+### Manila Payroll — Phase 3 SSS WISP Split + Pag-IBIG Voluntary (DEPLOYED v1436)
+
+**Engine (`manila_payroll_engine.py`):**
+- `_SSS_WISP_THRESHOLD = Decimal("20000")` constant
+- `_lookup_sss()`: now returns 5 values (ee_regular, er_regular, ec, wisp_ee, wisp_er)
+  - For MSC > ₱20k: second DB query at cap bracket → WISP = total − cap amounts; floored at 0
+  - For MSC ≤ ₱20k: wisp_ee = wisp_er = 0 (no extra queries)
+- `compute_statutory_deductions()`:
+  - `SSS_WISP_EE` deduction and `SSS_WISP_ER` employer_cost added when wisp > 0
+  - `ee_sss_total = regular + WISP` passed to BIR (both are BIR-deductible statutory contributions)
+  - `PAGIBIG_VOLUNTARY_EE` deduction line item when `staff.pagibig_voluntary > 0`
+  - Voluntary Pag-IBIG NOT included in BIR WHT taxable deduction (only mandatory is statutory)
+- `StaffProfile`: `pagibig_voluntary: Decimal = 0`
+
+**DB (`db.py`):** `pagibig_voluntary NUMERIC(10,2) NOT NULL DEFAULT 0` added to migration loop
+
+**API (`main.py`):** StaffProfile construction + upsert SQL updated (30 VALUES params)
+
+**Frontend (`staff-profiles/page.tsx`):**
+- PAG-IBIG VOLUNTARY (PHP/MONTH) field added next to COLA in Rates section
+- Helper text explains: ER does not match; not deducted from BIR WHT base
+- Verified in browser ✅
 
 ## Recently Completed (2026-07-22 session 125 — Manila Payroll Phase 2)
 
