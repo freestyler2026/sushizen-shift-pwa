@@ -48,6 +48,8 @@ type StaffProfile = {
   mdr_submitted_date: string | null;
   mdr_notes: string;
   is_active: boolean;
+  cola: string | null;
+  is_minimum_wage_earner: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -76,6 +78,8 @@ type FormState = {
   mdr_submitted_date: string;
   mdr_notes: string;
   is_active: boolean;
+  cola: string;
+  is_minimum_wage_earner: boolean;
 };
 
 function emptyForm(): FormState {
@@ -89,6 +93,7 @@ function emptyForm(): FormState {
     bank_name: "", bank_account_no: "", gcash_number: "",
     civil_status: "", num_qualified_dependents: 0, mdr_submitted: false, mdr_submitted_date: "", mdr_notes: "",
     is_active: true,
+    cola: "", is_minimum_wage_earner: false,
   };
 }
 
@@ -117,6 +122,8 @@ function profileToForm(p: StaffProfile): FormState {
     mdr_submitted_date: p.mdr_submitted_date ?? "",
     mdr_notes: p.mdr_notes,
     is_active: p.is_active,
+    cola: p.cola ?? "",
+    is_minimum_wage_earner: p.is_minimum_wage_earner ?? false,
   };
 }
 
@@ -170,6 +177,8 @@ function ProfileModal({
         mdr_submitted: form.mdr_submitted,
         mdr_submitted_date: form.mdr_submitted_date || null,
         mdr_notes: form.mdr_notes,
+        cola: form.cola ? parseFloat(form.cola) : 0,
+        is_minimum_wage_earner: form.is_minimum_wage_earner,
       };
       const r = await apiFetch(`${API}/staff-profiles/${encodeURIComponent(form.staff_name.trim())}`, {
         method: "PUT",
@@ -291,6 +300,13 @@ function ProfileModal({
                 placeholder="Auto-computed if blank" />
               <p className="mt-1 text-xs text-slate-500">If blank, engine uses monthly÷26</p>
             </div>
+            <div>
+              <label className={L}>COLA (PHP/month)</label>
+              <input className={I} type="number" min="0" step="0.01" value={form.cola}
+                onChange={e => set("cola", e.target.value)}
+                placeholder="0.00" />
+              <p className="mt-1 text-xs text-slate-500">Cost of Living Allowance — included in Pag-IBIG base</p>
+            </div>
 
             {/* Department + Position */}
             <div>
@@ -353,14 +369,26 @@ function ProfileModal({
                 <option value="widowed">Widowed</option>
                 <option value="legally_separated">Legally Separated</option>
               </select>
-              <p className="mt-1 text-xs text-slate-500">Affects BIR withholding tax bracket</p>
+              <p className="mt-1 text-xs text-slate-500">Government records / PhilHealth beneficiary registration (no effect on tax calculation under TRAIN law)</p>
             </div>
             <div>
               <label className={L}>Qualified Dependents</label>
               <input className={I} type="number" min="0" max="4" step="1"
                 value={form.num_qualified_dependents}
                 onChange={e => set("num_qualified_dependents", parseInt(e.target.value) || 0)} />
-              <p className="mt-1 text-xs text-slate-500">BIR allows up to 4 (₱25,000 exemption each)</p>
+              <p className="mt-1 text-xs text-slate-500">Government records / SSS beneficiary registration (no effect on BIR under TRAIN law)</p>
+            </div>
+            <div className="col-span-2">
+              <label className={L}>Minimum Wage Earner (MWE)</label>
+              <div className="flex items-center gap-3 mt-1">
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input type="checkbox" className="peer sr-only" checked={form.is_minimum_wage_earner}
+                    onChange={e => set("is_minimum_wage_earner", e.target.checked)} />
+                  <div className="h-6 w-11 rounded-full bg-slate-700 peer-checked:bg-amber-600 transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:after:translate-x-full" />
+                </label>
+                <span className="text-sm text-slate-300">{form.is_minimum_wage_earner ? "MWE — BIR WHT exempt (R.A. 9504)" : "Not MWE"}</span>
+              </div>
+              <p className="mt-1 text-xs text-slate-500">Enable only if basic pay = NCR minimum wage. OT and holiday pay also become tax-exempt.</p>
             </div>
             <div className="col-span-2">
               <label className={L}>MDR (Member Data Record) Submitted</label>
