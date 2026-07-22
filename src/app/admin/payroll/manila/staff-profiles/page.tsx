@@ -54,6 +54,7 @@ type StaffProfile = {
   clothing_allowance: string | null;
   laundry_allowance: string | null;
   medical_allowance: string | null;
+  pagibig_voluntary: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -88,6 +89,7 @@ type FormState = {
   clothing_allowance: string;
   laundry_allowance: string;
   medical_allowance: string;
+  pagibig_voluntary: string;
 };
 
 function emptyForm(): FormState {
@@ -103,6 +105,7 @@ function emptyForm(): FormState {
     is_active: true,
     cola: "", is_minimum_wage_earner: false,
     rice_allowance: "", clothing_allowance: "", laundry_allowance: "", medical_allowance: "",
+    pagibig_voluntary: "",
   };
 }
 
@@ -137,6 +140,7 @@ function profileToForm(p: StaffProfile): FormState {
     clothing_allowance: p.clothing_allowance ?? "",
     laundry_allowance:  p.laundry_allowance ?? "",
     medical_allowance:  p.medical_allowance ?? "",
+    pagibig_voluntary:  p.pagibig_voluntary ?? "",
   };
 }
 
@@ -196,6 +200,7 @@ function ProfileModal({
         clothing_allowance: form.clothing_allowance ? parseFloat(form.clothing_allowance) : 0,
         laundry_allowance:  form.laundry_allowance  ? parseFloat(form.laundry_allowance)  : 0,
         medical_allowance:  form.medical_allowance  ? parseFloat(form.medical_allowance)  : 0,
+        pagibig_voluntary:  form.pagibig_voluntary  ? parseFloat(form.pagibig_voluntary)  : 0,
       };
       const r = await apiFetch(`${API}/staff-profiles/${encodeURIComponent(form.staff_name.trim())}`, {
         method: "PUT",
@@ -323,6 +328,13 @@ function ProfileModal({
                 onChange={e => set("cola", e.target.value)}
                 placeholder="0.00" />
               <p className="mt-1 text-xs text-slate-500">Cost of Living Allowance — included in Pag-IBIG base</p>
+            </div>
+            <div>
+              <label className={L}>Pag-IBIG Voluntary (PHP/month)</label>
+              <input className={I} type="number" min="0" step="0.01" value={form.pagibig_voluntary}
+                onChange={e => set("pagibig_voluntary", e.target.value)}
+                placeholder="0.00" />
+              <p className="mt-1 text-xs text-slate-500">Extra HDMF contribution above mandatory ₱200 — ER does not match; not deducted from BIR WHT base</p>
             </div>
 
             {/* Department + Position */}
