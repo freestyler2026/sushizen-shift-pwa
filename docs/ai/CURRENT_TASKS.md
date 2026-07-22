@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-22 (session 122d — Cash Management resubmission bug)
+Last updated: 2026-07-22 (session 123 — Manila Payroll Phase 0 statutory deduction compliance)
 
 
 
@@ -14,8 +14,12 @@ Last updated: 2026-07-22 (session 122d — Cash Management resubmission bug)
 
 ## ⚠️ Deployments Pending
 
+- Heroku: 0126c9f (Manila Payroll Phase 0 — PhilHealth/Pag-IBIG/MWE fixes + DB migration) — deployed ✅
+- Vercel: c6dceae (Manila Staff Profiles — COLA field + MWE toggle) — deployed ✅
+- Heroku: 73a9de2 (Daily Inv source_type migration + legacy alias fix) — deployed ✅ v1430
+- Vercel: 9c3541c (Daily Inv Replace Mode scoped by source_type) — deployed ✅
 - Heroku: f6c9636 (Cash report resubmission fix) — deployed ✅ v1428
-- Vercel: 5037d0d (Daily Inv Warehouse sync button) — deploying 🚀
+- Vercel: 5037d0d (Daily Inv Warehouse sync button) — deployed ✅
 - Heroku: 9aa43e2 (Daily Inv seed-warehouse endpoint) — deployed ✅ v1424
 - Vercel: 6616a7f (HR Clearance 9 bug fixes) — deployed ✅
 - Heroku: 537a152 (HR Clearance 9 bug fixes) — deployed ✅
@@ -40,6 +44,60 @@ After Heroku deploys 537a152:
 - Heroku: 4eb2305 (PO-Invoice Match DB + API) — deployed ✅
 - Vercel: 4313c0e (cost calc misplaced items panel) — deployed ✅
 - Heroku: 68a2689 (misplaced ingredient endpoints) — deployed ✅
+
+## Recently Completed (2026-07-22 session 123 — Manila Payroll Phase 0)
+
+### Manila Payroll — Phase 0 Statutory Deduction Compliance Fixes (DEPLOYED & TESTED)
+
+**Engine (`manila_payroll_engine.py`):**
+- `_compute_philhealth()`: base changed from `monthly_gross` → `monthly_basic` (staff.monthly_rate) with ₱10,000–₱100,000 clamp per PhilHealth Circular 2023-0001
+- `_compute_pagibig()`: proper HDMF formula `min(basic+COLA, ₱10,000) × rate`; EE rate 1% if ≤₱1,500 else 2%
+- `_compute_bir()`: MWE flag returns ₱0 immediately (R.A. 9504 full exemption)
+- `StaffProfile` dataclass: added `cola: Decimal = 0` and `is_minimum_wage_earner: bool = False`
+
+**DB (`db.py`):**
+- Migration 2026-07: `ADD COLUMN IF NOT EXISTS cola NUMERIC(10,2) NOT NULL DEFAULT 0`
+- Migration 2026-07: `ADD COLUMN IF NOT EXISTS is_minimum_wage_earner BOOLEAN NOT NULL DEFAULT FALSE`
+- Confirmed on Heroku DB ✅
+
+**API (`main.py`):**
+- Compute endpoint: reads `cola` + `is_minimum_wage_earner` from staff profile row → StaffProfile
+- Staff profile upsert: INSERT/UPDATE now includes `cola` and `is_minimum_wage_earner`
+
+**Frontend (`staff-profiles/page.tsx`):**
+- Added COLA (PHP/month) input field (after Daily Rate, in Rates section)
+- Added MWE toggle in Personal & Tax Info section (amber toggle, shows "MWE — BIR WHT exempt (R.A. 9504)")
+- Fixed misleading notes on Civil Status / Dependents ("no effect on BIR under TRAIN law")
+- TypeScript types updated (StaffProfile, FormState, emptyForm, profileToForm, save body)
+
+**Tests:**
+- Python unit tests: PhilHealth clamp (₱8k floor, ₱120k cap, normal), Pag-IBIG (₱18k, ₱1.2k edge), MWE=₱0 — all PASS
+- Heroku logs: zero errors/exceptions post-deploy
+- DB columns confirmed: cola DEFAULT 0, is_minimum_wage_earner DEFAULT false
+- UI verified: both new fields render correctly in Add Staff Profile modal
+
+**Next payroll phases (not yet implemented):**
+- Phase 1: Remittance Tracking (SSS/PhilHealth/Pag-IBIG/BIR payment records + deadline alerts)
+- Phase 2: De Minimis benefits (meal/rice/clothing allowance BIR exemption)
+- Phase 3: SSS WISP/MPF separation (MSC > ₱20,000), Pag-IBIG voluntary upgrade
+- Phase 4: Government report generation (R-3, EPRS, MCRF, 1601-C)
+
+## Recently Completed (2026-07-22 session 122e)
+
+### Daily Inventory — Template Download by Source Type (FULLY VERIFIED)
+- **Issue**: All three tabs (Supplier/CK/Warehouse) downloaded identical Excel with all items
+- **Root cause 1**: Old JS had no `source_type` param in template request → backend returned legacy 2-sheet all-items file
+- **Root cause 2**: DB `source_type` column added with `DEFAULT 'ck'` → all existing items got wrong type; seeder used `'kitchen'` (not in `_VALID_SOURCE_TYPES`) for non-commissary items
+- **Fix 1 (Vercel 28865f8)**: `handleDownloadTemplate()` now sends `?source_type=${sourceFilter}`; filename reflects source type
+- **Fix 2 (Heroku 73a9de2)**: DB migration in `ensure_daily_inventory_tables()`: `UPDATE SET source_type='supplier' WHERE source_type='kitchen'` and `WHERE source_type='ck' AND is_commissary=FALSE`; `list_daily_inv_items('supplier')` aliases 'kitchen'; seed uses 'supplier' not 'kitchen'
+- **Verified on OS (2026-07-22)**: Direct API calls with auth token confirmed:
+  - `?source_type=supplier` → 61 items in "Supplier Items" sheet ✅
+  - `?source_type=ck` → 373 items in "CK Items" sheet ✅
+  - `?source_type=warehouse` → 63 items in "Warehouse Items" sheet ✅
+  - No filter → 497 items total in legacy 3-sheet format ✅
+- **DB state confirmed**: supplier=61 (22 active), ck=373 (207 active), warehouse=63 (all active)
+- **User's reported issue after fix**: PWA cache was serving stale JS → AutoReload should clear it; manual hard-refresh (Cmd+Shift+R) resolves if AutoReload hasn't fired
+- **Commits**: Vercel 28865f8, Heroku 73a9de2
 
 ## Recently Completed (2026-07-22 session 122d)
 
