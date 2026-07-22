@@ -818,11 +818,14 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
     } finally { setPurging(false); }
   }
 
-  async function handleDownloadTemplate() {
+  async function handleDownloadTemplate(srcType?: string) {
     setDownloading(true); setError("");
+    const src = srcType || sourceFilter || "";
+    const qs = src ? `?source_type=${encodeURIComponent(src)}` : "";
+    const filename = src ? `daily_inventory_${src}_template.xlsx` : "daily_inventory_template.xlsx";
     try {
       // Use fetch directly — apiFetch reads body as text which corrupts binary Excel data
-      const res = await fetch(`${API_BASE}/api/daily-inventory/items/template-excel`, {
+      const res = await fetch(`${API_BASE}/api/daily-inventory/items/template-excel${qs}`, {
         headers: new Headers(getAuthHeaders()),
         cache: "no-store",
       });
@@ -831,7 +834,7 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "daily_inventory_template.xlsx";
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
