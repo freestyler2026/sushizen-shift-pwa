@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
   FolderOpen,
@@ -28,6 +28,8 @@ const ITEMS = [
 
 export default function MenuTabs() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const city = searchParams.get("city") || "";
   return (
     <div className={TAB_CONTAINER}>
       {ITEMS.map((item) => {
@@ -35,10 +37,11 @@ export default function MenuTabs() {
           ? pathname === item.href
           : pathname === item.href || pathname.startsWith(item.href + "/");
         const Icon = item.icon;
+        const href = city ? `${item.href}?city=${city}` : item.href;
         return (
           <Link
             key={item.href}
-            href={item.href}
+            href={href}
             className={active ? TAB_ACTIVE : TAB_INACTIVE}
           >
             <Icon className="h-3.5 w-3.5" />

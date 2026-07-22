@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import MenuImportFailures from "@/components/menu/MenuImportFailures";
 import MenuPaginationControls from "@/components/menu/MenuPaginationControls";
 import { canAccessMenuAdmin, getAuth, refreshAuthFromApi, type City } from "@/lib/auth";
@@ -47,9 +48,11 @@ function statusBadge(status: string) {
 
 export default function MenuModifierOptionsPage() {
   const auth = useMemo(() => getAuth(), []);
+  const searchParams = useSearchParams();
+  const queryCity = (searchParams.get("city") || "").toLowerCase();
   const [ready, setReady] = useState(false);
   const [allowed, setAllowed] = useState(false);
-  const [city, setCity] = useState<City>((auth?.city || "manila") as City);
+  const [city, setCity] = useState<City>(((queryCity === "manila" || queryCity === "dubai" ? queryCity : (auth?.city || "manila")) as City));
   const [tab, setTab] = useState("ALL");
   const [q, setQ] = useState("");
   const [groupFilter, setGroupFilter] = useState("");
@@ -81,12 +84,12 @@ export default function MenuModifierOptionsPage() {
       const resolved = await refreshAuthFromApi(auth);
       if (cancelled) return;
       setAllowed(canAccessMenuAdmin(resolved));
-      setCity((resolved?.city || auth?.city || "manila") as City);
+      setCity((queryCity === "manila" || queryCity === "dubai" ? queryCity : (resolved?.city || auth?.city || "manila")) as City);
       setReady(true);
     }
     void init();
     return () => { cancelled = true; };
-  }, [auth]);
+  }, [auth, queryCity]);
 
   const loadAll = useCallback(async (nextCity = city, nextTab = tab, nextQ = q, nextGroup = groupFilter, nextPage = page, nextPageSize = pageSize) => {
     setLoading(true);
