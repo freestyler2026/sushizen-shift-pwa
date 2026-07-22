@@ -385,15 +385,19 @@ function MenuProductsPageInner() {
     finally { setWorking(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
   }
 
-  async function importFromCost() {
-    if (!confirm(`Import all Cost Calculation products into Menu Builder for ${city.toUpperCase()}?\n\nExisting products with the same name will be overwritten (price, description, category updated). New products will be created with auto-assigned SKU.`)) return;
+  async function importFromCost(clearExisting = false) {
+    const confirmMsg = clearExisting
+      ? `⚠️ CLEAR & REIMPORT for ${city.toUpperCase()}\n\nThis will DELETE all ${city.toUpperCase()} products currently in Menu Builder, then reimport only actual menu items from Cost Calculation (ingredient/CK categories are automatically excluded).\n\nContinue?`
+      : `Import Cost Calculation products into Menu Builder for ${city.toUpperCase()}?\n\nExisting products with the same name will be updated. Ingredient/CK categories are automatically excluded.`;
+    if (!confirm(confirmMsg)) return;
     setWorking(true); setError(""); setSuccess(""); setImportFailures([]);
     try {
-      const res = await menuPost<{ ok: boolean; created: number; updated: number; skipped: number; categories_created: number; errors: string[] }>(
+      const res = await menuPost<{ ok: boolean; created: number; updated: number; skipped: number; excluded: number; categories_created: number; errors: string[] }>(
         "/api/admin/menu/products/import-from-cost",
-        { city, overwrite: true }
+        { city, overwrite: true, clear_existing: clearExisting }
       );
-      setSuccess(`Import from Cost Calculation complete — Created: ${res.created}, Updated: ${res.updated}, Skipped: ${res.skipped}, Categories auto-created: ${res.categories_created}.${res.errors?.length ? ` Errors: ${res.errors.join("; ")}` : ""}`);
+      const excludedNote = res.excluded ? ` (${res.excluded} ingredient/CK items excluded)` : "";
+      setSuccess(`Import from Cost Calculation complete — Created: ${res.created}, Updated: ${res.updated}, Skipped: ${res.skipped}${excludedNote}, Categories auto-created: ${res.categories_created}.${res.errors?.length ? ` Errors: ${res.errors.join("; ")}` : ""}`);
       await loadAll(city, tab, q, categoryFilter, 1, pageSize);
     } catch (e: any) { setError(e?.message || String(e)); }
     finally { setWorking(false); }
@@ -519,11 +523,19 @@ function MenuProductsPageInner() {
               <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void importRows(f); }} />
               <button
                 type="button"
-                onClick={() => void importFromCost()}
+                onClick={() => void importFromCost(false)}
                 disabled={working}
                 className="flex items-center gap-1.5 rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-xs font-medium text-violet-300 transition hover:bg-violet-500/20 hover:text-violet-200 disabled:opacity-50"
               >
                 ⟳ Import from Cost Calc
+              </button>
+              <button
+                type="button"
+                onClick={() => void importFromCost(true)}
+                disabled={working}
+                className="flex items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-300 transition hover:bg-red-500/20 hover:text-red-200 disabled:opacity-50"
+              >
+                ⟳ Clear & Reimport
               </button>
             </div>
           </div>
