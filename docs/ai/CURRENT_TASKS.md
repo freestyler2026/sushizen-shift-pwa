@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-22 (session 129 — Manila Payroll UX enhancements)
+Last updated: 2026-07-22 (session 131 — Daily Inv + UI fixes)
 
 
 
@@ -13,6 +13,22 @@ Last updated: 2026-07-22 (session 129 — Manila Payroll UX enhancements)
 ---
 
 ## ⚠️ Deployments Pending
+
+- Vercel: 63b9059 (SelectDark component + probation staff dropdown fix for Windows) — auto-deploying
+- Vercel: f402436 (Daily Inv: Generate Purchase Request for Warehouse tab) — auto-deploying
+
+## ⚠️ CUBAO_Tuesday Par Pattern — Data Lost (Needs Recovery)
+
+- All 233 CK items in CUBAO_Tuesday were deleted when the pattern was deleted to clean up 48 wrong WH items added by staff using wrong template
+- Staff was asked to share original weekday par Excel for re-import
+- Waiting for Excel from staff — when received, re-import via "Import Weekly Par (Branch × Day)" button
+
+## Known Issues
+
+- Staff on Windows browsers see white dropdown background on native `<select>` elements throughout OS
+  - Root cause: Windows browsers render native `<select>` popup with OS-native white bg ignoring CSS
+  - Fixed: Probation page "Select active staff" → replaced with `SelectDark` custom component (`src/components/SelectDark.tsx`)
+  - Other pages with `<select>` (draft, absences, attendance, etc.) still use native — apply `SelectDark` as needed
 
 - Heroku: 6815030 (Manila Payroll UX — attendance-summary endpoint) — deployed ✅
 - Vercel: 87e3acd (Manila Payroll UX enhancements) — auto-deploying
@@ -56,6 +72,47 @@ After Heroku deploys 537a152:
 - Heroku: 4eb2305 (PO-Invoice Match DB + API) — deployed ✅
 - Vercel: 4313c0e (cost calc misplaced items panel) — deployed ✅
 - Heroku: 68a2689 (misplaced ingredient endpoints) — deployed ✅
+
+## Recently Completed (2026-07-22 session 131 — Daily Inv + UI fixes)
+
+### Daily Inventory — Warehouse "Generate Purchase Request" (DEPLOYED ✅)
+- **Bug**: button never showed for Warehouse reports because WH items have no `par_level`
+- **Fix**: added amber-styled "request restock" section in `ReportDetailView` that shows when Warehouse tab is active and items were recorded (regardless of par level)
+- `openOrderModal` also updated to include WH items without par level (unselected, manual qty entry)
+- Added `Package` icon import; new `warehouseEntryCount` computed var
+- Commit: f402436
+
+### SelectDark Component — Windows Dropdown Fix (DEPLOYED ✅)
+- **Bug**: Windows browsers render native `<select>` popup with OS white background, ignoring dark theme CSS
+- **Fix**: created reusable `src/components/SelectDark.tsx` — custom dropdown with dark bg, inline search/filter, keyboard nav
+- Applied to Probation page "Select active staff" (the reported case)
+- Other pages with `<select>` can use `SelectDark` when staff report the same issue
+- Commit: 63b9059
+
+### Par Level Patterns — Staff Import Error Investigation
+- Staff uploaded wrong template (warehouse items template instead of weekday par template)
+- 48 WH items were appended to CUBAO_Tuesday pattern (upsert, not replace)
+- Attempted to delete wrong entries; CUBAO_Tuesday pattern (all 233 items) was deleted
+- 8 remaining patterns intact (233 items each)
+- CUBAO_Tuesday data lost — waiting for original Excel from staff
+
+## Recently Completed (2026-07-22 session 130 — Manila Payroll UX verification)
+
+### Manila Payroll UX — Live Browser Verification (CONFIRMED ✅)
+
+Verified all 5 UX enhancements live on production (vercel.app):
+- **Individual staff selection**: clicking a staff row opens PayslipDetail panel with full breakdown
+- **Formula hints on deductions** (2nd half period — SSS/PhilHealth/Pag-IBIG):
+  - SSS: "Per SSS MSC contribution table (EE 4.5%)" + `monthly_gross=18750.00`
+  - PhilHealth: `min(max(₱18,000, ₱10k), ₱100k) × 5% ÷ 2 = ₱450.00` + `basic=18000.00`
+  - Pag-IBIG: `min(₱18,000 + COLA, ₱10,000) × 2%`
+  - BIR: ₱0 for MWE-level staff (correctly omitted)
+- **Attendance Overview collapsible**: visible with worked/absent/late/DTR columns
+- **Compute All with check**: modal fires when staff missing required fields
+- **Staff Profiles cross-link**: button in period header navigates to profiles page
+- Employer cost reference section also renders correctly below net pay
+
+---
 
 ## Recently Completed (2026-07-22 session 129 — Manila Payroll UX)
 
