@@ -908,6 +908,21 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
     }
   }
 
+  const [syncingWh, setSyncingWh] = useState(false);
+  async function handleSyncWarehouse() {
+    if (!confirm("Sync Warehouse items from Order Catalog (WH items) into Daily Inventory?\n\nThis will add/update warehouse items based on the active WH entries in the Order Catalog.")) return;
+    setSyncingWh(true); setError(""); setMsg("");
+    try {
+      const res = await apiFetch(`/api/daily-inventory/items/seed-warehouse`, { method: "POST" }) as { synced?: number };
+      setMsg(`Warehouse items synced: ${res.synced ?? 0} items added/updated.`);
+      await loadItems();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Sync failed");
+    } finally {
+      setSyncingWh(false);
+    }
+  }
+
   const sections = [...new Set(items.map((i) => i.section))].sort();
   const retiredCount = items.filter((i) => !i.is_active && i.item_name.startsWith("[Retired]")).length;
 
@@ -1006,6 +1021,17 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
               {seeding ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
               Reset to Default
             </button>
+            {sourceFilter === "warehouse" && (
+              <button
+                onClick={() => void handleSyncWarehouse()}
+                disabled={syncingWh}
+                className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500/20 disabled:opacity-50"
+                title="Add/update Warehouse items from Order Catalog (WH items)"
+              >
+                {syncingWh ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                Sync WH Items
+              </button>
+            )}
             <button
               onClick={() => setAddOpen((v) => !v)}
               className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20"
