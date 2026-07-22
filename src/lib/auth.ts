@@ -567,6 +567,15 @@ export function canAccessIncidentReportAdmin(a?: Auth | null): boolean {
   return hasAnyPermission(["channel.admin.incident_reports.view", "incident_report.read", "incident_report.reply"], a);
 }
 
+/** HR Clearance admin — matches `admin.hr_clearance` channel in `app/access_control.py`. */
+export function canAccessHrClearanceAdmin(a?: Auth | null): boolean {
+  const x = a ?? getAuth();
+  if (!x) return false;
+  const role = String(x.role || "").toUpperCase();
+  if (role === "HQ" || role === "ADMIN") return true;
+  return hasAnyPermission(["channel.admin.hr_clearance.view", "channel.admin.hr_clearance.manage"], x);
+}
+
 /** Incident Report staff channel — matches `incident_report` channel in `app/access_control.py`. */
 export function canAccessIncidentReport(a?: Auth | null): boolean {
   return hasAnyPermission(["channel.incident_report.view", "incident_report.submit.self", "incident_report.inbox.read"], a);

@@ -1,0 +1,733 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  FileCheck,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  Send,
+  X,
+} from "lucide-react";
+import { getAuth, getAuthHeaders, refreshAuthFromApi, canAccessHrClearanceAdmin } from "@/lib/auth";
+import { API_BASE } from "@/lib/api";
+import {
+  GLASS_CARD,
+  PRIMARY_BUTTON,
+  SECONDARY_BUTTON,
+  INPUT_CLASS,
+  SELECT_CLASS,
+  TEXTAREA_CLASS,
+  T_PAGE_TITLE,
+  T_SECTION,
+  T_CARD_TITLE,
+  T_LABEL,
+  T_BODY,
+  T_CAPTION,
+  DIVIDER,
+} from "@/lib/ui-tokens";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type SeparationType = "resignation" | "termination" | "end_of_contract";
+
+const SEP_TYPE_LABELS: Record<SeparationType, string> = {
+  resignation: "Resignation",
+  termination: "Termination",
+  end_of_contract: "End of Contract",
+};
+
+type ClearanceCase = {
+  id: string;
+  city: string;
+  employee_name: string;
+  employee_id: string;
+  department: string;
+  position: string;
+  employee_email: string;
+  separation_type: SeparationType;
+  last_working_day: string | null;
+  created_by: string;
+  hr_signoff_by: string;
+  hr_signoff_at: string | null;
+  hr_signoff_notes: string;
+  fp_basic_pay: number;
+  fp_prorated_13th: number;
+  fp_leave_conversion: number;
+  fp_separation_pay: number;
+  fp_other_earnings: number;
+  fp_other_earnings_label: string;
+  fp_deduction_statutory: number;
+  fp_deduction_loans: number;
+  fp_deduction_other: number;
+  fp_deduction_other_label: string;
+  fp_total: number;
+  fp_currency: string;
+  fp_notes: string;
+  current_stage: number;
+  stage1_by: string;
+  stage1_at: string | null;
+  stage1_notes: string;
+  stage2_by: string;
+  stage2_at: string | null;
+  stage2_notes: string;
+  stage3_by: string;
+  stage3_at: string | null;
+  stage3_notes: string;
+  stage4_by: string;
+  stage4_at: string | null;
+  stage4_notes: string;
+  stage5_at: string | null;
+  stage5_sent_to: string;
+  stage6_by: string;
+  stage6_at: string | null;
+  stage6_notes: string;
+  status: "active" | "completed" | "cancelled";
+  created_at: string;
+  updated_at: string;
+};
+
+// ─── Stage metadata ───────────────────────────────────────────────────────────
+
+const STAGES = [
+  { n: 0, label: "Draft" },
+  { n: 1, label: "1st Review" },
+  { n: 2, label: "2nd Review" },
+  { n: 3, label: "3rd Review" },
+  { n: 4, label: "Finalized" },
+  { n: 5, label: "Email Sent" },
+  { n: 6, label: "Payment Done" },
+];
+
+function stageColor(stage: number, current: number): string {
+  if (stage < current) return "bg-emerald-500 text-white";
+  if (stage === current) return "bg-indigo-500 text-white";
+  return "bg-white/10 text-white/40";
+}
+
+function fmt(n: number, currency: string) {
+  return `${currency} ${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function fmtDate(iso: string | null) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+}
+
+// ─── Create case modal ────────────────────────────────────────────────────────
+
+type NewCaseForm = {
+  city: string;
+  employee_name: string;
+  employee_id: string;
+  department: string;
+  position: string;
+  employee_email: string;
+  separation_type: SeparationType;
+  last_working_day: string;
+};
+
+function CreateModal({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: (c: ClearanceCase) => void;
+}) {
+  const auth = getAuth();
+  const [form, setForm] = useState<NewCaseForm>({
+    city: auth?.city || "manila",
+    employee_name: "",
+    employee_id: "",
+    department: "",
+    position: "",
+    employee_email: "",
+    separation_type: "resignation",
+    last_working_day: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  function set(k: keyof NewCaseForm, v: string) {
+    setForm((p) => ({ ...p, [k]: v }));
+  }
+
+  async function submit() {
+    if (!form.employee_name.trim()) { setErr("Employee name is required"); return; }
+    setSaving(true); setErr("");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/hr/clearance`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed");
+      onCreated(data.case);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className={`${GLASS_CARD} w-full max-w-lg max-h-[90vh] overflow-y-auto`}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className={T_CARD_TITLE}>New Clearance Case</h2>
+          <button onClick={onClose} className="text-white/50 hover:text-white"><X size={18} /></button>
+        </div>
+
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={T_LABEL}>City</label>
+              <select className={SELECT_CLASS} value={form.city} onChange={e => set("city", e.target.value)}>
+                <option value="manila">Manila</option>
+                <option value="dubai">Dubai</option>
+              </select>
+            </div>
+            <div>
+              <label className={T_LABEL}>Separation Type</label>
+              <select className={SELECT_CLASS} value={form.separation_type} onChange={e => set("separation_type", e.target.value as SeparationType)}>
+                {Object.entries(SEP_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className={T_LABEL}>Employee Name *</label>
+            <input className={INPUT_CLASS} value={form.employee_name} onChange={e => set("employee_name", e.target.value)} placeholder="Full name" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={T_LABEL}>Employee ID</label>
+              <input className={INPUT_CLASS} value={form.employee_id} onChange={e => set("employee_id", e.target.value)} placeholder="e.g. MNL-001" />
+            </div>
+            <div>
+              <label className={T_LABEL}>Last Working Day</label>
+              <input type="date" className={INPUT_CLASS} value={form.last_working_day} onChange={e => set("last_working_day", e.target.value)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={T_LABEL}>Department</label>
+              <input className={INPUT_CLASS} value={form.department} onChange={e => set("department", e.target.value)} placeholder="e.g. Kitchen" />
+            </div>
+            <div>
+              <label className={T_LABEL}>Position</label>
+              <input className={INPUT_CLASS} value={form.position} onChange={e => set("position", e.target.value)} placeholder="e.g. Chef" />
+            </div>
+          </div>
+          <div>
+            <label className={T_LABEL}>Employee Email</label>
+            <input type="email" className={INPUT_CLASS} value={form.employee_email} onChange={e => set("employee_email", e.target.value)} placeholder="employee@example.com" />
+          </div>
+
+          {err && <p className="text-red-400 text-sm">{err}</p>}
+
+          <div className="flex gap-2 pt-2">
+            <button className={PRIMARY_BUTTON} onClick={submit} disabled={saving}>
+              {saving ? "Creating..." : "Create Case"}
+            </button>
+            <button className={SECONDARY_BUTTON} onClick={onClose}>Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Final Pay section ────────────────────────────────────────────────────────
+
+function FinalPaySection({ c, onUpdated }: { c: ClearanceCase; onUpdated: (updated: ClearanceCase) => void }) {
+  const [open, setOpen] = useState(c.current_stage === 0);
+  const [fp, setFp] = useState({
+    fp_basic_pay: c.fp_basic_pay,
+    fp_prorated_13th: c.fp_prorated_13th,
+    fp_leave_conversion: c.fp_leave_conversion,
+    fp_separation_pay: c.fp_separation_pay,
+    fp_other_earnings: c.fp_other_earnings,
+    fp_other_earnings_label: c.fp_other_earnings_label,
+    fp_deduction_statutory: c.fp_deduction_statutory,
+    fp_deduction_loans: c.fp_deduction_loans,
+    fp_deduction_other: c.fp_deduction_other,
+    fp_deduction_other_label: c.fp_deduction_other_label,
+    fp_notes: c.fp_notes,
+  });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const totalEarnings =
+    (fp.fp_basic_pay || 0) +
+    (fp.fp_prorated_13th || 0) +
+    (fp.fp_leave_conversion || 0) +
+    (fp.fp_separation_pay || 0) +
+    (fp.fp_other_earnings || 0);
+  const totalDeductions =
+    (fp.fp_deduction_statutory || 0) +
+    (fp.fp_deduction_loans || 0) +
+    (fp.fp_deduction_other || 0);
+  const netPay = totalEarnings - totalDeductions;
+
+  function numSet(k: string, v: string) {
+    const n = parseFloat(v) || 0;
+    setFp((p) => ({ ...p, [k]: n }));
+  }
+
+  async function save() {
+    setSaving(true); setErr("");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/hr/clearance/${c.id}/final-pay`, {
+        method: "PATCH",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify(fp),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed");
+      onUpdated(data.case);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const readOnly = c.current_stage > 0;
+
+  return (
+    <div className="mt-4">
+      <button className="flex items-center gap-2 text-white/70 hover:text-white text-sm font-medium w-full" onClick={() => setOpen(o => !o)}>
+        {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        Final Pay Breakdown
+        {c.current_stage === 0 && !readOnly && <span className="text-xs text-amber-400 ml-1">(draft — edit before submitting)</span>}
+      </button>
+
+      {open && (
+        <div className="mt-3 space-y-4">
+          {/* Earnings */}
+          <div>
+            <p className={`${T_CAPTION} mb-2 text-emerald-400`}>Earnings</p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { k: "fp_basic_pay", label: "Basic Pay" },
+                { k: "fp_prorated_13th", label: "Prorated 13th Month" },
+                { k: "fp_leave_conversion", label: "Leave Conversion" },
+                { k: "fp_separation_pay", label: "Separation Pay" },
+              ].map(({ k, label }) => (
+                <div key={k}>
+                  <label className={T_LABEL}>{label}</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className={INPUT_CLASS}
+                    value={(fp as Record<string, number | string>)[k] as number}
+                    onChange={e => numSet(k, e.target.value)}
+                    disabled={readOnly}
+                  />
+                </div>
+              ))}
+              <div>
+                <label className={T_LABEL}>Other Earnings</label>
+                <input type="number" min="0" step="0.01" className={INPUT_CLASS}
+                  value={fp.fp_other_earnings} onChange={e => numSet("fp_other_earnings", e.target.value)} disabled={readOnly} />
+              </div>
+              <div>
+                <label className={T_LABEL}>Other Label</label>
+                <input className={INPUT_CLASS} placeholder="e.g. Bonus"
+                  value={fp.fp_other_earnings_label} onChange={e => setFp(p => ({ ...p, fp_other_earnings_label: e.target.value }))} disabled={readOnly} />
+              </div>
+            </div>
+          </div>
+
+          <div className={DIVIDER} />
+
+          {/* Deductions */}
+          <div>
+            <p className={`${T_CAPTION} mb-2 text-rose-400`}>Deductions</p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { k: "fp_deduction_statutory", label: "Statutory (SSS/PhilHealth/etc.)" },
+                { k: "fp_deduction_loans", label: "Loans / Cash Advance" },
+              ].map(({ k, label }) => (
+                <div key={k}>
+                  <label className={T_LABEL}>{label}</label>
+                  <input type="number" min="0" step="0.01" className={INPUT_CLASS}
+                    value={(fp as Record<string, number | string>)[k] as number}
+                    onChange={e => numSet(k, e.target.value)} disabled={readOnly} />
+                </div>
+              ))}
+              <div>
+                <label className={T_LABEL}>Other Deductions</label>
+                <input type="number" min="0" step="0.01" className={INPUT_CLASS}
+                  value={fp.fp_deduction_other} onChange={e => numSet("fp_deduction_other", e.target.value)} disabled={readOnly} />
+              </div>
+              <div>
+                <label className={T_LABEL}>Other Label</label>
+                <input className={INPUT_CLASS} placeholder="e.g. Uniform"
+                  value={fp.fp_deduction_other_label} onChange={e => setFp(p => ({ ...p, fp_deduction_other_label: e.target.value }))} disabled={readOnly} />
+              </div>
+            </div>
+          </div>
+
+          <div className={DIVIDER} />
+
+          {/* Summary */}
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <p className={T_CAPTION}>Total Earnings</p>
+              <p className="text-emerald-400 font-semibold">{fmt(totalEarnings, c.fp_currency)}</p>
+            </div>
+            <div>
+              <p className={T_CAPTION}>Total Deductions</p>
+              <p className="text-rose-400 font-semibold">{fmt(totalDeductions, c.fp_currency)}</p>
+            </div>
+            <div>
+              <p className={T_CAPTION}>Net Pay</p>
+              <p className={`font-bold text-lg ${netPay >= 0 ? "text-white" : "text-red-400"}`}>
+                {fmt(netPay, c.fp_currency)}
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className={T_LABEL}>Notes</label>
+            <textarea className={TEXTAREA_CLASS} rows={2}
+              value={fp.fp_notes} onChange={e => setFp(p => ({ ...p, fp_notes: e.target.value }))} disabled={readOnly} />
+          </div>
+
+          {err && <p className="text-red-400 text-sm">{err}</p>}
+
+          {!readOnly && (
+            <button className={PRIMARY_BUTTON} onClick={save} disabled={saving}>
+              {saving ? "Saving..." : "Save Final Pay"}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Stage timeline ───────────────────────────────────────────────────────────
+
+function StageLine({ c, onUpdated }: { c: ClearanceCase; onUpdated: (u: ClearanceCase) => void }) {
+  const [actionNotes, setActionNotes] = useState("");
+  const [emailTo, setEmailTo] = useState(c.employee_email || "");
+  const [doing, setDoing] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function act(action: "advance" | "return") {
+    setDoing(true); setErr("");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/hr/clearance/${c.id}/stage`, {
+        method: "POST",
+        headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ action, notes: actionNotes, email_sent_to: emailTo }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed");
+      onUpdated(data.case);
+      setActionNotes("");
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Error");
+    } finally {
+      setDoing(false);
+    }
+  }
+
+  const cur = c.current_stage;
+  const isDone = c.status === "completed";
+  const isCancelled = c.status === "cancelled";
+
+  const stageDetails = [
+    { n: 1, who: c.stage1_by, at: c.stage1_at, notes: c.stage1_notes },
+    { n: 2, who: c.stage2_by, at: c.stage2_at, notes: c.stage2_notes },
+    { n: 3, who: c.stage3_by, at: c.stage3_at, notes: c.stage3_notes },
+    { n: 4, who: c.stage4_by, at: c.stage4_at, notes: c.stage4_notes },
+    { n: 5, who: "System", at: c.stage5_at, notes: c.stage5_sent_to ? `Sent to: ${c.stage5_sent_to}` : "" },
+    { n: 6, who: c.stage6_by, at: c.stage6_at, notes: c.stage6_notes },
+  ];
+
+  return (
+    <div className="mt-4 space-y-3">
+      {/* Stage pills */}
+      <div className="flex gap-1 flex-wrap">
+        {STAGES.map(s => (
+          <div key={s.n} className={`rounded-full px-3 py-1 text-xs font-medium ${stageColor(s.n, cur)}`}>
+            {s.n === 0 ? "0: Draft" : `${s.n}: ${s.label}`}
+          </div>
+        ))}
+      </div>
+
+      {/* Completed stage details */}
+      {stageDetails.filter(s => s.n <= cur).map(s => (
+        <div key={s.n} className="flex items-start gap-2 text-sm">
+          <div className="w-5 h-5 rounded-full bg-emerald-500/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Check size={12} className="text-emerald-400" />
+          </div>
+          <div>
+            <span className="text-white/60">{STAGES[s.n].label}</span>
+            {s.who && <span className="text-white ml-1">— {s.who}</span>}
+            {s.at && <span className="text-white/40 ml-1 text-xs">{fmtDate(s.at)}</span>}
+            {s.notes && <p className="text-white/50 text-xs mt-0.5">{s.notes}</p>}
+          </div>
+        </div>
+      ))}
+
+      {/* Action area */}
+      {!isDone && !isCancelled && (
+        <div className="pt-2 space-y-2">
+          <div>
+            <label className={T_LABEL}>Notes for this action</label>
+            <textarea className={TEXTAREA_CLASS} rows={2} value={actionNotes} onChange={e => setActionNotes(e.target.value)}
+              placeholder={cur === 4 ? "Email body / remarks" : "Optional notes"} />
+          </div>
+
+          {/* Stage 4 → 5: email recipient */}
+          {cur === 4 && (
+            <div>
+              <label className={T_LABEL}>Send Email To</label>
+              <input type="email" className={INPUT_CLASS} value={emailTo} onChange={e => setEmailTo(e.target.value)} placeholder="employee@example.com" />
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            {cur < 6 && (
+              <button className={PRIMARY_BUTTON} onClick={() => act("advance")} disabled={doing}>
+                {doing ? "..." : cur === 5 ? <><Check size={14} className="inline mr-1" />Mark Payment Done</> : cur === 4 ? <><Send size={14} className="inline mr-1" />Mark Email Sent</> : <><ChevronDown size={14} className="inline mr-1" />Advance</>}
+              </button>
+            )}
+            {cur > 0 && (
+              <button className={SECONDARY_BUTTON} onClick={() => act("return")} disabled={doing}>
+                <RotateCcw size={14} className="inline mr-1" />Return to Draft
+              </button>
+            )}
+          </div>
+
+          {err && <p className="text-red-400 text-sm">{err}</p>}
+        </div>
+      )}
+
+      {isDone && (
+        <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium">
+          <Check size={16} /> Clearance complete — payment processed
+        </div>
+      )}
+      {isCancelled && <p className="text-rose-400 text-sm">Case cancelled</p>}
+    </div>
+  );
+}
+
+// ─── Case card ────────────────────────────────────────────────────────────────
+
+function CaseCard({ c, onUpdated, onCancel }: {
+  c: ClearanceCase;
+  onUpdated: (u: ClearanceCase) => void;
+  onCancel: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  const stageBadge = STAGES[c.current_stage]?.label ?? `Stage ${c.current_stage}`;
+  const statusColor =
+    c.status === "completed" ? "text-emerald-400" :
+    c.status === "cancelled" ? "text-rose-400/60" :
+    "text-indigo-300";
+
+  return (
+    <div className={`${GLASS_CARD} ${c.status === "cancelled" ? "opacity-50" : ""}`}>
+      <button className="w-full text-left" onClick={() => setExpanded(e => !e)}>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className={`${T_CARD_TITLE} truncate`}>{c.employee_name}</p>
+            <p className={T_CAPTION}>
+              {c.department && `${c.department} · `}{c.position}
+              {c.last_working_day && ` · LWD ${fmtDate(c.last_working_day)}`}
+            </p>
+          </div>
+          <div className="flex flex-col items-end gap-1 flex-shrink-0">
+            <span className={`text-xs font-medium ${statusColor}`}>{stageBadge}</span>
+            <span className={`text-xs rounded px-2 py-0.5 ${c.city === "dubai" ? "bg-amber-500/20 text-amber-300" : "bg-blue-500/20 text-blue-300"}`}>
+              {c.city === "dubai" ? "DXB" : "MNL"}
+            </span>
+          </div>
+        </div>
+      </button>
+
+      {expanded && (
+        <div className="mt-4">
+          <div className={DIVIDER} />
+
+          <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
+            <div><span className="text-white/50">Type:</span> <span className="text-white">{SEP_TYPE_LABELS[c.separation_type]}</span></div>
+            <div><span className="text-white/50">Email:</span> <span className="text-white">{c.employee_email || "—"}</span></div>
+            <div><span className="text-white/50">Employee ID:</span> <span className="text-white">{c.employee_id || "—"}</span></div>
+            <div><span className="text-white/50">Created by:</span> <span className="text-white">{c.created_by || "—"}</span></div>
+            <div><span className="text-white/50">Net Pay:</span> <span className="text-white font-semibold">{fmt(c.fp_total, c.fp_currency)}</span></div>
+          </div>
+
+          <FinalPaySection c={c} onUpdated={onUpdated} />
+
+          <div className={`${DIVIDER} mt-4`} />
+
+          <p className={`${T_SECTION} mt-3`}>Workflow</p>
+          <StageLine c={c} onUpdated={onUpdated} />
+
+          {c.status === "active" && (
+            <div className="mt-4 flex justify-end">
+              <button className="text-xs text-rose-400/60 hover:text-rose-400" onClick={onCancel}>Cancel case</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main page ────────────────────────────────────────────────────────────────
+
+export default function HrClearancePage() {
+  const router = useRouter();
+  const [cases, setCases] = useState<ClearanceCase[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [cityFilter, setCityFilter] = useState<"" | "manila" | "dubai">("");
+  const [statusFilter, setStatusFilter] = useState<"" | "active" | "completed" | "cancelled">("active");
+  const [showCreate, setShowCreate] = useState(false);
+
+  const auth = getAuth();
+
+  useEffect(() => {
+    refreshAuthFromApi().then(fresh => {
+      if (!canAccessHrClearanceAdmin(fresh ?? auth)) {
+        router.replace("/");
+      }
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const load = useCallback(async () => {
+    setLoading(true); setErr("");
+    try {
+      const params = new URLSearchParams();
+      if (cityFilter) params.set("city", cityFilter);
+      if (statusFilter) params.set("status", statusFilter);
+      const res = await fetch(`${API_BASE}/api/admin/hr/clearance?${params}`, { headers: getAuthHeaders() });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed");
+      setCases(data.cases || []);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Error");
+    } finally {
+      setLoading(false);
+    }
+  }, [cityFilter, statusFilter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  function handleUpdated(updated: ClearanceCase) {
+    setCases(prev => prev.map(c => c.id === updated.id ? updated : c));
+  }
+
+  async function handleCancel(id: string) {
+    if (!confirm("Cancel this clearance case?")) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/hr/clearance/${id}/cancel`, {
+        method: "POST",
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) throw new Error("Failed");
+      load();
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : "Error");
+    }
+  }
+
+  const active = cases.filter(c => c.status === "active").length;
+  const completed = cases.filter(c => c.status === "completed").length;
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 md:p-6">
+      <div className="max-w-3xl mx-auto space-y-4">
+
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <button onClick={() => router.back()} className="text-white/50 hover:text-white">
+            <ArrowLeft size={20} />
+          </button>
+          <FileCheck size={22} className="text-indigo-400" />
+          <h1 className={T_PAGE_TITLE}>HR Clearance</h1>
+          <button onClick={load} className="ml-auto text-white/40 hover:text-white">
+            <RefreshCw size={16} />
+          </button>
+        </div>
+
+        {/* KPI strip */}
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "Active", value: active, color: "text-indigo-300" },
+            { label: "Completed", value: completed, color: "text-emerald-400" },
+            { label: "Total", value: cases.length, color: "text-white" },
+          ].map(k => (
+            <div key={k.label} className={`${GLASS_CARD} text-center py-3`}>
+              <p className={`text-2xl font-bold ${k.color}`}>{k.value}</p>
+              <p className={T_CAPTION}>{k.label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Filters + create */}
+        <div className="flex flex-wrap gap-2 items-center">
+          <select className={SELECT_CLASS} value={cityFilter} onChange={e => setCityFilter(e.target.value as typeof cityFilter)}>
+            <option value="">All Cities</option>
+            <option value="manila">Manila</option>
+            <option value="dubai">Dubai</option>
+          </select>
+          <select className={SELECT_CLASS} value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}>
+            <option value="">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          <button className={`${PRIMARY_BUTTON} ml-auto`} onClick={() => setShowCreate(true)}>
+            <Plus size={16} className="inline mr-1" />New Case
+          </button>
+        </div>
+
+        {err && <div className="text-red-400 text-sm p-3 bg-red-500/10 rounded-lg">{err}</div>}
+
+        {loading ? (
+          <div className={`${GLASS_CARD} text-center text-white/40 py-12`}>Loading...</div>
+        ) : cases.length === 0 ? (
+          <div className={`${GLASS_CARD} text-center text-white/40 py-12`}>No cases found</div>
+        ) : (
+          <div className="space-y-3">
+            {cases.map(c => (
+              <CaseCard
+                key={c.id}
+                c={c}
+                onUpdated={handleUpdated}
+                onCancel={() => handleCancel(c.id)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {showCreate && (
+        <CreateModal
+          onClose={() => setShowCreate(false)}
+          onCreated={c => {
+            setShowCreate(false);
+            setCases(prev => [c, ...prev]);
+          }}
+        />
+      )}
+    </div>
+  );
+}
