@@ -1548,13 +1548,13 @@ export default function HRRecruitmentPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Kanban Board */}
         <div className="flex-1 overflow-x-auto overflow-y-hidden">
-          <div className="flex h-full gap-3 p-4">
+          <div className="grid h-full gap-2 p-3" style={{ gridTemplateColumns: `repeat(${KANBAN_COLUMNS.length}, minmax(0, 1fr))` }}>
             {KANBAN_COLUMNS.map((col) => {
               const cards = grouped[col.id] || [];
               return (
                 <div
                   key={col.id}
-                  className={`flex min-w-[260px] max-w-[280px] flex-col rounded-2xl border-t-2 ${col.color} border border-white/8 bg-white/3 h-full`}
+                  className={`flex min-w-0 flex-col rounded-2xl border-t-2 ${col.color} border border-white/8 bg-white/3 h-full`}
                 >
                   {/* Column header */}
                   <div className="shrink-0 flex items-center justify-between px-3 py-2.5 border-b border-white/8">
