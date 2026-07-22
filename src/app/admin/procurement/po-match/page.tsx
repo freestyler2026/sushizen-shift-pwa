@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   Camera,
@@ -113,8 +113,20 @@ type MatchSettings = {
 
 const TODAY = new Date().toISOString().slice(0, 10);
 
-function getCity() { return (getAuth()?.city || "dubai").toLowerCase(); }
-function getCurrency() { return getCity() === "manila" ? "PHP" : "AED"; }
+// City context — set by PoMatchPage, consumed by all tabs
+const CityCtx = createContext<string>("dubai");
+const useCity = () => useContext(CityCtx);
+
+// Reads auth city, but localStorage override (set by the city selector) takes priority
+function getInitialCity(): string {
+  if (typeof window !== "undefined") {
+    const v = window.localStorage.getItem("po_match_city");
+    if (v === "dubai" || v === "manila") return v;
+  }
+  return (getAuth()?.city || "dubai").toLowerCase();
+}
+
+function getCurrency(city: string) { return city === "manila" ? "PHP" : "AED"; }
 
 const DISCREPANCY_TYPES = [
   { value: "PRICE", label: "Price Error — unit price differs from PO" },
@@ -124,9 +136,9 @@ const DISCREPANCY_TYPES = [
   { value: "OTHER", label: "Other" },
 ];
 
-function fmtAmount(n: number | null | undefined) {
+function fmtAmount(n: number | null | undefined, currency: string) {
   if (n == null) return "—";
-  return getCurrency() + " " + Math.abs(n).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return currency + " " + Math.abs(n).toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function MatchBadge({ status, variance }: { status: string; variance: number }) {
@@ -241,6 +253,8 @@ function QuickEntryTab({
   onSaved: () => void;
   settings: MatchSettings | null;
 }) {
+  const city = useCity();
+  const currency = getCurrency(city);
   const [vendorQ, setVendorQ] = useState("");
   const [poRows, setPoRows] = useState<PoRow[]>([]);
   const [poLoading, setPoLoading] = useState(false);
@@ -256,17 +270,58 @@ function QuickEntryTab({
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [showPoList, setShowPoList] = useState(false);
+  const vendorDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const poNoDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const searchPos = useCallback(async () => {
-    if (!vendorQ.trim()) { setPoRows([]); return; }
+  const searchPos = useCallback(async (q: string) => {
+    if (!q.trim()) { setPoRows([]); setShowPoList(false); return; }
     setPoLoading(true);
     try {
-      const d = await apiFetch(`/procurement/po-match/pos?city=${getCity()}&vendor_name=${encodeURIComponent(vendorQ)}&limit=20`);
+      const d = await apiFetch(`/procurement/po-match/pos?city=${city}&vendor_name=${encodeURIComponent(q)}&limit=20`);
       setPoRows(d.rows || []);
       setShowPoList(true);
     } catch { setPoRows([]); }
     finally { setPoLoading(false); }
-  }, [vendorQ]);
+  }, [city]);
+
+  // Auto-search when vendor name changes (300 ms debounce, min 2 chars)
+  useEffect(() => {
+    if (vendorDebounce.current) clearTimeout(vendorDebounce.current);
+    if (vendorQ.trim().length >= 2) {
+      vendorDebounce.current = setTimeout(() => searchPos(vendorQ), 300);
+    } else {
+      setPoRows([]);
+      setShowPoList(false);
+    }
+    return () => { if (vendorDebounce.current) clearTimeout(vendorDebounce.current); };
+  }, [vendorQ, searchPos]);
+
+  // Search by PO number when typed (500 ms debounce, min 4 chars)
+  useEffect(() => {
+    if (selectedPo) return; // already selected, don't overwrite
+    if (poNoDebounce.current) clearTimeout(poNoDebounce.current);
+    const q = manualPoNo.trim();
+    if (q.length >= 4) {
+      poNoDebounce.current = setTimeout(async () => {
+        setPoLoading(true);
+        try {
+          const d = await apiFetch(`/procurement/po-match/pos?city=${city}&po_no=${encodeURIComponent(q)}&limit=10`);
+          const rows: PoRow[] = d.rows || [];
+          if (rows.length === 1) {
+            setSelectedPo(rows[0]);
+            setVendorQ(rows[0].vendor_name);
+            setManualPoAmount(String(rows[0].po_amount));
+            setPoDate(rows[0].po_date?.slice(0, 10) || TODAY);
+          } else if (rows.length > 1) {
+            setPoRows(rows);
+            setShowPoList(true);
+          }
+        } catch { /* ignore */ }
+        finally { setPoLoading(false); }
+      }, 500);
+    }
+    return () => { if (poNoDebounce.current) clearTimeout(poNoDebounce.current); };
+  }, [manualPoNo, city, selectedPo]);
 
   const selectPo = (po: PoRow) => {
     setSelectedPo(po);
@@ -296,7 +351,7 @@ function QuickEntryTab({
       await apiFetch("/procurement/po-match", {
         method: "POST",
         body: JSON.stringify({
-          city: getCity(),
+          city,
           vendor_name: vendorQ.trim(),
           po_no: manualPoNo.trim(),
           po_date: poDate,
@@ -304,14 +359,14 @@ function QuickEntryTab({
           invoice_no: invoiceNo.trim(),
           invoice_date: invoiceDate,
           invoice_amount: invAmount,
-          currency: getCurrency(),
+          currency,
           notes: notes.trim(),
           photo_data: photoData,
         }),
       });
       const matchMsg = isMatch
         ? "✅ Matched — no further action needed."
-        : `⚠️ Discrepancy detected (${variance > 0 ? "+" : ""}${variance.toFixed(2)} ${getCurrency()}). Added to review queue.`;
+        : `⚠️ Discrepancy detected (${variance > 0 ? "+" : ""}${variance.toFixed(2)} ${currency}). Added to review queue.`;
       setMsg({ text: matchMsg, ok: isMatch });
       setVendorQ(""); setSelectedPo(null); setManualPoNo(""); setManualPoAmount("");
       setInvoiceNo(""); setInvoiceAmount(""); setNotes(""); setPhotoData("");
@@ -331,7 +386,7 @@ function QuickEntryTab({
           within the tolerance, the record closes automatically.
           {settings && (
             <span className="ml-1 text-violet-400">
-              (Tolerance: {getCurrency()} {tolAed.toFixed(2)} or {(tolPct * 100).toFixed(1)}%)
+              (Tolerance: {currency} {tolAed.toFixed(2)} or {(tolPct * 100).toFixed(1)}%)
             </span>
           )}
         </p>
@@ -346,11 +401,11 @@ function QuickEntryTab({
                 placeholder="Type supplier name to search POs…"
                 value={vendorQ}
                 onChange={e => { setVendorQ(e.target.value); setSelectedPo(null); }}
-                onKeyDown={e => e.key === "Enter" && searchPos()}
+                onKeyDown={e => e.key === "Enter" && searchPos(vendorQ)}
               />
               <button
                 className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-zinc-400 hover:text-white"
-                onClick={searchPos}
+                onClick={() => searchPos(vendorQ)}
               >
                 {poLoading ? <RefreshCw size={15} className="animate-spin" /> : <Search size={15} />}
               </button>
@@ -364,7 +419,7 @@ function QuickEntryTab({
                     >
                       <span className="text-zinc-200">{po.vendor_name}</span>
                       <span className="ml-2 text-right text-zinc-400">
-                        {po.po_no} · {fmtAmount(po.po_amount)} · {po.po_date?.slice(0, 10)}
+                        {po.po_no} · {fmtAmount(po.po_amount, currency)} · {po.po_date?.slice(0, 10)}
                       </span>
                     </button>
                   ))}
@@ -384,12 +439,15 @@ function QuickEntryTab({
           {/* PO No */}
           <div>
             <label className={T_LABEL}>PO Number</label>
-            <input
-              className={`mt-1.5 ${INPUT_CLASS}`}
-              placeholder="e.g. DXB-PO-2026-0042"
-              value={manualPoNo}
-              onChange={e => setManualPoNo(e.target.value)}
-            />
+            <div className="relative mt-1.5">
+              <input
+                className={INPUT_CLASS}
+                placeholder="e.g. DXB-PO-2026-0042 — auto-fills on match"
+                value={manualPoNo}
+                onChange={e => { setManualPoNo(e.target.value); if (selectedPo) setSelectedPo(null); }}
+              />
+              {poLoading && <RefreshCw size={13} className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-zinc-500" />}
+            </div>
           </div>
 
           {/* PO Date */}
@@ -400,7 +458,7 @@ function QuickEntryTab({
 
           {/* PO Amount */}
           <div>
-            <label className={T_LABEL}>PO Amount ({getCurrency()}) *</label>
+            <label className={T_LABEL}>PO Amount ({currency}) *</label>
             <input
               type="number" min="0" step="0.01"
               className={`mt-1.5 ${INPUT_CLASS}`}
@@ -439,7 +497,7 @@ function QuickEntryTab({
 
           {/* Invoice Amount */}
           <div className="sm:col-span-2">
-            <label className={T_LABEL}>Invoice Amount ({getCurrency()}) *</label>
+            <label className={T_LABEL}>Invoice Amount ({currency}) *</label>
             <input
               type="number" min="0" step="0.01"
               className={`mt-1.5 ${INPUT_CLASS}`}
@@ -462,8 +520,8 @@ function QuickEntryTab({
                   {isMatch ? "Amounts match — will auto-close" : "Discrepancy detected — will go to review queue"}
                 </p>
                 <p className="text-sm text-zinc-400">
-                  PO: {fmtAmount(poAmount)} · Invoice: {fmtAmount(invAmount)} · Variance: {variance > 0 ? "+" : ""}{variance.toFixed(2)} {getCurrency()}
-                  {!isMatch && <span className="ml-2 text-zinc-500">(tolerance: ±{effectiveTol.toFixed(2)} {getCurrency()})</span>}
+                  PO: {fmtAmount(poAmount, currency)} · Invoice: {fmtAmount(invAmount, currency)} · Variance: {variance > 0 ? "+" : ""}{variance.toFixed(2)} {currency}
+                  {!isMatch && <span className="ml-2 text-zinc-500">(tolerance: ±{effectiveTol.toFixed(2)} {currency})</span>}
                 </p>
               </div>
             </div>
@@ -504,6 +562,8 @@ function QuickEntryTab({
 // ─── Tab 2: Discrepancy Queue ─────────────────────────────────────────────────
 
 function DiscrepancyQueueTab() {
+  const city = useCity();
+  const currency = getCurrency(city);
   const [rows, setRows] = useState<CheckRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -515,7 +575,7 @@ function DiscrepancyQueueTab() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const d = await apiFetch(`/procurement/po-match?city=${getCity()}&match_status=DISCREPANCY&limit=200`);
+      const d = await apiFetch(`/procurement/po-match?city=${city}&match_status=DISCREPANCY&limit=200`);
       setRows(d.rows || []);
     } catch { setRows([]); }
     finally { setLoading(false); }
@@ -573,12 +633,12 @@ function DiscrepancyQueueTab() {
           {expandedId === row.id && (
             <div className="border-t border-white/5 px-4 pb-4 pt-3">
               <div className="grid gap-3 text-sm sm:grid-cols-3">
-                <div><p className={T_LABEL}>PO Amount</p><p className="mt-0.5 text-zinc-200">{fmtAmount(row.po_amount)}</p></div>
-                <div><p className={T_LABEL}>Invoice Amount</p><p className="mt-0.5 text-zinc-200">{fmtAmount(row.invoice_amount)}</p></div>
+                <div><p className={T_LABEL}>PO Amount</p><p className="mt-0.5 text-zinc-200">{fmtAmount(row.po_amount, currency)}</p></div>
+                <div><p className={T_LABEL}>Invoice Amount</p><p className="mt-0.5 text-zinc-200">{fmtAmount(row.invoice_amount, currency)}</p></div>
                 <div>
                   <p className={T_LABEL}>Variance</p>
                   <p className={`mt-0.5 font-semibold ${row.variance_amount > 0 ? "text-red-400" : "text-amber-400"}`}>
-                    {row.variance_amount > 0 ? "+" : ""}{row.variance_amount.toFixed(2)} {row.currency || getCurrency()}
+                    {row.variance_amount > 0 ? "+" : ""}{row.variance_amount.toFixed(2)} {row.currency || currency}
                   </p>
                 </div>
                 <div><p className={T_LABEL}>PO No.</p><p className="mt-0.5 text-zinc-300">{row.po_no || "—"}</p></div>
@@ -692,6 +752,8 @@ function DiscrepancyQueueTab() {
 // ─── Tab 3: All Records ───────────────────────────────────────────────────────
 
 function AllRecordsTab() {
+  const city = useCity();
+  const currency = getCurrency(city);
   const [rows, setRows] = useState<CheckRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [vendorFilter, setVendorFilter] = useState("");
@@ -705,7 +767,7 @@ function AllRecordsTab() {
     setLoading(true);
     try {
       const params = new URLSearchParams({
-        city: getCity(), date_from: dateFrom, date_to: dateTo,
+        city, date_from: dateFrom, date_to: dateTo,
         ...(vendorFilter ? { vendor_name: vendorFilter } : {}), limit: "500",
       });
       const d = await apiFetch(`/procurement/po-match?${params}`);
@@ -771,8 +833,8 @@ function AllRecordsTab() {
                   {row.photo_data && <Camera size={11} className="ml-1 inline text-violet-400" />}
                 </td>
                 <td className={`${TABLE_CELL} text-zinc-400`}>{row.invoice_no}</td>
-                <td className={`${TABLE_CELL} text-right font-mono text-zinc-300`}>{fmtAmount(row.po_amount)}</td>
-                <td className={`${TABLE_CELL} text-right font-mono text-zinc-300`}>{fmtAmount(row.invoice_amount)}</td>
+                <td className={`${TABLE_CELL} text-right font-mono text-zinc-300`}>{fmtAmount(row.po_amount, currency)}</td>
+                <td className={`${TABLE_CELL} text-right font-mono text-zinc-300`}>{fmtAmount(row.invoice_amount, currency)}</td>
                 <td className={`${TABLE_CELL} text-right font-mono ${row.variance_amount !== 0 ? "text-amber-400" : "text-zinc-500"}`}>
                   {row.variance_amount === 0 ? "—" : (row.variance_amount > 0 ? "+" : "") + row.variance_amount.toFixed(2)}
                 </td>
@@ -792,6 +854,8 @@ function AllRecordsTab() {
 // ─── Tab 4: Supplier Scorecard ────────────────────────────────────────────────
 
 function SupplierScorecardTab() {
+  const city = useCity();
+  const currency = getCurrency(city);
   const [rows, setRows] = useState<SupplierStat[]>([]);
   const [loading, setLoading] = useState(false);
   const [days, setDays] = useState(30);
@@ -799,7 +863,7 @@ function SupplierScorecardTab() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const d = await apiFetch(`/procurement/po-match/supplier-stats?city=${getCity()}&days=${days}`);
+      const d = await apiFetch(`/procurement/po-match/supplier-stats?city=${city}&days=${days}`);
       setRows(d.rows || []);
     } catch { setRows([]); }
     finally { setLoading(false); }
@@ -854,7 +918,7 @@ function SupplierScorecardTab() {
                 <div className={KPI_CARD + " !p-3"}><p className={KPI_LABEL}>Matched</p><p className="mt-0.5 text-xl font-bold text-emerald-400">{stat.matched_count}</p></div>
                 <div className={KPI_CARD + " !p-3"}><p className={KPI_LABEL}>Discrepancies</p><p className={`mt-0.5 text-xl font-bold ${stat.discrepancy_count > 0 ? "text-red-400" : "text-zinc-400"}`}>{stat.discrepancy_count}</p></div>
                 <div className={KPI_CARD + " !p-3"}><p className={KPI_LABEL}>Unresolved</p><p className={`mt-0.5 text-xl font-bold ${stat.unresolved_count > 0 ? "text-amber-400" : "text-zinc-400"}`}>{stat.unresolved_count}</p></div>
-                <div className={KPI_CARD + " !p-3"}><p className={KPI_LABEL}>Total Variance</p><p className={`mt-0.5 text-base font-bold ${Number(stat.total_variance_abs) > 0 ? "text-red-400" : "text-zinc-400"}`}>{fmtAmount(stat.total_variance_abs)}</p></div>
+                <div className={KPI_CARD + " !p-3"}><p className={KPI_LABEL}>Total Variance</p><p className={`mt-0.5 text-base font-bold ${Number(stat.total_variance_abs) > 0 ? "text-red-400" : "text-zinc-400"}`}>{fmtAmount(stat.total_variance_abs, currency)}</p></div>
               </div>
 
               <div className="mt-3 h-1.5 rounded-full bg-white/5">
@@ -874,6 +938,8 @@ function SupplierScorecardTab() {
 // ─── Tab 5: Settings ─────────────────────────────────────────────────────────
 
 function SettingsTab({ onSettingsChange }: { onSettingsChange: (s: MatchSettings) => void }) {
+  const city = useCity();
+  const currency = getCurrency(city);
   const [settings, setSettings] = useState<MatchSettings | null>(null);
   const [tolAed, setTolAed] = useState("1.00");
   const [tolPct, setTolPct] = useState("0.5");
@@ -882,7 +948,7 @@ function SettingsTab({ onSettingsChange }: { onSettingsChange: (s: MatchSettings
 
   const load = useCallback(async () => {
     try {
-      const d = await apiFetch(`/procurement/po-match/settings?city=${getCity()}`);
+      const d = await apiFetch(`/procurement/po-match/settings?city=${city}`);
       const s = d.settings as MatchSettings;
       setSettings(s);
       setTolAed(String(s.tolerance_aed ?? 1.0));
@@ -895,14 +961,14 @@ function SettingsTab({ onSettingsChange }: { onSettingsChange: (s: MatchSettings
   const handleSave = async () => {
     const aed = parseFloat(tolAed || "1");
     const pct = parseFloat(tolPct || "0.5") / 100;
-    if (isNaN(aed) || aed < 0) { setMsg({ text: `${getCurrency()} tolerance must be ≥ 0.`, ok: false }); return; }
+    if (isNaN(aed) || aed < 0) { setMsg({ text: `${currency} tolerance must be ≥ 0.`, ok: false }); return; }
     if (isNaN(pct) || pct < 0 || pct > 1) { setMsg({ text: "Percentage must be between 0% and 100%.", ok: false }); return; }
     setSaving(true);
     setMsg(null);
     try {
       const d = await apiFetch("/procurement/po-match/settings", {
         method: "POST",
-        body: JSON.stringify({ city: getCity(), tolerance_aed: aed, tolerance_pct: pct }),
+        body: JSON.stringify({ city, tolerance_aed: aed, tolerance_pct: pct }),
       });
       setSettings(d.settings);
       onSettingsChange(d.settings);
@@ -922,13 +988,13 @@ function SettingsTab({ onSettingsChange }: { onSettingsChange: (s: MatchSettings
       <div className={`${GLASS_CARD} p-6`}>
         <h2 className={T_SECTION}>Match Tolerance Settings</h2>
         <p className="mt-1 text-sm text-zinc-500">
-          An invoice is considered <span className="text-emerald-400 font-medium">Matched</span> when the variance is within both the fixed {getCurrency()} tolerance <strong>and</strong> the percentage tolerance.
+          An invoice is considered <span className="text-emerald-400 font-medium">Matched</span> when the variance is within both the fixed {currency} tolerance <strong>and</strong> the percentage tolerance.
           The larger of the two is used as the effective tolerance.
         </p>
 
         <div className="mt-6 grid gap-5 sm:grid-cols-2">
           <div>
-            <label className={T_LABEL}>Fixed Tolerance ({getCurrency()})</label>
+            <label className={T_LABEL}>Fixed Tolerance ({currency})</label>
             <p className={`${T_CAPTION} mt-0.5`}>Minimum absolute tolerance regardless of PO size</p>
             <div className="relative mt-2">
               <input
@@ -937,13 +1003,13 @@ function SettingsTab({ onSettingsChange }: { onSettingsChange: (s: MatchSettings
                 value={tolAed}
                 onChange={e => setTolAed(e.target.value)}
               />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-zinc-500">{getCurrency()}</span>
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-zinc-500">{currency}</span>
             </div>
           </div>
 
           <div>
             <label className={T_LABEL}>Percentage Tolerance (%)</label>
-            <p className={`${T_CAPTION} mt-0.5`}>Scales with the PO amount (e.g. 0.5% of {getCurrency()} 1,000 = {getCurrency()} 5)</p>
+            <p className={`${T_CAPTION} mt-0.5`}>Scales with the PO amount (e.g. 0.5% of {currency} 1,000 = {currency} 5)</p>
             <div className="relative mt-2">
               <input
                 type="number" min="0" max="100" step="0.01"
@@ -974,10 +1040,10 @@ function SettingsTab({ onSettingsChange }: { onSettingsChange: (s: MatchSettings
                   const tol = parseFloat(previewTol(amt));
                   return (
                     <tr key={amt} className={TABLE_ROW}>
-                      <td className={`${TABLE_CELL} text-zinc-300`}>{getCurrency()} {amt.toLocaleString()}</td>
-                      <td className={`${TABLE_CELL} text-right text-violet-300`}>±{getCurrency()} {tol.toFixed(2)}</td>
-                      <td className={`${TABLE_CELL} text-right text-zinc-400`}>{getCurrency()} {(amt + tol).toFixed(2)}</td>
-                      <td className={`${TABLE_CELL} text-right text-zinc-400`}>{getCurrency()} {(amt - tol).toFixed(2)}</td>
+                      <td className={`${TABLE_CELL} text-zinc-300`}>{currency} {amt.toLocaleString()}</td>
+                      <td className={`${TABLE_CELL} text-right text-violet-300`}>±{currency} {tol.toFixed(2)}</td>
+                      <td className={`${TABLE_CELL} text-right text-zinc-400`}>{currency} {(amt + tol).toFixed(2)}</td>
+                      <td className={`${TABLE_CELL} text-right text-zinc-400`}>{currency} {(amt - tol).toFixed(2)}</td>
                     </tr>
                   );
                 })}
@@ -1012,21 +1078,29 @@ export default function PoMatchPage() {
   const [tab, setTab] = useState<Tab>("entry");
   const [discrepancyCount, setDiscrepancyCount] = useState(0);
   const [settings, setSettings] = useState<MatchSettings | null>(null);
+  const [city, setCity] = useState<string>(getInitialCity);
+
+  const handleCityChange = (newCity: string) => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("po_match_city", newCity);
+    }
+    setCity(newCity);
+  };
 
   const refreshBadge = useCallback(async () => {
     try {
-      const d = await apiFetch(`/procurement/po-match?city=${getCity()}&match_status=DISCREPANCY&limit=500`);
+      const d = await apiFetch(`/procurement/po-match?city=${city}&match_status=DISCREPANCY&limit=500`);
       const unresolved = (d.rows || []).filter((r: CheckRow) => !r.resolved_by).length;
       setDiscrepancyCount(unresolved);
     } catch { /* ignore */ }
-  }, []);
+  }, [city]);
 
   const loadSettings = useCallback(async () => {
     try {
-      const d = await apiFetch(`/procurement/po-match/settings?city=${getCity()}`);
+      const d = await apiFetch(`/procurement/po-match/settings?city=${city}`);
       setSettings(d.settings);
     } catch { /* use defaults */ }
-  }, []);
+  }, [city]);
 
   useEffect(() => {
     refreshBadge();
@@ -1046,34 +1120,49 @@ export default function PoMatchPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-4 sm:p-6">
-      <div className="mx-auto max-w-4xl space-y-6">
-        <div>
-          <h1 className={T_PAGE_TITLE}>PO — Invoice Match</h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            Enter daily supplier invoices. Matching amounts close automatically. Discrepancies go to review queue.
-          </p>
-        </div>
+    <CityCtx.Provider value={city}>
+      <div className="min-h-screen bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-4 sm:p-6">
+        <div className="mx-auto max-w-4xl space-y-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 className={T_PAGE_TITLE}>PO — Invoice Match</h1>
+              <p className="mt-1 text-sm text-zinc-500">
+                Enter daily supplier invoices. Matching amounts close automatically. Discrepancies go to review queue.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <label className={T_LABEL}>City</label>
+              <select
+                className={SELECT_CLASS + " w-auto"}
+                value={city}
+                onChange={e => handleCityChange(e.target.value)}
+              >
+                <option value="dubai">Dubai (AED)</option>
+                <option value="manila">Manila (PHP)</option>
+              </select>
+            </div>
+          </div>
 
-        <div className={TAB_CONTAINER}>
-          {tabs.map(t => (
-            <button
-              key={t.id}
-              className={`flex items-center gap-1.5 ${tab === t.id ? TAB_ACTIVE : TAB_INACTIVE} ${t.id === "queue" && discrepancyCount > 0 ? "text-amber-300" : ""}`}
-              onClick={() => setTab(t.id)}
-            >
-              {t.icon}
-              <span>{t.label}</span>
-            </button>
-          ))}
-        </div>
+          <div className={TAB_CONTAINER}>
+            {tabs.map(t => (
+              <button
+                key={t.id}
+                className={`flex items-center gap-1.5 ${tab === t.id ? TAB_ACTIVE : TAB_INACTIVE} ${t.id === "queue" && discrepancyCount > 0 ? "text-amber-300" : ""}`}
+                onClick={() => setTab(t.id)}
+              >
+                {t.icon}
+                <span>{t.label}</span>
+              </button>
+            ))}
+          </div>
 
-        {tab === "entry" && <QuickEntryTab onSaved={refreshBadge} settings={settings} />}
-        {tab === "queue" && <DiscrepancyQueueTab />}
-        {tab === "records" && <AllRecordsTab />}
-        {tab === "scorecard" && <SupplierScorecardTab />}
-        {tab === "settings" && <SettingsTab onSettingsChange={setSettings} />}
+          {tab === "entry" && <QuickEntryTab key={`entry-${city}`} onSaved={refreshBadge} settings={settings} />}
+          {tab === "queue" && <DiscrepancyQueueTab key={`queue-${city}`} />}
+          {tab === "records" && <AllRecordsTab key={`records-${city}`} />}
+          {tab === "scorecard" && <SupplierScorecardTab key={`scorecard-${city}`} />}
+          {tab === "settings" && <SettingsTab key={`settings-${city}`} onSettingsChange={setSettings} />}
+        </div>
       </div>
-    </div>
+    </CityCtx.Provider>
   );
 }
