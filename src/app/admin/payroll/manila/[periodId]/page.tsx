@@ -3,7 +3,7 @@
 import {
   AlertCircle, AlertTriangle, ArrowLeft, CheckCircle2, ChevronDown,
   ChevronUp, Clock, Download, Eye, EyeOff, Loader2, MinusCircle, PlusCircle,
-  Play, Printer, Send, Trash2, X,
+  Play, Printer, Send, Trash2, Users, X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
@@ -91,6 +91,43 @@ type Adjustment = {
   created_by: string | null;
   created_at: string;
 };
+
+type StaffProfileMin = {
+  staff_name: string;
+  monthly_rate: string | null;
+  daily_rate: string | null;
+  sss_number: string | null;
+  philhealth_id: string | null;
+  pagibig_mid: string | null;
+  tin: string | null;
+  bank_account_no: string | null;
+  gcash_number: string | null;
+};
+
+type AttendanceStat = {
+  staff_name: string;
+  has_dtr: boolean;
+  worked_days: number;
+  absent_days: number;
+  late_days: number;
+  total_late_minutes: number;
+};
+
+type MissingEntry = { staff_name: string; missing: string[] };
+
+const PAYROLL_REQUIRED = [
+  { label: "Rate",       check: (p: StaffProfileMin) => !!(p.monthly_rate || p.daily_rate) },
+  { label: "SSS No.",    check: (p: StaffProfileMin) => !!p.sss_number },
+  { label: "PhilHealth", check: (p: StaffProfileMin) => !!p.philhealth_id },
+  { label: "Pag-IBIG",   check: (p: StaffProfileMin) => !!p.pagibig_mid },
+  { label: "TIN",        check: (p: StaffProfileMin) => !!p.tin },
+  { label: "Bank/GCash", check: (p: StaffProfileMin) => !!(p.bank_account_no || p.gcash_number) },
+];
+
+function getMissingFields(p: StaffProfileMin | undefined): string[] {
+  if (!p) return ["No profile"];
+  return PAYROLL_REQUIRED.filter(f => !f.check(p)).map(f => f.label);
+}
 
 const fmtPHP = (v: number | null | undefined) =>
   v == null ? "—" : "₱" + v.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -594,6 +631,32 @@ function PayslipDetail({
   const [showDTR, setShowDTR]     = useState(false);
   const [showAdj, setShowAdj]     = useState(false);
 
+  function itemFormula(code: string): string | null {
+    const mr = run.monthly_rate;
+    const half = period?.period_half;
+    switch (code) {
+      case "PHILHEALTH_EE": {
+        if (!mr) return "5% of monthly basic ÷ 2 (EE share)";
+        const clamped = Math.max(Math.min(mr, 100000), 10000);
+        const ee = clamped * 0.05 / (half === 2 ? 2 : 1);
+        return `min(max(₱${mr.toLocaleString("en-PH")}, ₱10k), ₱100k) × 5%${half === 2 ? " ÷ 2" : ""} = ${fmtPHP(ee)}`;
+      }
+      case "PHILHEALTH_ER":    return "Employer mirrors employee contribution";
+      case "SSS_EE":           return "Per SSS MSC contribution table (EE 4.5%)";
+      case "SSS_ER":           return "Per SSS MSC contribution table (ER 9.5%)";
+      case "SSS_EC":           return "Employees' Compensation — employer cost only";
+      case "SSS_WISP_EE":      return "WISP portion: MSC > ₱20,000 (EE share above cap)";
+      case "SSS_WISP_ER":      return "WISP portion: MSC > ₱20,000 (ER share above cap)";
+      case "PAGIBIG_EE":       return mr ? `min(₱${mr.toLocaleString("en-PH")} + COLA, ₱10,000) × 2%` : "2% of base up to ₱10,000";
+      case "PAGIBIG_ER":       return "Employer contribution = 2% of same base";
+      case "PAGIBIG_VOLUNTARY_EE": return "Voluntary additional Pag-IBIG (above mandatory ₱200)";
+      case "BIR_WITHHOLDING":  return half === 2
+        ? "TRAIN 2023 table: annual taxable income ÷ 24 pay periods"
+        : "BIR withholding applied on 2nd half only";
+      default: return null;
+    }
+  }
+
   const earnings      = items.filter(i => i.item_type === "earning"      && i.amount > 0);
   const deductions    = items.filter(i => i.item_type === "deduction");
   const employerCosts = items.filter(i => i.item_type === "employer_cost");
@@ -824,32 +887,35 @@ function PayslipDetail({
                   <span className="text-xs text-slate-500">Amount Deducted</span>
                 </div>
                 <div className="rounded-xl border border-white/5 overflow-hidden">
-                  {deductions.map((item, idx) => (
-                    <div
-                      key={item.id}
-                      className={`flex items-center justify-between px-4 py-3 ${
-                        idx < deductions.length - 1 ? "border-b border-white/5" : ""
-                      } hover:bg-white/5`}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm text-slate-200">{item.label}</p>
-                          {item.source === "manual" && (
-                            <span className="rounded-full border border-red-500/30 bg-red-900/20 px-1.5 py-0.5 text-[9px] text-red-400 uppercase tracking-wide">Manual</span>
+                  {deductions.map((item, idx) => {
+                    const formula = itemFormula(item.item_code);
+                    return (
+                      <div
+                        key={item.id}
+                        className={`flex items-start justify-between px-4 py-3 ${
+                          idx < deductions.length - 1 ? "border-b border-white/5" : ""
+                        } hover:bg-white/5`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm text-slate-200">{item.label}</p>
+                            {item.source === "manual" && (
+                              <span className="rounded-full border border-red-500/30 bg-red-900/20 px-1.5 py-0.5 text-[9px] text-red-400 uppercase tracking-wide">Manual</span>
+                            )}
+                          </div>
+                          {formula && (
+                            <p className="text-[10px] text-slate-500 mt-0.5 font-mono leading-relaxed">{formula}</p>
+                          )}
+                          {item.note && (
+                            <p className="text-xs text-slate-500 mt-0.5">{item.note}</p>
                           )}
                         </div>
-                        {item.note && (
-                          <p className="text-xs text-slate-500 mt-0.5">{item.note}</p>
-                        )}
-                        {item.source && item.source !== "computed" && item.source !== "manual" && (
-                          <p className="text-xs text-slate-600 mt-0.5">Source: {item.source}</p>
-                        )}
+                        <span className="ml-4 tabular-nums text-sm font-semibold text-red-300 shrink-0">
+                          ({fmtPHPAbs(item.amount)})
+                        </span>
                       </div>
-                      <span className="ml-4 tabular-nums text-sm font-semibold text-red-300">
-                        ({fmtPHPAbs(item.amount)})
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {/* Deductions subtotal */}
                   <div className="flex items-center justify-between bg-red-900/20 border-t border-red-500/20 px-4 py-2.5">
                     <p className="text-xs font-bold text-red-400/80 uppercase tracking-wide">Total Deductions</p>
@@ -915,16 +981,20 @@ export default function ManilaPayrollPeriodPage() {
   const params   = useParams();
   const periodId = Number(params.periodId);
 
-  const [period, setPeriod]     = useState<Period | null>(null);
-  const [runs, setRuns]         = useState<Run[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState("");
+  const [period, setPeriod]       = useState<Period | null>(null);
+  const [runs, setRuns]           = useState<Run[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState("");
   const [computing, setComputing] = useState(false);
   const [selectedRun, setSelectedRun] = useState<Run | null>(null);
-  const [items, setItems]       = useState<PayrollItem[]>([]);
+  const [items, setItems]         = useState<PayrollItem[]>([]);
   const [itemsLoading, setItemsLoading] = useState(false);
-  const [sortBy, setSortBy]     = useState<"name"|"net">("name");
-  const [sortDir, setSortDir]   = useState<"asc"|"desc">("asc");
+  const [sortBy, setSortBy]       = useState<"name"|"net">("name");
+  const [sortDir, setSortDir]     = useState<"asc"|"desc">("asc");
+  const [profiles, setProfiles]   = useState<Map<string, StaffProfileMin>>(new Map());
+  const [attSummary, setAttSummary] = useState<AttendanceStat[]>([]);
+  const [showAttSummary, setShowAttSummary] = useState(false);
+  const [computeCheckEntries, setComputeCheckEntries] = useState<MissingEntry[]>([]);
 
   const loadRef = useRef(0);
 
@@ -944,11 +1014,29 @@ export default function ManilaPayrollPeriodPage() {
       if (!rr.ok) throw new Error(await rr.text());
       const newRuns = await rr.json() as Run[];
       setRuns(newRuns);
-      // refresh selectedRun if present
       setSelectedRun(prev => {
         if (!prev) return null;
         return newRuns.find(r => r.id === prev.id) ?? null;
       });
+      // Load supplementary data in background (non-blocking)
+      if (newRuns.length > 0) {
+        apiFetch(`${API}/staff-profiles?active_only=false`)
+          .then(r => r.ok ? r.json() : [])
+          .then((d: StaffProfileMin[]) => {
+            if (seq !== loadRef.current) return;
+            const m = new Map<string, StaffProfileMin>();
+            d.forEach(sp => m.set(sp.staff_name, sp));
+            setProfiles(m);
+          })
+          .catch(() => {});
+        apiFetch(`${API}/periods/${periodId}/attendance-summary`)
+          .then(r => r.ok ? r.json() : [])
+          .then((d: AttendanceStat[]) => {
+            if (seq !== loadRef.current) return;
+            setAttSummary(d);
+          })
+          .catch(() => {});
+      }
     } catch (e) {
       if (seq !== loadRef.current) return;
       setError(String(e));
@@ -991,6 +1079,19 @@ export default function ManilaPayrollPeriodPage() {
     } finally {
       setComputing(false);
     }
+  };
+
+  const computeAllWithCheck = async () => {
+    if (profiles.size > 0) {
+      const missing: MissingEntry[] = runs
+        .map(r => ({ staff_name: r.staff_name, missing: getMissingFields(profiles.get(r.staff_name)) }))
+        .filter(x => x.missing.length > 0);
+      if (missing.length > 0) {
+        setComputeCheckEntries(missing);
+        return;
+      }
+    }
+    await computeAll();
   };
 
   const approveRun = async (runId: number) => {
@@ -1084,6 +1185,52 @@ export default function ManilaPayrollPeriodPage() {
 
   return (
     <>
+      {/* Missing profile data modal */}
+      {computeCheckEntries.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-amber-500/20 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <AlertTriangle size={20} className="text-amber-400 shrink-0" />
+              <h3 className="text-base font-semibold text-white">Missing Payroll Data</h3>
+            </div>
+            <p className="text-sm text-slate-400 mb-4">
+              The following staff are missing required payroll information. Computation may produce incorrect results.
+            </p>
+            <div className="max-h-60 overflow-y-auto rounded-lg border border-white/5 bg-slate-800/60">
+              {computeCheckEntries.map(e => (
+                <div key={e.staff_name} className="flex items-start gap-3 border-b border-white/5 px-4 py-2.5 last:border-0">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-white">{e.staff_name}</p>
+                    <p className="text-xs text-amber-400 mt-0.5">Missing: {e.missing.join(", ")}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 flex gap-2 justify-end">
+              <button
+                onClick={() => setComputeCheckEntries([])}
+                className="rounded-lg border border-white/10 px-4 py-2 text-sm text-slate-300 hover:bg-white/5"
+              >
+                Cancel
+              </button>
+              <Link
+                href="/admin/payroll/manila/staff-profiles"
+                className="flex items-center gap-1.5 rounded-lg border border-blue-500/30 bg-blue-900/30 px-4 py-2 text-sm text-blue-300 hover:bg-blue-900/50"
+                onClick={() => setComputeCheckEntries([])}
+              >
+                <Users size={14} /> Go to Staff Profiles
+              </Link>
+              <button
+                onClick={() => { setComputeCheckEntries([]); void computeAll(); }}
+                className={PRIMARY_BUTTON + " text-sm"}
+              >
+                Compute Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Print styles */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
@@ -1119,6 +1266,12 @@ export default function ManilaPayrollPeriodPage() {
                     </p>
                   </div>
                   <div className="flex gap-2">
+                    <Link
+                      href="/admin/payroll/manila/staff-profiles"
+                      className="flex items-center gap-1.5 rounded-lg border border-slate-600/40 bg-slate-800/40 px-3 py-1.5 text-sm text-slate-300 hover:bg-slate-700/40"
+                    >
+                      <Users size={14} /> Staff Profiles
+                    </Link>
                     {runs.length > 0 && runs.some(r => !r.published_at && ["approved","paid","computed"].includes(r.status)) && (
                       <button
                         onClick={publishAll}
@@ -1128,7 +1281,7 @@ export default function ManilaPayrollPeriodPage() {
                       </button>
                     )}
                     <button
-                      onClick={computeAll}
+                      onClick={computeAllWithCheck}
                       disabled={computing}
                       className={PRIMARY_BUTTON + " flex items-center gap-2 text-sm"}
                     >
@@ -1178,6 +1331,52 @@ export default function ManilaPayrollPeriodPage() {
                 <div className="mt-2 flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-900/20 px-3 py-2 text-xs text-amber-300">
                   <AlertTriangle size={14} />
                   Below minimum wage (₱695/day): {nonCompliant.map(r => r.staff_name).join(", ")}
+                </div>
+              )}
+
+              {/* Attendance Overview collapsible */}
+              {attSummary.length > 0 && (
+                <div className="mt-3 rounded-xl border border-white/5 bg-white/3">
+                  <button
+                    onClick={() => setShowAttSummary(v => !v)}
+                    className="flex w-full items-center justify-between px-3 py-2.5 text-left"
+                  >
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Attendance Overview
+                    </span>
+                    <span className="text-slate-500 text-xs">{showAttSummary ? "▲" : "▼"}</span>
+                  </button>
+                  {showAttSummary && (
+                    <div className="overflow-x-auto border-t border-white/5">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-white/5 text-slate-500 uppercase tracking-wider">
+                            <th className="px-3 py-1.5 text-left font-medium">Staff</th>
+                            <th className="px-2 py-1.5 text-right font-medium">Worked</th>
+                            <th className="px-2 py-1.5 text-right font-medium">Absent</th>
+                            <th className="px-2 py-1.5 text-right font-medium">Late</th>
+                            <th className="px-2 py-1.5 text-right font-medium">DTR</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {attSummary.map(a => (
+                            <tr key={a.staff_name} className="border-b border-white/5 hover:bg-white/5">
+                              <td className="px-3 py-1.5 text-slate-200">{a.staff_name}</td>
+                              <td className="px-2 py-1.5 text-right tabular-nums text-emerald-300">{a.worked_days}</td>
+                              <td className={`px-2 py-1.5 text-right tabular-nums ${a.absent_days > 0 ? "text-red-300" : "text-slate-500"}`}>{a.absent_days}</td>
+                              <td className={`px-2 py-1.5 text-right tabular-nums ${a.late_days > 0 ? "text-amber-300" : "text-slate-500"}`}>{a.late_days}</td>
+                              <td className="px-2 py-1.5 text-right">
+                                {a.has_dtr
+                                  ? <span className="text-emerald-400">✓</span>
+                                  : <span className="text-red-400">✗</span>
+                                }
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -597,6 +597,21 @@ export default function StaffProfilesPage() {
     return `₱${parseFloat(v).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
+  function getReadiness(p: StaffProfile) {
+    const checks = [
+      { label: "Rate",       ok: !!(p.monthly_rate || p.daily_rate) },
+      { label: "SSS No.",    ok: !!p.sss_number },
+      { label: "PhilHealth", ok: !!p.philhealth_id },
+      { label: "Pag-IBIG",   ok: !!p.pagibig_mid },
+      { label: "TIN",        ok: !!p.tin },
+      { label: "Bank/GCash", ok: !!(p.bank_account_no || p.gcash_number) },
+    ];
+    const missing = checks.filter(c => !c.ok).map(c => c.label);
+    return { score: checks.length - missing.length, total: checks.length, missing };
+  }
+
+  const payrollReadyCount = profiles.filter(p => getReadiness(p).score === 6).length;
+
   const EMPLOYMENT_TYPE_LABEL: Record<string, string> = {
     regular: "Regular", probationary: "Probationary",
     contractual: "Contractual", part_time: "Part-time",
@@ -689,10 +704,11 @@ export default function StaffProfilesPage() {
 
         {/* Stats */}
         {!loading && profiles.length > 0 && (
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-5 gap-4">
             {[
               { label: "Total Profiles", value: profiles.length, color: "text-white" },
               { label: "Active", value: profiles.filter(p => p.is_active).length, color: "text-emerald-300" },
+              { label: "Payroll Ready", value: payrollReadyCount, color: payrollReadyCount === profiles.filter(p => p.is_active).length ? "text-emerald-300" : "text-amber-300" },
               { label: "Monthly Paid", value: profiles.filter(p => p.salary_type === "monthly_paid").length, color: "text-violet-300" },
               { label: "Bayzat Unlinked", value: unlinkedCount, color: unlinkedCount > 0 ? "text-amber-300" : "text-emerald-300" },
             ].map(s => (
@@ -738,6 +754,7 @@ export default function StaffProfilesPage() {
                     <th className={TABLE_HEADER + " px-3 py-3 text-center"}>Type</th>
                     <th className={TABLE_HEADER + " px-3 py-3 text-right"}>Monthly Rate</th>
                     <th className={TABLE_HEADER + " px-3 py-3 text-center"}>Gov IDs</th>
+                    <th className={TABLE_HEADER + " px-3 py-3 text-center"}>Payroll Ready</th>
                     <th className={TABLE_HEADER + " px-3 py-3 text-center"}>MDR</th>
                     <th className={TABLE_HEADER + " px-3 py-3 text-center"}>Status</th>
                     <th className={TABLE_HEADER + " w-12"} />
@@ -786,6 +803,24 @@ export default function StaffProfilesPage() {
                           }`}>
                             {govIdCount}/4
                           </span>
+                        </td>
+                        <td className="px-3 py-3 text-center">
+                          {(() => {
+                            const { score, total, missing } = getReadiness(p);
+                            return (
+                              <span
+                                title={missing.length ? `Missing: ${missing.join(", ")}` : "All required fields complete"}
+                                className={`cursor-default rounded-full px-2 py-0.5 text-xs font-medium ${
+                                  score === total
+                                    ? "border border-emerald-500/30 bg-emerald-900/40 text-emerald-300"
+                                    : score >= 4
+                                    ? "border border-amber-500/30 bg-amber-900/40 text-amber-300"
+                                    : "border border-red-500/30 bg-red-900/40 text-red-300"
+                                }`}>
+                                {score}/{total}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="px-3 py-3 text-center">
                           {p.mdr_submitted ? (
