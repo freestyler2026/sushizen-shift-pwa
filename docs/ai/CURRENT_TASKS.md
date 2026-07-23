@@ -14,7 +14,9 @@ Last updated: 2026-07-23 (session 134 — PO Match: supplier inquiry tracking + 
 
 ## ⚠️ Deployments Pending
 
-- Vercel: 92de36b (PO Match: supplier contact + payment hold badges) — auto-deploying
+- Vercel: b17ed13 (PO Match: 2 frontend bug fixes from Phase 1 testing) — auto-deploying
+- Heroku: 20a927d (PO Match: photo_data RETURNING fix in contact + resolve) — deployed ✅ v1455
+- Vercel: 92de36b (PO Match: supplier contact + payment hold badges) — deployed ✅
 - Heroku: d9139e5 (PO Match: contacted_by/contacted_at + /contact endpoint) — deployed ✅ v1454
 - Vercel: 1ec0d21 (Paint Mode Split Shift) — deployed ✅
 - Vercel: eb16ed9 (Paint Mode + Cancellation deep-link) — deployed ✅
@@ -78,6 +80,28 @@ After Heroku deploys 537a152:
 - Heroku: 4eb2305 (PO-Invoice Match DB + API) — deployed ✅
 - Vercel: 4313c0e (cost calc misplaced items panel) — deployed ✅
 - Heroku: 68a2689 (misplaced ingredient endpoints) — deployed ✅
+
+## Recently Completed (2026-07-23 session 134 — PO Match Phase 1 + Testing)
+
+### PO-Invoice Discrepancy Phase 1 (DEPLOYED ✅)
+- `discrepancy_type` selection added to Quick Entry form (shown only on mismatch)
+- `contacted_by / contacted_at` columns added to `proc_po_invoice_checks` table
+- `PaymentStatusBadge` component: 🔴 Payment Hold → ⏳ Awaiting Supplier → ✓ Resolved
+- "📞 Contacted Supplier" button calls `POST /api/admin/procurement/po-match/{id}/contact`
+- Frontend: 92de36b | Backend: d9139e5 (v1454)
+
+### Phase 1 Bug Fixes (DEPLOYED ✅)
+- Bug 1: `discrepancyType` state not reset after Quick Entry submit — `setDiscrepancyType("OTHER")` added
+- Bug 2: `contact_po_invoice_check` RETURNING missing `photo_data` — photo disappeared after Contacted Supplier click
+- Bug 3: `resolve_po_invoice_check` RETURNING missing `photo_data` — photo disappeared after Resolve click
+- Bug 4: Resolve form expand always reset `resolveType` to "OTHER" — now pre-fills from `row.discrepancy_type`
+- Frontend: b17ed13 | Backend: 20a927d (v1455)
+
+### Paint Mode Split Shift (DEPLOYED ✅)
+- Paint Mode in Manual Shift now supports split shifts (e.g. 11:00–14:00 + 16:00–21:00)
+- "Split" checkbox in toolbar; second Start/End selects appear when checked
+- `applyPaint` stamps `ShiftCell[]` when split mode active
+- Frontend: 1ec0d21
 
 ## Recently Completed (2026-07-23 session 133 — Staff Suggestions)
 
