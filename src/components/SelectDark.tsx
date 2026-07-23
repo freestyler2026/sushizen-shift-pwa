@@ -4,10 +4,12 @@ import { ChevronDown, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+type OptionItem = { value: string; label: string };
+
 type Props = {
   value: string;
   onChange: (value: string) => void;
-  options: string[];
+  options: (string | OptionItem)[];
   placeholder?: string;
   className?: string;
 };
@@ -76,14 +78,24 @@ export default function SelectDark({
     if (open) inputRef.current?.focus();
   }, [open]);
 
+  const normalized = useMemo<OptionItem[]>(
+    () => options.map((o) => (typeof o === "string" ? { value: o, label: o } : o)),
+    [options],
+  );
+
+  const selectedLabel = useMemo(
+    () => normalized.find((o) => o.value === value)?.label ?? value,
+    [normalized, value],
+  );
+
   const filtered = useMemo(() => {
     const q = query.toLowerCase().trim();
-    if (!q) return options;
-    return options.filter((o) => o.toLowerCase().includes(q));
-  }, [options, query]);
+    if (!q) return normalized;
+    return normalized.filter((o) => o.label.toLowerCase().includes(q));
+  }, [normalized, query]);
 
-  function select(opt: string) {
-    onChange(opt);
+  function select(opt: OptionItem) {
+    onChange(opt.value);
     setOpen(false);
     setQuery("");
   }
@@ -104,7 +116,7 @@ export default function SelectDark({
         className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/6 px-4 py-2.5 text-sm text-left transition-all duration-200 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 cursor-pointer"
       >
         <span className={value ? "text-white" : "text-zinc-500"}>
-          {value || placeholder}
+          {value ? selectedLabel : placeholder}
         </span>
         <div className="flex items-center gap-1 ml-2 shrink-0">
           {value && (
@@ -134,7 +146,7 @@ export default function SelectDark({
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Escape") { setOpen(false); setQuery(""); }
-                if (e.key === "Enter" && filtered.length === 1) select(filtered[0]);
+                if (e.key === "Enter" && filtered.length === 1) select(filtered[0]!);
               }}
               placeholder="Type to filter..."
               className="w-full rounded-lg border border-white/10 bg-white/8 px-3 py-1.5 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-violet-500/50"
@@ -148,15 +160,15 @@ export default function SelectDark({
             ) : (
               filtered.map((opt) => (
                 <button
-                  key={opt}
+                  key={opt.value}
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => select(opt)}
                   className={`w-full px-4 py-2.5 text-left text-sm transition-colors hover:bg-violet-500/15 hover:text-violet-200 ${
-                    opt === value ? "bg-violet-500/20 text-violet-200 font-medium" : "text-zinc-200"
+                    opt.value === value ? "bg-violet-500/20 text-violet-200 font-medium" : "text-zinc-200"
                   }`}
                 >
-                  {opt}
+                  {opt.label}
                 </button>
               ))
             )}
@@ -164,7 +176,7 @@ export default function SelectDark({
 
           {filtered.length > 0 && (
             <div className="border-t border-white/5 px-4 py-1.5 text-[11px] text-zinc-600">
-              {filtered.length} of {options.length}
+              {filtered.length} of {normalized.length}
             </div>
           )}
         </div>,

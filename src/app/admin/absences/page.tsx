@@ -29,6 +29,7 @@ import { getAuth } from "@/lib/auth";
 import { BRANCHES, type City } from "@/lib/branches";
 import { normalizeCalendarDateInput } from "@/lib/dateInput";
 import DateRangePicker from "@/components/DateRangePicker";
+import SelectDark from "@/components/SelectDark";
 import { fmtNum } from "@/lib/formatters";
 import {
   BADGE_ERROR,
@@ -41,7 +42,6 @@ import {
   PRIMARY_BUTTON,
   SMALL_BUTTON,
   SECONDARY_BUTTON,
-  SELECT_CLASS,
   TABLE_CELL,
   TABLE_HEADER,
   TABLE_ROW,
@@ -927,14 +927,11 @@ export default function AdminAbsencesPage() {
           <div className="mb-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>City</label>
-              <select
+              <SelectDark
                 value={city}
-                onChange={(e) => setCity((e.target.value === "manila" ? "manila" : "dubai") as City)}
-                className={SELECT_CLASS}
-              >
-                <option value="dubai">Dubai</option>
-                <option value="manila">Manila</option>
-              </select>
+                onChange={(v) => setCity((v === "manila" ? "manila" : "dubai") as City)}
+                options={[{ value: "dubai", label: "Dubai" }, { value: "manila", label: "Manila" }]}
+              />
             </div>
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Approver Name</label>
@@ -971,12 +968,12 @@ export default function AdminAbsencesPage() {
           <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Staff Name</label>
-              <select value={staffName} onChange={(e) => setStaffName(e.target.value)} className={SELECT_CLASS}>
-                <option value="">Select staff</option>
-                {staffOptions.map((name) => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
+              <SelectDark
+                value={staffName}
+                onChange={setStaffName}
+                options={staffOptions}
+                placeholder="Select staff"
+              />
             </div>
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Work Date</label>
@@ -992,35 +989,29 @@ export default function AdminAbsencesPage() {
             </div>
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Absence Type</label>
-              <select value={absenceType} onChange={(e) => setAbsenceType(e.target.value as AbsenceType)} className={SELECT_CLASS}>
-                {ABSENCE_TYPES.map((x) => (
-                  <option key={x.value} value={x.value}>{x.label}</option>
-                ))}
-              </select>
+              <SelectDark
+                value={absenceType}
+                onChange={(v) => setAbsenceType(v as AbsenceType)}
+                options={ABSENCE_TYPES.map((x) => ({ value: x.value, label: x.label }))}
+              />
             </div>
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Branch</label>
-              <select value={branchHint} onChange={(e) => setBranchHint(e.target.value)} className={SELECT_CLASS}>
-                <option value="">Select branch</option>
-                {branchOptions.map((branch) => (
-                  <option key={branch.code} value={branch.code}>{branch.name}</option>
-                ))}
-              </select>
+              <SelectDark
+                value={branchHint}
+                onChange={setBranchHint}
+                options={branchOptions.map((b) => ({ value: b.code, label: b.name }))}
+                placeholder="Select branch"
+              />
             </div>
           </div>
           <div className="mb-4">
             <label className={`${T_LABEL} mb-1.5 block`}>Reason Category</label>
-            <select
+            <SelectDark
               value={reasonCategory}
-              onChange={(e) => setReasonCategory(e.target.value as ReasonCategory)}
-              className={SELECT_CLASS}
-            >
-              {REASON_CATEGORIES.map(c => (
-                <option key={c.value} value={c.value}>
-                  {c.emoji ? `${c.emoji} ${c.label}` : c.label}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setReasonCategory(v as ReasonCategory)}
+              options={REASON_CATEGORIES.map((c) => ({ value: c.value, label: c.emoji ? `${c.emoji} ${c.label}` : c.label }))}
+            />
           </div>
           <div className="mb-4">
             <label className={`${T_LABEL} mb-1.5 block`}>Note / Shift info</label>
@@ -1172,34 +1163,28 @@ export default function AdminAbsencesPage() {
               </div>
               <div>
                 <label className={`${T_LABEL} mb-1.5 block`}>Branch</label>
-                <select value={bulkBranchHint} onChange={(e) => setBulkBranchHint(e.target.value)} className={SELECT_CLASS}>
-                  <option value="">All / Optional</option>
-                  {branchOptions.map((branch) => (
-                    <option key={branch.code} value={branch.code}>{branch.name}</option>
-                  ))}
-                </select>
+                <SelectDark
+                  value={bulkBranchHint}
+                  onChange={setBulkBranchHint}
+                  options={branchOptions.map((b) => ({ value: b.code, label: b.name }))}
+                  placeholder="All / Optional"
+                />
               </div>
               <div>
                 <label className={`${T_LABEL} mb-1.5 block`}>Absence Type</label>
-                <select value={bulkAbsenceType} onChange={(e) => setBulkAbsenceType(e.target.value as AbsenceType)} className={SELECT_CLASS}>
-                  {ABSENCE_TYPES.map((x) => (
-                    <option key={x.value} value={x.value}>{x.label}</option>
-                  ))}
-                </select>
+                <SelectDark
+                  value={bulkAbsenceType}
+                  onChange={(v) => setBulkAbsenceType(v as AbsenceType)}
+                  options={ABSENCE_TYPES.map((x) => ({ value: x.value, label: x.label }))}
+                />
               </div>
               <div>
                 <label className={`${T_LABEL} mb-1.5 block`}>Reason Category</label>
-                <select
+                <SelectDark
                   value={bulkReasonCategory}
-                  onChange={(e) => setBulkReasonCategory(e.target.value as ReasonCategory)}
-                  className={SELECT_CLASS}
-                >
-                  {REASON_CATEGORIES.map(c => (
-                    <option key={c.value} value={c.value}>
-                      {c.emoji ? `${c.emoji} ${c.label}` : c.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => setBulkReasonCategory(v as ReasonCategory)}
+                  options={REASON_CATEGORIES.map((c) => ({ value: c.value, label: c.emoji ? `${c.emoji} ${c.label}` : c.label }))}
+                />
               </div>
               <div>
                 <label className={`${T_LABEL} mb-1.5 block`}>Note / Shift info</label>
@@ -1233,21 +1218,21 @@ export default function AdminAbsencesPage() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Staff</label>
-              <select value={filterStaffName} onChange={(e) => setFilterStaffName(e.target.value)} className={SELECT_CLASS}>
-                <option value="">All staff</option>
-                {staffOptions.map((name) => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
+              <SelectDark
+                value={filterStaffName}
+                onChange={setFilterStaffName}
+                options={staffOptions}
+                placeholder="All staff"
+              />
             </div>
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Branch</label>
-              <select value={filterBranch} onChange={(e) => setFilterBranch(e.target.value)} className={SELECT_CLASS}>
-                <option value="">All branches</option>
-                {branchOptions.map((branch) => (
-                  <option key={branch.code} value={branch.code}>{branch.name}</option>
-                ))}
-              </select>
+              <SelectDark
+                value={filterBranch}
+                onChange={setFilterBranch}
+                options={branchOptions.map((b) => ({ value: b.code, label: b.name }))}
+                placeholder="All branches"
+              />
             </div>
             <div>
               <label className={`${T_LABEL} mb-1.5 block`}>Date Range</label>
