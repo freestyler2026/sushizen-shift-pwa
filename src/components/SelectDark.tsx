@@ -2,6 +2,7 @@
 
 import { ChevronDown, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Props = {
   value: string;
@@ -30,6 +31,7 @@ export default function SelectDark({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const portalRef = useRef<HTMLDivElement>(null);
 
   // Recompute fixed position whenever the dropdown opens or the page scrolls/resizes
   // useLayoutEffect runs before paint so there's no position flash on open
@@ -54,10 +56,13 @@ export default function SelectDark({
     };
   }, [open]);
 
-  // Close on outside click — checks both trigger root and the fixed dropdown portal
+  // Close on outside click — checks both trigger root and the portalled dropdown
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const inTrigger = rootRef.current?.contains(target);
+      const inPortal = portalRef.current?.contains(target);
+      if (!inTrigger && !inPortal) {
         setOpen(false);
         setQuery("");
       }
@@ -117,9 +122,9 @@ export default function SelectDark({
         </div>
       </button>
 
-      {/* Dropdown — rendered with fixed positioning to escape overflow:hidden ancestors */}
-      {open && (
-        <div style={dropdownStyle} className="rounded-xl border border-violet-500/20 bg-slate-900 shadow-2xl shadow-black/60 overflow-hidden">
+      {/* Dropdown — portalled to document.body to escape backdrop-filter containing blocks */}
+      {open && typeof document !== "undefined" && createPortal(
+        <div ref={portalRef} style={dropdownStyle} className="rounded-xl border border-violet-500/20 bg-slate-900 shadow-2xl shadow-black/60 overflow-hidden">
           {/* Search input */}
           <div className="border-b border-white/8 p-2">
             <input
@@ -162,7 +167,8 @@ export default function SelectDark({
               {filtered.length} of {options.length}
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
