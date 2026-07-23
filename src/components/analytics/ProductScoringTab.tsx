@@ -4,6 +4,8 @@ import { useEffect, useState, useMemo } from "react";
 import {
   BarChart,
   Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -24,6 +26,8 @@ import {
   KPI_CARD,
   KPI_LABEL,
   KPI_VALUE,
+  TAB_ACTIVE,
+  TAB_INACTIVE,
   T_SECTION as SECTION_TITLE,
   T_BODY as BODY_TEXT,
   T_CAPTION as SUBTEXT,
@@ -87,6 +91,23 @@ interface ChannelRow {
   branch_code: string;
   city: string;
   label: string;
+}
+
+interface WeeklyHistoryRow {
+  week_start: string;
+  photo_count: number;
+  avg_score: number;
+  count_s: number;
+  count_a: number;
+  count_b: number;
+  count_c: number;
+  count_d: number;
+  count_f: number;
+}
+
+interface KnownStore {
+  key: string;
+  city: string;
 }
 
 interface StoreWithRate extends ScoreSummaryRow {
@@ -157,6 +178,281 @@ function gradeRateBg(rate: number) {
   if (rate <= 10) return "text-emerald-400";
   if (rate <= 25) return "text-yellow-400";
   return "text-red-400";
+}
+
+// ─── Delta badge ─────────────────────────────────────────────────────────────
+
+function DeltaBadge({ delta, unit = "" }: { delta: number | null; unit?: string }) {
+  if (delta === null) return <span className="text-slate-600">—</span>;
+  const sign = delta >= 0 ? "+" : "";
+  const cls = delta >= 1 ? "text-emerald-400" : delta <= -1 ? "text-red-400" : "text-slate-400";
+  return (
+    <span className={`font-bold ${cls}`}>
+      {sign}{delta.toFixed(1)}{unit}
+    </span>
+  );
+}
+
+// ─── Weekly History Panel ─────────────────────────────────────────────────────
+
+function WeeklyHistoryPanel({
+  approverName,
+  pin,
+  allStores,
+}: {
+  approverName: string;
+  pin: string;
+  allStores: KnownStore[];
+}) {
+  const [selectedStore, setSelectedStore] = useState("");
+  const [weekCount, setWeekCount] = useState(12);
+  const [rows, setRows] = useState<WeeklyHistoryRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function loadHistory() {
+    if (!selectedStore) return;
+    setLoading(true);
+    setError("");
+    try {
+      const qs = new URLSearchParams({
+        store_code: selectedStore,
+        weeks: String(weekCount),
+        approver_name: approverName,
+        pin,
+      });
+      const res = await fetch(`/api/admin/qc/weekly-history?${qs}`, { headers: getAuthHeaders() });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setRows((data.rows ?? []).map((r: WeeklyHistoryRow) => ({
+        ...r,
+        avg_score: Number(r.avg_score),
+      })));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to load");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Most-recent weekCount rows for display (rows already sorted newest→oldest)
+  const displayRows = rows.slice(0, weekCount);
+
+  // Chart: oldest → newest for left-to-right
+  const chartData = useMemo(
+    () =>
+      [...displayRows].reverse().map((r) => {
+        const total = r.photo_count;
+        const cdCount = r.count_c + r.count_d + r.count_f;
+        return {
+          name: r.week_start.slice(5).replace("-", "/"),  // "MM/DD"
+          score: r.avg_score,
+          cd: total > 0 ? Math.round((cdCount / total) * 100) : 0,
+        };
+      }),
+    [displayRows],
+  );
+
+  // Map for last-year lookup (key = week_start ISO string)
+  const weekMap = useMemo(
+    () => new Map(rows.map((r) => [r.week_start, r])),
+    [rows],
+  );
+
+  function sameWeekLastYear(weekStart: string): WeeklyHistoryRow | null {
+    const d = new Date(weekStart + "T00:00:00");
+    d.setDate(d.getDate() - 364);
+    return weekMap.get(d.toISOString().slice(0, 10)) ?? null;
+  }
+
+  const dubaiStores = allStores.filter((s) => s.city === "dubai");
+  const manilaStores = allStores.filter((s) => s.city === "manila");
+
+  return (
+    <div className="space-y-4">
+      {/* Filters */}
+      <div className={`${GLASS_CARD} flex flex-wrap gap-3 p-4`}>
+        <div>
+          <label className={`block text-xs mb-1 ${SUBTEXT}`}>Store</label>
+          <select
+            className={SELECT_CLASS}
+            value={selectedStore}
+            onChange={(e) => setSelectedStore(e.target.value)}
+          >
+            <option value="">Select store…</option>
+            {dubaiStores.length > 0 && (
+              <optgroup label="🇦🇪 Dubai">
+                {dubaiStores.map((s) => (
+                  <option key={s.key} value={s.key}>{s.key}</option>
+                ))}
+              </optgroup>
+            )}
+            {manilaStores.length > 0 && (
+              <optgroup label="🇵🇭 Manila">
+                {manilaStores.map((s) => (
+                  <option key={s.key} value={s.key}>{s.key}</option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </div>
+        <div>
+          <label className={`block text-xs mb-1 ${SUBTEXT}`}>Period</label>
+          <select
+            className={SELECT_CLASS}
+            value={weekCount}
+            onChange={(e) => setWeekCount(Number(e.target.value))}
+          >
+            <option value={12}>12 weeks</option>
+            <option value={26}>26 weeks</option>
+            <option value={52}>52 weeks</option>
+          </select>
+        </div>
+        <div className="flex items-end">
+          <button
+            type="button"
+            onClick={loadHistory}
+            disabled={loading || !selectedStore}
+            className={PRIMARY_BUTTON}
+          >
+            {loading ? "Loading…" : "Load"}
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="rounded-lg bg-red-900/30 px-4 py-2 text-sm text-red-300">{error}</div>
+      )}
+
+      {!selectedStore && !loading && (
+        <div className="rounded-lg bg-slate-800/40 px-4 py-8 text-center text-sm text-slate-400">
+          Select a store and press Load to view its weekly score history.
+        </div>
+      )}
+
+      {/* Trend line chart */}
+      {chartData.length > 0 && (
+        <div className={`${GLASS_CARD} p-4`}>
+          <h3 className={`${SECTION_TITLE} mb-1`}>Score Trend — {selectedStore}</h3>
+          <p className={`${SUBTEXT} mb-3`}>Green = Avg Score · Red dashed = C/D Rate %</p>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={chartData} margin={{ top: 4, right: 16, left: -20, bottom: 40 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+              <XAxis
+                dataKey="name"
+                tick={{ fontSize: 9, fill: "#94a3b8" }}
+                angle={-45}
+                textAnchor="end"
+                interval={Math.floor(chartData.length / 8)}
+              />
+              <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: "#64748b" }} />
+              <Tooltip
+                contentStyle={{ background: "#1e293b", border: "none", fontSize: 12 }}
+                formatter={(v: number, name: string) => [
+                  `${v.toFixed(1)}`,
+                  name === "score" ? "Avg Score" : "C/D Rate %",
+                ]}
+              />
+              <Line
+                type="monotone"
+                dataKey="score"
+                stroke="#34d399"
+                strokeWidth={2}
+                dot={{ r: 3, fill: "#34d399" }}
+                activeDot={{ r: 5 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="cd"
+                stroke="#f87171"
+                strokeWidth={1.5}
+                dot={false}
+                strokeDasharray="5 3"
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Weekly detail table */}
+      {displayRows.length > 0 && (
+        <div className={`${GLASS_CARD} p-4`}>
+          <h3 className={`${SECTION_TITLE} mb-3`}>Weekly Detail — {selectedStore}</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr>
+                  {["Week", "Avg Score", "Photos", "A%", "B%", "C/D/F", "C/D Rate", "vs Prev Wk", "vs Last Yr"].map(
+                    (h) => <th key={h} className={TABLE_HEADER}>{h}</th>,
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {displayRows.map((row, idx) => {
+                  const prevRow = displayRows[idx + 1] ?? null;
+                  const lyRow = sameWeekLastYear(row.week_start);
+                  const total = row.photo_count;
+                  const cdCount = row.count_c + row.count_d + row.count_f;
+                  const cdRate = total > 0 ? (cdCount / total) * 100 : 0;
+                  const prevDelta = prevRow ? row.avg_score - prevRow.avg_score : null;
+                  const lyDelta = lyRow ? row.avg_score - lyRow.avg_score : null;
+
+                  return (
+                    <tr key={row.week_start} className={TABLE_ROW}>
+                      <td className="py-2 px-2 font-mono text-slate-300 whitespace-nowrap">
+                        {weekLabel(row.week_start)}
+                      </td>
+                      <td className={`py-2 px-2 font-bold ${scoreBg(row.avg_score)}`}>
+                        {row.avg_score}
+                      </td>
+                      <td className="py-2 px-2 text-slate-400">{total}</td>
+                      <td className="py-2 px-2 text-center text-emerald-400">
+                        {total > 0 && row.count_a > 0
+                          ? `${Math.round((row.count_a / total) * 100)}%`
+                          : <span className="text-slate-600">—</span>}
+                      </td>
+                      <td className="py-2 px-2 text-center text-blue-400">
+                        {total > 0 && row.count_b > 0
+                          ? `${Math.round((row.count_b / total) * 100)}%`
+                          : <span className="text-slate-600">—</span>}
+                      </td>
+                      <td className="py-2 px-2 text-center text-yellow-400">
+                        {cdCount > 0 ? cdCount : <span className="text-slate-600">—</span>}
+                      </td>
+                      <td className={`py-2 px-2 font-bold ${gradeRateBg(cdRate)}`}>
+                        {cdRate.toFixed(0)}%
+                        <span className="ml-1 font-normal text-slate-500">({cdCount})</span>
+                      </td>
+                      <td className="py-2 px-2 text-center">
+                        <DeltaBadge delta={prevDelta} />
+                      </td>
+                      <td className="py-2 px-2 text-center">
+                        <DeltaBadge delta={lyDelta} />
+                        {lyRow && (
+                          <span className="block text-[10px] text-slate-600 mt-0.5">
+                            {lyRow.week_start.slice(0, 7)}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className={`${SUBTEXT} mt-3`}>
+            vs Prev Wk: score difference from prior week · vs Last Yr: same week 52 weeks ago (364 days)
+          </p>
+        </div>
+      )}
+
+      {selectedStore && !loading && rows.length === 0 && (
+        <div className="rounded-lg bg-slate-800/40 px-4 py-6 text-center text-sm text-slate-400">
+          No data found for {selectedStore}.
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Store chart bar ─────────────────────────────────────────────────────────
@@ -383,6 +679,7 @@ export default function ProductScoringTab({
   pin: string;
   isHQOrAdmin: boolean;
 }) {
+  const [subTab, setSubTab] = useState<"overview" | "history">("overview");
   const [dateFrom, setDateFrom] = useState(sevenDaysAgoIso());
   const [dateTo, setDateTo] = useState(todayIso());
   const [cityFilter, setCityFilter] = useState<"" | "dubai" | "manila">("");
@@ -535,6 +832,21 @@ export default function ProductScoringTab({
     });
   }, [storeAggregated, orderTotals]);
 
+  // ── All known stores (channels + summary) for the Weekly History selector ──
+  const allKnownStores = useMemo((): KnownStore[] => {
+    const seen = new Set<string>();
+    const result: KnownStore[] = [];
+    for (const ch of channels) {
+      const key = ch.branch_code || ch.store_code;
+      if (!seen.has(key)) { seen.add(key); result.push({ key, city: ch.city }); }
+    }
+    for (const s of storeAggregated) {
+      const key = s.branch_code || s.store_code;
+      if (!seen.has(key)) { seen.add(key); result.push({ key, city: s.city }); }
+    }
+    return result.sort((a, b) => a.city.localeCompare(b.city) || a.key.localeCompare(b.key));
+  }, [channels, storeAggregated]);
+
   // ── Overall upload rate KPI ──
   const overallUploadRate = useMemo(() => {
     const totalPhotos = storeAggregatedWithRates.reduce((a, s) => a + s.photo_count, 0);
@@ -619,8 +931,35 @@ export default function ProductScoringTab({
         </div>
       </div>
 
+      {/* Sub-tab nav */}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setSubTab("overview")}
+          className={subTab === "overview" ? TAB_ACTIVE : TAB_INACTIVE}
+        >
+          Overview
+        </button>
+        <button
+          type="button"
+          onClick={() => setSubTab("history")}
+          className={subTab === "history" ? TAB_ACTIVE : TAB_INACTIVE}
+        >
+          Weekly History
+        </button>
+      </div>
+
+      {/* Weekly History Panel */}
+      {subTab === "history" && (
+        <WeeklyHistoryPanel
+          approverName={approverName}
+          pin={pin}
+          allStores={allKnownStores}
+        />
+      )}
+
       {/* Channel Setup Panel */}
-      {showSetup && isHQOrAdmin && (
+      {subTab === "overview" && showSetup && isHQOrAdmin && (
         <ChannelSetupPanel
           channels={channels}
           approverName={approverName}
@@ -628,6 +967,8 @@ export default function ProductScoringTab({
           onSaved={load}
         />
       )}
+
+      {subTab === "overview" && (<div className="space-y-6">
 
       {/* Filters */}
       <div className={`${GLASS_CARD} flex flex-wrap gap-3 p-4`}>
@@ -1021,6 +1362,8 @@ export default function ProductScoringTab({
           </div>
         </div>
       )}
+
+      </div>)}
     </div>
   );
 }
