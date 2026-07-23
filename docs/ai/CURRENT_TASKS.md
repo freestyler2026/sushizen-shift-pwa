@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-23 (session 136 — OS Attendance fixes, scoring retry, grade dist split, WH par template)
+Last updated: 2026-07-23 (session 138 — Bayzat data double-check: branch mapping fixed + duplicates cleaned)
 
 
 
@@ -34,6 +34,17 @@ Last updated: 2026-07-23 (session 136 — OS Attendance fixes, scoring retry, gr
 - Heroku: d89b445 (manila_allowance_engine.py + 3 new API routes) — deployed ✅ v1445
 - Vercel: 9aa6bcd (Menu Builder: Clear & Reimport button, excluded count) — deployed ✅
 - Heroku: a5ad9f6 (Menu Builder import: ingredient category filter + clear_existing) — deployed ✅ v1444
+
+## Recently Completed
+
+- **Bayzat CSV import — 6/16–6/30 (CUBAO/PARANAQUE/TAFT)** ✅ VERIFIED COMPLETE:
+  - Imported: CUBAO (~163 unique), PARANAQUE (149), TAFT (171) sessions in `actual_attendance`
+  - Branch mapping fixed: `attendance_locations` now has CUBAO→CUB, PARANAQUE→PAR, TAFT→TAFT (auto-registered by import endpoint)
+  - Dedup fix deployed: `upsert_attendance_locations` now runs BEFORE dedup check in import endpoint (Heroku v1464–v1465)
+  - Duplicates cleaned: 149 PAR + 171 TAFT batch-deleted, 165 CUBAO dedup-deleted
+  - Final verified state: 308 Bayzat records visible (CUB=77, PAR=120, TAFT=87, CK=4, empty=20), 0 duplicates
+  - Note: "missing" records correctly hidden — OS WebAuthn sessions take precedence per (employee+date)
+  - Admin utility endpoints added (HQ auth, no PIN): DELETE `.../import-batches/{id}/records`, POST `.../deduplicate`
 
 ## ⚠️ Pending Staff Actions
 
