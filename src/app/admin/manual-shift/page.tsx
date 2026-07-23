@@ -448,6 +448,9 @@ export default function ManualShiftPage() {
   const [paintStart, setPaintStart] = useState(9);
   const [paintEnd, setPaintEnd] = useState(17);
   const [paintRole, setPaintRole] = useState("CK");
+  const [paintSplit, setPaintSplit] = useState(false);
+  const [paintStart2, setPaintStart2] = useState(16);
+  const [paintEnd2, setPaintEnd2] = useState(21);
 
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
@@ -688,10 +691,15 @@ export default function ManualShiftPage() {
 
   function applyPaint(staffName: string, dateStr: string) {
     if (paintStart >= paintEnd) return;
-    const newShift: ShiftCell = { start_hour: paintStart, end_hour: paintEnd, role: paintRole, branch_code: branchCode || undefined };
+    const b = branchCode || undefined;
+    const block1: ShiftCell = { start_hour: paintStart, end_hour: paintEnd, role: paintRole, branch_code: b };
+    const value: ShiftCell | ShiftCell[] =
+      paintSplit && paintStart2 < paintEnd2
+        ? [block1, { start_hour: paintStart2, end_hour: paintEnd2, role: paintRole, branch_code: b }]
+        : block1;
     setGridData((prev) => ({
       ...prev,
-      [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: newShift },
+      [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: value },
     }));
     setHasDraft(true);
   }
@@ -1479,7 +1487,7 @@ export default function ManualShiftPage() {
               </button>
               {paintMode && (
                 <>
-                  <div className="flex items-center gap-2 rounded-xl border border-violet-300/50 bg-violet-50 px-3 py-1.5">
+                  <div className="flex flex-wrap items-center gap-2 rounded-xl border border-violet-300/50 bg-violet-50 px-3 py-1.5">
                     <span className="text-xs font-semibold text-violet-600">Template:</span>
                     <label className="text-xs text-gray-500">Start</label>
                     <select
@@ -1511,6 +1519,40 @@ export default function ManualShiftPage() {
                         <option key={r} value={r}>{r}</option>
                       ))}
                     </select>
+                    <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-violet-200 bg-white px-2 py-1 text-xs font-medium text-violet-700">
+                      <input
+                        type="checkbox"
+                        checked={paintSplit}
+                        onChange={(e) => setPaintSplit(e.target.checked)}
+                        className="accent-violet-500"
+                      />
+                      Split
+                    </label>
+                    {paintSplit && (
+                      <>
+                        <span className="text-xs font-semibold text-violet-400">+</span>
+                        <label className="text-xs text-gray-500">Start</label>
+                        <select
+                          value={paintStart2}
+                          onChange={(e) => setPaintStart2(Number(e.target.value))}
+                          className="rounded-lg border border-violet-200 bg-white px-2 py-1 text-xs text-gray-800"
+                        >
+                          {Array.from({ length: 24 }, (_, h) => (
+                            <option key={h} value={h}>{fmtHour(h)}</option>
+                          ))}
+                        </select>
+                        <label className="text-xs text-gray-500">End</label>
+                        <select
+                          value={paintEnd2}
+                          onChange={(e) => setPaintEnd2(Number(e.target.value))}
+                          className="rounded-lg border border-violet-200 bg-white px-2 py-1 text-xs text-gray-800"
+                        >
+                          {Array.from({ length: 24 }, (_, h) => (
+                            <option key={h} value={h}>{fmtHour(h)}</option>
+                          ))}
+                        </select>
+                      </>
+                    )}
                   </div>
                   <span className="text-xs text-violet-500">Click any cell to stamp shift</span>
                 </>
