@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-23 (session 135 — PO Match: Phase 2 line-item matching)
+Last updated: 2026-07-23 (session 135b — PO Match: Phase 2 bug fixes from code review)
 
 
 
@@ -13,7 +13,9 @@ Last updated: 2026-07-23 (session 135 — PO Match: Phase 2 line-item matching)
 
 ## ⚠️ Deployments Pending
 
-- Vercel: 0f85aea (PO Match: Phase 2 line-item matching + resolve type fix) — auto-deploying
+- Vercel: 7d32464 (PO Match: Phase 2 bug fixes — auto-sum override, race condition) — auto-deploying
+- Heroku: b5b7f66 (PO Match: Phase 2 bug fixes — 7 backend issues) — deployed ✅ v1457
+- Vercel: 0f85aea (PO Match: Phase 2 line-item matching + resolve type fix) — deployed ✅
 - Heroku: 68f2ed2 (PO Match: Phase 2 backend — check_lines table + 3 new routes) — deployed ✅ v1456
 - Vercel: b17ed13 (PO Match: 2 frontend bug fixes from Phase 1 testing) — deployed ✅
 - Heroku: 20a927d (PO Match: photo_data RETURNING fix in contact + resolve) — deployed ✅ v1455
@@ -81,6 +83,26 @@ After Heroku deploys 537a152:
 - Heroku: 4eb2305 (PO-Invoice Match DB + API) — deployed ✅
 - Vercel: 4313c0e (cost calc misplaced items panel) — deployed ✅
 - Heroku: 68a2689 (misplaced ingredient endpoints) — deployed ✅
+
+## Recently Completed (2026-07-23 session 135b — PO Match Phase 2 Bug Fixes)
+
+### Phase 2 Code Review — 10 Bugs Fixed (DEPLOYING ✅)
+
+**Backend (db.py + main.py):**
+- Fix #1: `api_po_match_create` non-atomic — compensate by deleting orphan header if line-save fails
+- Fix #2: `save_po_invoice_check_lines(lines=[])` now always updates header (was skipping `if saved:` guard, leaving stale DISCREPANCY)
+- Fix #3: `get_po_lines_for_match` COALESCE — changed `COALESCE(r.city,'manila')` to `COALESCE(r.city, city_token)` so Dubai standalone POs (no linked request) are no longer silently hidden
+- Fix #6: `_compute_line_status` — removed `qty_diff&&price_diff→AMOUNT_DIFF` branch that fired even when total was within tolerance
+- Fix #7: `save_po_invoice_check_lines` now also updates `invoice_amount` to match line total, eliminating dual-variance-source confusion
+- Fix #9: Added `check_id_token` guard (empty→ValueError→404, not PostgreSQL 500) in both `save_po_invoice_check_lines` and `list_po_invoice_check_lines`
+- Fix #10: Added `_PO_INVOICE_LINES_TABLE_READY` module-level flag — DDL no longer runs on every request (was opening 2-3 extra connections per call)
+- Also: `list_po_invoice_check_lines` now uses `with conn:` block; `api_po_match_save_lines` city-lookup cursor now inside `with conn:`
+
+**Frontend (page.tsx):**
+- Fix #4: Auto-sum no longer overwrites manually-entered invoiceAmount — added `isAmountOverriddenRef`; effect skips when user has edited
+- Fix #5: Removed `lineTotal > 0` guard — now sets "0.00" when all line quantities are cleared
+- Fix #6: `selectPo` race condition — added `AbortController`; stale in-flight fetches are cancelled when user selects a different PO
+- Frontend: 7d32464 | Backend: b5b7f66 (v1457)
 
 ## Recently Completed (2026-07-23 session 135 — PO Match Phase 2 Line Items)
 
