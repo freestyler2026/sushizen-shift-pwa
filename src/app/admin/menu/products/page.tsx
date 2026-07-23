@@ -403,6 +403,21 @@ function MenuProductsPageInner() {
     finally { setWorking(false); }
   }
 
+  async function mergeMimToSk() {
+    if (!confirm(`Merge CK Product bridge rows (MIM-xxx) into their matching SK-xxx product rows for ${city.toUpperCase()}?\n\nThis unifies duplicate entries and fixes ingredient SKU display. Safe to run multiple times.`)) return;
+    setWorking(true); setError(""); setSuccess(""); setImportFailures([]);
+    try {
+      const res = await menuPost<{ ok: boolean; merged: number; skipped: number; skipped_items: { sku: string; name: string; reason: string }[] }>(
+        `/api/admin/menu/migrate-mim-to-sk?city=${encodeURIComponent(city)}`,
+        {}
+      );
+      const skipNote = res.skipped ? ` (${res.skipped} skipped — no matching SK product)` : "";
+      setSuccess(`Merge complete — ${res.merged} MIM rows merged into SK rows${skipNote}.`);
+      await loadAll(city, tab, q, categoryFilter, page, pageSize);
+    } catch (e: any) { setError(e?.message || String(e)); }
+    finally { setWorking(false); }
+  }
+
   async function applyBulkAction() {
     if (!selectedIds.length) return;
     setWorking(true); setError(""); setSuccess(""); setImportFailures([]);
@@ -536,6 +551,14 @@ function MenuProductsPageInner() {
                 className="flex items-center gap-1.5 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-medium text-red-300 transition hover:bg-red-500/20 hover:text-red-200 disabled:opacity-50"
               >
                 ⟳ Clear & Reimport
+              </button>
+              <button
+                type="button"
+                onClick={() => void mergeMimToSk()}
+                disabled={working}
+                className="flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-300 transition hover:bg-amber-500/20 hover:text-amber-200 disabled:opacity-50"
+              >
+                ⇄ Merge CK Products
               </button>
             </div>
           </div>
