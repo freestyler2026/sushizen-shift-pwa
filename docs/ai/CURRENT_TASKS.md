@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-23 (session 141 — Prep Time OCR feature implemented & deployed)
+Last updated: 2026-07-24 (session 142 — Menu Builder Cost Fixes: Phase 1/2/3)
 
 
 
@@ -11,8 +11,31 @@ Last updated: 2026-07-23 (session 141 — Prep Time OCR feature implemented & de
 
 ---
 
+## ⚠️ Pending Staff Actions (Menu Builder)
+
+1. **「Merge CK Products」を実行する（Manila・Dubai 両方）**
+   - Menu Builder → Products → "Merge CK Products"（amber ボタン）
+   - Manila 用と Dubai 用を city を切り替えて各1回実行
+   - MIM-xxx の重複 inv_items 行が SK-xxx に統合される
+   - 実行後は Best Value Sushi Box 等でコスト%が正しく表示されるはず
+
+2. **Dubai: Ingredient Master → "Misplaced Items" を再実行する**
+   - 今回のデプロイで menu_products との名前マッチも検出対象に追加された
+   - 以前は "No misplaced items found" だったものが検出されるようになる見込み
+
+---
+
 ## ⚠️ Deployments Pending
 
+- Heroku: 5039049 (menu: Phase3 misplaced items fix — menu_products match + int parse fix) — deployed ✅
+- Heroku: fc62d8c (menu: Phase2-B ingredient search + product: prefix support) — deployed ✅
+- Heroku: 4cd73a2 (menu: Phase2-A MIM→SK migration endpoint) — deployed ✅
+- Heroku: 0218c3f (menu: Phase1 live cost lookup for MIM items) — deployed ✅
+- Vercel: fb7c44b (menu: Merge CK Products button) — auto-deploying
+- Heroku: de395a2 (product-scoring: weekly history API GET /api/admin/qc/weekly-history) — deployed ✅
+- Vercel: 58bbeb1 (product-scoring: Weekly History sub-tab + trend chart) — auto-deploying
+- Heroku: 123dc91 (prep-time: auto-confirm high-confidence OCR + bulk-confirm endpoint) — deployed ✅ v1472
+- Vercel: 092ac87 (prep-time: Confirm All High / Confirm All bulk actions in UI) — auto-deploying
 - Heroku: 2c33d68 (prep-time: DB table + receipt OCR + API endpoints) — deployed ✅ v1469
 - Vercel: 1d5a81b (analytics: Prep Time tab + PrepTimeTab component) — auto-deploying
 - Heroku: 5c7e39d (daily-inv: Generate PR now populates unit_price from procurement catalog) — deployed ✅ v1468
@@ -77,7 +100,10 @@ Last updated: 2026-07-23 (session 141 — Prep Time OCR feature implemented & de
 - **Aggregators confirmed OCR-ready**: GrabFood (Manila), Careem (Dubai), Keeta (Dubai). Foodpanda: TBD when sample received
 - **Pending Confirmation UI**: Analytics → Prep Time → "Pending Confirmation" sub-tab — edit + confirm/reject each OCR result
 - **Historical data**: URLs expire ~24-48h after Discord post; backfill impossible for old records. Data accumulates from today onward
-- **API endpoints**: `GET /api/admin/prep-time/records`, `GET /api/admin/prep-time/stats`, `PATCH /api/admin/prep-time/records/{id}`
+- **API endpoints**: `GET /api/admin/prep-time/records`, `GET /api/admin/prep-time/stats`, `PATCH /api/admin/prep-time/records/{id}`, `POST /api/admin/prep-time/bulk-confirm`
+- **Auto-confirm**: `discord_bot_service.py` auto-sets `status="confirmed"` + `confirmed_by="OCR Auto"` when `ocr_confidence="high"` — no manual review needed for high-confidence records
+- **Bulk confirm UI**: "✓ Confirm All High (N)" (emerald-700) and "✓ Confirm All (N)" (emerald-900) buttons in Pending sub-tab header
+- **Google Drive backfill** (pending): To backfill historical photos (>48h old), share `QC_PHOTOS_ROOT_FOLDER_ID` Drive folder with `foodics-data@foodics-data-490416.iam.gserviceaccount.com` as Viewer
 
 ## Known Issues
 
