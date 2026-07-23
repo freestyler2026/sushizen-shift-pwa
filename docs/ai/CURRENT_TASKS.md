@@ -1,7 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-23 (session 134 — PO Match: supplier inquiry tracking + payment hold)
-
+Last updated: 2026-07-23 (session 135 — PO Match: Phase 2 line-item matching)
 
 
 
@@ -14,7 +13,9 @@ Last updated: 2026-07-23 (session 134 — PO Match: supplier inquiry tracking + 
 
 ## ⚠️ Deployments Pending
 
-- Vercel: b17ed13 (PO Match: 2 frontend bug fixes from Phase 1 testing) — auto-deploying
+- Vercel: 0f85aea (PO Match: Phase 2 line-item matching + resolve type fix) — auto-deploying
+- Heroku: 68f2ed2 (PO Match: Phase 2 backend — check_lines table + 3 new routes) — deployed ✅ v1456
+- Vercel: b17ed13 (PO Match: 2 frontend bug fixes from Phase 1 testing) — deployed ✅
 - Heroku: 20a927d (PO Match: photo_data RETURNING fix in contact + resolve) — deployed ✅ v1455
 - Vercel: 92de36b (PO Match: supplier contact + payment hold badges) — deployed ✅
 - Heroku: d9139e5 (PO Match: contacted_by/contacted_at + /contact endpoint) — deployed ✅ v1454
@@ -80,6 +81,22 @@ After Heroku deploys 537a152:
 - Heroku: 4eb2305 (PO-Invoice Match DB + API) — deployed ✅
 - Vercel: 4313c0e (cost calc misplaced items panel) — deployed ✅
 - Heroku: 68a2689 (misplaced ingredient endpoints) — deployed ✅
+
+## Recently Completed (2026-07-23 session 135 — PO Match Phase 2 Line Items)
+
+### PO-Invoice Phase 2: Line-Item Matching (DEPLOYING ✅)
+- New `proc_po_invoice_check_lines` table with per-line status tracking
+- Line statuses: MATCHED / AMOUNT_DIFF / QTY_DIFF / PRICE_DIFF / MISSING / EXTRA
+- `get_po_lines_for_match()`: reads PO `line_items_json`, falls back to request items
+- `save_po_invoice_check_lines()`: atomic delete+reinsert; recomputes header match_status
+- `list_po_invoice_check_lines()`: returns saved lines for a check
+- 3 new API routes: GET `/po-lines`, GET `/{id}/lines`, PUT `/{id}/lines`
+- `PoInvoiceCheckIn` extended with optional `lines`; create saves lines if provided
+- Frontend Quick Entry: PO select now async-loads lines; editable inv_qty/inv_unit_price per row
+- Auto-sum: `invoiceAmount` updates via `useEffect` when lines change
+- Extra line support: "+ Add Extra Line" button for supplier-billed items not on PO
+- Read-only `CheckLinesTable` component in Discrepancy Queue expand view (lazy-loaded via `linesCache`)
+- Frontend: 0f85aea | Backend: 68f2ed2 (v1456)
 
 ## Recently Completed (2026-07-23 session 134 — PO Match Phase 1 + Testing)
 
