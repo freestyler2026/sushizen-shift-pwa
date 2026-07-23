@@ -86,6 +86,8 @@ type CheckRow = {
   resolution_note: string;
   resolved_by: string;
   resolved_at: string;
+  contacted_by: string;
+  contacted_at: string;
   entered_by: string;
   notes: string;
   photo_data: string;
@@ -153,11 +155,13 @@ function MatchBadge({ status, variance }: { status: string; variance: number }) 
   );
 }
 
-function ResolveBadge({ row }: { row: CheckRow }) {
+function PaymentStatusBadge({ row }: { row: CheckRow }) {
   if (row.match_status !== "DISCREPANCY") return null;
   if (row.resolved_by)
-    return <span className="ml-1 text-xs text-emerald-400">✓ Resolved</span>;
-  return <span className="ml-1 text-xs text-amber-400">⚠ Pending</span>;
+    return <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-400">✓ Resolved</span>;
+  if (row.contacted_by)
+    return <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-300">⏳ Awaiting Supplier</span>;
+  return <span className="inline-flex items-center gap-1 rounded-full bg-red-500/15 px-2 py-0.5 text-[11px] font-semibold text-red-400">🔴 Payment Hold</span>;
 }
 
 // ─── Photo upload helper ──────────────────────────────────────────────────────
@@ -268,6 +272,7 @@ function QuickEntryTab({
   const [invoiceAmount, setInvoiceAmount] = useState("");
   const [notes, setNotes] = useState("");
   const [photoData, setPhotoData] = useState("");
+  const [discrepancyType, setDiscrepancyType] = useState("OTHER");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [showPoList, setShowPoList] = useState(false);
@@ -363,6 +368,7 @@ function QuickEntryTab({
           currency,
           notes: notes.trim(),
           photo_data: photoData,
+          discrepancy_type: !isMatch ? discrepancyType : "",
         }),
       });
       const matchMsg = isMatch
@@ -533,6 +539,20 @@ function QuickEntryTab({
                 </p>
               </div>
             </div>
+            {!isMatch && (
+              <div className="mt-3 border-t border-amber-500/20 pt-3">
+                <label className={T_LABEL}>Discrepancy Type *</label>
+                <select
+                  className={`mt-1.5 ${SELECT_CLASS}`}
+                  value={discrepancyType}
+                  onChange={e => setDiscrepancyType(e.target.value)}
+                >
+                  {DISCREPANCY_TYPES.map(t => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         )}
 
@@ -578,6 +598,7 @@ function DiscrepancyQueueTab() {
   const [resolveType, setResolveType] = useState("OTHER");
   const [resolveNote, setResolveNote] = useState("");
   const [resolving, setResolving] = useState<string | null>(null);
+  const [contacting, setContacting] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
 
   const load = useCallback(async () => {
@@ -610,6 +631,16 @@ function DiscrepancyQueueTab() {
     finally { setResolving(null); }
   };
 
+  const handleContact = async (id: string) => {
+    setContacting(id);
+    setMsg("");
+    try {
+      const d = await apiFetch(`/procurement/po-match/${id}/contact`, { method: "POST" });
+      setRows(prev => prev.map(r => r.id === id ? d.row : r));
+    } catch (e: unknown) { setMsg(String(e)); }
+    finally { setContacting(null); }
+  };
+
   const DiscrepancyList = ({ items, title }: { items: CheckRow[]; title: string }) => (
     <div className="space-y-2">
       {items.length === 0 && (
@@ -629,7 +660,7 @@ function DiscrepancyQueueTab() {
               <span className="font-semibold text-white">{row.vendor_name}</span>
               <span className={T_CAPTION}>{row.invoice_no}</span>
               <MatchBadge status={row.match_status} variance={row.variance_amount} />
-              <ResolveBadge row={row} />
+              <PaymentStatusBadge row={row} />
               {row.photo_data && <span title="Has photo"><Camera size={12} className="text-violet-400" /></span>}
             </div>
             <div className="flex items-center gap-3 text-right">
@@ -662,6 +693,26 @@ function DiscrepancyQueueTab() {
                 <div className="mt-4">
                   <p className={`${T_LABEL} mb-1.5`}>Invoice Photo</p>
                   <img src={row.photo_data} alt="Invoice" className="max-h-64 rounded-xl border border-white/10 object-contain" />
+                </div>
+              )}
+
+              {/* Supplier contact tracking */}
+              {!row.resolved_by && (
+                <div className="mt-4">
+                  {row.contacted_by ? (
+                    <div className="rounded-xl border border-amber-500/20 bg-amber-500/8 p-3 text-sm">
+                      <p className="font-medium text-amber-300">📞 Supplier contacted by {row.contacted_by}</p>
+                      <p className={`mt-0.5 ${T_CAPTION}`}>{row.contacted_at?.slice(0, 16).replace("T", " ")} — Awaiting supplier response</p>
+                    </div>
+                  ) : (
+                    <button
+                      className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-2 text-sm font-medium text-amber-300 transition hover:bg-amber-500/15 disabled:opacity-50"
+                      onClick={() => handleContact(row.id)}
+                      disabled={contacting === row.id}
+                    >
+                      {contacting === row.id ? "Recording…" : "📞 Contacted Supplier"}
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -848,7 +899,7 @@ function AllRecordsTab() {
                 </td>
                 <td className={`${TABLE_CELL} pr-4 text-center`}>
                   <MatchBadge status={row.match_status} variance={row.variance_amount} />
-                  {row.match_status === "DISCREPANCY" && <ResolveBadge row={row} />}
+                  {row.match_status === "DISCREPANCY" && <PaymentStatusBadge row={row} />}
                 </td>
               </tr>
             ))}
