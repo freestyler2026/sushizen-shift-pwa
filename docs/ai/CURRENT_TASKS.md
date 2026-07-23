@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-22 (session 131 — Daily Inv + UI fixes)
+Last updated: 2026-07-23 (session 132 — Menu Builder + Manila Allowances)
 
 
 
@@ -14,8 +14,10 @@ Last updated: 2026-07-22 (session 131 — Daily Inv + UI fixes)
 
 ## ⚠️ Deployments Pending
 
-- Vercel: 63b9059 (SelectDark component + probation staff dropdown fix for Windows) — auto-deploying
-- Vercel: f402436 (Daily Inv: Generate Purchase Request for Warehouse tab) — auto-deploying
+- Vercel: 3a53bc1 (Manila Allowances page + 🍱 nav button) — auto-deploying
+- Heroku: d89b445 (manila_allowance_engine.py + 3 new API routes) — deployed ✅ v1445
+- Vercel: 9aa6bcd (Menu Builder: Clear & Reimport button, excluded count) — deployed ✅
+- Heroku: a5ad9f6 (Menu Builder import: ingredient category filter + clear_existing) — deployed ✅ v1444
 
 ## ⚠️ CUBAO_Tuesday Par Pattern — Data Lost (Needs Recovery)
 
@@ -72,6 +74,35 @@ After Heroku deploys 537a152:
 - Heroku: 4eb2305 (PO-Invoice Match DB + API) — deployed ✅
 - Vercel: 4313c0e (cost calc misplaced items panel) — deployed ✅
 - Heroku: 68a2689 (misplaced ingredient endpoints) — deployed ✅
+
+## Recently Completed (2026-07-23 session 132 — Menu Builder + Manila Allowances)
+
+### Menu Builder — City Persistence Fix (DEPLOYED ✅)
+- **Bug**: Selecting Manila then clicking Categories/Tags/etc. tabs reverted to Dubai
+- **Fix**: `MenuTabs.tsx` propagates `?city=` param to all tab hrefs; categories/tags/modifier-groups/modifier-options pages read city from URL params first
+- Commit: 457c4a4
+
+### Menu Builder — Import from Cost Calculation Fix (DEPLOYED ✅)
+- **Bug**: Import brought in 623 items including raw ingredients (CK, Kitchen, Processed, etc.)
+- **Fix**: Added `_INGREDIENT_CATEGORY_SUBSTRINGS` blacklist to `import_products_from_cost_calculation`; added `clear_existing=True` param to wipe before reimport
+- **Result**: Manila reimported = 316 items, Dubai = 423 items (ingredient categories excluded)
+- New red "⟳ Clear & Reimport" button in Menu Builder Products page
+- Commits: a5ad9f6 (Heroku), 9aa6bcd (Vercel)
+
+### Manila POS Sync Scheduler (DEPLOYED ✅)
+- Added daily auto-sync at 13:00 PHT (UTC 05:00) + 15:00 PHT for Manila
+- `_run_inventory_pos_sync_manila_background()` + retry checker added to main.py
+- Commit: 60727ba
+
+### Manila Payroll — Meal Allowance & Perfect Attendance Engine (DEPLOYED ✅)
+- New `app/manila_allowance_engine.py`: compute eligibility from `manila_attendance_daily`
+- Cutoff 1: prev-month 16th→end, Cutoff 2: 1st→15th of payout month
+- Conditions auto-checked: (1) AWOL + rejected requests, (2) late ≥3x, (3) cumulative late ≥60min
+- Condition (4) no prior notice = manual flag per staff per cutoff (Discord-based)
+- Perfect Attendance: zero late + zero AWOL across both cutoffs = ₱500
+- New page: `/admin/payroll/manila/allowances` with month picker, per-staff breakdown, PA eligibility
+- 🍱 Allowances button added to Manila Payroll top nav
+- Commits: d89b445 (Heroku), 3a53bc1 (Vercel)
 
 ## Recently Completed (2026-07-22 session 131 — Daily Inv + UI fixes)
 
