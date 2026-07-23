@@ -190,20 +190,36 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
   const handleBackfill = async () => {
     setBackfilling(true);
     setBackfillResult(null);
+    let totalFound = 0;
+    let totalProcessed = 0;
+    let totalDone = 0;
+    let totalExpired = 0;
+    let pass = 0;
     try {
       const p = new URLSearchParams({
         date_from: dateFrom,
         date_to: dateTo,
         approver_name: approverName,
         pin,
+        batch: "10",
       });
       if (cityFilter) p.set("city", cityFilter);
-      const res = await apiFetch(`/api/admin/prep-time/backfill?${p.toString()}`, { method: "POST" });
+      // Run up to 5 passes of 10 images each (≤50 total) to stay under Heroku 30s timeout
+      while (pass < 5) {
+        pass++;
+        const res = await apiFetch(`/api/admin/prep-time/backfill?${p.toString()}`, { method: "POST" });
+        totalFound += res.receipts_found || 0;
+        totalProcessed += res.processed || 0;
+        totalDone += res.skipped_already_done || 0;
+        totalExpired += res.skipped_expired_url || 0;
+        // Stop if no more unprocessed images were found in this batch
+        if ((res.processed || 0) === 0) break;
+      }
       setBackfillResult(
-        `Done — ${res.receipts_found} receipt(s) found from ${res.processed} QC photos scanned. ` +
-        `(${res.skipped_already_done} already done, ${res.skipped_expired_url} expired URLs)`
+        `Done — ${totalFound} receipt(s) found from ${totalProcessed} QC photos scanned. ` +
+        `(${totalDone} already done, ${totalExpired} expired URLs)`
       );
-      if (res.receipts_found > 0) {
+      if (totalFound > 0) {
         await loadDashboard();
         setSubTab("pending");
       }
