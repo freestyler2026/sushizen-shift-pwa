@@ -1237,8 +1237,8 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
             <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-3 space-y-2">
               <p className="text-xs font-semibold text-amber-300">Import Weekly Par (Branch × Day)</p>
               <p className="text-xs text-zinc-400">
-                Upload the multi-branch/day Excel (TAFT, CUBAO, PARANAQUE × Sunday, Tuesday, Thursday).
-                Creates 9 patterns automatically: TAFT_Sunday, TAFT_Tuesday, etc.
+                Upload the multi-branch/day Excel (TAFT, CUBAO, PARANAQUE, WAREHOUSE × Sunday, Tuesday, Thursday).
+                Creates 12 patterns automatically: TAFT_Sunday, WAREHOUSE_Sunday, etc.
                 Item names must match exactly — download the template to get the correct names.
               </p>
               <div className="flex flex-wrap gap-2">
