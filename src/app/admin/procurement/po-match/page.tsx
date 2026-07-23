@@ -13,6 +13,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  Trash2,
   TrendingUp,
   XCircle,
 } from "lucide-react";
@@ -834,8 +835,8 @@ function QuickEntryTab({
           </div>
         </div>
 
-        {/* Live match preview */}
-        {poAmount > 0 && invAmount > 0 && (
+        {/* Live match preview — only show after invoice number is entered */}
+        {poAmount > 0 && invAmount > 0 && invoiceNo.trim() && (
           <div className={`mt-5 rounded-xl border p-4 ${isMatch ? "border-emerald-500/30 bg-emerald-500/8" : "border-amber-500/30 bg-amber-500/8"}`}>
             <div className="flex items-center gap-3">
               {isMatch
@@ -1143,6 +1144,7 @@ function AllRecordsTab() {
   const currency = getCurrency(city);
   const [rows, setRows] = useState<CheckRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [vendorFilter, setVendorFilter] = useState("");
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() - 30);
@@ -1164,6 +1166,19 @@ function AllRecordsTab() {
   }, [vendorFilter, dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleDelete = async (id: string, vendorName: string) => {
+    if (!confirm(`Delete this record?\n\n${vendorName}\n\nThis cannot be undone.`)) return;
+    setDeleting(id);
+    try {
+      await apiFetch(`/procurement/po-match/${id}`, { method: "DELETE" });
+      setRows(prev => prev.filter(r => r.id !== id));
+    } catch (e) {
+      alert(`Delete failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setDeleting(null);
+    }
+  };
 
   const matched = rows.filter(r => r.match_status === "MATCHED").length;
   const discrepancy = rows.filter(r => r.match_status === "DISCREPANCY").length;
@@ -1206,11 +1221,12 @@ function AllRecordsTab() {
               <th className={`${TABLE_HEADER} py-3 text-right`}>Invoice</th>
               <th className={`${TABLE_HEADER} py-3 text-right`}>Variance</th>
               <th className={`${TABLE_HEADER} py-3 pr-4 text-center`}>Status</th>
+              <th className={`${TABLE_HEADER} py-3 pr-4`}></th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr><td colSpan={7} className="py-8 text-center text-sm text-zinc-500">{loading ? "Loading…" : "No records found."}</td></tr>
+              <tr><td colSpan={8} className="py-8 text-center text-sm text-zinc-500">{loading ? "Loading…" : "No records found."}</td></tr>
             )}
             {rows.map(row => (
               <tr key={row.id} className={TABLE_ROW}>
@@ -1228,6 +1244,16 @@ function AllRecordsTab() {
                 <td className={`${TABLE_CELL} pr-4 text-center`}>
                   <MatchBadge status={row.match_status} variance={row.variance_amount} />
                   {row.match_status === "DISCREPANCY" && <PaymentStatusBadge row={row} />}
+                </td>
+                <td className={`${TABLE_CELL} pr-4 text-center`}>
+                  <button
+                    onClick={() => handleDelete(row.id, row.vendor_name)}
+                    disabled={deleting === row.id}
+                    title="Delete record"
+                    className="text-zinc-600 hover:text-red-400 transition-colors disabled:opacity-30"
+                  >
+                    {deleting === row.id ? "…" : <Trash2 size={14} />}
+                  </button>
                 </td>
               </tr>
             ))}
