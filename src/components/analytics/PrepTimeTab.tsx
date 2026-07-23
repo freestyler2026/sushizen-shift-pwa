@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { GLASS_CARD } from "@/lib/ui-tokens";
 import { getAuthHeaders } from "@/lib/auth";
 
@@ -100,6 +100,7 @@ const monthStart = () => {
 export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
   const [subTab, setSubTab] = useState<"dashboard" | "pending">("dashboard");
   const [cityFilter, setCityFilter] = useState<"" | "dubai" | "manila">("");
+  const [branchFilter, setBranchFilter] = useState("");
   const [dateFrom, setDateFrom] = useState(monthStart());
   const [dateTo, setDateTo] = useState(today());
 
@@ -128,22 +129,25 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
       date_to: dateTo,
     };
     if (cityFilter) p.city = cityFilter;
+    if (branchFilter) p.branch_code = branchFilter;
     return new URLSearchParams(p).toString();
-  }, [approverName, pin, dateFrom, dateTo, cityFilter]);
+  }, [approverName, pin, dateFrom, dateTo, cityFilter, branchFilter]);
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
     try {
+      // When a specific store is selected, load more records for monthly breakdown
+      const recLimit = branchFilter ? 500 : 100;
       const [statsRes, recsRes] = await Promise.all([
         apiFetch(`/api/admin/prep-time/stats?${params()}`),
-        apiFetch(`/api/admin/prep-time/records?status=confirmed&limit=100&${params()}`),
+        apiFetch(`/api/admin/prep-time/records?status=confirmed&limit=${recLimit}&${params()}`),
       ]);
       setStats(statsRes.stats || []);
       setRecords(recsRes.records || []);
     } finally {
       setLoading(false);
     }
-  }, [params]);
+  }, [params, branchFilter]);
 
   const loadPending = useCallback(async () => {
     setLoading(true);
@@ -190,6 +194,45 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
   const setEdit = (id: number, field: keyof PrepTimeRecord, value: string | number) => {
     setEditing((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
   };
+
+  // Derive monthly breakdown from records when a store is selected
+  const monthlyStats = useMemo(() => {
+    if (!branchFilter || records.length === 0) return [];
+    const byMonth: Record<string, {
+      month: string; count: number;
+      total_minutes: number; total_score: number;
+      count_s: number; count_a: number; count_b: number; count_slow: number;
+    }> = {};
+    for (const r of records) {
+      const month = r.work_date.substring(0, 7);
+      if (!byMonth[month]) {
+        byMonth[month] = { month, count: 0, total_minutes: 0, total_score: 0, count_s: 0, count_a: 0, count_b: 0, count_slow: 0 };
+      }
+      const m = byMonth[month];
+      m.count++;
+      m.total_minutes += r.prep_minutes;
+      m.total_score += r.prep_score;
+      if (r.prep_minutes <= 10) m.count_s++;
+      else if (r.prep_minutes <= 20) m.count_a++;
+      else if (r.prep_minutes <= 30) m.count_b++;
+      else m.count_slow++;
+    }
+    return Object.values(byMonth)
+      .map(m => ({
+        ...m,
+        avg_minutes: Math.round(m.total_minutes / m.count * 10) / 10,
+        avg_score: Math.round(m.total_score / m.count * 10) / 10,
+      }))
+      .sort((a, b) => b.month.localeCompare(a.month));
+  }, [branchFilter, records]);
+
+  // Branch options derived from stats (unique branch_code values)
+  const branchOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return stats
+      .filter(s => s.branch_code && !seen.has(s.branch_code) && seen.add(s.branch_code))
+      .map(s => ({ value: s.branch_code, label: `${s.branch_code} (${s.city})` }));
+  }, [stats]);
 
   const handleBackfill = async () => {
     setBackfilling(true);
@@ -280,12 +323,25 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
               <label className="text-xs text-white/50">City</label>
               <select
                 value={cityFilter}
-                onChange={(e) => setCityFilter(e.target.value as "" | "dubai" | "manila")}
+                onChange={(e) => { setCityFilter(e.target.value as "" | "dubai" | "manila"); setBranchFilter(""); }}
                 className="bg-white/10 border border-white/20 rounded-lg px-3 py-1.5 text-sm text-white"
               >
                 <option value="">All Cities</option>
                 <option value="dubai">Dubai</option>
                 <option value="manila">Manila</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-white/50">Store</label>
+              <select
+                value={branchFilter}
+                onChange={(e) => setBranchFilter(e.target.value)}
+                className="bg-white/10 border border-white/20 rounded-lg px-3 py-1.5 text-sm text-white"
+              >
+                <option value="">All Stores</option>
+                {branchOptions.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
               </select>
             </div>
             <div className="flex flex-col gap-1">
@@ -329,7 +385,18 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
           {/* Per-store stats table */}
           {stats.length > 0 && (
             <div className={`${GLASS_CARD} p-4 overflow-x-auto`}>
-              <h3 className="text-sm font-semibold text-white/80 mb-3">Store Summary (confirmed records)</h3>
+              <div className="flex items-center gap-3 mb-3">
+                <h3 className="text-sm font-semibold text-white/80">Store Summary (confirmed records)</h3>
+                {branchFilter && (
+                  <button
+                    onClick={() => setBranchFilter("")}
+                    className="text-xs px-2 py-0.5 rounded-full bg-sky-600/50 text-sky-200 hover:bg-sky-500/50 transition-colors"
+                  >
+                    {branchFilter} ✕
+                  </button>
+                )}
+                {!branchFilter && <span className="text-xs text-white/30">Click a row to drill down</span>}
+              </div>
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-white/40 text-xs border-b border-white/10">
@@ -346,18 +413,62 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {stats.map((s) => (
-                    <tr key={`${s.city}-${s.branch_code}`} className="border-b border-white/5 hover:bg-white/5">
-                      <td className="py-2 pr-4 font-medium text-white">{s.branch_code || s.store_code}</td>
-                      <td className="py-2 pr-4 text-white/60 capitalize">{s.city}</td>
-                      <td className="py-2 pr-4 text-right font-mono text-white/80">{s.total_count}</td>
-                      <td className="py-2 pr-4 text-right font-mono text-white">{s.avg_minutes}m</td>
-                      <td className="py-2 pr-4 text-right font-mono text-white/50 text-xs">{s.min_minutes}–{s.max_minutes}m</td>
-                      <td className="py-2 pr-4">{scoreBar(Math.round(s.avg_score))}</td>
-                      <td className="py-2 pr-4 text-right font-mono text-emerald-400">{s.count_s}</td>
-                      <td className="py-2 pr-4 text-right font-mono text-green-400">{s.count_a}</td>
-                      <td className="py-2 pr-4 text-right font-mono text-yellow-400">{s.count_b}</td>
-                      <td className="py-2 text-right font-mono text-red-400">{s.count_slow}</td>
+                  {stats.map((s) => {
+                    const isSelected = branchFilter === s.branch_code;
+                    return (
+                      <tr
+                        key={`${s.city}-${s.branch_code}`}
+                        onClick={() => setBranchFilter(isSelected ? "" : s.branch_code)}
+                        className={`border-b border-white/5 cursor-pointer transition-colors ${isSelected ? "bg-sky-900/40" : "hover:bg-white/5"}`}
+                      >
+                        <td className="py-2 pr-4 font-medium text-white">{s.branch_code || s.store_code}</td>
+                        <td className="py-2 pr-4 text-white/60 capitalize">{s.city}</td>
+                        <td className="py-2 pr-4 text-right font-mono text-white/80">{s.total_count}</td>
+                        <td className="py-2 pr-4 text-right font-mono text-white">{s.avg_minutes}m</td>
+                        <td className="py-2 pr-4 text-right font-mono text-white/50 text-xs">{s.min_minutes}–{s.max_minutes}m</td>
+                        <td className="py-2 pr-4">{scoreBar(Math.round(s.avg_score))}</td>
+                        <td className="py-2 pr-4 text-right font-mono text-emerald-400">{s.count_s}</td>
+                        <td className="py-2 pr-4 text-right font-mono text-green-400">{s.count_a}</td>
+                        <td className="py-2 pr-4 text-right font-mono text-yellow-400">{s.count_b}</td>
+                        <td className="py-2 text-right font-mono text-red-400">{s.count_slow}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Monthly trend — shown only when a store is selected */}
+          {branchFilter && monthlyStats.length > 0 && (
+            <div className={`${GLASS_CARD} p-4 overflow-x-auto`}>
+              <h3 className="text-sm font-semibold text-white/80 mb-3">
+                {branchFilter} — Monthly Trend
+              </h3>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-white/40 text-xs border-b border-white/10">
+                    <th className="pb-2 pr-4">Month</th>
+                    <th className="pb-2 pr-4 text-right">Count</th>
+                    <th className="pb-2 pr-4 text-right">Avg Min</th>
+                    <th className="pb-2 pr-4">Avg Score</th>
+                    <th className="pb-2 pr-4 text-right">≤10m (S)</th>
+                    <th className="pb-2 pr-4 text-right">11-20m (A)</th>
+                    <th className="pb-2 pr-4 text-right">21-30m (B)</th>
+                    <th className="pb-2 text-right">&gt;30m</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyStats.map((m) => (
+                    <tr key={m.month} className="border-b border-white/5 hover:bg-white/5">
+                      <td className="py-2 pr-4 font-medium text-white">{m.month}</td>
+                      <td className="py-2 pr-4 text-right font-mono text-white/80">{m.count}</td>
+                      <td className="py-2 pr-4 text-right font-mono text-white">{m.avg_minutes}m</td>
+                      <td className="py-2 pr-4">{scoreBar(Math.round(m.avg_score))}</td>
+                      <td className="py-2 pr-4 text-right font-mono text-emerald-400">{m.count_s}</td>
+                      <td className="py-2 pr-4 text-right font-mono text-green-400">{m.count_a}</td>
+                      <td className="py-2 pr-4 text-right font-mono text-yellow-400">{m.count_b}</td>
+                      <td className="py-2 text-right font-mono text-red-400">{m.count_slow}</td>
                     </tr>
                   ))}
                 </tbody>
