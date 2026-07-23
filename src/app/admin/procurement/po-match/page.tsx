@@ -382,6 +382,8 @@ function QuickEntryTab({
   // Phase 2: line items
   const [invLineItems, setInvLineItems] = useState<InvLineItem[]>([]);
   const [linesLoading, setLinesLoading] = useState(false);
+  const poLinesFetchRef = useRef<AbortController | null>(null);
+  const isAmountOverriddenRef = useRef(false);
   const [notes, setNotes] = useState("");
   const [photoData, setPhotoData] = useState("");
   const [discrepancyType, setDiscrepancyType] = useState("OTHER");
@@ -448,11 +450,15 @@ function QuickEntryTab({
     setManualPoAmount(String(po.po_amount));
     setPoDate(po.po_date?.slice(0, 10) || TODAY);
     setShowPoList(false);
-    // Fetch PO line items for Phase 2 matching
+    // Cancel any in-flight PO-lines fetch from a prior selection
+    if (poLinesFetchRef.current) poLinesFetchRef.current.abort();
     if (po.po_no) {
+      const controller = new AbortController();
+      poLinesFetchRef.current = controller;
+      isAmountOverriddenRef.current = false; // new PO selected — re-enable auto-sum
       setLinesLoading(true);
       try {
-        const d = await apiFetch(`/procurement/po-match/po-lines?city=${city}&po_no=${encodeURIComponent(po.po_no)}`);
+        const d = await apiFetch(`/procurement/po-match/po-lines?city=${city}&po_no=${encodeURIComponent(po.po_no)}`, { signal: controller.signal });
         const poLines: PoLineItem[] = d.lines || [];
         setInvLineItems(poLines.map(l => ({
           line_no: l.line_no,
@@ -466,8 +472,10 @@ function QuickEntryTab({
           inv_unit_price: String(l.po_unit_price || ""),
           is_extra: false,
         })));
-      } catch { /* leave lines empty on error */ }
-      finally { setLinesLoading(false); }
+      } catch (e) {
+        if (e instanceof Error && e.name === "AbortError") return; // stale fetch — ignore
+        /* other errors: leave lines empty */
+      } finally { setLinesLoading(false); }
     } else {
       setInvLineItems([]);
     }
@@ -481,9 +489,8 @@ function QuickEntryTab({
   }, 0);
 
   useEffect(() => {
-    if (invLineItems.length > 0 && lineTotal > 0) {
-      setInvoiceAmount(lineTotal.toFixed(2));
-    }
+    if (invLineItems.length === 0 || isAmountOverriddenRef.current) return;
+    setInvoiceAmount(lineTotal > 0 ? lineTotal.toFixed(2) : "0.00");
   }, [lineTotal, invLineItems.length]);
 
   const updateInvLine = (idx: number, field: keyof InvLineItem, value: string) => {
@@ -564,6 +571,8 @@ function QuickEntryTab({
       setPoDate(TODAY); setInvoiceDate(TODAY); setPoRows([]);
       setDiscrepancyType("OTHER");
       setInvLineItems([]);
+      isAmountOverriddenRef.current = false;
+      poLinesFetchRef.current = null;
       onSaved();
     } catch (e: unknown) {
       setMsg({ text: String(e), ok: false });
@@ -817,7 +826,7 @@ function QuickEntryTab({
               className={`mt-1.5 ${INPUT_CLASS}`}
               placeholder="0.00"
               value={invoiceAmount}
-              onChange={e => setInvoiceAmount(e.target.value)}
+              onChange={e => { isAmountOverriddenRef.current = true; setInvoiceAmount(e.target.value); }}
             />
             {invLineItems.length > 0 && (
               <p className={`mt-1 ${T_CAPTION}`}>← Auto-summed from line items. Edit to override.</p>
