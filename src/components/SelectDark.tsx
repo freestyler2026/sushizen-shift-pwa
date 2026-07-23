@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 type Props = {
   value: string;
@@ -14,6 +14,7 @@ type Props = {
 /**
  * Custom searchable dropdown that renders a dark-styled option list.
  * Replaces native <select> to fix Windows browser OS-native white popup.
+ * Uses position:fixed so it escapes any overflow:hidden ancestor.
  */
 export default function SelectDark({
   value,
@@ -24,11 +25,36 @@ export default function SelectDark({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Close on outside click
+  // Recompute fixed position whenever the dropdown opens or the page scrolls/resizes
+  // useLayoutEffect runs before paint so there's no position flash on open
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const update = () => {
+      const rect = triggerRef.current!.getBoundingClientRect();
+      setDropdownStyle({
+        position: "fixed",
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: rect.width,
+        zIndex: 9999,
+      });
+    };
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open]);
+
+  // Close on outside click — checks both trigger root and the fixed dropdown portal
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
@@ -67,6 +93,7 @@ export default function SelectDark({
     <div ref={rootRef} className={`relative ${className}`}>
       {/* Trigger */}
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/6 px-4 py-2.5 text-sm text-left transition-all duration-200 focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/20 cursor-pointer"
@@ -90,9 +117,9 @@ export default function SelectDark({
         </div>
       </button>
 
-      {/* Dropdown */}
+      {/* Dropdown — rendered with fixed positioning to escape overflow:hidden ancestors */}
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 w-full rounded-xl border border-violet-500/20 bg-slate-900 shadow-2xl shadow-black/60 overflow-hidden">
+        <div style={dropdownStyle} className="rounded-xl border border-violet-500/20 bg-slate-900 shadow-2xl shadow-black/60 overflow-hidden">
           {/* Search input */}
           <div className="border-b border-white/8 p-2">
             <input
