@@ -273,7 +273,7 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
         return;
       }
       if (Number(entry.qty) < par) {
-        const deficit = Math.max(0, par - Number(entry.qty));
+        const deficit = Math.max(0, Math.round((par - Number(entry.qty)) * 1000) / 1000);
         newModalItems.push({ item, entry });
         qtys[item.item_code] = deficit > 0 ? String(deficit) : "";
         sel[item.item_code] = deficit > 0;
