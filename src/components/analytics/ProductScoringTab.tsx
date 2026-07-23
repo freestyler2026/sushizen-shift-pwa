@@ -558,12 +558,12 @@ export default function ProductScoringTab({
   // ── Weekly C/D breakdown by store (Sunday-start) ──
   const weeklyGradeData = useMemo(() => {
     const scores = cityFilter ? recentScores.filter((r) => r.city === cityFilter) : recentScores;
-    const storeSet = new Set<string>();
+    const storeCityMap: Record<string, string> = {};
     const weekMap: Record<string, Record<string, { total: number; cdCount: number }>> = {};
     for (const r of scores) {
       const store = r.branch_code || r.store_code;
+      storeCityMap[store] = r.city;
       const wk = weekKey(r.score_date);
-      storeSet.add(store);
       if (!weekMap[wk]) weekMap[wk] = {};
       if (!weekMap[wk][store]) weekMap[wk][store] = { total: 0, cdCount: 0 };
       weekMap[wk][store].total++;
@@ -571,9 +571,10 @@ export default function ProductScoringTab({
         weekMap[wk][store].cdCount++;
       }
     }
-    const stores = Array.from(storeSet).sort();
+    const dubaiStores = Object.entries(storeCityMap).filter(([, c]) => c === "dubai").map(([s]) => s).sort();
+    const manilaStores = Object.entries(storeCityMap).filter(([, c]) => c === "manila").map(([s]) => s).sort();
     const weeks = Object.keys(weekMap).sort().reverse();
-    return { stores, weeks, weekMap };
+    return { dubaiStores, manilaStores, weeks, weekMap };
   }, [recentScores, cityFilter]);
 
   // ── Chart data split by city ──
@@ -828,42 +829,54 @@ export default function ProductScoringTab({
         <div className={GLASS_CARD + " p-4"}>
           <h3 className={`${SECTION_TITLE} mb-1`}>Weekly C/D Rate by Store</h3>
           <p className={`${SUBTEXT} mb-3`}>Sunday–Saturday weeks · C/D includes grades C, D, F</p>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr>
-                  <th className={TABLE_HEADER}>Week (Sun–Sat)</th>
-                  {weeklyGradeData.stores.map((s) => (
-                    <th key={s} className={TABLE_HEADER}>{s}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {weeklyGradeData.weeks.map((wk) => (
-                  <tr key={wk} className={TABLE_ROW}>
-                    <td className="py-2 px-2 font-mono text-slate-400 whitespace-nowrap">
-                      {weekLabel(wk)}
-                    </td>
-                    {weeklyGradeData.stores.map((store) => {
-                      const cell = weeklyGradeData.weekMap[wk]?.[store];
-                      if (!cell || cell.total === 0) {
-                        return <td key={store} className="py-2 px-2 text-center text-slate-600">—</td>;
-                      }
-                      const rate = (cell.cdCount / cell.total) * 100;
-                      return (
-                        <td key={store} className="py-2 px-2 text-center">
-                          <span className={`font-bold ${gradeRateBg(rate)}`}>
-                            {rate.toFixed(0)}%
-                          </span>
-                          <span className="ml-1 text-slate-500">({cell.cdCount}/{cell.total})</span>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {(["dubai", "manila"] as const).map((city) => {
+            const cityStores = city === "dubai" ? weeklyGradeData.dubaiStores : weeklyGradeData.manilaStores;
+            if (cityFilter && cityFilter !== city) return null;
+            if (cityStores.length === 0) return null;
+            return (
+              <div key={city} className="mb-4 last:mb-0">
+                <p className="mb-2 text-xs font-semibold text-slate-400">
+                  {city === "dubai" ? "🇦🇪 Dubai" : "🇵🇭 Manila"}
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr>
+                        <th className={TABLE_HEADER}>Week (Sun–Sat)</th>
+                        {cityStores.map((s) => (
+                          <th key={s} className={TABLE_HEADER}>{s}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {weeklyGradeData.weeks.map((wk) => (
+                        <tr key={wk} className={TABLE_ROW}>
+                          <td className="py-2 px-2 font-mono text-slate-400 whitespace-nowrap">
+                            {weekLabel(wk)}
+                          </td>
+                          {cityStores.map((store) => {
+                            const cell = weeklyGradeData.weekMap[wk]?.[store];
+                            if (!cell || cell.total === 0) {
+                              return <td key={store} className="py-2 px-2 text-center text-slate-600">—</td>;
+                            }
+                            const rate = (cell.cdCount / cell.total) * 100;
+                            return (
+                              <td key={store} className="py-2 px-2 text-center">
+                                <span className={`font-bold ${gradeRateBg(rate)}`}>
+                                  {rate.toFixed(0)}%
+                                </span>
+                                <span className="ml-1 text-slate-500">({cell.cdCount}/{cell.total})</span>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
