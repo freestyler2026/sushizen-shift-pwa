@@ -621,6 +621,9 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
   const [editParVal, setEditParVal] = useState("");
   const [editParBusy, setEditParBusy] = useState(false);
 
+  // Pattern-based par lookup for display (WAREHOUSE_* patterns)
+  const [patternLookup, setPatternLookup] = useState<Record<string, number>>({});
+
   // Purge retired items
   const [purging, setPurging] = useState(false);
 
@@ -662,6 +665,22 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
       .then((d: { patterns?: string[] }) => setPatternNames(d.patterns || []))
       .catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const whPats = patternNames.filter((n) => n.startsWith("WAREHOUSE_"));
+    if (!whPats.length) return;
+    void Promise.all(
+      whPats.map((name) =>
+        apiFetch(`/api/daily-inventory/par-patterns/${encodeURIComponent(name)}/items`)
+          .then((r) => r.json() as Promise<{ items?: { item_code: string; par_level: number }[] }>)
+          .catch(() => ({ items: [] as { item_code: string; par_level: number }[] }))
+      )
+    ).then((results) => {
+      const merged: Record<string, number> = {};
+      results.forEach((r) => { (r.items || []).forEach((it) => { merged[it.item_code] = it.par_level; }); });
+      setPatternLookup(merged);
+    });
+  }, [patternNames]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handlePatternDelete(name: string) {
     if (!window.confirm(`Delete pattern "${name}"? This cannot be undone.`)) return;
@@ -1206,7 +1225,11 @@ function ItemMasterView({ onBack }: ItemMasterProps) {
                             onClick={() => { setEditParCode(item.item_code); setEditParVal(String(item.par_level ?? "")); }}
                             className="rounded-lg px-2 py-1 text-zinc-300 hover:bg-white/5 hover:text-white"
                           >
-                            {item.par_level != null ? parseFloat(String(item.par_level)).toFixed(3) : <span className="text-zinc-600">—</span>}
+                            {item.par_level != null
+                              ? parseFloat(String(item.par_level)).toFixed(3)
+                              : patternLookup[item.item_code] != null
+                                ? <span className="text-violet-300" title="From WAREHOUSE pattern (not a fixed par level)">{parseFloat(String(patternLookup[item.item_code])).toFixed(3)}<sup className="text-zinc-500 text-[9px] ml-0.5">P</sup></span>
+                                : <span className="text-zinc-600">—</span>}
                           </button>
                         )}
                       </td>
