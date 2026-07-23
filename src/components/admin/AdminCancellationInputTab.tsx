@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { getAuth, getAuthHeaders, refreshAuthFromApi } from "@/lib/auth";
 import { GLASS_CARD, T_CAPTION, T_LABEL } from "@/lib/ui-tokens";
@@ -308,21 +308,33 @@ function RecordCard({
   onUpdate,
   onSave,
   onDelete,
+  highlighted,
 }: {
   rec: EditableRecord;
   onUpdate: (field: keyof EditableRecord, value: unknown) => void;
   onSave: () => void;
   onDelete: () => void;
+  highlighted?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(rec.isNew);
+  const [expanded, setExpanded] = useState(rec.isNew || !!highlighted);
+  const cardRef = useRef<HTMLDivElement>(null);
   const ps = PLATFORM_STYLES[rec.platform] ?? PLATFORM_STYLES.GrabFood;
   const hasMin = rec.order_no.trim() !== "" && rec.branch !== "" && rec.platform !== "";
   const price = parseFloat(rec.paid_price_str.replace(/,/g, ""));
 
+  useEffect(() => {
+    if (highlighted && cardRef.current) {
+      setExpanded(true);
+      setTimeout(() => cardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
+    }
+  }, [highlighted]);
+
   return (
     <div
+      ref={cardRef}
       className={`rounded-xl border transition-all ${
-        rec.saved ? "border-emerald-500/40 bg-emerald-500/5" : rec.error ? "border-red-500/40 bg-red-500/5" : "border-white/10 bg-white/[0.03]"
+        highlighted ? "border-violet-500/60 bg-violet-500/5 ring-1 ring-violet-500/30"
+        : rec.saved ? "border-emerald-500/40 bg-emerald-500/5" : rec.error ? "border-red-500/40 bg-red-500/5" : "border-white/10 bg-white/[0.03]"
       }`}
     >
       <div className="flex cursor-pointer items-center gap-3 px-4 py-3" onClick={() => setExpanded((p) => !p)}>
@@ -498,11 +510,18 @@ function RecordCard({
   );
 }
 
-export default function AdminCancellationInputTab() {
+export default function AdminCancellationInputTab({
+  initialDate,
+  focusOrder,
+}: {
+  initialDate?: string;
+  focusOrder?: string;
+} = {}) {
   const [approverName, setApproverName] = useState("");
   const [pin, setPin] = useState("");
-  const [selectedDate, setSelectedDate] = useState(todayISO());
+  const [selectedDate, setSelectedDate] = useState(initialDate ?? todayISO());
   const [records, setRecords] = useState<EditableRecord[]>([]);
+  const [highlightedUid, setHighlightedUid] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
   const [filterPlatform, setFilterPlatform] = useState<"All" | "GrabFood" | "FoodPanda">("All");
@@ -531,7 +550,12 @@ export default function AdminCancellationInputTab() {
           `/api/admin/analytics/manila/cancellations/by-date/${encodeURIComponent(date)}?${qs.toString()}`,
         );
         const items = Array.isArray(res?.items) ? res.items : [];
-        setRecords(items.map(dbToEditable));
+        const editable = items.map(dbToEditable);
+        setRecords(editable);
+        if (focusOrder) {
+          const match = editable.find((r) => r.order_no.trim() === focusOrder.trim());
+          setHighlightedUid(match ? match._uid : null);
+        }
       } catch (e: unknown) {
         setLoadError(e instanceof Error ? e.message : "Failed to load");
         setRecords([]);
@@ -857,6 +881,7 @@ export default function AdminCancellationInputTab() {
                   onUpdate={(field, value) => updateRec(rec._uid, field, value)}
                   onSave={() => void saveRecord(rec._uid)}
                   onDelete={() => void deleteRecord(rec._uid)}
+                  highlighted={rec._uid === highlightedUid}
                 />
               ))
             )}

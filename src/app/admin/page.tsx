@@ -1277,9 +1277,15 @@ function AdminPageInner() {
       ) : dashView === "dailyInventory" ? (
         <AdminDailyInventoryTab />
       ) : dashView === "cancellationInput" ? (
-        <AdminCancellationInputTab />
+        <AdminCancellationInputTab
+          initialDate={searchParams.get("date") ?? undefined}
+          focusOrder={searchParams.get("order") ?? undefined}
+        />
       ) : dashView === "dubaiCancellationInput" ? (
-        <AdminDubaiCancellationInputTab />
+        <AdminDubaiCancellationInputTab
+          initialDate={searchParams.get("date") ?? undefined}
+          focusOrder={searchParams.get("order") ?? undefined}
+        />
       ) : dashView === "orderEntry" ? (
         <div className="space-y-4">
           <div className={`${TAB_CONTAINER} w-full max-w-full overflow-x-auto`} role="tablist" aria-label="Number of Orders Input region">

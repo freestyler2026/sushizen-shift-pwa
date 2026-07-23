@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Clock,
   Download,
+  ExternalLink,
   Mail,
   RefreshCw,
   Search,
@@ -788,17 +789,18 @@ export default function CancellationReportPage() {
                       {sortCol === key && <span className="ml-1 opacity-50">{sortAsc ? "↑" : "↓"}</span>}
                     </th>
                   ))}
+                  <th className={`${TABLE_HEADER} px-3 py-3`} />
                 </tr>
               </thead>
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-8 text-center text-white/30">Loading…</td>
+                    <td colSpan={10} className="px-4 py-8 text-center text-white/30">Loading…</td>
                   </tr>
                 )}
                 {!loading && sorted.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-8 text-center text-white/25">
+                    <td colSpan={10} className="px-4 py-8 text-center text-white/25">
                       {loaded ? "No records match the current filter." : "Select a date range and click Load."}
                     </td>
                   </tr>
@@ -854,6 +856,15 @@ export default function CancellationReportPage() {
                           ? <span className="inline-flex items-center gap-1 text-rose-400"><Clock className="h-3 w-3" /> Pending</span>
                           : <TextCell text={r.refund_status} />
                         }
+                      </td>
+                      <td className={`${TABLE_CELL} px-3`} onClick={(e) => e.stopPropagation()}>
+                        <Link
+                          href={`/admin?tab=${city === "dubai" ? "dubai-cancellation-input" : "cancellation-input"}&date=${r.incident_date}&order=${encodeURIComponent(r.order_id ?? "")}`}
+                          className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/40 transition-colors hover:border-violet-500/40 hover:bg-violet-500/10 hover:text-violet-300"
+                          title="Open in Admin Dashboard"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </Link>
                       </td>
                     </tr>
                   );
