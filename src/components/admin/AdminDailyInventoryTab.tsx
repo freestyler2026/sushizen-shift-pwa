@@ -1427,6 +1427,20 @@ export default function AdminDailyInventoryTab() {
 
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // WAREHOUSE par pattern lookup for the form entry view (today's day)
+  const [formWHLookup, setFormWHLookup] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const dayName = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][new Date().getDay()];
+    apiFetch(`/api/daily-inventory/par-patterns/${encodeURIComponent(`WAREHOUSE_${dayName}`)}/items`)
+      .then((r) => r.json() as Promise<{ items?: { item_code: string; par_level: number }[] }>)
+      .then((d) => {
+        const lookup: Record<string, number> = {};
+        (d.items || []).forEach((it) => { lookup[it.item_code] = it.par_level; });
+        setFormWHLookup(lookup);
+      })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Load all items at mount for detail view (ensures allItems is complete regardless of which tabs are visited)
   useEffect(() => {
     void (async () => {
@@ -1874,16 +1888,17 @@ export default function AdminDailyInventoryTab() {
                       {sectionItems.map((item) => {
                         const entry = entries[item.item_code] || { qty: "", unit: item.default_unit, note: "" };
                         const num = parseFloat(entry.qty);
+                        const effectivePar = item.par_level ?? formWHLookup[item.item_code] ?? null;
                         const isLow = !Number.isNaN(num) && item.min_level !== null && num < item.min_level;
-                        const isWarn = !isLow && !Number.isNaN(num) && item.par_level !== null && num < item.par_level;
+                        const isWarn = !isLow && !Number.isNaN(num) && effectivePar !== null && num < effectivePar;
                         return (
                           <tr key={item.item_code} className={[TABLE_ROW, isLow ? "bg-red-500/5" : isWarn ? "bg-amber-500/5" : ""].join(" ")}>
                             <td className={`${TABLE_CELL} px-3`}>
                               <span className={isLow ? "font-medium text-red-300" : isWarn ? "font-medium text-amber-300" : "text-zinc-200"}>
                                 {item.item_name}
                               </span>
-                              {item.par_level !== null && (
-                                <div className="text-xs text-zinc-600">Par: {item.par_level} {entry.unit}</div>
+                              {effectivePar !== null && (
+                                <div className="text-xs text-zinc-600">Par: {effectivePar} {entry.unit}</div>
                               )}
                             </td>
                             <td className="px-2 py-3">
@@ -1901,7 +1916,7 @@ export default function AdminDailyInventoryTab() {
                               </select>
                             </td>
                             <td className="px-2 py-3 text-center">
-                              <StatusBadge qty={entry.qty} minLevel={item.min_level} parLevel={item.par_level} />
+                              <StatusBadge qty={entry.qty} minLevel={item.min_level} parLevel={effectivePar} />
                             </td>
                             <td className="hidden sm:table-cell px-3 py-3">
                               <input type="text" value={entry.note} onChange={(e) => handleEntryChange(item.item_code, "note", e.target.value)}
