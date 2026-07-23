@@ -204,17 +204,39 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
   useEffect(() => {
     apiFetch("/api/daily-inventory/par-patterns")
       .then((r) => r.json())
-      .then((d: { patterns?: string[] }) => {
+      .then(async (d: { patterns?: string[] }) => {
         const pats = d.patterns || [];
         setPatterns(pats);
-        if (pats.length > 0 && detail.report_date) {
-          const dt = new Date(detail.report_date + "T00:00:00");
-          const dayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][dt.getDay()];
-          const autoPattern = `${detail.branch}_${dayName}`;
-          if (pats.includes(autoPattern)) {
-            void handlePatternChange(autoPattern);
-          }
+        if (!pats.length || !detail.report_date) return;
+
+        const dt = new Date(detail.report_date + "T00:00:00");
+        const dayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][dt.getDay()];
+        const autoPattern = `${detail.branch}_${dayName}`;
+        const warehousePattern = `WAREHOUSE_${dayName}`;
+
+        // Build merged lookup: WAREHOUSE first (lower priority), then branch (overrides)
+        const merged: Record<string, number> = {};
+
+        if (pats.includes(warehousePattern)) {
+          try {
+            const r = await apiFetch(`/api/daily-inventory/par-patterns/${encodeURIComponent(warehousePattern)}/items`);
+            const data = await r.json() as { items?: { item_code: string; par_level: number }[] };
+            (data.items || []).forEach((it) => { merged[it.item_code] = it.par_level; });
+          } catch { /* ignore */ }
         }
+
+        if (pats.includes(autoPattern)) {
+          setActivePattern(autoPattern);
+          try {
+            const r = await apiFetch(`/api/daily-inventory/par-patterns/${encodeURIComponent(autoPattern)}/items`);
+            const data = await r.json() as { items?: { item_code: string; par_level: number }[] };
+            (data.items || []).forEach((it) => { merged[it.item_code] = it.par_level; });
+          } catch { /* ignore */ }
+        } else if (pats.includes(warehousePattern)) {
+          setActivePattern(warehousePattern);
+        }
+
+        setPatternLookup(merged);
       })
       .catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
