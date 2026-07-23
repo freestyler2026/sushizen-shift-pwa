@@ -899,7 +899,7 @@ function DailyReportTab({ city }: { city: string }) {
     setSessions([]);
     setExpandedIds(new Set());
     try {
-      const params = new URLSearchParams({ city, limit: "500" });
+      const params = new URLSearchParams({ city, limit: rangeMode ? "5000" : "500" });
       if (rangeMode) {
         params.set("date_from", date);
         params.set("date_to", dateTo);
