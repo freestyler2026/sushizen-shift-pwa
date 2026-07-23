@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-23 (session 140 — Generate PR unit_price fix deployed)
+Last updated: 2026-07-23 (session 141 — Prep Time OCR feature implemented & deployed)
 
 
 
@@ -13,6 +13,8 @@ Last updated: 2026-07-23 (session 140 — Generate PR unit_price fix deployed)
 
 ## ⚠️ Deployments Pending
 
+- Heroku: 2c33d68 (prep-time: DB table + receipt OCR + API endpoints) — deployed ✅ v1469
+- Vercel: 1d5a81b (analytics: Prep Time tab + PrepTimeTab component) — auto-deploying
 - Heroku: 5c7e39d (daily-inv: Generate PR now populates unit_price from procurement catalog) — deployed ✅ v1468
 - Vercel: 8dd6c77 (inventory: WAREHOUSE pattern par values in management view) — auto-deploying
 - Vercel: 0bb81de (inventory: daily report auto-loads WAREHOUSE pattern for WH items) — deployed ✅
@@ -65,6 +67,17 @@ Last updated: 2026-07-23 (session 140 — Generate PR unit_price fix deployed)
 - All 233 CK items in CUBAO_Tuesday were deleted when the pattern was deleted to clean up 48 wrong WH items added by staff using wrong template
 - Staff was asked to share original weekday par Excel for re-import
 - Waiting for Excel from staff — when received, re-import via "Import Weekly Par (Branch × Day)" button
+
+## Prep Time Feature — Architecture Notes (session 141)
+
+- **OCR trigger**: `_score_qc_photos()` in `discord_bot_service.py` — runs at photo-post time when Discord URL is still fresh
+- **Flow**: Discord photo posted → `download_image_bytes()` → `score_image_bytes()` (food QC) + `extract_receipt_prep_time()` (receipt OCR) → both saved to DB
+- **New table**: `prep_time_records` — status: `pending` (auto-OCR) → `confirmed` / `rejected` (manual review)
+- **Scoring**: ≤10min=100, 11-20min: 120-2×min (11=98, 20=80), 21-99min: 100-min (21=79, 99=1), ≥100min=0
+- **Aggregators confirmed OCR-ready**: GrabFood (Manila), Careem (Dubai), Keeta (Dubai). Foodpanda: TBD when sample received
+- **Pending Confirmation UI**: Analytics → Prep Time → "Pending Confirmation" sub-tab — edit + confirm/reject each OCR result
+- **Historical data**: URLs expire ~24-48h after Discord post; backfill impossible for old records. Data accumulates from today onward
+- **API endpoints**: `GET /api/admin/prep-time/records`, `GET /api/admin/prep-time/stats`, `PATCH /api/admin/prep-time/records/{id}`
 
 ## Known Issues
 
