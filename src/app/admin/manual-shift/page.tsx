@@ -444,6 +444,11 @@ export default function ManualShiftPage() {
   const [serverDraftCells, setServerDraftCells] = useState<Set<string>>(new Set());
   const [deletingCell, setDeletingCell] = useState<{ staffName: string; dateStr: string } | null>(null);
   const [deletingStaffGrid, setDeletingStaffGrid] = useState<string | null>(null);
+  const [paintMode, setPaintMode] = useState(false);
+  const [paintStart, setPaintStart] = useState(9);
+  const [paintEnd, setPaintEnd] = useState(17);
+  const [paintRole, setPaintRole] = useState("CK");
+
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
   const branchButtonRef = useRef<HTMLButtonElement>(null);
@@ -679,6 +684,16 @@ export default function ManualShiftPage() {
     setEditTarget(null);
     setEditCellRect(null);
     setTimeError("");
+  }
+
+  function applyPaint(staffName: string, dateStr: string) {
+    if (paintStart >= paintEnd) return;
+    const newShift: ShiftCell = { start_hour: paintStart, end_hour: paintEnd, role: paintRole, branch_code: branchCode || undefined };
+    setGridData((prev) => ({
+      ...prev,
+      [staffName]: { ...(prev[staffName] ?? {}), [dateStr]: newShift },
+    }));
+    setHasDraft(true);
   }
 
   function loadShiftIntoForm(shift: ShiftCell | null, index: number | null) {
@@ -1449,7 +1464,60 @@ export default function ManualShiftPage() {
         {/* ── Edit view ── */}
         {staffList.length > 0 && view === "edit" && (
           <>
-            <div className={`${W_CARD} overflow-hidden p-0`}>
+            {/* Paint Mode toolbar */}
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setPaintMode((p) => !p)}
+                className={`flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition ${
+                  paintMode
+                    ? "border-violet-400 bg-violet-500 text-white shadow-md shadow-violet-500/25"
+                    : "border-gray-200 bg-white text-gray-600 hover:border-indigo-300 hover:text-indigo-600"
+                }`}
+              >
+                🎨 Paint Mode {paintMode ? "ON" : "OFF"}
+              </button>
+              {paintMode && (
+                <>
+                  <div className="flex items-center gap-2 rounded-xl border border-violet-300/50 bg-violet-50 px-3 py-1.5">
+                    <span className="text-xs font-semibold text-violet-600">Template:</span>
+                    <label className="text-xs text-gray-500">Start</label>
+                    <select
+                      value={paintStart}
+                      onChange={(e) => setPaintStart(Number(e.target.value))}
+                      className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800"
+                    >
+                      {Array.from({ length: 24 }, (_, h) => (
+                        <option key={h} value={h}>{fmtHour(h)}</option>
+                      ))}
+                    </select>
+                    <label className="text-xs text-gray-500">End</label>
+                    <select
+                      value={paintEnd}
+                      onChange={(e) => setPaintEnd(Number(e.target.value))}
+                      className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800"
+                    >
+                      {Array.from({ length: 24 }, (_, h) => (
+                        <option key={h} value={h}>{fmtHour(h)}</option>
+                      ))}
+                    </select>
+                    <label className="text-xs text-gray-500">Role</label>
+                    <select
+                      value={paintRole}
+                      onChange={(e) => setPaintRole(e.target.value)}
+                      className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-800"
+                    >
+                      {getRoleOptions(city).map((r) => (
+                        <option key={r} value={r}>{r}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <span className="text-xs text-violet-500">Click any cell to stamp shift</span>
+                </>
+              )}
+            </div>
+
+            <div className={`${W_CARD} overflow-hidden p-0`} style={paintMode ? { cursor: "cell" } : {}}>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 z-20">
@@ -1492,8 +1560,8 @@ export default function ManualShiftPage() {
                                   <div className="group relative">
                                     <button
                                       type="button"
-                                      onClick={(e) => openEdit(name, d, e)}
-                                      className={`w-full rounded-lg border px-1.5 py-2 text-center text-[11px] font-semibold hover:opacity-80 transition ${specialStyle(shifts[0].role)}${isDraft ? " ring-2 ring-indigo-400 ring-inset" : ""}`}
+                                      onClick={(e) => paintMode ? applyPaint(name, d) : openEdit(name, d, e)}
+                                      className={`w-full rounded-lg border px-1.5 py-2 text-center text-[11px] font-semibold hover:opacity-80 transition ${specialStyle(shifts[0].role)}${isDraft ? " ring-2 ring-indigo-400 ring-inset" : ""}${paintMode ? " ring-2 ring-violet-400 ring-inset" : ""}`}
                                     >
                                       {specialLabel(shifts[0].role)}
                                       {shifts[0].note && (
@@ -1522,8 +1590,8 @@ export default function ManualShiftPage() {
                                         <button
                                           key={idx}
                                           type="button"
-                                          onClick={(e) => openEdit(name, d, e)}
-                                          className={`w-full rounded-lg border px-1.5 py-1.5 text-center transition ${tc.cell}${isDraft ? " ring-2 ring-indigo-400 ring-inset" : ""}`}
+                                          onClick={(e) => paintMode ? applyPaint(name, d) : openEdit(name, d, e)}
+                                          className={`w-full rounded-lg border px-1.5 py-1.5 text-center transition ${tc.cell}${isDraft ? " ring-2 ring-indigo-400 ring-inset" : ""}${paintMode ? " ring-2 ring-violet-400 ring-inset" : ""}`}
                                         >
                                           <div className={`text-xs leading-tight ${tc.time}`}>
                                             {fmtHour(c.start_hour)}–{fmtHour(c.end_hour)}
@@ -1556,10 +1624,10 @@ export default function ManualShiftPage() {
                               ) : (
                                 <button
                                   type="button"
-                                  onClick={(e) => openEdit(name, d, e)}
-                                  className="h-10 w-full rounded-lg border border-dashed border-gray-200 text-gray-300 hover:border-indigo-300 hover:text-indigo-400 transition"
+                                  onClick={(e) => paintMode ? applyPaint(name, d) : openEdit(name, d, e)}
+                                  className={`h-10 w-full rounded-lg border border-dashed transition ${paintMode ? "border-violet-300 text-violet-400 hover:bg-violet-50" : "border-gray-200 text-gray-300 hover:border-indigo-300 hover:text-indigo-400"}`}
                                 >
-                                  +
+                                  {paintMode ? "🎨" : "+"}
                                 </button>
                               )}
                             </td>
