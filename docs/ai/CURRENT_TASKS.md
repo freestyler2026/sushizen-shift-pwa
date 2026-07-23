@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-23 (session 132 — Menu Builder + Manila Allowances)
+Last updated: 2026-07-23 (session 133 — Staff Suggestions: Paint Mode + Cancellation Deep-link)
 
 
 
@@ -14,6 +14,7 @@ Last updated: 2026-07-23 (session 132 — Menu Builder + Manila Allowances)
 
 ## ⚠️ Deployments Pending
 
+- Vercel: eb16ed9 (Paint Mode + Cancellation deep-link) — auto-deploying
 - Vercel: 3a53bc1 (Manila Allowances page + 🍱 nav button) — auto-deploying
 - Heroku: d89b445 (manila_allowance_engine.py + 3 new API routes) — deployed ✅ v1445
 - Vercel: 9aa6bcd (Menu Builder: Clear & Reimport button, excluded count) — deployed ✅
@@ -74,6 +75,20 @@ After Heroku deploys 537a152:
 - Heroku: 4eb2305 (PO-Invoice Match DB + API) — deployed ✅
 - Vercel: 4313c0e (cost calc misplaced items panel) — deployed ✅
 - Heroku: 68a2689 (misplaced ingredient endpoints) — deployed ✅
+
+## Recently Completed (2026-07-23 session 133 — Staff Suggestions)
+
+### Suggestion 1: Paint Mode for Manual Shift (DEPLOYED ✅)
+- `/admin/manual-shift/page.tsx` — added 🎨 Paint Mode toggle button above the shift grid
+- When active: template bar appears (Start/End time + Role selectors), clicking any cell stamps the shift without opening a dialog
+- Empty cells show 🎨 icon and violet border in paint mode; existing cells get violet ring overlay
+
+### Suggestion 2: "Open in Admin Dashboard" deep-link from Cancellation Monitoring (DEPLOYED ✅)
+- `/admin/cancellations/page.tsx` — added ExternalLink icon button on each table row
+- Links to `/admin?tab=cancellation-input&date=DATE&order=ORDER` (Manila) or `dubai-cancellation-input` (Dubai)
+- `AdminCancellationInputTab.tsx` + `AdminDubaiCancellationInputTab.tsx` — added `initialDate` and `focusOrder` props
+- Matching record auto-scrolls into view and gets violet highlight ring after load
+- `/admin/page.tsx` — passes `date` and `order` URL params to both tabs
 
 ## Recently Completed (2026-07-23 session 132 — Menu Builder + Manila Allowances)
 
