@@ -2,7 +2,7 @@
 
 import {
   CheckCircle, ChevronDown, ChevronRight, Download, Fingerprint,
-  Loader2, MapPin, Pencil, Plus, RefreshCw, Trash2, XCircle, User,
+  Loader2, MapPin, Pencil, Plus, RefreshCw, Trash2, Upload, XCircle, User,
 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -857,6 +857,10 @@ function DailyReportTab({ city }: { city: string }) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [editingSession, setEditingSession] = useState<AttendanceSession | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [csvImportBranch, setCsvImportBranch] = useState("CUBAO");
+  const [csvImportBusy, setCsvImportBusy] = useState(false);
+  const [csvImportMsg, setCsvImportMsg] = useState("");
+  const csvImportRef = useRef<HTMLInputElement>(null);
   // Stale-fetch guard: increment on each load, discard results from older calls
   const loadCountRef = useRef(0);
 
@@ -1061,6 +1065,47 @@ function DailyReportTab({ city }: { city: string }) {
     setTimeout(() => URL.revokeObjectURL(url), 100);
   }
 
+  async function handleCsvImportFile(file: File) {
+    setCsvImportBusy(true);
+    setCsvImportMsg("");
+    try {
+      const auth = getAuth();
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("branch", csvImportBranch);
+      fd.append("city", city);
+      const res = await fetch("/api/admin/attendance/import-bayzat-timesheet-csv", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${auth?.accessToken || ""}` },
+        body: fd,
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        let detail = text;
+        try { detail = (JSON.parse(text) as { detail?: string }).detail || text; } catch { /* raw */ }
+        setCsvImportMsg(`Import failed: ${detail}`);
+        return;
+      }
+      const d = JSON.parse(text) as { ok?: boolean; imported?: number; skipped?: number; duplicate?: boolean; import_batch_id?: string; skipped_details?: { name: string; reason: string }[] };
+      if (d.duplicate) {
+        setCsvImportMsg("This file was already imported previously.");
+        return;
+      }
+      let msg = `Imported ${d.imported ?? 0} records, skipped ${d.skipped ?? 0}.`;
+      if ((d.skipped_details ?? []).length > 0) {
+        const reasons = (d.skipped_details ?? []).map(x => `${x.name}: ${x.reason}`).join("; ");
+        msg += ` Skipped: ${reasons}`;
+      }
+      setCsvImportMsg(msg);
+      void load();
+    } catch (e) {
+      setCsvImportMsg(`Import failed: ${String(e)}`);
+    } finally {
+      setCsvImportBusy(false);
+      if (csvImportRef.current) csvImportRef.current.value = "";
+    }
+  }
+
   const cellCls = "py-3 pr-3 text-sm align-middle";
 
   return (
@@ -1145,6 +1190,45 @@ function DailyReportTab({ city }: { city: string }) {
           className="ml-auto flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-white/60 hover:text-white hover:border-white/20 transition-colors disabled:opacity-40">
           <Download size={12} />Download CSV
         </button>
+      </div>
+
+      {/* ── Historical Bayzat CSV Import ──────────────────────────────────── */}
+      <div className="rounded-xl border border-sky-500/20 bg-sky-500/5 px-3 py-3 space-y-2">
+        <p className="text-xs font-semibold text-sky-300">Import Historical Attendance (Bayzat CSV)</p>
+        <p className="text-xs text-zinc-400">
+          Upload a Bayzat timesheet CSV for one branch at a time. Records over 14 h or under 0.5 h are skipped automatically.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={csvImportBranch}
+            onChange={e => setCsvImportBranch(e.target.value)}
+            className={SELECT_CLS + " text-xs py-1"}
+          >
+            <option value="CUBAO">Cubao</option>
+            <option value="PARANAQUE">Paranaque</option>
+            <option value="TAFT">Taft</option>
+          </select>
+          <button
+            onClick={() => csvImportRef.current?.click()}
+            disabled={csvImportBusy}
+            className="flex items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-1.5 text-xs font-semibold text-sky-300 hover:bg-sky-500/20 disabled:opacity-40"
+          >
+            {csvImportBusy ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+            {csvImportBusy ? "Importing…" : "Upload CSV"}
+          </button>
+          <input
+            ref={csvImportRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={e => { const f = e.target.files?.[0]; if (f) void handleCsvImportFile(f); }}
+          />
+        </div>
+        {csvImportMsg && (
+          <p className={`text-xs ${csvImportMsg.startsWith("Import failed") ? "text-red-400" : "text-emerald-400"}`}>
+            {csvImportMsg}
+          </p>
+        )}
       </div>
 
       <p className="text-xs text-white/30">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</p>
