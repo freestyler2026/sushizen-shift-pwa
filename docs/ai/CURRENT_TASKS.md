@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-23 (session 138 — Bayzat data double-check: branch mapping fixed + duplicates cleaned)
+Last updated: 2026-07-23 (session 139 — WAREHOUSE par level display: fixed report view + management view)
 
 
 
@@ -13,7 +13,10 @@ Last updated: 2026-07-23 (session 138 — Bayzat data double-check: branch mappi
 
 ## ⚠️ Deployments Pending
 
-- Vercel: e0064f2 (weekday par UI: WAREHOUSE description update) — auto-deploying
+- Vercel: 8dd6c77 (inventory: WAREHOUSE pattern par values in management view) — auto-deploying
+- Vercel: 0bb81de (inventory: daily report auto-loads WAREHOUSE pattern for WH items) — deployed ✅
+- Heroku: a285287 (weekday par template: merged branch headers + WAREHOUSE green header) — deployed ✅
+- Vercel: e0064f2 (weekday par UI: WAREHOUSE description update) — deployed ✅
 - Heroku: 4d580f4 (par-levels: add WAREHOUSE to weekday template + import) — deployed ✅ v1461
 - Heroku: (product scoring: retry on arrangement/portioning=0, clamp to min 1) — deployed ✅
 - Heroku: (OS Attendance: list_no_shows enriched with absence_type + is_day_off) — deployed ✅
@@ -51,7 +54,10 @@ Last updated: 2026-07-23 (session 138 — Bayzat data double-check: branch mappi
 - **WH Supplier catalog prices = PHP 0**: All WH Supplier items in `proc_curated_catalog_items` have `unit_price = 0`. Admin must enter prices manually in Procurement Catalog. Not a code bug.
 - **Alex Delgado Arrangement/Portion=0**: Existing scored record has 0s. The retry fix only applies to NEW photos. Admin needs to re-upload the photo or manually correct scores.
 - **"APPROVEL OD COMPLETE PRODUCT" OCR channel**: Staff wants OCR added to a specific channel. Best guess: `/store/ck-delivery` or `/store/ck-production`. Awaiting clarification.
-- **WH Par Level re-import**: Staff should download the NEW weekday template (now includes WAREHOUSE column) and re-enter par values, then import. This will create WAREHOUSE_Sunday/Tuesday/Thursday patterns.
+- **WH Par Level re-import**: Staff already imported WAREHOUSE_Sunday/Tuesday/Thursday patterns ✅. Par values now visible in:
+  - Management view (Manage Items): shows pattern value in violet with superscript "P" for WH items
+  - Daily inventory report: WH items show WAREHOUSE_${dayName} par level (from pattern)
+  - The "Par Level" column in management view still shows "—" for WH items with no STATIC par — the violet P value is read-only from pattern. Staff can click to set a static override if needed.
 
 ## ⚠️ CUBAO_Tuesday Par Pattern — Data Lost (Needs Recovery)
 
