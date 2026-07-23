@@ -107,6 +107,7 @@ import { ManilaCashierEvaluationTab } from "@/components/analytics/ManilaCashier
 import { ManilaCancellationsTab } from "@/components/analytics/ManilaCancellationsTab";
 import { DubaiCancellationsTab } from "@/components/analytics/DubaiCancellationsTab";
 import { ManilaFoodPandaTab } from "@/components/analytics/ManilaFoodPandaTab";
+import PrepTimeTab from "@/components/analytics/PrepTimeTab";
 import OvertimeTab from "./OvertimeTab";
 import LateTab from "./LateTab";
 import AbsenceTab from "./AbsenceTab";
@@ -2547,7 +2548,7 @@ export default function AdminAnalyticsPage() {
   const [comparisonLimit, setComparisonLimit] = useState("5000");
 
   const [viewMode, setViewMode] = useState<AnalyticsViewMode>("perfect_attendance");
-  const [analyticsTab, setAnalyticsTab] = useState<"staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai" | "overtime" | "late" | "absence" | "adherence" | "lean_shift" | "inventory_gap" | "disposal" | "backup" | "product_scoring">("staff");
+  const [analyticsTab, setAnalyticsTab] = useState<"staff" | "dubaiSales" | "manilaSales" | "evaluation" | "finance" | "procurement" | "ai" | "overtime" | "late" | "absence" | "adherence" | "lean_shift" | "inventory_gap" | "disposal" | "backup" | "product_scoring" | "prep_time">("staff");
   const [staffSearch, setStaffSearch] = useState("");
 
   const roleUpper = String(auth?.role || "STAFF").toUpperCase();
@@ -5805,7 +5806,7 @@ export default function AdminAnalyticsPage() {
                             ? "Backup Report"
                             : "Analytics";
   const analyticsTabs: Array<{
-    key: "staff" | "dubaiSales" | "manilaSales" | "evaluation" | "procurement" | "ai" | "overtime" | "late" | "absence" | "adherence" | "lean_shift" | "inventory_gap" | "disposal" | "backup" | "product_scoring";
+    key: "staff" | "dubaiSales" | "manilaSales" | "evaluation" | "procurement" | "ai" | "overtime" | "late" | "absence" | "adherence" | "lean_shift" | "inventory_gap" | "disposal" | "backup" | "product_scoring" | "prep_time";
     label: string;
     visible: boolean;
   }> = [
@@ -5818,6 +5819,7 @@ export default function AdminAnalyticsPage() {
     { key: "disposal", label: "Disposal Report", visible: isHQOrAdmin },
     { key: "backup", label: "Backup Report", visible: isHQOrAdmin },
     { key: "product_scoring", label: "Product Scoring", visible: isHQOrAdmin },
+    { key: "prep_time", label: "Prep Time", visible: isHQOrAdmin },
     { key: "overtime", label: "Overtime", visible: canViewStaffChannel },
     { key: "late", label: "Late", visible: canViewStaffChannel },
     { key: "absence", label: "Absence", visible: canViewStaffChannel },
@@ -9669,6 +9671,30 @@ export default function AdminAnalyticsPage() {
           ) : (
           <div className="mt-8 rounded-2xl border border-amber-800/50 bg-amber-950/20 p-5 text-sm text-amber-100">
             <div className="font-semibold">Product Scoring is locked</div>
+            <div className="mt-1 text-xs text-amber-100/90">
+              This section requires recent MFA verification (Passkey or Session PIN).
+            </div>
+            <div className="mt-2 space-y-0.5 text-xs text-amber-100/70">
+              <div>1) Click <span className="font-semibold text-amber-200">Verify With Passkey</span> in the Security section above.</div>
+              <div>2) If Passkey is unavailable, use <span className="font-semibold text-amber-200">Verify With PIN</span> as an alternative.</div>
+              <div>3) Once verified, this tab will unlock automatically.</div>
+            </div>
+          </div>
+          )
+          )}
+
+          {analyticsTab === "prep_time" && isHQOrAdmin && (
+          salesStepUpReady ? (
+          <div className="mt-8">
+            <PrepTimeTab
+              approverName={approverName}
+              pin={pin}
+              isHQOrAdmin={isHQOrAdmin}
+            />
+          </div>
+          ) : (
+          <div className="mt-8 rounded-2xl border border-amber-800/50 bg-amber-950/20 p-5 text-sm text-amber-100">
+            <div className="font-semibold">Prep Time is locked</div>
             <div className="mt-1 text-xs text-amber-100/90">
               This section requires recent MFA verification (Passkey or Session PIN).
             </div>

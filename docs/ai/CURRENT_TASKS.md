@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-23 (session 139 — WAREHOUSE par level display: fixed report view + management view)
+Last updated: 2026-07-23 (session 140 — Generate PR unit_price fix deployed)
 
 
 
@@ -13,6 +13,7 @@ Last updated: 2026-07-23 (session 139 — WAREHOUSE par level display: fixed rep
 
 ## ⚠️ Deployments Pending
 
+- Heroku: 5c7e39d (daily-inv: Generate PR now populates unit_price from procurement catalog) — deployed ✅ v1468
 - Vercel: 8dd6c77 (inventory: WAREHOUSE pattern par values in management view) — auto-deploying
 - Vercel: 0bb81de (inventory: daily report auto-loads WAREHOUSE pattern for WH items) — deployed ✅
 - Heroku: a285287 (weekday par template: merged branch headers + WAREHOUSE green header) — deployed ✅
