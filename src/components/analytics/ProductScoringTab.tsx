@@ -205,7 +205,7 @@ function WeeklyHistoryPanel({
   allStores: KnownStore[];
 }) {
   const [selectedStore, setSelectedStore] = useState("");
-  const [weekCount, setWeekCount] = useState(12);
+  const [weekCount, setWeekCount] = useState(0);
   const [rows, setRows] = useState<WeeklyHistoryRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -217,7 +217,7 @@ function WeeklyHistoryPanel({
     try {
       const qs = new URLSearchParams({
         store_code: selectedStore,
-        weeks: String(weekCount),
+        weeks: "52",
         approver_name: approverName,
         pin,
       });
@@ -235,8 +235,8 @@ function WeeklyHistoryPanel({
     }
   }
 
-  // Most-recent weekCount rows for display (rows already sorted newest→oldest)
-  const displayRows = rows.slice(0, weekCount);
+  // Most-recent weekCount rows for display (0 = show all available)
+  const displayRows = weekCount === 0 ? rows : rows.slice(0, weekCount);
 
   // Chart: oldest → newest for left-to-right
   const chartData = useMemo(
@@ -303,9 +303,10 @@ function WeeklyHistoryPanel({
             value={weekCount}
             onChange={(e) => setWeekCount(Number(e.target.value))}
           >
-            <option value={12}>12 weeks</option>
-            <option value={26}>26 weeks</option>
-            <option value={52}>52 weeks</option>
+            <option value={0}>All available</option>
+            <option value={4}>Last 4 weeks</option>
+            <option value={8}>Last 8 weeks</option>
+            <option value={12}>Last 12 weeks</option>
           </select>
         </div>
         <div className="flex items-end">
