@@ -81,6 +81,8 @@ type AttendanceSession = {
   late_minutes?: number | null;
   // Feature 4: synthetic no-show rows (client-side only, no real session)
   is_no_show?: boolean;
+  is_day_off?: boolean;
+  absence_type?: string | null;
   // Feature 6: source of the attendance record
   source?: "webauthn" | "bayzat";
   // Break records — populated by Daily Report API
@@ -170,6 +172,12 @@ function sessionStatus(s: AttendanceSession): "clocked_out" | "on_shift" | "not_
 
 function StatusBadge({ s }: { s: AttendanceSession }) {
   if (s.is_no_show) {
+    if (s.is_day_off) {
+      return <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-xs text-blue-400">Day Off</span>;
+    }
+    if (s.absence_type) {
+      return <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-xs text-amber-400">Absence</span>;
+    }
     return <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 border border-red-500/20 px-2 py-0.5 text-xs text-red-400">No Show</span>;
   }
   const st = sessionStatus(s);
@@ -928,7 +936,7 @@ function DailyReportTab({ city }: { city: string }) {
       let noShowRows: AttendanceSession[] = [];
       if (nsR?.ok) {
         try {
-          const nsD = await nsR.json() as { no_shows?: { staff_name: string; branch_code: string; scheduled_start_hour: number }[] };
+          const nsD = await nsR.json() as { no_shows?: { staff_name: string; branch_code: string; scheduled_start_hour: number; absence_type?: string | null; is_day_off?: boolean }[] };
           const existingNames = new Set(realSessions.map(s => s.staff_name.toLowerCase()));
           noShowRows = (nsD.no_shows ?? [])
             .filter(ns => !existingNames.has(ns.staff_name.toLowerCase()))
@@ -953,6 +961,8 @@ function DailyReportTab({ city }: { city: string }) {
               scheduled_start_hour: ns.scheduled_start_hour,
               late_minutes: null,
               is_no_show: true,
+              is_day_off: ns.is_day_off ?? false,
+              absence_type: ns.absence_type ?? null,
             }));
         } catch { /* no-shows are best-effort — silently ignore parse errors */ }
       }
