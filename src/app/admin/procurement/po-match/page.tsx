@@ -378,6 +378,7 @@ function QuickEntryTab({
       setVendorQ(""); setSelectedPo(null); setManualPoNo(""); setManualPoAmount("");
       setInvoiceNo(""); setInvoiceAmount(""); setNotes(""); setPhotoData("");
       setPoDate(TODAY); setInvoiceDate(TODAY); setPoRows([]);
+      setDiscrepancyType("OTHER");
       onSaved();
     } catch (e: unknown) {
       setMsg({ text: String(e), ok: false });
@@ -652,7 +653,7 @@ function DiscrepancyQueueTab() {
             className="flex w-full items-center justify-between p-4 text-left"
             onClick={() => {
               const next = expandedId === row.id ? null : row.id;
-              if (next !== expandedId) { setResolveNote(""); setResolveType("OTHER"); setMsg(""); }
+              if (next !== expandedId) { setResolveNote(""); setResolveType(row.discrepancy_type || "OTHER"); setMsg(""); }
               setExpandedId(next);
             }}
           >

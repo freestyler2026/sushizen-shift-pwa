@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-23 (session 133 — Staff Suggestions: Paint Mode + Cancellation Deep-link)
+Last updated: 2026-07-23 (session 134 — PO Match: supplier inquiry tracking + payment hold)
 
 
 
@@ -14,7 +14,10 @@ Last updated: 2026-07-23 (session 133 — Staff Suggestions: Paint Mode + Cancel
 
 ## ⚠️ Deployments Pending
 
-- Vercel: eb16ed9 (Paint Mode + Cancellation deep-link) — auto-deploying
+- Vercel: 92de36b (PO Match: supplier contact + payment hold badges) — auto-deploying
+- Heroku: d9139e5 (PO Match: contacted_by/contacted_at + /contact endpoint) — deployed ✅ v1454
+- Vercel: 1ec0d21 (Paint Mode Split Shift) — deployed ✅
+- Vercel: eb16ed9 (Paint Mode + Cancellation deep-link) — deployed ✅
 - Vercel: 3a53bc1 (Manila Allowances page + 🍱 nav button) — auto-deploying
 - Heroku: d89b445 (manila_allowance_engine.py + 3 new API routes) — deployed ✅ v1445
 - Vercel: 9aa6bcd (Menu Builder: Clear & Reimport button, excluded count) — deployed ✅
