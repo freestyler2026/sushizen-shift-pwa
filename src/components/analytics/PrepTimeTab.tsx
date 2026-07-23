@@ -108,6 +108,10 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
   const [pending, setPending] = useState<PrepTimeRecord[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Backfill state
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<string | null>(null);
+
   // Edit state for pending records
   const [editing, setEditing] = useState<Record<number, Partial<PrepTimeRecord>>>({});
   const [saving, setSaving] = useState<number | null>(null);
@@ -183,6 +187,33 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
     setEditing((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
   };
 
+  const handleBackfill = async () => {
+    setBackfilling(true);
+    setBackfillResult(null);
+    try {
+      const p = new URLSearchParams({
+        date_from: dateFrom,
+        date_to: dateTo,
+        approver_name: approverName,
+        pin,
+      });
+      if (cityFilter) p.set("city", cityFilter);
+      const res = await apiFetch(`/api/admin/prep-time/backfill?${p.toString()}`, { method: "POST" });
+      setBackfillResult(
+        `Done — ${res.receipts_found} receipt(s) found from ${res.processed} QC photos scanned. ` +
+        `(${res.skipped_already_done} already done, ${res.skipped_expired_url} expired URLs)`
+      );
+      if (res.receipts_found > 0) {
+        await loadDashboard();
+        setSubTab("pending");
+      }
+    } catch (e: unknown) {
+      setBackfillResult(`Error: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBackfilling(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Sub-tab bar */}
@@ -242,7 +273,19 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
             >
               {loading ? "Loading…" : "Refresh"}
             </button>
+            <button
+              onClick={handleBackfill}
+              disabled={backfilling}
+              className="px-4 py-1.5 rounded-lg bg-sky-600/80 hover:bg-sky-500/80 disabled:opacity-50 text-sm text-white transition-colors"
+            >
+              {backfilling ? "Scanning…" : "🔍 Scan QC Photos"}
+            </button>
           </div>
+          {backfillResult && (
+            <p className={`text-xs px-3 py-2 rounded-lg ${backfillResult.startsWith("Error") ? "bg-red-900/40 text-red-300" : "bg-sky-900/40 text-sky-200"}`}>
+              {backfillResult}
+            </p>
+          )}
 
           {/* Per-store stats table */}
           {stats.length > 0 && (
