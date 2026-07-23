@@ -295,7 +295,7 @@ export default function ManilaAllowancesPage() {
                                   className="accent-red-500"
                                 />
                                 <span className={it.cutoff1_flag_no_notice ? "text-red-300" : "text-zinc-500"}>
-                                  No prior notice (condition 4)
+                                  No advance notice of tardiness (condition 4)
                                 </span>
                               </label>
                             </div>
@@ -318,7 +318,7 @@ export default function ManilaAllowancesPage() {
                                   className="accent-red-500"
                                 />
                                 <span className={it.cutoff2_flag_no_notice ? "text-red-300" : "text-zinc-500"}>
-                                  No prior notice (condition 4)
+                                  No advance notice of tardiness (condition 4)
                                 </span>
                               </label>
                             </div>
@@ -352,8 +352,8 @@ export default function ManilaAllowancesPage() {
       )}
 
       <p className="text-xs text-zinc-600">
-        Conditions auto-checked: (1) AWOL / rejected shift change request, (2) Late ≥3x, (3) Cumulative late ≥60min.
-        Condition (4) No prior notice must be flagged manually after checking Discord.
+        Conditions auto-checked: (1) AWOL / shift change filed &lt;15 days in advance or rejected, (2) Late ≥3x, (3) Cumulative late &gt;60min.
+        Condition (4) No advance notice of tardiness (staff did not notify manager ≥2 hours before shift start) must be flagged manually.
       </p>
     </div>
   );
