@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useAuth } from "@/lib/auth";
-import { apiFetch } from "@/lib/api";
+import { getAuth } from "@/lib/auth";
+import { apiGet, apiPost } from "@/lib/api";
 
 const API = "/api/admin/manila-payroll";
 
@@ -58,7 +58,6 @@ function Badge({ ok, label }: { ok: boolean; label: string }) {
 }
 
 export default function ManilaAllowancesPage() {
-  const { auth } = useAuth();
   const now = new Date();
   const defaultMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const [month, setMonth] = useState(defaultMonth);
@@ -75,7 +74,7 @@ export default function ManilaAllowancesPage() {
   const load = useCallback(async (m: string) => {
     setLoading(true); setError("");
     try {
-      const res = await apiFetch<{ items: AllowanceItem[]; cutoff1: { start: string; end: string }; cutoff2: { start: string; end: string } }>(
+      const res = await apiGet<{ items: AllowanceItem[]; cutoff1: { start: string; end: string }; cutoff2: { start: string; end: string } }>(
         `${API}/allowances?month=${m}`
       );
       setItems(res.items || []);
@@ -95,9 +94,9 @@ export default function ManilaAllowancesPage() {
     if (!confirm(`Compute Meal Allowance & Perfect Attendance for ${month}?\n\nThis will recalculate from attendance data. Manual flags (No Prior Notice) will be preserved.`)) return;
     setComputing(true); setError(""); setSuccess("");
     try {
-      const res = await apiFetch<{ staff_count: number; cutoff1: string; cutoff2: string }>(
+      const res = await apiPost<{ staff_count: number; cutoff1: string; cutoff2: string }>(
         `${API}/allowances/compute?month=${month}`,
-        { method: "POST" }
+        {}
       );
       setSuccess(`Computed for ${res.staff_count} staff members. Cutoff1: ${res.cutoff1} / Cutoff2: ${res.cutoff2}`);
       await load(month);
@@ -112,9 +111,9 @@ export default function ManilaAllowancesPage() {
   ) {
     setPatchingStaff(staffName);
     try {
-      await apiFetch(
-        `${API}/allowances/${encodeURIComponent(staffName)}?month=${month}`,
-        { method: "PATCH", body: JSON.stringify({ [field]: value }) }
+      await apiPost<{ ok: boolean }>(
+        `${API}/allowances/${encodeURIComponent(staffName)}/flags?month=${month}`,
+        { [field]: value }
       );
       setItems(prev => prev.map(it =>
         it.staff_name === staffName ? { ...it, [field]: value } : it
