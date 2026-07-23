@@ -94,6 +94,48 @@ type CheckRow = {
   created_at: string;
 };
 
+type PoLineItem = {
+  line_no: number;
+  item_name: string;
+  po_qty: number;
+  po_unit: string;
+  po_unit_price: number;
+  po_line_total: number;
+  category?: string;
+};
+
+type InvLineItem = {
+  line_no: number;
+  item_name: string;
+  po_qty: number;
+  po_unit: string;
+  po_unit_price: number;
+  po_line_total: number;
+  inv_qty: string;
+  inv_unit: string;
+  inv_unit_price: string;
+  is_extra: boolean;
+};
+
+type CheckLine = {
+  id: string;
+  check_id: string;
+  line_no: number;
+  item_name: string;
+  po_qty: number;
+  po_unit: string;
+  po_unit_price: number;
+  po_line_total: number;
+  inv_qty: number;
+  inv_unit: string;
+  inv_unit_price: number;
+  inv_line_total: number;
+  line_status: string;
+  qty_delta: number;
+  price_delta: number;
+  amount_delta: number;
+};
+
 type SupplierStat = {
   vendor_name: string;
   total_checks: number;
@@ -165,6 +207,73 @@ function PaymentStatusBadge({ row }: { row: CheckRow }) {
 }
 
 // ─── Photo upload helper ──────────────────────────────────────────────────────
+
+const LINE_STATUS_META: Record<string, { label: string; color: string }> = {
+  MATCHED:     { label: "✅ Matched",     color: "text-emerald-400" },
+  AMOUNT_DIFF: { label: "🔴 Amount Diff", color: "text-red-400" },
+  QTY_DIFF:    { label: "🟡 Qty Diff",    color: "text-amber-300" },
+  PRICE_DIFF:  { label: "🟡 Price Diff",  color: "text-amber-300" },
+  MISSING:     { label: "⚫ Missing",      color: "text-zinc-400" },
+  EXTRA:       { label: "🟣 Extra Line",  color: "text-violet-400" },
+};
+
+function LineBadge({ status }: { status: string }) {
+  const m = LINE_STATUS_META[status] || { label: status, color: "text-zinc-400" };
+  return <span className={`text-xs font-semibold ${m.color}`}>{m.label}</span>;
+}
+
+function CheckLinesTable({ lines, currency }: { lines: CheckLine[]; currency: string }) {
+  if (!lines.length) return null;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-white/10">
+            <th className="py-2 pr-3 text-left font-medium text-zinc-500">Item</th>
+            <th className="py-2 pr-2 text-right font-medium text-zinc-500">PO Qty</th>
+            <th className="py-2 pr-2 text-left font-medium text-zinc-500">Unit</th>
+            <th className="py-2 pr-3 text-right font-medium text-zinc-500">PO Price</th>
+            <th className="py-2 pr-3 text-right font-medium text-zinc-500">PO Total</th>
+            <th className="py-2 pr-2 text-right font-medium text-zinc-500">Inv Qty</th>
+            <th className="py-2 pr-3 text-right font-medium text-zinc-500">Inv Price</th>
+            <th className="py-2 pr-3 text-right font-medium text-zinc-500">Inv Total</th>
+            <th className="py-2 text-left font-medium text-zinc-500">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map(l => (
+            <tr key={l.id} className="border-b border-white/5">
+              <td className="py-2 pr-3 text-zinc-200">{l.item_name || "—"}</td>
+              <td className="py-2 pr-2 text-right text-zinc-400">{l.po_qty > 0 ? l.po_qty : "—"}</td>
+              <td className="py-2 pr-2 text-zinc-400">{l.po_unit || "—"}</td>
+              <td className="py-2 pr-3 text-right text-zinc-400">{l.po_unit_price > 0 ? l.po_unit_price.toFixed(2) : "—"}</td>
+              <td className="py-2 pr-3 text-right text-zinc-300">{l.po_line_total > 0 ? l.po_line_total.toFixed(2) : "—"}</td>
+              <td className="py-2 pr-2 text-right text-zinc-200">{l.inv_qty > 0 ? l.inv_qty : "—"}</td>
+              <td className="py-2 pr-3 text-right text-zinc-200">{l.inv_unit_price > 0 ? l.inv_unit_price.toFixed(2) : "—"}</td>
+              <td className={`py-2 pr-3 text-right font-semibold ${l.line_status === "MATCHED" ? "text-emerald-400" : l.line_status === "AMOUNT_DIFF" || l.line_status === "MISSING" ? "text-red-400" : "text-amber-300"}`}>
+                {l.inv_line_total > 0 ? l.inv_line_total.toFixed(2) : l.line_status === "MISSING" ? "0.00" : "—"}
+              </td>
+              <td className="py-2 whitespace-nowrap"><LineBadge status={l.line_status} /></td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="border-t border-white/10">
+            <td colSpan={4} className="py-2 text-xs text-zinc-500">Line totals ({currency})</td>
+            <td className="py-2 pr-3 text-right text-xs font-semibold text-zinc-300">
+              {lines.reduce((s, l) => s + l.po_line_total, 0).toFixed(2)}
+            </td>
+            <td colSpan={2} />
+            <td className="py-2 pr-3 text-right text-xs font-semibold text-emerald-300">
+              {lines.reduce((s, l) => s + l.inv_line_total, 0).toFixed(2)}
+            </td>
+            <td />
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
 
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -270,6 +379,9 @@ function QuickEntryTab({
   const [invoiceNo, setInvoiceNo] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(TODAY);
   const [invoiceAmount, setInvoiceAmount] = useState("");
+  // Phase 2: line items
+  const [invLineItems, setInvLineItems] = useState<InvLineItem[]>([]);
+  const [linesLoading, setLinesLoading] = useState(false);
   const [notes, setNotes] = useState("");
   const [photoData, setPhotoData] = useState("");
   const [discrepancyType, setDiscrepancyType] = useState("OTHER");
@@ -329,13 +441,67 @@ function QuickEntryTab({
     return () => { if (poNoDebounce.current) clearTimeout(poNoDebounce.current); };
   }, [manualPoNo, city, selectedPo]);
 
-  const selectPo = (po: PoRow) => {
+  const selectPo = async (po: PoRow) => {
     setSelectedPo(po);
     setVendorQ(po.vendor_name);
     setManualPoNo(po.po_no);
     setManualPoAmount(String(po.po_amount));
     setPoDate(po.po_date?.slice(0, 10) || TODAY);
     setShowPoList(false);
+    // Fetch PO line items for Phase 2 matching
+    if (po.po_no) {
+      setLinesLoading(true);
+      try {
+        const d = await apiFetch(`/procurement/po-match/po-lines?city=${city}&po_no=${encodeURIComponent(po.po_no)}`);
+        const poLines: PoLineItem[] = d.lines || [];
+        setInvLineItems(poLines.map(l => ({
+          line_no: l.line_no,
+          item_name: l.item_name,
+          po_qty: l.po_qty,
+          po_unit: l.po_unit,
+          po_unit_price: l.po_unit_price,
+          po_line_total: l.po_line_total,
+          inv_qty: String(l.po_qty || ""),
+          inv_unit: l.po_unit,
+          inv_unit_price: String(l.po_unit_price || ""),
+          is_extra: false,
+        })));
+      } catch { /* leave lines empty on error */ }
+      finally { setLinesLoading(false); }
+    } else {
+      setInvLineItems([]);
+    }
+  };
+
+  // Auto-sync invoice amount from line totals when lines are present
+  const lineTotal = invLineItems.reduce((s, l) => {
+    const q = parseFloat(l.inv_qty || "0");
+    const p = parseFloat(l.inv_unit_price || "0");
+    return s + Math.round(q * p * 100) / 100;
+  }, 0);
+
+  useEffect(() => {
+    if (invLineItems.length > 0 && lineTotal > 0) {
+      setInvoiceAmount(lineTotal.toFixed(2));
+    }
+  }, [lineTotal, invLineItems.length]);
+
+  const updateInvLine = (idx: number, field: keyof InvLineItem, value: string) => {
+    setInvLineItems(prev => prev.map((l, i) => i === idx ? { ...l, [field]: value } : l));
+  };
+
+  const addExtraLine = () => {
+    setInvLineItems(prev => [...prev, {
+      line_no: prev.length + 1,
+      item_name: "",
+      po_qty: 0, po_unit: "", po_unit_price: 0, po_line_total: 0,
+      inv_qty: "", inv_unit: "", inv_unit_price: "",
+      is_extra: true,
+    }]);
+  };
+
+  const removeExtraLine = (idx: number) => {
+    setInvLineItems(prev => prev.filter((_, i) => i !== idx));
   };
 
   const tolAed = settings?.tolerance_aed ?? 1.0;
@@ -354,6 +520,23 @@ function QuickEntryTab({
     setSaving(true);
     setMsg(null);
     try {
+      const linesPayload = invLineItems.length > 0
+        ? invLineItems
+            .filter(l => l.item_name.trim() || l.is_extra === false)
+            .map((l, i) => ({
+              line_no: i + 1,
+              item_name: l.item_name,
+              po_qty: l.po_qty,
+              po_unit: l.po_unit,
+              po_unit_price: l.po_unit_price,
+              po_line_total: l.po_line_total,
+              inv_qty: parseFloat(l.inv_qty || "0"),
+              inv_unit: l.inv_unit,
+              inv_unit_price: parseFloat(l.inv_unit_price || "0"),
+              inv_line_total: Math.round(parseFloat(l.inv_qty || "0") * parseFloat(l.inv_unit_price || "0") * 100) / 100,
+              is_extra: l.is_extra,
+            }))
+        : null;
       await apiFetch("/procurement/po-match", {
         method: "POST",
         body: JSON.stringify({
@@ -369,6 +552,7 @@ function QuickEntryTab({
           notes: notes.trim(),
           photo_data: photoData,
           discrepancy_type: !isMatch ? discrepancyType : "",
+          ...(linesPayload ? { lines: linesPayload } : {}),
         }),
       });
       const matchMsg = isMatch
@@ -379,6 +563,7 @@ function QuickEntryTab({
       setInvoiceNo(""); setInvoiceAmount(""); setNotes(""); setPhotoData("");
       setPoDate(TODAY); setInvoiceDate(TODAY); setPoRows([]);
       setDiscrepancyType("OTHER");
+      setInvLineItems([]);
       onSaved();
     } catch (e: unknown) {
       setMsg({ text: String(e), ok: false });
@@ -493,6 +678,120 @@ function QuickEntryTab({
           {/* Spacer */}
           <div />
 
+          {/* Phase 2: Line Items Table */}
+          {(invLineItems.length > 0 || linesLoading) && (
+            <div className="sm:col-span-2 border-t border-white/10 pt-4">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-sm font-semibold text-zinc-300">📋 Invoice Line Items</p>
+                <button
+                  type="button"
+                  className="text-xs text-violet-400 hover:underline"
+                  onClick={addExtraLine}
+                >
+                  + Add Extra Line
+                </button>
+              </div>
+              {linesLoading ? (
+                <p className="text-xs text-zinc-500">Loading PO line items…</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-white/10">
+                        <th className="py-1.5 pr-2 text-left font-medium text-zinc-500">Item</th>
+                        <th className="py-1.5 pr-2 text-right font-medium text-zinc-500">PO Qty</th>
+                        <th className="py-1.5 pr-2 text-right font-medium text-zinc-500">PO Price</th>
+                        <th className="py-1.5 pr-2 text-right font-medium text-zinc-500">PO Total</th>
+                        <th className="py-1.5 pr-2 text-center font-medium text-zinc-500">→</th>
+                        <th className="py-1.5 pr-2 font-medium text-zinc-300">Inv Qty *</th>
+                        <th className="py-1.5 pr-2 font-medium text-zinc-300">Inv Price *</th>
+                        <th className="py-1.5 pr-2 text-right font-medium text-zinc-300">Inv Total</th>
+                        <th className="py-1.5" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invLineItems.map((line, idx) => {
+                        const iq = parseFloat(line.inv_qty || "0");
+                        const ip = parseFloat(line.inv_unit_price || "0");
+                        const invTotal = Math.round(iq * ip * 100) / 100;
+                        const poTotal = line.po_line_total;
+                        const diff = invTotal - poTotal;
+                        const isDiff = !line.is_extra && poTotal > 0 && Math.abs(diff) > (settings?.tolerance_aed ?? 1);
+                        return (
+                          <tr key={idx} className="border-b border-white/5">
+                            <td className="py-1 pr-2">
+                              {line.is_extra ? (
+                                <input
+                                  className="w-28 rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-200 outline-none focus:ring-1 focus:ring-violet-500"
+                                  placeholder="Item name"
+                                  value={line.item_name}
+                                  onChange={e => updateInvLine(idx, "item_name", e.target.value)}
+                                />
+                              ) : (
+                                <span className="text-zinc-300">{line.item_name}</span>
+                              )}
+                            </td>
+                            <td className="py-1 pr-2 text-right text-zinc-500">{line.po_qty > 0 ? line.po_qty : "—"}</td>
+                            <td className="py-1 pr-2 text-right text-zinc-500">{line.po_unit_price > 0 ? line.po_unit_price.toFixed(2) : "—"}</td>
+                            <td className="py-1 pr-2 text-right text-zinc-400">{line.po_line_total > 0 ? line.po_line_total.toFixed(2) : "—"}</td>
+                            <td className="py-1 pr-2 text-center text-zinc-600">→</td>
+                            <td className="py-1 pr-2">
+                              <input
+                                type="number" min="0" step="0.001"
+                                className="w-20 rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-200 outline-none focus:ring-1 focus:ring-violet-500"
+                                placeholder="0"
+                                value={line.inv_qty}
+                                onChange={e => updateInvLine(idx, "inv_qty", e.target.value)}
+                              />
+                            </td>
+                            <td className="py-1 pr-2">
+                              <input
+                                type="number" min="0" step="0.01"
+                                className="w-24 rounded bg-zinc-800 px-1.5 py-0.5 text-xs text-zinc-200 outline-none focus:ring-1 focus:ring-violet-500"
+                                placeholder="0.00"
+                                value={line.inv_unit_price}
+                                onChange={e => updateInvLine(idx, "inv_unit_price", e.target.value)}
+                              />
+                            </td>
+                            <td className={`py-1 pr-2 text-right font-semibold ${isDiff ? "text-red-400" : "text-emerald-300"}`}>
+                              {invTotal > 0 ? invTotal.toFixed(2) : "—"}
+                              {isDiff && <span className="ml-1 text-red-400">({diff > 0 ? "+" : ""}{diff.toFixed(2)})</span>}
+                            </td>
+                            <td className="py-1">
+                              {line.is_extra && (
+                                <button
+                                  type="button"
+                                  className="text-zinc-600 hover:text-red-400"
+                                  onClick={() => removeExtraLine(idx)}
+                                >
+                                  <XCircle size={13} />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-white/10">
+                        <td colSpan={3} className="py-1.5 text-xs text-zinc-500">Line totals</td>
+                        <td className="py-1.5 pr-2 text-right text-xs font-semibold text-zinc-400">
+                          {invLineItems.reduce((s, l) => s + l.po_line_total, 0).toFixed(2)}
+                        </td>
+                        <td colSpan={3} />
+                        <td className="py-1.5 pr-2 text-right text-xs font-bold text-emerald-300">
+                          {lineTotal.toFixed(2)}
+                        </td>
+                        <td />
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+              <p className="mt-1 text-xs text-zinc-600">Invoice Amount below is auto-filled from line totals. Edit to override (e.g. to include tax).</p>
+            </div>
+          )}
+
           {/* Invoice No */}
           <div>
             <label className={T_LABEL}>Invoice Number *</label>
@@ -520,6 +819,9 @@ function QuickEntryTab({
               value={invoiceAmount}
               onChange={e => setInvoiceAmount(e.target.value)}
             />
+            {invLineItems.length > 0 && (
+              <p className={`mt-1 ${T_CAPTION}`}>← Auto-summed from line items. Edit to override.</p>
+            )}
           </div>
         </div>
 
@@ -601,6 +903,7 @@ function DiscrepancyQueueTab() {
   const [resolving, setResolving] = useState<string | null>(null);
   const [contacting, setContacting] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
+  const [linesCache, setLinesCache] = useState<Record<string, CheckLine[]>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -651,10 +954,17 @@ function DiscrepancyQueueTab() {
         <div key={row.id} className={`${GLASS_CARD} overflow-hidden`}>
           <button
             className="flex w-full items-center justify-between p-4 text-left"
-            onClick={() => {
+            onClick={async () => {
               const next = expandedId === row.id ? null : row.id;
               if (next !== expandedId) { setResolveNote(""); setResolveType(row.discrepancy_type || "OTHER"); setMsg(""); }
               setExpandedId(next);
+              // Fetch line items on first expand
+              if (next && !linesCache[next]) {
+                try {
+                  const d = await apiFetch(`/procurement/po-match/${next}/lines`);
+                  setLinesCache(prev => ({ ...prev, [next]: d.lines || [] }));
+                } catch { /* lines unavailable */ }
+              }
             }}
           >
             <div className="flex flex-wrap items-center gap-3">
@@ -688,6 +998,14 @@ function DiscrepancyQueueTab() {
                   <div className="sm:col-span-3"><p className={T_LABEL}>Notes</p><p className="mt-0.5 text-zinc-300">{row.notes}</p></div>
                 )}
               </div>
+
+              {/* Line items breakdown */}
+              {linesCache[row.id] && linesCache[row.id].length > 0 && (
+                <div className="mt-4">
+                  <p className={`${T_LABEL} mb-2`}>Line Item Detail</p>
+                  <CheckLinesTable lines={linesCache[row.id]} currency={row.currency || currency} />
+                </div>
+              )}
 
               {/* Photo display */}
               {row.photo_data && (
