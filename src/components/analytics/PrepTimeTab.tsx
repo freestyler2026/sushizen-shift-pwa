@@ -112,6 +112,10 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
   const [backfilling, setBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState<string | null>(null);
 
+  // Bulk confirm state
+  const [bulkConfirming, setBulkConfirming] = useState(false);
+  const [bulkResult, setBulkResult] = useState<string | null>(null);
+
   // Edit state for pending records
   const [editing, setEditing] = useState<Record<number, Partial<PrepTimeRecord>>>({});
   const [saving, setSaving] = useState<number | null>(null);
@@ -227,6 +231,25 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
       setBackfillResult(`Error: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBackfilling(false);
+    }
+  };
+
+  const handleBulkConfirm = async (minConfidence: "" | "high" = "") => {
+    if (!confirm(`Confirm all pending records${minConfidence === "high" ? " (high confidence only)" : ""}?`)) return;
+    setBulkConfirming(true);
+    setBulkResult(null);
+    try {
+      const p = new URLSearchParams({ approver_name: approverName, pin });
+      if (cityFilter) p.set("city", cityFilter);
+      if (minConfidence) p.set("min_confidence", minConfidence);
+      const res = await apiFetch(`/api/admin/prep-time/bulk-confirm?${p.toString()}`, { method: "POST" });
+      setBulkResult(`${res.confirmed} record(s) confirmed.`);
+      setPending([]);
+      await loadDashboard();
+    } catch (e: unknown) {
+      setBulkResult(`Error: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBulkConfirming(false);
     }
   };
 
@@ -393,17 +416,42 @@ export default function PrepTimeTab({ approverName, pin, isHQOrAdmin }: Props) {
 
       {subTab === "pending" && (
         <>
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-white/50">
-              OCR-extracted records awaiting manual confirmation. Review and correct if needed before confirming.
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs text-white/50 flex-1 min-w-[200px]">
+              OCR-extracted records awaiting confirmation. Review and correct if needed before confirming.
             </p>
-            <button
-              onClick={loadPending}
-              className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-xs text-white transition-colors"
-            >
-              {loading ? "Loading…" : "Refresh"}
-            </button>
+            <div className="flex gap-2 items-center flex-wrap">
+              {pending.length > 0 && (
+                <>
+                  <button
+                    onClick={() => handleBulkConfirm("high")}
+                    disabled={bulkConfirming}
+                    className="px-3 py-1 rounded-lg bg-emerald-700/70 hover:bg-emerald-600/70 disabled:opacity-50 text-xs text-white transition-colors"
+                  >
+                    {bulkConfirming ? "…" : `✓ Confirm All High (${pending.filter(r => r.ocr_confidence === "high").length})`}
+                  </button>
+                  <button
+                    onClick={() => handleBulkConfirm("")}
+                    disabled={bulkConfirming}
+                    className="px-3 py-1 rounded-lg bg-emerald-900/60 hover:bg-emerald-800/60 disabled:opacity-50 text-xs text-white transition-colors"
+                  >
+                    {bulkConfirming ? "…" : `✓ Confirm All (${pending.length})`}
+                  </button>
+                </>
+              )}
+              <button
+                onClick={loadPending}
+                className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-xs text-white transition-colors"
+              >
+                {loading ? "Loading…" : "Refresh"}
+              </button>
+            </div>
           </div>
+          {bulkResult && (
+            <p className={`text-xs px-3 py-2 rounded-lg ${bulkResult.startsWith("Error") ? "bg-red-900/40 text-red-300" : "bg-emerald-900/40 text-emerald-200"}`}>
+              {bulkResult}
+            </p>
+          )}
 
           {!loading && pending.length === 0 && (
             <div className="text-center text-white/40 text-sm py-12">
