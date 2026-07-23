@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-23 (session 135b — PO Match: Phase 2 bug fixes from code review)
+Last updated: 2026-07-23 (session 136 — OS Attendance fixes, scoring retry, grade dist split, WH par template)
 
 
 
@@ -13,6 +13,13 @@ Last updated: 2026-07-23 (session 135b — PO Match: Phase 2 bug fixes from code
 
 ## ⚠️ Deployments Pending
 
+- Vercel: e0064f2 (weekday par UI: WAREHOUSE description update) — auto-deploying
+- Heroku: 4d580f4 (par-levels: add WAREHOUSE to weekday template + import) — deployed ✅ v1461
+- Heroku: (product scoring: retry on arrangement/portioning=0, clamp to min 1) — deployed ✅
+- Heroku: (OS Attendance: list_no_shows enriched with absence_type + is_day_off) — deployed ✅
+- Heroku: (OS Attendance: raise limit cap to 5000 for date-range mode) — deployed ✅
+- Vercel: (OS Attendance: Day Off/Absence/No Show badge differentiation + 5000 limit) — deployed ✅
+- Vercel: (Grade Distribution: split by Dubai/Manila sub-tables) — deployed ✅
 - Vercel: 7d32464 (PO Match: Phase 2 bug fixes — auto-sum override, race condition) — auto-deploying
 - Heroku: b5b7f66 (PO Match: Phase 2 bug fixes — 7 backend issues) — deployed ✅ v1457
 - Vercel: 0f85aea (PO Match: Phase 2 line-item matching + resolve type fix) — deployed ✅
@@ -27,6 +34,13 @@ Last updated: 2026-07-23 (session 135b — PO Match: Phase 2 bug fixes from code
 - Heroku: d89b445 (manila_allowance_engine.py + 3 new API routes) — deployed ✅ v1445
 - Vercel: 9aa6bcd (Menu Builder: Clear & Reimport button, excluded count) — deployed ✅
 - Heroku: a5ad9f6 (Menu Builder import: ingredient category filter + clear_existing) — deployed ✅ v1444
+
+## ⚠️ Pending Staff Actions
+
+- **WH Supplier catalog prices = PHP 0**: All WH Supplier items in `proc_curated_catalog_items` have `unit_price = 0`. Admin must enter prices manually in Procurement Catalog. Not a code bug.
+- **Alex Delgado Arrangement/Portion=0**: Existing scored record has 0s. The retry fix only applies to NEW photos. Admin needs to re-upload the photo or manually correct scores.
+- **"APPROVEL OD COMPLETE PRODUCT" OCR channel**: Staff wants OCR added to a specific channel. Best guess: `/store/ck-delivery` or `/store/ck-production`. Awaiting clarification.
+- **WH Par Level re-import**: Staff should download the NEW weekday template (now includes WAREHOUSE column) and re-enter par values, then import. This will create WAREHOUSE_Sunday/Tuesday/Thursday patterns.
 
 ## ⚠️ CUBAO_Tuesday Par Pattern — Data Lost (Needs Recovery)
 
