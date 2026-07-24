@@ -55,6 +55,7 @@ export default function CkParLevelsPage() {
   // seed state
   const [seeding, setSeeding] = useState(false);
   const [seedResult, setSeedResult] = useState<string>("");
+  const [seedConfirm, setSeedConfirm] = useState(false);
 
   // inline edit
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -92,7 +93,8 @@ export default function CkParLevelsPage() {
 
   // ── seed from Cost Calc ───────────────────────────────────────────────────
   const handleSeed = async () => {
-    if (!confirm(`Seed ${city} item list from Cost Calculation? (Existing par levels will NOT be overwritten.)`)) return;
+    if (!seedConfirm) { setSeedConfirm(true); return; }
+    setSeedConfirm(false);
     setSeeding(true);
     setSeedResult("");
     try {
@@ -253,13 +255,21 @@ export default function CkParLevelsPage() {
           </div>
 
           {/* Seed button */}
-          <button
-            onClick={handleSeed}
-            disabled={seeding}
-            className="rounded-xl border border-blue-500/30 bg-blue-500/15 px-4 py-2 text-sm font-medium text-blue-400 hover:bg-blue-500/25 disabled:opacity-60 transition-all"
-          >
-            {seeding ? "Seeding…" : "⟳ Seed from Cost Calc"}
-          </button>
+          {seedConfirm ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-amber-400">Seed {city} from Cost Calc?</span>
+              <button onClick={handleSeed} disabled={seeding} className="rounded-lg bg-amber-500/20 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-500/30 disabled:opacity-60">Yes, Seed</button>
+              <button onClick={() => setSeedConfirm(false)} className="rounded-lg bg-zinc-500/20 px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-500/30">Cancel</button>
+            </div>
+          ) : (
+            <button
+              onClick={handleSeed}
+              disabled={seeding}
+              className="rounded-xl border border-blue-500/30 bg-blue-500/15 px-4 py-2 text-sm font-medium text-blue-400 hover:bg-blue-500/25 disabled:opacity-60 transition-all"
+            >
+              {seeding ? "Seeding…" : "⟳ Seed from Cost Calc"}
+            </button>
+          )}
 
           {/* Upload Excel */}
           <label className={`cursor-pointer ${uploading ? "opacity-60 pointer-events-none" : ""}`}>
