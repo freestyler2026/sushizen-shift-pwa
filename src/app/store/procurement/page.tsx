@@ -30,6 +30,8 @@ import {
   ImageIcon,
   PackageSearch,
   TriangleAlert,
+  Printer,
+  BarChart2,
 } from "lucide-react";
 import { ProcurementStepper } from "@/components/ProcurementStepper";
 import { canAccessProcurementAdmin, getAuth, refreshAuthFromApi } from "@/lib/auth";
@@ -132,6 +134,166 @@ type CkDispatchRow = {
   request_id: string;
 };
 
+function printProcDeliveryNote(detail: RequestDetail, currencyCode: string) {
+  const now = new Date();
+  const printDate = now.toLocaleString("en-GB", {
+    day: "2-digit", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
+  const dnNo = `PR-DN-${detail.request_no}`;
+  const vendors = [...new Set((detail.items || []).map((i) => i.vendor_name).filter(Boolean))];
+  const vendorLabel = vendors.join(" / ") || "Supplier";
+
+  const rows = (detail.items || []).map((item, i) => `
+    <tr class="${i % 2 === 0 ? "even" : ""}">
+      <td class="num">${i + 1}</td>
+      <td class="name">${item.item_name}${item.spec ? `<div class="spec">${item.spec}</div>` : ""}</td>
+      <td class="vendor">${item.vendor_name || "-"}</td>
+      <td class="qty">${Number(item.qty || 0).toLocaleString()}</td>
+      <td class="unit">${item.unit}</td>
+      <td class="price">${item.unit_price > 0 ? Number(item.unit_price).toFixed(2) : "-"}</td>
+      <td class="total">${item.line_total > 0 ? Number(item.line_total).toFixed(2) : "-"}</td>
+    </tr>`).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Delivery Note — ${detail.request_no}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Helvetica Neue", Arial, sans-serif; background: #fff; color: #111; font-size: 12px; padding: 32px 36px; }
+  .top-bar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+  .brand { font-size: 24px; font-weight: 900; letter-spacing: 3px; color: #0f172a; }
+  .doc-block { text-align: right; }
+  .doc-type { font-size: 18px; font-weight: 800; color: #0f172a; letter-spacing: 1px; text-transform: uppercase; }
+  .doc-no { font-size: 11px; color: #64748b; margin-top: 3px; font-family: monospace; }
+  .bar { height: 4px; background: linear-gradient(90deg, #0f172a, #7c3aed, #0e7490); border-radius: 2px; margin-bottom: 20px; }
+  .address-grid { display: grid; grid-template-columns: 1fr 40px 1fr; gap: 0; margin-bottom: 18px; }
+  .address-box { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; background: #f8fafc; }
+  .address-box.to-box { background: #f0fdf4; border-color: #bbf7d0; }
+  .address-label { font-size: 9px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 5px; }
+  .address-name { font-size: 15px; font-weight: 800; color: #0f172a; }
+  .address-sub { font-size: 10px; color: #64748b; margin-top: 2px; }
+  .arrow-cell { display: flex; align-items: center; justify-content: center; font-size: 20px; color: #94a3b8; }
+  .meta-row { display: flex; gap: 0; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-bottom: 18px; }
+  .meta-item { flex: 1; padding: 8px 12px; border-right: 1px solid #e2e8f0; background: #f8fafc; }
+  .meta-item:last-child { border-right: none; }
+  .meta-label { font-size: 9px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+  .meta-value { font-size: 12px; font-weight: 600; color: #1e293b; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+  thead tr { background: #0f172a; color: #fff; }
+  th { padding: 8px 10px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; }
+  th.right { text-align: right; }
+  tbody tr.even { background: #f8fafc; }
+  td { padding: 9px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+  td.num { width: 28px; color: #94a3b8; font-size: 10px; }
+  td.name { font-size: 13px; font-weight: 500; }
+  td.name .spec { font-size: 10px; color: #94a3b8; margin-top: 2px; }
+  td.vendor { font-size: 10px; color: #64748b; width: 110px; }
+  td.qty { width: 60px; text-align: right; font-size: 13px; font-weight: 700; }
+  td.unit { width: 50px; color: #64748b; }
+  td.price { width: 80px; text-align: right; color: #64748b; }
+  td.total { width: 90px; text-align: right; font-weight: 700; color: #0f172a; }
+  .total-row { display: flex; justify-content: flex-end; margin-bottom: 22px; }
+  .total-box { border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 18px; background: #f1f5f9; text-align: right; }
+  .total-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+  .total-value { font-size: 18px; font-weight: 800; color: #0f172a; margin-top: 2px; }
+  .total-currency { font-size: 11px; color: #64748b; }
+  .signoff { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 16px; }
+  .sign-label { font-size: 9px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 28px; }
+  .sign-line { border-bottom: 1.5px solid #cbd5e1; margin-bottom: 4px; }
+  .sign-sub { font-size: 9px; color: #94a3b8; }
+  .footer { border-top: 1px solid #e2e8f0; padding-top: 10px; display: flex; justify-content: space-between; font-size: 9px; color: #94a3b8; }
+  @media print {
+    @page { margin: 0; size: A4; }
+    body { padding: 22px 26px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+  <div class="top-bar">
+    <div class="brand">SUSHI ZEN</div>
+    <div class="doc-block">
+      <div class="doc-type">Delivery Note</div>
+      <div class="doc-no">${dnNo}</div>
+    </div>
+  </div>
+  <div class="bar"></div>
+  <div class="address-grid">
+    <div class="address-box">
+      <div class="address-label">From (Supplier)</div>
+      <div class="address-name">${vendorLabel}</div>
+      <div class="address-sub">External Vendor</div>
+    </div>
+    <div class="arrow-cell">→</div>
+    <div class="address-box to-box">
+      <div class="address-label">To (Branch)</div>
+      <div class="address-name">${detail.store_code || "-"}</div>
+      <div class="address-sub">Requested by: ${detail.requested_by || "-"}</div>
+    </div>
+  </div>
+  <div class="meta-row">
+    <div class="meta-item">
+      <div class="meta-label">Print Date</div>
+      <div class="meta-value">${printDate}</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">PR Number</div>
+      <div class="meta-value">${detail.request_no}</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Order Date</div>
+      <div class="meta-value">${String(detail.request_date || "").slice(0, 10)}</div>
+    </div>
+    <div class="meta-item">
+      <div class="meta-label">Status</div>
+      <div class="meta-value">${detail.status}</div>
+    </div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Item Description</th>
+        <th>Vendor</th>
+        <th class="right">Qty</th>
+        <th>Unit</th>
+        <th class="right">Unit Price</th>
+        <th class="right">Line Total</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="total-row">
+    <div class="total-box">
+      <div class="total-label">Total Amount</div>
+      <div class="total-value">${Number(detail.total_amount || 0).toFixed(2)} <span class="total-currency">${currencyCode}</span></div>
+    </div>
+  </div>
+  <div class="signoff">
+    <div>
+      <div class="sign-label">Delivered / Dispatched by</div>
+      <div class="sign-line"></div>
+      <div class="sign-sub">Name &amp; Signature</div>
+    </div>
+    <div>
+      <div class="sign-label">Received by (Store)</div>
+      <div class="sign-line"></div>
+      <div class="sign-sub">Name &amp; Signature</div>
+    </div>
+  </div>
+  <div class="footer">
+    <div>Printed: ${printDate} · Sushi ZEN Workforce OS</div>
+    <div>${dnNo}</div>
+  </div>
+<script>window.onload = function() { window.print(); };</script>
+</body>
+</html>`;
+
+  const win = window.open("", "_blank", "width=950,height=700");
+  if (win) { win.document.write(html); win.document.close(); }
+}
 
 function RequestDetailDrawer({
   requestId,
@@ -559,6 +721,17 @@ function RequestDetailDrawer({
                   >
                     ✓ Received — File Claim
                   </Link>
+                  {detail && (
+                    <button
+                      type="button"
+                      onClick={() => printProcDeliveryNote(detail, currencyCode)}
+                      className="shrink-0 rounded-xl border border-violet-500/30 bg-violet-950/30 px-3 py-2.5 text-sm font-semibold text-violet-300 transition hover:bg-violet-900/40 flex items-center gap-1.5"
+                      title="Print Delivery Note"
+                    >
+                      <Printer className="h-4 w-4" />
+                      DN
+                    </button>
+                  )}
                 </div>
               );
             }
@@ -571,6 +744,17 @@ function RequestDetailDrawer({
                 >
                   Receive Now
                 </Link>
+                {detail && (
+                  <button
+                    type="button"
+                    onClick={() => printProcDeliveryNote(detail, currencyCode)}
+                    className="shrink-0 rounded-xl border border-violet-500/30 bg-violet-950/30 px-3 py-2.5 text-sm font-semibold text-violet-300 transition hover:bg-violet-900/40 flex items-center gap-1.5"
+                    title="Print Delivery Note"
+                  >
+                    <Printer className="h-4 w-4" />
+                    DN
+                  </button>
+                )}
               </div>
             );
           }
@@ -584,6 +768,17 @@ function RequestDetailDrawer({
                 >
                   File Claim
                 </Link>
+                {detail && (
+                  <button
+                    type="button"
+                    onClick={() => printProcDeliveryNote(detail, currencyCode)}
+                    className="shrink-0 rounded-xl border border-violet-500/30 bg-violet-950/30 px-3 py-2.5 text-sm font-semibold text-violet-300 transition hover:bg-violet-900/40 flex items-center gap-1.5"
+                    title="Print Delivery Note"
+                  >
+                    <Printer className="h-4 w-4" />
+                    DN
+                  </button>
+                )}
               </div>
             );
           }
@@ -664,6 +859,7 @@ export default function StoreProcurementHomePage() {
   const [lastCreatedClaimAt, setLastCreatedClaimAt] = useState("");
   const [showAllRecentActivities, setShowAllRecentActivities] = useState(false);
   const [expandedActionsByItem, setExpandedActionsByItem] = useState<Record<string, boolean>>({});
+  const [deliverySummaryOpen, setDeliverySummaryOpen] = useState(false);
   const [error, setError] = useState("");
   const [submitSuccessMsg, setSubmitSuccessMsg] = useState("");
   const [loading, setLoading] = useState(false);
@@ -789,16 +985,14 @@ export default function StoreProcurementHomePage() {
     }
   };
 
-  const loadMyRequests = useCallback(async (cityOverride?: string, _requestedByOverride?: string) => {
+  const loadMyRequests = useCallback(async (cityOverride?: string, _requestedByOverride?: string, storeCodeOverride?: string) => {
     setLoading(true);
     setError("");
     try {
       const activeCity = String(cityOverride || city || "manila").trim().toLowerCase() || "manila";
-      // No requested_by filter — show all requests for the city
-      const qs = new URLSearchParams({
-        city: activeCity,
-        limit: "200",
-      });
+      const activeStore = (storeCodeOverride !== undefined ? storeCodeOverride : storeCode).trim();
+      const qs = new URLSearchParams({ city: activeCity, limit: "200" });
+      if (activeStore) qs.set("store_code", activeStore);
       const data = await procurementJson<{ rows: RequestRow[] }>(
         `/api/admin/procurement/requests?${qs.toString()}`,
         { method: "GET" },
@@ -811,7 +1005,7 @@ export default function StoreProcurementHomePage() {
     } finally {
       setLoading(false);
     }
-  }, [city, pin, requestedBy]);
+  }, [city, pin, requestedBy, storeCode]);
 
 
   const handleCancelRow = async (rowId: string) => {
@@ -908,6 +1102,11 @@ export default function StoreProcurementHomePage() {
   useEffect(() => {
     if (storeCode) void loadPendingDeliveries();
     else setPendingDeliveries([]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeCode]);
+
+  useEffect(() => {
+    void loadMyRequests(undefined, undefined, storeCode);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeCode]);
 
@@ -1024,6 +1223,23 @@ export default function StoreProcurementHomePage() {
     () => selectDisplayedRequests(activeRows, rejectedRows, statusFilter),
     [activeRows, rejectedRows, statusFilter],
   );
+
+  // Monthly delivery summary: aggregate approved/received rows by YYYY-MM
+  const monthlySummary = useMemo(() => {
+    const SETTLED = new Set(["APPROVED", "RECEIVED", "CLAIMED", "CLOSED"]);
+    const byMonth: Record<string, { count: number; total: number }> = {};
+    for (const row of rows) {
+      if (!SETTLED.has(String(row.status || "").toUpperCase())) continue;
+      const month = String(row.request_date || "").slice(0, 7);
+      if (!month) continue;
+      if (!byMonth[month]) byMonth[month] = { count: 0, total: 0 };
+      byMonth[month].count += 1;
+      byMonth[month].total += Number(row.total_amount || 0);
+    }
+    return Object.entries(byMonth)
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([month, d]) => ({ month, ...d }));
+  }, [rows]);
 
   const STATUS_FILTER_LABEL: Record<string, string> = {
     DRAFT: "Draft", IN_REVIEW: "In Review", APPROVED: "Approved", RETURNED: "Returned", REJECTED: "Rejected",
@@ -1948,6 +2164,74 @@ export default function StoreProcurementHomePage() {
           </div>
         </div>
       ) : null}
+
+          {/* Delivery Summary */}
+          {storeCode && monthlySummary.length > 0 && (
+            <div className={`${BLUSH_GLASS} overflow-hidden`}>
+              <button
+                type="button"
+                onClick={() => setDeliverySummaryOpen((v) => !v)}
+                className="flex w-full items-center justify-between px-5 py-4 text-left"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/15 border border-violet-500/30">
+                    <BarChart2 className="h-4 w-4 text-violet-400" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-white">Delivery Amount Summary</p>
+                    <p className="text-xs text-zinc-500">Monthly totals for approved &amp; received orders</p>
+                  </div>
+                </div>
+                {deliverySummaryOpen
+                  ? <ChevronUp className="h-4 w-4 text-zinc-500 shrink-0" />
+                  : <ChevronDown className="h-4 w-4 text-zinc-500 shrink-0" />}
+              </button>
+              <AnimatePresence initial={false}>
+                {deliverySummaryOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="border-t border-white/8 px-5 pb-4 pt-3">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-xs text-zinc-500 border-b border-white/8">
+                            <th className="pb-2 text-left font-semibold">Month</th>
+                            <th className="pb-2 text-right font-semibold">Orders</th>
+                            <th className="pb-2 text-right font-semibold">Total ({currencyCode})</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {monthlySummary.map((row) => (
+                            <tr key={row.month} className="border-b border-white/5 last:border-0">
+                              <td className="py-2 text-zinc-300 font-mono text-xs">{row.month}</td>
+                              <td className="py-2 text-right text-zinc-400 text-xs">{row.count}</td>
+                              <td className="py-2 text-right font-semibold text-violet-300 tabular-nums">
+                                {Number(row.total).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t border-white/15">
+                            <td className="pt-2 text-xs text-zinc-500 font-semibold">Total</td>
+                            <td className="pt-2 text-right text-xs text-zinc-400">{monthlySummary.reduce((s, r) => s + r.count, 0)}</td>
+                            <td className="pt-2 text-right text-sm font-bold text-white tabular-nums">
+                              {monthlySummary.reduce((s, r) => s + r.total, 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                      <p className="mt-3 text-[11px] text-zinc-600">* Based on currently loaded requests (up to 200). Covers APPROVED, RECEIVED, CLAIMED &amp; CLOSED statuses.</p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
 
           {/* Request list */}
           <div id="history" className={`${BLUSH_GLASS} p-5`}>
