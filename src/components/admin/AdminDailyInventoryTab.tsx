@@ -187,7 +187,7 @@ function ReportDetailView({ detail, items, onBack }: { detail: ReportDetail; ite
   const entryMap: Record<string, ReportEntry> = {};
   detail.entries.forEach((e) => { entryMap[e.item_code] = e; });
 
-  const [detailSourceTab, setDetailSourceTab] = useState<SourceType>("ck");
+  const [detailSourceTab, setDetailSourceTab] = useState<SourceType>("supplier");
   const [orderModalOpen, setOrderModalOpen] = useState(false);
   const [orderQtys, setOrderQtys] = useState<Record<string, string>>({});
   const [orderSelected, setOrderSelected] = useState<Record<string, boolean>>({});
