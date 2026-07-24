@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-24 (session 155 continued — Refund/Cancellation form improvements deployed)
+Last updated: 2026-07-24 (session 155 continued — bug fixes after testing Refund/Cancellation forms)
 
 
 
@@ -12,6 +12,13 @@ Last updated: 2026-07-24 (session 155 continued — Refund/Cancellation form imp
 ---
 
 ## Recently Completed (2026-07-24 session 155 — Refund/Cancellation Form Improvements)
+
+### Cancellation form bug fixes after testing (DEPLOYED ✅ Heroku 114ce5c / Vercel 8130c9f)
+
+- **Dubai `cancellation_reason_other` not saved**: `buildUpsertBody()` now uses the free-text value as `cancellation_reason` when "Others" is selected (was silently discarded)
+- **Manila single-save same fix**: "Other" free-text value used as `cancellation_reason`
+- **Manila saveAll missing 3 fields**: `replace_all:true` only matched 8-space block, 10-space saveAll block had no `photo_status` / `refund_amount` / `compensation_amount` — fixed
+- **Backend**: `_float_or_none` moved to module level (was being redefined every loop iteration)
 
 ### Staff-requested Refund/Cancellation form improvements (DEPLOYED ✅ Heroku 28e385a / Vercel 25b3821)
 
