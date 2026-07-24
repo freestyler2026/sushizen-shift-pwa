@@ -9575,7 +9575,7 @@ export default function AdminAnalyticsPage() {
           </div>
           ) : analyticsTab === "procurement" ? (
           <ProcurementAnalyticsSection />
-          ) : analyticsTab === "overtime" ? null : analyticsTab === "late" ? null : analyticsTab === "absence" ? null : analyticsTab === "adherence" ? null : analyticsTab === "lean_shift" ? null : analyticsTab === "ai" ? null : analyticsTab === "product_scoring" ? null : (
+          ) : analyticsTab === "overtime" ? null : analyticsTab === "late" ? null : analyticsTab === "absence" ? null : analyticsTab === "adherence" ? null : analyticsTab === "lean_shift" ? null : analyticsTab === "ai" ? null : analyticsTab === "product_scoring" ? null : analyticsTab === "prep_time" ? null : (
           <div className={`mt-8 p-6 ${GLASS_CARD} ${BODY_TEXT}`}>
             This channel is not available for your current role/city.
           </div>

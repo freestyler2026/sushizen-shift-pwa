@@ -66,6 +66,7 @@ interface TodayData {
   session: AttendanceSession | null;
   visits: AttendanceVisit[];
   breaks: AttendanceBreak[];
+  open_session_yesterday: AttendanceSession | null;
 }
 
 // ─── WebAuthn helpers (native API) ───────────────────────────────────────────
@@ -289,6 +290,12 @@ export default function AttendancePage() {
   const [correctionReason, setCorrectionReason] = useState("");
   const [correctionBusy, setCorrectionBusy] = useState(false);
   const [correctionDone, setCorrectionDone] = useState(false);
+  // Missed clock-out correction (for open session from previous day)
+  const [unclosedCorrOpen, setUnclosedCorrOpen] = useState(false);
+  const [unclosedCorrCheckOut, setUnclosedCorrCheckOut] = useState("");
+  const [unclosedCorrReason, setUnclosedCorrReason] = useState("");
+  const [unclosedCorrBusy, setUnclosedCorrBusy] = useState(false);
+  const [unclosedCorrDone, setUnclosedCorrDone] = useState(false);
   const [wfhToday, setWfhToday] = useState(false);
   const [wfhBusy, setWfhBusy] = useState(false);
   const wfhTodayRef = useRef(false);
@@ -789,6 +796,39 @@ export default function AttendancePage() {
     }
   }
 
+  // ─── Missed clock-out correction submit ───────────────────────────────────
+  async function submitUnclosedCorrection() {
+    const unclosed = data?.open_session_yesterday;
+    if (!auth || !unclosed) return;
+    if (!unclosedCorrCheckOut || !unclosedCorrReason.trim()) return;
+    setUnclosedCorrBusy(true);
+    try {
+      const body: Record<string, string> = {
+        work_date: unclosed.work_date,
+        session_id: unclosed.id,
+        requested_check_out: unclosedCorrCheckOut,
+        reason: unclosedCorrReason.trim(),
+      };
+      const r = await fetch(`${API_BASE}/api/attendance/corrections`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) {
+        const j = await r.json() as { detail?: string };
+        setError(j.detail || "Failed to submit correction");
+        return;
+      }
+      setUnclosedCorrDone(true);
+      setUnclosedCorrOpen(false);
+      setUnclosedCorrReason("");
+    } catch {
+      setError("Failed to submit correction — please try again");
+    } finally {
+      setUnclosedCorrBusy(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -824,6 +864,82 @@ export default function AttendancePage() {
           <span>{success}</span>
         </div>
       )}
+      {/* ── Missed clock-out banner ──────────────────────────────────────────── */}
+      {data?.open_session_yesterday && !unclosedCorrDone && (() => {
+        const s = data.open_session_yesterday!;
+        const dateLabel = s.work_date;
+        const clockInLabel = s.check_in_at
+          ? new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: cityTz(auth?.city) }).format(new Date(s.check_in_at))
+          : "—";
+        return (
+          <div className="rounded-2xl border border-orange-500/50 bg-orange-950/30 px-4 py-4 space-y-3">
+            <div className="flex items-start gap-2">
+              <AlertCircle size={16} className="text-orange-400 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-orange-300">Missed Clock-Out Detected</p>
+                <p className="text-xs text-orange-300/70 mt-0.5">
+                  Your shift on <span className="font-medium text-orange-200">{dateLabel}</span> was
+                  never closed (clocked in at {clockInLabel}, no clock-out recorded).
+                </p>
+              </div>
+            </div>
+
+            {unclosedCorrOpen ? (
+              <div className="space-y-2.5 pt-1">
+                <div>
+                  <label className="text-xs text-zinc-400 block mb-1">What time did you finish work on {dateLabel}?</label>
+                  <input
+                    type="time"
+                    value={unclosedCorrCheckOut}
+                    onChange={e => setUnclosedCorrCheckOut(e.target.value)}
+                    className="w-full rounded-lg bg-zinc-800 border border-zinc-600 px-3 py-2 text-sm text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-zinc-400 block mb-1">Reason / details</label>
+                  <textarea
+                    value={unclosedCorrReason}
+                    onChange={e => setUnclosedCorrReason(e.target.value)}
+                    rows={2}
+                    placeholder="e.g. System error prevented clock-out, finished at 10pm"
+                    className="w-full rounded-lg bg-zinc-800 border border-zinc-600 px-3 py-2 text-sm text-white resize-none placeholder:text-zinc-500"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => void submitUnclosedCorrection()}
+                    disabled={unclosedCorrBusy || !unclosedCorrCheckOut || !unclosedCorrReason.trim()}
+                    className="flex-1 rounded-lg bg-orange-600 hover:bg-orange-500 disabled:opacity-40 px-3 py-2 text-sm font-medium text-white"
+                  >
+                    {unclosedCorrBusy ? "Submitting…" : "Submit Correction Request"}
+                  </button>
+                  <button
+                    onClick={() => setUnclosedCorrOpen(false)}
+                    className="rounded-lg border border-zinc-600 px-3 py-2 text-sm text-zinc-400 hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setUnclosedCorrOpen(true)}
+                className="w-full rounded-lg border border-orange-500/60 bg-orange-900/30 hover:bg-orange-900/50 px-3 py-2 text-sm font-medium text-orange-300"
+              >
+                Submit Missed Clock-Out Request
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
+      {unclosedCorrDone && (
+        <div className="flex items-start gap-2 rounded-xl bg-emerald-900/30 border border-emerald-700/40 px-3 py-2.5 text-sm text-emerald-300">
+          <CheckCircle2 size={15} className="mt-0.5 shrink-0" />
+          <span>Missed clock-out correction submitted — your manager will review it shortly.</span>
+        </div>
+      )}
+
       {/* Meal Allowance / Probation bonus banner */}
       {mealAllowanceBanner && (
         <div className={`rounded-2xl border-2 px-5 py-4 text-center shadow-lg ${
