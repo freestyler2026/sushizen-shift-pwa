@@ -1,6 +1,6 @@
 # CURRENT_TASKS.md
 
-Last updated: 2026-07-24 (session 154 — Menu Builder / Cost Calculation full migration)
+Last updated: 2026-07-24 (session 154 — Menu Builder deprecated; Sales BOM now syncs from Cost Calculation)
 
 
 
@@ -22,7 +22,22 @@ Last updated: 2026-07-24 (session 154 — Menu Builder / Cost Calculation full m
 - Added explanatory banner when 0 products, directing users to Import from Cost Calc with inline button
 - File: `src/app/admin/menu/products/page.tsx`
 
-### Menu Builder — Full Cost Calculation migration (DEPLOYED ✅ Heroku adfefc1 / Vercel 2551eef / EXECUTED ✅)
+### Menu Builder — DEPRECATED (NavBar link removed ✅ Vercel 52ee99c)
+- Pages at `/admin/menu/*` still exist in code but hidden from navigation
+- Tables (`menu_products`, `menu_categories`, etc.) kept in DB for future POS use
+- Reason: POS (Foodics) not connected; item catalog lives in Cost Calculation; ingredient deduction handled by Sales BOM
+
+### Menu Builder → Cost Calculation migration (previously executed 2026-07-24)
+- Dubai: 918 products, Manila: 863 products migrated — now irrelevant since Menu Builder deprecated
+
+### Sales BOM — Sync from Cost Calculation (DEPLOYED ✅ Heroku a358759 / Vercel 52ee99c)
+- **Architecture**: Cost Calculation is now the single source of truth for items. Sales BOM syncs from it.
+- **Backend**: `apply_sales_bom_from_cost_calc(city)` — reads all active `menu_item_master` + `menu_item_components`, resolves each ingredient to `inv_items` (creates bridge row if missing), upserts into `inv_menu_recipes`
+- **Endpoints**: `POST /api/admin/inventory/recipes/cost-calc/preview` and `/apply`
+- **Frontend**: `/admin/inventory/recipes` page replaced with "Sync from Cost Calculation" section — Preview shows count + item list; Apply runs the sync with confirmation modal
+- **Workflow**: Cost Calculation → add/update item → Inventory → Sales BOM → click "Sync from Cost Calc"
+
+### OLD: Menu Builder — Full Cost Calculation migration (previously executed, now superseded)
 - **Problem**: Menu Builder and Cost Calculation are completely separate DB tables. Items in Cost Calculation never auto-sync. Existing import button filtered out ingredient/CK categories.
 - **Backend**: `full_import_all_cost_items(city)` in `menu_db.py` — deletes all `menu_products` for city, imports ALL `menu_item_master` + active `ingredient_master` (all categories, no filter), auto-creates categories, auto-assigns new SKUs via `next_shared_sku()`
 - **Endpoint**: `POST /api/admin/menu/products/full-import-from-cost` in `menu_api.py`
