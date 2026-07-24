@@ -6,7 +6,7 @@ import {
   Database, Eye, UserPlus, AlertTriangle,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getAuth } from "@/lib/auth";
 import { GLASS_CARD, TAB_ACTIVE, TAB_INACTIVE, TAB_CONTAINER, PRIMARY_BUTTON } from "@/lib/ui-tokens";
@@ -125,7 +125,6 @@ function fmtHours(h: number) {
 
 export default function DubaiDtrUploadPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   useEffect(() => {
     const auth = getAuth();
@@ -135,7 +134,7 @@ export default function DubaiDtrUploadPage() {
 
   const [periods, setPeriods]               = useState<Period[]>([]);
   const [periodsLoading, setPeriodsLoading] = useState(true);
-  const [selectedPeriodId, setSelectedPeriodId] = useState<string>(searchParams.get("period_id") ?? "");
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string>("");
   const [dateFrom, setDateFrom]             = useState("");
   const [dateTo, setDateTo]                 = useState("");
   const [useCustomRange, setUseCustomRange] = useState(false);
